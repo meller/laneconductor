@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-950 text-gray-100 min-h-screen;
+}
+
+/* Markdown task-list checkboxes: override disabled greyed-out appearance */
+.markdown input[type="checkbox"] {
+  opacity: 1;
+  cursor: default;
+  accent-color: #3b82f6; /* blue-500 */
+}

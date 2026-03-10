@@ -1,0 +1,104 @@
+{
+  "hosting": [
+    {
+      "target": "landing",
+      "public": "landing",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "app",
+      "public": "ui/dist",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "/api/**",
+          "function": "api"
+        },
+        {
+          "source": "/auth/config",
+          "function": "api"
+        },
+        {
+          "source": "/auth/token",
+          "function": "api"
+        },
+        {
+          "source": "/project/**",
+          "function": "api"
+        },
+        {
+          "source": "/track/**",
+          "function": "api"
+        },
+        {
+          "source": "/tracks/**",
+          "function": "api"
+        },
+        {
+          "source": "/worker/**",
+          "function": "api"
+        },
+        {
+          "source": "/provider-status/**",
+          "function": "api"
+        },
+        {
+          "source": "/heartbeat",
+          "function": "api"
+        },
+        {
+          "source": "/log",
+          "function": "api"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Cross-Origin-Opener-Policy",
+              "value": "unsafe-none"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(js|css|woff2)",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "source": "cloud/functions",
+    "runtime": "nodejs20",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-functions-debug.log"
+    ]
+  }
+}
