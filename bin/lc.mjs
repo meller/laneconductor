@@ -231,7 +231,7 @@ Primary AI agent:
 Choice [1]: `) || '1';
         const agentMap = { '1': 'claude', '2': 'gemini', '3': 'other' };
         const primaryCli = agentMap[agentChoice] || 'claude';
-        const defaultModel = primaryCli === 'claude' ? 'haiku' : (primaryCli === 'gemini' ? 'gemini-1.5-pro' : '');
+        const defaultModel = primaryCli === 'claude' ? 'haiku' : (primaryCli === 'gemini' ? 'gemini-2.0-flash' : '');
         const primaryModel = await question(`Primary model [${defaultModel || 'default'}]: `) || defaultModel;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
@@ -245,7 +245,7 @@ Secondary AI agent:
   [3] other
 Choice [${secAgentChoice}]: `) || secAgentChoice;
             const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : 'gemini');
-            const secDefaultModel = secCli === 'claude' ? 'haiku' : (secCli === 'gemini' ? 'gemini-1.5-pro' : '');
+            const secDefaultModel = secCli === 'claude' ? 'haiku' : (secCli === 'gemini' ? 'gemini-2.0-flash' : '');
             const secModel = await question(`Secondary model [${secDefaultModel || 'default'}]: `) || secDefaultModel;
             secondary = { cli: secCli, model: secModel || null };
         }
