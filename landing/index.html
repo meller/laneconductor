@@ -1353,40 +1353,6 @@
             }
         }
 
-        /* ─── Waitlist form ──────────────────────────────────────── */
-        .waitlist-form {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-            max-width: 500px;
-        }
-
-        .waitlist-input {
-            flex: 1;
-            background: var(--bg-elevated);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 13px 16px;
-            font-size: 15px;
-            color: var(--ink);
-            font-family: var(--font-body);
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .waitlist-input::placeholder {
-            color: var(--ink-faint);
-        }
-
-        .waitlist-input:focus {
-            border-color: var(--purple);
-        }
-
-        @media (max-width: 500px) {
-            .waitlist-form {
-                flex-direction: column;
-            }
-        }
     </style>
 </head>
 
@@ -1404,8 +1370,8 @@
                 <li><a href="#features">Features</a></li>
                 <li><a href="wiki.html" style="color:var(--purple);font-weight:600;">Docs</a></li>
             </ul>
-            <a href="#waitlist" class="nav-cta">
-                Get Early Access →
+            <a href="https://github.com/meller/laneconductor" target="_blank" rel="noopener" class="nav-cta">
+                GitHub →
             </a>
         </div>
     </nav>
@@ -1992,7 +1958,6 @@
                 <div class="footer-links">
                     <a href="wiki.html" style="color:var(--purple);font-weight:600;">Docs</a>
                     <a href="https://github.com/meller/laneconductor" target="_blank" rel="noopener">GitHub</a>
-                    <a href="#waitlist">Early Access</a>
                     <a href="#how">How it works</a>
                     <a href="#features">Features</a>
                 </div>
@@ -2001,23 +1966,6 @@
     </footer>
 
     <script>
-        // Waitlist submission
-        function submitWaitlist(e, formId) {
-            e.preventDefault();
-            const emailId = formId === 'hero-waitlist' ? 'hero-email' : 'cta-email';
-            const email = document.getElementById(emailId).value;
-            const btn = e.target.querySelector('button[type="submit"]');
-            const original = btn.textContent;
-            btn.textContent = '✓ You\'re on the list!';
-            btn.style.background = 'var(--green)';
-            btn.disabled = true;
-            // Store locally + could POST to backend later
-            const list = JSON.parse(localStorage.getItem('lc_waitlist') || '[]');
-            if (!list.includes(email)) list.push(email);
-            localStorage.setItem('lc_waitlist', JSON.stringify(list));
-            console.log('Waitlist signup:', email);
-        }
-
         // Copy install command
         function copyInstall() {
             const cmd = document.getElementById('install-cmd').textContent;
