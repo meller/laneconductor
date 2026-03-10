@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+ui/node_modules/
+cloud/node_modules/
+
+# Environment & secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+ui/.env.remote
+conductor/.env
+
+# LaneConductor local config — machine-specific, contains DB credentials
+.laneconductor.json
+
+# Logs & runtime
+*.log
+/tmp/
+conductor/.sync.pid
+conductor/.sync.log
+
+# Git worktrees
+.worktrees/
+
+# Runtime state — machine-specific, auto-generated
+.conductor/
+conductor/tracks-metadata.json
+conductor/tracks.md
+conductor/tracks/**/conversation.md
+conductor/tracks/**/conversation.json
+
+# Build output
+ui/dist/
+cloud/dist/
+# Atlas CLI
+atlas
+atlas.exe
+bin/atlas*
+# Firebase project config (contains project ID — copy from .firebaserc.example)
+.firebaserc
+.firebase/
+landing/.firebaserc
+landing/.firebase/
+
+# Editor
+.DS_Store
+.idea/
+*.swp
+
+/generated/
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Claude local settings
+.claude/settings.local.json
+
+# PID files
+ui/.ui.pid
+ui/.api.pid
+.ui.pid
+.api.pid
+
+# Guard against re-adding debug scripts
+tmp_*.mjs
+check_*.mjs
+fix_*.mjs
+reset_*.mjs
+.test-tmp-local-api

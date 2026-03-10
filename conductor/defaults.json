@@ -1,0 +1,12 @@
+{
+    "mode": "local-fs",
+    "project": {
+        "primary": {
+            "cli": "claude",
+            "model": "haiku"
+        }
+    },
+    "ui": {
+        "port": 8090
+    }
+}

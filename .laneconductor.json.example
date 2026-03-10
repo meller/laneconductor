@@ -1,0 +1,29 @@
+{
+  "mode": "local-api",
+  "project": {
+    "name": "your-project-name",
+    "repo_path": "/absolute/path/to/your/project",
+    "id": null,
+    "git_remote": null,
+    "create_quality_gate": false,
+    "primary": { "cli": "claude", "model": "sonnet" },
+    "secondary": { "cli": "gemini", "model": null }
+  },
+  "collectors": [
+    {
+      "url": "http://127.0.0.1:8091",
+      "token": null
+    }
+  ],
+  "ui": {
+    "port": 8090
+  },
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "name": "laneconductor",
+    "user": "postgres",
+    "password": "your-db-password",
+    "ssl": false
+  }
+}

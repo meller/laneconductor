@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knowledge Base — LaneConductor Documentation</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <style>
+        /* ─── Reset ───────────────────────────────────────────────── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* ─── Design tokens ──────────────────────────────────────── */
+        :root {
+            --bg: #09090b;
+            --bg-card: #111113;
+            --bg-elevated: #18181b;
+            --border: rgba(255, 255, 255, 0.07);
+            --border-glow: rgba(139, 92, 246, 0.35);
+
+            --ink: #f4f4f5;
+            --ink-muted: #a1a1aa;
+            --ink-faint: #52525b;
+
+            --purple: #8b5cf6;
+            --purple-dim: #6d28d9;
+            --cyan: #22d3ee;
+            --amber: #f59e0b;
+            --green: #10b981;
+            --blue: #3b82f6;
+
+            --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
+            --font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+
+            --radius-sm: 6px;
+            --radius: 12px;
+            --radius-lg: 20px;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--ink);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        a {
+            color: var(--purple);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* ─── NAV ────────────────────────────────────────────────── */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 16px 0;
+            background: rgba(9, 9, 11, 0.9);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-size: 14px;
+            color: var(--ink-muted);
+        }
+
+        /* ─── LAYOUT ─────────────────────────────────────────────── */
+        .main-layout {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            flex: 1;
+        }
+
+        /* ─── SIDEBAR ────────────────────────────────────────────── */
+        aside {
+            width: 280px;
+            position: sticky;
+            top: 73px;
+            height: calc(100vh - 73px);
+            overflow-y: auto;
+            padding: 48px 24px;
+            border-right: 1px solid var(--border);
+        }
+
+        .sidebar-group {
+            margin-bottom: 32px;
+        }
+
+        .sidebar-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--ink-faint);
+            margin-bottom: 12px;
+        }
+
+        .sidebar-links {
+            list-style: none;
+        }
+
+        .sidebar-links li {
+            margin-bottom: 8px;
+        }
+
+        .sidebar-links a {
+            font-size: 14px;
+            color: var(--ink-muted);
+            transition: color 0.2s;
+        }
+
+        .sidebar-links a:hover {
+            color: var(--purple);
+            text-decoration: none;
+        }
+
+        /* ─── CONTENT ────────────────────────────────────────────── */
+        main {
+            flex: 1;
+            padding: 48px 64px 80px;
+            max-width: 900px;
+        }
+
+        header {
+            margin-bottom: 64px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 900;
+            letter-spacing: -2px;
+            margin-bottom: 16px;
+            color: var(--ink);
+        }
+
+        h2 {
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin: 64px 0 24px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            scroll-margin-top: 100px;
+        }
+
+        h3 {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 40px 0 16px;
+            color: var(--purple);
+            scroll-margin-top: 100px;
+        }
+
+        p {
+            margin-bottom: 24px;
+            color: var(--ink-muted);
+            font-size: 16px;
+            line-height: 1.7;
+        }
+
+        strong {
+            color: var(--ink);
+        }
+
+        ul,
+        ol {
+            margin-bottom: 24px;
+            padding-left: 20px;
+            color: var(--ink-muted);
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        code {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            background: var(--bg-elevated);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--cyan);
+        }
+
+        pre {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: var(--radius);
+            overflow-x: auto;
+            margin-bottom: 32px;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: var(--ink);
+        }
+
+        .callout {
+            background: rgba(139, 92, 246, 0.05);
+            border-left: 4px solid var(--purple);
+            padding: 20px 24px;
+            border-radius: 0 var(--radius) var(--radius) 0;
+            margin-bottom: 32px;
+        }
+
+        .callout-title {
+            font-weight: 700;
+            color: var(--purple);
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .callout p {
+            margin-bottom: 0;
+            font-size: 15px;
+        }
+
+        .command-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 32px;
+        }
+
+        .command-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .command-table td:first-child {
+            font-family: var(--font-mono);
+            color: var(--cyan);
+            white-space: nowrap;
+            width: 200px;
+        }
+
+        /* ─── DIAGRAMS ─────────────────────────────────────────── */
+        .diagram-container {
+            margin: 40px 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            text-align: center;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .diagram-container:hover {
+            transform: translateY(-4px);
+            border-color: var(--purple-dim);
+        }
+
+        .diagram-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: var(--radius-sm);
+            display: block;
+            margin: 0 auto 16px;
+        }
+
+        .diagram-caption {
+            font-size: 13px;
+            color: var(--ink-faint);
+            font-style: italic;
+        }
+
+        /* ─── RESPONSIVE ─────────────────────────────────────────── */
+        @media (max-width: 1000px) {
+            aside {
+                display: none;
+            }
+
+            main {
+                padding: 48px 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <div class="nav-inner">
+            <a href="index.html" class="nav-logo">
+                <img src="/logo.png" alt="LaneConductor" style="height: 24px; width: auto;" />
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="https://github.com/meller/laneconductor">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="main-layout">
+        <aside>
+            <div class="sidebar-group">
+                <div class="sidebar-title">Introduction</div>
+                <ul class="sidebar-links">
+                    <li><a href="#what-is-it">What is LaneConductor?</a></li>
+                    <li><a href="#conductor-pattern">The Conductor Pattern</a></li>
+                    <li><a href="#installation">Installation</a></li>
+                    <li><a href="#claude-skill">Use as Claude Skill</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-group">
+                <div class="sidebar-title">Architecture</div>
+                <ul class="sidebar-links">
+                    <li><a href="#modes">Operating Modes</a></li>
+                    <li><a href="#setup-scaffold">Setup Scaffold</a></li>
+                    <li><a href="#bidirectional-sync">Bidirectional Sync</a></li>
+                    <li><a href="#filesystem-bus">Filesystem Bus</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-group">
+                <div class="sidebar-title">Workflow</div>
+                <ul class="sidebar-links">
+                    <li><a href="#lifecycle">Track Lifecycle</a></li>
+                    <li><a href="#llm-config">LLM Configuration</a></li>
+                    <li><a href="#quality-gates">Quality Gates</a></li>
+                    <li><a href="#lane-transitions">Lane Transitions</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-group">
+                <div class="sidebar-title">Status & Safety</div>
+                <ul class="sidebar-links">
+                    <li><a href="#project-status">Project Status</a></li>
+                    <li><a href="#operational-safety">Operational Safety</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-group">
+                <div class="sidebar-title">Security</div>
+                <ul class="sidebar-links">
+                    <li><a href="#secret-management">Secret Management</a></li>
+                    <li><a href="#gitignore-pattern">What to Gitignore</a></li>
+                </ul>
+            </div>
+        </aside>
+
+        <main>
+            <header>
+                <h1>Knowledge Base</h1>
+                <p>A deep dive into the sovereign orchestration of AI development agents.</p>
+            </header>
+
+            <section id="what-is-it">
+                <h2>What is LaneConductor?</h2>
+                <p>LaneConductor is a professional-grade orchestrator designed to manage AI agents (like Claude or
+                    Gemini) as they work through complex software engineering tasks. Unlike simple chat interfaces,
+                    LaneConductor provides a **persistent, file-based state machine** that coordinates multiple agents
+                    across multiple repositories.</p>
+
+                <div class="diagram-container">
+                    <img src="/docs/architecture.png" alt="LaneConductor Architecture" />
+                    <div class="diagram-caption">Figure 1: High-level architecture of the LaneConductor ecosystem.</div>
+                </div>
+
+                <p>It acts as the "connective tissue" between your local development environment and the AI agent,
+                    providing visibility, guardrails, and automated verification for every change the agent makes.</p>
+            </section>
+
+            <section id="conductor-pattern">
+                <h2>The Conductor Pattern</h2>
+                <p>The core philosophy of LaneConductor is based on the <strong>Conductor Pattern</strong>. In this
+                    model, the AI agent is not just a chatbot, but a worker moving through a series of discrete "Lanes"
+                    (phases of development).</p>
+
+                <div class="callout">
+                    <div class="callout-title">The Loop</div>
+                    <p>Often referred to as the <strong>Ralph Wiggum Loop</strong>, the standard cycle is: <strong>Plan
+                            &rarr; Implement &rarr; Review &rarr; Quality Gate &rarr; Done</strong>.</p>
+                </div>
+
+                <p>Each Lane represents a specific level of commitment and verification:</p>
+
+                <div class="diagram-container">
+                    <img src="/docs/lifecycle.png" alt="Track Lifecycle" />
+                    <div class="diagram-caption">Figure 2: The standard track lifecycle and automation flow.</div>
+                </div>
+
+                <ul>
+                    <li><strong>Backlog:</strong> Ideas and requested features.</li>
+                    <li><strong>Plan:</strong> The agent drafts a technical specification (<code>spec.md</code>) for
+                        human approval.</li>
+                    <li><strong>Implement:</strong> The agent is actively writing code and performing internal
+                        iterations.</li>
+                    <li><strong>Review:</strong> The work is staged for human or peer-AI review.</li>
+                    <li><strong>Quality Gate:</strong> Automated verification (tests, linting, builds) is executed.</li>
+                    <li><strong>Done:</strong> The feature is merged and the track is closed.</li>
+                </ul>
+            </section>
+
+            <section id="installation">
+                <h2>Installation</h2>
+                <p>LaneConductor is designed to be lightweight and sovereign. It runs entirely on your hardware.</p>
+                <h3>Global Setup</h3>
+                <p>First, clone the core orchestrator and register the <code>lc</code> command.</p>
+                <pre><code>git clone https://github.com/meller/laneconductor.git
+cd laneconductor
+make install</code></pre>
+
+                <h3>Project Setup</h3>
+                <p>Navigate to any repo you want to track. LaneConductor needs to be initialized in each repository.</p>
+                <pre><code>cd ~/Code/my-awesome-app
+                lc install  # Installs local deps like chokidar
+                lc setup    # Scaffolds conductor/ directory</code></pre>
+
+                <p>After initializing with the CLI, use <strong>any AI Agent</strong> (Claude or Gemini) to generate
+                    your AI context
+                    files automatically:</p>
+                <pre><code># In Claude Code
+/laneconductor setup scaffold
+
+# In Gemini CLI
+Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
+
+                <div class="callout">
+                    <div class="callout-title">Skill Symlinking</div>
+                    <p>When you run <code>lc setup</code>, LaneConductor automatically creates a <strong>symbolic
+                            link</strong> (linux symlink)
+                        from your global installation into <code>.claude/skills/laneconductor</code> of the target repo.
+                        This ensures that all projects always use the latest version of the skill without manual
+                        copying.</p>
+                </div>
+
+                <div class="callout">
+                    <div class="callout-title">Database Requirement</div>
+                    <p>For <code>local-api</code> mode, you'll need a local Postgres instance. LaneConductor uses a
+                        single database to track all your projects simultaneously.</p>
+                </div>
+            </section>
+
+            <section id="claude-skill">
+                <h2>Use as a Pure Claude Skill</h2>
+                <p>LaneConductor is optimized for <strong>Claude Code</strong>. While the CLI handles infrastructure,
+                    the <code>/laneconductor</code> skill provides the AI agent with the instructions and tools it needs
+                    to operate autonomously.</p>
+
+                <h3>How to Invoke</h3>
+                <p>Once you've run <code>lc setup</code>, the skill is automatically symlinked into your project's
+                    <code>.claude/skills/</code>. You can then use it directly in your chat:
+                </p>
+                <pre><code>/laneconductor implement 101</code></pre>
+
+                <h3>Pure Skill Workflow</h3>
+                <p>In this mode, the agent uses its internal "System Prompt" (defined in <code>SKILL.md</code>) to:</p>
+                <ul>
+                    <li>Understand the **Conductor Workflow**.</li>
+                    <li>Read/Write to the **Filesystem Bus** (<code>conductor/tracks/</code>).</li>
+                    <li>Perform **Bidirectional Sync** with the local database.</li>
+                    <li>Coordinate with other agents through shared Markdown state.</li>
+                </ul>
+            </section>
+
+            <section id="setup-scaffold">
+                <h2>The Setup Scaffold Process</h2>
+                <p>The <code>/laneconductor setup scaffold</code> command is the fastest way to give an AI agent context
+                    about your project. It uses AI reasoning to scan your codebase and generate documentation.</p>
+
+                <h3>What happens during Scaffold?</h3>
+                <ol>
+                    <li><strong>Codebase Scan:</strong> The agent reads your <code>package.json</code>,
+                        <code>README.md</code>, source directories, and configuration files (ESLint, Prettier, etc.).
+                    </li>
+                    <li><strong>Inference:</strong> It infers the project's purpose, tech stack, and coding standards.
+                    </li>
+                    <li><strong>File Generation:</strong> It automatically scaffolds the <code>conductor/</code>
+                        directory:
+                        <ul>
+                            <li><code>product.md</code>: Business logic and high-level goals.</li>
+                            <li><code>tech-stack.md</code>: Frameworks, libraries, and architectural patterns.</li>
+                            <li><code>workflow.md</code>: Human-readable development process.</li>
+                            <li><code>code_styleguides/</code>: Detailed rules inferred from your config files.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Skill Linking:</strong> It ensures the LaneConductor skill is symlinked so it can be
+                        used locally.</li>
+                </ol>
+
+                <div class="callout">
+                    <div class="callout-title">Smart Migration</div>
+                    <p>Scaffold also detects "foreign tracks" from other tools (like Gemini Conductor) and offers to
+                        import them into the LaneConductor system automatically.</p>
+                </div>
+            </section>
+
+            <section id="llm-config">
+                <h2>LLM Configuration</h2>
+                <p>LaneConductor allows you to define which AI agents and models are used for specific tasks, providing
+                    a robust fallback system.</p>
+
+                <h3>Primary vs. Secondary LLMs</h3>
+                <p>Configured during <code>lc setup</code> or manually in <code>.laneconductor.json</code>, you can
+                    specify:</p>
+                <ul>
+                    <li><strong>Primary Agent:</strong> The default worker. (Default: <code>claude</code> using
+                        <code>haiku</code>).
+                    </li>
+                    <li><strong>Secondary Agent:</strong> A fallback worker used if the primary hits rate limits or
+                        specific task failures. (Default: <code>gemini</code> using <code>gemini-1.5-pro</code>).</li>
+                </ul>
+
+                <h3>Workflow Overrides</h3>
+                <p>In <code>conductor/workflow.json</code>, you can override models for specific lanes. For example, you
+                    might use a faster model for <code>planning</code> and a more powerful one for
+                    <code>implementation</code>:
+                </p>
+                <pre><code>{
+  "lanes": {
+    "plan": { "model": "haiku" },
+    "implement": { "model": "sonnet" }
+  }
+}</code></pre>
+            </section>
+
+            <section id="modes">
+                <h2>Operating Modes</h2>
+                <p>One of LaneConductor's greatest strengths is its flexibility. You can switch modes based on your
+                    environment.</p>
+
+                <h3>1. Local FS (Headless)</h3>
+                <p>The simplest mode. Everything is stored in Markdown files. There is no database or API server. This
+                    is perfect for <strong>air-gapped environments</strong> or <strong>CI/CD pipelines</strong> where
+                    you want a clean audit trail without infrastructure overhead.</p>
+
+                <h3>2. Local API (Dashboard)</h3>
+                <p>The standard developer experience. A background worker syncs your files to a local Postgres database,
+                    and a Vite-powered dashboard provides a real-time Kanban view of all your projects.</p>
+
+                <h3>3. Remote API (Team)</h3>
+                <p>For teams. Local workers sync to a shared remote collector. This allows project managers and
+                    teammates to see agent progress across the entire organization in a unified view.</p>
+            </section>
+
+            <section id="project-status">
+                <h2>Project Status & Verified Environment</h2>
+                <p>LaneConductor is in rapid active development. To ensure a stable experience, we recommend using the
+                    following verified configurations:</p>
+                <ul>
+                    <li><strong>Operating Systems:</strong> Ubuntu (Linux) and Windows Subsystem for Linux (WSL2).</li>
+                    <li><strong>Verified AI APIs:</strong> Claude CLI (<code>claude</code>) and Gemini CLI
+                        (<code>npx @google/gemini-cli</code>).</li>
+                    <li><strong>Core Mode:</strong> <code>local-api</code> (Local Postgres + Vite UI) is the primary
+                        tested pathway for daily development.</li>
+                </ul>
+                <p>Other environments (macOS, direct Windows) and mode combinations are currently under development.</p>
+            </section>
+
+            <section id="operational-safety">
+                <h2>Operational Safety & Best Practices</h2>
+                <p>Working with AI agents requires a balance between automation and oversight. We've identified two
+                    primary patterns of operation:</p>
+
+                <div class="callout">
+                    <div class="callout-title">Safe Mode (Highly Recommended)</div>
+                    <p>Run the background worker in <strong>sync-only mode</strong> (<code>lc start --sync-only</code>).
+                        In this mode, the worker only handles data synchronization. You then invoke the
+                        <code>/laneconductor</code> skill manually within your terminal environment as you work.
+                        This allows you to <strong>watch the agent's logic in real-time</strong> while using the
+                        UI dashboard for high-level tracking.
+                    </p>
+                </div>
+
+                <h3>The Hallucination Factor</h3>
+                <p>LaneConductor supports a "Full Loop" mode where the agent can automatically move from Plan &rarr;
+                    Implement &rarr; Review. However, this mode carries a higher risk of <strong>LLM
+                        Hallucinations</strong>.</p>
+                <p>Due to current LLM limitations, an agent might occasionally "think" it has completed a task, updated
+                    a file, or passed a test when it hasn't actually performed the action. This can lead to a state
+                    drift between the track documentation and the actual codebase.</p>
+
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Recommendation</div>
+                    <p>Unless you are performing highly repetitive, low-risk tasks, <strong>Safe Mode</strong> is the
+                        preferred workflow. Always use the <strong>Quality Gate</strong> lane or manual verification
+                        for any critical code changes.</p>
+                </div>
+            </section>
+
+            <section id="bidirectional-sync">
+                <h2>Bidirectional Sync</h2>
+                <p>LaneConductor solves the "source of truth" problem with a deterministic sync loop. It bridges the gap
+                    between the <strong>Filesystem</strong> (where agents work) and the <strong>API/UI</strong> (where
+                    humans coordinate).</p>
+                <p>The sync strategy is <strong>"Newer Wins"</strong>. If you edit a Markdown file on disk, the UI
+                    updates within 5 seconds. If you move a card on the Kanban board, the UI writes a signal to the
+                    filesystem that the agent picks up instantly.</p>
+            </section>
+
+            <section id="filesystem-bus">
+                <h2>Filesystem Bus</h2>
+                <p>The <strong>Filesystem Bus</strong> is the primary communication channel for LaneConductor. Instead
+                    of complex API calls, orchestration is handled by reading and writing to standardized Markdown files
+                    in your repository's <code>conductor/</code> directory.</p>
+
+                <div class="diagram-container">
+                    <img src="/docs/folder_structure.png" alt="LaneConductor Folder Structure" />
+                    <div class="diagram-caption">Figure 3: The 'conductor/' directory serves as the stateful Filesystem
+                        Bus.</div>
+                </div>
+
+                <p>This approach ensures that your project's technical context, workflow, and track states are always
+                    part of your version control (Git), enabling full traceability and "headless" operation without any
+                    database connectivity.</p>
+            </section>
+
+            <section id="lifecycle">
+                <h2>Track Lifecycle</h2>
+                <p>Every piece of work is a <strong>Track</strong>. A track is a folder containing its own history,
+                    specs, and state.</p>
+
+                <h3>Anatomy of a Track</h3>
+                <p>Located in <code>conductor/tracks/TRK-ID/</code>, a track typically contains:</p>
+                <ul>
+                    <li><strong>index.md:</strong> The main state file (Title, Description, Status, Progress).</li>
+                    <li><strong>spec.md:</strong> The technical plan and architectural decisions.</li>
+                    <li><strong>plan.md:</strong> The step-by-step execution phases.</li>
+                    <li><strong>test.md:</strong> Verification criteria and test plans, driving our <strong>context and
+                            test-driven</strong> approach.</li>
+                    <li><strong>conversation.md:</strong> The full history of comments between the human and the agent.
+                    </li>
+                    <li><strong>quality-gate.md:</strong> Track-specific quality criteria and verification results.</li>
+                </ul>
+
+                <h3>State Transitions</h3>
+                <p>Tracks move through the workflow based on the <code>conductor/workflow.json</code> configuration.
+                    Transitions can be triggered by the CLI, the UI, or the Agent itself through <code>lc pulse</code>.
+                </p>
+            </section>
+
+            <section id="quality-gates">
+                <h2>Quality Gates</h2>
+                <p>The <strong>Quality Gate</strong> lane is where trust is established. LaneConductor runs your
+                    project's existing verification tools before allowing a track to reach "Done".</p>
+                <p>Configuration is handled in <code>conductor/quality-gate.md</code> using a simple checklist format
+                    that the agent or human can execute.</p>
+                <pre><code># Quality Gate Checklist
+- [ ] Syntax: `npm run lint`
+- [ ] Logic: `npm test`
+- [ ] Security: `npm audit`</code></pre>
+            </section>
+
+            <section id="cli-general">
+                <h2>CLI Reference: General</h2>
+                <table class="command-table">
+                    <tr>
+                        <td>lc setup</td>
+                        <td>Initialize or update LaneConductor in the current repo.</td>
+                    </tr>
+                    <tr>
+                        <td>lc start</td>
+                        <td>Start the heartbeat worker (syncs files &larr;&rarr; DB).</td>
+                    </tr>
+                    <tr>
+                        <td>lc stop</td>
+                        <td>Stop the background heartbeat worker.</td>
+                    </tr>
+                    <tr>
+                        <td>lc restart</td>
+                        <td>Restart the background worker and API.</td>
+                    </tr>
+                    <tr>
+                        <td>lc ui</td>
+                        <td>Launch the Kanban dashboard (Vite).</td>
+                    </tr>
+                    <tr>
+                        <td>lc api</td>
+                        <td>Directly manage the Collector API service.</td>
+                    </tr>
+                    <tr>
+                        <td>lc status</td>
+                        <td>Print a summary of active tracks in the terminal.</td>
+                    </tr>
+                    <tr>
+                        <td>lc verify</td>
+                        <td>Run health checks on the project setup.</td>
+                    </tr>
+                </table>
+            </section>
+
+            <section id="cli-track">
+                <h2>CLI Reference: Track Management</h2>
+                <table class="command-table">
+                    <tr>
+                        <td>lc new [title]</td>
+                        <td>Create a new track and scaffold files.</td>
+                    </tr>
+                    <tr>
+                        <td>lc move [id] [lane]</td>
+                        <td>Manually transition a track to a new lane.</td>
+                    </tr>
+                    <tr>
+                        <td>lc pulse [id] [msg] [%]</td>
+                        <td>Update progress and status message.</td>
+                    </tr>
+                    <tr>
+                        <td>lc comment [id] [msg]</td>
+                        <td>Post a message to the track's inbox.</td>
+                    </tr>
+                    <tr>
+                        <td>lc show [id]</td>
+                        <td>Show detailed status, spec, and recent logs.</td>
+                    </tr>
+                    <tr>
+                        <td>lc logs [id]</td>
+                        <td>Tail the execution logs for a specific track.</td>
+                    </tr>
+                    <tr>
+                        <td>lc rerun [id]</td>
+                        <td>Reset retries and requeue for processing.</td>
+                    </tr>
+                    <tr>
+                        <td>lc quality-gate [id]</td>
+                        <td>Run the automated quality checks for a track.</td>
+                    </tr>
+                </table>
+
+                <div class="callout">
+                    <div class="callout-title">Shorthand Commands</div>
+                    <p>You can use lane names as commands: <code>lc plan 101</code> is equivalent to
+                        <code>lc move 101 plan</code>. This works for <code>plan</code>, <code>implement</code>,
+                        <code>review</code>, <code>quality-gate</code>, and <code>done</code>.
+                    </p>
+                </div>
+            </section>
+
+            <section id="configuration">
+                <h2>Configuration</h2>
+                <p>LaneConductor is highly configurable. The two main control files are:</p>
+
+                <h3>1. .laneconductor.json</h3>
+                <p>Stores project-specific settings like the Project ID, mode, and visibility.</p>
+
+                <h3>2. conductor/workflow.json</h3>
+                <p>Defines the state machine behavior. You can set parallel execution limits per lane, model overrides,
+                    and custom success/failure transitions.</p>
+                <pre><code>{
+  "lanes": {
+    "implement": {
+      "parallel_limit": 1,
+      "max_retries": 3,
+      "on_success": "review:queue"
+    }
+  }
+}</code></pre>
+            </section>
+
+            <section id="secret-management">
+                <h2>Secret Management</h2>
+                <p>LaneConductor follows a strict pattern: <strong>no secrets in source code, no secrets in git history</strong>. All credentials are stored in GCP Secret Manager and pulled locally on demand via ADC.</p>
+
+                <h3>The Pattern</h3>
+                <p>Every sensitive value lives in exactly one place: <strong>GCP Secret Manager</strong>. Local <code>.env</code> files are generated from Secret Manager at dev-time and are always gitignored. Example files with placeholders are committed instead.</p>
+
+                <pre><code>Repository (public)          GCP Secret Manager (private)
+─────────────────────        ────────────────────────────
+.env.example            ←──  CLOUD_DB_PASSWORD
+.firebaserc.example     ←──  CLOUD_DB_HOST / CLOUD_DB_USER
+.laneconductor.json     ←──  VITE_FIREBASE_API_KEY
+  .example                   VITE_FIREBASE_PROJECT_ID
+                             GCP_PROJECT_ID
+                             ... (all runtime secrets)</code></pre>
+
+                <h3>Bootstrapping a New Machine</h3>
+                <p>After cloning, a single script pulls everything from Secret Manager and writes the local env files:</p>
+                <pre><code>gcloud auth application-default login
+./scripts/load-env.sh</code></pre>
+                <p>This writes <code>.env</code> and <code>ui/.env.remote</code> — both gitignored. Access is controlled by GCP IAM: only accounts granted the <code>Secret Manager Secret Accessor</code> role can run the script successfully.</p>
+
+                <h3>Cloud Functions</h3>
+                <p>Firebase Cloud Functions read secrets at runtime via <code>defineSecret()</code> from <code>firebase-functions/params</code>. Secrets are declared in the function export and injected by Firebase — never hardcoded or passed as environment variables in deployment config:</p>
+                <pre><code>const dbPassword = defineSecret("CLOUD_DB_PASSWORD");
+const dbHost     = defineSecret("CLOUD_DB_HOST");
+const dbUser     = defineSecret("CLOUD_DB_USER");
+
+export const api = onRequest({ secrets: [dbPassword, dbHost, dbUser] }, app);</code></pre>
+
+                <h3>Deploy Scripts</h3>
+                <p>The production migration script (<code>scripts/migrate-prod.sh</code>) fetches all credentials from Secret Manager at runtime — no values are hardcoded:</p>
+                <pre><code>DB_HOST=$(gcloud secrets versions access latest --secret="CLOUD_DB_HOST" --project="$GCP_PROJECT_ID")
+DB_USER=$(gcloud secrets versions access latest --secret="CLOUD_DB_USER" --project="$GCP_PROJECT_ID")
+DB_PASSWORD=$(gcloud secrets versions access latest --secret="CLOUD_DB_PASSWORD" --project="$GCP_PROJECT_ID")</code></pre>
+            </section>
+
+            <section id="gitignore-pattern">
+                <h2>What to Gitignore</h2>
+                <p>The following files are always gitignored. Each has a corresponding <code>.example</code> file committed in its place:</p>
+
+                <table style="width:100%;border-collapse:collapse;margin-top:1rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <th style="text-align:left;padding:8px 12px;color:var(--ink-muted)">Gitignored file</th>
+                            <th style="text-align:left;padding:8px 12px;color:var(--ink-muted)">Example file in repo</th>
+                            <th style="text-align:left;padding:8px 12px;color:var(--ink-muted)">Why</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:8px 12px"><code>.env</code></td>
+                            <td style="padding:8px 12px"><code>.env.example</code></td>
+                            <td style="padding:8px 12px">DB passwords, cloud credentials</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:8px 12px"><code>ui/.env.remote</code></td>
+                            <td style="padding:8px 12px"><code>ui/.env.remote.example</code></td>
+                            <td style="padding:8px 12px">Firebase Web SDK config</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:8px 12px"><code>.firebaserc</code></td>
+                            <td style="padding:8px 12px"><code>.firebaserc.example</code></td>
+                            <td style="padding:8px 12px">Firebase project ID</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:8px 12px"><code>.laneconductor.json</code></td>
+                            <td style="padding:8px 12px"><code>.laneconductor.json.example</code></td>
+                            <td style="padding:8px 12px">Machine-specific config, DB password</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--border)">
+                            <td style="padding:8px 12px"><code>conductor/tracks-metadata.json</code></td>
+                            <td style="padding:8px 12px">—</td>
+                            <td style="padding:8px 12px">Runtime state, auto-generated</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:8px 12px"><code>.conductor/</code></td>
+                            <td style="padding:8px 12px">—</td>
+                            <td style="padding:8px 12px">Lock files with machine name and PIDs</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Guard Patterns</h3>
+                <p>The <code>.gitignore</code> includes glob guards to prevent accidentally re-adding debug scripts:</p>
+                <pre><code>tmp_*.mjs
+check_*.mjs
+fix_*.mjs
+reset_*.mjs</code></pre>
+            </section>
+
+            <footer>
+                <p>&copy; 2026 LaneConductor. Sovereign Agent Orchestration.</p>
+            </footer>
+        </main>
+    </div>
+</body>
+
+</html>

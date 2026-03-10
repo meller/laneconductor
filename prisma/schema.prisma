@@ -1,0 +1,195 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LaneActionStatus {
+  queue
+  waiting
+  running
+  success
+  failure
+}
+
+model api_keys {
+  id           Int       @id @default(autoincrement())
+  user_uid     String?
+  key_hash     String    @unique
+  key_prefix   String
+  name         String?
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  last_used_at DateTime? @db.Timestamp(6)
+}
+
+model file_sync_queue {
+  id            Int       @id @default(autoincrement())
+  project_id    Int?
+  file_path     String
+  content       String
+  operation     String?   @default("overwrite")
+  status        String?   @default("waiting") @db.VarChar(20)
+  worker_id     String?
+  error_message String?
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+  projects      projects? @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model project_members {
+  project_id Int
+  user_uid   String
+  role       String   @default("member")
+  joined_at  DateTime @default(now()) @db.Timestamptz(6)
+  projects   projects @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([project_id, user_uid])
+}
+
+model projects {
+  id                  Int               @id @default(autoincrement())
+  name                String
+  repo_path           String?           // Nullable on remote collectors
+  git_remote          String?           @unique // Unique identifier for the shared project
+  git_global_id       String?           @unique @db.Uuid
+  primary_cli         String?           @default("claude")
+  primary_model       String?
+  secondary_cli       String?
+  secondary_model     String?
+  create_quality_gate Boolean?          @default(false)
+  owner_uid           String?
+  conductor_files     Json?             @default("{}")
+  dev_command         String?
+  dev_url             String?
+  dev_server_pid      Int?
+  mode                String?           @default("local-fs")
+  created_at          DateTime?         @default(now()) @db.Timestamp(6)
+  file_sync_queue     file_sync_queue[]
+  project_members     project_members[]
+  provider_status     provider_status[]
+  track_locks         track_locks[]     // Worker coordination: git locks
+  tracks              tracks[]
+  workers             workers[]
+}
+
+model provider_status {
+  project_id Int
+  provider   String
+  status     String
+  reset_at   DateTime? @db.Timestamp(6)
+  last_error String?
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  projects   projects  @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([project_id, provider])
+}
+
+model track_locks {
+  id            Int       @id @default(autoincrement())
+  project_id    Int?
+  track_id      Int?
+  track_number  String
+  user          String                // user who claimed lock
+  machine       String                // machine hostname
+  locked_at     DateTime? @default(now()) @db.Timestamp(6)
+  pattern       String?   @default("cli")  // 'cli' or 'daemon'
+  lock_file_path String?               // Path to .conductor/locks/{track}.lock
+  projects      projects? @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tracks        tracks?   @relation(fields: [track_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([project_id, track_number])
+}
+
+model track_comments {
+  id         Int       @id @default(autoincrement())
+  track_id   Int?
+  author     String
+  body       String
+  is_replied Boolean?  @default(false)
+  is_hidden  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  tracks     tracks?   @relation(fields: [track_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model tracks {
+  id                      Int              @id @default(autoincrement())
+  project_id              Int?
+  track_number            String
+  title                   String
+  lane_status             String?          @default("planning")
+  lane_action_status      LaneActionStatus? @default(queue)
+  lane_action_result      String?
+  progress_percent        Int?             @default(0)
+  current_phase           String?
+  phase_step              String?
+  content_summary         String?
+  index_content           String?
+  plan_content            String?
+  spec_content            String?
+  test_content            String?
+  last_log_tail           String?
+  auto_planning_launched  DateTime?        @db.Timestamp(6)
+  auto_implement_launched DateTime?        @db.Timestamp(6)
+  auto_review_launched    DateTime?        @db.Timestamp(6)
+  priority                Int?             @default(0)
+  sync_status             String?          @default("synced")
+  last_updated_by         String?          @default("worker")
+  last_heartbeat          DateTime?        @default(now()) @db.Timestamp(6)
+  created_at              DateTime?        @default(now()) @db.Timestamp(6)
+  last_updated_by_uid     String?
+  claimed_by              String?
+  active_cli              String?
+  // Worker coordination fields (Track 1010)
+  worktree_path           String?                   // Path to .git/worktrees/{track}/
+  git_branch              String?                   // Branch this track works on
+  git_lock_commit         String?                   // Commit hash of lock creation
+  locked_by               String?                   // user@machine holding lock
+  track_locks             track_locks[]             // Relationship to locks table
+  track_comments          track_comments[]
+  projects                projects?        @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([project_id, track_number])
+  @@index([priority, created_at], map: "idx_tracks_priority_queue")
+}
+
+model users {
+  uid           String   @id
+  email         String?
+  display_name  String?
+  photo_url     String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  last_login_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model workers {
+  id             Int                  @id @default(autoincrement())
+  project_id     Int?
+  hostname       String
+  pid            Int
+  status         String?              @default("idle")
+  mode           String?              @default("polling") // 'polling', 'sync-only'
+  current_task   String?
+  last_heartbeat DateTime?            @default(now()) @db.Timestamp(6)
+  created_at     DateTime?            @default(now()) @db.Timestamp(6)
+  machine_token  String?              @unique
+  user_uid       String?
+  visibility     String?              @default("private") // 'private', 'team', 'public'
+  projects       projects?            @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  permissions    worker_permissions[]
+
+  @@unique([project_id, hostname, pid])
+}
+
+model worker_permissions {
+  worker_id Int
+  user_uid  String
+  added_at  DateTime @default(now()) @db.Timestamptz(6)
+  workers   workers  @relation(fields: [worker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([worker_id, user_uid])
+}

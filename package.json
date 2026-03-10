@@ -1,0 +1,43 @@
+{
+  "name": "@google/laneconductor",
+  "version": "1.0.0",
+  "description": "Sovereign Developer Environment — real-time visibility into AI-driven development across multiple repositories.",
+  "main": "bin/lc.mjs",
+  "bin": {
+    "lc": "bin/lc.mjs"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "vitest",
+    "lint": "eslint .",
+    "start-ui": "cd ui && npm run dev",
+    "start-api": "cd ui && node server/index.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/google/laneconductor.git"
+  },
+  "keywords": [
+    "kanban",
+    "automation",
+    "ai",
+    "worker",
+    "cli"
+  ],
+  "author": "Google",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/google/laneconductor/issues"
+  },
+  "homepage": "https://github.com/google/laneconductor#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@prisma/client": "^5.10.2",
+    "chokidar": "^3.6.0",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.3",
+    "pg": "^8.11.3",
+    "prisma": "^5.10.2",
+    "vitest": "^1.3.1"
+  }
+}
