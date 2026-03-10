@@ -12,7 +12,7 @@ LaneConductor is a **sovereign developer environment** designed to manage AI cod
 ## ⚡ Key Features
 
 - **Sovereign & Local-First**: Runs 100% on your hardware. No cloud, no auth, no hidden costs.
-- **The Conductor Pattern**: Implements a robust "Ralph Wiggum Loop" (Plan → Implement → Review → Quality Gate → Done).
+- **The Conductor Pattern**: Implements a robust "Ralph Wiggum Loop" (Plan → Implement → Review → Quality Gate → Done). Compatible with the [Gemini CLI conductor format](https://github.com/google-gemini/gemini-cli).
 - **Filesystem Message Bus**: Uses simple Markdown files in `conductor/tracks/` as the source of truth, enabling agents and humans to coordinate seamlessly.
 - **Live Kanban Dashboard**: A Vite + React dashboard that syncs in real-time with your filesystem via a local Postgres database.
 - **Quality Gates**: Automated verification (tests, linting, builds) that must pass before any work is considered "Done".
