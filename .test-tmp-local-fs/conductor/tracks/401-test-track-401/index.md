@@ -1,6 +1,6 @@
 # Track 401: Test Track 401
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run By**: mock
