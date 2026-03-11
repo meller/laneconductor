@@ -1,7 +1,7 @@
 # Track 1045: Bug-to-Test Flow
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Complete
 **Waiting for reply**: no
