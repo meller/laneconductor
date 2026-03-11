@@ -23,8 +23,8 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
     const trackNum = e.dataTransfer.getData('trackNum');
     const track = tracks.find(t => t.track_number === trackNum);
     if (track && track.lane_status !== laneId) {
-      // Logic: if leaving plan, must be done with planning
-      if (track.lane_status === 'plan' && track.lane_action_status !== 'success') {
+      // Block moves only while a plan action is actively running
+      if (track.lane_status === 'plan' && track.lane_action_status === 'running') {
         console.warn(`[Kanban] Cannot move track ${track.track_number}: plan in progress`);
         return;
       }

@@ -1002,12 +1002,31 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
             if (dir) {
               const convPath = join(tracksDir, dir, 'conversation.md');
               const cursorPath = join(tracksDir, dir, '.conv-cursor');
-              const append = `\n> **human** ${req.body.no_wake ? '(note)' : ''}: ${body}\n`;
+              const options = [];
+              if (req.body.no_wake) options.push('note');
+              if (req.body.command) options.push(req.body.command);
+              const optionsStr = options.length ? ` (${options.join(', ')})` : '';
+              const append = `\n> **human**${optionsStr}: ${body}\n`;
               appendFileSync(convPath, append, 'utf8');
               // Advance cursor past the line we just wrote so the worker doesn't re-sync it
               const newSize = existsSync(convPath) ? statSync(convPath).size : 0;
               writeFileSync(cursorPath, String(newSize), 'utf8');
               console.log(`[sync-to-file] Comment synced to ${convPath} (cursor → ${newSize})`);
+
+              // ── Command side effects (cursor is advanced so syncConversation won't run) ──
+              if (req.body.command === 'brainstorm') {
+                const indexPath = join(tracksDir, dir, 'index.md');
+                if (existsSync(indexPath)) {
+                  let idxContent = readFileSync(indexPath, 'utf8');
+                  const setHeader = (c, h, v) => {
+                    const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+                    return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+                  };
+                  idxContent = setHeader(idxContent, 'Waiting for reply', 'yes');
+                  writeFileSync(indexPath, idxContent, 'utf8');
+                  console.log(`[sync-to-file] brainstorm: set Waiting for reply=yes in index.md`);
+                }
+              }
 
               // ALSO Queue for remote worker sync (DB → Filesystem)
               const relConvPath = join('conductor', 'tracks', dir, 'conversation.md');
