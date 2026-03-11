@@ -1,6 +1,6 @@
 # Track 1044: Pre-publish Cleanup
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run By**: gemini
