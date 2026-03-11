@@ -4,7 +4,11 @@
 
 ![LaneConductor Kanban Dashboard](docs/hero.png)
 
+### See it in action: Brainstorming → Planning → Automated Implementation
+![Demo: LaneConductor Workflow](docs/demo.gif)
+
 LaneConductor is a **sovereign developer environment** that orchestrates AI agents (Claude, Gemini, and more) across multiple repositories, giving you real-time visibility through a unified Kanban dashboard — with zero cloud dependency and zero cost.
+
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-blue)](https://claude.ai/code)
