@@ -136,19 +136,19 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     setSending(false);
   }
 
-  async function sendComment(textOverride, newLaneStatus, noWake = false) {
+  async function sendComment(textOverride, newLaneStatus, noWake = false, command = undefined) {
     const isEvent = typeof textOverride === 'object' && textOverride !== null;
     const isMissing = textOverride === undefined;
     const bodyStr = isEvent || isMissing ? draft : textOverride;
     const body = bodyStr.trim();
 
-    if (!body || sending) return;
+    if (!body && !command || sending) return;
     setSending(true);
     try {
       const r = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author: 'human', body, no_wake: noWake }),
+        body: JSON.stringify({ author: 'human', body, no_wake: noWake, command }),
       });
       if (r.ok) {
         const comment = await r.json();
@@ -269,13 +269,14 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                   Open Bug
                 </button>
                 <button
-                  onClick={() => sendComment(`I can create a feature request for this.`, 'plan')}
-                  className="px-2 py-1 rounded border border-blue-900/50 bg-blue-950/20 text-blue-400 text-[10px] font-medium hover:bg-blue-900/30 transition-colors"
+                  onClick={() => sendComment(undefined, 'plan', false, 'replan')}
+                  title="Full replan — re-scaffolds spec.md, plan.md, and test.md"
+                  className="px-2 py-1 rounded border border-blue-900/50 bg-blue-950/20 text-blue-400 text-[10px] font-medium hover:bg-blue-950/30 transition-colors"
                 >
-                  Open Feature
+                  Replan
                 </button>
                 <button
-                  onClick={() => sendComment('> **system**: Brainstorm requested via UI. Read all context files (product.md, tech-stack.md, spec.md, plan.md, test.md) and begin clarifying questions one at a time.')}
+                  onClick={() => sendComment(undefined, undefined, false, 'brainstorm')}
                   disabled={detail?.lane === 'done'}
                   title="Start a brainstorm dialogue to deepen spec and plan before implementing"
                   className="px-2 py-1 rounded border border-violet-900/50 bg-violet-950/20 text-violet-400 text-[10px] font-medium hover:bg-violet-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"

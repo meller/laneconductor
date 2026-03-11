@@ -14,6 +14,7 @@ import os from 'os';
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 function getInstallPath() {
   if (existsSync(RC_FILE)) {
@@ -583,8 +584,22 @@ function parseSummary(content) {
 }
 
 function parseWaitingForReply(content) {
-  const match = content.match(/\*\*Waiting for reply\*\*:\s*([^\n]+)/i);
-  return match ? match[1].trim().toLowerCase() === 'yes' : false;
+  const match = content.match(/\*\*Waiting for reply\*\*/i);
+  if (!match) return false;
+  const line = match[0] + content.split(/\*\*Waiting for reply\*\*/i)[1].split('\n')[0];
+  return line.toLowerCase().includes('yes');
+}
+
+function updateHeader(content, key, value) {
+  const re = new RegExp(`\\*\\*${key}\\*\\*:\\s*[^\\n]+`, 'i');
+  if (re.test(content)) {
+    return content.replace(re, `**${key}**: ${value}`);
+  }
+  // If not found, try to inject after Lane or Title
+  if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
+    return content.replace(/(\*\*Lane\*\*:\s*[^\n]+)/i, `$1\n**${key}**: ${value}`);
+  }
+  return content.replace(/(# [^\n]+\n)/i, `$1\n**${key}**: ${value}\n`);
 }
 
 /**
@@ -800,7 +815,9 @@ async function syncConversation(filepath) {
         current = {
           author: m[1],
           body: m[3],
-          no_wake: options.includes('no-wake') || options.includes('no-reply') || options.includes('note')
+          no_wake: options.includes('no-wake') || options.includes('no-reply') || options.includes('note'),
+          is_brainstorm: options.includes('brainstorm'),
+          is_replan: options.includes('replan')
         };
       } else if (current && line.startsWith('>') && !line.match(/^> \*\*/)) {
         current.body += '\n' + line.slice(2).trimStart();
@@ -818,8 +835,30 @@ async function syncConversation(filepath) {
 
     const proj = getProject();
     for (const c of comments) {
+      if (c.is_brainstorm) {
+        console.log(`[conv-command] ${trackNumber}: brainstorm flag set (waitingForReply only)`);
+        const indexPath = join(trackDir, 'index.md');
+        if (existsSync(indexPath)) {
+          let idx = readFileSync(indexPath, 'utf8');
+          idx = updateHeader(idx, 'Waiting for reply', 'yes');
+          writeFileSync(indexPath, idx, 'utf8');
+        }
+      }
+
+      if (c.is_replan) {
+        console.log(`[conv-command] ${trackNumber}: replan flag set (moving to plan:queue)`);
+        const indexPath = join(trackDir, 'index.md');
+        if (existsSync(indexPath)) {
+          let idx = readFileSync(indexPath, 'utf8');
+          idx = updateHeader(idx, 'Lane', 'plan');
+          idx = updateHeader(idx, 'Lane Status', 'queue');
+          writeFileSync(indexPath, idx, 'utf8');
+        }
+      }
+
       await postToCollectors(`/track/${trackNumber}/comment`, {
-        author: c.author, body: c.body.trim(), no_wake: c.no_wake
+        author: c.author, body: c.body.trim(), no_wake: c.no_wake,
+        command: c.is_brainstorm ? 'brainstorm' : (c.is_replan ? 'replan' : undefined)
       }).catch(err => console.warn(`[conv-sync] post comment failed: ${err.message}`));
     }
 
@@ -926,30 +965,141 @@ watch('.laneconductor.json')
     }, 500);
   });
 
+// ── Local-fs auto-launch (Mode 1: no API) ─────────────────────────────────────
+// Scans conductor/tracks/*/index.md for queued tracks, respects workflow.json limits.
+async function autoLaunchLocalFs(globalLimit) {
+  const tracksDir = 'conductor/tracks';
+  if (!existsSync(tracksDir)) return;
+
+  const dirs = readdirSync(tracksDir)
+    .filter(d => /^\d+/.test(d))
+    .sort((a, b) => parseInt(a) - parseInt(b));  // process lowest track numbers first
+
+  const currentlyRunningPerLane = {};
+  for (const dir of dirs) {
+    const indexPath = join(tracksDir, dir, 'index.md');
+    if (!existsSync(indexPath)) continue;
+    const content = readFileSync(indexPath, 'utf8');
+    const statusMatch = content.match(/\*\*Lane Status\*\*:\s*running/i);
+    if (statusMatch) {
+      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+      if (laneMatch) {
+        const lane = laneMatch[1].trim();
+        currentlyRunningPerLane[lane] = (currentlyRunningPerLane[lane] || 0) + 1;
+      }
+    }
+  }
+
+  const lanesClaimedThisRound = new Map();
+
+  for (const dir of dirs) {
+    if (runningPids.size >= globalLimit) break;
+
+    const indexPath = join(tracksDir, dir, 'index.md');
+    if (!existsSync(indexPath)) continue;
+
+    const content = readFileSync(indexPath, 'utf8');
+    const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+    const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+    if (!laneMatch) continue;
+
+    const lane_status = laneMatch[1].trim();
+    const lane_action_status = statusMatch?.[1]?.trim() ?? 'queue';
+
+    const trackNumMatch = dir.match(/^(\d+)/);
+    if (!trackNumMatch) continue;
+    const track_number = trackNumMatch[1];
+
+    const waitingForReply = parseWaitingForReply(content);
+
+    // Normally only process 'queue' status
+    // EXCEPTION: if we are answering a human, bypass 'queue' check
+    if (lane_action_status !== 'queue' && !waitingForReply) continue;
+
+    // Passive lanes should not trigger auto-automation actions
+    if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;
+
+    let laneConfig = workflowConfig?.lanes?.[lane_status];
+    if (!laneConfig && waitingForReply) laneConfig = {}; // Allow auto-answer on any lane
+
+    if (!laneConfig) continue;
+
+    const laneLimit = laneConfig.parallel_limit ?? workflowConfig?.defaults?.parallel_limit ?? 1;
+    const alreadyRunning = currentlyRunningPerLane[lane_status] || 0;
+    const alreadyClaimed = lanesClaimedThisRound.get(lane_status) || 0;
+
+    // BYPASS concurrency limits if we are just answering a question
+    if (alreadyRunning + alreadyClaimed >= laneLimit && !waitingForReply) {
+      console.log(`[local-fs] Lane "${lane_status}" at limit ${laneLimit}. Skipping ${dir}.`);
+      continue;
+    }
+
+    // Check retry count (stored in .retry-count file next to index.md)
+    // BYPASS retry check if we are answering a user question
+    const retryCountPath = join(tracksDir, dir, '.retry-count');
+    const retryCount = parseInt(readIfExists(retryCountPath) || '0');
+    const maxRetries = laneConfig.max_retries ?? workflowConfig?.defaults?.max_retries ?? 1;
+    if (retryCount >= maxRetries && !waitingForReply) {
+      console.log(`[local-fs] Track ${track_number} max retries (${maxRetries}) reached. Marking failure.`);
+      let failed = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, '**Lane Status**: failure');
+      const onFailure = laneConfig.on_failure ?? workflowConfig?.defaults?.on_failure;
+      if (onFailure && onFailure !== 'stay') {
+        failed = failed.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${onFailure}`);
+        console.log(`[local-fs] Track ${track_number} failure transition: ${lane_status} → ${onFailure}`);
+      }
+      writeFileSync(indexPath, failed, 'utf8');
+      continue;
+    }
+
+    let cmd_type = lane_status;
+    let label = `local-fs-${lane_status}`;
+    let customPrompt = null;
+
+    if (waitingForReply) {
+      label = 'local-fs-answer';
+      cmd_type = 'implement';
+
+      let isBrainstorm = false;
+      const convPath = join(tracksDir, dir, 'conversation.md');
+      if (existsSync(convPath)) {
+        const conv = readFileSync(convPath, 'utf8');
+        // Find the last human message and check if it has the (brainstorm) tag
+        const blocks = conv.split('\n> ').filter(b => b.trim().startsWith('**human**'));
+        const lastHumanBlock = blocks[blocks.length - 1];
+        if (lastHumanBlock && lastHumanBlock.includes('(brainstorm)')) {
+          isBrainstorm = true;
+        }
+      }
+
+      if (isBrainstorm) {
+        customPrompt = `The user has sent a brainstorm message. Read conversation.md carefully.\nRespond ONLY to the specific question or topic raised. Keep your answer focused.\nThen ask exactly ONE clarifying question to deepen the spec further.\nDo NOT re-scaffold spec.md, plan.md, or test.md yet.\nWhen the human says "go ahead" or "that's enough", THEN run /laneconductor plan ${track_number}.\nSet **Waiting for reply**: yes in index.md after posting your question.`;
+      } else {
+        customPrompt = `The user has sent a message in the track conversation. Please read it and respond. If it is a question, answer it. If it is a decision, incorporate it. You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Answered user question" when done.`;
+      }
+    }
+
+    const cliArgs = await buildCliArgs('laneconductor', cmd_type, track_number, customPrompt, laneConfig);
+    if (!cliArgs) {
+      console.log(`[local-fs] No available provider for track ${track_number}. Skipping.`);
+      continue;
+    }
+
+    const [cmd, args, cli] = cliArgs;
+    try {
+      // Update file to running status so UI/tests can see it
+      const runningContent = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: running');
+      writeFileSync(indexPath, runningContent, 'utf8');
+
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, lane_status, laneConfig);
+      lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
+      console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
+    } catch (err) {
+      console.error(`[local-fs] Failed to spawn track ${track_number}:`, err.message);
+    }
+  }
+}
+
 // ── Startup ───────────────────────────────────────────────────────────────────
-
-await upsertWorker();
-workflowConfig = loadWorkflowConfig();
-tracksMetadata = loadTracksMetadata();
-console.log(`[LaneConductor] Heartbeat worker started (PID: ${process.pid})`);
-console.log(`[LaneConductor] Collector mode: ${getMode()}`);
-console.log(`[LaneConductor] Worker mode: ${workerMode}`);
-if (!getIsLocalFs()) console.log(`[LaneConductor] Collectors: ${getCollectors().map(c => c.url).join(', ')}`);
-if (!getIsLocalFs()) console.log(`[LaneConductor] Dashboard: http://localhost:${getUi()?.port ?? 8090}`);
-
-// Ensure providers are in DB so they show in UI (API modes only)
-if (!getIsLocalFs()) (async () => {
-  const { url, token } = primaryCollector();
-  const proj = getProject();
-  if (proj.primary?.cli) {
-    post(url, token, '/provider-status', { provider: proj.primary.cli, status: 'available' }).catch(() => { });
-  }
-  if (proj.secondary?.cli) {
-    post(url, token, '/provider-status', { provider: proj.secondary.cli, status: 'available' }).catch(() => { });
-  }
-})();
-
-syncConductorFiles();
 
 async function replayStaleTracks() {
   if (getIsLocalFs()) return;
@@ -978,44 +1128,10 @@ async function resetStuckActions(immediate = false) {
   } catch (err) {
     console.error('[reset-stuck error]:', err.message);
   }
-}
-
-replayStaleTracks();
-resetStuckActions(true); // immediate on startup: worker starts fresh, owns no running tracks
-setInterval(resetStuckActions, 2 * 60 * 1000); // periodically recover stuck-running tracks
-
-// Reset any stale `running` status in filesystem on startup (worker owns no PIDs yet)
-(function resetFilesystemRunningStatus() {
-  const tracksDir = 'conductor/tracks';
-  if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
-    const indexPath = join(tracksDir, dir, 'index.md');
-    if (!existsSync(indexPath)) continue;
-    const content = readFileSync(indexPath, 'utf8');
-    if (content.match(/\*\*Lane Status\*\*:\s*running/i)) {
-      writeFileSync(indexPath, content.replace(/\*\*Lane Status\*\*:\s*running/i, '**Lane Status**: queue'), 'utf8');
-      console.log(`[startup] Reset stale running status in filesystem for ${dir}`);
-    }
   }
-})();
 
-// ── Heartbeat intervals ───────────────────────────────────────────────────────
+  // ── Startup ───────────────────────────────────────────────────────────────────
 
-setInterval(() => updateWorkerHeartbeat(), 10000);
-
-setInterval(async () => {
-  try {
-    // Only heartbeat tracks this worker is actively running — prevents orphaned tracks
-    // from staying in 'running' state and blocking resetStuckActions
-    const activeTrackNumbers = [...runningTrackMap.values()];
-    if (activeTrackNumbers.length === 0) return;
-    const { url, token } = primaryCollector();
-    const { updated } = await post(url, token, '/tracks/heartbeat', { track_numbers: activeTrackNumbers });
-    if (updated?.length) console.log(`[heartbeat] ${updated.join(', ')}`);
-  } catch (err) {
-    console.error('[heartbeat error]:', err.message);
-  }
-}, 5000);
 
 // ── Auto-implement + auto-review ──────────────────────────────────────────────
 
@@ -2276,193 +2392,140 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   return [chosenCli, args, chosenCli];
 }
 
-setInterval(() => checkFileSyncQueue(), 5000);
-setInterval(() => processFileSyncQueue().catch(e => console.error('[file-queue error]:', e.message)), 5000);
-
-// ── Local-fs auto-launch (Mode 1: no API) ─────────────────────────────────────
-// Scans conductor/tracks/*/index.md for queued tracks, respects workflow.json limits.
-async function autoLaunchLocalFs(globalLimit) {
-  const tracksDir = 'conductor/tracks';
-  if (!existsSync(tracksDir)) return;
-
-  const dirs = readdirSync(tracksDir)
-    .filter(d => /^\d+/.test(d))
-    .sort((a, b) => parseInt(a) - parseInt(b));  // process lowest track numbers first
-
-  const currentlyRunningPerLane = {};
-  for (const dir of dirs) {
-    const indexPath = join(tracksDir, dir, 'index.md');
-    if (!existsSync(indexPath)) continue;
-    const content = readFileSync(indexPath, 'utf8');
-    const statusMatch = content.match(/\*\*Lane Status\*\*:\s*running/i);
-    if (statusMatch) {
-      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
-      if (laneMatch) {
-        const lane = laneMatch[1].trim();
-        currentlyRunningPerLane[lane] = (currentlyRunningPerLane[lane] || 0) + 1;
-      }
-    }
-  }
-
-  const lanesClaimedThisRound = new Map();
-
-  for (const dir of dirs) {
-    if (runningPids.size >= globalLimit) break;
-
-    const indexPath = join(tracksDir, dir, 'index.md');
-    if (!existsSync(indexPath)) continue;
-
-    const content = readFileSync(indexPath, 'utf8');
-    const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
-    const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
-    if (!laneMatch) continue;
-
-    const lane_status = laneMatch[1].trim();
-    const lane_action_status = statusMatch?.[1]?.trim() ?? 'queue';
-
-    const trackNumMatch = dir.match(/^(\d+)/);
-    if (!trackNumMatch) continue;
-    const track_number = trackNumMatch[1];
-
-    const waitingForReply = parseWaitingForReply(content);
-
-    // Normally only process 'queue' status
-    // EXCEPTION: if we are answering a human, bypass 'queue' check
-    if (lane_action_status !== 'queue' && !waitingForReply) continue;
-
-    // Passive lanes should not trigger auto-automation actions
-    if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;
-
-    let laneConfig = workflowConfig?.lanes?.[lane_status];
-    if (!laneConfig && waitingForReply) laneConfig = {}; // Allow auto-answer on any lane
-
-    if (!laneConfig) continue;
-
-    const laneLimit = laneConfig.parallel_limit ?? workflowConfig?.defaults?.parallel_limit ?? 1;
-    const alreadyRunning = currentlyRunningPerLane[lane_status] || 0;
-    const alreadyClaimed = lanesClaimedThisRound.get(lane_status) || 0;
-
-    // BYPASS concurrency limits if we are just answering a question
-    if (alreadyRunning + alreadyClaimed >= laneLimit && !waitingForReply) {
-      console.log(`[local-fs] Lane "${lane_status}" at limit ${laneLimit}. Skipping ${dir}.`);
-      continue;
-    }
-
-    // Check retry count (stored in .retry-count file next to index.md)
-    // BYPASS retry check if we are answering a user question
-    const retryCountPath = join(tracksDir, dir, '.retry-count');
-    const retryCount = parseInt(readIfExists(retryCountPath) || '0');
-    const maxRetries = laneConfig.max_retries ?? workflowConfig?.defaults?.max_retries ?? 1;
-    if (retryCount >= maxRetries && !waitingForReply) {
-      console.log(`[local-fs] Track ${track_number} max retries (${maxRetries}) reached. Marking failure.`);
-      let failed = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, '**Lane Status**: failure');
-      const onFailure = laneConfig.on_failure ?? workflowConfig?.defaults?.on_failure;
-      if (onFailure && onFailure !== 'stay') {
-        failed = failed.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${onFailure}`);
-        console.log(`[local-fs] Track ${track_number} failure transition: ${lane_status} → ${onFailure}`);
-      }
-      writeFileSync(indexPath, failed, 'utf8');
-      continue;
-    }
-
-    let cmd_type = lane_status;
-    let label = `local-fs-${lane_status}`;
-    let customPrompt = null;
-
-    if (waitingForReply) {
-      label = 'local-fs-answer';
-      cmd_type = 'implement';
-      customPrompt = `The user has sent a message in the track conversation. Please read it and respond. If it is a question, answer it. If it is a decision, incorporate it. You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Answered user question" when done.`;
-    }
-
-    const cliArgs = await buildCliArgs('laneconductor', cmd_type, track_number, customPrompt, laneConfig);
-    if (!cliArgs) {
-      console.log(`[local-fs] No available provider for track ${track_number}. Skipping.`);
-      continue;
-    }
-
-    const [cmd, args, cli] = cliArgs;
-    try {
-      // Update file to running status so UI/tests can see it
-      const runningContent = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: running');
-      writeFileSync(indexPath, runningContent, 'utf8');
-
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, lane_status, laneConfig);
-      lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
-      console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
-    } catch (err) {
-      console.error(`[local-fs] Failed to spawn track ${track_number}:`, err.message);
-    }
-  }
-}
-
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;
 
-// Auto-launch: Pick up one queued track per lane (respects lane limits)
-setInterval(async () => {
-  if (syncOnly) return; // SKIP auto-launch in sync-only mode
-  if (autoLaunchRunning) return;  // prevent concurrent runs (async setInterval)
-  autoLaunchRunning = true;
-  try {
-    workflowConfig = loadWorkflowConfig();
-    const globalLimit = workflowConfig?.global?.total_parallel_limit ?? 3;
-    if (runningPids.size >= globalLimit) return;
+if (isMain) {
+  await upsertWorker();
+  workflowConfig = loadWorkflowConfig();
+  tracksMetadata = loadTracksMetadata();
+  console.log(`[LaneConductor] Heartbeat worker started (PID: ${process.pid})`);
+  console.log(`[LaneConductor] Collector mode: ${getMode()}`);
+  console.log(`[LaneConductor] Worker mode: ${workerMode}`);
+  if (!getIsLocalFs()) console.log(`[LaneConductor] Collectors: ${getCollectors().map(c => c.url).join(', ')}`);
+  if (!getIsLocalFs()) console.log(`[LaneConductor] Dashboard: http://localhost:${getUi()?.port ?? 8090}`);
 
-    if (getIsLocalFs()) {
-      await autoLaunchLocalFs(globalLimit);
-      return;
-    }
-
-    // API mode: pull workflow from server and use claim-queue endpoint
+  // Ensure providers are in DB so they show in UI (API modes only)
+  if (!getIsLocalFs()) (async () => {
     const { url, token } = primaryCollector();
+    const proj = getProject();
+    if (proj.primary?.cli) {
+      post(url, token, '/provider-status', { provider: proj.primary.cli, status: 'available' }).catch(() => { });
+    }
+    if (proj.secondary?.cli) {
+      post(url, token, '/provider-status', { provider: proj.secondary.cli, status: 'available' }).catch(() => { });
+    }
+  })();
+
+  syncConductorFiles();
+
+  replayStaleTracks();
+  resetStuckActions(true); // immediate on startup: worker starts fresh, owns no running tracks
+  setInterval(resetStuckActions, 2 * 60 * 1000); // periodically recover stuck-running tracks
+
+  // Reset any stale `running` status in filesystem on startup (worker owns no PIDs yet)
+  (function resetFilesystemRunningStatus() {
+    const tracksDir = 'conductor/tracks';
+    if (!existsSync(tracksDir)) return;
+    for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
+      const indexPath = join(tracksDir, dir, 'index.md');
+      if (!existsSync(indexPath)) continue;
+      const content = readFileSync(indexPath, 'utf8');
+      if (content.match(/\*\*Lane Status\*\*:\s*running/i)) {
+        writeFileSync(indexPath, content.replace(/\*\*Lane Status\*\*:\s*running/i, '**Lane Status**: queue'), 'utf8');
+        console.log(`[startup] Reset stale running status in filesystem for ${dir}`);
+      }
+    }
+  })();
+
+  // ── Heartbeat intervals ───────────────────────────────────────────────────────
+
+  setInterval(() => updateWorkerHeartbeat(), 10000);
+
+  setInterval(async () => {
     try {
-      await pullWorkflow();
+      // Only heartbeat tracks this worker is actively running — prevents orphaned tracks
+      // from staying in 'running' state and blocking resetStuckActions
+      const activeTrackNumbers = [...runningTrackMap.values()];
+      if (activeTrackNumbers.length === 0) return;
+      const { url, token } = primaryCollector();
+      const { updated } = await post(url, token, '/tracks/heartbeat', { track_numbers: activeTrackNumbers });
+      if (updated?.length) console.log(`[heartbeat] ${updated.join(', ')}`);
+    } catch (err) {
+      console.error('[heartbeat error]:', err.message);
+    }
+  }, 5000);
+
+  // Auto-launch: Pick up one queued track per lane (respects lane limits)
+  setInterval(async () => {
+    if (syncOnly) return; // SKIP auto-launch in sync-only mode
+    if (autoLaunchRunning) return;  // prevent concurrent runs (async setInterval)
+    autoLaunchRunning = true;
+    try {
       workflowConfig = loadWorkflowConfig();
-      tracksMetadata = loadTracksMetadata();
       const globalLimit = workflowConfig?.global?.total_parallel_limit ?? 3;
       if (runningPids.size >= globalLimit) return;
 
-      // Pre-check provider availability to avoid claim-and-skip loops
-      const proj = getProject();
-      const primary = proj.primary?.cli;
-      const secondary = proj.secondary?.cli;
-      const primaryOk = await isProviderAvailable(primary);
-      const secondaryOk = secondary ? await isProviderAvailable(secondary) : false;
-      let anyAvailable = primaryOk || secondaryOk;
-
-      if (primary === 'claude' && primaryOk && !secondaryOk) {
-        anyAvailable = await checkClaudeCapacity();
-      }
-
-      if (!anyAvailable) {
-        if (!providerStatusCache.has('last_exhaustion_log') || Date.now() - providerStatusCache.get('last_exhaustion_log') > 60000) {
-          console.log(`[auto-launch] No providers available (primary ${primary}: ${primaryOk}, secondary ${secondary}: ${secondaryOk})`);
-          providerStatusCache.set('last_exhaustion_log', Date.now());
-        }
+      if (getIsLocalFs()) {
+        await autoLaunchLocalFs(globalLimit);
         return;
       }
 
-      // Launch decisions are always filesystem-based (same as local-fs mode).
-      // DB is used only for heartbeats and UI sync, not for concurrency control.
-      await autoLaunchLocalFs(globalLimit);
-    } catch (err) {
-      console.error('[auto-launch error]:', err.message);
+      // API mode: pull workflow from server and use claim-queue endpoint
+      const { url, token } = primaryCollector();
+      try {
+        await pullWorkflow();
+        workflowConfig = loadWorkflowConfig();
+        tracksMetadata = loadTracksMetadata();
+        const globalLimit = workflowConfig?.global?.total_parallel_limit ?? 3;
+        if (runningPids.size >= globalLimit) return;
+
+        // Pre-check provider availability to avoid claim-and-skip loops
+        const proj = getProject();
+        const primary = proj.primary?.cli;
+        const secondary = proj.secondary?.cli;
+        const primaryOk = await isProviderAvailable(primary);
+        const secondaryOk = secondary ? await isProviderAvailable(secondary) : false;
+        let anyAvailable = primaryOk || secondaryOk;
+
+        if (primary === 'claude' && primaryOk && !secondaryOk) {
+          anyAvailable = await checkClaudeCapacity();
+        }
+
+        if (!anyAvailable) {
+          if (!providerStatusCache.has('last_exhaustion_log') || Date.now() - providerStatusCache.get('last_exhaustion_log') > 60000) {
+            console.log(`[auto-launch] No providers available (primary ${primary}: ${primaryOk}, secondary ${secondary}: ${secondaryOk})`);
+            providerStatusCache.set('last_exhaustion_log', Date.now());
+          }
+          return;
+        }
+
+        // Launch decisions are always filesystem-based (same as local-fs mode).
+        // DB is used only for heartbeats and UI sync, not for concurrency control.
+        await autoLaunchLocalFs(globalLimit);
+      } catch (err) {
+        console.error('[auto-launch error]:', err.message);
+      }
+    } finally {
+      autoLaunchRunning = false;
     }
-  } finally {
-    autoLaunchRunning = false;
-  }
-}, 5000);
+  }, 5000);
 
-// ── Shutdown ──────────────────────────────────────────────────────────────────
+  setInterval(() => checkFileSyncQueue(), 5000);
+  setInterval(() => processFileSyncQueue().catch(e => console.error('[file-queue error]:', e.message)), 5000);
 
-process.on('SIGTERM', async () => { await removeWorker(); process.exit(0); });
-process.on('SIGINT', async () => { await removeWorker(); process.exit(0); });
-process.on('uncaughtException', async (err) => {
-  console.error('[fatal] Uncaught Exception:', err.message);
-  await removeWorker(); process.exit(1);
-});
-process.on('unhandledRejection', async (reason) => {
-  console.error('[fatal] Unhandled Rejection:', reason);
-  await removeWorker(); process.exit(1);
-});
+  // ── Shutdown ──────────────────────────────────────────────────────────────────
+
+  process.on('SIGTERM', async () => { await removeWorker(); process.exit(0); });
+  process.on('SIGINT', async () => { await removeWorker(); process.exit(0); });
+  process.on('uncaughtException', async (err) => {
+    console.error('[fatal] Uncaught Exception:', err.message);
+    await removeWorker(); process.exit(1);
+  });
+  process.on('unhandledRejection', async (reason) => {
+    console.error('[fatal] Unhandled Rejection:', reason);
+    await removeWorker(); process.exit(1);
+  });
+}
+
+export { syncConversation, syncTrack, processFileSyncQueue, autoLaunchLocalFs, updateHeader };
