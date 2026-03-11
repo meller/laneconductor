@@ -40,8 +40,7 @@ const HARDCODED_DEFAULTS = {
   project: {
     name: basename(process.cwd()),
     repo_path: process.cwd(),
-    primary: { cli: 'claude', model: 'haiku' },
-    create_quality_gate: false
+    primary: { cli: 'claude', model: 'haiku' }
   },
   collectors: [],
   ui: { port: 8090 }
@@ -124,6 +123,18 @@ const getMode = () => {
 };
 
 const getIsLocalFs = () => getMode() === 'local-fs';
+
+// ── Quality Gate detection ────────────────────────────────────────────────────
+// Check if quality-gate lane is enabled in workflow.json
+function isQualityGateEnabled() {
+  try {
+    if (!existsSync('conductor/workflow.json')) return false;
+    const workflow = JSON.parse(readFileSync('conductor/workflow.json', 'utf8'));
+    return workflow.lanes?.['quality-gate'] !== undefined;
+  } catch {
+    return false;
+  }
+}
 
 // ── Collector HTTP client ─────────────────────────────────────────────────────
 
@@ -520,17 +531,17 @@ function parseStatus(content, createQualityGate = false) {
     return l;
   }
 
-  // 3. Heuristic matching
+  // 3. Heuristic matching (only if high-confidence markers weren't found)
+  // Use word boundaries to avoid matching "Implementation Plan" as "implement"
   const explicitMarkers = [
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*quality-gate/im, status: Lanes.QUALITY_GATE },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*done/im, status: Lanes.DONE },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*completed/im, status: Lanes.DONE },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*success/im, status: Lanes.DONE },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*plan(?:ning)?/im, status: Lanes.PLAN },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*backlog/im, status: Lanes.BACKLOG },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*implement/im, status: Lanes.IMPLEMENT },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*in[ _-]?progress/im, status: Lanes.IMPLEMENT },
-    { pattern: /(?:#+|[\*]*status[\*]*:?)\s*review/im, status: Lanes.REVIEW },
+    { pattern: /\bquality-gate\b/i, status: Lanes.QUALITY_GATE },
+    { pattern: /\bdone\b/i, status: Lanes.DONE },
+    { pattern: /\bcompleted\b/i, status: Lanes.DONE },
+    { pattern: /\bsuccess\b/i, status: Lanes.DONE },
+    { pattern: /\bbacklog\b/i, status: Lanes.BACKLOG },
+    { pattern: /\bimplement\b(?!ation)/i, status: Lanes.IMPLEMENT },
+    { pattern: /\bplan(?:ning)?\b/i, status: Lanes.PLAN },
+    { pattern: /\breview\b/i, status: Lanes.REVIEW },
   ];
   for (const m of explicitMarkers) {
     if (m.pattern.test(content)) return m.status;
@@ -594,7 +605,7 @@ function parseWaitingForReply(content) {
 function resolveTransition(configValue, currentLane, isSuccess, isMaxRetries) {
   if (!configValue || configValue === 'stay' || configValue === 'stop') {
     return {
-      lane: currentLane,
+      lane: currentLane || Lanes.PLAN,
       status: isSuccess ? 'success' : (isMaxRetries ? 'failure' : 'queue')
     };
   }
@@ -606,10 +617,10 @@ function resolveTransition(configValue, currentLane, isSuccess, isMaxRetries) {
     // Staying in lane -> 'success' or 'failure'
     const movingToNewLane = lane !== currentLane;
     const defaultStatus = movingToNewLane ? 'queue' : (isSuccess ? 'success' : (isMaxRetries ? 'failure' : 'queue'));
-    return { lane, status: defaultStatus };
+    return { lane: lane || currentLane || Lanes.PLAN, status: defaultStatus };
   }
 
-  return { lane, status };
+  return { lane: lane || currentLane || Lanes.PLAN, status };
 }
 
 function parsePhaseStep(content, laneStatus) {
@@ -712,21 +723,18 @@ async function syncConductorFiles() {
 // ── Track sync ────────────────────────────────────────────────────────────────
 
 async function syncTrack(filepath, laneActionStatus = undefined) {
-  if (getIsLocalFs()) return;  // local-fs mode: filesystem IS the source of truth, no collector
+  if (getIsLocalFs()) return;
   try {
     const trackNumber = extractTrackNumber(filepath);
     const title = extractTitle(filepath);
     const trackDir = dirname(filepath);
+    const filename = basename(filepath);
 
-    // ── Timestamp conflict resolution: skip if DB is newer ──
     const trackMeta = getTrackMetadata(trackNumber);
     if (trackMeta && trackMeta.last_db_update) {
       const fileMtime = statSync(filepath).mtimeMs;
       const lastDbUpdateMs = new Date(trackMeta.last_db_update).getTime();
-      if (fileMtime < lastDbUpdateMs) {
-        console.log(`[sync] ${trackNumber} — skipping (DB is newer by ${lastDbUpdateMs - fileMtime}ms)`);
-        return;
-      }
+      if (fileMtime < lastDbUpdateMs) return;
     }
 
     const indexContent = readIfExists(join(trackDir, 'index.md'));
@@ -734,16 +742,36 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     const specContent = readIfExists(join(trackDir, 'spec.md'));
     const testContent = readIfExists(join(trackDir, 'test.md'));
 
-    const content = planContent ?? readFileSync(filepath, 'utf8');
-    const proj = getProject();
-    const createQualityGate = proj.create_quality_gate ?? false;
-    const laneStatus = (indexContent ? parseStatus(indexContent, createQualityGate) : null) ?? parseStatus(content, createQualityGate);
-    const laneActionStatusFromFile = indexContent ? parseLaneStatus(indexContent) : parseLaneStatus(content);
-    const progress = parseProgress(content);
-    const currentPhase = parseCurrentPhase(content);
-    const summary = parseSummary(content);
-    const phaseStep = parsePhaseStep(content, laneStatus);
-    const waitingForReply = parseWaitingForReply(content);
+    // ── DATA AUTHORITY ──
+    // index.md is the absolute authority for the track's state (lane/status).
+    // If index.md exists, we ONLY use it for state, even if markers are missing.
+    // If index.md is missing, we fallback to the triggered file (backward compatibility).
+    const stateContent = indexContent !== null ? indexContent : readFileSync(filepath, 'utf8');
+    const qualityGateEnabled = isQualityGateEnabled();
+
+    let laneStatus = parseStatus(stateContent, qualityGateEnabled);
+    let laneActionStatusFromFile = parseLaneStatus(stateContent);
+    let waitingForReply = parseWaitingForReply(stateContent);
+
+    // If index.md exists but has no status yet, fallback to EXISTING DB state
+    // rather than guessing from content which might contain "Implementation" etc.
+    if (!laneStatus) {
+      laneStatus = trackMeta?.lane || Lanes.PLAN;
+    }
+
+    // Metadata/Info (Progress, Phase, Summary) can come from plan.md if available
+    const primaryInfo = planContent || stateContent;
+    const progress = parseProgress(primaryInfo);
+    const currentPhase = parseCurrentPhase(primaryInfo);
+    const summary = parseSummary(primaryInfo);
+    const phaseStep = parsePhaseStep(primaryInfo, laneStatus);
+
+    // Helper to update or append a header
+    const updateHeader = (content, header, value) => {
+      const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
+      if (regex.test(content)) return content.replace(regex, `**${header}**: ${value}`);
+      return content.trim() + `\n**${header}**: ${value}\n`;
+    };
 
     const payload = {
       track_number: trackNumber, title, lane_status: laneStatus,
@@ -755,17 +783,28 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     if (laneActionStatus) payload.lane_action_status = laneActionStatus;
     else if (laneActionStatusFromFile) payload.lane_action_status = laneActionStatusFromFile;
 
+    // Ensure state AUTHORITY is reflected in the file itself (add missing markers)
+    if (indexContent !== null) {
+      let updatedIdx = indexContent;
+      let changed = false;
+      if (!indexContent.match(/\*\*Lane\*\*/i)) { updatedIdx = updateHeader(updatedIdx, 'Lane', laneStatus); changed = true; }
+      if (!indexContent.match(/\*\*Lane Status\*\*/i)) { updatedIdx = updateHeader(updatedIdx, 'Lane Status', laneActionStatusFromFile || 'queue'); changed = true; }
+      if (changed) {
+        writeFileSync(filepath, updatedIdx, 'utf8');
+        indexContent = updatedIdx;
+      }
+    }
+
     await postToCollectors('/track', payload);
 
-    // ── Update metadata timestamp for file→DB sync ──
     updateTrackMetadata(trackNumber, {
       folder_path: trackDir,
       last_file_update: new Date().toISOString(),
       synced: true
     });
 
-    notifyApi('track:updated', { trackNumber, laneStatus, progress, projectId: proj.id });
-    console.log(`[sync] ${trackNumber} → ${laneStatus} (${progress}%)`);
+    notifyApi('track:updated', { trackNumber, laneStatus, progress, projectId: getProject()?.id });
+    console.log(`[sync] ${trackNumber} → ${laneStatus} (source: ${filename})`);
   } catch (err) {
     console.error(`[sync error] ${filepath}:`, err.message);
   }
@@ -800,7 +839,10 @@ async function syncConversation(filepath) {
         current = {
           author: m[1],
           body: m[3],
-          no_wake: options.includes('no-wake') || options.includes('no-reply') || options.includes('note')
+          no_wake: options.includes('no-wake') || options.includes('no-reply') || options.includes('note'),
+          is_brainstorm: options.includes('brainstorm'),
+          is_replan: options.includes('replan') || options.includes('plan'),
+          is_bug: options.includes('bug')
         };
       } else if (current && line.startsWith('>') && !line.match(/^> \*\*/)) {
         current.body += '\n' + line.slice(2).trimStart();
@@ -821,6 +863,60 @@ async function syncConversation(filepath) {
       await postToCollectors(`/track/${trackNumber}/comment`, {
         author: c.author, body: c.body.trim(), no_wake: c.no_wake
       }).catch(err => console.warn(`[conv-sync] post comment failed: ${err.message}`));
+
+      // ── Command Side Effects (Filesystem-as-API) ──
+      if (c.author === 'human') {
+        let updates = null;
+        if (c.is_brainstorm) {
+          // Brainstorm: keep current lane, just flag for reply so worker enters dialogue mode
+          console.log(`[conv-command] ${trackNumber}: brainstorm flag set (waitingForReply only)`);
+          const brainstormIndexPath = join(trackDir, 'index.md');
+          if (existsSync(brainstormIndexPath)) {
+            let brainstormIdx = readFileSync(brainstormIndexPath, 'utf8');
+            const bUpdateHeader = (content, header, value) => {
+              const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
+              if (regex.test(content)) return content.replace(regex, `**${header}**: ${value}`);
+              return content.trim() + `\n**${header}**: ${value}\n`;
+            };
+            brainstormIdx = bUpdateHeader(brainstormIdx, 'Waiting for reply', 'yes');
+            writeFileSync(brainstormIndexPath, brainstormIdx, 'utf8');
+            console.log(`[conv-command] ${trackNumber}: set Waiting for reply=yes (lane unchanged)`);
+          }
+        } else if (c.is_replan) {
+          console.log(`[conv-command] ${trackNumber}: triggering replan`);
+          updates = { lane: Lanes.PLAN, lane_action_status: 'queue' };
+        } else if (c.is_bug) {
+          console.log(`[conv-command] ${trackNumber}: triggering bug flow`);
+          updates = { lane: Lanes.PLAN, lane_action_status: 'queue' };
+        }
+
+        if (updates) {
+          await postToCollectors(`/track/${trackNumber}/action`, updates, proj.id)
+            .catch(err => console.warn(`[conv-command] transition failed: ${err.message}`));
+
+          // ALSO update local index.md for filesystem-as-API consistency
+          const indexPath = join(trackDir, 'index.md');
+          if (existsSync(indexPath)) {
+            let indexContent = readFileSync(indexPath, 'utf8');
+
+            // Helper to update or append a header
+            const updateHeader = (content, header, value) => {
+              const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
+              if (regex.test(content)) return content.replace(regex, `**${header}**: ${value}`);
+              return content.trim() + `\n**${header}**: ${value}\n`;
+            };
+
+            if (updates.lane) indexContent = updateHeader(indexContent, 'Lane', updates.lane);
+            if (updates.lane_action_status) indexContent = updateHeader(indexContent, 'Lane Status', updates.lane_action_status);
+
+            if (c.is_replan || c.is_bug) {
+              indexContent = updateHeader(indexContent, 'Waiting for reply', 'no');
+            }
+            writeFileSync(indexPath, indexContent, 'utf8');
+            console.log(`[conv-command] ${trackNumber}: updated index.md local state`);
+          }
+        }
+      }
     }
 
     writeFileSync(cursorPath, String(content.length), 'utf8');
@@ -904,7 +1000,6 @@ watch('.laneconductor.json')
                   primary: proj.primary || null,
                   secondary: proj.secondary || null,
                   dev: proj.dev || null,
-                  create_quality_gate: proj.create_quality_gate ?? false,
                   collectors: config.collectors || [],
                   db: config.db || null,
                   ui_port: config.ui?.port || null,
@@ -1550,24 +1645,18 @@ async function checkAndClaimGitLock(trackNumber) {
       }).catch(err => console.warn(`[git-lock] Failed to sync lock to API: ${err.message}`));
     }
 
-    // Commit lock and track files to git (so worktree can see them)
+    // Commit track files to git so the worktree can see the latest state
+    // (lock file itself is gitignored — only track files need committing)
     try {
-      gitExec(`git add "${lockFile}"`, process.cwd());
-
-      // Attempt to find track dir and add it too
-      try {
-        const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-        const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
-        if (trackDir) {
-          gitExec(`git add "${join(tracksDir, trackDir)}"`, process.cwd());
-        }
-      } catch (e) { }
-
-      gitExec(`git commit -m "Lock track ${trackNumber} and sync files" --quiet`, process.cwd());
-      console.log(`[git-lock] Created and committed lock/files for track ${trackNumber}`);
+      const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+      const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+      if (trackDir) {
+        gitExec(`git add "${join(tracksDir, trackDir)}"`, process.cwd());
+        gitExec(`git commit -m "chore(track-${trackNumber}): sync files before worktree" --quiet`, process.cwd());
+        console.log(`[git-lock] Synced track files to git for worktree`);
+      }
     } catch (e) {
-      // If nothing to commit, it will fail - that's fine
-      // console.warn(`[git-lock] git commit skipped or failed: ${e.message}`);
+      // If nothing to commit, that's fine
     }
 
     return lockFile;
@@ -1698,22 +1787,8 @@ async function releaseGitLock(trackNumber) {
         .catch(err => console.warn(`[git-lock] Failed to sync unlock to API: ${err.message}`));
     }
 
-    // Commit lock removal to git
-    try {
-      gitExec(`git add "${lockDir}"`, process.cwd());
-      gitExec(`git commit -m "Unlock track ${trackNumber}" --quiet`, process.cwd());
-
-      // Try to push if remote available
-      try {
-        gitExec(`git push origin ${getMainBranch()} --quiet`, process.cwd());
-      } catch (e) {
-        console.warn(`[git-lock] Failed to push lock removal: ${e.message}`);
-      }
-
-      console.log(`[git-lock] Released and committed lock removal for track ${trackNumber}`);
-    } catch (e) {
-      console.warn(`[git-lock] Failed to commit lock removal: ${e.message}`);
-    }
+    // Lock dir is gitignored — no need to commit or push its removal
+    console.log(`[git-lock] Released lock for track ${trackNumber}`);
   } catch (err) {
     console.error(`[git-lock] Error releasing lock: ${err.message}`);
   }
@@ -1989,9 +2064,13 @@ async function spawnCli(command, args, label, trackNumber, cli, laneStatus, lane
     const isMaxRetries = !isSuccess && !isExhausted && failCountBefore >= maxRetries;
 
     // 2. Resolve target lane and status
-    const transitionValue = isSuccess
-      ? (currentLaneConfig.on_success || workflowConfig?.defaults?.on_success)
-      : (isMaxRetries ? (currentLaneConfig.on_failure || workflowConfig?.defaults?.on_failure) : null);
+    // Conversation/brainstorm runs (local-fs-answer) must not trigger workflow lane transitions
+    const isConversationRun = label === 'local-fs-answer';
+    const transitionValue = isConversationRun
+      ? null
+      : (isSuccess
+        ? (currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success)
+        : (isMaxRetries ? (currentLaneConfig?.on_failure || workflowConfig?.defaults?.on_failure) : null));
 
     const { lane: targetLane, status: nextActionStatus } = resolveTransition(transitionValue, laneStatus, isSuccess, isMaxRetries);
 
@@ -2014,11 +2093,13 @@ async function spawnCli(command, args, label, trackNumber, cli, laneStatus, lane
           let updated = false;
 
           // 1. Always write the correct Lane from workflow.json (ignore whatever agent wrote)
-          const effectiveLane = targetLane || laneStatus;
+          const effectiveLane = targetLane || laneStatus || Lanes.PLAN;
           if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
             content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${effectiveLane}`);
-          } else {
+          } else if (content.match(/(# [^\n]+\n)/i)) {
             content = content.replace(/(# [^\n]+\n)/i, `$1\n**Lane**: ${effectiveLane}\n`);
+          } else {
+            content = `**Lane**: ${effectiveLane}\n` + content;
           }
           updated = true;
           if (targetLane && targetLane !== laneStatus) {
@@ -2030,18 +2111,29 @@ async function spawnCli(command, args, label, trackNumber, cli, laneStatus, lane
             content = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, `**Lane Status**: ${nextActionStatus}`);
           } else if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
             content = content.replace(/(\*\*Lane\*\*:\s*[^\n]+)/i, `$1\n**Lane Status**: ${nextActionStatus}`);
-          } else {
+          } else if (content.match(/(# [^\n]+\n)/i)) {
             content = content.replace(/(# [^\n]+\n)/i, `$1\n**Lane Status**: ${nextActionStatus}\n`);
+          } else {
+            content = `**Lane Status**: ${nextActionStatus}\n` + content;
           }
           updated = true;
 
-          // 3. Update Progress if success
-          if (isSuccess) {
+          // 3. Update Progress if success (skip for conversation runs — don't force 100%)
+          if (isSuccess && !isConversationRun) {
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
               updated = true;
             }
+          }
+
+          // 3b. Conversation runs: clear waitingForReply so worker doesn't immediately re-fire
+          if (isConversationRun) {
+            if (content.match(/\*\*Waiting for reply\*\*:\s*[^\n]+/i)) {
+              content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: no`);
+            }
+            patchData.waiting_for_reply = false;
+            updated = true;
           }
           // 4. Update Last Run By
           const runBy = cli === 'npx' ? 'worker' : (cli || 'user');
@@ -2267,7 +2359,9 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     return ['npx', args, chosenCli];
   }
   if (chosenCli === 'claude') {
-    const args = ['--dangerously-skip-permissions', '-p', prompt];
+    // Inject skill context even for Claude to ensure it uses the right skill definition
+    const fullPrompt = customPrompt ? `${contextMsg}\n\n${prompt}` : prompt;
+    const args = ['--dangerously-skip-permissions', '-p', fullPrompt];
     if (chosenModel) args.push('--model', chosenModel);
     return ['claude', args, chosenCli];
   }
@@ -2339,12 +2433,17 @@ async function autoLaunchLocalFs(globalLimit) {
     if (!laneConfig) continue;
 
     const laneLimit = laneConfig.parallel_limit ?? workflowConfig?.defaults?.parallel_limit ?? 1;
-    const alreadyRunning = currentlyRunningPerLane[lane_status] || 0;
+    const fromFiles = currentlyRunningPerLane[lane_status] || 0;
+    // Cross-check with internal state for reliability
+    let internalRunning = 0;
+    for (const l of runningLaneMap.values()) if (l === lane_status) internalRunning++;
+
+    const alreadyRunning = Math.max(fromFiles, internalRunning);
     const alreadyClaimed = lanesClaimedThisRound.get(lane_status) || 0;
 
     // BYPASS concurrency limits if we are just answering a question
     if (alreadyRunning + alreadyClaimed >= laneLimit && !waitingForReply) {
-      console.log(`[local-fs] Lane "${lane_status}" at limit ${laneLimit}. Skipping ${dir}.`);
+      console.log(`[local-fs] Lane "${lane_status}" at limit ${laneLimit} (Running: ${alreadyRunning}, Claimed: ${alreadyClaimed}). Skipping ${dir}.`);
       continue;
     }
 
@@ -2371,8 +2470,34 @@ async function autoLaunchLocalFs(globalLimit) {
 
     if (waitingForReply) {
       label = 'local-fs-answer';
-      cmd_type = 'implement';
-      customPrompt = `The user has sent a message in the track conversation. Please read it and respond. If it is a question, answer it. If it is a decision, incorporate it. You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Answered user question" when done.`;
+      // Respect the current lane's skill if it's an active one, otherwise fallback to implement
+      if (['plan', 'implement', 'review', 'quality-gate'].includes(lane_status)) {
+        cmd_type = lane_status;
+      } else {
+        cmd_type = 'implement';
+      }
+
+      // Detect if the latest unanswered message is a brainstorm-tagged message
+      const convPath = join(tracksDir, dir, 'conversation.md');
+      const isBrainstormReply = existsSync(convPath) &&
+        readFileSync(convPath, 'utf8').match(/>\s+\*\*human\*\*\s+\(brainstorm\)/i);
+
+      if (isBrainstormReply) {
+        customPrompt = `The user has sent a brainstorm message. Read conductor/tracks/${dir}/conversation.md carefully to find their question (the line tagged "(brainstorm)").
+
+Your ONLY job right now is to have a conversation — do NOT touch spec.md, plan.md, test.md, or any implementation files.
+
+Step 1: Use /laneconductor comment ${track_number} to post your response. Format: a focused answer to their specific question, followed by exactly ONE clarifying question. Keep it conversational and concise.
+
+Step 2: Use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Brainstorm in progress" to update status.
+
+Do NOT re-scaffold or rewrite conversation.md. Do NOT run /laneconductor plan yet.
+When the human eventually says "go ahead" or "that's enough", THEN run /laneconductor plan ${track_number}.`;
+      } else {
+        customPrompt = `The user has sent a message in the track conversation. Read conductor/tracks/${dir}/conversation.md to find their message.
+Use /laneconductor comment ${track_number} to post your reply directly in the conversation. If it is a question, answer it. If it is a decision, acknowledge and incorporate it.
+You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Answered user question" when done.`;
+      }
     }
 
     const cliArgs = await buildCliArgs('laneconductor', cmd_type, track_number, customPrompt, laneConfig);
@@ -2384,7 +2509,13 @@ async function autoLaunchLocalFs(globalLimit) {
     const [cmd, args, cli] = cliArgs;
     try {
       // Update file to running status so UI/tests can see it
-      const runningContent = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: running');
+      // Use robust header update helper
+      const updateHeader = (content, header, value) => {
+        const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
+        if (regex.test(content)) return content.replace(regex, `**${header}**: ${value}`);
+        return content.trim() + `\n**${header}**: ${value}\n`;
+      };
+      const runningContent = updateHeader(content, 'Lane Status', 'running');
       writeFileSync(indexPath, runningContent, 'utf8');
 
       const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, lane_status, laneConfig);

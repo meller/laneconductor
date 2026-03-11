@@ -275,10 +275,7 @@ Sets up the **collection destination** — configures the operating mode, AI age
    Write all tokens to `.env` (create if absent; never overwrite existing values without prompting).
    Ensure `.gitignore` exists and contains `.env` and `.laneconductor.json`.
 
-3. Ask project settings:
-   - `Enable Quality Gate lane? (y/n) [n]:`
-
-4. **Primary agent** — ask which CLI drives this project (`claude` / `gemini` / `other`).
+3. **Primary agent** — ask which CLI drives this project (`claude` / `gemini` / `other`).
    Then:
    a. **Verify reachability** by running the version check:
 
@@ -310,13 +307,13 @@ Sets up the **collection destination** — configures the operating mode, AI age
 
    c. Ask: `Primary model [<first-from-list>]:`
 
-5. **Secondary agent** (optional) — ask `Add a secondary AI CLI? (none / claude / gemini / other)`.
+4. **Secondary agent** (optional) — ask `Add a secondary AI CLI? (none / claude / gemini / other)`.
    If not `none`: repeat reachability check + model discovery for that CLI.
    Ask: `Secondary model [<first-from-list>]:`
 
-6. Detect project name: run `git remote get-url origin 2>/dev/null` and parse the repo name. Fall back to `basename $(pwd)`.
+5. Detect project name: run `git remote get-url origin 2>/dev/null` and parse the repo name. Fall back to `basename $(pwd)`.
 
-7. Write `.laneconductor.json` (passwords NEVER go here — they live in `.env`):
+6. Write `.laneconductor.json` (passwords NEVER go here — they live in `.env`):
 
 **Mode 1 — local-fs** (minimal, no infrastructure):
 ```json
@@ -326,7 +323,6 @@ Sets up the **collection destination** — configures the operating mode, AI age
     "name": "<detected-name>",
     "repo_path": "<absolute-path>",
     "git_remote": "<git-remote-or-null>",
-    "create_quality_gate": false,
     "primary": { "cli": "claude", "model": "<selected-model>" }
   },
   "collectors": []
@@ -342,7 +338,6 @@ Sets up the **collection destination** — configures the operating mode, AI age
     "id": null,
     "repo_path": "<absolute-path>",
     "git_remote": "<git-remote-or-null>",
-    "create_quality_gate": false,
     "primary": { "cli": "claude", "model": "<selected-model>" },
     "secondary": { "cli": "gemini", "model": "<selected-model>" },
     "dev": { "command": "npm run dev", "url": "http://localhost:3000" }
@@ -682,6 +677,7 @@ try {
 
 Scaffold or refine the planning phase of a track (Spec + Plan).
 
+0. **Claim the track immediately** — before any other work, write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. This prevents the worker from double-launching and shows activity in the UI.
 1.  **Locate the Track**: Use the **Protocol: Locating Tracks**. If it has `**Status**: pending` in `file_sync_queue.md` and no folder exists yet, proceed to **Scaffold**.
 2.  **Scaffold (if missing)**:
     - Create directory `conductor/tracks/NNN-slug/`
@@ -726,6 +722,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 **Updated flow (uses lock/unlock):**
 
+0. **Claim the track immediately** — before acquiring the lock, write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. This prevents the worker from double-launching and shows activity in the UI.
 1.  **Locate the Track**: Use the **Protocol: Locating Tracks** (check `tracks-metadata.json` first) to find the track folder `conductor/tracks/NNN-*/`.
 2.  **Acquire lock and worktree:**
    ```bash
@@ -771,6 +768,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 Structured review of a track against its plan and product guidelines. Posts the result as a comment by writing to the track's conversation file.
 
+0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
 1. **Load Context**:
    - Read `plan.md`, `spec.md`, `test.md`, and `product-guidelines.md`.
    - Read `conversation.md` to see if previous review gaps were addressed or if the user provided specific instructions.
@@ -786,6 +784,7 @@ Structured review of a track against its plan and product guidelines. Posts the 
 
 Runs automated checks and updates status files based on results.
 
+0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
 1. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
    - `test.md` test commands are the primary automated check for this specific track.
    - `quality-gate.md` commands apply project-wide quality standards.

@@ -60,6 +60,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const logsEndRef = useRef(null);
   const pollRef = useRef(null);
   const detailPollRef = useRef(null);
+  const [showNewTrack, setShowNewTrack] = useState(false);
   const initialTabSet = useRef(!!initialTab);
 
   // Fetch track detail
@@ -136,24 +137,24 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     setSending(false);
   }
 
-  async function sendComment(textOverride, newLaneStatus, noWake = false) {
+  async function sendComment(textOverride, newLaneStatus, noWake = false, command = undefined) {
     const isEvent = typeof textOverride === 'object' && textOverride !== null;
     const isMissing = textOverride === undefined;
     const bodyStr = isEvent || isMissing ? draft : textOverride;
     const body = bodyStr.trim();
 
-    if (!body || sending) return;
+    if (!body && !command && !newLaneStatus && sending) return;
     setSending(true);
     try {
       const r = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ author: 'human', body, no_wake: noWake }),
+        body: JSON.stringify({ author: 'human', body: body || `Triggering ${command}...`, no_wake: noWake, command }),
       });
       if (r.ok) {
         const comment = await r.json();
         setComments(prev => [...prev, comment]);
-        if (isEvent || isMissing) {
+        if (isEvent || isMissing || textOverride === bodyStr) {
           setDraft('');
         }
       }
@@ -256,37 +257,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
               <div ref={bottomRef} />
             </div>
 
-            {/* Conversation Actions Toolbar */}
-            <div className="px-5 py-2 border-t border-gray-800 bg-gray-900/30 flex items-center justify-between gap-3">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Quick Actions</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={openBug}
-                  disabled={sending}
-                  title="Report a bug — uses your draft text as the description and adds a regression test to test.md"
-                  className="px-2 py-1 rounded border border-red-900/50 bg-red-950/20 text-red-400 text-[10px] font-medium hover:bg-red-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  Open Bug
-                </button>
-                <button
-                  onClick={() => sendComment(`I can create a feature request for this.`, 'plan')}
-                  className="px-2 py-1 rounded border border-blue-900/50 bg-blue-950/20 text-blue-400 text-[10px] font-medium hover:bg-blue-900/30 transition-colors"
-                >
-                  Open Feature
-                </button>
-                <button
-                  onClick={() => sendComment('> **system**: Brainstorm requested via UI. Read all context files (product.md, tech-stack.md, spec.md, plan.md, test.md) and begin clarifying questions one at a time.')}
-                  disabled={detail?.lane === 'done'}
-                  title="Start a brainstorm dialogue to deepen spec and plan before implementing"
-                  className="px-2 py-1 rounded border border-violet-900/50 bg-violet-950/20 text-violet-400 text-[10px] font-medium hover:bg-violet-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  Brainstorm
-                </button>
-              </div>
-            </div>
-
             {/* Input */}
-            <div className="border-t border-gray-800 px-5 py-3 flex flex-col gap-2 bg-gray-900/40">
+            <div className="border-t border-gray-800 px-5 py-3 flex flex-col gap-3 bg-gray-900/40">
               <textarea
                 value={draft}
                 onChange={e => setDraft(e.target.value)}
@@ -295,24 +267,60 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 rows={2}
                 className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-gray-500 shadow-inner"
               />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => sendComment(undefined, undefined, true)}
-                  disabled={!draft.trim() || sending}
-                  title="Send as a note (won't trigger automation or wake workers)"
-                  className="px-3 py-2 rounded-lg border border-gray-700 text-gray-400 text-sm font-medium hover:bg-gray-800 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  Post Note
-                </button>
-                <button
-                  onClick={() => sendComment()}
-                  disabled={!draft.trim() || sending}
-                  title="Send message and notify workers (⌘↵)"
-                  className="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5"
-                >
-                  <span>Send</span>
-                  <span className="text-[10px] opacity-60">⌘↵</span>
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-y-3">
+                <div className="flex gap-2">
+                  <button
+                    onClick={openBug}
+                    disabled={sending}
+                    title="Report a bug — uses your draft text as the description and adds a regression test to test.md"
+                    className="px-2 py-1 rounded border border-red-900/50 bg-red-950/20 text-red-400 text-[10px] font-medium hover:bg-red-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Bug
+                  </button>
+                  <button
+                    onClick={() => sendComment(undefined, undefined, false, 'brainstorm')}
+                    disabled={sending}
+                    title="Start a brainstorm dialogue"
+                    className="px-2 py-1 rounded border border-violet-900/50 bg-violet-950/20 text-violet-400 text-[10px] font-medium hover:bg-violet-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Brainstorm
+                  </button>
+                  <button
+                    onClick={() => sendComment(undefined, 'plan', false, 'replan')}
+                    disabled={sending}
+                    title="Move back to planning to refine spec or plan"
+                    className="px-2 py-1 rounded border border-indigo-900/50 bg-indigo-950/20 text-indigo-400 text-[10px] font-medium hover:bg-indigo-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Replan
+                  </button>
+                  <button
+                    onClick={() => setShowNewTrack(true)}
+                    title="Open a new related track using draft text"
+                    className="px-2 py-1 rounded border border-emerald-900/50 bg-emerald-950/20 text-emerald-400 text-[10px] font-medium hover:bg-emerald-900/40 transition-colors"
+                  >
+                    + New Track
+                  </button>
+                </div>
+
+                <div className="flex gap-2 ml-auto">
+                  <button
+                    onClick={() => sendComment(undefined, undefined, true)}
+                    disabled={!draft.trim() || sending}
+                    title="Send as a note (won't trigger automation or wake workers)"
+                    className="px-3 py-2 rounded-lg border border-gray-700 text-gray-400 text-[11px] font-medium hover:bg-gray-800 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    Post Note
+                  </button>
+                  <button
+                    onClick={() => sendComment()}
+                    disabled={!draft.trim() || sending}
+                    title="Send message and notify workers (⌘↵)"
+                    className="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-medium shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5"
+                  >
+                    <span>Send</span>
+                    <span className="text-[10px] opacity-60">⌘↵</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -343,6 +351,20 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
           </div>
         )}
       </div>
+
+      {showNewTrack && (
+        <NewTrackModal
+          projectId={projectId}
+          projects={[]} // Passed from parent usually, but we might need to handle this
+          tracks={[]} // Ideally we have all tracks for matching
+          initialDescription={draft}
+          onClose={() => setShowNewTrack(false)}
+          onCreated={() => {
+            setShowNewTrack(false);
+            setDraft('');
+          }}
+        />
+      )}
     </>
   );
 }

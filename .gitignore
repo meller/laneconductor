@@ -22,6 +22,9 @@ conductor/.sync.log
 # Git worktrees
 .worktrees/
 
+# Lock files — ephemeral machine-local state, not versioned
+conductor/.locks/
+
 # Runtime state — machine-specific, auto-generated
 .conductor/
 conductor/tracks-metadata.json
@@ -55,6 +58,11 @@ playwright-report/
 
 # Claude local settings
 .claude/settings.local.json
+
+# Third-party Claude skills — local-only, not distributed with this project
+# Only the laneconductor skill itself is tracked (it's the product)
+.claude/skills/*/
+!.claude/skills/laneconductor/
 
 # PID files
 ui/.ui.pid

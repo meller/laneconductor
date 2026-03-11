@@ -14,9 +14,9 @@ function matchingTracks(title, type, tracks, activeProjectId) {
     .slice(0, 3);
 }
 
-export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated, onResumed, initialType = 'feature' }) {
+export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated, onResumed, initialType = 'feature', initialDescription = '' }) {
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(initialDescription);
   const [type, setType] = useState(initialType);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
