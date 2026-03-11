@@ -985,8 +985,8 @@ app.get('/api/projects/:id/tracks/:num/comments', async (req, res) => {
 
 app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
   try {
-    const { body, author = 'human' } = req.body;
-    if (!body) return res.status(400).json({ error: 'body is required' });
+    const { body, author = 'human', command } = req.body;
+    if (!body && !command) return res.status(400).json({ error: 'body or command is required' });
     const result = await collectorWrite('POST', `/track/${req.params.num}/comment`, req.body, req.params.id);
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
 
@@ -1002,7 +1002,9 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
             if (dir) {
               const convPath = join(tracksDir, dir, 'conversation.md');
               const cursorPath = join(tracksDir, dir, '.conv-cursor');
-              const append = `\n> **human** ${req.body.no_wake ? '(note)' : ''}: ${body}\n`;
+              const tag = command ? `(${command})` : (req.body.no_wake ? '(note)' : '');
+              const displayBody = body || (command === 'brainstorm' ? 'Brainstorm requested' : (command === 'replan' ? 'Replan requested' : ''));
+              const append = `\n> **human** ${tag}: ${displayBody}\n`;
               appendFileSync(convPath, append, 'utf8');
               // Advance cursor past the line we just wrote so the worker doesn't re-sync it
               const newSize = existsSync(convPath) ? statSync(convPath).size : 0;
