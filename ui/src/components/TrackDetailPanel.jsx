@@ -117,6 +117,25 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
+  async function openBug() {
+    const description = draft.trim() || undefined;
+    setSending(true);
+    try {
+      const r = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}/open-bug`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        if (data.comment) setComments(prev => [...prev, data.comment]);
+        setDraft('');
+        fetchDetail();
+      }
+    } catch { }
+    setSending(false);
+  }
+
   async function sendComment(textOverride, newLaneStatus, noWake = false) {
     const isEvent = typeof textOverride === 'object' && textOverride !== null;
     const isMissing = textOverride === undefined;
@@ -242,8 +261,10 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
               <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Quick Actions</span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => sendComment(`Should I open a bug to fix this?`, 'plan')}
-                  className="px-2 py-1 rounded border border-red-900/50 bg-red-950/20 text-red-400 text-[10px] font-medium hover:bg-red-900/30 transition-colors"
+                  onClick={openBug}
+                  disabled={sending}
+                  title="Report a bug — uses your draft text as the description and adds a regression test to test.md"
+                  className="px-2 py-1 rounded border border-red-900/50 bg-red-950/20 text-red-400 text-[10px] font-medium hover:bg-red-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                   Open Bug
                 </button>
@@ -255,7 +276,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 </button>
                 <button
                   onClick={() => sendComment('> **system**: Brainstorm requested via UI. Read all context files (product.md, tech-stack.md, spec.md, plan.md, test.md) and begin clarifying questions one at a time.')}
-                  disabled={track?.lane === 'done'}
+                  disabled={detail?.lane === 'done'}
                   title="Start a brainstorm dialogue to deepen spec and plan before implementing"
                   className="px-2 py-1 rounded border border-violet-900/50 bg-violet-950/20 text-violet-400 text-[10px] font-medium hover:bg-violet-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >

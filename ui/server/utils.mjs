@@ -1,5 +1,30 @@
 // Utility functions for LaneConductor server
 
+/**
+ * Append a regression test block to existing test.md content.
+ * Pure function — no I/O.
+ * @param {string} testContent  Existing test.md content (may be empty)
+ * @param {string} description  Human-readable bug description
+ * @param {string} trackNum     Track number (e.g. '1045')
+ * @returns {string}            Updated test.md content
+ */
+export function appendRegressionTest(testContent, description, trackNum) {
+  const bugCount = (testContent.match(/TC-BUG-/g) ?? []).length;
+  const n = bugCount + 1;
+  const date = new Date().toISOString().slice(0, 10);
+  const block = [
+    '',
+    `### Regression: ${description} (${date})`,
+    `- [ ] TC-BUG-${n}: Verify "${description}" does not recur — expected: correct behavior without the bug`,
+    '',
+  ].join('\n');
+
+  if (!testContent.includes('## Test Cases')) {
+    return `${testContent}\n## Test Cases\n${block}`;
+  }
+  return testContent + block;
+}
+
 export function slugify(title) {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }

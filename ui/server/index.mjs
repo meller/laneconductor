@@ -11,7 +11,7 @@ import { kill } from 'process';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { initWebSocket, broadcast } from './wsBroadcast.mjs';
-import { slugify, trackTemplates } from './utils.mjs';
+import { slugify, trackTemplates, appendRegressionTest } from './utils.mjs';
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
@@ -1022,6 +1022,72 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
 
     res.status(201).json(result);
   } catch (err) {
+    res.status(err.status ?? 500).json({ error: err.message });
+  }
+});
+
+// ── Open Bug: post comment + append regression test to test.md ───────────────
+
+app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
+  try {
+    const description = (req.body.description ?? '').trim() || 'Bug reported from conversation';
+
+    // 1. Get project repo_path
+    const projRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!projRes.rows.length) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path } = projRes.rows[0];
+
+    // 2. Get track DB id
+    const trackId = await getTrackId(req.params.id, req.params.num);
+    if (!trackId) return res.status(404).json({ error: 'Track not found' });
+
+    // 3. Read current test_content from DB
+    const tcRes = await pool.query('SELECT test_content FROM tracks WHERE id = $1', [trackId]);
+    const existingContent = tcRes.rows[0]?.test_content ?? '';
+
+    // 4. Append regression test block (pure function)
+    const updatedContent = appendRegressionTest(existingContent, description, req.params.num);
+
+    // 5. Write updated test.md to disk
+    const tracksDir = join(repo_path, 'conductor', 'tracks');
+    if (existsSync(tracksDir)) {
+      const dir = readdirSync(tracksDir).find(d => d.startsWith(`${req.params.num}-`));
+      if (dir) {
+        const testMdPath = join(tracksDir, dir, 'test.md');
+        writeFileSync(testMdPath, updatedContent, 'utf8');
+
+        // 6. Queue file sync for remote workers
+        const relTestPath = join('conductor', 'tracks', dir, 'test.md');
+        await queueFileSync(req.params.id, relTestPath, updatedContent, 'overwrite');
+
+        // 7. Append to conversation.md so worker knows a bug was opened
+        const convPath = join(tracksDir, dir, 'conversation.md');
+        const cursorPath = join(tracksDir, dir, '.conv-cursor');
+        const commentBody = `🐛 Bug reported: ${description}`;
+        const append = `\n> **human**: ${commentBody}\n`;
+        appendFileSync(convPath, append, 'utf8');
+        const newSize = existsSync(convPath) ? statSync(convPath).size : 0;
+        writeFileSync(cursorPath, String(newSize), 'utf8');
+        await queueFileSync(req.params.id, join('conductor', 'tracks', dir, 'conversation.md'), append, 'append');
+      }
+    }
+
+    // 8. Post comment via collector
+    const comment = await collectorWrite('POST', `/track/${req.params.num}/comment`, {
+      author: 'human',
+      body: `🐛 Bug reported: ${description}`,
+    }, req.params.id);
+
+    // 9. Update test_content + lane in DB via collector PATCH
+    await collectorWrite('PATCH', `/track/${req.params.num}`, {
+      test_content: updatedContent,
+      lane_status: 'plan',
+    }, req.params.id);
+
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.status(201).json({ ok: true, test_appended: true, comment });
+  } catch (err) {
+    console.error('[open-bug] Error:', err.message);
     res.status(err.status ?? 500).json({ error: err.message });
   }
 });
