@@ -4,6 +4,7 @@ description: Use this skill when the user invokes /laneconductor commands. Manag
 user-invocable: true
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 ---
+<!-- Portions of workflow protocols adapted from superpowers by Jesse Vincent (MIT License) -->
 
 # LaneConductor Skill
 
@@ -691,10 +692,31 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - In `file_sync_queue.md`: update the entry's `**Status**: pending` → `**Status**: processed`.
 3.  **Refine (if exists)**:
     - Read existing `spec.md`, `plan.md`, and `test.md`.
-    - Check for human comments in `conversation.md`.
+    - Check for human comments in `conversation.md`. **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
     - Flesh out missing requirements or phase details based on current codebase context.
     - Update `test.md` with test cases for any new phases or requirements.
 4.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
+
+---
+
+### `/laneconductor brainstorm [track-number]`
+
+Optional deepening step. Call this before `/laneconductor implement` when you want to explore requirements further via dialogue. Not a lane — can be run at any time.
+
+**Flow:**
+1. **Load all context**: read `conductor/product.md`, `conductor/tech-stack.md`, `conductor/tracks/NNN-*/spec.md`, `plan.md`, `test.md`, and `conversation.md`
+2. **Ask one clarifying question** — appended to `conductor/tracks/NNN-*/conversation.md` in this format:
+   ```
+   > **system**: Brainstorm requested. [Your question here]
+   ```
+3. Set `**Waiting for reply**: yes` in `index.md`
+4. **Wait for human reply** in `conversation.md` (or via UI inbox)
+5. Repeat: ask next question based on reply. One question per message.
+6. When enough context is gathered (or human says "go ahead"), run `/laneconductor plan NNN` — it will read `conversation.md` and update `spec.md`/`plan.md`/`test.md` from the dialogue.
+
+**What counts as "enough context":** requirements are unambiguous, acceptance criteria are clear, at least one test case per phase is implied.
+
+**Also available as:** `lc brainstorm <track-number>` (writes initial trigger to `conversation.md`, sets `**Waiting for reply**: yes`)
 
 ---
 
@@ -715,7 +737,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 2. **Read existing context:**
    - Read `conductor/tracks/NNN-*/plan.md` to understand phases
    - Read `conductor/tracks/NNN-*/spec.md` for technical details
-   - Read `conductor/tracks/NNN-*/test.md` if it exists — use test cases as implementation targets; write/run tests per phase; verify each phase against test.md before marking it complete
+   - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first (before any implementation), run the test and confirm it fails (feature missing, not a typo), then write minimal code to make it pass, then confirm green. A phase is not complete until its `test.md` test cases pass. If no test cases exist for a phase, proceed without this step.
    - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. This contains the human-to-AI conversation history. Treat human comments as overriding instructions or blocker resolutions.
    - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed.
    - Update `index.md` to `**Status**: implement`
@@ -769,9 +791,12 @@ Runs automated checks and updates status files based on results.
    - `quality-gate.md` commands apply project-wide quality standards.
    - If a command is missing from your system (e.g., `playwright` not installed), you MUST install it or report a failure.
    - Do NOT just mark them as checked; you must actually run the code and verify the output.
-2. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However:
-   - You MUST commit the fix with `fix(quality-gate): [description]`.
-   - You MUST post a comment to `conversation.md` explaining exactly what was fixed.
+2. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However, before writing any fix:
+   - **Write a failing test that reproduces the bug first.** The test must fail before you fix anything.
+   - Then implement the fix.
+   - Re-run to confirm the test now passes.
+   - You MUST commit both the test and the fix together with `fix(quality-gate): [description]`.
+   - You MUST post a comment to `conversation.md` explaining what failed and what was fixed.
 3. **Post Results**: Append results to `conversation.md`.
 4. **Transition**:
    - If **PASS**: Update `index.md` to `**Status**: done` and append `## ✅ QUALITY PASSED` to `plan.md`.
@@ -1151,6 +1176,7 @@ The system adds a "Moved to [lane]" or "Human comment" marker which **resets the
 | `/laneconductor updateTrack [NNN] [what]` | Add work/bug/feature to existing track, move back to backlog |
 | `/laneconductor reportaBug [desc]` | Smart bug intake — updates existing track or creates new bug track |
 | `/laneconductor featureRequest [desc]` | Smart feature intake — updates existing track or creates new feature track |
+| `/laneconductor brainstorm [NNN]` | Optional pre-implement dialogue via conversation.md to deepen spec/plan |
 | `/laneconductor implement [NNN]` | Execute track with DB sync |
 | `/laneconductor revert [track] [phase]` | Safe undo + DB sync |
 | `/laneconductor pulse [NNN] [status] [%] [summary]` | Manual DB update |
@@ -1159,6 +1185,7 @@ The system adds a "Moved to [lane]" or "Human comment" marker which **resets the
 | `/laneconductor review [NNN]` | Review track against plan + guidelines → post result, auto-transition lane |
 | `/laneconductor remote-sync [track-num?]` | Sync track changes from API to local files (Phase 5) |
 | `/laneconductor init-tracks-summary` | Regenerate conductor/tracks.md from all track files (Phase 6) |
+| `lc brainstorm <track>` | Start brainstorm dialogue for a track via conversation.md |
 | `lc install` | Install pg + chokidar deps |
 | `lc start` | Start heartbeat worker |
 | `lc stop` | Stop heartbeat worker |

@@ -59,6 +59,7 @@ Core Commands:
 
 Project & Track Management:
   new [name] [desc]    Create a new track
+  brainstorm [id]      Start a brainstorm dialogue for a track via conversation.md
   comment [id] [msg]   Post a comment to a track
   move [id] [l:s]      Move track to lane:status
   pulse [id] [s] [%]   Pulse track status and progress
@@ -745,6 +746,28 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
             body: JSON.stringify({ author: 'human', body })
         }).then(() => console.log('✅ Comment posted to API')).catch(e => console.error('❌ API failed:', e.message));
     }
+    process.exit(0);
+} else if (command === 'brainstorm') {
+    if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
+    const trackNum = args[1];
+    if (!trackNum) { console.log('❌ Usage: lc brainstorm <track-number>'); process.exit(1); }
+
+    const tracksDir = join(projectRoot, 'conductor', 'tracks');
+    const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    if (!dir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
+
+    const convPath = join(tracksDir, dir, 'conversation.md');
+    const trigger = `\n> **system**: Brainstorm requested via CLI. Read all context files (product.md, tech-stack.md, spec.md, plan.md, test.md) and begin clarifying questions one at a time.\n`;
+    appendFileSync(convPath, trigger);
+
+    const indexPath = join(tracksDir, dir, 'index.md');
+    if (existsSync(indexPath)) {
+        let content = readFileSync(indexPath, 'utf8');
+        if (!content.includes('**Waiting for reply**:')) content += '\n**Waiting for reply**: yes\n';
+        else content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, '**Waiting for reply**: yes');
+        writeFileSync(indexPath, content);
+    }
+    console.log(`✅ Brainstorm started for Track ${trackNum}. Reply in conversation.md or the UI inbox.`);
     process.exit(0);
 } else if (command === 'move' || ['plan', 'implement', 'review', 'quality-gate', 'backlog', 'done', 'pulse', 'rerun'].includes(command)) {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }

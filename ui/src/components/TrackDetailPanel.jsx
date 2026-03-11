@@ -253,6 +253,14 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 >
                   Open Feature
                 </button>
+                <button
+                  onClick={() => sendComment('> **system**: Brainstorm requested via UI. Read all context files (product.md, tech-stack.md, spec.md, plan.md, test.md) and begin clarifying questions one at a time.')}
+                  disabled={track?.lane === 'done'}
+                  title="Start a brainstorm dialogue to deepen spec and plan before implementing"
+                  className="px-2 py-1 rounded border border-violet-900/50 bg-violet-950/20 text-violet-400 text-[10px] font-medium hover:bg-violet-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Brainstorm
+                </button>
               </div>
             </div>
 
