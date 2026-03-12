@@ -11,6 +11,8 @@ The `lc` CLI currently only transitions tracks by updating their `index.md` file
 - REQ-5: Support execution in the foreground (showing output) or background (defaulting to foreground for CLI feedback).
 - REQ-6: Handle git locking (if configured) similar to the heartbeat worker to avoid conflicts.
 - REQ-7: Update the track's lane status to `success` or `failure` upon completion.
+- REQ-8: Log output to `conductor/logs/run-<lane>-<trackNum>-<timestamp>.log` so the UI can display it via worker sync — same path pattern as the background worker.
+- REQ-9: Per-CLI prompt construction — Claude uses `/laneconductor <cmd> <id>` natively (slash command resolved by skills system); Gemini and other CLIs receive the skill file path prepended (`"Use the /laneconductor skill. Skill definition is at: ./.claude/skills/laneconductor/SKILL.md. /laneconductor <cmd> <id>"`).
 
 ## Acceptance Criteria
 - [ ] Running `lc plan 1061 --run` starts the planning phase immediately.
@@ -18,4 +20,7 @@ The `lc` CLI currently only transitions tracks by updating their `index.md` file
 - [ ] Track status in the DB (for `local-api`) and file (`index.md`) is updated to `running` while active.
 - [ ] Final status is updated to `success` or `failure` based on the agent's exit code.
 - [ ] Works correctly in both `local-fs` and `local-api` modes.
+- [ ] Log file created at `conductor/logs/run-<lane>-<trackNum>-<timestamp>.log` during execution.
+- [ ] UI log tail syncs the `--run` log the same as a background worker run.
+- [ ] Gemini CLI receives skill file path in prompt; Claude does not.
 
