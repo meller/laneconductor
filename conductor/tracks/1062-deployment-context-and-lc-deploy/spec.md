@@ -24,35 +24,37 @@ conductor/
 
 ## Requirements
 
-### REQ-1: `lc setup-deploy` — Guided Deployment Setup
+### REQ-1: `lc setup-deploy` — AI-Guided Deployment Setup
 
-Interactive CLI wizard that:
-1. Asks which **deployment template** to use (see templates below)
-2. Asks environment questions specific to that template
-3. Sets up the deployment infrastructure (creates Terraform files, Firebase config, etc.)
-4. Writes `conductor/deployment-stack.md` with the choices made
-5. Writes `deploy.json` (machine-readable, like `workflow.json`) for `lc deploy` to use
-6. Updates `.gitignore` to exclude secrets
-7. Sets up secret management (ADC, Secret Manager, etc.) — **never writes secrets to files**
+Claude-driven wizard (same pattern as `lc setup scaffold`):
+1. Scans existing project for deploy signals (`deploy.sh`, `Makefile deploy` target, `Dockerfile`, `firebase.json`, `vercel.json`, `.github/workflows/`)
+2. Asks targeted questions to understand the deployment topology
+3. **Component-based selection** — user picks independently per layer (not monolithic templates):
+   - **Frontend**: Firebase Hosting / Vercel / GCP Cloud Storage / S3+CloudFront / none
+   - **Backend**: GCP Cloud Run / AWS Lambda / Vercel Functions / Firebase Functions / none
+   - **Database**: Cloud SQL / Supabase / RDS / PlanetScale / none
+   - **Secrets**: GCP Secret Manager / AWS Secrets Manager / Azure Key Vault / Vercel env vars / Supabase Vault
+4. Verifies existing credentials for each selected component (see REQ-5)
+5. If existing deploy scripts found: wraps them in `deploy.json`; if new project: generates deploy commands
+6. Writes `conductor/deployment-stack.md` documenting the full topology
+7. Writes `conductor/deploy.json` (machine-readable config for `lc deploy`)
+8. Generates `.env.example` with all required env var names for CI migration
+9. Updates `.gitignore` — **never writes secret values to any file**
 
-### REQ-2: Deployment Templates
+### REQ-2: Named Deployment Presets (Not Templates)
 
-Six templates covering the most common stacks:
+Presets are **shorthand names** that pre-fill component selections — not files. User can accept or customize any component after selecting a preset.
 
-| # | Template | Services | Best for |
-|---|----------|----------|----------|
-| 1 | **Firebase Full** | Firebase Hosting + Firebase Functions | JAMstack, Next.js static, simple APIs |
-| 2 | **GCP Cloud Run** | Cloud Run + Artifact Registry + Cloud SQL (optional) | Containerized apps, FastAPI, Node |
-| 3 | **AWS Lambda** | Lambda + API Gateway + S3 + CloudFront | Serverless, event-driven |
-| 4 | **Vercel** | Vercel (frontend) + optional backend | Next.js, React, fullstack JS |
-| 5 | **Supabase** | Supabase (DB + Auth + Edge Functions) | Postgres-first, auth-included apps |
-| 6 | **GCP Full Stack** | Cloud Run + Firebase Hosting + Cloud SQL + Secret Manager | Full production GCP setup |
+| Preset name | Frontend | Backend | DB | Secrets |
+|-------------|----------|---------|-----|---------|
+| `firebase-full` | Firebase Hosting | Firebase Functions | Firestore | Firebase/ADC |
+| `gcp-cloud-run` | — | Cloud Run | Cloud SQL (opt) | GCP Secret Manager |
+| `gcp-full-stack` | Firebase Hosting | Cloud Run | Cloud SQL | GCP Secret Manager |
+| `vercel` | Vercel | Vercel Functions | — | Vercel env vars |
+| `aws-serverless` | S3+CloudFront | Lambda | RDS (opt) | AWS Secrets Manager |
+| `supabase` | — | — | Supabase | Supabase Vault |
 
-Each template generates:
-- Terraform files (or Firebase/Vercel config) in `infra/`
-- Environment variable stubs (no values, just keys) in `.env.example`
-- A `deploy.json` with deploy commands per environment
-- Updates to `conductor/deployment-stack.md`
+User can also describe a mix in plain language: *"Firebase hosting, Cloud Run backend, Supabase DB"* — Claude maps it to components.
 
 ### REQ-3: `lc deploy [env]` — Deploy Command
 
@@ -97,25 +99,46 @@ Terraform in infra/. State in GCS bucket: makrodash-tf-state.
 lc deploy prod  →  runs infra/deploy.sh prod
 ```
 
-### REQ-5: Zero-Secrets-in-Repo Policy
+### REQ-5: Credential Verification + Zero-Secrets Policy
 
-**The golden rule: no secret values ever touch the filesystem in a committed file.**
+**Golden rule: no secret values ever touch the filesystem in a committed file.**
 
-Secret management strategy per provider:
+Claude verifies existing auth for each selected component by running the provider's identity check:
 
-| Provider | Local Dev | Production |
-|----------|-----------|------------|
-| GCP | ADC (`gcloud auth application-default login`) | Secret Manager, accessed via ADC |
-| AWS | `aws configure` / IAM roles | Secrets Manager / Parameter Store |
-| Azure | `az login` / Managed Identity | Key Vault |
-| Vercel | Vercel CLI token | Vercel Environment Variables (encrypted) |
-| Supabase | Local `.env` (gitignored) | Supabase Vault / env vars in dashboard |
+| Provider | Verification command | Documents as |
+|----------|---------------------|--------------|
+| GCP | `gcloud auth list` + `gcloud auth application-default print-access-token` | `auth: ADC (verified)` |
+| AWS | `aws sts get-caller-identity` | `auth: IAM profile <name> (verified)` |
+| Azure | `az account show` | `auth: Azure CLI (verified)` |
+| Vercel | `vercel whoami` | `auth: Vercel CLI token (verified)` |
+| Supabase | `supabase projects list` | `auth: Supabase CLI (verified)` |
+| Firebase | `firebase projects:list` | `auth: Firebase CLI / ADC (verified)` |
 
-`lc setup-deploy` enforces this:
-- Never prompts for secret values
-- Instead generates `.env.example` with key names only
-- Adds instructions for each key (where to get it, how to set it via ADC/CLI)
-- Verifies `.gitignore` covers `.env`, `*.tfvars`, `service-account*.json`, `*-key.json`
+On verification success: writes `auth: <method> (verified ✓)` to `deployment-stack.md`.
+On failure: writes `auth: NOT CONFIGURED` + prints setup instructions (e.g. `gcloud auth application-default login`).
+
+**`.env.example` generation**: Always generated with:
+- All env var names required for CI (e.g. `GOOGLE_APPLICATION_CREDENTIALS`, `VERCEL_TOKEN`)
+- Comments explaining each var: what it is, how to obtain it, ADC equivalent for local dev
+- Never contains actual values
+
+`lc setup-deploy` also enforces:
+- `.gitignore` covers: `.env`, `*.tfvars`, `service-account*.json`, `*-key.json`, `.vercel`
+- Warns if any of these patterns are currently tracked by git
+
+### REQ-6: Local Build+Deploy Only (Phase 1)
+
+`lc deploy` runs **locally** — the build and push happen on your machine. This fits LaneConductor's sovereign, local-first identity.
+
+Remote CI/CD (GitHub Actions, Cloud Build, etc.) is **deferred to Phase 2**. The `deploy.json` schema reserves a `"ci"` key for future expansion:
+
+```json
+{
+  "ci": null
+}
+```
+
+When `ci` is set in Phase 2, `lc deploy --remote` will trigger the remote pipeline instead of running locally.
 
 ### REQ-6: `conductor/deployment-stack.md` added to scaffold
 

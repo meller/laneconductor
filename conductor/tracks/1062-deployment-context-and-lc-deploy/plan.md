@@ -14,40 +14,34 @@
     - [ ] Document schema in SKILL.md (template structure, environments, secrets keys)
     - [ ] Create `conductor/deploy.json` stub during `lc setup-deploy`
 
-## Phase 2: `lc setup-deploy` — Interactive Wizard (CLI)
+## Phase 2: `lc setup-deploy` — AI-Guided Wizard
 
 - [ ] Task 1: Add `setup-deploy` command to `bin/lc.mjs`
-    - [ ] Parse `lc setup-deploy` command
-    - [ ] Check for existing `conductor/deployment-stack.md` and `deploy.json` — offer to re-configure if found
-    - [ ] Detect existing deploy scripts (deploy.sh, Makefile `deploy` target) — offer to migrate
-- [ ] Task 2: Template selection prompt
-    - [ ] Display 6 templates with descriptions
-    - [ ] Dispatch to template-specific setup function
-- [ ] Task 3: Implement template: **Firebase Full** (Hosting + Functions)
-    - [ ] Prompt: project ID, region, hosting site name
-    - [ ] Generate `firebase.json`, `.firebaserc` stubs
-    - [ ] Generate `infra/` with deploy script calling `firebase deploy`
-    - [ ] ADC note: `firebase login` for local, CI uses service account via env var (not stored)
-- [ ] Task 4: Implement template: **GCP Cloud Run**
-    - [ ] Prompt: project ID, region, service name, registry path
-    - [ ] Generate `infra/deploy.sh` (docker build + push + gcloud run deploy)
-    - [ ] ADC note: `gcloud auth application-default login` for local, Workload Identity for CI
-- [ ] Task 5: Implement template: **AWS Lambda**
-    - [ ] Prompt: region, function name, S3 bucket for assets
-    - [ ] Generate `infra/deploy.sh` using AWS CLI / SAM
-    - [ ] ADC equivalent: `aws configure` / IAM role assumption via `AWS_PROFILE`
-- [ ] Task 6: Implement template: **Vercel**
-    - [ ] Prompt: project name, team slug (optional)
-    - [ ] Generate `vercel.json` stub
-    - [ ] ADC equivalent: `vercel login` for local, `VERCEL_TOKEN` env var for CI (never stored)
-- [ ] Task 7: Implement template: **Supabase**
-    - [ ] Prompt: project ref, DB region
-    - [ ] Generate `supabase/config.toml` stub
-    - [ ] ADC equivalent: `supabase login` for local, access token via env var for CI
-- [ ] Task 8: Implement template: **GCP Full Stack** (Cloud Run + Firebase + Cloud SQL + Secret Manager)
-    - [ ] Compose Cloud Run + Firebase Full templates
-    - [ ] Add Cloud SQL connection config (via Cloud SQL Auth Proxy, no password in files)
-    - [ ] Add Secret Manager usage example in generated README
+    - [ ] Parse `lc setup-deploy` — invoke Claude with `/laneconductor setup-deploy` skill command
+    - [ ] Check for existing `conductor/deployment-stack.md` + `deploy.json` — offer to reconfigure
+- [ ] Task 2: Add `/laneconductor setup-deploy` to SKILL.md
+    - [ ] Scan step: detect `deploy.sh`, Makefile `deploy` target, `Dockerfile`, `firebase.json`, `vercel.json`
+    - [ ] Ask component questions per layer (frontend / backend / DB / secrets) — one at a time
+    - [ ] Support preset names as shorthand (`gcp-full-stack`, `vercel`, etc.)
+    - [ ] Support plain-language mix: *"Firebase hosting + Cloud Run + Supabase"*
+- [ ] Task 3: Credential verification per component
+    - [ ] GCP: run `gcloud auth list`, `gcloud auth application-default print-access-token`
+    - [ ] AWS: run `aws sts get-caller-identity`
+    - [ ] Vercel: run `vercel whoami`
+    - [ ] Supabase: run `supabase projects list`
+    - [ ] Firebase: run `firebase projects:list`
+    - [ ] Write verified/unverified status into `deployment-stack.md`
+    - [ ] Print setup instructions for any unverified provider
+- [ ] Task 4: Wrap vs generate deploy commands
+    - [ ] If existing `deploy.sh` found: offer to wrap it → `deploy.json environments.prod.command = "bash deploy.sh"`
+    - [ ] If new project: Claude generates deploy commands per selected components
+    - [ ] Write `conductor/deploy.json` with `environments`, `components`, `secrets.keys`, `ci: null`
+- [ ] Task 5: Generate `.env.example`
+    - [ ] Per component, emit required CI env var names with explanatory comments
+    - [ ] GCP: `GOOGLE_APPLICATION_CREDENTIALS`, `GCP_PROJECT`, `GCP_REGION`
+    - [ ] Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+    - [ ] Supabase: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`
+    - [ ] Never write actual values
 
 ## Phase 3: Zero-Secrets Policy Enforcement
 
