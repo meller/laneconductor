@@ -1,6 +1,17 @@
 
 
+## Track Creation Requests
+
+
 ## Completed Queue
+
+### Track 1062: Deployment Context & lc deploy Command
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-03-12T20:00:00.000Z
+**Title**: Deployment Context & lc deploy Command
+**Description**: Add deployment as a first-class citizen in LaneConductor: lc setup-deploy (guided setup with templates), deployment-stack.md context file, lc deploy command, and zero-secrets-in-repo policy using ADC/secret managers across GCP/AWS/Azure/Vercel/Supabase
+**Processed**: 2026-03-12T19:19:04.981Z
 
 ### Track 1061: CLI gaps with worker
 **Status**: processed
