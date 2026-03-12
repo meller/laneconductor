@@ -78,7 +78,11 @@ Project & Track Management:
   init-summary         Regenerate conductor/tracks.md
 
 Track transitions:
-  plan [id], implement [id], review [id], quality-gate [id], backlog [id], done [id], rerun [id]
+  plan [id] [--run]          Move to plan lane (--run: execute immediately in foreground)
+  implement [id] [--run]     Move to implement lane (--run: execute immediately in foreground)
+  review [id] [--run]        Move to review lane (--run: execute immediately in foreground)
+  quality-gate [id] [--run]  Move to quality-gate lane (--run: execute immediately in foreground)
+  backlog [id], done [id], rerun [id]
 
 Global configuration: ${RC_FILE}
 Installation path: ${getInstallPath()}
@@ -771,10 +775,15 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
     process.exit(0);
 } else if (command === 'move' || ['plan', 'implement', 'review', 'quality-gate', 'backlog', 'done', 'pulse', 'rerun'].includes(command)) {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
-    const trackNum = args[1];
-    let lane = command === 'move' || command === 'pulse' ? args[2] : (command === 'rerun' ? null : command);
-    let status = command === 'pulse' ? args[2] : (args[2] || 'queue');
-    let prog = command === 'pulse' ? args[3] : null;
+
+    // Strip --run / -r flag before processing positional args
+    const runFlag = args.includes('--run') || args.includes('-r');
+    const filteredArgs = args.filter(a => a !== '--run' && a !== '-r');
+
+    const trackNum = filteredArgs[1];
+    let lane = command === 'move' || command === 'pulse' ? filteredArgs[2] : (command === 'rerun' ? null : command);
+    let status = command === 'pulse' ? filteredArgs[2] : (filteredArgs[2] || 'queue');
+    let prog = command === 'pulse' ? filteredArgs[3] : null;
 
     if (lane && lane.includes(':')) { [lane, status] = lane.split(':'); }
 
@@ -807,6 +816,59 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
     }
 
     writeFileSync(indexPath, content);
+
+    if (runFlag && lane && !['backlog', 'done', 'pulse'].includes(command)) {
+        // --run: spawn the AI agent in the foreground immediately
+        const cfgPath = join(projectRoot, '.laneconductor.json');
+        if (!existsSync(cfgPath)) { console.error('❌ No .laneconductor.json found'); process.exit(1); }
+        const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+        const primary = cfg.project?.primary;
+        const cli = primary?.cli || 'claude';
+        const model = primary?.model;
+
+        // Mark track as running before spawning
+        const runningContent = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: running');
+        writeFileSync(indexPath, runningContent);
+
+        // Build skill command (quality-gate → qualityGate for skill invocation)
+        const skillAction = lane === 'quality-gate' ? 'qualityGate' : lane;
+        const prompt = `/laneconductor ${skillAction} ${trackNum}`;
+
+        let cmd, cmdArgs;
+        if (cli === 'claude') {
+            cmd = 'claude';
+            cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
+            if (model) cmdArgs.push('--model', model);
+        } else if (cli === 'gemini') {
+            cmd = 'npx';
+            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', prompt];
+            if (model) cmdArgs.push('--model', model);
+        } else {
+            cmd = cli;
+            cmdArgs = ['-p', prompt];
+            if (model) cmdArgs.push('--model', model);
+        }
+
+        console.log(`🚀 Running ${lane} for track ${trackNum} with ${cli}${model ? ` (${model})` : ''}...`);
+        console.log(`   ${cmd} ${cmdArgs.join(' ')}\n`);
+
+        // Spawn in foreground — stdio: inherit so output is visible
+        const { status: exitCode } = spawnSync(cmd, cmdArgs, { stdio: 'inherit', cwd: projectRoot });
+
+        // Update final lane status based on exit code
+        const finalContent = readFileSync(indexPath, 'utf8');
+        const finalStatus = (exitCode === 0 || exitCode === null) ? 'success' : 'failure';
+        const finalContent2 = finalContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${finalStatus}`);
+        writeFileSync(indexPath, finalContent2);
+
+        if (finalStatus === 'success') {
+            console.log(`\n✅ Track ${trackNum} ${lane} completed successfully`);
+        } else {
+            console.log(`\n❌ Track ${trackNum} ${lane} failed (exit code: ${exitCode})`);
+        }
+        process.exit(exitCode || 0);
+    }
+
     console.log(`✅ Track ${trackNum} updated`);
     process.exit(0);
 } else if (command === 'workflow') {

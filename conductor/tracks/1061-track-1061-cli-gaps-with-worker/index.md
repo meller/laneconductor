@@ -1,7 +1,8 @@
 # Track 1061: Track 1061: CLI gaps with worker
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
+
 **Progress**: 10%
 **Phase**: Planning & Research
 **Summary**: Adding --run flag to lc CLI to directly execute track actions using the configured AI agent.
