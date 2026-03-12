@@ -2483,16 +2483,10 @@ async function autoLaunchLocalFs(globalLimit) {
         readFileSync(convPath, 'utf8').match(/>\s+\*\*human\*\*\s+\(brainstorm\)/i);
 
       if (isBrainstormReply) {
-        customPrompt = `The user has sent a brainstorm message. Read conductor/tracks/${dir}/conversation.md carefully to find their question (the line tagged "(brainstorm)").
-
-Your ONLY job right now is to have a conversation — do NOT touch spec.md, plan.md, test.md, or any implementation files.
-
-Step 1: Use /laneconductor comment ${track_number} to post your response. Format: a focused answer to their specific question, followed by exactly ONE clarifying question. Keep it conversational and concise.
-
-Step 2: Use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Brainstorm in progress" to update status.
-
-Do NOT re-scaffold or rewrite conversation.md. Do NOT run /laneconductor plan yet.
-When the human eventually says "go ahead" or "that's enough", THEN run /laneconductor plan ${track_number}.`;
+        // Delegate entirely to the skill — it has the full brainstorm protocol
+        // (read all context files, ask one question at a time, set waitingForReply, etc.)
+        customPrompt = null;
+        cmd_type = 'brainstorm';
       } else {
         customPrompt = `The user has sent a message in the track conversation. Read conductor/tracks/${dir}/conversation.md to find their message.
 Use /laneconductor comment ${track_number} to post your reply directly in the conversation. If it is a question, answer it. If it is a decision, acknowledge and incorporate it.
