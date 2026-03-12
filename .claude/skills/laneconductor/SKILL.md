@@ -775,8 +775,9 @@ Structured review of a track against its plan and product guidelines. Posts the 
 2. **Evaluate**: Check implementation against requirements and guidelines. If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.
 3. **Post Review**: Write the review results into `conductor/tracks/NNN-*/conversation.md` (append to it). Include test pass/fail summary if `test.md` was present.
 4. **Auto-lane transition**:
-   - If **PASS**: Update `index.md` to `**Status**: quality-gate` (or `done`) and append `## ✅ REVIEWED` to `plan.md`.
-   - If **FAIL**: Update `index.md` to `**Status**: review` and add `⚠️ Gaps` to `plan.md`.
+   - Read `conductor/workflow.json` and check `lanes.review.on_success` / `lanes.review.on_failure` for the correct target lanes. **Never jump to `done` unless `on_success` explicitly says `done`.**
+   - If **PASS**: Set `**Lane**` to the `on_success` lane (default: `quality-gate`) and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
+   - If **FAIL**: Set `**Lane**` to the `on_failure` lane (default: `implement`) and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
 
 ---
 
@@ -1105,7 +1106,7 @@ CREATE TABLE IF NOT EXISTS tracks (
 |-----------------|-------------------|
 | ⏳ IN PROGRESS  | `in-progress`     |
 | ✅ QUALITY PASSED | `done`            |
-| ✅ REVIEWED     | `quality-gate` (if enabled) or `done` |
+| ✅ REVIEWED     | `on_success` lane from `workflow.json` (default: `quality-gate`) |
 | ✅ COMPLETE (no open tasks) | `review` |
 | 🔄 BLOCKED      | `review`          |
 | ⚠️ PARTIAL      | `review`          |
