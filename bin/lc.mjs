@@ -880,6 +880,32 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
         const finalContent2 = finalContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${finalStatus}`);
         writeFileSync(indexPath, finalContent2);
 
+        // Push log tail to collector API so the UI can display it
+        if (cfg.mode !== 'local-fs') {
+            try {
+                const logContent = readFileSync(logPath, 'utf8');
+                const logTail = logContent.split('\n').slice(-100).join('\n');
+                const collector = cfg.collectors?.[0];
+                if (collector?.url) {
+                    await fetch(`${collector.url}/track/${trackNum}/action`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(collector.token ? { 'Authorization': `Bearer ${collector.token}` } : {})
+                        },
+                        body: JSON.stringify({
+                            lane_action_status: finalStatus,
+                            lane_action_result: finalStatus,
+                            last_log_tail: logTail,
+                            active_cli: cli,
+                        })
+                    }).catch(e => console.warn(`[log-sync] Could not push log to UI: ${e.message}`));
+                }
+            } catch (e) {
+                console.warn(`[log-sync] Could not read log file: ${e.message}`);
+            }
+        }
+
         if (finalStatus === 'success') {
             console.log(`\n✅ Track ${trackNum} ${lane} completed successfully`);
         } else {

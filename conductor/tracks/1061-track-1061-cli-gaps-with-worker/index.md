@@ -1,10 +1,10 @@
 # Track 1061: Track 1061: CLI gaps with worker
 
-**Lane**: quality-gate
+**Lane**: plan
 **Lane Status**: queue
 **Progress**: 100%
-**Phase**: Quality Gate Failure — Auth tests failing
-**Summary**: UI auth tests failing (9 failures) — /auth/me endpoints not enforcing authentication
+**Phase**: Quality Gate FAILED — moved back to plan per workflow.json on_failure
+**Summary**: QG failed: 9 UI auth tests failing (/auth/me returns 200 without token) — unrelated to track 1061 changes
 **Waiting for reply**: no
 
 ## Problem
