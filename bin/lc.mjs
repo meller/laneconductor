@@ -832,20 +832,28 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
 
         // Build skill command (quality-gate → qualityGate for skill invocation)
         const skillAction = lane === 'quality-gate' ? 'qualityGate' : lane;
-        const prompt = `/laneconductor ${skillAction} ${trackNum}`;
+        const slashCmd = `/laneconductor ${skillAction} ${trackNum}`;
+
+        // For non-Claude CLIs, prepend the skill file location so the LLM knows
+        // where to find the skill definition (Claude handles /slash commands natively)
+        const skillPath = `./.claude/skills/laneconductor/SKILL.md`;
+        const skillContext = `Use the /laneconductor skill. Skill definition is at: ${skillPath}. `;
 
         let cmd, cmdArgs;
         if (cli === 'claude') {
+            // Claude resolves /laneconductor natively via its skills system
             cmd = 'claude';
-            cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
+            cmdArgs = ['--dangerously-skip-permissions', '-p', slashCmd];
             if (model) cmdArgs.push('--model', model);
         } else if (cli === 'gemini') {
+            // Gemini needs the skill file pointed out explicitly
             cmd = 'npx';
-            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', prompt];
+            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
             if (model) cmdArgs.push('--model', model);
         } else {
+            // Other CLIs: also prepend skill context
             cmd = cli;
-            cmdArgs = ['-p', prompt];
+            cmdArgs = ['-p', `${skillContext}${slashCmd}`];
             if (model) cmdArgs.push('--model', model);
         }
 
