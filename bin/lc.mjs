@@ -857,11 +857,22 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
             if (model) cmdArgs.push('--model', model);
         }
 
-        console.log(`🚀 Running ${lane} for track ${trackNum} with ${cli}${model ? ` (${model})` : ''}...`);
-        console.log(`   ${cmd} ${cmdArgs.join(' ')}\n`);
+        // Write to conductor/logs/ so the UI can display it (same path as worker)
+        const logsDir = join(projectRoot, 'conductor', 'logs');
+        if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+        const logPath = join(logsDir, `run-${lane}-${trackNum}-${Date.now()}.log`);
+        const logFd = openSync(logPath, 'a');
 
-        // Spawn in foreground — stdio: inherit so output is visible
-        const { status: exitCode } = spawnSync(cmd, cmdArgs, { stdio: 'inherit', cwd: projectRoot });
+        console.log(`🚀 Running ${lane} for track ${trackNum} with ${cli}${model ? ` (${model})` : ''}...`);
+        console.log(`   ${cmd} ${cmdArgs.join(' ')}`);
+        console.log(`   Log: ${logPath}\n`);
+
+        // Spawn with pipe — tee output to both terminal and log file
+        const proc = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'], cwd: projectRoot });
+        proc.stdout.on('data', chunk => { process.stdout.write(chunk); appendFileSync(logPath, chunk); });
+        proc.stderr.on('data', chunk => { process.stderr.write(chunk); appendFileSync(logPath, chunk); });
+
+        const exitCode = await new Promise(resolve => proc.on('close', resolve));
 
         // Update final lane status based on exit code
         const finalContent = readFileSync(indexPath, 'utf8');
