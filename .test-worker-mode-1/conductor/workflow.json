@@ -1,0 +1,16 @@
+{
+  "global": {
+    "total_parallel_limit": 1
+  },
+  "defaults": {
+    "parallel_limit": 1,
+    "max_retries": 1,
+    "primary_model": "mock"
+  },
+  "lanes": {
+    "planning": {
+      "parallel_limit": 1,
+      "max_retries": 1
+    }
+  }
+}
