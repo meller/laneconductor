@@ -53,7 +53,7 @@ automatically to all projects — no re-installation needed.
 ## Architecture
 
 One repo, two parts:
-- **`laneconductor/`** — this Claude skill (AI instructions + heartbeat worker)
+- **`laneconductor/`** — this LaneConductor AI skill (AI instructions + heartbeat worker)
 - **`laneconductor/ui/`** — Vite dashboard at `http://localhost:8090`
 
 Shared local Postgres (`laneconductor` db) stores all project/track state. One project per repository. Zero cloud, zero auth.
@@ -141,7 +141,7 @@ conductor/
 ```
 Also:
 - Create `.claude/MEMORY.md` if not present
-- **Symlink the skill into this project** so Claude can invoke it locally:
+- **Symlink the skill into this project** so AI agents can invoke it locally:
   ```bash
   SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
   TARGET=".claude/skills/laneconductor"
@@ -177,12 +177,33 @@ If yes, for each foreign folder:
    **Lane**: done
    **Lane Status**: success
    **Progress**: 100%
+   **Last Run**: imported (n/a)
    **Summary**: Imported from previous conductor tool
    ```
 5. Copy or symlink the original folder content alongside (or leave original README.md in place)
 6. Print: `✅ Imported NNN tracks → conductor/tracks/NNN-*/`
 
 The heartbeat worker will then pick them up via `ignoreInitial: false` on next `lc start`.
+
+**3. Environment Verification & Self-Healing:**
+After scaffolding files, you MUST verify the project environment:
+1.  **Check Dependencies**: Verify if `chokidar` is installed (`npm list chokidar` or checking `package.json`).
+2.  **Check Git**: Verify `git rev-parse --is-inside-work-tree` and detect current branch naming (e.g., `main` vs `master`).
+3.  **Check Binaries**: Verify that the agents configured in `.laneconductor.json` (e.g., `claude`, `gemini`) are accessible in the system `PATH`.
+
+**If issues are found:**
+- Report them clearly: `⚠️  Environment Issue: <detailed description>`.
+- Ask: `Would you like me to create Track 001 to track these environment fixes? (y/n)`.
+- If yes, create `conductor/tracks/001-fix-environment/index.md`:
+    ```markdown
+    # Track 001: Fix Project Environment
+    
+    **Lane**: backlog
+    **Lane Status**: queue
+    **Progress**: 0%
+    **Summary**: Initial environment verification found missing dependencies or configuration gaps.
+    ```
+- Write specific tasks to `conductor/tracks/001-fix-environment/plan.md` (e.g., `npm install chokidar`, `git init`, etc.).
 
 **Create `conductor/quality-gate.md` if enabled:**
 If `create_quality_gate` is `true` in `.laneconductor.json`, create `conductor/quality-gate.md` with quality standards (Unit Tests, Linting, Build, Security).
@@ -412,19 +433,17 @@ CREATE TABLE IF NOT EXISTS tracks (
 
 ---
 
-## Lane Action State Machine
+## Lane Action State Machine & Dynamic Boundaries
 
-Each lane (except Backlog and Done) has an automated action:
-- **Planning**: AI fleshes out `spec.md` and `plan.md` (triggered when 0% and 'waiting').
-- **In-Progress**: AI implements the phases (triggered when 'waiting').
-- **Review**: AI performs automated review (triggered when 'waiting').
+Transitions are NOT hardcoded. You MUST read `conductor/workflow.json` at the start of every command to determine the correct target lanes for success and failure.
 
-Dragging a card to a lane in the UI resets `lane_action_status` to `'waiting'`, triggering the corresponding action. The worker transitions it to `'running'` while active, and `'done'` or `'waiting'` (on failure) when finished.
+### 🛑 CRITICAL: Boundary Rules
+- **`/laneconductor plan`**: ONLY produces documentation. **NEVER** write application code. On completion, set `**Lane**` to the value of `lanes.plan.on_success` from `workflow.json`.
+- **`/laneconductor implement`**: ONLY executes the `plan.md`. On completion, set `**Lane**` to the value of `lanes.implement.on_success` from `workflow.json`.
+- **`/laneconductor review`**: ONLY evaluates code. **NEVER** fix bugs. On success/failure, set `**Lane**` to the target specified in `lanes.review` (`on_success` or `on_failure`).
+- **`/laneconductor quality-gate`**: Final verification. On completion, set `**Lane**` to the value of `lanes.quality-gate.on_success` from `workflow.json`.
 
-7. UPSERT the project row *(local-api only — skip for local-fs; for remote-api the collector handles this on first heartbeat)*
-   Include `primary_cli`, `primary_model`, `secondary_cli`, `secondary_model`, and `create_quality_gate`. Retrieve the generated `id` and write it back to `.laneconductor.json` under `project.id`.
-
-   **`git_global_id`** — a UUID v5 derived deterministically from `git_remote` (URL namespace, RFC 4122). It provides a stable cross-machine project identity — the same remote URL on any machine always produces the same UUID. It is NOT stored in `.laneconductor.json` (always derived from the remote). The collector auto-populates this column on startup when `git_remote` is set; you do not need to pass it in the psql UPSERT.
+**🛑 BOUNDARY ENFORCEMENT**: Never override the workflow. Use `workflow.json` as the sole authority for target lanes. Do NOT assume `implement` always follows `plan`; the project may be configured with a `review` lane in between.
 
 ```bash
 # psql approach:
@@ -543,29 +562,61 @@ Update a single field in `conductor/workflow.json`.
 
 AI-guided wizard to configure deployment context and commands.
 
+**IMPORTANT: Print progress to stdout at every step so the user can see what is happening. Use this exact format:**
+```
+🔍 Scanning project for deployment signals...
+   ✅ Found: deploy.sh
+   ✅ Found: Dockerfile
+   ✅ Found: firebase.json
+   ℹ️  No: terraform/
+
+🧩 Detected components:
+   Frontend  → Firebase Hosting
+   Backend   → GCP Cloud Run
+   Database  → Cloud SQL
+   Secrets   → GCP Secret Manager
+
+🔒 Verifying credentials...
+   GCP ADC       → ✅ verified (account: user@example.com, project: my-project)
+   Firebase CLI  → ✅ verified (3 projects found)
+   AWS           → ⚠️  not configured (run: aws configure)
+
+📝 Writing conductor/deployment-stack.md...  ✅
+📝 Writing conductor/deploy.json...          ✅
+📝 Writing .env.example...                   ✅
+🔒 Updating .gitignore...                    ✅
+
+✅ Deployment stack configured!
+   Run: lc deploy prod
+   Run: lc deploy staging
+```
+
 **Logic:**
-1. **Scan**: Detect existing deployment signals:
+1. **Scan** — print `🔍 Scanning project for deployment signals...` then check and print each finding:
    - `deploy.sh`, `Makefile` (look for `deploy` targets), `firebase.json`, `vercel.json`, `Dockerfile`, `fly.toml`, `railway.json`.
    - `.github/workflows/`, `.gitlab-ci.yml`, `bitbucket-pipelines.yml`.
    - `cloud-run.yaml`, `kubernetes/`, `terraform/`, `infra/`.
-2. **Interview**: Ask targeted questions to define the deployment topology per layer.
-   - **Preset Selection**: Offer shorthand presets (`firebase-full`, `gcp-cloud-run`, `gcp-full-stack`, `vercel`, `aws-serverless`, `supabase`).
-   - **Component Selection**: If no preset, or if customized, ask per layer:
-     - **Frontend**: Firebase Hosting / Vercel / GCP Cloud Storage / S3+CloudFront / none.
-     - **Backend**: GCP Cloud Run / AWS Lambda / Vercel Functions / Firebase Functions / none.
-     - **Database**: Cloud SQL / Supabase / RDS / PlanetScale / none.
-     - **Secrets**: GCP Secret Manager / AWS Secrets Manager / Azure Key Vault / Vercel env vars / Supabase Vault.
-3. **Verify Credentials**: Run provider-specific identity checks and document result.
-   - **GCP**: `gcloud auth list` and `gcloud auth application-default print-access-token`.
-   - **AWS**: `aws sts get-caller-identity`.
-   - **Vercel**: `vercel whoami`.
-   - **Supabase**: `supabase projects list`.
-   - **Firebase**: `firebase projects:list`.
-4. **Scaffold**:
-   - **deployment-stack.md**: Write verified topology, environments, and secrets policy.
-   - **deploy.json**: Map environments to commands (e.g., `bash infra/deploy.sh prod`). Offer to wrap existing scripts.
-   - **.env.example**: Generate with required CI env var names (e.g., `GOOGLE_APPLICATION_CREDENTIALS`, `VERCEL_TOKEN`) and comments. **NEVER prompt for or write actual secret values.**
-   - **.gitignore**: Append secrets patterns (`.env`, `*.tfvars`, `*-key.json`, `.vercel`).
+2. **Detect components** — print `🧩 Detected components:` with each layer inferred from scan results.
+   - If detection is ambiguous for a layer, ask one question before continuing.
+   - Supported presets as shorthand: `firebase-full`, `gcp-cloud-run`, `gcp-full-stack`, `vercel`, `aws-serverless`, `supabase`.
+   - Layers: Frontend / Backend / Database / Secrets.
+3. **Verify Credentials** — print `🔒 Verifying credentials...` then run each check and print result inline:
+   - **GCP**: `gcloud auth list` + `gcloud auth application-default print-access-token` → print account + project.
+   - **AWS**: `aws sts get-caller-identity` → print account ID + ARN.
+   - **Vercel**: `vercel whoami` → print username.
+   - **Supabase**: `supabase projects list` → print project count.
+   - **Firebase**: `firebase projects:list` → print project count.
+   - Print `✅ verified` or `⚠️  not configured` + setup command for each.
+4. **Scaffold** — print each file as it is written:
+   - `📝 Writing conductor/deployment-stack.md...  ✅`
+   - `📝 Writing conductor/deploy.json...          ✅`
+   - `📝 Writing .env.example...                   ✅`
+   - `🔒 Updating .gitignore...                    ✅`
+   - **deployment-stack.md**: Full topology, verified auth methods, environments, secrets policy.
+   - **deploy.json**: Map environments to commands. Wrap existing `deploy.sh` if found.
+   - **.env.example**: Required CI env var names with comments. **NEVER write actual secret values.**
+   - **.gitignore**: Append `.env`, `*.tfvars`, `*-key.json`, `.vercel` if not already present.
+5. **Summary** — print available `lc deploy <env>` commands based on environments written to `deploy.json`.
 
 **Example `deploy.json` Schema:**
 ```json
@@ -747,7 +798,7 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
 1.  **Locate the Track**: Use the **Protocol: Locating Tracks**. If it has `**Status**: pending` in `file_sync_queue.md` and no folder exists yet, proceed to **Scaffold**.
 2.  **Scaffold (if missing)**:
     - Create directory `conductor/tracks/NNN-slug/`
-    - Create `index.md` (Title, Status: planning, Progress: 0%)
+    - Create `index.md` (Title, Lane, Status: planning, Progress: 0%, Last Run: user)
     - Create `spec.md` (Problem, Requirements, Acceptance Criteria, **Data Model Changes** (if applicable))
     - Create `plan.md` (Phases, Tasks with ⏳)
     - Create `test.md` (Test Commands, Test Cases per phase, Acceptance Criteria checklist)
@@ -758,6 +809,9 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Flesh out missing requirements or phase details based on current codebase context.
     - Update `test.md` with test cases for any new phases or requirements.
 4.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
+5.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`.
+
+**🛑 BOUNDARY ENFORCEMENT**: Your job ends here. Do NOT start implementing code. Wait for the next worker cycle to pick up the track in its new lane.
 
 ---
 
@@ -813,9 +867,8 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    - Commit: `feat(track-NNN): Phase X - description`
 
 4. **On complete:**
-   - Update `index.md` to `**Status**: review` and `**Progress**: 100%`
-   - **IMPORTANT**: **NEVER** mark a track as `done` yourself. The implementation agent MUST always move to `review`. Only the `review` and `quality-gate` agents (or humans) are permitted to move a track to `done`.
-   - **Workflow Config**: The transitions (e.g., `implement` → `review`) are defined in `conductor/workflow.json`. The heartbeat worker will enforce these upon exit, but you should move to `review` in `index.md` to indicate you are ready for the next stage.
+   - Update `index.md` `**Progress**` marker to 100%.
+   - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
    - Final commit: `feat(track-NNN): Implementation complete`
 
@@ -824,7 +877,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    /laneconductor unlock {track_number}
    ```
 
-**Error handling:**
+**🛑 BOUNDARY ENFORCEMENT**: Never override the workflow. Use `workflow.json` as the sole authority for target lanes.
 - If lock fails (already locked): Stop and report error
 - If work fails: Still call unlock in finally block to ensure cleanup
 - On exit: Update `**Lane Status**: success` or `queue` based on exit code
@@ -844,9 +897,9 @@ Structured review of a track against its plan and product guidelines. Posts the 
    - If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.
 3. **Post Review**: Write the review results into `conductor/tracks/NNN-*/conversation.md` (append to it). Include test pass/fail summary if `test.md` was present.
 4. **Auto-lane transition**:
-   - Read `conductor/workflow.json` and check `lanes.review.on_success` / `lanes.review.on_failure` for the correct target lanes. **Never jump to `done` unless `on_success` explicitly says `done`.**
-   - If **PASS**: Set `**Lane**` to the `on_success` lane (default: `quality-gate`) and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
-   - If **FAIL**: Set `**Lane**` to the `on_failure` lane (default: `implement`) and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
+   - Read `conductor/workflow.json`.
+   - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
+   - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
 
 ---
 
@@ -869,8 +922,10 @@ Runs automated checks and updates status files based on results.
    - You MUST post a comment to `conversation.md` explaining what failed and what was fixed.
 3. **Post Results**: Append results to `conversation.md`.
 4. **Transition**:
-   - If **PASS**: Update `index.md` to `**Status**: done` and append `## ✅ QUALITY PASSED` to `plan.md`.
-   - If **FAIL**: Keep in `quality-gate` status.
+   - Read `conductor/workflow.json`.
+   - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
+   - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
+   - Update `**Lane Status**` to `queue`.
 
 ---
 
@@ -890,7 +945,7 @@ Bidirectional sync between the local filesystem and the configured Collector API
 
 Post a comment on a track by writing to its conversation file.
 
-1. Append `> **claude**: [body]` to `conductor/tracks/NNN-*/conversation.md`.
+1. Append `> **system**: [body]` to `conductor/tracks/NNN-*/conversation.md`.
 2. The Sync Worker will sync this comment to the database.
 
 ---
@@ -1252,7 +1307,7 @@ The system adds a "Moved to [lane]" or "Human comment" marker which **resets the
 | `/laneconductor implement [NNN]` | Execute track with DB sync |
 | `/laneconductor revert [track] [phase]` | Safe undo + DB sync |
 | `/laneconductor pulse [NNN] [status] [%] [summary]` | Manual DB update |
-| `/laneconductor comment [NNN] [body]` | Post comment as Claude (⚠️ BLOCKED / ℹ️ NOTE) |
+| `/laneconductor comment [NNN] [body]` | Post comment as AI agent (⚠️ BLOCKED / ℹ️ NOTE) |
 | `/laneconductor delete [NNN]` | Hard-delete track: remove folder + DB row + git lock |
 | `/laneconductor review [NNN]` | Review track against plan + guidelines → post result, auto-transition lane |
 | `/laneconductor remote-sync [track-num?]` | Sync track changes from API to local files (Phase 5) |
