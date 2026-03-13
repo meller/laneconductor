@@ -124,6 +124,51 @@ else
   check "npm audit (ui/) — no high/critical vulns" "pass" "skipped (npm/package not found)"
 fi
 
+# ── Deployment Safety ────────────────────────────────────────────────────────
+echo ""
+echo "## Deployment Safety"
+
+# 1. Check .gitignore for secrets patterns
+GITIGNORE_PATTERNS=(".env" "*.tfvars" "*-key.json" ".vercel" "service-account*.json")
+if [ -f ".gitignore" ]; then
+  MISSING_PATTERNS=()
+  for p in "${GITIGNORE_PATTERNS[@]}"; do
+    if ! grep -q "$p" .gitignore; then
+      MISSING_PATTERNS+=("$p")
+    fi
+  done
+  if [ ${#MISSING_PATTERNS[@]} -eq 0 ]; then
+    check ".gitignore contains secrets patterns" "pass"
+  else
+    check ".gitignore contains secrets patterns" "fail" "missing: ${MISSING_PATTERNS[*]}"
+  fi
+else
+  check ".gitignore exists" "fail" "missing"
+fi
+
+# 2. Scan for hardcoded secrets (basic regex)
+# Look for strings like API_KEY=..., SECRET=..., etc. in non-ignored files
+SECRET_MATCHES=$(grep -rE "(API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY)\s*[:=]\s*['\"][a-zA-Z0-9_\-]{10,}['\"]" . \
+  --exclude-dir={node_modules,.git,ui/node_modules,dist,playwright-report} \
+  --exclude={.env.example,package-lock.json,*.sql} || true)
+
+if [ -z "$SECRET_MATCHES" ]; then
+  check "No hardcoded secrets detected" "pass"
+else
+  check "No hardcoded secrets detected" "fail" "found $(echo "$SECRET_MATCHES" | wc -l) potential secrets"
+fi
+
+# 3. Context file consistency
+if [ -f "conductor/deploy.json" ]; then
+  if [ -f "conductor/deployment-stack.md" ]; then
+    check "deployment-stack.md exists (required by deploy.json)" "pass"
+  else
+    check "deployment-stack.md exists (required by deploy.json)" "fail" "missing context file"
+  fi
+else
+  check "deployment-stack.md stub (optional)" "pass" "$( [ -f "conductor/deployment-stack.md" ] && echo "exists" || echo "missing" )"
+fi
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 echo ""
 echo "==============================="

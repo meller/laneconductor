@@ -1,22 +1,11 @@
 
 
-## Track Creation Requests
-
-
 ## Completed Queue
 
-### Track 1062: Deployment Context & lc deploy Command
+### Track 1064: add copilot cli support
 **Status**: processed
 **Type**: track-create
-**Created**: 2026-03-12T20:00:00.000Z
-**Title**: Deployment Context & lc deploy Command
-**Description**: Add deployment as a first-class citizen in LaneConductor: lc setup-deploy (guided setup with templates), deployment-stack.md context file, lc deploy command, and zero-secrets-in-repo policy using ADC/secret managers across GCP/AWS/Azure/Vercel/Supabase
-**Processed**: 2026-03-12T19:19:04.981Z
-
-### Track 1061: CLI gaps with worker
-**Status**: processed
-**Type**: track-create
-**Created**: 2026-03-12T00:26:25.787Z
-**Title**: CLI gaps with worker
-**Description**: we want to have an option to actually run the implement/plan/review/quality gate and not only mark it on the file as trigger to the worker using our lc cli command (right now it prepares it for the worker but doesn do the work). with claude its easy to use the skill but other llm would benefit from this option
-**Processed**: 2026-03-12T00:26:28.111Z
+**Created**: 2026-03-13T09:15:26.829Z
+**Title**: add copilot cli support
+**Description**: lets see if we can add this so we have primary secondary llms (like today and then others - i am planning codex and copilot cli)
+**Processed**: 2026-03-13T09:15:28.720Z

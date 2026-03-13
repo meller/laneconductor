@@ -112,6 +112,7 @@ Asks first:
 2. Auto-generate conductor context files from findings:
    - `product.md` — inferred from README, app name, entry points, routes
    - `tech-stack.md` — inferred from `package.json` deps, framework patterns, config files
+   - `deployment-stack.md` — stub: "Not configured. Run `lc setup-deploy`."
    - `workflow.md` — inferred from `.git` log patterns, CI files, test setup
    - `product-guidelines.md` — minimal template (hard to infer; leave stubs for user)
    - `code_styleguides/` — inferred from `.eslintrc`, `.prettierrc`, `tsconfig.json` if present
@@ -123,7 +124,7 @@ Ask a short questionnaire:
 - TDD? Commit strategy? Branching model?
 - Any brand/style standards?
 
-Generate all conductor files with content from answers.
+Generate all conductor files with content from answers, including a stub for `deployment-stack.md`.
 
 **Both modes create:**
 ```
@@ -133,6 +134,7 @@ conductor/
 ├── product.md
 ├── product-guidelines.md
 ├── tech-stack.md
+├── deployment-stack.md
 ├── workflow.md
 ├── tracks.md
 └── laneconductor.sync.mjs
@@ -289,10 +291,10 @@ Sets up the **collection destination** — configures the operating mode, AI age
    **On failure:** warn, ask `Continue anyway? [y/N]:` — abort if N.
 
    b. **Discover models dynamically** — do NOT present a hardcoded list (except for Claude).
-   For Claude, the CLI uses aliases. Do not run a discovery command. Instead, present:
-   - `haiku`: Claude 3.5 Haiku (Speed and low-cost tasks)
-   - `sonnet`: Claude 3.7 Sonnet (Coding and complex reasoning)
-   - `opus`: Claude 3 Opus (Most advanced)
+   For Claude, the CLI uses aliases. Do not run a discovery command. Instead, recommend:
+   - `haiku`: Claude 3.5 Haiku
+   - `sonnet`: Claude 3.7 Sonnet
+   - Leave blank/default for system recommendation.
 
    For others, run a one-shot prompt to get current models:
 
@@ -305,11 +307,11 @@ Sets up the **collection destination** — configures the operating mode, AI age
    If discovery fails or times out (>15s), fall back to asking the user to type a model name.
    Always allow free-text entry as a fallback.
 
-   c. Ask: `Primary model [<first-from-list>]:`
+   c. Ask: `Primary model [default]:` (emphasize that blank = best default)
 
 4. **Secondary agent** (optional) — ask `Add a secondary AI CLI? (none / claude / gemini / other)`.
    If not `none`: repeat reachability check + model discovery for that CLI.
-   Ask: `Secondary model [<first-from-list>]:`
+   Ask: `Secondary model [default]:` (emphasize that blank = best default)
 
 5. Detect project name: run `git remote get-url origin 2>/dev/null` and parse the repo name. Fall back to `basename $(pwd)`.
 
@@ -537,6 +539,70 @@ Update a single field in `conductor/workflow.json`.
 
 ---
 
+### `/laneconductor setup-deploy`
+
+AI-guided wizard to configure deployment context and commands.
+
+**Logic:**
+1. **Scan**: Detect existing deployment signals:
+   - `deploy.sh`, `Makefile` (look for `deploy` targets), `firebase.json`, `vercel.json`, `Dockerfile`, `fly.toml`, `railway.json`.
+   - `.github/workflows/`, `.gitlab-ci.yml`, `bitbucket-pipelines.yml`.
+   - `cloud-run.yaml`, `kubernetes/`, `terraform/`, `infra/`.
+2. **Interview**: Ask targeted questions to define the deployment topology per layer.
+   - **Preset Selection**: Offer shorthand presets (`firebase-full`, `gcp-cloud-run`, `gcp-full-stack`, `vercel`, `aws-serverless`, `supabase`).
+   - **Component Selection**: If no preset, or if customized, ask per layer:
+     - **Frontend**: Firebase Hosting / Vercel / GCP Cloud Storage / S3+CloudFront / none.
+     - **Backend**: GCP Cloud Run / AWS Lambda / Vercel Functions / Firebase Functions / none.
+     - **Database**: Cloud SQL / Supabase / RDS / PlanetScale / none.
+     - **Secrets**: GCP Secret Manager / AWS Secrets Manager / Azure Key Vault / Vercel env vars / Supabase Vault.
+3. **Verify Credentials**: Run provider-specific identity checks and document result.
+   - **GCP**: `gcloud auth list` and `gcloud auth application-default print-access-token`.
+   - **AWS**: `aws sts get-caller-identity`.
+   - **Vercel**: `vercel whoami`.
+   - **Supabase**: `supabase projects list`.
+   - **Firebase**: `firebase projects:list`.
+4. **Scaffold**:
+   - **deployment-stack.md**: Write verified topology, environments, and secrets policy.
+   - **deploy.json**: Map environments to commands (e.g., `bash infra/deploy.sh prod`). Offer to wrap existing scripts.
+   - **.env.example**: Generate with required CI env var names (e.g., `GOOGLE_APPLICATION_CREDENTIALS`, `VERCEL_TOKEN`) and comments. **NEVER prompt for or write actual secret values.**
+   - **.gitignore**: Append secrets patterns (`.env`, `*.tfvars`, `*-key.json`, `.vercel`).
+
+**Example `deploy.json` Schema:**
+```json
+{
+  "template": "gcp-cloud-run",
+  "environments": {
+    "prod": {
+      "command": "bash infra/deploy.sh prod",
+      "project": "my-project-prod"
+    },
+    "staging": {
+      "command": "bash infra/deploy.sh staging",
+      "project": "my-project-staging"
+    }
+  },
+  "secrets": {
+    "strategy": "adc+secret-manager",
+    "keys": ["DB_PASSWORD", "STRIPE_KEY"]
+  },
+  "ci": null
+}
+```
+
+---
+
+### `/laneconductor deploy [env]`
+
+Execute the deployment command for the specified environment.
+
+**Logic:**
+1. Read `conductor/deploy.json`.
+2. Locate the command for the requested `env` (default: `prod`).
+3. Execute the command in the terminal with `stdio: inherit`.
+4. Log the output to `conductor/logs/deploy-<env>-<timestamp>.log`.
+
+---
+
 ## The Filesystem-as-API Interface
 
 The Skill Worker communicates state to the dashboard by writing specific bold markers in `index.md` or `plan.md`. The Sync Worker parses these markers and updates the database via the API.
@@ -700,7 +766,7 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
 Optional deepening step. Call this before `/laneconductor implement` when you want to explore requirements further via dialogue. Not a lane — can be run at any time.
 
 **Flow:**
-1. **Load all context**: read `conductor/product.md`, `conductor/tech-stack.md`, `conductor/tracks/NNN-*/spec.md`, `plan.md`, `test.md`, and `conversation.md`
+1. **Load all context**: read `conductor/product.md`, `conductor/tech-stack.md`, `conductor/deployment-stack.md` (if present), `conductor/tracks/NNN-*/spec.md`, `plan.md`, `test.md`, and `conversation.md`
 2. **Ask one clarifying question** — appended to `conductor/tracks/NNN-*/conversation.md` in this format:
    ```
    > **system**: Brainstorm requested. [Your question here]
@@ -734,6 +800,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 2. **Read existing context:**
    - Read `conductor/tracks/NNN-*/plan.md` to understand phases
    - Read `conductor/tracks/NNN-*/spec.md` for technical details
+   - Read `conductor/deployment-stack.md` (if present) for deployment context (ADC, Secret Manager, target runtime)
    - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first (before any implementation), run the test and confirm it fails (feature missing, not a typo), then write minimal code to make it pass, then confirm green. A phase is not complete until its `test.md` test cases pass. If no test cases exist for a phase, proceed without this step.
    - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. This contains the human-to-AI conversation history. Treat human comments as overriding instructions or blocker resolutions.
    - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed.
@@ -770,9 +837,11 @@ Structured review of a track against its plan and product guidelines. Posts the 
 
 0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
 1. **Load Context**:
-   - Read `plan.md`, `spec.md`, `test.md`, and `product-guidelines.md`.
+   - Read `plan.md`, `spec.md`, `test.md`, `product-guidelines.md`, and `deployment-stack.md` (if present).
    - Read `conversation.md` to see if previous review gaps were addressed or if the user provided specific instructions.
-2. **Evaluate**: Check implementation against requirements and guidelines. If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.
+2. **Evaluate**: Check implementation against requirements and guidelines.
+   - **Secrets Policy**: Ensure no secrets are hardcoded or leaked in logs. Verify use of ADC/Secret Manager as specified in `deployment-stack.md`.
+   - If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.
 3. **Post Review**: Write the review results into `conductor/tracks/NNN-*/conversation.md` (append to it). Include test pass/fail summary if `test.md` was present.
 4. **Auto-lane transition**:
    - Read `conductor/workflow.json` and check `lanes.review.on_success` / `lanes.review.on_failure` for the correct target lanes. **Never jump to `done` unless `on_success` explicitly says `done`.**
@@ -789,6 +858,7 @@ Runs automated checks and updates status files based on results.
 1. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
    - `test.md` test commands are the primary automated check for this specific track.
    - `quality-gate.md` commands apply project-wide quality standards.
+   - **Deployment Safety**: Scan modified files for hardcoded secrets (API keys, tokens). Verify that `.gitignore` contains the patterns defined in the Zero-Secrets Policy.
    - If a command is missing from your system (e.g., `playwright` not installed), you MUST install it or report a failure.
    - Do NOT just mark them as checked; you must actually run the code and verify the output.
 2. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However, before writing any fix:
@@ -1165,7 +1235,9 @@ The system adds a "Moved to [lane]" or "Human comment" marker which **resets the
 | Command | What it does |
 |---------|-------------|
 | `/laneconductor setup` | Run AI-powered scaffold |
-| `/laneconductor setup scaffold` | Create context files (product.md, tech-stack.md, etc.) |
+| `/laneconductor setup scaffold` | Create context files (product.md, tech-stack.md, deployment-stack.md, etc.) |
+| `/laneconductor setup-deploy` | AI-guided deployment setup (writes deployment-stack.md + deploy.json) |
+| `/laneconductor deploy [env]` | Execute deployment for a specific environment (prod/staging/preview) |
 | `/laneconductor qualityGate [NNN]` | Run automated quality checks |
 | `/laneconductor start` | Start heartbeat worker (or: `lc start`) |
 | `/laneconductor stop` | Stop heartbeat worker (or: `lc stop`) |

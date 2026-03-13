@@ -37,6 +37,128 @@ function findProjectRoot(startDir = process.cwd()) {
     return null;
 }
 
+/**
+ * Runs the AI agent for a specific command/track.
+ * @param {object} cfg - Project configuration from .laneconductor.json
+ * @param {string} slashCmd - The /laneconductor command to run (e.g., "/laneconductor setup scaffold")
+ * @param {string} trackNum - Optional track number
+ * @param {string} lane - Optional lane for logging/status updates
+ * @returns {Promise<number>} - Exit code
+ */
+async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
+    const projectRoot = cfg.project.repo_path || process.cwd();
+    
+    // Identify available agents (primary and optional secondary)
+    const agents = [];
+    if (cfg.project?.primary?.cli) agents.push({ ...cfg.project.primary, type: 'primary' });
+    if (cfg.project?.secondary?.cli) agents.push({ ...cfg.project.secondary, type: 'secondary' });
+
+    if (agents.length === 0) {
+        console.error('❌ No primary agent configured in .laneconductor.json');
+        return 1;
+    }
+
+    const skillPath = `./.claude/skills/laneconductor/SKILL.md`;
+    const skillContext = `Use the /laneconductor skill. Skill definition is at: ${skillPath}. `;
+
+    let exitCode = 0;
+    let finalStatus = 'failure';
+    let lastErrorLog = '';
+
+    for (let i = 0; i < agents.length; i++) {
+        const agent = agents[i];
+        const cli = agent.cli || 'claude';
+        const model = agent.model;
+
+        let cmd, cmdArgs;
+        if (cli === 'claude') {
+            cmd = 'claude';
+            cmdArgs = ['--dangerously-skip-permissions', '-p', slashCmd];
+            if (model) cmdArgs.push('--model', model);
+        } else if (cli === 'gemini') {
+            cmd = 'npx';
+            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
+            if (model) cmdArgs.push('--model', model);
+        } else {
+            cmd = cli;
+            cmdArgs = ['-p', `${skillContext}${slashCmd}`];
+            if (model) cmdArgs.push('--model', model);
+        }
+
+        const logsDir = join(projectRoot, 'conductor', 'logs');
+        if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+        const logPath = join(logsDir, `run-${lane || 'agent'}-${trackNum || 'global'}-${Date.now()}.log`);
+        const logFd = openSync(logPath, 'a');
+
+        console.log(`🚀 Running AI agent (${agent.type}): ${cli}${model ? ` (${model})` : ''}...`);
+        if (trackNum) console.log(`   Track: ${trackNum} | Command: ${slashCmd}`);
+        else console.log(`   Command: ${slashCmd}`);
+        console.log(`   Log: ${logPath}\n`);
+
+        const proc = spawn(cmd, cmdArgs, { stdio: ['inherit', 'pipe', 'pipe'], cwd: projectRoot });
+        
+        let output = '';
+        proc.stdout.on('data', chunk => { 
+            process.stdout.write(chunk); 
+            appendFileSync(logPath, chunk);
+            output += chunk.toString();
+        });
+        proc.stderr.on('data', chunk => { 
+            process.stderr.write(chunk); 
+            appendFileSync(logPath, chunk);
+            output += chunk.toString();
+        });
+
+        exitCode = await new Promise(resolve => proc.on('close', resolve));
+        lastErrorLog = output;
+
+        if (exitCode === 0) {
+            finalStatus = 'success';
+            break;
+        } else {
+            // Check if failure looks like a rate limit / exhaustion
+            const isExhausted = output.includes('hit your limit') || 
+                               output.includes('exhausted your capacity') || 
+                               output.includes('429') || 
+                               output.includes('resets');
+            
+            if (isExhausted && i < agents.length - 1) {
+                console.log(`\n⚠️  ${agent.type.toUpperCase()} agent (${cli}) capacity exhausted. Falling back to next agent...\n`);
+                continue;
+            } else if (i < agents.length - 1) {
+                console.log(`\n⚠️  ${agent.type.toUpperCase()} agent (${cli}) failed with exit code ${exitCode}. Trying next agent anyway...\n`);
+                continue;
+            }
+        }
+    }
+
+    // Push log tail to collector API so the UI can display it
+    if (trackNum && cfg.mode !== 'local-fs') {
+        try {
+            const logTail = lastErrorLog.split('\n').slice(-100).join('\n');
+            const collector = cfg.collectors?.[0];
+            if (collector?.url) {
+                await fetch(`${collector.url}/track/${trackNum}/action`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(collector.token ? { 'Authorization': `Bearer ${collector.token}` } : {})
+                    },
+                    body: JSON.stringify({
+                        lane_action_status: finalStatus === 'success' ? 'success' : 'failure',
+                        lane_action_result: finalStatus === 'success' ? 'success' : 'failure',
+                        last_log_tail: logTail,
+                    })
+                }).catch(e => console.warn(`[log-sync] Could not push log to UI: ${e.message}`));
+            }
+        } catch (e) {
+            console.warn(`[log-sync] Could not sync final log: ${e.message}`);
+        }
+    }
+
+    return exitCode;
+}
+
 const args = process.argv.slice(2);
 const command = args[0];
 
@@ -55,6 +177,8 @@ Core Commands:
   api [start|stop]     Manage the Collector API
   ui [start|stop]      Manage the Vite dashboard (default: start)
   setup                Initialize LaneConductor in the current project
+  setup-deploy         Guided deployment setup (writes deployment-stack.md + deploy.json)
+  deploy [env]         Execute deployment for a specific environment (prod/staging/preview)
   install              Install required project dependencies
 
 Project & Track Management:
@@ -236,8 +360,7 @@ Primary AI agent:
 Choice [1]: `) || '1';
         const agentMap = { '1': 'claude', '2': 'gemini', '3': 'other' };
         const primaryCli = agentMap[agentChoice] || 'claude';
-        const defaultModel = primaryCli === 'claude' ? 'haiku' : (primaryCli === 'gemini' ? '' : '');
-        const primaryModel = await question(`Primary model [${defaultModel || 'default'}]: `) || defaultModel;
+        const primaryModel = await question(`Primary model [default]: `) || null;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
         let secondary = null;
@@ -250,8 +373,7 @@ Secondary AI agent:
   [3] other
 Choice [${secAgentChoice}]: `) || secAgentChoice;
             const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : 'gemini');
-            const secDefaultModel = secCli === 'claude' ? 'haiku' : (secCli === 'gemini' ? '' : '');
-            const secModel = await question(`Secondary model [${secDefaultModel || 'default'}]: `) || secDefaultModel;
+            const secModel = await question(`Secondary model [default]: `) || null;
             secondary = { cli: secCli, model: secModel || null };
         }
 
@@ -284,6 +406,21 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
 
         writeFileSync('.laneconductor.json', JSON.stringify(config, null, 2) + '\n');
         console.log('✅ .laneconductor.json created');
+
+        // Create skill symlink so the AI agent can find the skill
+        console.log('🔗 Symlinking LaneConductor skill...');
+        try {
+            const skillDir = existsSync(RC_FILE) ? readFileSync(RC_FILE, 'utf8').trim() : join(getInstallPath(), '.claude/skills/laneconductor');
+            const targetDir = '.claude/skills';
+            if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
+            const targetPath = join(targetDir, 'laneconductor');
+            
+            if (existsSync(targetPath)) unlinkSync(targetPath);
+            spawnSync('ln', ['-sf', skillDir, targetPath]);
+            console.log(`✅ Skill symlinked → ${targetPath}`);
+        } catch (e) {
+            console.warn(`⚠️  Could not symlink skill: ${e.message}`);
+        }
 
         // Update .env
         let envContent = '';
@@ -378,21 +515,114 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
             }
         }
 
-        console.log('\n✨ Setup complete!');
+        console.log('\n✨ Manual setup complete!');
+        console.log('🚀 Launching AI Scaffolding (scans codebase and generates context files)...');
+        
+        const exitCode = await runAIAgent(config, '/laneconductor setup scaffold');
+        
+        if (exitCode === 0) {
+            console.log('\n✅ Setup and Scaffolding complete!');
+        } else {
+            console.log('\n⚠️  AI Scaffolding failed or was interrupted.');
+            console.log('   You can run it manually later:');
+            console.log('     • In Claude Code:    /laneconductor setup scaffold');
+            console.log('     • In Gemini CLI:    Prompt with instructions from .claude/skills/laneconductor/SKILL.md');
+        }
+
         console.log('\nNext steps:');
-        console.log('  1. Run AI Scaffolding (scans codebase and generates context files):');
-        console.log('     • In Claude Code:    /laneconductor setup scaffold');
-        console.log('     • In Gemini CLI:    Prompt with instructions from .claude/skills/laneconductor/SKILL.md');
-        console.log('');
-        console.log('  2. Run "lc install" to add required dependencies (chokidar).');
-        console.log('  3. Run "lc start" to begin the heartbeat worker.');
-        console.log('  4. Run "lc ui start" to open the Kanban dashboard.');
-        console.log('  5. Create your first track with "lc new".');
+        console.log('  1. Run "lc install" to add required dependencies (chokidar).');
+        console.log('  2. Run "lc start" to begin the heartbeat worker.');
+        console.log('  3. Run "lc ui start" to open the Kanban dashboard.');
+        console.log('  4. Create your first track with "lc new".');
 
         rl.close();
     }
 
     runSetup();
+} else if (command === 'setup-deploy') {
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    if (!existsSync(cfgPath)) {
+        console.error('❌ Error: No .laneconductor.json found. Run "lc setup" first.');
+        process.exit(1);
+    }
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+
+    // Check for existing config
+    const deployStackPath = join(projectRoot, 'conductor', 'deployment-stack.md');
+    const deployJsonPath = join(projectRoot, 'conductor', 'deploy.json');
+    if (existsSync(deployStackPath) || existsSync(deployJsonPath)) {
+        console.log('ℹ️  Deployment stack already configured.');
+        // We can continue anyway as the agent will handle reconfiguration
+    }
+
+    // Identify available agents
+    const agents = [];
+    if (cfg.project?.primary?.cli) agents.push({ ...cfg.project.primary, type: 'primary' });
+    if (cfg.project?.secondary?.cli) agents.push({ ...cfg.project.secondary, type: 'secondary' });
+
+    if (agents.length === 0) {
+        console.error('❌ No primary agent configured in .laneconductor.json');
+        process.exit(1);
+    }
+
+    const slashCmd = `/laneconductor setup-deploy`;
+    await runAIAgent(cfg, slashCmd);
+    process.exit(0);
+} else if (command === 'deploy') {
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+
+    const deployJsonPath = join(projectRoot, 'conductor', 'deploy.json');
+    if (!existsSync(deployJsonPath)) {
+        console.error('❌ Error: No deploy.json found. Run "lc setup-deploy" first.');
+        process.exit(1);
+    }
+
+    const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf8'));
+    const env = args[1] || 'prod';
+
+    const envConfig = deployConfig.environments?.[env];
+    if (!envConfig || !envConfig.command) {
+        console.error(`❌ Error: No deployment command configured for environment "${env}".`);
+        console.log(`   Available environments: ${Object.keys(deployConfig.environments || {}).join(', ') || 'none'}`);
+        process.exit(1);
+    }
+
+    console.log(`🚀 Deploying to ${env}...`);
+    console.log(`   Command: ${envConfig.command}\n`);
+
+    const logsDir = join(projectRoot, 'conductor', 'logs');
+    if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+    const logFile = join(logsDir, `deploy-${env}-${Date.now()}.log`);
+    const logFd = openSync(logFile, 'a');
+
+    const start = Date.now();
+    const [cmd, ...cmdArgs] = envConfig.command.split(' ');
+    
+    // We use spawn with shell: true to support complex commands and pipes
+    const deployProc = spawn(envConfig.command, {
+        shell: true,
+        stdio: 'inherit',
+        cwd: projectRoot
+    });
+
+    deployProc.on('close', (code) => {
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+        if (code === 0) {
+            console.log(`\n✅ Deployment to ${env} successful! (${elapsed}s)`);
+        } else {
+            console.error(`\n❌ Deployment to ${env} failed with exit code ${code}. (${elapsed}s)`);
+            console.log(`   Logs available at: ${logFile}`);
+        }
+        process.exit(code || 0);
+    });
 } else if (command === 'start') {
     if (!projectRoot) {
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
@@ -822,96 +1052,39 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
         const cfgPath = join(projectRoot, '.laneconductor.json');
         if (!existsSync(cfgPath)) { console.error('❌ No .laneconductor.json found'); process.exit(1); }
         const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
-        const primary = cfg.project?.primary;
-        const cli = primary?.cli || 'claude';
-        const model = primary?.model;
+
+        // Identify available agents (primary and optional secondary)
+        const agents = [];
+        if (cfg.project?.primary?.cli) agents.push({ ...cfg.project.primary, type: 'primary' });
+        if (cfg.project?.secondary?.cli) agents.push({ ...cfg.project.secondary, type: 'secondary' });
+
+        if (agents.length === 0) {
+            console.error('❌ No primary agent configured in .laneconductor.json');
+            process.exit(1);
+        }
 
         // Mark track as running before spawning
         const runningContent = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: running');
         writeFileSync(indexPath, runningContent);
 
-        // Build skill command (quality-gate → qualityGate for skill invocation)
         const skillAction = lane === 'quality-gate' ? 'qualityGate' : lane;
         const slashCmd = `/laneconductor ${skillAction} ${trackNum}`;
+        
+        const exitCode = await runAIAgent(cfg, slashCmd, trackNum, lane);
 
-        // For non-Claude CLIs, prepend the skill file location so the LLM knows
-        // where to find the skill definition (Claude handles /slash commands natively)
-        const skillPath = `./.claude/skills/laneconductor/SKILL.md`;
-        const skillContext = `Use the /laneconductor skill. Skill definition is at: ${skillPath}. `;
-
-        let cmd, cmdArgs;
-        if (cli === 'claude') {
-            // Claude resolves /laneconductor natively via its skills system
-            cmd = 'claude';
-            cmdArgs = ['--dangerously-skip-permissions', '-p', slashCmd];
-            if (model) cmdArgs.push('--model', model);
-        } else if (cli === 'gemini') {
-            // Gemini needs the skill file pointed out explicitly
-            cmd = 'npx';
-            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
-            if (model) cmdArgs.push('--model', model);
-        } else {
-            // Other CLIs: also prepend skill context
-            cmd = cli;
-            cmdArgs = ['-p', `${skillContext}${slashCmd}`];
-            if (model) cmdArgs.push('--model', model);
-        }
-
-        // Write to conductor/logs/ so the UI can display it (same path as worker)
-        const logsDir = join(projectRoot, 'conductor', 'logs');
-        if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
-        const logPath = join(logsDir, `run-${lane}-${trackNum}-${Date.now()}.log`);
-        const logFd = openSync(logPath, 'a');
-
-        console.log(`🚀 Running ${lane} for track ${trackNum} with ${cli}${model ? ` (${model})` : ''}...`);
-        console.log(`   ${cmd} ${cmdArgs.join(' ')}`);
-        console.log(`   Log: ${logPath}\n`);
-
-        // Spawn with pipe — tee output to both terminal and log file
-        const proc = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'], cwd: projectRoot });
-        proc.stdout.on('data', chunk => { process.stdout.write(chunk); appendFileSync(logPath, chunk); });
-        proc.stderr.on('data', chunk => { process.stderr.write(chunk); appendFileSync(logPath, chunk); });
-
-        const exitCode = await new Promise(resolve => proc.on('close', resolve));
-
-        // Update final lane status based on exit code
+        // Update final lane status based on results
         const finalContent = readFileSync(indexPath, 'utf8');
-        const finalStatus = (exitCode === 0 || exitCode === null) ? 'success' : 'failure';
-        const finalContent2 = finalContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${finalStatus}`);
-        writeFileSync(indexPath, finalContent2);
+        const finalStatusToSet = (exitCode === 0) ? 'success' : 'failure';
+        const finalContentWithStatus = finalContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${finalStatusToSet}`);
+        writeFileSync(indexPath, finalContentWithStatus);
 
-        // Push log tail to collector API so the UI can display it
-        if (cfg.mode !== 'local-fs') {
-            try {
-                const logContent = readFileSync(logPath, 'utf8');
-                const logTail = logContent.split('\n').slice(-100).join('\n');
-                const collector = cfg.collectors?.[0];
-                if (collector?.url) {
-                    await fetch(`${collector.url}/track/${trackNum}/action`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(collector.token ? { 'Authorization': `Bearer ${collector.token}` } : {})
-                        },
-                        body: JSON.stringify({
-                            lane_action_status: finalStatus,
-                            lane_action_result: finalStatus,
-                            last_log_tail: logTail,
-                            active_cli: cli,
-                        })
-                    }).catch(e => console.warn(`[log-sync] Could not push log to UI: ${e.message}`));
-                }
-            } catch (e) {
-                console.warn(`[log-sync] Could not read log file: ${e.message}`);
-            }
-        }
-
-        if (finalStatus === 'success') {
+        if (exitCode === 0) {
             console.log(`\n✅ Track ${trackNum} ${lane} completed successfully`);
         } else {
-            console.log(`\n❌ Track ${trackNum} ${lane} failed (exit code: ${exitCode})`);
+            console.log(`\n❌ Track ${trackNum} ${lane} failed after trying all agents (exit code: ${exitCode})`);
         }
         process.exit(exitCode || 0);
+
     }
 
     console.log(`✅ Track ${trackNum} updated`);

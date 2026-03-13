@@ -40,7 +40,7 @@ const HARDCODED_DEFAULTS = {
   project: {
     name: basename(process.cwd()),
     repo_path: process.cwd(),
-    primary: { cli: 'claude', model: 'haiku' }
+    primary: { cli: 'claude', model: null }
   },
   collectors: [],
   ui: { port: 8090 }
