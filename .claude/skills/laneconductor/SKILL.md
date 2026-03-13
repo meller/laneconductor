@@ -100,9 +100,61 @@ Runs `setup scaffold`.
 
 ---
 
+### `/laneconductor setup scaffold generate`
+
+**File-generation phase of `lc setup`.** The CLI wizard has already:
+- Scanned the project (package.json, README, framework signals)
+- Ran a multi-turn brainstorm loop where the user clarified the project
+- Got explicit confirmation to proceed
+
+Your job is **only to generate the context files**. Do not ask questions.
+
+**Read context from `conductor/.setup-scaffold-context.json`:**
+```json
+{
+  "project": { "name": "...", "git_remote": "...", "has_existing_code": true },
+  "scan": ["package.json: ...", "README: ...", "Framework signals: next.config.js"],
+  "brainstorm_summary": "user: ...\nassistant: ..."
+}
+```
+
+**If `brainstorm_summary` is present**, use it as the authoritative source — it contains the agreed-upon understanding of the project. The scan snippets are supplementary.
+
+**Generate these files** (create `conductor/` dirs as needed):
+
+- **`conductor/product.md`** — what the product does, who uses it, key features, problem it solves
+- **`conductor/tech-stack.md`** — languages, frameworks, databases, infrastructure, key libraries
+- **`conductor/workflow.md`** — commit strategy, branching, testing approach, code review process
+- **`conductor/product-guidelines.md`** — brand/style/UX principles (stub with placeholders if unknown)
+- **`conductor/deployment-stack.md`** — stub: "Not configured. Run `lc setup-deploy`."
+- **`conductor/tracks/`** and **`conductor/code_styleguides/`** — create dirs if missing
+- **`.claude/MEMORY.md`** — create if not present
+
+Print progress as you write each file:
+```
+📝 Writing conductor/product.md...            ✅
+📝 Writing conductor/tech-stack.md...         ✅
+📝 Writing conductor/workflow.md...           ✅
+📝 Writing conductor/product-guidelines.md... ✅
+📝 Writing conductor/deployment-stack.md...   ✅
+```
+
+**Also symlink the skill** (if not already linked):
+```bash
+SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
+TARGET=".claude/skills/laneconductor"
+mkdir -p .claude/skills
+ln -sf "$SKILL_DIR" "$TARGET"
+```
+
+After writing all files, check for foreign tracks and print summary.
+
+---
+
 ### `/laneconductor setup scaffold`
 
 Generates the `conductor/` folder structure and project context files using AI reasoning.
+**Use this only when invoked directly from an AI editor (not via `lc setup`).**
 
 Asks first:
 > "Does this project have existing code? (yes/no)"
