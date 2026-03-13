@@ -26,7 +26,7 @@ conductor/
 
 ### REQ-1: `lc setup-deploy` — AI-Guided Deployment Setup
 
-Claude-driven wizard (same pattern as `lc setup scaffold`):
+AI-driven wizard (supports Primary and Secondary agents with automatic fallback):
 1. Scans existing project for deploy signals (`deploy.sh`, `Makefile deploy` target, `Dockerfile`, `firebase.json`, `vercel.json`, `.github/workflows/`)
 2. Asks targeted questions to understand the deployment topology
 3. **Component-based selection** — user picks independently per layer (not monolithic templates):

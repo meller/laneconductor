@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Phase**: Complete
 **Summary**: Rename intake.md to file_sync_queue.md and implement it as the filesystem-side message bus, symmetric counterpart to the DB file_sync_queue table
 

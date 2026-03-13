@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 10%
+**Progress**: 100%
 
 ## Problem
 LaneConductor now supports three operating modes but they are undocumented, undertested, and the local-fs mode has noise from git lock/worktree operations that assume a real git remote.

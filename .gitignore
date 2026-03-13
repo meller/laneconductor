@@ -76,3 +76,4 @@ check_*.mjs
 fix_*.mjs
 reset_*.mjs
 .test-tmp-local-api
+.conv-cursor

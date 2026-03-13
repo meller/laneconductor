@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 64%
 **Phase**: Complete
 **Summary**: Hero image, Quick Start rewrite, badges, and GitHub metadata all done.
 

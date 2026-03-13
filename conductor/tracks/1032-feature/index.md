@@ -1,6 +1,6 @@
 # Track 1032: feature
 
-**Lane**: done:success
+**Lane**: done
 **Lane Status**: success
 **Progress**: 100%
 **Phase**: Deployed

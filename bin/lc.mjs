@@ -114,6 +114,30 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
 
         if (exitCode === 0) {
             finalStatus = 'success';
+            // Update metadata if it's a track run
+            if (trackNum) {
+                try {
+                    const tracksDir = join(projectRoot, 'conductor', 'tracks');
+                    const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+                    if (trackDir) {
+                        const indexPath = join(tracksDir, trackDir, 'index.md');
+                        if (existsSync(indexPath)) {
+                            let content = readFileSync(indexPath, 'utf8');
+                            const runBy = `${cli}${model ? '/' + model : ''} (${agent.type})`;
+                            if (content.match(/\*\*Last Run\*\*:\s*[^\n]+/i)) {
+                                content = content.replace(/\*\*Last Run\*\*:\s*[^\n]+/i, `**Last Run**: ${runBy}`);
+                            } else if (content.match(/\*\*Last Run By\*\*:\s*[^\n]+/i)) {
+                                content = content.replace(/\*\*Last Run By\*\*:\s*[^\n]+/i, `**Last Run**: ${runBy}`);
+                            } else {
+                                content = content.replace(/(\*\*Progress\*\*:\s*[^\n]+)/i, `$1\n**Last Run**: ${runBy}`);
+                            }
+                            writeFileSync(indexPath, content, 'utf8');
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`[metadata] Failed to update Last Run: ${e.message}`);
+                }
+            }
             break;
         } else {
             // Check if failure looks like a rate limit / exhaustion
@@ -534,6 +558,11 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
         console.log('  2. Run "lc start" to begin the heartbeat worker.');
         console.log('  3. Run "lc ui start" to open the Kanban dashboard.');
         console.log('  4. Create your first track with "lc new".');
+
+        const deployYN = await question(`\nWould you like to configure the deployment stack now? (lc setup-deploy) (y/n) [n]: `);
+        if (deployYN.toLowerCase() === 'y') {
+            await runAIAgent(config, '/laneconductor setup-deploy');
+        }
 
         rl.close();
     }

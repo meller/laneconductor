@@ -8,9 +8,19 @@ The current setup process for LaneConductor is fragmented. A user must run `lc s
 - The transition should use the primary AI agent configured during the manual setup.
 - If the AI agent fails or is not available, the user should be informed and given instructions on how to run it manually.
 - The flow should feel like a single continuous setup experience.
+- **Metadata Visibility**: Update `index.md` `**Last Run**` marker to include `cli/model (tier)` (e.g., `claude/haiku (primary)` or `gemini (secondary)`) so fallbacks are visible.
+- **Environment Verification**: The AI scaffolding phase must verify the environment:
+    - `chokidar` installation.
+    - `git` initialization.
+    - AI providers in the system `PATH`.
+- **Self-Healing**: If critical dependencies are missing, the AI should offer to create **Track 001: Environment Fixes** automatically.
+- **Optional Deployment Setup**: After the initial AI scaffolding, the system should ask if the user wants to continue to configure the deployment stack (`lc setup-deploy`).
 
 ## Acceptance Criteria
-- [ ] Running `lc setup` completes the manual configuration.
-- [ ] Immediately after manual configuration, the AI agent is spawned to run `setup scaffold`.
-- [ ] The AI agent correctly scans the codebase and generates `product.md`, `tech-stack.md`, etc.
-- [ ] The final output of `lc setup` includes the results of the AI scaffolding.
+- [ ] Running `lc setup` completes the manual configuration and spawns the AI agent.
+- [ ] AI agent scans the codebase and generates context files.
+- [ ] Track `index.md` files show rich `**Last Run**` metadata correctly.
+- [ ] Environment verification runs during `setup scaffold`.
+- [ ] AI correctly identifies missing dependencies and offers a fix track.
+- [ ] The user is prompted to optionally continue to deployment configuration.
+- [ ] The final output summarizes both configuration and environment status.

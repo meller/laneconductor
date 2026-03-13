@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 75%
 **Phase**: Quality Gate FAILED — moved back to plan per workflow.json on_failure
 **Summary**: QG failed: 9 UI auth tests failing (/auth/me returns 200 without token) — unrelated to track 1061 changes
 **Waiting for reply**: no

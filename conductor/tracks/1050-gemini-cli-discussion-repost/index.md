@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 35%
 **Phase**: Complete
 **Summary**: Live at https://github.com/google-gemini/gemini-cli/discussions/22041
 **Waiting for reply**: no

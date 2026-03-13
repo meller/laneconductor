@@ -91,5 +91,11 @@
     - [x] Generate `deploy.json` mapping `prod` and `staging` environments
 - [x] Task 2: Verify `lc deploy prod` works end-to-end on macrodash
 
+## Phase 6: Primary & Secondary Agent Support
+
+- [x] Task 1: Ensure `lc setup-deploy` utilizes the `runAIAgent` fallback mechanism
+- [x] Task 2: Update `SKILL.md` to reflect that deployment scaffolding is AI-agnostic
+- [x] Task 3: Verify that `**Last Run**` metadata correctly captures fallback agents during setup-deploy
+
 ## ✅ COMPLETE
 

@@ -1,6 +1,6 @@
 # Track 1064: Track 1064: add copilot cli support
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: Planning

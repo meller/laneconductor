@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Phase**: Complete
 **Summary**: demo.gif recorded, compressed 14MB→8.5MB, committed and pushed. Embedded in README.
 **Waiting for reply**: no

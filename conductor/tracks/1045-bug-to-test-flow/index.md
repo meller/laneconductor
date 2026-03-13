@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 97%
 **Phase**: Complete
 **Waiting for reply**: no
 **Summary**: When "Open Bug" is clicked, automatically append a regression test to test.md (disk + DB) so the bug cannot silently recur.

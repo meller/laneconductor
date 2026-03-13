@@ -1864,7 +1864,7 @@ async function mergeAndRemoveWorktree(trackNumber) {
   }
 }
 
-async function spawnCli(command, args, label, trackNumber, cli, laneStatus, laneConfig = {}) {
+async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}) {
   let lockFile = null;
   let worktreePath = null;
 
@@ -2135,12 +2135,15 @@ async function spawnCli(command, args, label, trackNumber, cli, laneStatus, lane
             patchData.waiting_for_reply = false;
             updated = true;
           }
-          // 4. Update Last Run By
-          const runBy = cli === 'npx' ? 'worker' : (cli || 'user');
-          if (content.match(/\*\*Last Run By\*\*:\s*[^\n]+/i)) {
-            content = content.replace(/\*\*Last Run By\*\*:\s*[^\n]+/i, `**Last Run By**: ${runBy}`);
+          // 4. Update Last Run
+          // e.g. claude/haiku (primary) or gemini (secondary)
+          const runBy = `${cli}${model !== 'default' ? '/' + model : ''} (${tier})`;
+          if (content.match(/\*\*Last Run\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/\*\*Last Run\*\*:\s*[^\n]+/i, `**Last Run**: ${runBy}`);
+          } else if (content.match(/\*\*Last Run By\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/\*\*Last Run By\*\*:\s*[^\n]+/i, `**Last Run**: ${runBy}`);
           } else {
-            content = content.replace(/(\*\*Progress\*\*:\s*[^\n]+)/i, `$1\n**Last Run By**: ${runBy}`);
+            content = content.replace(/(\*\*Progress\*\*:\s*[^\n]+)/i, `$1\n**Last Run**: ${runBy}`);
           }
           updated = true;
 
@@ -2312,7 +2315,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   // LC_MOCK_CLI overrides the CLI for testing (e.g. node conductor/tests/mock-cli.mjs)
   if (process.env.LC_MOCK_CLI) {
     const [cmd, ...rest] = process.env.LC_MOCK_CLI.split(' ');
-    return [cmd, [...rest, command, trackNumber], 'mock'];
+    return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary'];
   }
   const proj = getProject();
   const primary = laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude';
@@ -2321,6 +2324,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   const secondaryModel = proj.secondary?.model;
 
   let chosenCli = primary, chosenModel = primaryModel;
+  let chosenTier = 'primary';
   const primaryAvailable = await isProviderAvailable(primary);
   const secondaryAvailable = secondary ? await isProviderAvailable(secondary) : false;
 
@@ -2329,6 +2333,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     if (!hasCapacity && secondary && secondaryAvailable) {
       console.log(`[fallback] Claude capacity exhausted, switching to secondary: ${secondary}`);
       chosenCli = secondary; chosenModel = secondaryModel;
+      chosenTier = 'secondary';
     } else if (!hasCapacity && !secondaryAvailable) {
       console.log(`[blocked] Claude capacity exhausted and secondary ${secondary || ''} unavailable`);
       return null;
@@ -2339,6 +2344,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     if (secondary && secondaryAvailable) {
       console.log(`[fallback] ${primary} exhausted (quota), switching to secondary: ${secondary}`);
       chosenCli = secondary; chosenModel = secondaryModel;
+      chosenTier = 'secondary';
     } else {
       console.log(`[blocked] ${primary} exhausted and no available secondary`);
       return null;
@@ -2356,18 +2362,18 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   if (chosenCli === 'gemini') {
     const args = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${contextMsg}${prompt}`];
     if (chosenModel) args.push('--model', chosenModel);
-    return ['npx', args, chosenCli];
+    return ['npx', args, chosenCli, chosenModel || 'default', chosenTier];
   }
   if (chosenCli === 'claude') {
     // Inject skill context even for Claude to ensure it uses the right skill definition
     const fullPrompt = customPrompt ? `${contextMsg}\n\n${prompt}` : prompt;
     const args = ['--dangerously-skip-permissions', '-p', fullPrompt];
     if (chosenModel) args.push('--model', chosenModel);
-    return ['claude', args, chosenCli];
+    return ['claude', args, chosenCli, chosenModel || 'default', chosenTier];
   }
   const args = ['-p', `${contextMsg}${prompt}`];
   if (chosenModel) args.push('--model', chosenModel);
-  return [chosenCli, args, chosenCli];
+  return [chosenCli, args, chosenCli, chosenModel || 'default', chosenTier];
 }
 
 setInterval(() => checkFileSyncQueue(), 5000);
@@ -2500,10 +2506,10 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       continue;
     }
 
-    const [cmd, args, cli] = cliArgs;
     try {
+      const [cmd, args, cli, model, tier] = cliArgs;
+      
       // Update file to running status so UI/tests can see it
-      // Use robust header update helper
       const updateHeader = (content, header, value) => {
         const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
         if (regex.test(content)) return content.replace(regex, `**${header}**: ${value}`);
@@ -2512,7 +2518,7 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       const runningContent = updateHeader(content, 'Lane Status', 'running');
       writeFileSync(indexPath, runningContent, 'utf8');
 
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, lane_status, laneConfig);
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig);
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
