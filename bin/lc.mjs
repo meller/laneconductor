@@ -960,40 +960,60 @@ Please review this, answer any questions (some fields may contain questions rath
     const env = args[1] || 'prod';
 
     const envConfig = deployConfig.environments?.[env];
-    if (!envConfig || !envConfig.command) {
-        console.error(`❌ Error: No deployment command configured for environment "${env}".`);
+    if (!envConfig) {
+        console.error(`❌ Error: No deployment config for environment "${env}".`);
         console.log(`   Available environments: ${Object.keys(deployConfig.environments || {}).join(', ') || 'none'}`);
         process.exit(1);
     }
 
-    console.log(`🚀 Deploying to ${env}...`);
-    console.log(`   Command: ${envConfig.command}\n`);
+    // Support both a single `command` string and a `commands` array
+    const commands = envConfig.commands
+        ? envConfig.commands
+        : envConfig.command
+            ? [{ label: env, command: envConfig.command }]
+            : [];
+
+    if (commands.length === 0) {
+        console.error(`❌ Error: No deploy command(s) configured for environment "${env}".`);
+        process.exit(1);
+    }
 
     const logsDir = join(projectRoot, 'conductor', 'logs');
     if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
     const logFile = join(logsDir, `deploy-${env}-${Date.now()}.log`);
-    const logFd = openSync(logFile, 'a');
 
-    const start = Date.now();
-    const [cmd, ...cmdArgs] = envConfig.command.split(' ');
-    
-    // We use spawn with shell: true to support complex commands and pipes
-    const deployProc = spawn(envConfig.command, {
-        shell: true,
-        stdio: 'inherit',
-        cwd: projectRoot
+    const totalStart = Date.now();
+    console.log(`🚀 Deploying to ${env} (${commands.length} step${commands.length > 1 ? 's' : ''})...\n`);
+
+    const runCommand = (cmdStr, label) => new Promise((resolve) => {
+        console.log(`▶ ${label}: ${cmdStr}\n`);
+        const proc = spawn(cmdStr, { shell: true, stdio: 'inherit', cwd: projectRoot });
+        const stepStart = Date.now();
+        proc.on('close', (code) => {
+            const elapsed = ((Date.now() - stepStart) / 1000).toFixed(1);
+            if (code === 0) {
+                console.log(`\n✅ ${label} done (${elapsed}s)\n`);
+            } else {
+                console.error(`\n❌ ${label} failed (exit ${code}, ${elapsed}s)`);
+            }
+            resolve(code);
+        });
     });
 
-    deployProc.on('close', (code) => {
-        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-        if (code === 0) {
-            console.log(`\n✅ Deployment to ${env} successful! (${elapsed}s)`);
-        } else {
-            console.error(`\n❌ Deployment to ${env} failed with exit code ${code}. (${elapsed}s)`);
-            console.log(`   Logs available at: ${logFile}`);
+    (async () => {
+        for (const step of commands) {
+            const label = step.label || step.command;
+            const code = await runCommand(step.command, label);
+            if (code !== 0) {
+                console.error(`\nDeployment stopped at step: ${label}`);
+                console.log(`   Logs: ${logFile}`);
+                process.exit(code);
+            }
         }
-        process.exit(code || 0);
-    });
+        const elapsed = ((Date.now() - totalStart) / 1000).toFixed(1);
+        console.log(`✅ Deployment to ${env} complete! (${elapsed}s)`);
+        process.exit(0);
+    })();
 } else if (command === 'start') {
     if (!projectRoot) {
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
