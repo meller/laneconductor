@@ -572,17 +572,125 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
         }
 
         console.log('\n✨ Manual setup complete!');
-        console.log('🚀 Launching AI Scaffolding (scans codebase and generates context files)...');
-        
-        const exitCode = await runAIAgent(config, '/laneconductor setup scaffold');
-        
+
+        // ── Scaffold Brainstorm Loop ────────────────────────────────────────
+        console.log('\n📦 Scanning project to prepare scaffolding context...\n');
+
+        // Quick project scan — no AI needed
+        const scanSnippets = [];
+
+        if (existsSync('package.json')) {
+            try {
+                const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+                const deps = Object.keys({ ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) }).join(', ');
+                scanSnippets.push(`package.json: name="${pkg.name}", description="${pkg.description || ''}", deps: ${deps.slice(0, 400)}`);
+            } catch {}
+        }
+        for (const f of ['README.md', 'readme.md']) {
+            if (existsSync(f)) {
+                scanSnippets.push(`README (first 600 chars): ${readFileSync(f, 'utf8').slice(0, 600)}`);
+                break;
+            }
+        }
+        const frameworkSignals = ['next.config.js', 'next.config.ts', 'nuxt.config.ts', 'vite.config.ts', 'svelte.config.js', 'astro.config.mjs', 'angular.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', 'requirements.txt', 'setup.py'].filter(f => existsSync(f));
+        if (frameworkSignals.length) scanSnippets.push(`Framework signals: ${frameworkSignals.join(', ')}`);
+
+        const testSignals = ['jest.config.js', 'jest.config.ts', 'vitest.config.ts', 'pytest.ini', 'tests/', 'test/', '__tests__/'].filter(f => existsSync(f));
+        if (testSignals.length) scanSnippets.push(`Test setup: ${testSignals.join(', ')}`);
+
+        const ciSignals = ['.github/workflows', '.gitlab-ci.yml', '.circleci/config.yml', 'Jenkinsfile'].filter(f => existsSync(f));
+        if (ciSignals.length) scanSnippets.push(`CI: ${ciSignals.join(', ')}`);
+
+        const hasExistingCode = frameworkSignals.length > 0 || existsSync('src') || existsSync('app') || existsSync('lib');
+        console.log(`   Project: ${name}${hasExistingCode ? ' (existing codebase detected)' : ' (new project)'}`);
+        if (frameworkSignals.length) console.log(`   ✅ ${frameworkSignals.join(', ')}`);
+        if (testSignals.length) console.log(`   ✅ Tests: ${testSignals.join(', ')}`);
+        if (ciSignals.length) console.log(`   ✅ CI: ${ciSignals.join(', ')}`);
+
+        // Brainstorm loop for scaffold
+        const scaffoldHistory = [];
+
+        const buildScaffoldPrompt = (userMessage) => {
+            const ctx = `You are helping set up a LaneConductor project context. You need to understand the project well enough to generate these files:
+- conductor/product.md        (what the product does, who uses it, key features)
+- conductor/tech-stack.md     (languages, frameworks, databases, infra)
+- conductor/workflow.md       (how development works — commits, branches, reviews, testing)
+- conductor/product-guidelines.md  (brand, style, UX principles)
+
+Project: ${name}
+Git remote: ${remoteUrl || 'none'}
+Has existing code: ${hasExistingCode}
+
+Scan findings:
+${scanSnippets.join('\n')}
+
+Your job:
+1. Propose what the content of each context file should be based on what you can infer
+2. Ask about anything you can't infer (one question at a time)
+3. When you have enough to generate all 4 files, end with:
+   "✅ Ready to generate context files."
+
+Keep responses concise. If the project has existing code, infer as much as possible before asking.`;
+
+            const history = scaffoldHistory.map(m =>
+                `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+            ).join('\n\n');
+
+            return history
+                ? `${ctx}\n\n--- Conversation ---\n${history}\n\nUser: ${userMessage}`
+                : `${ctx}\n\nUser: ${userMessage}`;
+        };
+
+        const initialMsg = hasExistingCode
+            ? `I have an existing codebase. Based on the scan above, what can you infer about this project, and what questions do you have before generating the context files?`
+            : `This is a new project called "${name}". Please ask me what you need to know to generate the context files.`;
+
+        console.log('\n🤖 Analysing project...\n');
+        let scaffoldLLMResponse = await callLLMConversational(config, buildScaffoldPrompt(initialMsg));
+        scaffoldHistory.push({ role: 'user', content: initialMsg });
+        scaffoldHistory.push({ role: 'assistant', content: scaffoldLLMResponse });
+
+        while (true) {
+            console.log('\n─────────────────────────────────────────────────────');
+            const next = (await question('   [Enter] Generate context files   [r] Refine   [q] Skip\n   > ')).trim();
+
+            if (!next || next.toLowerCase() === 'g') break;
+            if (next.toLowerCase() === 'q') {
+                console.log('   Skipping scaffold — run "/laneconductor setup scaffold" manually in your AI editor.');
+                rl.close();
+                process.exit(0);
+            }
+            const refinement = next.toLowerCase() === 'r'
+                ? (await question('   Your answer or change > ')).trim()
+                : next;
+
+            if (!refinement) break;
+            scaffoldHistory.push({ role: 'user', content: refinement });
+            console.log('\n🤖 Thinking...\n');
+            scaffoldLLMResponse = await callLLMConversational(config, buildScaffoldPrompt(refinement));
+            scaffoldHistory.push({ role: 'assistant', content: scaffoldLLMResponse });
+        }
+
+        // Write scaffold context and run generation
+        const scaffoldContext = {
+            project: { name, git_remote: remoteUrl, has_existing_code: hasExistingCode },
+            scan: scanSnippets,
+            brainstorm_summary: scaffoldHistory.map(m => `${m.role}: ${m.content}`).join('\n\n'),
+        };
+        if (!existsSync('conductor')) mkdirSync('conductor', { recursive: true });
+        const scaffoldContextPath = 'conductor/.setup-scaffold-context.json';
+        writeFileSync(scaffoldContextPath, JSON.stringify(scaffoldContext, null, 2));
+
+        console.log('\n🤖 Generating context files...\n');
+        const exitCode = await runAIAgent(config, '/laneconductor setup scaffold generate');
+
+        try { unlinkSync(scaffoldContextPath); } catch {}
+
         if (exitCode === 0) {
             console.log('\n✅ Setup and Scaffolding complete!');
         } else {
             console.log('\n⚠️  AI Scaffolding failed or was interrupted.');
-            console.log('   You can run it manually later:');
-            console.log('     • In Claude Code:    /laneconductor setup scaffold');
-            console.log('     • In Gemini CLI:    Prompt with instructions from .claude/skills/laneconductor/SKILL.md');
+            console.log('   Run "/laneconductor setup scaffold" manually in your AI editor.');
         }
 
         console.log('\nNext steps:');
@@ -593,10 +701,12 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
 
         const deployYN = await question(`\nWould you like to configure the deployment stack now? (lc setup-deploy) (y/n) [n]: `);
         if (deployYN.toLowerCase() === 'y') {
-            await runAIAgent(config, '/laneconductor setup-deploy');
+            rl.close();
+            // setup-deploy has its own rl2 instance
+            spawnSync(process.execPath, [process.argv[1], 'setup-deploy'], { stdio: 'inherit' });
+        } else {
+            rl.close();
         }
-
-        rl.close();
     }
 
     runSetup();
