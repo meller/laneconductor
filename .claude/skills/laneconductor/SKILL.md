@@ -577,9 +577,12 @@ Your job is **only to generate the files**. Do not ask questions. Do not scan. D
   "cicd": false,
   "credentials": { "gcp": "verified (user@example.com)", "firebase": "verified" },
   "existing_signals": ["deploy.sh", "Dockerfile", "firebase.json"],
-  "files_to_create": ["conductor/deployment-stack.md", "conductor/deploy.json", ".env.example"]
+  "files_to_create": ["conductor/deployment-stack.md", "conductor/deploy.json", ".env.example"],
+  "brainstorm_summary": "user: ...\nassistant: ..."
 }
 ```
+
+**If `brainstorm_summary` is present**, use it as the authoritative source for the final configuration — it contains the agreed-upon decisions from the interactive brainstorm. The `components` fields may contain raw user input (including questions); the brainstorm summary has the clarified answers.
 
 **Generate each file listed in `files_to_create`:**
 

@@ -38,6 +38,38 @@ function findProjectRoot(startDir = process.cwd()) {
 }
 
 /**
+ * Runs a conversational LLM call (not a slash command), streams output to terminal,
+ * and returns the full response text. Used for brainstorm loops.
+ * @param {object} cfg - Project config from .laneconductor.json
+ * @param {string} prompt - The full prompt to send
+ * @returns {Promise<string>} - Full LLM response text
+ */
+async function callLLMConversational(cfg, prompt) {
+    const agent = cfg.project?.primary;
+    const cli = agent?.cli || 'claude';
+    const model = agent?.model;
+
+    let cmd, cmdArgs;
+    if (cli === 'gemini') {
+        cmd = 'npx';
+        cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', prompt];
+        if (model) cmdArgs.push('--model', model);
+    } else {
+        cmd = 'claude';
+        cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
+        if (model) cmdArgs.push('--model', model);
+    }
+
+    return new Promise((resolve) => {
+        const proc = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+        let output = '';
+        proc.stdout.on('data', (d) => { const t = d.toString(); process.stdout.write(t); output += t; });
+        proc.stderr.on('data', (d) => process.stderr.write(d));
+        proc.on('close', () => resolve(output));
+    });
+}
+
+/**
  * Runs the AI agent for a specific command/track.
  * @param {object} cfg - Project configuration from .laneconductor.json
  * @param {string} slashCmd - The /laneconductor command to run (e.g., "/laneconductor setup scaffold")
@@ -682,30 +714,106 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
         console.log(`   Supabase CLI → ${r.status === 0 ? '✅ verified' : '❌ run: supabase login'}`);
     }
 
-    // ── Phase 5: Confirm before writing ───────────────────────────────────
-    const filesToCreate = ['conductor/deployment-stack.md', 'conductor/deploy.json', '.env.example'];
-    if (wantCICD && !hasGHActions) filesToCreate.push('.github/workflows/deploy.yml');
+    // ── Phase 5: Brainstorm loop — LLM advises, user refines until ready ──
+    const conversationHistory = [];
+    let finalComponents = { frontend, backend, db, secrets };
+    let finalDeployCmd = deployCmd;
+    let finalEnvironments = environments;
+    let finalWantCICD = wantCICD;
 
-    console.log('\n📝 Ready to create:\n');
-    filesToCreate.forEach(f => console.log(`   - ${f}`));
+    const buildBrainstormPrompt = (userMessage) => {
+        const systemCtx = `You are a deployment configuration assistant helping a developer finalize their deployment stack for a software project.
 
-    const confirm = (await ask('\n   Proceed? [y/N]: ')).trim();
-    rl2.close();
+Project scan found: ${found.map(t => t.label).join(', ') || 'no existing deploy files'}.
 
-    if (confirm.toLowerCase() !== 'y') {
-        console.log('   Cancelled.');
-        process.exit(0);
+Current configuration being discussed:
+- Frontend:     ${finalComponents.frontend}
+- Backend:      ${finalComponents.backend}
+- Database:     ${finalComponents.db}
+- Secrets:      ${finalComponents.secrets}
+- Environments: ${finalEnvironments.join(', ')}
+- Deploy cmd:   ${finalDeployCmd || '(to be generated)'}
+- CI/CD:        ${finalWantCICD ? 'yes' : 'no'}
+- Credentials:  ${JSON.stringify(credResults)}
+
+Your job:
+1. Answer any questions embedded in the user's input (e.g. "can I use X with Y?")
+2. Clarify or recommend a better approach if something is unclear or unusual
+3. Propose a clear final configuration summary at the end
+4. Keep it concise — bullet points preferred
+
+If the configuration looks complete and sensible, end with:
+"✅ Configuration looks good. Ready to generate files."
+
+If something needs clarification, ask ONE question.`;
+
+        const history = conversationHistory.map(m =>
+            `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+        ).join('\n\n');
+
+        return history
+            ? `${systemCtx}\n\n--- Conversation so far ---\n${history}\n\nUser: ${userMessage}`
+            : `${systemCtx}\n\nUser: ${userMessage}`;
+    };
+
+    // First brainstorm call — summarize what we collected and ask AI to advise
+    const initialSummary = `Here's what I've configured so far:
+- Frontend: ${frontend}
+- Backend: ${backend}
+- Database: ${db}
+- Secrets: ${secrets}
+- Environments: ${environments.join(', ')}
+- Deploy command: ${deployCmd || 'not set'}
+- CI/CD: ${wantCICD ? 'yes' : 'no'}
+
+Please review this, answer any questions (some fields may contain questions rather than clean values), and propose a final deployment configuration.`;
+
+    console.log('\n🤖 Consulting AI...\n');
+    let llmResponse = await callLLMConversational(cfg, buildBrainstormPrompt(initialSummary));
+    conversationHistory.push({ role: 'user', content: initialSummary });
+    conversationHistory.push({ role: 'assistant', content: llmResponse });
+
+    // Brainstorm loop
+    while (true) {
+        console.log('\n─────────────────────────────────────────────────────');
+        const next = (await ask('   [Enter] Generate files   [r] Refine   [q] Quit\n   > ')).trim();
+
+        if (!next || next.toLowerCase() === 'g') {
+            break; // proceed to generate
+        }
+        if (next.toLowerCase() === 'q') {
+            console.log('   Cancelled.');
+            rl2.close();
+            process.exit(0);
+        }
+        // Any other input = refine
+        const refinement = next.startsWith('r') && next.length === 1
+            ? (await ask('   What would you like to change or ask? > ')).trim()
+            : next;
+
+        if (!refinement) break;
+
+        conversationHistory.push({ role: 'user', content: refinement });
+        console.log('\n🤖 Thinking...\n');
+        llmResponse = await callLLMConversational(cfg, buildBrainstormPrompt(refinement));
+        conversationHistory.push({ role: 'assistant', content: llmResponse });
     }
 
-    // ── Phase 6: AI generates files based on confirmed context ────────────
+    // ── Phase 6: Write context and generate files ─────────────────────────
+    const filesToCreate = ['conductor/deployment-stack.md', 'conductor/deploy.json', '.env.example'];
+    if (finalWantCICD && !hasGHActions) filesToCreate.push('.github/workflows/deploy.yml');
+
+    rl2.close();
+
     const setupContext = {
-        components: { frontend, backend, db, secrets },
-        environments,
-        deploy_command: deployCmd,
-        cicd: wantCICD,
+        components: finalComponents,
+        environments: finalEnvironments,
+        deploy_command: finalDeployCmd,
+        cicd: finalWantCICD,
         credentials: credResults,
         existing_signals: found.map(t => t.label),
         files_to_create: filesToCreate,
+        brainstorm_summary: conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n\n'),
     };
 
     const conductorDir = join(projectRoot, 'conductor');
