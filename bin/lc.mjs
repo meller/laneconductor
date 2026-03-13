@@ -581,27 +581,143 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
     }
     const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
 
-    // Check for existing config
-    const deployStackPath = join(projectRoot, 'conductor', 'deployment-stack.md');
-    const deployJsonPath = join(projectRoot, 'conductor', 'deploy.json');
-    if (existsSync(deployStackPath) || existsSync(deployJsonPath)) {
-        console.log('ℹ️  Deployment stack already configured.');
-        // We can continue anyway as the agent will handle reconfiguration
+    const rl2 = createInterface({ input: process.stdin, output: process.stdout });
+    const ask = (prompt) => new Promise(resolve => rl2.question(prompt, resolve));
+
+    // ── Phase 1: Scan ──────────────────────────────────────────────────────
+    console.log('\n🔍 Scanning project for deployment signals...\n');
+    const scanTargets = [
+        { path: 'deploy.sh',                  label: 'deploy.sh' },
+        { path: 'infra/deploy.sh',             label: 'infra/deploy.sh' },
+        { path: 'Dockerfile',                  label: 'Dockerfile' },
+        { path: 'firebase.json',               label: 'firebase.json (Firebase Hosting)' },
+        { path: 'vercel.json',                 label: 'vercel.json (Vercel)' },
+        { path: '.github/workflows',           label: '.github/workflows/ (CI/CD)' },
+        { path: 'terraform',                   label: 'terraform/ (IaC)' },
+        { path: 'infra',                       label: 'infra/ (infra scripts)' },
+        { path: 'Makefile',                    label: 'Makefile' },
+        { path: 'serverless.yml',              label: 'serverless.yml (AWS Serverless)' },
+        { path: 'fly.toml',                    label: 'fly.toml (Fly.io)' },
+    ];
+    const found = scanTargets.filter(t => existsSync(join(projectRoot, t.path)));
+    if (found.length > 0) {
+        found.forEach(t => console.log(`   ✅ ${t.label}`));
+    } else {
+        console.log('   (no existing deployment files found — starting fresh)');
     }
 
-    // Identify available agents
-    const agents = [];
-    if (cfg.project?.primary?.cli) agents.push({ ...cfg.project.primary, type: 'primary' });
-    if (cfg.project?.secondary?.cli) agents.push({ ...cfg.project.secondary, type: 'secondary' });
+    // ── Phase 2: Infer defaults ────────────────────────────────────────────
+    const has = (p) => found.some(t => t.path === p);
+    const defaultFrontend = has('firebase.json') ? 'Firebase Hosting' : has('vercel.json') ? 'Vercel' : 'none';
+    const defaultBackend  = has('Dockerfile') ? 'GCP Cloud Run' : has('serverless.yml') ? 'AWS Lambda' : has('fly.toml') ? 'Fly.io' : 'none';
+    const existingDeployScript = has('infra/deploy.sh') ? 'bash infra/deploy.sh' : has('deploy.sh') ? 'bash deploy.sh' : null;
 
-    if (agents.length === 0) {
-        console.error('❌ No primary agent configured in .laneconductor.json');
-        process.exit(1);
+    // ── Phase 3: Q&A ──────────────────────────────────────────────────────
+    console.log('\n🧩 Let\'s configure your deployment stack.\n');
+    console.log('   (Press Enter to accept the default shown in brackets)\n');
+
+    const frontend = (await ask(`   Frontend     [${defaultFrontend}]: `)).trim() || defaultFrontend;
+    const backend  = (await ask(`   Backend      [${defaultBackend}]: `)).trim()  || defaultBackend;
+    const db       = (await ask(`   Database     [Cloud SQL]: `)).trim() || 'Cloud SQL';
+    const secrets  = (await ask(`   Secrets      [GCP Secret Manager]: `)).trim() || 'GCP Secret Manager';
+
+    const envInput = (await ask('\n   Environments (comma-separated) [prod,staging]: ')).trim() || 'prod,staging';
+    const environments = envInput.split(',').map(e => e.trim()).filter(Boolean);
+
+    let deployCmd = existingDeployScript;
+    if (existingDeployScript) {
+        const useExisting = (await ask(`\n   Deploy script found: "${existingDeployScript} <env>"  Use it? [Y/n]: `)).trim();
+        if (useExisting.toLowerCase() === 'n') {
+            deployCmd = (await ask('   Custom deploy command (env appended): ')).trim() || existingDeployScript;
+        }
+    } else {
+        const customCmd = (await ask('\n   Deploy command (leave blank to let AI generate): ')).trim();
+        if (customCmd) deployCmd = customCmd;
     }
 
-    const slashCmd = `/laneconductor setup-deploy`;
-    await runAIAgent(cfg, slashCmd);
-    process.exit(0);
+    const hasGHActions = has('.github/workflows');
+    let wantCICD;
+    if (hasGHActions) {
+        const keep = (await ask('\n   GitHub Actions workflow already exists. Keep CI/CD? [Y/n]: ')).trim();
+        wantCICD = keep.toLowerCase() !== 'n';
+    } else {
+        const add = (await ask('\n   Set up GitHub Actions CI/CD pipeline? [y/N]: ')).trim();
+        wantCICD = add.toLowerCase() === 'y';
+    }
+
+    // ── Phase 4: Credential verification ──────────────────────────────────
+    console.log('\n🔒 Verifying credentials...\n');
+    const credResults = {};
+
+    const needsGCP = [frontend, backend, secrets].some(v => v.toLowerCase().includes('gcp') || v.toLowerCase().includes('firebase') || v.toLowerCase().includes('cloud run') || v.toLowerCase().includes('cloud sql'));
+    const needsFirebase = frontend.toLowerCase().includes('firebase');
+    const needsAWS = [frontend, backend, secrets].some(v => v.toLowerCase().includes('aws') || v.toLowerCase().includes('lambda'));
+    const needsVercel = [frontend, backend].some(v => v.toLowerCase().includes('vercel'));
+    const needsSupabase = [db, secrets].some(v => v.toLowerCase().includes('supabase'));
+
+    if (needsGCP) {
+        const r = spawnSync('gcloud', ['auth', 'list', '--format=value(account)', '--filter=status=ACTIVE'], { encoding: 'utf8' });
+        const account = r.status === 0 && r.stdout.trim() ? r.stdout.trim().split('\n')[0] : null;
+        credResults.gcp = account ? `verified (${account})` : 'NOT CONFIGURED';
+        console.log(`   GCP ADC      → ${account ? '✅ ' + account : '❌ run: gcloud auth application-default login'}`);
+    }
+    if (needsFirebase) {
+        const r = spawnSync('firebase', ['projects:list', '--json'], { encoding: 'utf8' });
+        credResults.firebase = r.status === 0 ? 'verified' : 'NOT CONFIGURED';
+        console.log(`   Firebase CLI → ${r.status === 0 ? '✅ verified' : '❌ run: firebase login'}`);
+    }
+    if (needsAWS) {
+        const r = spawnSync('aws', ['sts', 'get-caller-identity', '--output', 'text'], { encoding: 'utf8' });
+        credResults.aws = r.status === 0 ? `verified (${r.stdout.trim().split('\t')[1] || 'ok'})` : 'NOT CONFIGURED';
+        console.log(`   AWS          → ${r.status === 0 ? '✅ ' + credResults.aws : '❌ run: aws configure'}`);
+    }
+    if (needsVercel) {
+        const r = spawnSync('vercel', ['whoami'], { encoding: 'utf8' });
+        credResults.vercel = r.status === 0 ? `verified (${r.stdout.trim()})` : 'NOT CONFIGURED';
+        console.log(`   Vercel CLI   → ${r.status === 0 ? '✅ ' + r.stdout.trim() : '❌ run: vercel login'}`);
+    }
+    if (needsSupabase) {
+        const r = spawnSync('supabase', ['projects', 'list'], { encoding: 'utf8' });
+        credResults.supabase = r.status === 0 ? 'verified' : 'NOT CONFIGURED';
+        console.log(`   Supabase CLI → ${r.status === 0 ? '✅ verified' : '❌ run: supabase login'}`);
+    }
+
+    // ── Phase 5: Confirm before writing ───────────────────────────────────
+    const filesToCreate = ['conductor/deployment-stack.md', 'conductor/deploy.json', '.env.example'];
+    if (wantCICD && !hasGHActions) filesToCreate.push('.github/workflows/deploy.yml');
+
+    console.log('\n📝 Ready to create:\n');
+    filesToCreate.forEach(f => console.log(`   - ${f}`));
+
+    const confirm = (await ask('\n   Proceed? [y/N]: ')).trim();
+    rl2.close();
+
+    if (confirm.toLowerCase() !== 'y') {
+        console.log('   Cancelled.');
+        process.exit(0);
+    }
+
+    // ── Phase 6: AI generates files based on confirmed context ────────────
+    const setupContext = {
+        components: { frontend, backend, db, secrets },
+        environments,
+        deploy_command: deployCmd,
+        cicd: wantCICD,
+        credentials: credResults,
+        existing_signals: found.map(t => t.label),
+        files_to_create: filesToCreate,
+    };
+
+    const conductorDir = join(projectRoot, 'conductor');
+    if (!existsSync(conductorDir)) mkdirSync(conductorDir, { recursive: true });
+    const contextPath = join(conductorDir, '.setup-deploy-context.json');
+    writeFileSync(contextPath, JSON.stringify(setupContext, null, 2));
+
+    console.log('\n🤖 Generating deployment files...\n');
+    const exitCode = await runAIAgent(cfg, '/laneconductor setup-deploy generate');
+
+    try { unlinkSync(contextPath); } catch {}
+    process.exit(exitCode || 0);
 } else if (command === 'deploy') {
     if (!projectRoot) {
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');

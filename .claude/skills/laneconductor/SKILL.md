@@ -558,114 +558,113 @@ Update a single field in `conductor/workflow.json`.
 
 ---
 
-### `/laneconductor setup-deploy`
+### `/laneconductor setup-deploy generate`
 
-AI-guided wizard to configure deployment context and commands.
+**File-generation phase of `lc setup-deploy`.** The CLI wizard (`lc setup-deploy`) has already:
+- Scanned for deployment signals
+- Asked the user all questions interactively
+- Verified credentials
+- Got explicit user confirmation
 
-**IMPORTANT: Print progress to stdout at every step so the user can see what is happening. Use this exact format:**
+Your job is **only to generate the files**. Do not ask questions. Do not scan. Do not show a confirmation prompt. Just write the files.
+
+**Read context from `conductor/.setup-deploy-context.json`:**
+```json
+{
+  "components": { "frontend": "...", "backend": "...", "db": "...", "secrets": "..." },
+  "environments": ["prod", "staging"],
+  "deploy_command": "bash infra/deploy.sh",
+  "cicd": false,
+  "credentials": { "gcp": "verified (user@example.com)", "firebase": "verified" },
+  "existing_signals": ["deploy.sh", "Dockerfile", "firebase.json"],
+  "files_to_create": ["conductor/deployment-stack.md", "conductor/deploy.json", ".env.example"]
+}
 ```
-🔍 Scanning project for deployment signals...
-   ✅ Found: deploy.sh
-   ✅ Found: Dockerfile
-   ✅ Found: firebase.json
-   ℹ️  No: terraform/
 
-🧩 Detected components:
-   Frontend  → Firebase Hosting
-   Backend   → GCP Cloud Run
-   Database  → Cloud SQL
-   Secrets   → GCP Secret Manager
+**Generate each file listed in `files_to_create`:**
 
-🔒 Verifying credentials...
-   GCP ADC       → ✅ verified (account: user@example.com, project: my-project)
-   Firebase CLI  → ✅ verified (3 projects found)
-   AWS           → ⚠️  not configured (run: aws configure)
-
+Print progress as you write each file:
+```
 📝 Writing conductor/deployment-stack.md...  ✅
 📝 Writing conductor/deploy.json...          ✅
 📝 Writing .env.example...                   ✅
 🔒 Updating .gitignore...                    ✅
+```
 
+**`conductor/deployment-stack.md`** — Full human-readable topology:
+```markdown
+# Deployment Stack
+
+## Provider
+[derived from components]
+
+## Environments
+[list each environment with region/project if detectable]
+
+## Services
+- Frontend: [component]
+- Backend: [component]
+- Database: [component]
+- Secrets: [component]
+
+## Authentication
+[credentials entry from context — verified ✅ or NOT CONFIGURED]
+
+## Deploy Command
+lc deploy prod  →  [deploy_command] prod
+```
+
+**`conductor/deploy.json`** — Machine-readable config:
+```json
+{
+  "environments": {
+    "prod": { "command": "[deploy_command] prod" },
+    "staging": { "command": "[deploy_command] staging" }
+  },
+  "components": { "frontend": "...", "backend": "...", "db": "...", "secrets": "..." },
+  "secrets": {
+    "strategy": "[derive from secrets component]",
+    "keys": []
+  },
+  "ci": null
+}
+```
+Set `"ci": null` unless `cicd` is `true` in context (in which case add CI config block).
+
+**`.env.example`** — Required CI env var names only, **never actual values**:
+- GCP: `GOOGLE_APPLICATION_CREDENTIALS`, `GCP_PROJECT`, `GCP_REGION`
+- Firebase: `FIREBASE_TOKEN` (for CI; locally use ADC)
+- Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- AWS: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+- Supabase: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`
+Include only providers relevant to the selected components.
+
+**`.gitignore`** — Append if not already present:
+```
+.env
+*.tfvars
+*-key.json
+service-account*.json
+.vercel
+```
+
+**After writing all files, print:**
+```
 ✅ Deployment stack configured!
    Run: lc deploy prod
    Run: lc deploy staging
 ```
-
-**HARD RULE: Do NOT write any files until the user has confirmed the deployment approach. The scan informs your questions — it does not replace them. Always ask before generating.**
-
-**Logic:**
-1. **Scan** — print `🔍 Scanning project for deployment signals...` then check and print each finding:
-   - `deploy.sh`, `Makefile` (look for `deploy` targets), `firebase.json`, `vercel.json`, `Dockerfile`, `fly.toml`, `railway.json`.
-   - `.github/workflows/`, `.gitlab-ci.yml`.
-   - `cloud-run.yaml`, `kubernetes/`, `terraform/`, `infra/`.
-
-2. **Present findings and ask** — summarise what you found, then ask ONE question at a time:
-
-   ```
-   🔍 Found: deploy.sh (GCP Cloud Run deploy), Dockerfile, firebase.json
-
-   Based on this, your stack looks like:
-     Frontend  → Firebase Hosting (found firebase.json)
-     Backend   → GCP Cloud Run (found Dockerfile + deploy.sh referencing gcloud run)
-     Database  → unknown
-     Secrets   → unknown
-
-   Is this correct, or do you want a different deployment approach?
-   ```
-
-   Wait for the user to confirm or correct before proceeding. Ask follow-up questions one at a time for any unknown layers (Database, Secrets, environments).
-
-   **Never assume CI/CD.** Explicitly ask: "Do you want to set up GitHub Actions / CI pipeline, or local deploy only for now?"
-
-3. **Verify Credentials** (only after topology confirmed) — print `🔒 Verifying credentials...` then run each check:
-   - **GCP**: `gcloud auth list` + `gcloud auth application-default print-access-token` → print account + project.
-   - **AWS**: `aws sts get-caller-identity` → print account ID + ARN.
-   - **Vercel**: `vercel whoami` → print username.
-   - **Supabase**: `supabase projects list` → print project count.
-   - **Firebase**: `firebase projects:list` → print project count.
-   - Print `✅ verified` or `⚠️  not configured` + setup command for each.
-
-4. **Confirm before writing** — show a summary of exactly what will be created:
-   ```
-   Ready to create:
-     📝 conductor/deployment-stack.md
-     📝 conductor/deploy.json  (prod + staging)
-     📝 .env.example
-
-   Proceed? [y/N]
-   ```
-   Wait for confirmation. **Do not create any files before this.**
-
-5. **Scaffold** — only after user confirms. Print each file as it is written:
-   - `📝 Writing conductor/deployment-stack.md...  ✅`
-   - `📝 Writing conductor/deploy.json...          ✅`
-   - `📝 Writing .env.example...                   ✅`
-   - `🔒 Updating .gitignore...                    ✅`
-   - **deployment-stack.md**: Full topology, verified auth methods, environments, secrets policy.
-   - **deploy.json**: Map environments to commands. Wrap existing `deploy.sh` if found. Set `"ci": null` unless user explicitly requested CI setup.
-   - **.env.example**: Required CI env var names with comments. **NEVER write actual secret values.**
-   - **.gitignore**: Append `.env`, `*.tfvars`, `*-key.json`, `.vercel` if not already present.
-
-6. **Summary** — print available `lc deploy <env>` commands and any manual next steps.
+And list any credentials marked `NOT CONFIGURED` with their setup commands.
 
 **Example `deploy.json` Schema:**
 ```json
 {
-  "template": "gcp-cloud-run",
   "environments": {
-    "prod": {
-      "command": "bash infra/deploy.sh prod",
-      "project": "my-project-prod"
-    },
-    "staging": {
-      "command": "bash infra/deploy.sh staging",
-      "project": "my-project-staging"
-    }
+    "prod": { "command": "bash infra/deploy.sh prod", "project": "my-project-prod" },
+    "staging": { "command": "bash infra/deploy.sh staging", "project": "my-project-staging" }
   },
-  "secrets": {
-    "strategy": "adc+secret-manager",
-    "keys": ["DB_PASSWORD", "STRIPE_KEY"]
-  },
+  "components": { "frontend": "Firebase Hosting", "backend": "GCP Cloud Run", "db": "Cloud SQL", "secrets": "GCP Secret Manager" },
+  "secrets": { "strategy": "adc+secret-manager", "keys": [] },
   "ci": null
 }
 ```
