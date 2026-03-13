@@ -849,10 +849,16 @@ Current configuration being discussed:
 Your job:
 1. Answer any questions embedded in the user's input (e.g. "can I use X with Y?")
 2. Clarify or recommend a better approach if something is unclear or unusual
-3. Propose a clear final configuration summary at the end
-4. Keep it concise — bullet points preferred
+3. Make sure to ask about IaC (infrastructure as code): does the user use Terraform, a plain deploy script, or nothing? If a deploy script was found, confirm whether it's sufficient or if IaC is wanted.
+4. Propose a clear final configuration summary at the end
+5. Keep it concise — bullet points preferred
 
-If the configuration looks complete and sensible, end with:
+CRITICAL RULES:
+- When you say "✅ Configuration looks good. Ready to generate files." — STOP. Do not add any follow-up questions or options after that line. The user will press Enter to proceed.
+- Focus ONLY on what is needed for LOCAL deployment (the user will run "lc deploy" locally). Do NOT suggest setting up CI/CD, Terraform, or remote pipelines unless the user explicitly asks.
+- The goal is to document the EXISTING deployment setup, not to design a new one.
+
+If the configuration looks complete and sensible, end your message with EXACTLY this line and nothing else after it:
 "✅ Configuration looks good. Ready to generate files."
 
 If something needs clarification, ask ONE question.`;
@@ -876,7 +882,9 @@ If something needs clarification, ask ONE question.`;
 - Deploy command: ${deployCmd || 'not set'}
 - CI/CD: ${wantCICD ? 'yes' : 'no'}
 
-Please review this, answer any questions (some fields may contain questions rather than clean values), and propose a final deployment configuration.`;
+Goal: document this as a LOCAL deployment setup so "lc deploy prod" runs the deploy script locally. No CI/CD unless I asked for it.
+
+Please review this, answer any questions (some fields may contain questions rather than clean values), ask about IaC if relevant, and propose the final configuration.`;
 
     console.log('\n🤖 Consulting AI...\n');
     let llmResponse = await callLLMConversational(cfg, buildBrainstormPrompt(initialSummary));
