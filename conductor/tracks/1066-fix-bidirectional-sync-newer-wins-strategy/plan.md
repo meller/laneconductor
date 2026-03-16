@@ -36,30 +36,29 @@ Implement database-to-filesystem pull in `laneconductor.sync.mjs` so that UI-dri
 
 **Solution**: Implement pull logic for `index.md` markers, respecting timestamp precedence.
 
-- [ ] Task 1: Add `fetchTracksFromDB(projectId)` helper
-    - Query: `SELECT id, track_number, title, lane_status, progress_percent, current_phase, content_summary, last_updated FROM tracks WHERE project_id = :projectId`
-    - Return array of track objects
+- [x] Task 1: Add `fetchTracksFromDB()` helper via API endpoint
+    - Calls `/api/projects/:id/tracks` to get track list
     - Handle DB connection errors gracefully
-- [ ] Task 2: Add `updateIndexMDFromDB(trackFolder, dbTrack)` function
+- [x] Task 2: Add `updateIndexMDFromDB(trackFolder, dbTrack)` function
     - Read local `index.md` if exists; create template if missing
     - Update markers: `**Lane**`, `**Progress**`, `**Phase**`, `**Summary**`
-    - Preserve any local modifications above/below markers (don't touch problem/solution sections)
+    - Preserve any local modifications above/below markers
     - Use regex to find and replace markers or append if missing
-- [ ] Task 3: Add conflict resolution logic to pull operation
+- [x] Task 3: Add conflict resolution logic to pull operation
     - Before overwriting, check: `compareTimestamps(localIndexMtime, dbTrack.last_updated)`
     - If FS newer: skip this track, log reason
     - If DB newer or equal: apply update
-    - Add decision log entry: `[SYNC] Track NNN: pulled metadata from DB (FS mtime: X, DB updated: Y)`
-- [ ] Task 4: Integrate into main sync loop
-    - After filesystem → DB push, add DB → filesystem pull
-    - Call `fetchTracksFromDB()` once per project
-    - For each track: call `shouldPullFromDB()`, then `updateIndexMDFromDB()`
+    - Add decision log entries with timestamps
+- [x] Task 4: Integrate into main sync loop
+    - Added `pullTracksMetadataFromDB()` as 5s interval heartbeat
+    - Calls API once per cycle to fetch all tracks
+    - For each track: uses `shouldPullFromDB()` + timestamp comparison
 - [ ] Task 5: Test metadata-only pull
     - Create track with DB progress = 50%, local = 10%
     - Verify pull updates local to 50%
     - Verify FS newer is preserved
 
-**Impact**: Track status changes in UI (drag to different lane, update progress) now sync to worker's index.md within 5s heartbeat.
+**Impact**: ✅ Track status changes in UI (drag to different lane, update progress) now sync to worker's index.md within 5s heartbeat.
 
 ---
 

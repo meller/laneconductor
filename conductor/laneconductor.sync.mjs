@@ -777,6 +777,133 @@ function shouldPullFromDB(track, trackFolder) {
   };
 }
 
+// ── Phase 2: DB → Filesystem Pull - Track Metadata ──────────────────────────────
+
+/**
+ * Update track index.md from database values
+ * @param {string} trackFolder - Path to track folder
+ * @param {object} dbTrack - Track object from DB
+ */
+function updateIndexMDFromDB(trackFolder, dbTrack) {
+  const indexPath = join(trackFolder, 'index.md');
+
+  try {
+    let content = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
+
+    // Create template if file doesn't exist
+    if (!content.trim()) {
+      content = `# Track ${dbTrack.track_number}: ${dbTrack.title}\n\n**Lane**: backlog\n**Progress**: 0%\n`;
+    }
+
+    // Helper to update or append marker
+    const updateMarker = (text, marker, value) => {
+      const regex = new RegExp(`^\\*\\*${marker}\\*\\*:\\s*.+$`, 'm');
+      if (regex.test(text)) {
+        return text.replace(regex, `**${marker}**: ${value}`);
+      }
+      return text.trim() + `\n**${marker}**: ${value}\n`;
+    };
+
+    // Update markers from DB values
+    if (dbTrack.lane_status) {
+      content = updateMarker(content, 'Lane', dbTrack.lane_status);
+    }
+    if (dbTrack.progress_percent !== undefined && dbTrack.progress_percent !== null) {
+      content = updateMarker(content, 'Progress', `${dbTrack.progress_percent}%`);
+    }
+    if (dbTrack.current_phase) {
+      content = updateMarker(content, 'Phase', dbTrack.current_phase);
+    }
+    if (dbTrack.content_summary) {
+      content = updateMarker(content, 'Summary', dbTrack.content_summary);
+    }
+
+    writeFileSync(indexPath, content, 'utf8');
+    return true;
+  } catch (err) {
+    console.error(`[sync] updateIndexMDFromDB failed for ${trackFolder}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Pull track metadata from DB and update local index.md files
+ * Uses timestamp-based conflict resolution: newer wins
+ */
+async function pullTracksMetadataFromDB() {
+  if (getIsLocalFs()) return; // local-fs mode: no DB to pull from
+
+  const { url, token } = primaryCollector();
+  if (!url) {
+    console.log('[sync] pullTracksMetadataFromDB: no collector configured, skipping DB pull');
+    return;
+  }
+
+  try {
+    const proj = getProject();
+    if (!proj.id) {
+      console.log('[sync] pullTracksMetadataFromDB: project not registered in DB, skipping pull');
+      return;
+    }
+
+    // Fetch all tracks for this project from API
+    const tracks = await get(url, token, `/api/projects/${proj.id}/tracks`);
+    if (!Array.isArray(tracks)) {
+      console.log('[sync] pullTracksMetadataFromDB: no tracks returned from API');
+      return;
+    }
+
+    let pulledCount = 0;
+    let skippedCount = 0;
+    const decisions = [];
+
+    for (const track of tracks) {
+      const trackFolder = `conductor/tracks/${track.track_number}-*`;
+      const trackPath = readdirSync('conductor/tracks', { withFileTypes: true })
+        .filter(d => d.isDirectory() && d.name.startsWith(track.track_number + '-'))
+        .map(d => d.name)[0];
+
+      if (!trackPath) continue;
+      const fullTrackFolder = join('conductor/tracks', trackPath);
+
+      // Check if pull is needed using Phase 1 logic
+      const pullDecision = shouldPullFromDB(track, fullTrackFolder);
+      if (!pullDecision.pull) {
+        skippedCount++;
+        continue;
+      }
+
+      // Conflict resolution: check if DB is actually newer
+      const indexPath = join(fullTrackFolder, 'index.md');
+      const indexMtime = getFileModTime(indexPath);
+      const comparison = compareTimestamps(indexMtime, track.last_updated);
+
+      if (comparison === 'older' || comparison === 'equal') {
+        // DB is newer or same age → pull
+        const success = updateIndexMDFromDB(fullTrackFolder, track);
+        if (success) {
+          pulledCount++;
+          const dbTime = track.last_updated instanceof Date
+            ? track.last_updated.toISOString()
+            : track.last_updated;
+          decisions.push(`[SYNC] Track ${track.track_number}: pulled metadata from DB (DB: ${dbTime})`);
+        }
+      } else {
+        // FS is newer → skip pull, preserve local version
+        skippedCount++;
+        decisions.push(`[SYNC] Track ${track.track_number}: skipped pull (FS newer)`);
+      }
+    }
+
+    if (pulledCount > 0 || skippedCount > 0) {
+      console.log(`[sync] DB→FS pull: ${pulledCount} pulled, ${skippedCount} skipped`);
+      decisions.forEach(d => console.log(d));
+    }
+  } catch (err) {
+    console.error('[sync error] pullTracksMetadataFromDB:', err.message);
+  }
+}
+
 async function syncConductorFiles() {
   if (getIsLocalFs()) return;  // local-fs mode: no collector to push to
   try {
@@ -1164,6 +1291,9 @@ async function resetStuckActions(immediate = false) {
 replayStaleTracks();
 resetStuckActions(true); // immediate on startup: worker starts fresh, owns no running tracks
 setInterval(resetStuckActions, 2 * 60 * 1000); // periodically recover stuck-running tracks
+
+// Phase 2 integration: periodic DB→FS pull (5s interval, same as file watcher)
+setInterval(pullTracksMetadataFromDB, 5000);
 
 // Reset any stale `running` status in filesystem on startup (worker owns no PIDs yet)
 (function resetFilesystemRunningStatus() {
