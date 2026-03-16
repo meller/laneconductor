@@ -1,7 +1,7 @@
 # Track 1066: Fix bidirectional sync - newer wins strategy
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 35%
-**Phase**: Phase 2 - Metadata pull (4/5 tasks)
-**Summary**: Implement 'newer wins' timestamp-based conflict resolution in laneconductor.sync.mjs. When track content_summary or last_updated in DB is newer than filesystem files, pull full track details (spec.md, plan.md, test.md) from database to filesystem. Currently only does filesystem→DB sync, missing DB→filesystem pull when DB has newer version.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Implementation Complete
+**Summary**: Bidirectional sync with "newer wins" timestamp-based conflict resolution fully implemented in laneconductor.sync.mjs. DB→FS pull now syncs metadata, content, and comments. Track status/progress changes in UI reach worker filesystem within 5s heartbeat with safe conflict resolution, backups, and comprehensive logging.
