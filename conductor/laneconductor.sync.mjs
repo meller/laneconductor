@@ -691,6 +691,92 @@ async function pullWorkflow() {
   }
 }
 
+// ── Phase 1: Timestamp Comparison & Conflict Detection ──────────────────────────
+// Provides core decision logic for bidirectional sync with "newer wins" strategy
+
+/**
+ * Get file modification time in milliseconds
+ * @param {string} filePath - Path to file
+ * @returns {number|null} - Modification time in ms, or null if file doesn't exist
+ */
+function getFileModTime(filePath) {
+  try {
+    if (!existsSync(filePath)) return null;
+    const stat = statSync(filePath);
+    return stat.mtimeMs;
+  } catch (err) {
+    console.warn(`[sync] getFileModTime: failed to stat ${filePath}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Compare file and database timestamps to determine which version is newer
+ * @param {number|null} fileMtime - File modification time in ms
+ * @param {number|string|null} dbLastUpdated - DB last_updated timestamp (ms, ISO string, or null)
+ * @returns {string} - 'newer' (DB wins), 'older' (FS wins), 'equal' (no sync needed)
+ */
+function compareTimestamps(fileMtime, dbLastUpdated) {
+  // Handle null/missing cases
+  if (fileMtime === null && dbLastUpdated === null) return 'equal';
+  if (fileMtime === null) return 'newer'; // File missing → DB is newer
+  if (dbLastUpdated === null) return 'older'; // DB missing → FS is newer
+
+  // Parse DB timestamp if it's a string (ISO format)
+  let dbTime = dbLastUpdated;
+  if (typeof dbLastUpdated === 'string') {
+    dbTime = new Date(dbLastUpdated).getTime();
+    if (isNaN(dbTime)) {
+      console.warn('[sync] compareTimestamps: invalid DB timestamp:', dbLastUpdated);
+      return 'equal';
+    }
+  }
+
+  // Compare timestamps with 1ms tolerance for floating point
+  const diff = dbTime - fileMtime;
+  if (Math.abs(diff) <= 1) return 'equal';
+  return diff > 0 ? 'newer' : 'older';
+}
+
+/**
+ * Check if DB version should be pulled to filesystem
+ * @param {object} track - Track object from DB {id, track_number, last_updated, content_summary, ...}
+ * @param {string} trackFolder - Path to track folder
+ * @returns {object} - {pull: boolean, reason?: string, affectedFiles: string[]}
+ */
+function shouldPullFromDB(track, trackFolder) {
+  const affectedFiles = [];
+
+  // Check index.md
+  const indexPath = join(trackFolder, 'index.md');
+  const indexMtime = getFileModTime(indexPath);
+  const indexComparison = compareTimestamps(indexMtime, track.last_updated);
+
+  if (indexComparison === 'newer') {
+    affectedFiles.push('index.md');
+  }
+
+  // Check if content_summary has changed (simple heuristic)
+  if (existsSync(indexPath)) {
+    try {
+      const content = readFileSync(indexPath, 'utf8');
+      const summaryMatch = content.match(/\*\*Summary\*\*:\s*(.+?)(?:\n|$)/);
+      const localSummary = summaryMatch ? summaryMatch[1].trim() : '';
+      if (localSummary !== (track.content_summary || '')) {
+        affectedFiles.push('content_summary_mismatch');
+      }
+    } catch (err) {
+      console.warn(`[sync] shouldPullFromDB: failed to read ${indexPath}:`, err.message);
+    }
+  }
+
+  return {
+    pull: affectedFiles.length > 0,
+    reason: affectedFiles.length > 0 ? 'db_newer_or_content_mismatch' : undefined,
+    affectedFiles
+  };
+}
+
 async function syncConductorFiles() {
   if (getIsLocalFs()) return;  // local-fs mode: no collector to push to
   try {

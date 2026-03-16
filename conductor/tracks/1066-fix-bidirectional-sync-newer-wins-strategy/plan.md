@@ -11,14 +11,14 @@ Implement database-to-filesystem pull in `laneconductor.sync.mjs` so that UI-dri
 
 **Solution**: Build core timestamp comparison functions and conflict detection before pulling any data.
 
-- [ ] Task 1: Add `getFileModTime(filePath)` helper
+- [x] Task 1: Add `getFileModTime(filePath)` helper
     - Returns file mtime or null if file doesn't exist
     - Used for filesystem version timestamps
-- [ ] Task 2: Add `compareTimestamps(fileMtime, dbLastUpdated)` helper
+- [x] Task 2: Add `compareTimestamps(fileMtime, dbLastUpdated)` helper
     - Returns: `'newer'` (DB wins), `'older'` (FS wins), `'equal'` (no sync needed)
     - Handle null/undefined mtime gracefully
-    - Log all comparisons with timestamps
-- [ ] Task 3: Add `shouldPullFromDB(track, localFiles)` function
+    - Handles both numeric timestamps and ISO date strings
+- [x] Task 3: Add `shouldPullFromDB(track, localFiles)` function
     - Check if `track.last_updated` > any local file's mtime
     - Check if `track.content_summary` differs from local summary
     - Return: `{ pull: true, reason: 'db_newer' | 'content_mismatch', affectedFiles: [...] }`
@@ -26,7 +26,7 @@ Implement database-to-filesystem pull in `laneconductor.sync.mjs` so that UI-dri
     - Mock timestamps 5s apart to simulate sync scenarios
     - Test cases: DB newer, FS newer, timestamps equal
 
-**Impact**: Provides decision-making foundation for pull operations. No data moves yet; purely informational.
+**Impact**: ✅ Core decision logic implemented in laneconductor.sync.mjs
 
 ---
 
