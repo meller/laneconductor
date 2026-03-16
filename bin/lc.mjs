@@ -90,8 +90,19 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
         return 1;
     }
 
-    const skillPath = `./.claude/skills/laneconductor/SKILL.md`;
-    const skillContext = `Use the /laneconductor skill. Skill definition is at: ${skillPath}. `;
+    const skillPath = join(projectRoot, '.claude/skills/laneconductor/SKILL.md');
+    let skillContent = '';
+    try {
+        if (existsSync(skillPath)) {
+            skillContent = readFileSync(skillPath, 'utf8');
+        }
+    } catch (e) {
+        console.warn(`[scaffold] Could not read skill definition at ${skillPath}`);
+    }
+
+    const skillContext = skillContent 
+        ? `Use the following /laneconductor skill definition to handle the request: \n\n${skillContent}\n\nCommand to execute: `
+        : `Use the /laneconductor skill. `;
 
     let exitCode = 0;
     let finalStatus = 'failure';
@@ -109,6 +120,7 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
             if (model) cmdArgs.push('--model', model);
         } else if (cli === 'gemini') {
             cmd = 'npx';
+            // Prepend skill instructions directly to prompt for Gemini to avoid workspace/symlink restriction issues
             cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
             if (model) cmdArgs.push('--model', model);
         } else {
@@ -130,6 +142,42 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
         const proc = spawn(cmd, cmdArgs, { stdio: ['inherit', 'pipe', 'pipe'], cwd: projectRoot });
         
         let output = '';
+        let lastSyncTime = Date.now();
+
+        const syncLogTail = async (isFinal = false) => {
+            if (trackNum && cfg.mode !== 'local-fs') {
+                try {
+                    const logTail = output.split('\n').slice(-100).join('\n');
+                    const collector = cfg.collectors?.[0];
+                    if (collector?.url) {
+                        const url = new URL(`${collector.url}/track/${trackNum}/action`);
+                        if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                        
+                        const token = collector.token || collector.machine_token;
+
+                        await fetch(url.toString(), {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                            },
+                            body: JSON.stringify({
+                                lane_action_status: isFinal ? (exitCode === 0 ? 'success' : 'failure') : 'running',
+                                last_log_tail: logTail,
+                            })
+                        }).catch(e => console.warn(`[log-sync] Could not push log chunk: ${e.message}`));
+                    }
+                } catch (e) {}
+            }
+        };
+
+        const logInterval = setInterval(() => {
+            if (Date.now() - lastSyncTime > 5000) {
+                syncLogTail();
+                lastSyncTime = Date.now();
+            }
+        }, 5000);
+
         proc.stdout.on('data', chunk => { 
             process.stdout.write(chunk); 
             appendFileSync(logPath, chunk);
@@ -142,6 +190,8 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
         });
 
         exitCode = await new Promise(resolve => proc.on('close', resolve));
+        clearInterval(logInterval);
+        await syncLogTail(true);
         lastErrorLog = output;
 
         if (exitCode === 0) {
@@ -185,30 +235,6 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
                 console.log(`\n⚠️  ${agent.type.toUpperCase()} agent (${cli}) failed with exit code ${exitCode}. Trying next agent anyway...\n`);
                 continue;
             }
-        }
-    }
-
-    // Push log tail to collector API so the UI can display it
-    if (trackNum && cfg.mode !== 'local-fs') {
-        try {
-            const logTail = lastErrorLog.split('\n').slice(-100).join('\n');
-            const collector = cfg.collectors?.[0];
-            if (collector?.url) {
-                await fetch(`${collector.url}/track/${trackNum}/action`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(collector.token ? { 'Authorization': `Bearer ${collector.token}` } : {})
-                    },
-                    body: JSON.stringify({
-                        lane_action_status: finalStatus === 'success' ? 'success' : 'failure',
-                        lane_action_result: finalStatus === 'success' ? 'success' : 'failure',
-                        last_log_tail: logTail,
-                    })
-                }).catch(e => console.warn(`[log-sync] Could not push log to UI: ${e.message}`));
-            }
-        } catch (e) {
-            console.warn(`[log-sync] Could not sync final log: ${e.message}`);
         }
     }
 
@@ -1365,9 +1391,16 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log(`✅ Comment added locally`);
     } else {
         const collector = cfg.collectors?.[0];
-        await fetch(`${collector.url}/track/${trackNum}/comment`, {
+        const url = new URL(`${collector.url}/track/${trackNum}/comment`);
+        if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+        const token = collector.token || collector.machine_token;
+
+        await fetch(url.toString(), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
             body: JSON.stringify({ author: 'human', body })
         }).then(() => console.log('✅ Comment posted to API')).catch(e => console.error('❌ API failed:', e.message));
     }
@@ -1427,9 +1460,16 @@ Please review this, answer any questions (some fields may contain questions rath
         const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
         if (cfg.mode !== 'local-fs') {
             const collector = cfg.collectors?.[0];
-            await fetch(`${collector.url}/track/${trackNum}/comment`, {
+            const url = new URL(`${collector.url}/track/${trackNum}/comment`);
+            if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+            const token = collector.token || collector.machine_token;
+
+            await fetch(url.toString(), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ author: 'human', body: 'Manual rerun (CLI)' })
             }).catch(() => { });
         }
