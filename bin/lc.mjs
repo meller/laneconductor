@@ -253,7 +253,7 @@ Usage:
 
 Core Commands:
   status               Show track status for the current project
-  start [--sync-only]  Start the heartbeat worker (--sync-only: sync without polling queue)
+  start [--sync-and-work]  Start the heartbeat worker (default: sync-only; --sync-and-work: also poll queue)
   stop                 Stop the heartbeat worker
   restart              Restart the heartbeat worker
   api [start|stop]     Manage the Collector API
@@ -1062,12 +1062,12 @@ Please review this, answer any questions (some fields may contain questions rath
         }
     }
 
-    const isSyncOnly = args.includes('--sync-only') || args.includes('sync-only') || args.includes('sync_only');
-    console.log(`🚀 Starting LaneConductor heartbeat worker${isSyncOnly ? ' (SYNC-ONLY mode)' : ''}...`);
+    const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
+    console.log(`🚀 Starting LaneConductor heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}...`);
 
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
-    if (isSyncOnly) syncArgs.push('--sync-only');
+    if (!isSyncAndWork) syncArgs.push('--sync-only');
 
     const worker = spawn('node', syncArgs, {
         cwd: projectRoot,
@@ -1113,12 +1113,12 @@ Please review this, answer any questions (some fields may contain questions rath
     // Start logic (same as 'start')
     const logFile = join(projectRoot, 'conductor', '.sync.log');
     const syncScript = join(projectRoot, 'conductor', 'laneconductor.sync.mjs');
-    const isSyncOnly = args.includes('--sync-only') || args.includes('sync-only') || args.includes('sync_only');
-    console.log(`🚀 Restarting heartbeat worker${isSyncOnly ? ' (SYNC-ONLY mode)' : ''}...`);
+    const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
+    console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}...`);
 
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
-    if (isSyncOnly) syncArgs.push('--sync-only');
+    if (!isSyncAndWork) syncArgs.push('--sync-only');
 
     const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());

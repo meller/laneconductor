@@ -480,10 +480,10 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
             </section>
 
             <section id="claude-skill">
-                <h2>Use as a Pure Claude Skill</h2>
-                <p>LaneConductor is optimized for <strong>Claude Code</strong>. While the CLI handles infrastructure,
-                    the <code>/laneconductor</code> skill provides the AI agent with the instructions and tools it needs
-                    to operate autonomously.</p>
+                <h2>Use as a Pure Claude Skill — Default Configuration</h2>
+                <p><strong>Claude is the default and recommended primary agent for LaneConductor.</strong> While the CLI handles infrastructure,
+                    the <code>/laneconductor</code> skill provides Claude Code with the instructions and tools it needs
+                    to operate autonomously. This is the most stable and well-tested configuration.</p>
 
                 <h3>How to Invoke</h3>
                 <p>Once you've run <code>lc setup</code>, the skill is automatically symlinked into your project's
@@ -492,7 +492,7 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                 <pre><code>/laneconductor implement 101</code></pre>
 
                 <h3>Pure Skill Workflow</h3>
-                <p>In this mode, the agent uses its internal "System Prompt" (defined in <code>SKILL.md</code>) to:</p>
+                <p>In this mode, Claude uses its internal "System Prompt" (defined in <code>SKILL.md</code>) to:</p>
                 <ul>
                     <li>Understand the **Conductor Workflow**.</li>
                     <li>Read/Write to the **Filesystem Bus** (<code>conductor/tracks/</code>).</li>
@@ -543,11 +543,16 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     specify:</p>
                 <ul>
                     <li><strong>Primary Agent:</strong> The default worker. (Default: <code>claude</code> using
-                        <code>haiku</code>).
+                        <code>haiku</code>). Claude is the most thoroughly tested and recommended configuration.
                     </li>
-                    <li><strong>Secondary Agent:</strong> A fallback worker used if the primary hits rate limits or
-                        specific task failures. (Default: <code>gemini</code> using <code>latest</code>).</li>
+                    <li><strong>Secondary Agent:</strong> <span style="background: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 3px; color: var(--amber);"><strong>Experimental:</strong></span> A fallback worker used if the primary hits rate limits or
+                        specific task failures. (Default: <code>gemini</code> using <code>latest</code>). This feature is still under active development and may have compatibility issues.</li>
                 </ul>
+
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Experimental Support</div>
+                    <p>Secondary LLM support (Gemini, etc.) is currently <strong>experimental</strong>. For production use, Claude is the only fully supported primary agent. Secondary fallback agents may have gaps in task execution and state synchronization.</p>
+                </div>
 
                 <h3>Workflow Overrides</h3>
                 <p>In <code>conductor/workflow.json</code>, you can override models for specific lanes. For example, you
@@ -601,10 +606,10 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     primary patterns of operation:</p>
 
                 <div class="callout">
-                    <div class="callout-title">Safe Mode (Highly Recommended)</div>
-                    <p>Run the background worker in <strong>sync-only mode</strong> (<code>lc start --sync-only</code>).
-                        In this mode, the worker only handles data synchronization. You then invoke the
-                        <code>/laneconductor</code> skill manually within your terminal environment as you work.
+                    <div class="callout-title">Safe Mode (Default & Recommended)</div>
+                    <p>Run the background worker in <strong>sync-only mode</strong> (the default: <code>lc start</code>).
+                        In this mode, the worker only handles data synchronization between the filesystem and the database. You then invoke the
+                        <code>/laneconductor</code> skill manually within Claude Code as you work.
                         This allows you to <strong>watch the agent's logic in real-time</strong> while using the
                         UI dashboard for high-level tracking.
                     </p>
@@ -627,13 +632,29 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
             </section>
 
             <section id="bidirectional-sync">
-                <h2>Bidirectional Sync</h2>
+                <h2>Bidirectional Sync &amp; Track Status</h2>
                 <p>LaneConductor solves the "source of truth" problem with a deterministic sync loop. It bridges the gap
                     between the <strong>Filesystem</strong> (where agents work) and the <strong>API/UI</strong> (where
                     humans coordinate).</p>
+
+                <h3>The Sync Process</h3>
+                <p>The heartbeat worker (managed by <code>lc start</code>) continuously monitors your <code>conductor/tracks/</code> directory and syncs track status in both directions:</p>
+                <ul>
+                    <li><strong>Filesystem → Database:</strong> When Claude or a human updates a track's <code>index.md</code>, the worker detects the change and updates the database within seconds.</li>
+                    <li><strong>Database → Filesystem:</strong> When you move a card on the Kanban dashboard, the UI writes a signal that the worker detects and updates the corresponding Markdown file.</li>
+                </ul>
+
+                <h3>Sync Strategy: "Newer Wins"</h3>
                 <p>The sync strategy is <strong>"Newer Wins"</strong>. If you edit a Markdown file on disk, the UI
                     updates within 5 seconds. If you move a card on the Kanban board, the UI writes a signal to the
-                    filesystem that the agent picks up instantly.</p>
+                    filesystem that the agent picks up instantly. This ensures real-time coordination between agents and humans.</p>
+
+                <h3>Worker Modes</h3>
+                <p>The heartbeat worker operates in two modes:</p>
+                <ul>
+                    <li><strong>Sync-Only (Default):</strong> <code>lc start</code> runs the worker in sync-only mode by default. It performs filesystem ↔ database synchronization only, without polling the task queue for automated execution. This is the safe, recommended mode for most workflows.</li>
+                    <li><strong>Sync-and-Work:</strong> <code>lc start --sync-and-work</code> enables full automation. The worker will also poll the queue and automatically execute tracks based on your workflow configuration. Use this for highly repetitive, well-tested tasks.</li>
+                </ul>
             </section>
 
             <section id="filesystem-bus">

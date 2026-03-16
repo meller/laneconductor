@@ -21,7 +21,7 @@ make install-cli
 ```
 
 ### Core Commands
-- `lc start [sync-only]`: Start the heartbeat worker. Use `sync-only` to disable auto-polling for queued tracks.
+- `lc start [--sync-and-work]`: Start the heartbeat worker. Default: sync-only (file↔API sync only). Use `--sync-and-work` to also poll and execute queued tracks.
 - `lc stop`: Stop the heartbeat worker.
 - `lc status`: Show a Kanban board of tracks in the terminal.
 - `lc ui [start|stop]`: Manage the Vite dashboard.
@@ -504,7 +504,7 @@ psql -h <host> -p <port> -U <user> -d <dbname> -f /tmp/laneconductor_schema.sql
 
 ---
 
-### `/laneconductor activate` (or `start`) [sync-only]
+### `/laneconductor activate` (or `start`) [--sync-and-work]
 
 Start the heartbeat worker.
 
@@ -513,11 +513,11 @@ Start the heartbeat worker.
 3. Ensure `pg` and `chokidar` are installed: `npm install --save-dev pg chokidar`
 4. Start: `node conductor/laneconductor.sync.mjs [--sync-only] &` and save PID
 
-If `sync-only` is provided, the worker will only perform file↔API synchronization and will NOT poll the database for queued tracks to execute.
+By default, the worker will only perform file↔API synchronization and will NOT poll the database for queued tracks to execute. If `--sync-and-work` is provided, it will also poll and execute tracks from the queue.
 
 Print:
 ```
-✅ LaneConductor heartbeat started (PID: XXXX) [sync-only: yes/no]
+✅ LaneConductor heartbeat started (PID: XXXX) [SYNC-ONLY mode] or [SYNC-AND-WORK mode]
 📊 Dashboard: http://localhost:8090
 ```
 
