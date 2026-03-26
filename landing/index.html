@@ -1565,44 +1565,61 @@
         <div class="container">
             <div class="section-label">How it works</div>
             <h2 class="section-title">Three commands. Full visibility.</h2>
-            <p class="section-sub">From zero to a live Kanban board tracking every AI agent across every repo in under
-                two minutes.</p>
+            <p class="section-sub">Pick your lane. Whether you want the full Kanban experience or a minimalist AI skill, setup takes under two minutes.</p>
 
-            <div class="steps">
-                <div class="step fade-in">
-                    <div class="step-number">01 — INSTALL</div>
-                    <div class="step-title">Clone & install</div>
-                    <p class="step-desc">Clone the repo, run <code>make install</code> to register globally, and open a
-                        project to
-                        add LaneConductor to it.</p>
-                    <div class="step-code">make install</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 56px;">
+                <!-- PATH A: STANDARD -->
+                <div class="fade-in">
+                    <div style="font-size: 12px; font-weight: 700; color: var(--blue); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <span>Standard (CLI + Dashboard)</span>
+                    </div>
+                    <div class="steps" style="grid-template-columns: 1fr; gap: 32px;">
+                        <div class="step" style="padding-left: 0;">
+                            <div class="step-number">01 — INSTALL</div>
+                            <div class="step-title" style="font-size: 16px;">Clone & install</div>
+                            <p class="step-desc" style="font-size: 13px;">Clone the repo and run <code>make install</code> to register the <code>lc</code> CLI globally.</p>
+                            <div class="step-code">make install</div>
+                        </div>
+                        <div class="step" style="padding-left: 0;">
+                            <div class="step-number">02 — SETUP</div>
+                            <div class="step-title" style="font-size: 16px;">Initialize project</div>
+                            <p class="step-desc" style="font-size: 13px;">In your project repo, run <code>lc install && lc setup</code> to add deps and register the project.</p>
+                            <div class="step-code">lc install && lc setup</div>
+                        </div>
+                        <div class="step" style="padding-left: 0;">
+                            <div class="step-number">03 — GO</div>
+                            <div class="step-title" style="font-size: 16px;">Start the dashboard</div>
+                            <p class="step-desc" style="font-size: 13px;">Run <code>lc start</code> to launch the worker and <code>lc ui start</code> for the Kanban board.</p>
+                            <div class="step-code">lc start</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="step fade-in" style="transition-delay:0.1s">
-                    <div class="step-number">02 — INSTALL DEPS</div>
-                    <div class="step-title">Install project deps</div>
-                    <p class="step-desc">In your project repo, run <code>lc install</code> to add required dependencies
-                        (like chokidar) to your local node_modules.</p>
-                    <div class="step-code">lc install</div>
-                </div>
-                <div class="step fade-in" style="transition-delay:0.18s">
-                    <div class="step-number">03 — SETUP</div>
-                    <div class="step-title">Quick project setup</div>
-                    <p class="step-desc">In any repo, run <code
-                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">lc setup</code> to
-                        initialize the directory and register the project. Then, invoke <strong>any AI Agent</strong>
-                        (Claude or Gemini)
-                        to run <code>setup scaffold</code> for AI-powered context generation. The skill is automatically
-                        <strong>symlinked</strong> into your <code>.claude/skills/</code> folder.</p>
-                    <div class="step-code">lc setup</div>
-                </div>
-                <div class="step fade-in" style="transition-delay:0.26s">
-                    <div class="step-number">04 — GO</div>
-                    <div class="step-title">Start the dashboard</div>
-                    <p class="step-desc">Run <code>lc start</code> to launch the heartbeat worker, then
-                        <code>lc ui start</code> to open the Kanban UI at port
-                        8090. Watch your agents in real-time.
-                    </p>
-                    <div class="step-code">lc start</div>
+
+                <!-- PATH B: AI-NATIVE -->
+                <div class="fade-in" style="transition-delay: 0.1s;">
+                    <div style="font-size: 12px; font-weight: 700; color: var(--cyan); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(34, 211, 238, 0.2); padding-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <span>AI-Native (Skill Only)</span>
+                    </div>
+                    <div class="steps" style="grid-template-columns: 1fr; gap: 32px;">
+                        <div class="step" style="padding-left: 0;">
+                            <div class="step-number">01 — INSTALL</div>
+                            <div class="step-title" style="font-size: 16px;">Copy Skill</div>
+                            <p class="step-desc" style="font-size: 13px;">Copy the <code>laneconductor</code> folder to your AI editor's skills directory (e.g., Claude Desktop).</p>
+                            <div class="step-code"># Manual Folder Copy</div>
+                        </div>
+                        <div class="step" style="padding-left: 0;">
+                            <div class="step-number">02 — INITIALIZE</div>
+                            <div class="step-title" style="font-size: 16px;">Run Setup</div>
+                            <p class="step-desc" style="font-size: 13px;">Open your **project codebase** and run <code>/laneconductor setup</code> in your AI editor.</p>
+                            <div class="step-code">/laneconductor setup</div>
+                        </div>
+                        <div class="step" style="padding-left: 0;">
+                            <div class="step-number">03 — CONDUCT</div>
+                            <div class="step-title" style="font-size: 16px;">Manage Tracks</div>
+                            <p class="step-desc" style="font-size: 13px;">Create and execute tracks with <code>newTrack</code>, <code>plan</code>, and <code>implement</code> commands.</p>
+                            <div class="step-code">/laneconductor newTrack</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1614,27 +1631,6 @@
             <div class="section-label">Operating Modes</div>
             <h2 class="section-title">Pick your setup.<br />Switch any time.</h2>
             <p class="section-sub" style="margin-bottom: 32px;">LaneConductor runs in multiple modes — from a zero-infrastructure AI skill to a full local Kanban UI. One config field, <code style="font-family:var(--font-mono);font-size:14px;color:var(--cyan)">"mode"</code>, governs everything.</p>
-
-            <div class="skill-only-quickstart fade-in" style="margin-top: 32px; margin-bottom: 64px; background: rgba(34,211,238,0.03); padding: 32px; border-radius: 16px; border: 1px solid rgba(34,211,238,0.1); max-width: 900px; margin-left: auto; margin-right: auto; text-align: center;">
-                <div style="font-size: 13px; font-weight: 700; color: var(--cyan); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em;">Want to use Skill Only? (AI-Native)</div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; text-align: left;">
-                    <div>
-                        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-bottom: 8px; opacity: 0.7;">01 // INSTALL</div>
-                        <div style="font-weight: 700; margin-bottom: 8px; font-size: 15px;">Install Skill</div>
-                        <div style="font-size: 14px; color: var(--ink-muted); line-height: 1.5;">Copy the <code>laneconductor</code> folder to your AI editor's skills directory.</div>
-                    </div>
-                    <div>
-                        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-bottom: 8px; opacity: 0.7;">02 // INITIALIZE</div>
-                        <div style="font-weight: 700; margin-bottom: 8px; font-size: 15px;">Initialize</div>
-                        <div style="font-size: 14px; color: var(--ink-muted); line-height: 1.5;">Open your **project codebase** and run <code>/laneconductor setup</code> in your AI editor.</div>
-                    </div>
-                    <div>
-                        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-bottom: 8px; opacity: 0.7;">03 // CONDUCT</div>
-                        <div style="font-weight: 700; margin-bottom: 8px; font-size: 15px;">Conduct</div>
-                        <div style="font-size: 14px; color: var(--ink-muted); line-height: 1.5;">Manage your project with <code>newTrack</code>, <code>plan</code>, and <code>implement</code>.</div>
-                    </div>
-                </div>
-            </div>
 
             <div class="modes-grid" style="grid-template-columns: repeat(2, 1fr); gap: 24px;">
                 <div class="mode-card mode-skill fade-in" style="background: rgba(34,211,238,0.03);">
