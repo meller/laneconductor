@@ -49,7 +49,7 @@ The Kanban dashboard will be available at [**localhost:8090**](http://localhost:
 No CLI, no local DB, no UI required. **Works on Windows, macOS, and Linux.**
 
 1.  **Install Skill**: Copy the `laneconductor` folder from `.claude/skills/` into your Claude Desktop skill directory.
-2.  **Initialize**: Run the following within Claude:
+2.  **Initialize**: Open your **project codebase** and run the following within Claude:
     ```bash
     /laneconductor setup
     ```
