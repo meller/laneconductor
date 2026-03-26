@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LaneConductor — Multi-Agent, Context-Driven Development</title>
     <meta name="description"
-        content="Multi-agent, context-driven development. Orchestrate Claude, Gemini, and any AI agent with real-time Kanban visibility and full context control." />
-    <meta property="og:title" content="LaneConductor — Multi-Agent, Context-Driven Development" />
+        content="Multi-agent, context-driven development. Orchestrate Claude, Gemini, and any AI agent with real-time Kanban visibility. Work with a full local stack or as a minimalist AI skill." />
+    <meta property="og:title" content="LaneConductor — AI-Native, Multi-Agent Development" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta property="og:description"
-        content="Multi-agent, context-driven development. Real-time Kanban visibility for your AI agents." />
+        content="The sovereign developer environment for multi-agent workflows. Use as a local stack or a minimalist AI-native skill." />
     <meta property="og:type" content="website" />
     <style>
         /* ─── Reset ───────────────────────────────────────────────── */
@@ -807,6 +807,10 @@
             border-top: 2px solid var(--purple);
         }
 
+        .mode-card.mode-skill {
+            border-top: 2px solid var(--cyan);
+        }
+
         .mode-card:hover.mode-cli {
             border-color: var(--green);
         }
@@ -817,6 +821,10 @@
 
         .mode-card:hover.mode-remote {
             border-color: var(--purple);
+        }
+
+        .mode-card:hover.mode-skill {
+            border-color: var(--cyan);
         }
 
         .mode-badge {
@@ -846,6 +854,12 @@
             background: rgba(139, 92, 246, 0.12);
             color: var(--purple);
             border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .mode-skill .mode-badge {
+            background: rgba(34, 211, 238, 0.12);
+            color: var(--cyan);
+            border: 1px solid rgba(34, 211, 238, 0.2);
         }
 
         .mode-title {
@@ -1604,27 +1618,42 @@
                     style="font-family:var(--font-mono);font-size:14px;color:var(--cyan)">"mode"</code>, controls
                 everything.</p>
 
-            <div class="modes-grid">
+            <div class="modes-grid" style="grid-template-columns: repeat(2, 1fr); gap: 24px;">
+                <div class="mode-card mode-skill fade-in" style="background: rgba(34,211,238,0.03);">
+                    <span class="mode-badge">ai-native</span>
+                    <div class="mode-title">Skill Only (NEW)</div>
+                    <p class="mode-desc">Minimalist AI orchestration. No CLI, no database, no UI required. Simply copy
+                        the skill into your AI editor (Claude Desktop, etc.), and the AI manages the
+                        <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">conductor/</code> 
+                        structure directly. **Cross-platform support for Windows, macOS, and Linux.**</p>
+                    <div class="mode-facts">
+                        <div class="mode-fact"><span class="dot"></span>Zero infrastructure overhead</div>
+                        <div class="mode-fact"><span class="dot"></span>Works everywhere Claude works</div>
+                        <div class="mode-fact"><span class="dot"></span>AI-driven project setup & scaffolding</div>
+                        <div class="mode-fact"><span class="dot"></span>Use <code>newTrack</code>, <code>plan</code>, and <code>implement</code></div>
+                        <div class="mode-fact"><span class="dot"></span>Best for: Windows users, lightweight dev</div>
+                    </div>
+                </div>
+
                 <div class="mode-card mode-cli fade-in">
                     <span class="mode-badge">local-fs</span>
                     <div class="mode-title">CLI Only</div>
-                    <p class="mode-desc">Pure filesystem. The agent reads and writes Markdown files — no database, no
-                        API, no network. Works offline, in CI pipelines, and on air-gapped machines.</p>
+                    <p class="mode-desc">Pure filesystem + CLI. The agent reads and writes Markdown files — no database, no
+                        API, no network. Works offline, in CI pipelines, and on air-gapped machines. Requires Node.js.</p>
                     <div class="mode-facts">
                         <div class="mode-fact"><span class="dot"></span>No Postgres required</div>
-                        <div class="mode-fact"><span class="dot"></span>No collector API</div>
+                        <div class="mode-fact"><span class="dot"></span>Universal 'lc' commands</div>
                         <div class="mode-fact"><span class="dot"></span>Progress via <code
                                 style="font-family:var(--font-mono);font-size:11px">**Progress**: 80%</code> in index.md
                         </div>
                         <div class="mode-fact"><span class="dot"></span>Best for: offline, CI, scripting</div>
                     </div>
-                    <div class="mode-config">"mode": "local-fs"</div>
                 </div>
 
                 <div class="mode-card mode-local fade-in" style="transition-delay:0.1s">
                     <span class="mode-badge">local-api</span>
-                    <div class="mode-title">Local UI</div>
-                    <p class="mode-desc">Full local stack. A heartbeat worker syncs filesystem changes to a local
+                    <div class="mode-title">Full Local Stack</div>
+                    <p class="mode-desc">Rich visibility. A heartbeat worker syncs filesystem changes to a local
                         Postgres DB. The Kanban board at <code
                             style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">localhost:8090</code>
                         gives you real-time visibility across all repos.</p>
@@ -1634,10 +1663,9 @@
                         <div class="mode-fact"><span class="dot"></span>Multi-project, single pane of glass</div>
                         <div class="mode-fact"><span class="dot"></span>Best for: solo dev, daily workflow</div>
                     </div>
-                    <div class="mode-config">"mode": "local-api"</div>
                 </div>
 
-                <div class="mode-card mode-remote fade-in" style="transition-delay:0.2s;opacity:0.7;">
+                <div class="mode-card mode-remote fade-in" style="transition-delay:0.2s;opacity:0.75;">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                         <span class="mode-badge">remote-api</span>
                         <span style="font-size:11px;font-weight:600;color:var(--ink-faint);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:2px 7px;letter-spacing:0.05em;">COMING SOON</span>
@@ -1651,7 +1679,6 @@
                         <div class="mode-fact"><span class="dot"></span>Token-based auth per collector</div>
                         <div class="mode-fact"><span class="dot"></span>Best for: teams, multi-machine</div>
                     </div>
-                    <div class="mode-config">"mode": "remote-api"</div>
                 </div>
             </div>
         </div>

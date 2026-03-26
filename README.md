@@ -30,6 +30,8 @@ LaneConductor is a **sovereign developer environment** that orchestrates AI agen
 
 ## 🚀 Quick Start
 
+### Option A: Standard (CLI-driven)
+
 ```bash
 # 1. Install the lc CLI globally
 git clone https://github.com/meller/laneconductor.git && cd laneconductor && make install
@@ -41,7 +43,23 @@ cd ~/your-project && lc setup
 lc start && lc ui
 ```
 
-Dashboard opens at [http://localhost:8090](http://localhost:8090).
+The Kanban dashboard will be available at [**localhost:8090**](http://localhost:8090).
+
+### 🧠 Option B: AI-Native (Skill Only)
+No CLI, no local DB, no UI required. **Works on Windows, macOS, and Linux.**
+
+1.  **Install Skill**: Copy the `laneconductor` folder from `.claude/skills/` into your Claude Desktop skill directory.
+2.  **Initialize**: Run the following within Claude:
+    ```bash
+    /laneconductor setup
+    ```
+3.  **Conduct**: Manage your project entirely through the AI skill. Try these commands:
+    - `/laneconductor newTrack "Feature Name" "Short Description"`
+    - `/laneconductor plan NNN`
+    - `/laneconductor implement NNN`
+    Check `conductor/tracks.md` at any time for a project-wide summary.
+
+---
 
 ### Optional: AI Context Scaffolding
 
