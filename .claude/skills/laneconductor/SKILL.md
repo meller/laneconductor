@@ -10,6 +10,13 @@ allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 
 **Sovereign Developer Environment** — real-time visibility into AI-driven development across multiple repositories. Tracks progress through a local Postgres database and displays it on a Vite Kanban dashboard (port 8090).
 
+## Modes of Operation
+
+1. **Full Local Stack (CLI-driven)**: Uses the `lc` CLI, local Postgres, and a Vite Kanban dashboard. Best for solo developers wanting a rich UI. Requires Node.js and a Unix-like environment (Linux/macOS/WSL).
+2. **AI-Native / Skill-Only (Minimalist)**: No CLI or DB required. Simply copy this skill into your Claude Desktop, and the AI will manage everything through the filesystem (`conductor/` folder). Perfect for Windows or lightweight environments.
+
+---
+
 ## Universal CLI (`lc`)
 
 LaneConductor provides a global `lc` command to manage your projects without relying on an LLM or per-project Makefiles.
@@ -94,9 +101,27 @@ To find a track by number (e.g., "Track 017"):
 ## Core Commands
 
 ### `/laneconductor setup`
-Runs `setup scaffold`.
 
-**Note**: Infrastructure setup (DB, AI agents, git remote), registration, and `.env` generation are handled by the `lc setup` CLI command. You should run `lc setup` in your terminal *before* invoking this skill command.
+Initializes LaneConductor in the current project.
+
+1.  **Check for CLI**: Check if `lc` is available in the system (`which lc`). 
+2.  **If `lc` is available**: Tell the user they can run `lc setup` in their terminal for a guided wizard, or proceed here with `/laneconductor setup scaffold`.
+3.  **If `lc` is NOT available (Skill-Only Mode)**:
+    -   Assume `mode: "local-fs"`.
+    -   Create `.laneconductor.json` with minimal configuration:
+        ```json
+        {
+          "mode": "local-fs",
+          "project": {
+            "name": "<detected-name>",
+            "repo_path": "<absolute-path>",
+            "primary": { "cli": "claude" }
+          }
+        }
+        ```
+    -   Proceed immediately to `setup scaffold`.
+
+**Note**: In Skill-Only mode, the AI acts as the primary orchestrator. There is no background heartbeat worker; instead, the AI updates the `conductor/` files directly during its turn.
 
 ---
 
@@ -206,8 +231,9 @@ Also:
     echo "✅ Skill symlinked → $TARGET → $SKILL_DIR"
   fi
   ```
-  This means the skill is loaded from the project's own `.claude/skills/` and always reflects
-  the latest version from the laneconductor repo without any per-project copying.
+  **Windows/Manual Note**: On Windows (without WSL), use `mklink /D` or `mklink /J` to create the symlink, or simply copy the `laneconductor` skill folder from your installation path into `.claude/skills/`.
+
+  This ensures that the latest version of the skill is always discoverable by the AI within this project.
 
 **The Heartbeat Worker (`laneconductor.sync.mjs`)** is managed globally by the `lc` CLI. You no longer need a copy of this script inside your project's `conductor/` folder. The `lc start` command will automatically use the canonical version from your LaneConductor installation.
 
