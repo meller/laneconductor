@@ -1613,15 +1613,33 @@
         <div class="container" style="padding-top:96px;padding-bottom:96px;">
             <div class="section-label">Operating Modes</div>
             <h2 class="section-title">Pick your setup.<br />Switch any time.</h2>
-            <p class="section-sub">LaneConductor runs in three modes — from zero-dependency CLI to a full local Kanban
-                UI to a shared team dashboard. One config field, <code
-                    style="font-family:var(--font-mono);font-size:14px;color:var(--cyan)">"mode"</code>, controls
-                everything.</p>
+            <p class="section-sub" style="margin-bottom: 32px;">LaneConductor runs in multiple modes — from a zero-infrastructure AI skill to a full local Kanban UI. One config field, <code style="font-family:var(--font-mono);font-size:14px;color:var(--cyan)">"mode"</code>, governs everything.</p>
+
+            <div class="skill-only-quickstart fade-in" style="margin-top: 32px; margin-bottom: 64px; background: rgba(34,211,238,0.03); padding: 32px; border-radius: 16px; border: 1px solid rgba(34,211,238,0.1); max-width: 900px; margin-left: auto; margin-right: auto; text-align: center;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--cyan); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em;">Want to use Skill Only? (AI-Native)</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; text-align: left;">
+                    <div>
+                        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-bottom: 8px; opacity: 0.7;">01 // INSTALL</div>
+                        <div style="font-weight: 700; margin-bottom: 8px; font-size: 15px;">Install Skill</div>
+                        <div style="font-size: 14px; color: var(--ink-muted); line-height: 1.5;">Copy the <code>laneconductor</code> folder to your AI editor's skills directory.</div>
+                    </div>
+                    <div>
+                        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-bottom: 8px; opacity: 0.7;">02 // INITIALIZE</div>
+                        <div style="font-weight: 700; margin-bottom: 8px; font-size: 15px;">Initialize</div>
+                        <div style="font-size: 14px; color: var(--ink-muted); line-height: 1.5;">Run <code>/laneconductor setup</code> directly within your AI chat.</div>
+                    </div>
+                    <div>
+                        <div style="font-family: var(--font-mono); font-size: 11px; color: var(--cyan); margin-bottom: 8px; opacity: 0.7;">03 // CONDUCT</div>
+                        <div style="font-weight: 700; margin-bottom: 8px; font-size: 15px;">Conduct</div>
+                        <div style="font-size: 14px; color: var(--ink-muted); line-height: 1.5;">Manage your project with <code>newTrack</code>, <code>plan</code>, and <code>implement</code>.</div>
+                    </div>
+                </div>
+            </div>
 
             <div class="modes-grid" style="grid-template-columns: repeat(2, 1fr); gap: 24px;">
                 <div class="mode-card mode-skill fade-in" style="background: rgba(34,211,238,0.03);">
                     <span class="mode-badge">ai-native</span>
-                    <div class="mode-title">Skill Only (NEW)</div>
+                    <div class="mode-title">Skill Only</div>
                     <p class="mode-desc">Minimalist AI orchestration. No CLI, no database, no UI required. Simply copy
                         the skill into your AI editor (Claude Desktop, etc.), and the AI manages the
                         <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">conductor/</code> 
