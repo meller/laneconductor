@@ -715,6 +715,20 @@
             }
         }
 
+        .how-paths {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            margin-top: 56px;
+        }
+
+        @media (max-width: 900px) {
+            .how-paths {
+                grid-template-columns: 1fr;
+                gap: 64px;
+            }
+        }
+
         .step {
             position: relative;
             background: var(--bg-card);
@@ -1566,27 +1580,26 @@
             <div class="section-label">How it works</div>
             <h2 class="section-title">Three commands. Full visibility.</h2>
             <p class="section-sub">Pick your lane. Whether you want the full Kanban experience or a minimalist AI skill, setup takes under two minutes.</p>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 56px;">
+            <div class="how-paths">
                 <!-- PATH A: STANDARD -->
                 <div class="fade-in">
                     <div style="font-size: 12px; font-weight: 700; color: var(--blue); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                         <span>Standard (CLI + Dashboard)</span>
                     </div>
-                    <div class="steps" style="grid-template-columns: 1fr; gap: 32px;">
-                        <div class="step" style="padding-left: 0;">
+                    <div class="steps" style="grid-template-columns: 1fr; gap: 32px; margin-top: 0;">
+                        <div class="step" style="padding-left: 32px;">
                             <div class="step-number">01 — INSTALL</div>
                             <div class="step-title" style="font-size: 16px;">Clone & install</div>
                             <p class="step-desc" style="font-size: 13px;">Clone the repo and run <code>make install</code> to register the <code>lc</code> CLI globally.</p>
                             <div class="step-code">make install</div>
                         </div>
-                        <div class="step" style="padding-left: 0;">
+                        <div class="step" style="padding-left: 32px;">
                             <div class="step-number">02 — SETUP</div>
                             <div class="step-title" style="font-size: 16px;">Initialize project</div>
                             <p class="step-desc" style="font-size: 13px;">In your project repo, run <code>lc install && lc setup</code> to add deps and register the project.</p>
                             <div class="step-code">lc install && lc setup</div>
                         </div>
-                        <div class="step" style="padding-left: 0;">
+                        <div class="step" style="padding-left: 32px;">
                             <div class="step-number">03 — GO</div>
                             <div class="step-title" style="font-size: 16px;">Start the dashboard</div>
                             <p class="step-desc" style="font-size: 13px;">Run <code>lc start</code> to launch the worker and <code>lc ui start</code> for the Kanban board.</p>
@@ -1600,20 +1613,20 @@
                     <div style="font-size: 12px; font-weight: 700; color: var(--cyan); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(34, 211, 238, 0.2); padding-bottom: 12px; display: flex; align-items: center; gap: 8px;">
                         <span>AI-Native (Skill Only)</span>
                     </div>
-                    <div class="steps" style="grid-template-columns: 1fr; gap: 32px;">
-                        <div class="step" style="padding-left: 0;">
+                    <div class="steps" style="grid-template-columns: 1fr; gap: 32px; margin-top: 0;">
+                        <div class="step" style="padding-left: 32px;">
                             <div class="step-number">01 — INSTALL</div>
                             <div class="step-title" style="font-size: 16px;">Copy Skill</div>
                             <p class="step-desc" style="font-size: 13px;">Copy the <code>laneconductor</code> folder to your AI editor's skills directory (e.g., Claude Desktop).</p>
                             <div class="step-code"># Manual Folder Copy</div>
                         </div>
-                        <div class="step" style="padding-left: 0;">
+                        <div class="step" style="padding-left: 32px;">
                             <div class="step-number">02 — INITIALIZE</div>
                             <div class="step-title" style="font-size: 16px;">Run Setup</div>
                             <p class="step-desc" style="font-size: 13px;">Open your **project codebase** and run <code>/laneconductor setup</code> in your AI editor.</p>
                             <div class="step-code">/laneconductor setup</div>
                         </div>
-                        <div class="step" style="padding-left: 0;">
+                        <div class="step" style="padding-left: 32px;">
                             <div class="step-number">03 — CONDUCT</div>
                             <div class="step-title" style="font-size: 16px;">Manage Tracks</div>
                             <p class="step-desc" style="font-size: 13px;">Create and execute tracks with <code>newTrack</code>, <code>plan</code>, and <code>implement</code> commands.</p>
