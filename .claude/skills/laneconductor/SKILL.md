@@ -853,22 +853,6 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
 
 ---
 
-### `/laneconductor plan [track-number]`
-
-The "Planning" phase — handles initial scaffolding and ongoing plan updates.
-
-1. **Load Context**:
-   - Read `conductor/tracks/file_sync_queue.md` and any existing track files.
-2. **Scaffold/Update Files**:
-   - If the track folder doesn't exist, create `conductor/tracks/NNN-[slug]/`.
-   - Write or update `index.md`, `spec.md`, and `plan.md`.
-   - Use `**Status**: plan` and `**Progress**: 10%`.
-3. **Cleanup**:
-   - Update `conductor/tracks/file_sync_queue.md`: Mark entry for this track as `**Status**: processed`.
-4. **Print**: `✅ Planning updated for Track NNN.`
-
----
-
 ### `/laneconductor lock [track-number]`
 
 Acquire a git lock and create an isolated worktree for safe parallel execution. Returns the `worktree_path` for the skill to use.
