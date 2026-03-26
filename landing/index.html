@@ -783,12 +783,12 @@
 
         .modes-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 24px;
             margin-top: 56px;
         }
 
-        @media (max-width: 700px) {
+        @media (max-width: 800px) {
             .modes-grid {
                 grid-template-columns: 1fr;
             }
@@ -1645,7 +1645,7 @@
             <h2 class="section-title">Pick your setup.<br />Switch any time.</h2>
             <p class="section-sub" style="margin-bottom: 32px;">LaneConductor runs in multiple modes — from a zero-infrastructure AI skill to a full local Kanban UI. One config field, <code style="font-family:var(--font-mono);font-size:14px;color:var(--cyan)">"mode"</code>, governs everything.</p>
 
-            <div class="modes-grid" style="grid-template-columns: repeat(2, 1fr); gap: 24px;">
+            <div class="modes-grid">
                 <div class="mode-card mode-skill fade-in" style="background: rgba(34,211,238,0.03);">
                     <span class="mode-badge">ai-native</span>
                     <div class="mode-title">Skill Only</div>
