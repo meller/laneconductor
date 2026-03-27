@@ -643,24 +643,35 @@ Print reminder to also stop the Vite UI (`Ctrl+C` in the UI terminal).
 
 ### `/laneconductor status`
 
-Query Postgres and render a Kanban board in the terminal.
+Display a Kanban board of all tracks in the terminal. **Mode-aware**: intelligently chooses between filesystem and database.
 
-1. Read `.laneconductor.json`
-2. Query: `SELECT track_number, title, lane_status, progress_percent, current_phase, last_heartbeat FROM tracks WHERE project_id = :project_id ORDER BY track_number`
-3. Display grouped by lane:
+**Logic:**
+1. Read `.laneconductor.json` to detect operating mode
+2. **If `mode: "local-fs"`** (no database):
+   - Scan `conductor/tracks/*/index.md`
+   - Extract: `track_number`, `title`, `**Lane**`, `**Progress**`, `**Phase**` markers
+   - Display Kanban grouped by lane (source of truth from filesystem)
+3. **If `mode: "local-api"` or `"remote-api"`** (has database):
+   - Query Postgres: `SELECT track_number, title, lane_status, progress_percent, current_phase, last_heartbeat FROM tracks WHERE project_id = :project_id ORDER BY track_number`
+   - Display Kanban grouped by lane (real-time from DB + UI state)
+4. Print grouped by lane with progress and activity indicators:
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  Project: my-app  │  2026-02-23 14:32                            ║
+║  Project: my-app  │  2026-02-23 14:32  [local-fs]                ║
 ╠══════════╦════════════════╦═════════════╦═══════════════════════╣
 ║ BACKLOG  ║  IN PROGRESS   ║   REVIEW    ║        DONE           ║
 ╠══════════╬════════════════╬═════════════╬═══════════════════════╣
-║ 003-auth ║ 001-dashboard  ║ 002-api     ║                       ║
-║          ║   45% ⏳ 3s ago ║  90% ⚠️     ║                       ║
+║ 003-auth ║ 001-dashboard  ║ 002-api     ║ 004-docs              ║
+║ 005-logs ║   45% ⏳        ║  90% ⚠️     ║ (100%)                ║
 ╚══════════╩════════════════╩═════════════╩═══════════════════════╝
 ```
 
-Show "last beat: Xs ago" for in-progress tracks.
+**Indicators:**
+- `⏳` = in-progress track (shows "Xs ago" if DB available)
+- `⚠️` = has gaps/warnings from review
+- `(100%)` = done tracks
+- Mode indicator shown in header: `[local-fs]`, `[local-api]`, or `[remote-api]`
 
 ---
 
