@@ -3,6 +3,81 @@ name: laneconductor
 description: Use this skill when the user invokes /laneconductor commands. Manages multi-project development with a live Kanban dashboard backed by local Postgres. Handles setup, track management, heartbeat sync, and DB-backed status updates. Extends the conductor workflow with real-time visibility across all repository projects.
 user-invocable: true
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep
+parameters:
+  - name: command
+    description: The laneconductor command to execute
+    required: true
+    options:
+      - setup
+      - activate
+      - deactivate
+      - start
+      - stop
+      - status
+      - workflow
+      - setup-deploy
+      - deploy
+      - qualityGate
+      - quality-gate
+      - move
+      - pulse
+      - newTrack
+      - lock
+      - unlock
+      - plan
+      - brainstorm
+      - implement
+      - review
+      - remote-sync
+      - comment
+      - delete
+      - revert
+      - syncdb
+      - init-tracks-summary
+  - name: subcommand
+    description: Subcommand for setup and workflow operations
+    required: false
+    options:
+      - scaffold
+      - collection
+      - generate
+      - set
+  - name: track_number
+    description: Track number (NNN format, e.g., 001, 042)
+    required: false
+  - name: lane
+    description: Kanban lane for move/workflow operations (backlog, ready, implement, review, done)
+    required: false
+    options:
+      - backlog
+      - ready
+      - implement
+      - review
+      - done
+  - name: status
+    description: Status for pulse and move operations
+    required: false
+    options:
+      - queue
+      - running
+      - success
+      - failed
+      - blocked
+  - name: environment
+    description: Deployment environment
+    required: false
+    options:
+      - dev
+      - staging
+      - prod
+      - production
+  - name: flags
+    description: Command flags and options
+    required: false
+    options:
+      - "--sync-and-work"
+      - "--source"
+      - "--target"
 ---
 <!-- Portions of workflow protocols adapted from superpowers by Jesse Vincent (MIT License) -->
 
