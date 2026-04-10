@@ -1260,7 +1260,9 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       return content.trim() + `\n**${header}**: ${value}\n`;
     };
 
+    const proj = getProject();
     const payload = {
+      project_id: proj.id,
       track_number: trackNumber, title, lane_status: laneStatus,
       progress_percent: progress, current_phase: currentPhase,
       content_summary: summary, phase_step: phaseStep,
@@ -1348,6 +1350,7 @@ async function syncConversation(filepath) {
     const proj = getProject();
     for (const c of comments) {
       await postToCollectors(`/track/${trackNumber}/comment`, {
+        project_id: proj.id,
         author: c.author, body: c.body.trim(), no_wake: c.no_wake
       }).catch(err => console.warn(`[conv-sync] post comment failed: ${err.message}`));
 
@@ -1378,7 +1381,7 @@ async function syncConversation(filepath) {
         }
 
         if (updates) {
-          await postToCollectors(`/track/${trackNumber}/action`, updates, proj.id)
+          await postToCollectors(`/track/${trackNumber}/action`, { ...updates, project_id: proj.id })
             .catch(err => console.warn(`[conv-command] transition failed: ${err.message}`));
 
           // ALSO update local index.md for filesystem-as-API consistency
@@ -2354,9 +2357,15 @@ async function mergeAndRemoveWorktree(trackNumber) {
   }
 }
 
-async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}) {
+async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null) {
   let lockFile = null;
   let worktreePath = null;
+
+  // Fallback to getting projectId if not provided
+  if (!projectId) {
+    const proj = getProject();
+    projectId = proj?.id;
+  }
 
   if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
     try {
@@ -2465,6 +2474,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       console.log(`[timeout] killing PID ${proc.pid} after ${timeoutMs}ms`);
       process.kill(-proc.pid, 'SIGTERM');
       await patch(url, token, `/track/${trackNumber}/action`, {
+        project_id: projectId,
         lane_action_status: 'failure', lane_action_result: 'timeout',
         auto_planning_launched: null, auto_implement_launched: null, auto_review_launched: null,
         last_log_tail: tailLog(logPath), active_cli: cli,
@@ -2475,6 +2485,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   const tailInterval = setInterval(async () => {
     if (runningPids.has(proc.pid)) {
       await patch(url, token, `/track/${trackNumber}/action`, {
+        project_id: projectId,
         last_log_tail: tailLog(logPath), active_cli: cli,
       }).catch(() => { });
     } else {
@@ -2567,6 +2578,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     console.log(`[${label}] Track ${trackNumber}: ${isSuccess ? 'PASS' : 'FAIL'} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
 
     const patchData = {
+      project_id: projectId,
       lane_action_status: nextActionStatus,
       lane_action_result: isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`)),
       last_log_tail: tailLog(logPath), active_cli: cli,
@@ -2800,6 +2812,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         ? `⏳ Provider ${cli} quota exhausted. Track re-queued automatically — retry count not consumed.`
         : `⚠️ Automation failed (PID: ${proc.pid}, Exit Code: ${code}).\nResult: ${patchData.lane_action_result}\nCheck logs for details.`;
       await postToCollectors(`/track/${trackNumber}/comment`, {
+        project_id: projectId,
         author: cli === 'npx' ? 'worker' : cli,
         body: commentBody,
       }).catch(() => { });
@@ -2884,6 +2897,9 @@ setInterval(() => processFileSyncQueue().catch(e => console.error('[file-queue e
 async function autoLaunchLocalFs(globalLimit) {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
+
+  const proj = getProject();
+  const projectId = proj?.id;
 
   const dirs = readdirSync(tracksDir)
     .filter(d => /^\d+/.test(d))
@@ -3018,7 +3034,7 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       const runningContent = updateHeader(content, 'Lane Status', 'running');
       writeFileSync(indexPath, runningContent, 'utf8');
 
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig);
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId);
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
