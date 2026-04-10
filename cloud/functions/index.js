@@ -97,7 +97,12 @@ console.log('API starting revision 2026-03-06 21:30 (session pooler)...');
 const app = express();
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['https://app.laneconductor.com', 'http://localhost:8090', 'http://127.0.0.1:8090'];
+  : [
+      'https://app.laneconductor.com',
+      'https://laneconductor-app.web.app',
+      'http://localhost:8090',
+      'http://127.0.0.1:8090'
+    ];
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 
