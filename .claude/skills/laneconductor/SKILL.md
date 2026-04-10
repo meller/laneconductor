@@ -103,12 +103,18 @@ make install-cli
 ```
 
 ### Core Commands
-- `lc start [--sync-and-work]`: Start the heartbeat worker. Default: sync-only (file↔API sync only). Use `--sync-and-work` to also poll and execute queued tracks.
-- `lc stop`: Stop the heartbeat worker.
-- `lc status`: Show a Kanban board of tracks in the terminal.
+- `lc worker start [--sync-and-work]`: Start the heartbeat worker in the background.
+- `lc worker stop`: Stop the background heartbeat worker.
+- `lc worker restart`: Restart the background heartbeat worker.
+- `lc worker status`: Check the health and PID of the local worker.
+- `lc worker logs`: Stream the worker's activity logs.
+- `lc worker sync`: Manually trigger an immediate fan-out synchronization across all targets.
+- `lc status`: Show a Kanban board of tracks in the terminal (with worker health check).
 - `lc ui [start|stop]`: Manage the Vite dashboard.
 - `lc new "Title" "Description"`: Create a new track.
 - `lc setup`: Initialize a new project with LaneConductor.
+- `lc add-target --url <url> [--key <key>] [--store-type gcp-secret] [--secret-name <name>]`: Add a sync endpoint.
+- `lc list-targets`: Show all sync targets and their active/disabled status.
 
 ---
 
@@ -445,13 +451,15 @@ Sets up the **collection destination** — configures the operating mode, AI age
    ```
 
    If `[2]` or `[3]`, collect the LC cloud token:
-   - `LC Cloud Token (lc_xxxx...):` ← stored in `.env` as `COLLECTOR_1_TOKEN` (if Both) or `COLLECTOR_0_TOKEN` (if LC cloud only), NOT in config.
-   - The default URL for LC cloud is `https://collector.laneconductor.io`.
+   - `LC Cloud Token (lc_xxxx...):` ← stored in `.env` as `COLLECTOR_n_TOKEN`, NOT in config.
+   - `Store Type:` [1] `.env` (direct token) [2] `gcp-secret` (dynamic GCP Secret Manager resolution).
+   - If `gcp-secret`, ask for: `Secret Name (e.g., LC_PROD_KEY)`.
+   - The default URL for LC cloud is `https://app.laneconductor.com`.
 
-   Write all tokens to `.env` (create if absent; never overwrite existing values without prompting).
-   Ensure `.gitignore` exists and contains `.env` and `.laneconductor.json`.
+   Write all configurations to `.laneconductor.json` and tokens to `.env` (if using token storage).
+   Ensure `.gitignore` exists and contains `.env`.
 
-3. **Primary agent** — ask which CLI drives this project (`claude` / `gemini` / `other`).
+4. **Primary agent** — ask which CLI drives this project (`claude` / `gemini` / `other`).
    Then:
    a. **Verify reachability** by running the version check:
 
@@ -610,9 +618,9 @@ psql -h <host> -p <port> -U <user> -d <dbname> -f /tmp/laneconductor_schema.sql
 Start the heartbeat worker.
 
 1. Verify `.laneconductor.json` exists — if not, tell user to run `setup collection` first
-2. Check `conductor/.sync.pid` — warn if process already running
+2. Check `.sync.pid` — warn if process already running
 3. Ensure `pg` and `chokidar` are installed: `npm install --save-dev pg chokidar`
-4. Start: `node conductor/laneconductor.sync.mjs [--sync-only] &` and save PID
+4. Start: `node bin/lc.mjs worker start [--sync-only]`
 
 By default, the worker will only perform file↔API synchronization and will NOT poll the database for queued tracks to execute. If `--sync-and-work` is provided, it will also poll and execute tracks from the queue.
 

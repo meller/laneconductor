@@ -234,9 +234,76 @@ async function del(collectorUrl, token, path, body = {}, timeoutMs = 10000) {
   }
 }
 
-// Resolve auth token for a collector entry (machine_token takes priority over static token)
+/**
+ * Execute Integration Hooks defined in workflow.json
+ * @param {string} trackNumber 
+ * @param {string} lane 
+ * @param {'success'|'failure'} eventType 
+ */
+async function executeIntegrationHooks(trackNumber, lane, eventType) {
+  try {
+    const workflowPath = 'conductor/workflow.json';
+    if (!existsSync(workflowPath)) return;
+    const workflow = JSON.parse(readFileSync(workflowPath, 'utf8'));
+    const laneConfig = workflow.lanes?.[lane];
+    if (!laneConfig || !laneConfig.hooks) return;
+
+    const hooks = laneConfig.hooks.filter(h => h.on === eventType);
+    if (hooks.length === 0) return;
+
+    // Use project ID from config or metadata (required for proxy call)
+    const projectId = getProject()?.id;
+    if (!projectId) {
+      console.warn(`[hooks] Cannot trigger hooks for track ${trackNumber}: No project ID found in config`);
+      return;
+    }
+
+    for (const hook of hooks) {
+      console.log(`[hooks] Executing ${hook.provider} hook for track ${trackNumber} (${eventType})`);
+      
+      let bodyText = hook.body || '';
+      // Simple variable replacement for common metadata
+      bodyText = bodyText
+        .replace(/{{track}}/g, trackNumber)
+        .replace(/{{lane}}/g, lane)
+        .replace(/{{event}}/g, eventType);
+
+      // Call the Integration Proxy on the API
+      // The API will inject the secrets and forward to the provider
+      const proxyPath = `/v1/projects/${projectId}/integrations/${hook.provider}/proxy`;
+      
+      const payload = {
+        path: hook.path || `/rest/api/2/issue/${trackNumber}/comment`,
+        method: hook.method || 'POST',
+        body: hook.action === 'comment' ? { body: bodyText } : hook.payload
+      };
+
+      await postToCollectors(proxyPath, payload).catch(err => {
+        console.error(`[hooks error] ${hook.provider} proxy call failed:`, err.message);
+      });
+    }
+  } catch (err) {
+    console.error(`[hooks error] Error in executeIntegrationHooks:`, err.message);
+  }
+}
+
+// Resolve auth token for a collector entry (handles GCP Secret Manager, env, and machine tokens)
 function resolveToken(collector, envKey) {
-  return process.env[envKey] ?? collector.machine_token ?? collector.token ?? null;
+  // 1. Try environment variable override
+  if (process.env[envKey]) return process.env[envKey];
+
+  // 2. Try GCP Secret Manager if configured
+  if (collector.store_type === 'gcp-secret' && collector.secret_name) {
+    try {
+      const gcloud = execSync(`gcloud secrets versions access latest --secret="${collector.secret_name}"`, { encoding: 'utf8', stdio: 'pipe' });
+      if (gcloud) return gcloud.trim();
+    } catch (e) {
+      console.warn(`[auth] ⚠️  GCP Secret fetch failed for ${collector.secret_name}:`, e.message);
+    }
+  }
+
+  // 3. Fallback to inline tokens
+  return collector.machine_token ?? collector.token ?? null;
 }
 
 // Post to ALL collectors. Primary (index 0) is awaited; rest are fire-and-forget.
@@ -274,12 +341,47 @@ async function patchCollectors(path, body) {
 
 // Primary collector only (orchestration queries — local only)
 // Returns { url: null, token: null } in local-fs mode — all HTTP calls will be no-ops
+const tokenCache = new Map();
+
+function resolveCollectorToken(idx) {
+  const c = getCollectors()[idx];
+  if (!c) return null;
+
+  // 1. Env override COLLECTOR_n_TOKEN
+  if (process.env[`COLLECTOR_${idx}_TOKEN`]) return process.env[`COLLECTOR_${idx}_TOKEN`];
+
+  // 2. Cache
+  if (tokenCache.has(idx)) return tokenCache.get(idx);
+
+  // 3. GCP Secret Manager if configured
+  if (c.store_type === 'gcp-secret' && c.secret_name) {
+    try {
+      const token = execSync(`gcloud secrets versions access latest --secret ${c.secret_name}`, { encoding: 'utf8' }).trim();
+      if (token) {
+        tokenCache.set(idx, token);
+        return token;
+      }
+    } catch (e) {
+      // console.warn(`[token] GCP Secret fetch failed for ${c.secret_name}`);
+    }
+  }
+
+  // 4. machine_token (from registration)
+  if (c.machine_token) return c.machine_token;
+
+  // 5. auth file token (~/.laneconductor-auth.json)
+  const userToken = getUserToken();
+  if (userToken) return userToken;
+
+  // 6. Hardcoded token in config
+  return c.token || null;
+}
+
 function primaryCollector() {
   if (getIsLocalFs()) return { url: null, token: null };
   const c = getCollectors()[0];
   if (!c) return { url: null, token: null };
-  const fallbackToken = process.env.COLLECTOR_0_TOKEN ?? c.token ?? null;
-  return { url: c.url, token: c.machine_token || fallbackToken };
+  return { url: c.url, token: resolveCollectorToken(0) };
 }
 
 // ── Worker registration ───────────────────────────────────────────────────────
@@ -309,10 +411,7 @@ async function upsertWorker() {
     const c = cls[i];
     const url = c.url;
     const isLocal = url.includes('localhost') || url.includes('127.0.0.1');
-    // Priority: COLLECTOR_N_TOKEN (env API key) > machine_token > getUserToken() > static token
-    const envKey = `COLLECTOR_${i}_TOKEN`;
-    const configuredApiKey = process.env[envKey];
-    const token = configuredApiKey || c.machine_token || (isLocal ? null : getUserToken()) || c.token;
+    const token = resolveCollectorToken(i);
 
     try {
       // Ensure project exists on collector and map to our user identity
@@ -364,7 +463,7 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
   for (let i = 0; i < cls.length; i++) {
     const c = cls[i];
     try {
-      const token = c.machine_token || getUserToken() || c.token;
+      const token = resolveCollectorToken(i);
       const body = { hostname, pid, project_id: proj.id, mode: workerMode };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
@@ -387,7 +486,7 @@ async function removeWorker() {
   for (let i = 0; i < cls.length; i++) {
     const c = cls[i];
     try {
-      const token = c.machine_token || getUserToken() || c.token;
+      const token = resolveCollectorToken(i);
       await del(c.url, token, '/worker', { hostname, pid });
       console.log(`[LaneConductor] Worker de-registered from ${c.url}: ${hostname} (PID: ${pid})`);
     } catch (err) {
@@ -1515,7 +1614,7 @@ async function checkFileSyncQueue() {
   for (let i = 0; i < cls.length; i++) {
     const c = cls[i];
     const url = c.url;
-    const token = c.machine_token || getUserToken() || c.token;
+    const token = resolveCollectorToken(i);
 
     try {
       const { tasks } = await post(url, token, '/file-sync/claim', { project_id: proj.id, limit: 5 });
@@ -2493,10 +2592,6 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             content = `**Lane**: ${effectiveLane}\n` + content;
           }
           updated = true;
-          if (targetLane && targetLane !== laneStatus) {
-            patchData.lane_status = targetLane;
-          }
-
           // 2. Update Lane Status
           if (content.match(/\*\*Lane Status\*\*:\s*\w+/i)) {
             content = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, `**Lane Status**: ${nextActionStatus}`);
@@ -2508,6 +2603,20 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             content = `**Lane Status**: ${nextActionStatus}\n` + content;
           }
           updated = true;
+
+          // ── Integration Hooks ──
+          if (isSuccess) {
+            executeIntegrationHooks(trackNumber, laneStatus, 'success');
+          } else if (isMaxRetries) {
+            executeIntegrationHooks(trackNumber, laneStatus, 'failure');
+          }
+
+          if (targetLane && targetLane !== laneStatus) {
+            patchData.lane_status = targetLane;
+          }
+          updated = true;
+
+          // 3. Update Progress if success (skip for conversation runs — don't force 100%)
 
           // 3. Update Progress if success (skip for conversation runs — don't force 100%)
           if (isSuccess && !isConversationRun) {

@@ -16,6 +16,34 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 
 const VERSION = packageJson.version || '0.1.0';
 const RC_FILE = join(homedir(), '.laneconductorrc');
 
+// Resolve the token for a collector at index `idx`.
+// Priority: GCP Secret Manager -> .env COLLECTOR_<idx>_TOKEN > inline token/machine_token
+function getCollectorToken(cfg, idx, projectRoot) {
+    const c = cfg.collectors?.[idx];
+    if (!c) return null;
+    
+    // Remote secret resolution
+    if (c.store_type === 'gcp-secret' && c.secret_name) {
+        try {
+            const { spawnSync } = require('child_process');
+            const res = spawnSync('gcloud', ['secrets', 'versions', 'access', 'latest', '--secret', c.secret_name], { encoding: 'utf8' });
+            if (res.status === 0 && res.stdout) {
+                return res.stdout.trim();
+            }
+            console.warn(`[log-sync] ⚠️  GCP Secret fetch failed for ${c.secret_name}`);
+        } catch (e) {}
+    }
+
+    // Try env file first
+    const envPath = join(projectRoot, '.env');
+    if (existsSync(envPath)) {
+        const env = readFileSync(envPath, 'utf8');
+        const m = env.match(new RegExp(`COLLECTOR_${idx}_TOKEN=([^\\n]+)`));
+        if (m) return m[1].trim();
+    }
+    return c.token || c.machine_token || null;
+}
+
 function getInstallPath() {
     if (existsSync(RC_FILE)) {
         const skillPath = readFileSync(RC_FILE, 'utf8').trim();
@@ -146,28 +174,26 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
 
         const syncLogTail = async (isFinal = false) => {
             if (trackNum && cfg.mode !== 'local-fs') {
-                try {
-                    const logTail = output.split('\n').slice(-100).join('\n');
-                    const collector = cfg.collectors?.[0];
-                    if (collector?.url) {
-                        const url = new URL(`${collector.url}/track/${trackNum}/action`);
-                        if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
-                        
-                        const token = collector.token || collector.machine_token;
-
-                        await fetch(url.toString(), {
-                            method: 'PATCH',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                            },
-                            body: JSON.stringify({
-                                lane_action_status: isFinal ? (exitCode === 0 ? 'success' : 'failure') : 'running',
-                                last_log_tail: logTail,
-                            })
-                        }).catch(e => console.warn(`[log-sync] Could not push log chunk: ${e.message}`));
-                    }
-                } catch (e) {}
+                const logTail = output.split('\n').slice(-100).join('\n');
+                const collectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+                await Promise.allSettled(collectors.map((collector) => {
+                    const idx = cfg.collectors.indexOf(collector);
+                    if (!collector?.url) return;
+                    const url = new URL(`${collector.url}/track/${trackNum}/action`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    const token = getCollectorToken(cfg, idx, projectRoot);
+                    return fetch(url.toString(), {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        },
+                        body: JSON.stringify({
+                            lane_action_status: isFinal ? (exitCode === 0 ? 'success' : 'failure') : 'running',
+                            last_log_tail: logTail,
+                        })
+                    }).catch(e => console.warn(`[log-sync] Could not push to collector[${idx}]: ${e.message}`));
+                }));
             }
         };
 
@@ -253,9 +279,11 @@ Usage:
 
 Core Commands:
   status               Show track status for the current project
-  start [--sync-and-work]  Start the heartbeat worker (default: sync-only; --sync-and-work: also poll queue)
-  stop                 Stop the heartbeat worker
-  restart              Restart the heartbeat worker
+  start                Start the heartbeat sync worker for this project
+  stop                 Stop the heartbeat sync worker
+  restart              Restart the heartbeat sync worker
+  worker [start|stop|restart|status|logs|sync]
+                       Manage the sync worker process and force sync all targets
   api [start|stop]     Manage the Collector API
   ui [start|stop]      Manage the Vite dashboard (default: start)
   setup                Initialize LaneConductor in the current project
@@ -273,8 +301,15 @@ Project & Track Management:
   logs [id|worker|worker-run [id]] Show logs for a track or the worker
   workflow [set ...]   Manage workflow configuration (or show if no args)
   config [set ...]     Manage project configuration (or show if no args)
-  config mode [mode]   Switch between local-fs, local-api, remote-api
+  config mode [mode] [--url <url>] [--key <key>] [--store-type <type>] [--secret-name <name>]
+                       Switch mode (local-fs, local-api, remote-api, multi-api)
   config visibility [private|team|public] Set worker visibility level
+  list-targets         List all configured collector targets and their sync status
+  add-target --url <url> [--key <key>] [--store-type <type>] [--secret-name <name>] [--type local|remote]
+                       Add a new collector target
+  remove-target <url>  Remove a configured collector target
+  enable-target <url>  Enable sync for a specific target
+  disable-target <url> Disable sync for a specific target
   verify-isolation     Check if worker environment is correctly sandboxed
   project [show|set]   Manage project settings (or show summary if no args)
   doc set SECTION VAL  Update conductor/product.md, tech-stack.md, etc.
@@ -397,7 +432,7 @@ Choice [2]: `) || '2';
 
         let dbConfig = { host: 'localhost', port: 5432, name: 'laneconductor', user: 'postgres', password: '' };
         if (mode === 'local-api') {
-            console.log('\n�️  Database Configuration');
+            console.log('\n️  Database Configuration');
             dbConfig.host = await question(`DB Host [${dbConfig.host}]: `) || dbConfig.host;
             dbConfig.port = parseInt(await question(`DB Port [${dbConfig.port}]: `) || dbConfig.port);
             dbConfig.name = await question(`DB Name [${dbConfig.name}]: `) || dbConfig.name;
@@ -1102,29 +1137,53 @@ Please review this, answer any questions (some fields may contain questions rath
     }
     process.exit(0);
 } else if (command === 'restart') {
-    if (!projectRoot) { console.error('❌ Error: No LaneConductor project found.'); process.exit(1); }
-    // Stop
-    const pidFile = join(projectRoot, 'conductor', '.sync.pid');
-    if (existsSync(pidFile)) {
-        const pid = readFileSync(pidFile, 'utf8').trim();
-        try { process.kill(pid); console.log(`✅ Worker stopped (PID: ${pid})`); } catch (e) { }
-        unlinkSync(pidFile);
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
     }
-    // Start logic (same as 'start')
+    const pidFile = join(projectRoot, 'conductor', '.sync.pid');
     const logFile = join(projectRoot, 'conductor', '.sync.log');
     const syncScript = join(projectRoot, 'conductor', 'laneconductor.sync.mjs');
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
     console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}...`);
 
+    if (existsSync(pidFile)) {
+        const pid = readFileSync(pidFile, 'utf8').trim();
+        try { process.kill(pid); } catch (e) { }
+        unlinkSync(pidFile);
+    }
+    // Same as 'start' logic
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
     if (!isSyncAndWork) syncArgs.push('--sync-only');
-
     const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
     console.log(`✅ Worker restarted (PID: ${worker.pid})`);
     process.exit(0);
+} else if (command === 'worker') {
+    const sub = args[1] || 'status';
+    if (sub === 'start') { spawnSync('node', [__filename, 'start'], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'stop') { spawnSync('node', [__filename, 'stop'], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'restart') { spawnSync('node', [__filename, 'restart'], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'logs') { spawnSync('node', [__filename, 'logs', 'worker'], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'sync') { spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'status') {
+        if (!projectRoot) { process.exit(1); }
+        const pidFile = join(projectRoot, 'conductor', '.sync.pid');
+        let running = false;
+        let pid = null;
+        if (existsSync(pidFile)) {
+            pid = readFileSync(pidFile, 'utf8').trim();
+            try { process.kill(pid, 0); running = true; } catch (e) { unlinkSync(pidFile); }
+        }
+        console.log(`\n👷 Worker Status: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
+        if (pid && running) console.log(`   PID: ${pid}`);
+        console.log(`   Log: conductor/.sync.log\n`);
+        process.exit(0);
+    }
+    console.error(`❌ Unknown worker command: ${sub}`);
+    process.exit(1);
 } else if (command === 'api') {
     const subCommand = args[1] || 'start';
     const installPath = getInstallPath();
@@ -1271,6 +1330,16 @@ Please review this, answer any questions (some fields may contain questions rath
             const info = t.phase ? colors.dim + t.phase + ': ' + colors.reset + t.title : t.title;
             console.log(id + ' ' + lane.padEnd(15) + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
         });
+
+        // Worker Health Check
+        const pidFile = join(projectRoot, 'conductor', '.sync.pid');
+        let running = false;
+        if (existsSync(pidFile)) {
+            try { process.kill(readFileSync(pidFile, 'utf8').trim(), 0); running = true; } catch (e) { }
+        }
+        console.log('\n   Worker Status : ' + (running ? colors.green + '✅ Running' : colors.red + '❌ Stopped') + colors.reset);
+        console.log('   Active Targets: ' + (cfg.collectors || []).filter(c => c.enabled !== false).length + ' sites connected');
+
         console.log('');
         process.exit(0);
     } else {
@@ -1318,6 +1387,16 @@ Please review this, answer any questions (some fields may contain questions rath
                     const statusLabel = t.status === 'running' ? colors.cyan + 'RUN ' : t.status === 'failure' ? colors.red + 'FAIL' : t.status === 'queue' ? colors.green + 'QUEUE' : t.status === 'success' ? colors.green + 'DONE ' : (t.status === 'waiting' || !t.status) ? colors.yellow + 'WAIT ' : colors.yellow + (t.status || '?').slice(0, 5).toUpperCase();
                     console.log(`${t.id.padEnd(5)} ${t.lane.padEnd(15)} ${statusLabel.padEnd(16)} ${t.progress}%`.padEnd(35) + ` ${t.runBy.padEnd(3)} ${t.phase ? colors.dim + t.phase + ': ' + colors.reset : ''}${t.title}`);
                 });
+
+                // Worker Health Check
+                const pidFile = join(projectRoot, 'conductor', '.sync.pid');
+                let running = false;
+                if (existsSync(pidFile)) {
+                    try { process.kill(readFileSync(pidFile, 'utf8').trim(), 0); running = true; } catch (e) { }
+                }
+                console.log('\n   Worker Status : ' + (running ? colors.green + '✅ Running' : colors.red + '❌ Stopped') + colors.reset);
+                console.log('   Active Targets: ' + (cfg.collectors || []).filter(c => c.enabled !== false).length + ' sites connected');
+
                 console.log('');
                 process.exit(0);
             } else { throw new Error(psql.stderr.toString()); }
@@ -1388,21 +1467,23 @@ Please review this, answer any questions (some fields may contain questions rath
             else content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, '**Waiting for reply**: yes');
             writeFileSync(indexPath, content);
         }
-        console.log(`✅ Comment added locally`);
-    } else {
-        const collector = cfg.collectors?.[0];
-        const url = new URL(`${collector.url}/track/${trackNum}/comment`);
-        if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
-        const token = collector.token || collector.machine_token;
-
-        await fetch(url.toString(), {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ author: 'human', body })
-        }).then(() => console.log('✅ Comment posted to API')).catch(e => console.error('❌ API failed:', e.message));
+        // Fan out to ALL *enabled* collectors
+        const collectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+        await Promise.allSettled(collectors.map((collector) => {
+            const idx = cfg.collectors.indexOf(collector);
+            const url = new URL(`${collector.url}/track/${trackNum}/comment`);
+            if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+            const token = getCollectorToken(cfg, idx, projectRoot);
+            return fetch(url.toString(), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({ author: 'human', body })
+            }).then(() => console.log(`✅ Comment posted to collector[${idx}]: ${collector.url}`))
+              .catch(e => console.error(`❌ collector[${idx}] failed: ${e.message}`));
+        }));
     }
     process.exit(0);
 } else if (command === 'brainstorm') {
@@ -1459,19 +1540,22 @@ Please review this, answer any questions (some fields may contain questions rath
 
         const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
         if (cfg.mode !== 'local-fs') {
-            const collector = cfg.collectors?.[0];
-            const url = new URL(`${collector.url}/track/${trackNum}/comment`);
-            if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
-            const token = collector.token || collector.machine_token;
-
-            await fetch(url.toString(), {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({ author: 'human', body: 'Manual rerun (CLI)' })
-            }).catch(() => { });
+            // Fan out rerun comment to ALL *enabled* collectors
+            const collectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+            await Promise.allSettled(collectors.map((collector) => {
+                const idx = cfg.collectors.indexOf(collector);
+                const url = new URL(`${collector.url}/track/${trackNum}/comment`);
+                if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                const token = getCollectorToken(cfg, idx, projectRoot);
+                return fetch(url.toString(), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ author: 'human', body: 'Manual rerun (CLI)' })
+                }).catch(() => {});
+            }));
         }
         console.log(`♻️  Retries reset for track ${trackNum}`);
     }
@@ -1565,38 +1649,92 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log(`✅ ${command} updated`);
     } else if (args[1] === 'mode') {
         const newMode = args[2];
-        if (!['local-fs', 'local-api', 'remote-api'].includes(newMode)) {
-            console.error('❌ Error: Invalid mode. Choose: local-fs, local-api, remote-api');
+        if (!newMode) {
+            console.log(`Current Mode: ${cfg.mode || 'local-fs'}`);
+            console.log(`Available Modes: local-fs, local-api, remote-api, multi-api`);
+            process.exit(0);
+        }
+        if (!['local-fs', 'local-api', 'remote-api', 'multi-api'].includes(newMode)) {
+            console.error('❌ Error: Invalid mode. Choose: local-fs, local-api, remote-api, multi-api');
             process.exit(1);
         }
         cfg.mode = newMode;
         if (newMode === 'local-api' && (!cfg.collectors || cfg.collectors.length === 0)) {
             cfg.collectors = [{ url: 'http://localhost:8091', token: null }];
         } else if (newMode === 'remote-api') {
-            // Ensure we have a remote collector configured
-            if (!cfg.collectors || !cfg.collectors.some(c => !c.url.includes('localhost') && !c.url.includes('127.0.0.1'))) {
-                const rl = createInterface({
-                    input: process.stdin,
-                    output: process.stdout
-                });
-                const question = (query) => new Promise((resolve) => rl.question(query, resolve));
+            // Parse flags
+            const flagUrl       = args.find((a, i) => (args[i - 1] === '--url'))  || args[args.indexOf('--url')  + 1];
+            const flagKey       = args.find((a, i) => (args[i - 1] === '--key'))  || args[args.indexOf('--key')  + 1];
+            const flagStore     = args.find((a, i) => (args[i - 1] === '--store-type')) || args[args.indexOf('--store-type') + 1];
+            const flagSecret    = args.find((a, i) => (args[i - 1] === '--secret-name')) || args[args.indexOf('--secret-name') + 1];
+            
+            const parsedUrl     = args.includes('--url') ? args[args.indexOf('--url') + 1] : null;
+            const parsedKey     = args.includes('--key') ? args[args.indexOf('--key') + 1] : null;
+            const parsedStore   = args.includes('--store-type') ? args[args.indexOf('--store-type') + 1] : null;
+            const parsedSecret  = args.includes('--secret-name') ? args[args.indexOf('--secret-name') + 1] : null;
 
+            const hasRemote = cfg.collectors?.some(c => !c.url.includes('localhost') && !c.url.includes('127.0.0.1'));
+
+            if (parsedUrl) {
+                // Non-interactive path — flags provided
+                // APPEND to collectors (don't replace existing ones)
+                if (!cfg.collectors) cfg.collectors = [];
+                const alreadyExists = cfg.collectors.some(c => c.url === parsedUrl);
+                
+                const newConfig = { url: parsedUrl, token: null };
+                if (parsedStore) newConfig.store_type = parsedStore;
+                if (parsedSecret) newConfig.secret_name = parsedSecret;
+
+                if (!alreadyExists) {
+                    cfg.collectors.push(newConfig);
+                } else {
+                    const existingIdx = cfg.collectors.findIndex(c => c.url === parsedUrl);
+                    cfg.collectors[existingIdx] = { ...cfg.collectors[existingIdx], ...newConfig };
+                    console.log(`ℹ️  Target ${parsedUrl} updated in collectors list.`);
+                }
+                writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+
+                if (parsedKey && parsedStore !== 'gcp-secret') {
+                    const newIdx = cfg.collectors.findIndex(c => c.url === parsedUrl);
+                    let envContent = existsSync(join(projectRoot, '.env')) ? readFileSync(join(projectRoot, '.env'), 'utf8') : '';
+                    const envKey = `COLLECTOR_${newIdx}_TOKEN`;
+                    if (envContent.includes(`${envKey}=`)) {
+                        envContent = envContent.replace(new RegExp(`${envKey}=.*`), `${envKey}=${parsedKey}`);
+                    } else {
+                        envContent += `\n${envKey}=${parsedKey}\n`;
+                    }
+                    writeFileSync(join(projectRoot, '.env'), envContent.trim() + '\n');
+                    console.log(`✅ Mode switched to ${newMode}`);
+                    console.log(`   URL : ${parsedUrl}`);
+                    console.log(`   Key : ${parsedKey.slice(0, 16)}…  (saved to .env as ${envKey})`);
+                } else if (parsedStore === 'gcp-secret' && parsedSecret) {
+                    console.log(`✅ Mode switched to ${newMode}`);
+                    console.log(`   URL : ${parsedUrl}`);
+                    console.log(`   Auth: GCP Secret Manager (${parsedSecret})`);
+                } else {
+                    console.log(`✅ Mode switched to ${newMode}`);
+                    console.log(`   URL : ${parsedUrl}`);
+                    console.log(`   ⚠️  No --key or --store-type provided.`);
+                }
+            } else if (!hasRemote) {
+                // Interactive fallback — no flags and no existing remote
+                const rl = createInterface({ input: process.stdin, output: process.stdout });
+                const question = (query) => new Promise((resolve) => rl.question(query, resolve));
                 (async () => {
-                    const remoteUrl = await question('Remote Collector URL (e.g., https://collector.example.com): ');
+                    const remoteUrl = await question('Remote Collector URL (e.g., https://app.laneconductor.com): ');
                     const apiKey = await question('Remote API Key (lc_xxx...): ');
 
                     cfg.collectors = [{ url: remoteUrl, token: null }];
                     writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
 
-                    // Store API key in .env
-                    let envContent = existsSync('.env') ? readFileSync('.env', 'utf8') : '';
+                    let envContent = existsSync(join(projectRoot, '.env')) ? readFileSync(join(projectRoot, '.env'), 'utf8') : '';
                     if (apiKey) {
                         if (envContent.includes('COLLECTOR_0_TOKEN=')) {
                             envContent = envContent.replace(/COLLECTOR_0_TOKEN=.*/, `COLLECTOR_0_TOKEN=${apiKey}`);
                         } else {
                             envContent += `\nCOLLECTOR_0_TOKEN=${apiKey}\n`;
                         }
-                        writeFileSync('.env', envContent.trim() + '\n');
+                        writeFileSync(join(projectRoot, '.env'), envContent.trim() + '\n');
                     }
 
                     console.log(`✅ Mode switched to ${newMode}`);
@@ -1604,6 +1742,7 @@ Please review this, answer any questions (some fields may contain questions rath
                     process.exit(0);
                 })();
             } else {
+                // Already have a remote collector — just toggle the mode
                 writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
                 console.log(`✅ Mode switched to ${newMode}`);
             }
@@ -1628,6 +1767,201 @@ Please review this, answer any questions (some fields may contain questions rath
     } else {
         console.log(`\n--- .laneconductor.json ---\n`, JSON.stringify(cfg, null, 2));
     }
+    process.exit(0);
+} else if (command === 'add-target') {
+    // lc add-target --url <url> --key <key>
+    // Adds a new collector target and triggers an initial bidirectional sync.
+    if (!projectRoot) {
+        console.error('❌ No LaneConductor project found.');
+        process.exit(1);
+    }
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+
+    const targetUrl    = args.includes('--url') ? args[args.indexOf('--url') + 1] : null;
+    const targetKey    = args.includes('--key') ? args[args.indexOf('--key') + 1] : null;
+    const targetStore  = args.includes('--store-type') ? args[args.indexOf('--store-type') + 1] : null;
+    const targetSecret = args.includes('--secret-name') ? args[args.indexOf('--secret-name') + 1] : null;
+    const targetType   = args.includes('--type') ? args[args.indexOf('--type') + 1] : (targetUrl && (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) ? 'local' : 'remote');
+
+    if (!targetUrl) {
+        console.error('❌ Usage: lc add-target --url <url> [--key <lc_xxx...>] [--store-type <type>] [--secret-name <name>] [--type local|remote]');
+        process.exit(1);
+    }
+
+    if (!cfg.collectors) cfg.collectors = [];
+    const alreadyExists = cfg.collectors.some(c => c.url === targetUrl);
+    
+    const newConfig = { 
+        url: targetUrl, 
+        enabled: true,
+        type: targetType,
+        token: null 
+    };
+    if (targetStore) newConfig.store_type = targetStore;
+    if (targetSecret) newConfig.secret_name = targetSecret;
+
+    if (alreadyExists) {
+        const existingIdx = cfg.collectors.findIndex(c => c.url === targetUrl);
+        cfg.collectors[existingIdx] = { ...cfg.collectors[existingIdx], ...newConfig };
+        console.log(`ℹ️  Target ${targetUrl} updated.`);
+    } else {
+        cfg.collectors.push(newConfig);
+        console.log(`✅ Target added: ${targetUrl} (type: ${targetType})`);
+    }
+    
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+
+    const newIdx = cfg.collectors.findIndex(c => c.url === targetUrl);
+
+    if (targetKey && targetStore !== 'gcp-secret') {
+        let envContent = existsSync(join(projectRoot, '.env')) ? readFileSync(join(projectRoot, '.env'), 'utf8') : '';
+        const envKey = `COLLECTOR_${newIdx}_TOKEN`;
+        if (envContent.includes(`${envKey}=`)) {
+            envContent = envContent.replace(new RegExp(`${envKey}=.*`), `${envKey}=${targetKey}`);
+        } else {
+            envContent += `\n${envKey}=${targetKey}\n`;
+        }
+        writeFileSync(join(projectRoot, '.env'), envContent.trim() + '\n');
+        console.log(`   Key saved to .env (COLLECTOR_${newIdx}_TOKEN)`);
+    } else if (targetStore === 'gcp-secret' && targetSecret) {
+        console.log(`   Auth: GCP Secret Manager (${targetSecret})`);
+    }
+
+    // Trigger initial bidirectional sync so the new target gets the current state
+    console.log(`\n🔄 Running initial sync with new target...`);
+    const syncScript = join(getInstallPath(), 'conductor', 'remote-sync.mjs');
+    if (existsSync(syncScript)) {
+        spawnSync(process.execPath, [syncScript], { stdio: 'inherit', cwd: projectRoot });
+    } else {
+        console.warn('   ⚠️  remote-sync.mjs not found — skipping initial sync.');
+        console.log('   Run "lc remote-sync" manually to sync this project to the new target.');
+    }
+
+    process.exit(0);
+} else if (command === 'remove-target') {
+    // lc remove-target <url>
+    if (!projectRoot) {
+        console.error('❌ No LaneConductor project found.');
+        process.exit(1);
+    }
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+
+    const targetUrl = args[1] === '--url' ? args[2] : (args[1] && !args[1].startsWith('--') ? args[1] : null);
+
+    if (!targetUrl) {
+        console.error('❌ Usage: lc remove-target <url>');
+        process.exit(1);
+    }
+
+    if (!cfg.collectors) cfg.collectors = [];
+    const existingIdx = cfg.collectors.findIndex(c => c.url === targetUrl);
+    
+    if (existingIdx === -1) {
+        console.log(`ℹ️  Target ${targetUrl} not found in collectors.`);
+        process.exit(0);
+    }
+    
+    // Remember tokens to shift them successfully without losing credentials
+    const envPath = join(projectRoot, '.env');
+    let envLines = existsSync(envPath) ? readFileSync(envPath, 'utf8').split('\n') : [];
+    
+    const tokens = cfg.collectors.map((c, i) => {
+        const m = envLines.find(l => l.startsWith(`COLLECTOR_${i}_TOKEN=`));
+        return m ? m.split('=')[1] : null;
+    });
+    
+    // Remove target
+    cfg.collectors.splice(existingIdx, 1);
+    tokens.splice(existingIdx, 1);
+    
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+    
+    // Rewrite env by omitting all old COLLECTOR_n_TOKEN lines and applying the shifted array
+    envLines = envLines.filter(l => !l.startsWith('COLLECTOR_'));
+    tokens.forEach((t, i) => {
+        if (t) envLines.push(`COLLECTOR_${i}_TOKEN=${t}`);
+    });
+    
+    const envText = envLines.join('\n');
+    writeFileSync(envPath, envText + (envText.endsWith('\n') || envText.length === 0 ? '' : '\n'));
+    
+    console.log(`✅ Target removed: ${targetUrl}`);
+    process.exit(0);
+} else if (command === 'enable-target' || command === 'disable-target') {
+    if (!projectRoot) { process.exit(1); }
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+
+    const targetUrl = args[1] === '--url' ? args[2] : (args[1] && !args[1].startsWith('--') ? args[1] : null);
+    if (!targetUrl) {
+        console.error(`❌ Usage: lc ${command} <url>`);
+        process.exit(1);
+    }
+
+    const collector = (cfg.collectors || []).find(c => c.url === targetUrl);
+    if (!collector) {
+        console.error(`❌ Target ${targetUrl} not found.`);
+        process.exit(1);
+    }
+
+    collector.enabled = (command === 'enable-target');
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+    console.log(`✅ Target ${targetUrl} is now ${collector.enabled ? 'ENABLED' : 'DISABLED'}`);
+    process.exit(0);
+} else if (command === 'list-targets') {
+    if (!projectRoot) {
+        console.error('❌ No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+
+    // Load tokens from .env
+    let envContent = '';
+    const envPath = join(projectRoot, '.env');
+    if (existsSync(envPath)) envContent = readFileSync(envPath, 'utf8');
+    const getEnvToken = (idx) => {
+        const match = envContent.match(new RegExp(`COLLECTOR_${idx}_TOKEN=([^\n]+)`));
+        return match ? match[1].trim() : null;
+    };
+
+    const mode = cfg.mode || 'local-fs';
+    const collectors = cfg.collectors || [];
+
+    console.log(`\n🎯 LaneConductor Targets  (${projectRoot})\n`);
+    console.log(`   Mode : ${mode}`);
+    console.log(`   Project : ${cfg.project?.name || '(unnamed)'} (id: ${cfg.project?.id || 'none'})\n`);
+
+    if (collectors.length === 0) {
+        console.log('   (no collectors configured — running in local-fs mode)');
+    } else {
+        collectors.forEach((c, i) => {
+            const envToken = getEnvToken(i);
+            const inlineToken = c.token || c.machine_token;
+            let authDisplay = '';
+            
+            if (c.store_type === 'gcp-secret') {
+                authDisplay = `🔒 GCP Secret Manager (${c.secret_name})`;
+            } else if (envToken) {
+                authDisplay = `🔑 Token (from .env COLLECTOR_${i}_TOKEN) - ${envToken.slice(0, 16)}…`;
+            } else if (inlineToken) {
+                authDisplay = `🔑 Token (machine_token) - ${String(inlineToken).slice(0, 16)}…`;
+            } else if (c.type === 'local' || c.url.includes('localhost') || c.url.includes('127.0.0.1')) {
+                authDisplay = `🔓 None (local-api)`;
+            } else {
+                authDisplay = `⚠️  UNSECURED (No key provided)`;
+            }
+            
+            const isLocal = c.type === 'local' || c.url.includes('localhost') || c.url.includes('127.0.0.1');
+            const tag = isLocal ? '🏠 local ' : '☁️  remote';
+            const status = c.enabled !== false ? '✅' : '❌';
+            console.log(`   [${i}] ${status} ${tag}  ${c.url}`);
+            console.log(`       Auth: ${authDisplay}`);
+        });
+    }
+    console.log('');
     process.exit(0);
 } else if (command === 'verify-isolation') {
     // Verify that the worker environment is correctly sandboxed

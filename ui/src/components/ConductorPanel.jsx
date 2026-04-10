@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer.jsx';
 import { WorkersList } from './WorkersList.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useApi } from '../hooks/useApi.js';
 
 const TABS = [
   { key: 'product', label: 'Product' },
@@ -12,6 +13,7 @@ const TABS = [
 ];
 
 export function ConductorPanel({ project, onClose }) {
+  const { apiFetch } = useApi();
   const [files, setFiles] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,7 +22,7 @@ export function ConductorPanel({ project, onClose }) {
   const fetchFiles = useCallback(() => {
     if (!project?.id) return;
     setLoading(true);
-    fetch(`/api/projects/${project.id}/conductor`)
+    apiFetch(`/api/projects/${project.id}/conductor`)
       .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
       .then(data => { setFiles(data); setLoading(false); setError(null); })
       .catch(err => { setError(String(err)); setLoading(false); });

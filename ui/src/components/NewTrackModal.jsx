@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useApi } from '../hooks/useApi';
 
 function matchingTracks(title, type, tracks, activeProjectId) {
   if (title.trim().length < 3) return [];
@@ -15,6 +16,7 @@ function matchingTracks(title, type, tracks, activeProjectId) {
 }
 
 export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated, onResumed, initialType = 'feature', initialDescription = '' }) {
+  const { apiFetch } = useApi();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState(initialDescription);
   const [type, setType] = useState(initialType);
@@ -52,9 +54,8 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
     setSubmitting(true);
     setError(null);
     try {
-      const r = await fetch(`/api/projects/${pid}/tracks/${track.track_number}/update`, {
+      const r = await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}/update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), description: description.trim() }),
       });
       if (r.ok) {
@@ -79,9 +80,8 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
   async function handleResume(track) {
     const pid = track.project_id ?? activeProjectId;
     try {
-      const r = await fetch(`/api/projects/${pid}/tracks/${track.track_number}`, {
+      const r = await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lane_status: 'implement' }),
       });
       if (r.ok) {
@@ -99,9 +99,8 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
     setSubmitting(true);
     setError(null);
     try {
-      const r = await fetch(`/api/projects/${activeProjectId}/tracks`, {
+      const r = await apiFetch(`/api/projects/${activeProjectId}/tracks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), description: description.trim(), type }),
       });
       if (r.ok) {

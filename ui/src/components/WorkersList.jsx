@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
+import { useApi } from '../hooks/useApi.js';
 
 const VISIBILITY_BADGE = {
   private: { label: 'Private', icon: '🔒', className: 'text-gray-500 border-gray-800' },
@@ -103,13 +104,14 @@ function WaitingQueue({ tracks, onPriorityChange }) {
 }
 
 export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh }) {
+  const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
   const [visibilityWorker, setVisibilityWorker] = useState(null);
 
   async function handleWorkerAction(action) {
     if (!projectId) return;
     try {
-      const res = await fetch(`/api/projects/${projectId}/worker/${action}`, { method: 'POST' });
+      const res = await apiFetch(`/api/projects/${projectId}/worker/${action}`, { method: 'POST' });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       console.log(`Worker ${action} result:`, data);
@@ -121,9 +123,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
 
   async function handlePriorityChange(track, newPriority) {
     try {
-      await fetch(`/api/projects/${track.project_id}/tracks/${track.track_number}/priority`, {
+      await apiFetch(`/api/projects/${track.project_id}/tracks/${track.track_number}/priority`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priority: newPriority }),
       });
       // Global refresh via WS should trigger, but we could also locally update if needed

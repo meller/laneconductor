@@ -456,42 +456,81 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
     if (projResult.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     const { repo_path } = projResult.rows[0];
 
-    // Compute next track number
-    const numResult = await pool.query(
-      `SELECT COALESCE(MAX(CAST(track_number AS INTEGER)), 0) + 1 AS next_num
-       FROM tracks WHERE project_id = $1 AND track_number ~ '^[0-9]+$'`,
-      [req.params.id]
-    );
-    const nextNum = numResult.rows[0].next_num;
-    const trackNumber = String(nextNum).padStart(3, '0');
+    // 1. Transactionally compute next track number and reserve in DB
+    const client = await pool.connect();
+    let trackNumber;
+    try {
+      await client.query('BEGIN');
+      // Lock by project to ensure atomic track numbering
+      await client.query('SELECT 1 FROM projects WHERE id = $1 FOR UPDATE', [req.params.id]);
 
-    // Register in DB via collector as 'queue' for automation
-    await collectorWrite('POST', '/track', {
-      track_number: trackNumber,
-      title: title.trim(),
-      content_summary: description.trim(),
-      lane_status: 'plan',
-      progress_percent: 0,
-      last_updated_by: 'human'
-    }, req.params.id);
+      const numResult = await client.query(
+        `SELECT COALESCE(MAX(CAST(track_number AS INTEGER)), 0) + 1 AS next_num
+         FROM tracks WHERE project_id = $1 AND track_number ~ '^[0-9]+$'`,
+        [req.params.id]
+      );
+      const nextNum = numResult.rows[0].next_num;
+      trackNumber = String(nextNum).padStart(3, '0');
 
-    // Write a typed track-create entry to file_sync_queue.md
-    // The sync worker processes pending entries and creates track folders + DB rows
-    const queuePath = join(repo_path, 'conductor', 'tracks', 'file_sync_queue.md');
+      // Register in DB - this effectively 'owns' the track number now
+      await client.query(
+        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by)
+         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human')`,
+        [req.params.id, trackNumber, title.trim(), description.trim()]
+      );
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error(`[track-create] DB failure: ${dbErr.message}`);
+      return res.status(500).json({ error: 'Failed to reserve track in DB: ' + dbErr.message });
+    } finally {
+      client.release();
+    }
+
     const now = new Date().toISOString();
     const queueEntry = `\n### Track ${trackNumber}: ${title.trim()}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${title.trim()}\n**Description**: ${description.trim() || 'No description.'}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
 
-    // 1. Sync to local filesystem (if possible)
-    try {
-      let existingQueue = existsSync(queuePath) ? readFileSync(queuePath, 'utf8') : '# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n';
-      // Insert before "## Config Sync Requests" section
-      existingQueue = existingQueue.replace(/^(## Config Sync Requests)/m, queueEntry + '$1');
-      writeFileSync(queuePath, existingQueue, 'utf8');
-    } catch (e) {
-      console.warn(`[queue] Failed to write local file_sync_queue.md: ${e.message}`);
+    // 2. Local Filesystem Sync
+    if (repo_path && existsSync(repo_path)) {
+      try {
+        const tracksDir = join(repo_path, 'conductor', 'tracks');
+        const slug = slugify(title);
+        const folderName = `${trackNumber}-${slug}`;
+        const trackPath = join(tracksDir, folderName);
+
+        // CREATE TRACK FILES IMMEDIATELY (Highly requested/more robust)
+        // By writing the description to index.md directly, we solve the 'overwrite' problem in the sync queue.
+        if (!existsSync(trackPath)) {
+          mkdirSync(trackPath, { recursive: true });
+          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type);
+          writeFileSync(join(trackPath, 'index.md'), index, 'utf8');
+          writeFileSync(join(trackPath, 'plan.md'), plan, 'utf8');
+          writeFileSync(join(trackPath, 'spec.md'), spec, 'utf8');
+          console.log(`[track-create] Created local folder & files for track ${trackNumber}: ${folderName}`);
+        }
+
+        // Write to file_sync_queue.md - use robust append to avoid stomping on worker's processing
+        const queuePath = join(tracksDir, 'file_sync_queue.md');
+        if (existsSync(queuePath)) {
+          // If we can find a clean place to insert, we do. BUT we must be careful of races.
+          // Since we are now using a transaction for trackNumber, we are safer.
+          let content = readFileSync(queuePath, 'utf8');
+          if (content.includes('## Track Creation Requests')) {
+            content = content.replace(/^(## Track Creation Requests)/m, '$1\n' + queueEntry);
+            writeFileSync(queuePath, content, 'utf8');
+          } else {
+            appendFileSync(queuePath, queueEntry, 'utf8');
+          }
+        } else {
+          writeFileSync(queuePath, '# File Sync Queue\n\n## Track Creation Requests\n' + queueEntry + '\n## Completed Queue\n', 'utf8');
+        }
+      } catch (fsErr) {
+        console.warn(`[track-create] FS warning for project ${req.params.id}: ${fsErr.message}`);
+        // Non-fatal: the DB is updated, and the worker can still pick it up if it syncs from DB → FS later
+      }
     }
 
-    // 2. Queue for remote worker sync (DB → Filesystem)
+    // 3. Queue for remote worker sync (DB → Filesystem)
     const relQueuePath = join('conductor', 'tracks', 'file_sync_queue.md');
     await queueFileSync(req.params.id, relQueuePath, queueEntry, 'append');
 
@@ -726,11 +765,11 @@ app.delete('/api/projects/:id/tracks/:num', async (req, res) => {
 app.get('/api/projects/:id/config', async (req, res) => {
   try {
     const r = await pool.query(
-      'SELECT primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, repo_path, conductor_files FROM projects WHERE id = $1',
+      'SELECT primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, repo_path, conductor_files, integrations FROM projects WHERE id = $1',
       [req.params.id]
     );
     if (!r.rows[0]) return res.status(404).json({ error: 'Project not found' });
-    const { primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, repo_path, conductor_files } = r.rows[0];
+    const { primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, repo_path, conductor_files, integrations } = r.rows[0];
 
     // Prefer disk .laneconductor.json (source of truth), fall back to conductor_files in DB
     let lcJson = {};
@@ -755,6 +794,7 @@ app.get('/api/projects/:id/config', async (req, res) => {
       repo_path: repo_path || '',
       git_remote: proj.git_remote || '',
       collectors,
+      integrations: integrations || {},
       db: lcJson.db || null,
       ui_port: lcJson.ui?.port || 8090,
     });
@@ -765,7 +805,7 @@ app.get('/api/projects/:id/config', async (req, res) => {
 
 app.patch('/api/projects/:id/config', async (req, res) => {
   try {
-    const { primary, secondary, dev, create_quality_gate, collectors, db, ui_port } = req.body;
+    const { primary, secondary, dev, create_quality_gate, collectors, db, ui_port, integrations } = req.body;
 
     const dbResult = await pool.query(
       'SELECT repo_path, conductor_files FROM projects WHERE id = $1',
@@ -774,17 +814,19 @@ app.patch('/api/projects/:id/config', async (req, res) => {
     if (!dbResult.rows[0]) return res.status(404).json({ error: 'Project not found' });
     const { repo_path, conductor_files } = dbResult.rows[0];
 
-    // Update DB columns
+    // Update DB columns including the integrations JSONB
     await pool.query(
       `UPDATE projects SET
         primary_cli = $1, primary_model = $2,
         secondary_cli = $3, secondary_model = $4,
-        create_quality_gate = $5
-       WHERE id = $6`,
+        create_quality_gate = $5,
+        integrations = COALESCE($6, integrations)
+       WHERE id = $7`,
       [
         primary?.cli || null, primary?.model || null,
         secondary?.cli || null, secondary?.model || null,
         create_quality_gate ?? false,
+        integrations || null,
         req.params.id,
       ]
     );

@@ -54,7 +54,7 @@ model project_members {
 model projects {
   id                  Int               @id @default(autoincrement())
   name                String
-  repo_path           String?           // Nullable on remote collectors
+  repo_path           String? // Nullable on remote collectors
   git_remote          String?           @unique // Unique identifier for the shared project
   git_global_id       String?           @unique @db.Uuid
   primary_cli         String?           @default("claude")
@@ -64,15 +64,18 @@ model projects {
   create_quality_gate Boolean?          @default(false)
   owner_uid           String?
   conductor_files     Json?             @default("{}")
+  integrations        Json?             @default("{}")
   dev_command         String?
   dev_url             String?
   dev_server_pid      Int?
   mode                String?           @default("local-fs")
+  workspace_id        String?           @db.Uuid
   created_at          DateTime?         @default(now()) @db.Timestamp(6)
+  workspaces          workspaces?       @relation(fields: [workspace_id], references: [id], onUpdate: NoAction)
   file_sync_queue     file_sync_queue[]
   project_members     project_members[]
   provider_status     provider_status[]
-  track_locks         track_locks[]     // Worker coordination: git locks
+  track_locks         track_locks[] // Worker coordination: git locks
   tracks              tracks[]
   workers             workers[]
 }
@@ -117,14 +120,14 @@ model track_comments {
 }
 
 model tracks {
-  id                      Int              @id @default(autoincrement())
+  id                      Int               @id @default(autoincrement())
   project_id              Int?
   track_number            String
   title                   String
-  lane_status             String?          @default("planning")
+  lane_status             String?           @default("planning")
   lane_action_status      LaneActionStatus? @default(queue)
   lane_action_result      String?
-  progress_percent        Int?             @default(0)
+  progress_percent        Int?              @default(0)
   current_phase           String?
   phase_step              String?
   content_summary         String?
@@ -133,25 +136,26 @@ model tracks {
   spec_content            String?
   test_content            String?
   last_log_tail           String?
-  auto_planning_launched  DateTime?        @db.Timestamp(6)
-  auto_implement_launched DateTime?        @db.Timestamp(6)
-  auto_review_launched    DateTime?        @db.Timestamp(6)
-  priority                Int?             @default(0)
-  sync_status             String?          @default("synced")
-  last_updated_by         String?          @default("worker")
-  last_heartbeat          DateTime?        @default(now()) @db.Timestamp(6)
-  created_at              DateTime?        @default(now()) @db.Timestamp(6)
+  integrations            Json?             @default("{}")
+  auto_planning_launched  DateTime?         @db.Timestamp(6)
+  auto_implement_launched DateTime?         @db.Timestamp(6)
+  auto_review_launched    DateTime?         @db.Timestamp(6)
+  priority                Int?              @default(0)
+  sync_status             String?           @default("synced")
+  last_updated_by         String?           @default("worker")
+  last_heartbeat          DateTime?         @default(now()) @db.Timestamp(6)
+  created_at              DateTime?         @default(now()) @db.Timestamp(6)
   last_updated_by_uid     String?
   claimed_by              String?
   active_cli              String?
   // Worker coordination fields (Track 1010)
-  worktree_path           String?                   // Path to .git/worktrees/{track}/
-  git_branch              String?                   // Branch this track works on
-  git_lock_commit         String?                   // Commit hash of lock creation
-  locked_by               String?                   // user@machine holding lock
-  track_locks             track_locks[]             // Relationship to locks table
+  worktree_path           String? // Path to .git/worktrees/{track}/
+  git_branch              String? // Branch this track works on
+  git_lock_commit         String? // Commit hash of lock creation
+  locked_by               String? // user@machine holding lock
+  track_locks             track_locks[] // Relationship to locks table
   track_comments          track_comments[]
-  projects                projects?        @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  projects                projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([project_id, track_number])
   @@index([priority, created_at], map: "idx_tracks_priority_queue")
@@ -192,4 +196,33 @@ model worker_permissions {
   workers   workers  @relation(fields: [worker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([worker_id, user_uid])
+}
+
+model workspaces {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  github_org        String              @unique
+  display_name      String?
+  created_at        DateTime?           @default(now()) @db.Timestamp(6)
+  api_tokens        api_tokens[]
+  projects          projects[]
+  workspace_members workspace_members[]
+}
+
+model workspace_members {
+  workspace_id    String      @db.Uuid
+  firebase_uid    String
+  github_username String
+  role            String?     @default("member")
+  joined_at       DateTime?   @default(now()) @db.Timestamp(6)
+  workspaces      workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([workspace_id, firebase_uid])
+}
+
+model api_tokens {
+  token        String      @id
+  workspace_id String?     @db.Uuid
+  created_by   String
+  created_at   DateTime?   @default(now()) @db.Timestamp(6)
+  workspaces   workspaces? @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }

@@ -1,7 +1,7 @@
 # Track 1063: setup simplification
 
 **Lane**: review
-**Lane Status**: running
+**Lane Status**: queue
 **Waiting for reply**: yes
 **Progress**: 100%
 **Phase**: Review

@@ -6,6 +6,8 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const crypto = require("crypto");
 const dns = require("node:dns");
+const fetch = require("node-fetch");
+const adapterRegistry = require("./src/adapters");
 
 require('dotenv').config();
 admin.initializeApp();
@@ -13,17 +15,41 @@ admin.initializeApp();
 const dbPassword = defineSecret("CLOUD_DB_PASSWORD");
 const dbHost = defineSecret("CLOUD_DB_HOST");
 const dbUser = defineSecret("CLOUD_DB_USER");
+const dbUrl = defineSecret("DATABASE_URL");
 
 let pool;
 function createPool() {
-  // Use pooler host which is IPv4 compatible
+  const connectionString = dbUrl.value().trim();
+  
+  if (connectionString) {
+    console.log(`[pool] Creating new pool using connectionString from Secret Manager`);
+    const p = new Pool({
+      connectionString,
+      ssl: { rejectUnauthorized: false },
+      max: 3,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
+      lookup: (hostname, options, callback) => {
+        dns.lookup(hostname, { family: 4 }, callback);
+      }
+    });
+    
+    p.on('error', (err) => {
+      console.error('[pool] Error, will recreate on next request:', err.message);
+      pool = null;
+    });
+    
+    return p;
+  }
+
+  // Fallback to legacy individual secrets (e.g. for local testing)
   const host = dbHost.value().trim();
   const user = dbUser.value().trim();
-  const port = 5432; // session-mode pooler
+  const port = 5432;
   const database = "postgres";
   const password = dbPassword.value().trim();
 
-  console.log(`[pool] Creating new pool: host=${host} user=${user} port=${port} db=${database} (forcing IPv4)`);
+  console.log(`[pool] Creating new pool using individual secrets: host=${host}`);
 
   const p = new Pool({
     host,
@@ -183,6 +209,9 @@ async function checkProject(req, res, next) {
   }
 }
 
+// syncToJira is deprecated in favor of the Integration Proxy and Worker-led hooks.
+// Credentials should be managed per-project in the 'projects' table.
+
 // Routes
 app.get('/health', (req, res) => res.json({ ok: true, cloud: true }));
 
@@ -307,6 +336,105 @@ app.get('/api/projects', auth, async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/config', auth, checkProject, async (req, res) => {
+  try {
+    const r = await query(
+      'SELECT primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, repo_path, conductor_files, integrations FROM projects WHERE id = $1',
+      [req.project_id]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    const { primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, repo_path, conductor_files, integrations } = r.rows[0];
+
+    // Prefer DB conductor_files if set (source of truth for cloud)
+    let lcJson = {};
+    if (conductor_files?.laneconductor_json) {
+      try { lcJson = JSON.parse(conductor_files.laneconductor_json); } catch { /* ignore */ }
+    }
+
+    const proj = lcJson.project || {};
+    const lcPrimary = proj.primary || {};
+    const lcSecondary = proj.secondary || null;
+    const collectors = (lcJson.collectors || []).map(c => ({ url: c.url || '', token: c.token || '' }));
+
+    res.json({
+      primary: { cli: lcPrimary.cli || primary_cli || 'claude', model: lcPrimary.model || primary_model || '' },
+      secondary: lcSecondary ? { cli: lcSecondary.cli || '', model: lcSecondary.model || '' }
+        : (secondary_cli ? { cli: secondary_cli, model: secondary_model || '' } : null),
+      dev: proj.dev || null,
+      create_quality_gate: proj.create_quality_gate ?? create_quality_gate ?? false,
+      mode: lcJson.mode || 'local-api',
+      repo_path: repo_path || '',
+      git_remote: proj.git_remote || '',
+      collectors,
+      integrations: integrations || {},
+      db: lcJson.db || null,
+      ui_port: lcJson.ui?.port || 8090,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/projects/:id/config', auth, checkProject, async (req, res) => {
+  try {
+    const { primary, secondary, dev, create_quality_gate, collectors, db, ui_port, integrations } = req.body;
+
+    // 1. Update DB columns including the integrations JSONB
+    await query(
+      `UPDATE projects SET
+        primary_cli = $1, primary_model = $2,
+        secondary_cli = $3, secondary_model = $4,
+        create_quality_gate = $5,
+        integrations = COALESCE($6, integrations)
+       WHERE id = $7`,
+      [
+        primary?.cli || null, primary?.model || null,
+        secondary?.cli || null, secondary?.model || null,
+        create_quality_gate ?? false,
+        integrations ? JSON.stringify(integrations) : null,
+        req.project_id
+      ]
+    );
+
+    // 2. Sync to laneconductor_json inside conductor_files
+    const dbResult = await query('SELECT conductor_files FROM projects WHERE id = $1', [req.project_id]);
+    const conductor_files = dbResult.rows[0]?.conductor_files || {};
+    
+    let lcJson = {};
+    if (conductor_files.laneconductor_json) {
+      try { lcJson = typeof conductor_files.laneconductor_json === 'string' 
+        ? JSON.parse(conductor_files.laneconductor_json) 
+        : conductor_files.laneconductor_json; } catch { /* ignore */ }
+    }
+
+    if (!lcJson.project) lcJson.project = {};
+    if (primary) { lcJson.project.primary = { cli: primary.cli, model: primary.model || null }; }
+    if (secondary?.cli) { lcJson.project.secondary = { cli: secondary.cli, model: secondary.model || null }; }
+    else { delete lcJson.project.secondary; }
+    if (dev?.command || dev?.url) { lcJson.project.dev = dev; }
+    else { delete lcJson.project.dev; }
+    lcJson.project.create_quality_gate = create_quality_gate ?? false;
+    if (collectors) { 
+      lcJson.collectors = collectors.map(c => ({ 
+        url: c.url, 
+        token: c.token || null, 
+        ...(lcJson.collectors?.find(e => e.url === c.url) || {}) 
+      })); 
+    }
+    if (db) { lcJson.db = { ...lcJson.db, ...db }; }
+    if (ui_port) { lcJson.ui = { ...(lcJson.ui || {}), port: ui_port }; }
+
+    conductor_files.laneconductor_json = JSON.stringify(lcJson, null, 2);
+    
+    await query('UPDATE projects SET conductor_files = $1 WHERE id = $2', [conductor_files, req.project_id]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[patch/api/projects/:id/config] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -647,19 +775,25 @@ app.post('/project/ensure', auth, async (req, res) => {
     // pool via query() wrapper
 
     let git_global_id = provided_id;
-    if (!git_global_id && git_remote) {
-      // Deterministic UUID v5 for git_remote
-      const URL_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-      const ns = Buffer.from(URL_NAMESPACE.replace(/-/g, ''), 'hex');
-      const nameBytes = Buffer.from(git_remote.toLowerCase().replace(/\.git$/, ''), 'utf8');
-      const hash = crypto.createHash('sha1').update(ns).update(nameBytes).digest();
-      hash[6] = (hash[6] & 0x0f) | 0x50;
-      hash[8] = (hash[8] & 0x3f) | 0x80;
-      const h = hash.toString('hex');
-      git_global_id = `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+    if (!git_global_id) {
+      const salt = git_remote
+        ? git_remote.toLowerCase().replace(/\.git$/, '')
+        : (name ? `name:${req.workspace_id}:${name.toLowerCase()}` : null);
+
+      if (salt) {
+        // Deterministic UUID v5
+        const URL_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+        const ns = Buffer.from(URL_NAMESPACE.replace(/-/g, ''), 'hex');
+        const nameBytes = Buffer.from(salt, 'utf8');
+        const hash = crypto.createHash('sha1').update(ns).update(nameBytes).digest();
+        hash[6] = (hash[6] & 0x0f) | 0x50;
+        hash[8] = (hash[8] & 0x3f) | 0x80;
+        const h = hash.toString('hex');
+        git_global_id = `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+      }
     }
 
-    if (!git_global_id) return res.status(400).json({ error: 'git_remote or git_global_id required' });
+    if (!git_global_id) return res.status(400).json({ error: 'git_remote, name, or git_global_id required' });
 
     await query(`
       INSERT INTO projects (git_global_id, git_remote, name, repo_path, workspace_id, primary_cli, primary_model)
@@ -673,8 +807,12 @@ app.post('/project/ensure', auth, async (req, res) => {
       WHERE projects.workspace_id = $5
     `, [git_global_id, git_remote, name, repo_path, req.workspace_id, primary_cli, primary_model]);
 
-    res.json({ ok: true, git_global_id });
+    const { rows: projRows } = await query('SELECT id FROM projects WHERE git_global_id = $1', [git_global_id]);
+    const project_id = projRows[0].id;
+
+    res.json({ ok: true, git_global_id, project_id });
   } catch (err) {
+    console.error('[project/ensure] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -694,6 +832,8 @@ app.post('/track', auth, checkProject, async (req, res) => {
       current_phase, content_summary, phase_step,
       index_content, plan_content, spec_content, test_content
     } = req.body;
+
+    console.log(`[POST /track] project_id=${req.project_id} (body ${req.body.project_id}) track=${track_number}`);
 
     const insertLaneStatus = lane_status ?? 'planning';
     const insertActionStatus = 'waiting';
@@ -756,6 +896,17 @@ app.patch('/track/:num/action', auth, checkProject, async (req, res) => {
     if (progress_percent !== undefined) { sets.push(`progress_percent = $${i++}`); params.push(progress_percent); }
 
     await query(`UPDATE tracks SET ${sets.join(', ')} WHERE project_id = $1 AND track_number = $2`, params);
+
+    // Jira Feedback Loop
+    if (lane_status === 'done' || lane_status === 'review' || lane_action_result === 'success') {
+      const { rows } = await query('SELECT title FROM tracks WHERE project_id = $1 AND track_number = $2', [req.project_id, req.params.num]);
+      if (rows.length > 0) {
+        let msg = `Track status updated to ${lane_status || 'completed'}.`;
+        if (lane_action_result === 'success') msg += ` Action completed successfully.`;
+        syncToJira(req.params.num, `[LaneConductor] ${msg}`);
+      }
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error('[patch /track/:num/action] Error:', err);
@@ -820,6 +971,11 @@ app.post('/track/:num/comment', auth, checkProject, async (req, res) => {
     }
 
     res.status(201).json(r.rows[0]);
+
+    // Jira Feedback Loop for human comments
+    if (author === 'human' || author === 'claude' || author === 'gemini') {
+      syncToJira(req.params.num, `[LaneConductor] ${author}: ${body}`);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1133,5 +1289,202 @@ app.post('/tracks/claim-waiting', auth, async (req, res) => {
   }
 });
 
-exports.api = onRequest({ invoker: "public", secrets: [dbPassword, dbHost, dbUser] }, app);
+// ── Integration Proxy (e.g., Worker -> Jira) ─────────────────────────────────
+
+app.post('/v1/projects/:projectId/integrations/:provider/proxy', auth, async (req, res) => {
+  const { projectId, provider } = req.params;
+  const { path, method = 'POST', body, headers = {} } = req.body;
+
+  try {
+    // 1. Verify project access
+    const { rows: projRows } = await query(
+      'SELECT integrations FROM projects WHERE id = $1 AND workspace_id = $2',
+      [projectId, req.workspace_id]
+    );
+
+    if (projRows.length === 0) {
+      return res.status(404).json({ error: 'Project not found or access denied' });
+    }
+
+    const integrations = projRows[0].integrations || {};
+    const config = integrations[provider];
+
+    if (!config) {
+      return res.status(400).json({ error: `No configuration found for provider: ${provider}` });
+    }
+
+    // 2. Handle Provider-specific Proxy Logic
+    if (provider === 'jira') {
+      const { domain, email, token } = config;
+      if (!domain || !email || !token) {
+        return res.status(500).json({ error: 'Incomplete Jira integration configuration. Required: domain, email, token' });
+      }
+
+      const jiraUrl = `https://${domain}${path}`;
+      const authHeader = 'Basic ' + Buffer.from(`${email}:${token}`).toString('base64');
+
+      console.log(`[proxy] Forwarding ${method} to Jira: ${jiraUrl}`);
+
+      const response = await fetch(jiraUrl, {
+        method,
+        headers: {
+          ...headers,
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: (method !== 'GET' && method !== 'HEAD' && body) ? JSON.stringify(body) : undefined
+      });
+
+      const data = await response.json().catch(() => ({}));
+      return res.status(response.status).json(data);
+    }
+
+    res.status(400).json({ error: `Proxy not implemented for provider: ${provider}` });
+  } catch (err) {
+    console.error(`[proxy] Error calling ${provider}:`, err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Generic Webhook Router (authenticated via ?token=) ───────────────────────
+
+app.post('/v1/webhooks/:format', async (req, res) => {
+  const { format } = req.params;
+  const token = req.query.token;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing webhook token. Use ?token=YOUR_PROJECT_WEBHOOK_TOKEN' });
+  }
+
+  try {
+    // 1. Find the project and integration config by token
+    const { rows: projRows } = await query(
+      `SELECT id, workspace_id, integrations->'${format}' as config
+       FROM projects
+       WHERE (integrations->'${format}'->>'webhookToken' = $1)
+          OR (integrations->'${format}'->>'webhook_token' = $1)`,
+      [token]
+    );
+
+    if (projRows.length === 0) {
+      return res.status(401).json({ error: 'Invalid webhook token' });
+    }
+
+    const { id: projectId, workspace_id: workspaceId, config } = projRows[0];
+
+    // 2. Verify signature if the service requires it
+    const signature = req.headers['x-hub-signature'] || req.headers['x-atlassian-webhook-signature'];
+    const webhookSecret = config?.webhookSecret || config?.webhook_secret;
+
+    if (webhookSecret && signature) {
+      const hmac = crypto.createHmac('sha256', webhookSecret);
+      const digest = hmac.update(JSON.stringify(req.body)).digest('hex');
+      const provided = signature.replace('sha256=', '');
+      if (provided !== digest) {
+        console.warn(`[webhook:${format}] Invalid signature for project ${projectId}`);
+        return res.status(401).send('Invalid signature');
+      }
+    }
+
+    // 3. Translate and Upsert
+    const action = adapterRegistry.translate(format, req.body);
+    if (!action) return res.status(200).send('Event ignored by adapter');
+
+    if (action.type === 'UPSERT_TRACK') {
+      await query(`
+        INSERT INTO tracks (project_id, track_number, title, content_summary, integrations, last_heartbeat)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (project_id, track_number) DO UPDATE SET
+          title = EXCLUDED.title,
+          content_summary = EXCLUDED.content_summary,
+          integrations = EXCLUDED.integrations,
+          last_heartbeat = NOW()
+      `, [projectId, action.track_number, action.title, action.summary, action.metadata]);
+
+      console.log(`[webhook:${format}] Upserted track ${action.track_number} for project ${projectId}`);
+      return res.status(200).json({ ok: true, track: action.track_number });
+    }
+
+    res.status(400).json({ error: 'Unsupported action type' });
+  } catch (err) {
+    console.error(`[webhook:${format}] Error:`, err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Legacy Jira Webhook (DEPRECATED: Use /v1/webhooks/jira?token=...) ─────────
+// Removing to avoid confusion and enforce secure project-specific logic.
+
+// ── File Sync Queue ─────────────────────────────────────────────────────────
+
+app.post('/file-sync/claim', auth, async (req, res) => {
+  try {
+    const { limit = 10 } = req.body;
+    const projectId = req.body.project_id || req.query.project_id;
+    if (!projectId) return res.status(400).json({ error: 'project_id required' });
+
+    // Verify project belongs to workspace
+    const projCheck = await query(
+      'SELECT id FROM projects WHERE id = $1 AND workspace_id = $2',
+      [projectId, req.workspace_id]
+    );
+    if (projCheck.rows.length === 0) return res.status(403).json({ error: 'forbidden: project not in workspace' });
+
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const r = await client.query(`
+        UPDATE file_sync_queue
+        SET status = 'running', worker_id = $2, updated_at = NOW()
+        WHERE id IN (
+          SELECT id FROM file_sync_queue
+          WHERE project_id = $1 AND status = 'waiting'
+          ORDER BY created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT $3
+        )
+        RETURNING id, file_path, content
+      `, [projectId, req.api_token || 'machine', limit]);
+      await client.query('COMMIT');
+      res.json({ tasks: r.rows });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/file-sync/:id', auth, async (req, res) => {
+  try {
+    const { status, error_message } = req.body;
+    await query(
+      'UPDATE file_sync_queue SET status = $1, error_message = $2, updated_at = NOW() WHERE id = $3',
+      [status, error_message, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/file-sync/:id', auth, async (req, res) => {
+  try {
+    const r = await query('SELECT status, error_message FROM file_sync_queue WHERE id = $1', [req.params.id]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Sync task not found' });
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+exports.api = onRequest({ invoker: "public", secrets: [dbPassword, dbHost, dbUser, dbUrl] }, app);
 // forced update for environment (2026-03-06 15:40)
+
+if (process.env.NODE_ENV === 'test') {
+  module.exports = app;
+}

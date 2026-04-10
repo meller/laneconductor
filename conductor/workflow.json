@@ -32,7 +32,15 @@
       "on_failure": "plan:queue"
     },
     "done": {
-      "parallel_limit": 1
+      "parallel_limit": 1,
+      "hooks": [
+        {
+          "on": "success",
+          "provider": "jira",
+          "action": "comment",
+          "body": "LaneConductor: Track {{track}} has successfully completed the workflow and is now in the 'done' lane."
+        }
+      ]
     }
   }
 }

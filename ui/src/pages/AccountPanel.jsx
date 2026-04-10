@@ -4,9 +4,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useApi } from '../hooks/useApi';
 
 export function AccountPanel({ onClose }) {
-  const { user, logout } = useAuth();
+  const { user, logout, idToken } = useAuth();
+  const { apiFetch } = useApi();
   const [apiKeys, setApiKeys] = useState([]);
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState(null);
@@ -14,7 +16,8 @@ export function AccountPanel({ onClose }) {
   const [notification, setNotification] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => { fetchApiKeys(); }, []);
+  // Wait for idToken to be ready before fetching keys (avoids 401 on first render)
+  useEffect(() => { if (idToken) fetchApiKeys(); }, [idToken]);
 
   useEffect(() => {
     if (notification) {
@@ -25,7 +28,7 @@ export function AccountPanel({ onClose }) {
 
   async function fetchApiKeys() {
     try {
-      const r = await fetch('/api/keys');
+      const r = await apiFetch('/api/keys');
       if (r.ok) setApiKeys(await r.json());
     } catch { /* ignore */ }
   }
@@ -35,9 +38,8 @@ export function AccountPanel({ onClose }) {
     setKeySaving(true);
     setGeneratedKey(null);
     try {
-      const r = await fetch('/api/keys', {
+      const r = await apiFetch('/api/keys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newKeyName.trim() || null }),
       });
       if (!r.ok) throw new Error(await r.text());
@@ -55,7 +57,7 @@ export function AccountPanel({ onClose }) {
   async function handleRevokeKey(id) {
     if (!confirm('Revoke this key? Workers using it will lose access.')) return;
     try {
-      const r = await fetch(`/api/keys/${id}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/keys/${id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await r.text());
       await fetchApiKeys();
       setNotification({ type: 'success', message: 'Key revoked.' });
@@ -192,10 +194,20 @@ export function AccountPanel({ onClose }) {
               </p>
             </div>
             <div className="space-y-3">
-              <Step n={1} label="Generate an API key above, then configure your worker:">
-                <Cmd>lc config mode remote-api \<br/>
-                &nbsp;&nbsp;--url https://app.laneconductor.com \<br/>
-                &nbsp;&nbsp;--key YOUR_API_KEY</Cmd>
+              <Step n={1} label="Configure your worker target (Option A or B):">
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-1 uppercase tracking-tighter font-bold">A: Standard Setup</p>
+                    <Cmd>lc add-target --url https://app.laneconductor.com \<br/>
+                    &nbsp;&nbsp;--key YOUR_API_KEY</Cmd>
+                  </div>
+                  <div className="border-t border-gray-800 pt-3">
+                    <p className="text-[10px] text-blue-400 mb-1 uppercase tracking-tighter font-bold">B: GCP Secret Manager (Recommended)</p>
+                    <Cmd>lc add-target --url https://app.laneconductor.com \<br/>
+                    &nbsp;&nbsp;--store-type gcp-secret \<br/>
+                    &nbsp;&nbsp;--secret-name MY_PROD_SECRET</Cmd>
+                  </div>
+                </div>
               </Step>
               <Step n={2} label="Start the worker in your project:">
                 <Cmd>lc start</Cmd>
