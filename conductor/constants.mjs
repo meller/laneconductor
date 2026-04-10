@@ -5,8 +5,7 @@
  */
 
 export const Lanes = {
-  PLANNING: 'planning',         // The staging/drafting lane
-  PLAN: 'plan',                 // Alias/Legacy for planning
+  PLAN: 'plan',                 // Planning/drafting lane
   IMPLEMENT: 'implement',       // Active development
   REVIEW: 'review',             // Human or AI review
   QUALITY_GATE: 'quality-gate', // Automated checks

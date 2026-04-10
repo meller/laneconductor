@@ -48,6 +48,7 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
 
         // Group tracks by their lane_action_status
         const groupedByStatus = {
+          waiting: laneTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
           queue: laneTracks.filter(t => t.lane_action_status === 'queue'),
           running: laneTracks.filter(t => t.lane_action_status === 'running'),
           success: laneTracks.filter(t => t.lane_action_status === 'success'),
@@ -55,6 +56,7 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
         };
 
         const statusConfig = {
+          waiting: { emoji: '⌛', label: 'Waiting', color: 'text-gray-500', show: true },
           queue: { emoji: '⏳', label: 'Queued', color: 'text-yellow-500', show: true },
           running: { emoji: '🔄', label: 'Running', color: 'text-blue-500', show: true },
           success: { emoji: '✅', label: 'Success', color: 'text-green-500', show: true },
