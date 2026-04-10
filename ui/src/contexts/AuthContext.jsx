@@ -17,9 +17,12 @@ let _firebaseAuth = null;
 
 // Determine API base URL: use Cloud Run for remote, relative path for local
 function getApiBaseUrl() {
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (typeof window === 'undefined') return '';
+  const hostname = window.location.hostname;
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
   if (isLocal) return '';
   // Use Cloud Run API URL for remote access (works around Firebase Hosting rewrite issues)
+  // This includes laneconductor-app.web.app and app.laneconductor.com
   return 'https://api-pu7bcq73zq-uc.a.run.app';
 }
 
