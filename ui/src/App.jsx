@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePolling } from './hooks/usePolling.js';
+import { useApi } from './hooks/useApi.js';
 import { ProjectSelector } from './components/ProjectSelector.jsx';
 import { KanbanBoard } from './components/KanbanBoard.jsx';
 import { ConductorPanel } from './components/ConductorPanel.jsx';
@@ -57,6 +58,7 @@ function AppInner() {
 }
 
 function AppContent({ user, logout }) {
+  const { apiFetch } = useApi();
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [conductorOpen, setConductorOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -106,9 +108,8 @@ function AppContent({ user, logout }) {
   async function handleRerunImplement(track) {
     const pid = track.project_id ?? selectedProjectId;
     try {
-      await fetch(`/api/projects/${pid}/tracks/${track.track_number}/implement`, {
+      await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}/implement`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       refetch();
     } catch (err) {
@@ -119,7 +120,7 @@ function AppContent({ user, logout }) {
   async function handleDeleteTrack(track) {
     const pid = track.project_id ?? selectedProjectId;
     try {
-      await fetch(`/api/projects/${pid}/tracks/${track.track_number}`, { method: 'DELETE' });
+      await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}`, { method: 'DELETE' });
       refetch();
     } catch (err) {
       console.error('Delete track failed:', err);
@@ -129,9 +130,8 @@ function AppContent({ user, logout }) {
   async function handleFixReview(track) {
     const pid = track.project_id ?? selectedProjectId;
     try {
-      await fetch(`/api/projects/${pid}/tracks/${track.track_number}/fix-review`, {
+      await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}/fix-review`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       refetch();
     } catch (err) {
@@ -143,9 +143,8 @@ function AppContent({ user, logout }) {
     const { track, targetLane } = pendingAction;
     const pid = track.project_id ?? selectedProjectId;
     try {
-      await fetch(`/api/projects/${pid}/tracks/${track.track_number}`, {
+      await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lane_status: targetLane }),
       });
       refetch();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useApi } from '../hooks/useApi';
 
 const VISIBILITY_OPTIONS = [
   { value: 'private', label: 'Private', desc: 'Only you can use this worker', icon: '🔒' },
@@ -7,6 +8,7 @@ const VISIBILITY_OPTIONS = [
 ];
 
 export function WorkerVisibilityDialog({ worker, onClose, onUpdated }) {
+  const { apiFetch } = useApi();
   const [visibility, setVisibility] = useState(worker.visibility || 'private');
   const [permissions, setPermissions] = useState([]);
   const [inviteUid, setInviteUid] = useState('');
@@ -19,7 +21,7 @@ export function WorkerVisibilityDialog({ worker, onClose, onUpdated }) {
 
   async function fetchPermissions() {
     try {
-      const r = await fetch(`/api/workers/${worker.id}/permissions`);
+      const r = await apiFetch(`/api/workers/${worker.id}/permissions`);
       if (r.ok) setPermissions(await r.json());
     } catch { /* ignore */ }
   }
@@ -28,9 +30,8 @@ export function WorkerVisibilityDialog({ worker, onClose, onUpdated }) {
     setSaving(true);
     setError(null);
     try {
-      const r = await fetch(`/api/workers/${worker.id}/visibility`, {
+      const r = await apiFetch(`/api/workers/${worker.id}/visibility`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ visibility: v }),
       });
       if (!r.ok) throw new Error(await r.text());
@@ -49,9 +50,8 @@ export function WorkerVisibilityDialog({ worker, onClose, onUpdated }) {
     setSaving(true);
     setError(null);
     try {
-      const r = await fetch(`/api/workers/${worker.id}/permissions`, {
+      const r = await apiFetch(`/api/workers/${worker.id}/permissions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_uid: inviteUid.trim() }),
       });
       if (!r.ok) throw new Error(await r.text());
@@ -68,7 +68,7 @@ export function WorkerVisibilityDialog({ worker, onClose, onUpdated }) {
     setSaving(true);
     setError(null);
     try {
-      const r = await fetch(`/api/workers/${worker.id}/permissions/${encodeURIComponent(uid)}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/workers/${worker.id}/permissions/${encodeURIComponent(uid)}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(await r.text());
       await fetchPermissions();
     } catch (err) {

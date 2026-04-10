@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useApi } from '../hooks/useApi';
 
 const LANE_BADGE = {
   plan: 'bg-indigo-900 text-indigo-300',
@@ -88,6 +89,7 @@ function InboxRow({ item, showProject, onSelect, onDismiss }) {
 }
 
 export function InboxPanel({ projectId, onSelectTrack, onClose }) {
+  const { apiFetch } = useApi();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const pollRef = useRef(null);
@@ -97,7 +99,7 @@ export function InboxPanel({ projectId, onSelectTrack, onClose }) {
       const url = projectId
         ? `/api/inbox?project_id=${projectId}`
         : '/api/inbox';
-      const r = await fetch(url);
+      const r = await apiFetch(url);
       if (!r.ok) return;
       const data = await r.json();
       setItems(data);
@@ -107,7 +109,7 @@ export function InboxPanel({ projectId, onSelectTrack, onClose }) {
 
   const handleDismiss = async (projId, trackNum) => {
     try {
-      const r = await fetch(`/api/projects/${projId}/tracks/${trackNum}/dismiss`, {
+      const r = await apiFetch(`/api/projects/${projId}/tracks/${trackNum}/dismiss`, {
         method: 'POST'
       });
       if (r.ok) {

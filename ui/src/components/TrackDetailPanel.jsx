@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer.jsx';
 import { DevServerButton } from './DevServerButton.jsx';
+import { useApi } from '../hooks/useApi';
 
 const CONTENT_TABS = [
   { key: 'index', label: 'Overview' },
@@ -49,6 +50,7 @@ function CommentBubble({ comment }) {
 }
 
 export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }) {
+  const { apiFetch } = useApi();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,7 +67,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
 
   // Fetch track detail
   const fetchDetail = () => {
-    fetch(`/api/projects/${projectId}/tracks/${trackNumber}`)
+    apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`)
       .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
       .then(data => { setDetail(data); setLoading(false); })
       .catch(err => { setError(String(err)); setLoading(false); });
@@ -83,7 +85,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   useEffect(() => {
     async function fetchComments() {
       try {
-        const r = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`);
+        const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`);
         if (!r.ok) return;
         const data = await r.json();
         setComments(data);
@@ -122,9 +124,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     const description = draft.trim() || undefined;
     setSending(true);
     try {
-      const r = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}/open-bug`, {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/open-bug`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description }),
       });
       if (r.ok) {
@@ -146,9 +147,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     if (!body && !command && !newLaneStatus && sending) return;
     setSending(true);
     try {
-      const r = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`, {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ author: 'human', body: body || `Triggering ${command}...`, no_wake: noWake, command }),
       });
       if (r.ok) {
@@ -160,9 +160,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       }
 
       if (typeof newLaneStatus === 'string') {
-        const pr = await fetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
+        const pr = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lane_status: newLaneStatus }),
         });
         if (pr.ok) {

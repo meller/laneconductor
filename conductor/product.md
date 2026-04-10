@@ -14,56 +14,27 @@ LaneConductor is a local-first "Control Plane" for AI developer agents. It gives
 - **Sovereign**: 100% local — no cloud, no auth, no cost
 - **Agent-First**: Designed specifically for the workflow of AI coding assistants
 
-## Three Operating Modes
+LaneConductor supports **Multi-Target Synchronization**. You no longer select a global mode; instead, you configure individual **Collectors** in `.laneconductor.json`. Each collector has its own type and enabled status.
 
-LaneConductor supports three operating modes, selected by `config.mode` in `.laneconductor.json` (or auto-detected from the collector URL):
+| Target Type | Use Case | Auth / Key |
+|-------------|----------|------------|
+| **local-api** | Local Postgres + Kanban dashboard | None (🔓 local-api) |
+| **remote-api** | Cloud / multi-machine sync | Token (🔑 .env or 🔒 GCP Secret) |
 
-| Mode | `config.mode` | When to use | DB / UI needed? |
-|------|--------------|-------------|-----------------|
-| **local-fs** | `"local-fs"` | Offline, CI, testing — no API or DB | No |
-| **local-api** | `"local-api"` | Daily development with the Kanban dashboard | Yes (localhost) |
-| **remote-api** | `"remote-api"` | Multi-machine / cloud collector | Yes (remote URL) |
+The project runs in **local-fs** mode if zero enabled collectors are configured.
 
-### Mode 1: local-fs (pure filesystem)
-The worker reads and writes Markdown files only. No Collector API is called.
-Ideal for CI pipelines, offline environments, and automated tests.
+### Worker & Target Management
+Registration and synchronization are managed via the unified `lc` CLI:
+- `lc worker <start|stop|restart|status|logs|sync>`: Manage the background heartbeat daemon.
+- `lc add-target --url <url> [--key <key>] [--store-type gcp-secret]`: Add a sync endpoint.
+- `lc enable-target <url>` / `lc disable-target <url>`: Granularly control where sync traffic flows.
+- `lc remove-target <url>`: Permanently remove a collector.
+- `lc status`: Real-time dashboard with integrated worker health monitoring.
 
-```json
-{ "mode": "local-fs",
-  "project": { "name": "my-app", "id": null, "repo_path": "/path/to/repo",
-               "primary": { "cli": "claude", "model": "sonnet" } },
-  "collectors": [], "ui": { "port": 8090 } }
-```
-
-### Mode 2: local-api (local Postgres + Kanban UI)
-The worker syncs with a local Express Collector (`localhost:8091`) backed by Postgres.
-Provides the full Kanban dashboard at `http://localhost:8090`.
-Git lock/worktree coordination prevents double-claiming tracks across workers.
-
-```json
-{ "mode": "local-api",
-  "project": { "name": "my-app", "id": 1, "repo_path": "/path/to/repo",
-               "primary": { "cli": "claude", "model": "sonnet" } },
-  "collectors": [{ "url": "http://localhost:8091", "token": null }],
-  "ui": { "port": 8090 } }
-```
-
-### Mode 3: remote-api (cloud / self-hosted collector)
-Identical to local-api from the worker's perspective — just a remote URL.
-Use when the collector runs on a separate machine or cloud instance.
-
-```json
-{ "mode": "remote-api",
-  "project": { "name": "my-app", "id": 42, "repo_path": "/path/to/repo",
-               "primary": { "cli": "claude", "model": "sonnet" } },
-  "collectors": [{ "url": "https://collector.example.com", "token": "lc_xxx" }],
-  "ui": { "port": 8090 } }
-```
-
-**Auto-detection** (when `config.mode` is omitted):
-- No collectors → `local-fs`
-- Collector URL contains `localhost` or `127.0.0.1` → `local-api`
-- Any other URL → `remote-api`
+### Secure Secret Management
+For production environments, hardcoded `.env` tokens are discouraged. LaneConductor supports **dynamic runtime resolution** via GCP Secret Manager:
+- Configure a target with `--store-type gcp-secret --secret-name NAME`.
+- The worker will transparently fetch the key using `gcloud` credentials when syncing.
 
 ---
 
@@ -210,6 +181,7 @@ The Brains signals its internal state by writing specific bold markers in `index
    - **Track Management**: `lc move`, `lc comment`, `lc pulse`, `lc logs`.
    - **Validation**: `lc verify`, `lc quality-gate`.
    - **Transitions**: `lc plan`, `lc implement`, `lc review`, etc.
+   - **Infrastructure**: `lc list-targets`, `lc add-target`, `lc enable-target`, `lc disable-target`.
 
 6. **Kanban Dashboard (Local & Cloud)**:
    - Vite + React UI rendering track progress visually.

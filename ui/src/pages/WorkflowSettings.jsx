@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { WorkflowGraph } from '../components/WorkflowGraph.jsx';
+import { useApi } from '../hooks/useApi';
 
 export function WorkflowSettings({ projectId, onClose }) {
+  const { apiFetch } = useApi();
   const [activeTab, setActiveTab] = useState('visual');
   const [selectedLane, setSelectedLane] = useState(null);
   const [config, setConfig] = useState(null);
@@ -25,7 +27,7 @@ export function WorkflowSettings({ projectId, onClose }) {
   async function fetchWorkflow() {
     try {
       setLoading(true);
-      const r = await fetch(`/api/projects/${projectId}/workflow`);
+      const r = await apiFetch(`/api/projects/${projectId}/workflow`);
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json();
       setConfig(data);
@@ -48,9 +50,8 @@ export function WorkflowSettings({ projectId, onClose }) {
         return;
       }
 
-      const r = await fetch(`/api/projects/${projectId}/workflow`, {
+      const r = await apiFetch(`/api/projects/${projectId}/workflow`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: parsed }),
       });
       if (!r.ok) throw new Error(await r.text());

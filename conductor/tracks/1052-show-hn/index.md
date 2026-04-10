@@ -1,7 +1,7 @@
 # Track 1052: Show HN Post
 
 **Lane**: done
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 71%
 **Phase**: New
 **Summary**: Full multi-agent origin story angle — Gemini conductor + Claude superpowers + OpenClaw meet on a Kanban board.

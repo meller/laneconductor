@@ -1,6 +1,6 @@
 {
   "name": "lane-conductor-ui",
-  "version": "1.0.0",
+  "version": "1.0.15",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"node server/index.mjs\" \"vite\"",

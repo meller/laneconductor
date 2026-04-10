@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useApi } from '../hooks/useApi';
 
 /**
  * DevServerButton — Control a project's dev server from the UI
@@ -7,6 +8,7 @@ import React, { useState, useEffect } from 'react';
  *   devUrl (string) — Configured dev server URL (e.g., "http://localhost:3000")
  */
 export function DevServerButton({ projectId, devUrl }) {
+  const { apiFetch } = useApi();
   const [running, setRunning] = useState(false);
   const [pid, setPid] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ export function DevServerButton({ projectId, devUrl }) {
   // Fetch status on mount and poll every 3 seconds
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/dev-server/status`);
+      const response = await apiFetch(`/api/projects/${projectId}/dev-server/status`);
       if (!response.ok) throw new Error('Failed to fetch status');
       const data = await response.json();
       setRunning(data.running);
@@ -41,7 +43,7 @@ export function DevServerButton({ projectId, devUrl }) {
   const handleStart = async () => {
     setStartLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/dev-server/start`, {
+      const response = await apiFetch(`/api/projects/${projectId}/dev-server/start`, {
         method: 'POST',
       });
       if (response.status === 400) {
@@ -61,7 +63,7 @@ export function DevServerButton({ projectId, devUrl }) {
   const handleStop = async () => {
     setStartLoading(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/dev-server/stop`, {
+      const response = await apiFetch(`/api/projects/${projectId}/dev-server/stop`, {
         method: 'POST',
       });
       if (!response.ok) throw new Error('Failed to stop dev server');

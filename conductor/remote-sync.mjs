@@ -5,6 +5,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { dirname, join } from 'path';
+import { spawnSync } from 'child_process';
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
@@ -25,16 +26,45 @@ if (!projectId) {
   process.exit(1);
 }
 
+// Resolve token for collector at index idx (checks .env COLLECTOR_n_TOKEN first)
+function getCollectorToken(idx) {
+  const c = collectors[idx];
+  if (!c) return null;
+
+  if (c.store_type === 'gcp-secret' && c.secret_name) {
+    try {
+        const res = spawnSync('gcloud', ['secrets', 'versions', 'access', 'latest', '--secret', c.secret_name], { encoding: 'utf8' });
+        if (res.status === 0 && res.stdout) {
+            return res.stdout.trim();
+        }
+        console.warn(`[remote-sync] ⚠️  GCP Secret fetch failed for ${c.secret_name}`);
+    } catch (e) {}
+  }
+
+  if (existsSync('.env')) {
+    const env = readFileSync('.env', 'utf8');
+    const m = env.match(new RegExp(`COLLECTOR_${idx}_TOKEN=([^\\n]+)`));
+    if (m) return m[1].trim();
+  }
+  return c.token || c.machine_token || null;
+}
+
+const primaryToken = getCollectorToken(0);
+
 // ── API Client ────────────────────────────────────────────────────────────
 
+// Fetch tracks from the primary collector (read source of truth)
 async function fetchTracks(trackNumber = null) {
+  const token = primaryToken;
   try {
     let url = `${collectorUrl}/api/projects/${projectId}/tracks`;
     if (trackNumber) {
       url += `?track=${trackNumber}`;
     }
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
     if (!response.ok) {
       throw new Error(`${response.status} ${await response.text()}`);
     }
@@ -46,11 +76,17 @@ async function fetchTracks(trackNumber = null) {
   }
 }
 
-async function syncTrackToDB(trackNumber, updates) {
+// Push a track update to a specific collector
+async function syncTrackToCollector(collectorIdx, trackNumber, updates) {
+  const c = collectors[collectorIdx];
+  const token = getCollectorToken(collectorIdx);
   try {
-    const response = await fetch(`${collectorUrl}/api/projects/${projectId}/tracks/${trackNumber}`, {
+    const response = await fetch(`${c.url}/api/projects/${projectId}/tracks/${trackNumber}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify(updates),
     });
 
@@ -60,9 +96,27 @@ async function syncTrackToDB(trackNumber, updates) {
 
     return await response.json();
   } catch (err) {
-    console.error(`[remote-sync] Failed to sync track ${trackNumber} to DB:`, err.message);
+    console.error(`[remote-sync] Failed to sync track ${trackNumber} to collector[${collectorIdx}] ${c.url}:`, err.message);
     throw err;
   }
+}
+
+// Fan-out: push track updates to ALL *enabled* collectors simultaneously
+async function syncTrackToDB(trackNumber, updates) {
+  const activeCollectors = collectors.filter(c => c.enabled !== false);
+  const results = await Promise.allSettled(
+    activeCollectors.map((c) => {
+        const idx = collectors.indexOf(c);
+        return syncTrackToCollector(idx, trackNumber, updates);
+    })
+  );
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0 && failed.length < activeCollectors.length) {
+    console.warn(`[remote-sync] ⚠️  ${failed.length}/${activeCollectors.length} collectors failed for track ${trackNumber}`);
+  } else if (activeCollectors.length > 0 && failed.length === activeCollectors.length) {
+    throw new Error(`All enabled collectors failed for track ${trackNumber}`);
+  }
+  return results;
 }
 
 // ── File Operations ────────────────────────────────────────────────────────

@@ -19,7 +19,9 @@ LaneConductor is a **sovereign developer environment** that orchestrates AI agen
 
 ## ⚡ Key Features
 
-- **Sovereign & Local-First**: Runs 100% on your hardware. No cloud, no auth, no hidden costs.
+- **Hybrid Operating Modes**:
+    - **Local-First**: Runs 100% on your hardware via local SQLite/Postgres. Zero cloud, zero cost.
+    - **Remote / Team Mode**: Scales to production via Google Cloud Functions and **Neon Postgres**, enabling shared visibility for distributed teams.
 - **The Conductor Pattern**: A structured **Plan → Implement → Review → Quality Gate → Done** pipeline. Compatible with the [Gemini CLI conductor format](https://github.com/google-gemini/gemini-cli).
 - **Filesystem Message Bus**: Uses simple Markdown files in `conductor/tracks/` as the source of truth, enabling agents and humans to coordinate seamlessly.
 - **Live Kanban Dashboard**: A Vite + React dashboard that syncs in real-time with your filesystem via a local Postgres database.
@@ -83,7 +85,8 @@ For a deep dive into operating modes, CLI reference, and workflow configuration,
 - `bin/`: The universal `lc` command-line tool.
 - `conductor/`: Core orchestrator logic and heartbeat worker.
 - `ui/`: Vite + React Kanban dashboard and Express API.
-- `cloud/`: Firebase functions for remote/team mode.
+- `cloud/`: Firebase functions and Postgres connectors for remote/team mode.
+- `migrations/`: Schema versioning using Atlas.
 - `.claude/skills/`: The specialized AI skill definition for Claude.
 
 ---

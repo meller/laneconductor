@@ -9,25 +9,39 @@ const dns = require("node:dns");
 const cloudDbPassword = defineSecret('CLOUD_DB_PASSWORD');
 const cloudDbHost = defineSecret('CLOUD_DB_HOST');
 const cloudDbUser = defineSecret('CLOUD_DB_USER');
+const cloudDbUrl = defineSecret('DATABASE_URL');
 
 let pool;
 function getPool() {
   if (!pool) {
-    const host = cloudDbHost.value().trim();
-    const user = cloudDbUser.value().trim();
-    const port = Number(process.env.CLOUD_DB_PORT || 5432);
-    const database = process.env.CLOUD_DB_NAME || "postgres";
-    const password = cloudDbPassword.value();
+    const connectionString = cloudDbUrl.value().trim();
 
-    console.log(`[reader pool] Creating new pool → user: ${user}, host: ${host}, port: ${port}, db: ${database} (forcing IPv4)`);
+    if (connectionString) {
+      console.log(`[reader pool] Creating new pool using connectionString from Secret Manager`);
+      pool = new Pool({
+        connectionString,
+        ssl: { rejectUnauthorized: false },
+        lookup: (hostname, options, callback) => {
+          dns.lookup(hostname, { family: 4 }, callback);
+        }
+      });
+    } else {
+      const host = cloudDbHost.value().trim();
+      const user = cloudDbUser.value().trim();
+      const port = Number(process.env.CLOUD_DB_PORT || 5432);
+      const database = process.env.CLOUD_DB_NAME || "postgres";
+      const password = cloudDbPassword.value();
 
-    pool = new Pool({
-      host, port, database, user, password,
-      ssl: { rejectUnauthorized: true },
-      lookup: (hostname, options, callback) => {
-        dns.lookup(hostname, { family: 4 }, callback);
-      }
-    });
+      console.log(`[reader pool] Creating new pool (legacy) → user: ${user}, host: ${host}`);
+
+      pool = new Pool({
+        host, port, database, user, password,
+        ssl: { rejectUnauthorized: false },
+        lookup: (hostname, options, callback) => {
+          dns.lookup(hostname, { family: 4 }, callback);
+        }
+      });
+    }
   }
   return pool;
 }
@@ -368,4 +382,4 @@ app.get('/api/inbox', auth, async (req, res) => {
   }
 });
 
-exports.reader = onRequest({ secrets: [cloudDbPassword, cloudDbHost, cloudDbUser] }, app);
+exports.reader = onRequest({ secrets: [cloudDbPassword, cloudDbHost, cloudDbUser, cloudDbUrl] }, app);

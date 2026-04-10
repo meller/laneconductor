@@ -362,6 +362,13 @@
                 </ul>
             </div>
             <div class="sidebar-group">
+                <div class="sidebar-title">Integrations</div>
+                <ul class="sidebar-links">
+                    <li><a href="#modular-integrations">Modular Architecture</a></li>
+                    <li><a href="#jira-workflow">Jira Workflow</a></li>
+                </ul>
+            </div>
+            <div class="sidebar-group">
                 <div class="sidebar-title">Workflow</div>
                 <ul class="sidebar-links">
                     <li><a href="#lifecycle">Track Lifecycle</a></li>
@@ -564,6 +571,46 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
     "plan": { "model": "haiku" },
     "implement": { "model": "sonnet" }
   }
+}</code></pre>
+            </section>
+
+            </section>
+            
+            <section id="modular-integrations">
+                <h2>Modular Integrations</h2>
+                <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. Instead of hardcoding third-party logic into the core engine, we use a <strong>Modular Adapter Registry</strong> on the Cloud API.</p>
+                
+                <div class="callout">
+                    <div class="callout-title">Architecture</div>
+                    <p>Integrations are split between <strong>Inbound Webhooks</strong> (Provider &rarr; Cloud &rarr; LC Command) and <strong>Outbound Hooks</strong> (Worker &rarr; Cloud Proxy &rarr; Provider).</p>
+                </div>
+
+                <h3>Secure Proxying</h3>
+                <p>Local workers never see third-party API keys. When a worker needs to update an external service (like Jira), it calls the authenticated <strong>Integration Proxy</strong> on the Cloud API. The API injects the project-specific secrets and forwards the request, ensuring credentials never leave the secure cloud environment.</p>
+
+                <h3>Metadata Mapping</h3>
+                <p>Project and Track metadata is stored in <code>integrations</code> JSONB columns, allowing bidirectional mapping between local tracks and external resources (e.g., mapping Track 1067 to Jira Issue PROJ-1067).</p>
+            </section>
+
+            <section id="jira-workflow">
+                <h2>Jira Workflow</h2>
+                <p>The Jira integration allows for automated track creation and feedback loops.</p>
+                
+                <h3>1. Inbound (Jira &rarr; LC)</h3>
+                <p>When a Jira issue is labeled or moved to a specific status, a webhook is sent to <code>/v1/webhooks/jira</code>. The Jira Adapter translates this payload into a standard LaneConductor command to create or update a track.</p>
+                
+                <h3>2. Outbound (LC &rarr; Jira)</h3>
+                <p>Feedback is driven by hooks defined in <code>workflow.json</code>. When a track completes or fails a lane, the worker triggers an outbound action:</p>
+                
+                <pre><code>"done": {
+  "hooks": [
+    {
+      "on": "success",
+      "provider": "jira",
+      "action": "comment",
+      "body": "Track {{track}} completed."
+    }
+  ]
 }</code></pre>
             </section>
 
