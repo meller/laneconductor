@@ -15,15 +15,23 @@ export const useAuth = () => useContext(AuthContext);
 // Singleton Firebase Auth instance (may be null in local mode)
 let _firebaseAuth = null;
 
+// Determine API base URL: use Cloud Run for remote, relative path for local
+function getApiBaseUrl() {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isLocal) return '';
+  // Use Cloud Run API URL for remote access (works around Firebase Hosting rewrite issues)
+  return 'https://api-pu7bcq73zq-uc.a.run.app';
+}
+
 async function initFirebase(config) {
     const { initializeApp, getApps } = await import('firebase/app');
-    const { getAuth, GithubAuthProvider, GoogleAuthProvider, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } = await import('firebase/auth');
+    const { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } = await import('firebase/auth');
 
     if (!getApps().length) {
         initializeApp(config);
     }
     _firebaseAuth = getAuth();
-    return { GithubAuthProvider, GoogleAuthProvider, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+    return { GoogleAuthProvider, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
 }
 
 export function AuthProvider({ children }) {
@@ -38,7 +46,8 @@ export function AuthProvider({ children }) {
 
         async function setup() {
             try {
-                const res = await fetch('/auth/config');
+                const apiBase = getApiBaseUrl();
+                const res = await fetch(`${apiBase}/auth/config`);
                 const { enabled, firebase: fbConfig } = await res.json();
 
                 if (!enabled) {
@@ -60,7 +69,8 @@ export function AuthProvider({ children }) {
 
                         // Upsert workspace/user on backend
                         try {
-                            await fetch('/auth/token', {
+                            const apiBase = getApiBaseUrl();
+                            await fetch(`${apiBase}/auth/token`, {
                                 method: 'POST',
                                 headers: { 'Authorization': `Bearer ${token}` }
                             });
@@ -104,13 +114,6 @@ export function AuthProvider({ children }) {
         return token;
     }
 
-    async function loginWithGitHub() {
-        if (!firebaseFns || !_firebaseAuth) return;
-        const { GithubAuthProvider, signInWithRedirect } = firebaseFns;
-        const provider = new GithubAuthProvider();
-        provider.addScope('user:email');
-        await signInWithRedirect(_firebaseAuth, provider);
-    }
 
     async function loginWithGoogle() {
         if (!firebaseFns || !_firebaseAuth) return;
@@ -140,7 +143,7 @@ export function AuthProvider({ children }) {
     return (
         <AuthContext.Provider value={{
             user, loading, idToken, authEnabled,
-            loginWithGitHub, loginWithGoogle, loginWithEmail,
+            loginWithGoogle, loginWithEmail,
             logout, refetchAuth
         }}>
             {children}
