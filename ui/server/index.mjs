@@ -87,6 +87,47 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 
+// ── Cloud Functions Proxy (remote API fallback) ──────────────────────────────
+// In production, when app.laneconductor.com is accessed, proxy Cloud Functions
+// requests to the actual Cloud Run URL to work around Firebase Hosting rewrite issues
+const CLOUD_FUNCTIONS_URL = process.env.CLOUD_FUNCTIONS_URL || 'https://api-pu7bcq73zq-uc.a.run.app';
+app.use(async (req, res, next) => {
+  // Only proxy if this looks like a request to Cloud Functions
+  const isCloudFunctionsPath = /^(\/health|\/auth|\/api|\/v1|\/worker|\/file-sync|\/project|\/track|\/tracks|\/provider-status|\/heartbeat|\/log)/.test(req.path);
+
+  // Skip proxy if in local/test mode (localhost)
+  const isLocalRequest = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+
+  // If remote request and Cloud Functions path, try proxying first
+  if (isCloudFunctionsPath && !isLocalRequest && process.env.NODE_ENV !== 'test') {
+    try {
+      const proxyUrl = new URL(req.path + (req.url.includes('?') ? '?' + req.url.split('?')[1] : ''), CLOUD_FUNCTIONS_URL);
+      const proxyRes = await fetch(proxyUrl.toString(), {
+        method: req.method,
+        headers: {
+          'Content-Type': req.get('Content-Type') || 'application/json',
+          'Authorization': req.get('Authorization') || '',
+          'X-Collector-Token': req.get('X-Collector-Token') || '',
+        },
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body),
+      });
+
+      // Copy response headers and body
+      const contentType = proxyRes.headers.get('Content-Type');
+      if (contentType) res.setHeader('Content-Type', contentType);
+      const body = await proxyRes.text();
+      res.status(proxyRes.status);
+      res.send(body);
+      return;
+    } catch (err) {
+      console.warn(`[proxy] Failed to proxy ${req.method} ${req.path}: ${err.message}`);
+      // Fall through to local handler
+    }
+  }
+
+  next();
+});
+
 // ── Auth routes + API guard ─────────────────────────────────────────────────
 // /auth/* routes are always public (firebase config fetch, token check).
 // All /api/* routes require a valid Firebase ID token in remote mode.
