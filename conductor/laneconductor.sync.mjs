@@ -295,15 +295,45 @@ function resolveToken(collector, envKey) {
   // 2. Try GCP Secret Manager if configured
   if (collector.store_type === 'gcp-secret' && collector.secret_name) {
     try {
-      const gcloud = execSync(`gcloud secrets versions access latest --secret="${collector.secret_name}"`, { encoding: 'utf8', stdio: 'pipe' });
-      if (gcloud) return gcloud.trim();
+      // Build gcloud command with project context
+      const gcpProject = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+      const projectFlag = gcpProject ? `--project="${gcpProject}"` : '';
+      const cmd = `gcloud secrets versions access latest --secret="${collector.secret_name}" ${projectFlag}`.trim();
+
+      const secret = execSync(cmd, {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 1024 * 1024 // 1MB buffer
+      });
+
+      if (secret) {
+        console.log(`[auth] ✓ GCP Secret "${collector.secret_name}" fetched successfully`);
+        return secret.trim();
+      }
     } catch (e) {
-      console.warn(`[auth] ⚠️  GCP Secret fetch failed for ${collector.secret_name}:`, e.message);
+      // Provide detailed error diagnostics
+      const details = [];
+      if (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.GCP_PROJECT) {
+        details.push('No GCP_PROJECT or GOOGLE_CLOUD_PROJECT env var set');
+      }
+      details.push(`stderr: ${e.stderr?.toString().trim() || '(empty)'}`);
+      details.push(`stdout: ${e.stdout?.toString().trim() || '(empty)'}`);
+      details.push(`status code: ${e.status}`);
+
+      console.warn(
+        `[auth] ⚠️  GCP Secret fetch failed for "${collector.secret_name}"\n` +
+        `        Command: gcloud secrets versions access latest --secret="${collector.secret_name}"\n` +
+        `        Details: ${details.join(' | ')}`
+      );
     }
   }
 
-  // 3. Fallback to inline tokens
-  return collector.machine_token ?? collector.token ?? null;
+  // 3. Fallback to machine token or inline token (for local-api mode)
+  const fallback = collector.machine_token ?? collector.token ?? null;
+  if (fallback) {
+    console.log(`[auth] Using fallback token (machine_token or inline) for collector`);
+  }
+  return fallback;
 }
 
 // Post to ALL collectors. Primary (index 0) is awaited; rest are fire-and-forget.
@@ -356,13 +386,36 @@ function resolveCollectorToken(idx) {
   // 3. GCP Secret Manager if configured
   if (c.store_type === 'gcp-secret' && c.secret_name) {
     try {
-      const token = execSync(`gcloud secrets versions access latest --secret ${c.secret_name}`, { encoding: 'utf8' }).trim();
+      // Build gcloud command with project context (same as resolveToken)
+      const gcpProject = process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+      const projectFlag = gcpProject ? `--project="${gcpProject}"` : '';
+      const cmd = `gcloud secrets versions access latest --secret="${c.secret_name}" ${projectFlag}`.trim();
+
+      const token = execSync(cmd, {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 1024 * 1024 // 1MB buffer
+      }).trim();
+
       if (token) {
         tokenCache.set(idx, token);
+        console.log(`[auth] ✓ GCP Secret "${c.secret_name}" fetched (collector ${idx})`);
         return token;
       }
     } catch (e) {
-      // console.warn(`[token] GCP Secret fetch failed for ${c.secret_name}`);
+      // Provide detailed error diagnostics
+      const details = [];
+      if (!process.env.GCP_PROJECT_ID && !process.env.GOOGLE_CLOUD_PROJECT && !process.env.GCP_PROJECT) {
+        details.push('No GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT env var set');
+      }
+      details.push(`stderr: ${e.stderr?.toString().trim() || '(empty)'}`);
+      details.push(`stdout: ${e.stdout?.toString().trim() || '(empty)'}`);
+      details.push(`status: ${e.status}`);
+
+      console.warn(
+        `[auth] ⚠️  GCP Secret fetch failed for "${c.secret_name}" (collector ${idx})\n` +
+        `        Details: ${details.join(' | ')}`
+      );
     }
   }
 
