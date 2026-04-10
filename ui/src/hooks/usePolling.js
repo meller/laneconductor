@@ -4,7 +4,15 @@ import { useAuth } from '../contexts/AuthContext';
 
 const POLL_INTERVAL_DEFAULT = 2000;
 const POLL_INTERVAL_CONNECTED = 30000;
-const apiUrl = import.meta.env.VITE_API_URL || '/api';
+
+// Determine API base URL: use Cloud Run for remote, relative path for local
+function getApiBaseUrl() {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+  if (isLocal) return import.meta.env.VITE_API_URL || '/api';
+  // Use Cloud Run API URL for remote access (works around Firebase Hosting rewrite issues)
+  return 'https://api-pu7bcq73zq-uc.a.run.app/api';
+}
 
 export function usePolling(projectId, options = {}) {
   const { idToken } = useAuth() ?? {};
@@ -20,7 +28,7 @@ export function usePolling(projectId, options = {}) {
   const abortRef = useRef(null);
 
   // Options: { readerUrl }
-  const effectiveApiUrl = options.readerUrl || apiUrl;
+  const effectiveApiUrl = options.readerUrl || getApiBaseUrl();
 
   const fetchData = useCallback(async () => {
     if (document.hidden) return;
