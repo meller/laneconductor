@@ -1,0 +1,37 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_r0_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_r3_"
+    - generic [ref=e5]:
+      - banner [ref=e6]
+      - main [ref=e22]
+  - generic [ref=e24]:
+    - list [ref=e29]:
+      - listitem [ref=e30]:
+        - heading "System" [level=1] [ref=e31]
+      - listitem [ref=e32]:
+        - link " Search Jira admin" [ref=e33] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=e34]: 
+          - text: Search Jira admin
+    - generic [ref=e38]:
+      - generic [ref=e40]:
+        - heading "WebHooks" [level=2] [ref=e42]
+        - navigation "Toolbar" [ref=e44]:
+          - list [ref=e46]:
+            - listitem [ref=e47]:
+              - link "Create a WebHook" [ref=e48]:
+                - /url: "#"
+                - generic [ref=e49]: 
+                - text: Create a WebHook
+            - listitem [ref=e50]:
+              - link "Webhook help" [ref=e51]:
+                - /url: https://confluence.atlassian.com/display/AdminJIRACloud/Managing+webhooks
+      - generic: "  , , , , , , , , , , , , , , , , , , , , , ,    : :  : : : : : : : : : : : :"

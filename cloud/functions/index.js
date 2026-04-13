@@ -835,13 +835,15 @@ app.post('/track', auth, checkProject, async (req, res) => {
     const {
       track_number, title, lane_status, progress_percent,
       current_phase, content_summary, phase_step,
-      index_content, plan_content, spec_content, test_content
+      index_content, plan_content, spec_content, test_content,
+      lane_action_status
     } = req.body;
 
     console.log(`[POST /track] project_id=${req.project_id} (body ${req.body.project_id}) track=${track_number}`);
 
     const insertLaneStatus = lane_status ?? 'planning';
-    const insertActionStatus = 'waiting';
+    let insertActionStatus = lane_action_status ?? 'queue';
+    if (insertActionStatus === 'waiting') insertActionStatus = 'queue';
 
     const laneStatusClause = lane_status !== null
       ? `lane_status = EXCLUDED.lane_status,
@@ -1354,9 +1356,32 @@ app.post('/v1/projects/:projectId/integrations/:provider/proxy', auth, async (re
 
 // ── Generic Webhook Router (authenticated via ?token=) ───────────────────────
 
+// ── Webhook Diagnostic Endpoint (for debugging Jira connectivity) ─────────────
+app.all('/v1/webhooks/ping', (req, res) => {
+  const diagnostics = {
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    url: req.originalUrl,
+    headers: req.headers,
+    ip: req.ip,
+    bodyLength: req.body ? JSON.stringify(req.body).length : 0,
+  };
+  console.log('[webhook:diagnostic] PING received:', JSON.stringify(diagnostics, null, 2));
+  return res.status(200).json({ ok: true, received: diagnostics });
+});
+
 app.post('/v1/webhooks/:format', async (req, res) => {
   const { format } = req.params;
   const token = req.query.token;
+
+  // Log all webhook attempts for diagnostic purposes
+  console.log(`[webhook:${format}] Incoming request:`, {
+    url: req.originalUrl,
+    method: req.method,
+    headers: { 'user-agent': req.headers['user-agent'], 'x-atlassian-webhook-signature': req.headers['x-atlassian-webhook-signature']?.substring(0, 20) },
+    hasToken: !!token,
+    bodySize: JSON.stringify(req.body).length,
+  });
 
   if (!token) {
     return res.status(401).json({ error: 'Missing webhook token. Use ?token=YOUR_PROJECT_WEBHOOK_TOKEN' });
@@ -1485,6 +1510,18 @@ app.get('/api/file-sync/:id', auth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.get('/api/projects/:id/dev-server/status', async (req, res) => {
+  res.json({ running: false, available: false, message: 'Dev server not available in cloud production environment' });
+});
+
+app.post('/api/projects/:id/dev-server/start', async (req, res) => {
+  res.status(400).json({ error: 'Dev server cannot be started from cloud environment' });
+});
+
+app.post('/api/projects/:id/dev-server/stop', async (req, res) => {
+  res.status(400).json({ error: 'Dev server cannot be stopped from cloud environment' });
 });
 
 exports.api = onRequest({ invoker: "public", secrets: [dbPassword, dbHost, dbUser, dbUrl] }, app);

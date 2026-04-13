@@ -307,33 +307,15 @@ function resolveToken(collector, envKey) {
       });
 
       if (secret) {
-        console.log(`[auth] ✓ GCP Secret "${collector.secret_name}" fetched successfully`);
         return secret.trim();
       }
     } catch (e) {
-      // Provide detailed error diagnostics
-      const details = [];
-      if (!process.env.GOOGLE_CLOUD_PROJECT && !process.env.GCP_PROJECT) {
-        details.push('No GCP_PROJECT or GOOGLE_CLOUD_PROJECT env var set');
-      }
-      details.push(`stderr: ${e.stderr?.toString().trim() || '(empty)'}`);
-      details.push(`stdout: ${e.stdout?.toString().trim() || '(empty)'}`);
-      details.push(`status code: ${e.status}`);
-
-      console.warn(
-        `[auth] ⚠️  GCP Secret fetch failed for "${collector.secret_name}"\n` +
-        `        Command: gcloud secrets versions access latest --secret="${collector.secret_name}"\n` +
-        `        Details: ${details.join(' | ')}`
-      );
+      // Silent fallback - don't log GCP details in production
     }
   }
 
   // 3. Fallback to machine token or inline token (for local-api mode)
-  const fallback = collector.machine_token ?? collector.token ?? null;
-  if (fallback) {
-    console.log(`[auth] Using fallback token (machine_token or inline) for collector`);
-  }
-  return fallback;
+  return collector.machine_token ?? collector.token ?? null;
 }
 
 // Post to ALL collectors. Primary (index 0) is awaited; rest are fire-and-forget.
@@ -399,23 +381,10 @@ function resolveCollectorToken(idx) {
 
       if (token) {
         tokenCache.set(idx, token);
-        console.log(`[auth] ✓ GCP Secret "${c.secret_name}" fetched (collector ${idx})`);
         return token;
       }
     } catch (e) {
-      // Provide detailed error diagnostics
-      const details = [];
-      if (!process.env.GCP_PROJECT_ID && !process.env.GOOGLE_CLOUD_PROJECT && !process.env.GCP_PROJECT) {
-        details.push('No GCP_PROJECT_ID or GOOGLE_CLOUD_PROJECT env var set');
-      }
-      details.push(`stderr: ${e.stderr?.toString().trim() || '(empty)'}`);
-      details.push(`stdout: ${e.stdout?.toString().trim() || '(empty)'}`);
-      details.push(`status: ${e.status}`);
-
-      console.warn(
-        `[auth] ⚠️  GCP Secret fetch failed for "${c.secret_name}" (collector ${idx})\n` +
-        `        Details: ${details.join(' | ')}`
-      );
+      // Silent fallback - don't log GCP details in production
     }
   }
 

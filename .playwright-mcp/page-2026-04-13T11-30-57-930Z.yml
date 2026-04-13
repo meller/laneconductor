@@ -1,0 +1,30 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_r0_"
+        - listitem:
+          - link "Sidebar":
+            - /url: "#_r3_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_ra_"
+    - generic [ref=e5]:
+      - banner [ref=e6]
+      - main [ref=e21]
+  - generic [ref=e23]:
+    - list [ref=e28]:
+      - listitem [ref=e29]:
+        - heading "Administration" [level=1] [ref=e30]
+      - listitem [ref=e31]:
+        - link " Search Jira admin" [ref=e32] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=e33]: 
+          - text: Search Jira admin
+    - alert [ref=e38]:
+      - paragraph [ref=e39]:
+        - strong [ref=e40]: You do not have permission to access this page. To access it, please login as a user with administrator privileges.
+      - text: 
