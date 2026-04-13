@@ -36,8 +36,8 @@ HN Show HN is the highest-signal developer launch channel. The audience values t
 - REQ-5: No marketing language
 
 ## Acceptance Criteria
-- [ ] Title passes HN smell test (technical, no hype)
-- [ ] Body explains filesystem-as-API and context-driven development concisely
-- [ ] GitHub link present
-- [ ] Post submitted
+- [x] Title passes HN smell test (technical, no hype)
+- [x] Body explains filesystem-as-API and context-driven development concisely
+- [x] GitHub link present
+- [x] Post submitted (https://news.ycombinator.com/item?id=47338664)
 - [ ] Comments engaged within 1 hour of posting
