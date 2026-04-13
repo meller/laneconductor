@@ -5,8 +5,3 @@
 UPDATE tracks
 SET lane_action_status = 'queue'
 WHERE lane_action_status = 'waiting';
-
--- Also normalize 'done' -> 'success' for completeness
-UPDATE tracks
-SET lane_action_status = 'success'
-WHERE lane_action_status = 'done';
