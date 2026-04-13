@@ -10,7 +10,7 @@ cd /tmp/lc-test-setup
 ```
 
 ## Test Cases
-- [ ] TC-1: `lc setup` manual phase works.
-- [ ] TC-2: `lc setup` automatically spawns AI agent.
-- [ ] TC-3: `lc setup` generates context files correctly.
-- [ ] TC-4: `lc setup` reports success or failure of AI part.
+- [x] TC-1: `lc setup` manual phase works.
+- [x] TC-2: `lc setup` automatically spawns AI agent.
+- [x] TC-3: `lc setup` generates context files correctly.
+- [x] TC-4: `lc setup` reports success or failure of AI part.
