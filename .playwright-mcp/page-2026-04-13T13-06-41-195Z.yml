@@ -1,0 +1,627 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_r0_"
+        - listitem:
+          - link "Sidebar":
+            - /url: "#_rt_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_r3_"
+    - generic [ref=e5]:
+      - banner [ref=e6]:
+        - generic [ref=e8]:
+          - generic [ref=e9]:
+            - button "Switch sites or apps" [ref=e183] [cursor=pointer]:
+              - generic [ref=e14]: Switch sites or apps
+            - link "Go to your Jira homepage" [ref=e17] [cursor=pointer]:
+              - /url: /jira
+              - generic [ref=e18]:
+                - img [ref=e21]
+                - generic [ref=e26]: Jira
+          - button "Collapse sidebar" [ref=e28] [cursor=pointer]:
+            - generic [ref=e30]: Collapse sidebar
+        - generic [ref=e31]:
+          - search [ref=e189]:
+            - textbox "Search, press enter to navigate to advanced search with your text query" [ref=e192]:
+              - /placeholder: Search
+          - button "Create" [ref=e42] [cursor=pointer]:
+            - generic [ref=e45]: Create
+        - navigation "Actions" [ref=e46]:
+          - list [ref=e47]:
+            - button "Premium trial" [ref=e193] [cursor=pointer]: Premium trial
+            - listitem [ref=e48]:
+              - button "Notifications" [ref=e51] [cursor=pointer]:
+                - generic [ref=e54]: Notifications
+            - listitem [ref=e57]:
+              - button "Help" [ref=e58] [cursor=pointer]:
+                - generic [ref=e61]: Help
+              - generic:
+                - generic:
+                  - generic: 3+
+            - listitem [ref=e63]:
+              - button "Settings" [ref=e64] [cursor=pointer]:
+                - generic [ref=e67]: Settings
+            - listitem [ref=e68]:
+              - button "asaf.meller@gmail.com" [ref=e69] [cursor=pointer]:
+                - img "Account" [ref=e71]
+      - navigation "Sidebar" [ref=e196]:
+        - generic [ref=e197]:
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - link "Navigate back to the previous page" [ref=e201] [cursor=pointer]:
+                - /url: /jira/for-you
+                - generic [ref=e204]: Navigate back to the previous page
+              - heading "Jira admin settings" [level=2] [ref=e205]
+            - generic [ref=e206]:
+              - generic "Switch settings, System is currently selected" [ref=e207]: Switch settings
+              - button "Switch settings, System is currently selected" [ref=e209] [cursor=pointer]:
+                - generic [ref=e213]: System
+          - list [ref=e218]:
+            - listitem [ref=e219]:
+              - link "General configuration" [ref=e221] [cursor=pointer]:
+                - /url: /jira/settings/system/general-configuration
+                - generic [ref=e226]: General configuration
+            - listitem [ref=e227]:
+              - group "Troubleshooting and support" [ref=e228]:
+                - paragraph [ref=e229]: Troubleshooting and support
+                - list [ref=e230]:
+                  - listitem [ref=e231]:
+                    - link "Audit log" [ref=e233] [cursor=pointer]:
+                      - /url: /auditing/view
+                      - generic [ref=e238]: Audit log
+                  - listitem [ref=e239]:
+                    - button "Site optimizer" [ref=e243] [cursor=pointer]:
+                      - generic [ref=e247]: Site optimizer
+            - listitem [ref=e248]:
+              - group "Security" [ref=e249]:
+                - paragraph [ref=e250]: Security
+                - list [ref=e251]:
+                  - listitem [ref=e252]:
+                    - link "Space roles" [ref=e254] [cursor=pointer]:
+                      - /url: /secure/project/ViewProjectRoles.jspa
+                      - generic [ref=e259]: Space roles
+                  - listitem [ref=e260]:
+                    - link "Global permissions" [ref=e262] [cursor=pointer]:
+                      - /url: /secure/admin/GlobalPermissions!default.jspa
+                      - generic [ref=e267]: Global permissions
+            - listitem [ref=e268]:
+              - link "Work item collectors" [ref=e270] [cursor=pointer]:
+                - /url: /secure/admin/ViewGlobalCollectors!default.jspa
+                - generic [ref=e275]: Work item collectors
+            - listitem [ref=e276]:
+              - group "Automation" [ref=e277]:
+                - paragraph [ref=e278]: Automation
+                - list [ref=e279]:
+                  - listitem [ref=e280]:
+                    - link "Global automation" [ref=e282] [cursor=pointer]:
+                      - /url: /jira/settings/automation
+                      - generic [ref=e287]: Global automation
+            - listitem [ref=e288]:
+              - group "User interface" [ref=e289]:
+                - paragraph [ref=e290]: User interface
+                - list [ref=e291]:
+                  - listitem [ref=e292]:
+                    - link "Default user preferences" [ref=e294] [cursor=pointer]:
+                      - /url: /secure/admin/ViewUserDefaultSettings.jspa
+                      - generic [ref=e299]: Default user preferences
+                  - listitem [ref=e300]:
+                    - link "Default dashboard" [ref=e302] [cursor=pointer]:
+                      - /url: /secure/admin/EditDefaultDashboard!default.jspa
+                      - generic [ref=e307]: Default dashboard
+                  - listitem [ref=e308]:
+                    - link "Look and feel" [ref=e310] [cursor=pointer]:
+                      - /url: /jira/settings/system/ui/look-and-feel
+                      - generic [ref=e315]: Look and feel
+                  - listitem [ref=e316]:
+                    - link "Announcement banner" [ref=e318] [cursor=pointer]:
+                      - /url: /jira/settings/system/ui/announcement-banner
+                      - generic [ref=e323]: Announcement banner
+            - listitem [ref=e324]:
+              - group "Import and export" [ref=e325]:
+                - paragraph [ref=e326]: Import and export
+                - list [ref=e327]:
+                  - listitem [ref=e328]:
+                    - link "Backup manager" [ref=e330] [cursor=pointer]:
+                      - /url: /secure/admin/CloudExport.jspa
+                      - generic [ref=e335]: Backup manager
+                  - listitem [ref=e336]:
+                    - link "External system import" [ref=e338] [cursor=pointer]:
+                      - /url: /jira/settings/system/external-import
+                      - generic [ref=e343]: External system import
+                  - listitem [ref=e344]:
+                    - link "Import Jira cloud" [ref=e346] [cursor=pointer]:
+                      - /url: /secure/admin/CloudImport!start.jspa?source=CLOUD
+                      - generic [ref=e351]: Import Jira cloud
+                  - listitem [ref=e352]:
+                    - link "Import Jira server" [ref=e354] [cursor=pointer]:
+                      - /url: /secure/admin/CloudImport!start.jspa?source=SERVER
+                      - generic [ref=e359]: Import Jira server
+            - listitem [ref=e360]:
+              - group "Mail" [ref=e361]:
+                - paragraph [ref=e362]: Mail
+                - list [ref=e363]:
+                  - listitem [ref=e364]:
+                    - link "Global mail settings" [ref=e366] [cursor=pointer]:
+                      - /url: /secure/admin/global-mail-settings
+                      - generic [ref=e371]: Global mail settings
+                  - listitem [ref=e372]:
+                    - link "Outgoing mail" [ref=e374] [cursor=pointer]:
+                      - /url: /secure/admin/OutgoingMailServers.jspa
+                      - generic [ref=e379]: Outgoing mail
+                  - listitem [ref=e380]:
+                    - link "Incoming mail" [ref=e382] [cursor=pointer]:
+                      - /url: /secure/admin/IncomingMailServers.jspa
+                      - generic [ref=e387]: Incoming mail
+                  - listitem [ref=e388]:
+                    - link "Send email" [ref=e390] [cursor=pointer]:
+                      - /url: /secure/admin/SendBulkMail!default.jspa
+                      - generic [ref=e395]: Send email
+            - listitem [ref=e396]:
+              - group "Admin helper" [ref=e397]:
+                - paragraph [ref=e398]: Admin helper
+                - list [ref=e399]:
+                  - listitem [ref=e400]:
+                    - link "Permission helper" [ref=e402] [cursor=pointer]:
+                      - /url: /secure/admin/PermissionHelperAdmin.jspa
+                      - generic [ref=e407]: Permission helper
+                  - listitem [ref=e408]:
+                    - link "Admin email audit" [ref=e410] [cursor=pointer]:
+                      - /url: /jira/settings/system/notification-logs
+                      - generic [ref=e415]: Admin email audit
+            - listitem [ref=e416]:
+              - group "Shared items" [ref=e417]:
+                - paragraph [ref=e418]: Shared items
+                - list [ref=e419]:
+                  - listitem [ref=e420]:
+                    - link "Filters" [ref=e422] [cursor=pointer]:
+                      - /url: /secure/admin/filters/ViewSharedFilters.jspa
+                      - generic [ref=e427]: Filters
+                  - listitem [ref=e428]:
+                    - link "Dashboards" [ref=e430] [cursor=pointer]:
+                      - /url: /secure/admin/dashboards/ViewSharedDashboards.jspa
+                      - generic [ref=e435]: Dashboards
+            - listitem [ref=e436]:
+              - group "Advanced" [ref=e437]:
+                - paragraph [ref=e438]: Advanced
+                - list [ref=e439]:
+                  - listitem [ref=e440]:
+                    - link "Attachments" [ref=e442] [cursor=pointer]:
+                      - /url: /secure/admin/ViewAttachmentSettings.jspa
+                      - generic [ref=e447]: Attachments
+                  - listitem [ref=e448]:
+                    - link "Events" [ref=e450] [cursor=pointer]:
+                      - /url: /secure/admin/ListEventTypes.jspa
+                      - generic [ref=e455]: Events
+                  - listitem [ref=e456]:
+                    - link "WebHooks" [ref=e458] [cursor=pointer]:
+                      - /url: /plugins/servlet/webhooks
+                      - generic [ref=e463]: WebHooks
+                  - listitem [ref=e464]:
+                    - link "LexoRank management" [ref=e466] [cursor=pointer]:
+                      - /url: /secure/GHLexoRankManage.jspa?decorator=admin
+                      - generic [ref=e471]: LexoRank management
+      - generic [ref=e473]:
+        - slider "Resize side navigation panel" [ref=e474]: "240"
+        - text: Resize side navigation panel
+      - main [ref=e72]:
+        - generic [ref=e478]:
+          - generic [ref=e479]:
+            - text: As we roll out 'work' as the new term for items tracked in Jira, you may still see 'issue' in some areas.
+            - link "Read about this terminology change , (opens new window)" [ref=e480] [cursor=pointer]:
+              - /url: https://community.atlassian.com/t5/Jira-articles/It-s-here-Work-is-the-new-collective-term-for-all-items-you/ba-p/2954892
+              - text: Read about this terminology change
+              - generic [ref=e481]: ", (opens new window)"
+          - button "Dismiss" [ref=e482] [cursor=pointer]:
+            - img "Dismiss" [ref=e483]
+  - generic [ref=e74]:
+    - list [ref=e79]:
+      - listitem [ref=e80]:
+        - heading "System" [level=1] [ref=e81]
+      - listitem [ref=e82]:
+        - link " Search Jira admin" [ref=e83] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=e84]: 
+          - text: Search Jira admin
+    - generic [ref=e88]:
+      - generic [ref=e90]:
+        - heading "WebHooks" [level=2] [ref=e92]
+        - navigation "Toolbar" [ref=e94]:
+          - list [ref=e96]:
+            - listitem [ref=e97]:
+              - link "Create a WebHook" [disabled] [ref=e98]:
+                - /url: "#"
+                - generic [ref=e99]: 
+                - text: Create a WebHook
+            - listitem [ref=e100]:
+              - link "Webhook help" [ref=e101]:
+                - /url: https://confluence.atlassian.com/display/AdminJIRACloud/Managing+webhooks
+      - generic [ref=e103]:
+        - text:  
+        - generic [ref=e104]:
+          - generic [ref=e105]:
+            - generic [ref=e106]:
+              - generic [ref=e107]: Search webhooks
+              - textbox "Text filter for webhooks" [active] [ref=e109]
+            - generic [ref=e111]:
+              - generic [ref=e112]: Status
+              - combobox "Status filter for webhooks" [ref=e113]:
+                - option "All" [selected]
+                - option "Enabled"
+                - option "Disabled"
+          - generic [ref=e114]: 1 webhooks found
+        - generic [ref=e115]:
+          - navigation "Webhooks navigation" [ref=e117]:
+            - list [ref=e826]:
+              - listitem [ref=e827]:
+                - generic [ref=e828]:
+                  - link "Laneconductor" [ref=e829] [cursor=pointer]:
+                    - /url: "#"
+                  - generic [ref=e830]: Enabled
+          - generic [ref=e126]:
+            - generic [ref=e485]:
+              - generic [ref=e486]: Name
+              - textbox "Webhook name" [ref=e488]: Laneconductor
+            - generic [ref=e489]:
+              - generic [ref=e490]: Status
+              - generic [ref=e492]:
+                - button "Enable webhook" [disabled] [ref=e493]: Enabled
+                - button "Disable webhook" [ref=e494] [cursor=pointer]: Disabled
+            - generic [ref=e131]:
+              - generic [ref=e132]: URL
+              - textbox "Webhook URL" [ref=e496]: https://webhook.site/4e8e2d88-bbac-4c9a-9dc9-418fd949989c
+              - generic [ref=e497]:
+                - generic [ref=e498]:
+                  - text: "You can use the following additional variables in the URL:"
+                  - list [ref=e499]:
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e500] [cursor=pointer]: "{attachment.id},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e501] [cursor=pointer]: "{board.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e502] [cursor=pointer]: "{comment.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e503] [cursor=pointer]: "{destinationIssue.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e504] [cursor=pointer]: "{destinationIssue.key},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e505] [cursor=pointer]: "{destinationProject.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e506] [cursor=pointer]: "{destinationProject.key},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e507] [cursor=pointer]: "{filter.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e508] [cursor=pointer]: "{issue.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e509] [cursor=pointer]: "{issue.key},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e510] [cursor=pointer]: "{issuetype.id},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e511] [cursor=pointer]: "{mergedVersion.id},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e512] [cursor=pointer]: "{modifiedUser.accountId},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e513] [cursor=pointer]: "{project.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e514] [cursor=pointer]: "{project.key},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e515] [cursor=pointer]: "{property.key},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e516] [cursor=pointer]: "{sourceIssue.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e517] [cursor=pointer]: "{sourceIssue.key},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e518] [cursor=pointer]: "{sourceProject.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e519] [cursor=pointer]: "{sourceProject.key},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e520] [cursor=pointer]: "{sprint.id},"
+                    - listitem "None of the selected webhooks provide this variable." [ref=e521] [cursor=pointer]: "{version.id},"
+                    - listitem "Some of the selected webhooks provide this variable." [ref=e522] [cursor=pointer]: "{worklog.id}"
+                - link "Read more" [ref=e524] [cursor=pointer]:
+                  - /url: https://confluence.atlassian.com/display/AdminJIRACloud/Managing+webhooks
+            - generic [ref=e134]:
+              - generic [ref=e135]: Secret
+              - generic [ref=e525]:
+                - text: 
+                - generic [ref=e526]:
+                  - generic [ref=e527]:
+                    - paragraph [ref=e528]: Record your secret somewhere secure. You won't be able to view or retrieve it once the webhook is saved.
+                    - text: 
+                  - generic [ref=e529]:
+                    - generic [ref=e530]:
+                      - generic [ref=e531]:
+                        - textbox "webhooks.secret.input" [ref=e532]
+                        - button "Copy" [ref=e533] [cursor=pointer]:
+                          - generic [ref=e534]:  Copy
+                      - button "Generate secret" [ref=e535] [cursor=pointer]
+                    - generic [ref=e536]: Leave blank for no secret
+            - generic [ref=e537]:
+              - generic [ref=e538]: Description
+              - textbox "Description" [ref=e539]
+            - generic [ref=e138]:
+              - generic [ref=e139]: Events
+              - generic [ref=e540]:
+                - heading "Jira Software related events" [level=3] [ref=e541]
+                - paragraph [ref=e542]: Events for sprints and boards
+                - generic [ref=e543]:
+                  - generic [ref=e544]:
+                    - heading "Sprint" [level=4] [ref=e545]
+                    - list [ref=e546]:
+                      - listitem [ref=e547]:
+                        - generic [ref=e548]:
+                          - checkbox "created" [ref=e549]
+                          - generic [ref=e550]: created
+                      - listitem [ref=e551]:
+                        - generic [ref=e552]:
+                          - checkbox "deleted" [ref=e553]
+                          - generic [ref=e554]: deleted
+                      - listitem [ref=e555]:
+                        - generic [ref=e556]:
+                          - checkbox "updated" [ref=e557]
+                          - generic [ref=e558]: updated
+                      - listitem [ref=e559]:
+                        - generic [ref=e560]:
+                          - checkbox "started" [ref=e561]
+                          - generic [ref=e562]: started
+                      - listitem [ref=e563]:
+                        - generic [ref=e564]:
+                          - checkbox "closed" [ref=e565]
+                          - generic [ref=e566]: closed
+                  - generic [ref=e567]:
+                    - heading "Board" [level=4] [ref=e568]
+                    - list [ref=e569]:
+                      - listitem [ref=e570]:
+                        - generic [ref=e571]:
+                          - checkbox "created" [ref=e572]
+                          - generic [ref=e573]: created
+                      - listitem [ref=e574]:
+                        - generic [ref=e575]:
+                          - checkbox "deleted" [ref=e576]
+                          - generic [ref=e577]: deleted
+                      - listitem [ref=e578]:
+                        - generic [ref=e579]:
+                          - checkbox "updated" [ref=e580]
+                          - generic [ref=e581]: updated
+                      - listitem [ref=e582]:
+                        - generic [ref=e583]:
+                          - checkbox "configuration changed" [ref=e584]
+                          - generic [ref=e585]: configuration changed
+              - generic [ref=e140]:
+                - heading "Issue related events" [level=3] [ref=e141]
+                - generic [ref=e586]:
+                  - paragraph [ref=e587]:
+                    - strong [ref=e588]: This JQL matches all issues in all projects
+                  - paragraph [ref=e589]:
+                    - text: If you leave the JQL query empty, it'll match all issues from all projects. This means the webhooks we'll send may reveal sensitive information.
+                    - text: Ignore this warning if that's what you meant to do.
+                  - text: 
+                - paragraph [ref=e590]: You can specify a JQL query to send only events triggered by matching issues. The JQL filter does not apply to events under the Issue link and Filter columns.
+                - generic [ref=e591]:
+                  - generic [ref=e593]: All issues
+                  - textbox [ref=e594]
+                  - link "Syntax help" [ref=e595] [cursor=pointer]:
+                    - /url: https://confluence.atlassian.com/display/JIRASOFTWARECLOUD/Advanced+searching
+                - generic [ref=e145]:
+                  - generic [ref=e146]:
+                    - heading "Issue" [level=4] [ref=e597]
+                    - list [ref=e598]:
+                      - listitem [ref=e599]:
+                        - generic [ref=e600]:
+                          - checkbox "created" [checked] [ref=e601]
+                          - generic [ref=e602]: created
+                      - listitem [ref=e603]:
+                        - generic [ref=e604]:
+                          - checkbox "updated" [checked] [ref=e605]
+                          - generic [ref=e606]: updated
+                      - listitem [ref=e607]:
+                        - generic [ref=e608]:
+                          - checkbox "deleted" [ref=e609]
+                          - generic [ref=e610]: deleted
+                  - generic [ref=e151]:
+                    - heading "Worklog" [level=4] [ref=e611]
+                    - list [ref=e612]:
+                      - listitem [ref=e613]:
+                        - generic [ref=e614]:
+                          - checkbox "created" [checked] [ref=e615]
+                          - generic [ref=e616]: created
+                      - listitem [ref=e617]:
+                        - generic [ref=e618]:
+                          - checkbox "updated" [checked] [ref=e619]
+                          - generic [ref=e620]: updated
+                      - listitem [ref=e621]:
+                        - generic [ref=e622]:
+                          - checkbox "deleted" [ref=e623]
+                          - generic [ref=e624]: deleted
+                  - generic [ref=e156]:
+                    - heading "Comment" [level=4] [ref=e625]
+                    - list [ref=e626]:
+                      - listitem [ref=e627]:
+                        - generic [ref=e628]:
+                          - checkbox "created" [checked] [ref=e629]
+                          - generic [ref=e630]: created
+                      - listitem [ref=e631]:
+                        - generic [ref=e632]:
+                          - checkbox "updated" [checked] [ref=e633]
+                          - generic [ref=e634]: updated
+                      - listitem [ref=e635]:
+                        - generic [ref=e636]:
+                          - checkbox "deleted" [ref=e637]
+                          - generic [ref=e638]: deleted
+                  - generic [ref=e161]:
+                    - heading "Entity property" [level=4] [ref=e639]
+                    - list [ref=e640]:
+                      - listitem [ref=e641]:
+                        - generic [ref=e642]:
+                          - checkbox "created or updated" [checked] [ref=e643]
+                          - generic [ref=e644]: created or updated
+                      - listitem [ref=e645]:
+                        - generic [ref=e646]:
+                          - checkbox "deleted" [ref=e647]
+                          - generic [ref=e648]: deleted
+                  - generic [ref=e165]:
+                    - heading "Attachment" [level=4] [ref=e649]
+                    - list [ref=e650]:
+                      - listitem [ref=e651]:
+                        - generic [ref=e652]:
+                          - checkbox "created" [checked] [ref=e653]
+                          - generic [ref=e654]: created
+                      - listitem [ref=e655]:
+                        - generic [ref=e656]:
+                          - checkbox "deleted" [ref=e657]
+                          - generic [ref=e658]: deleted
+                  - generic [ref=e169]:
+                    - heading "Issue link" [level=4] [ref=e659]
+                    - list [ref=e660]:
+                      - listitem [ref=e661]:
+                        - generic [ref=e662]:
+                          - checkbox "created" [checked] [ref=e663]
+                          - generic [ref=e664]: created
+                      - listitem [ref=e665]:
+                        - generic [ref=e666]:
+                          - checkbox "deleted" [ref=e667]
+                          - generic [ref=e668]: deleted
+                  - generic [ref=e669]:
+                    - heading "Filter" [level=4] [ref=e670]
+                    - list [ref=e671]:
+                      - listitem [ref=e672]:
+                        - generic [ref=e673]:
+                          - checkbox "created" [ref=e674]
+                          - generic [ref=e675]: created
+                      - listitem [ref=e676]:
+                        - generic [ref=e677]:
+                          - checkbox "updated" [ref=e678]
+                          - generic [ref=e679]: updated
+                      - listitem [ref=e680]:
+                        - generic [ref=e681]:
+                          - checkbox "deleted" [ref=e682]
+                          - generic [ref=e683]: deleted
+              - generic [ref=e684]:
+                - heading "User related events" [level=3] [ref=e685]
+                - generic [ref=e687]:
+                  - heading "User" [level=4] [ref=e688]
+                  - list [ref=e689]:
+                    - listitem [ref=e690]:
+                      - generic [ref=e691]:
+                        - checkbox "created" [ref=e692]
+                        - generic [ref=e693]: created
+                    - listitem [ref=e694]:
+                      - generic [ref=e695]:
+                        - checkbox "deleted" [ref=e696]
+                        - generic [ref=e697]: deleted
+                    - listitem [ref=e698]:
+                      - generic [ref=e699]:
+                        - checkbox "updated" [ref=e700]
+                        - generic [ref=e701]: updated
+              - generic [ref=e702]:
+                - heading "Jira configuration related events" [level=3] [ref=e703]
+                - generic [ref=e705]:
+                  - heading "Features status change (enabled/disabled)" [level=4] [ref=e706]
+                  - list [ref=e707]:
+                    - listitem [ref=e708]:
+                      - generic [ref=e709]:
+                        - checkbox "voting" [ref=e710]
+                        - generic [ref=e711]: voting
+                    - listitem [ref=e712]:
+                      - generic [ref=e713]:
+                        - checkbox "watching" [ref=e714]
+                        - generic [ref=e715]: watching
+                    - listitem [ref=e716]:
+                      - generic [ref=e717]:
+                        - checkbox "unassigned issues" [ref=e718]
+                        - generic [ref=e719]: unassigned issues
+                    - listitem [ref=e720]:
+                      - generic [ref=e721]:
+                        - checkbox "subtasks" [ref=e722]
+                        - generic [ref=e723]: subtasks
+                    - listitem [ref=e724]:
+                      - generic [ref=e725]:
+                        - checkbox "issue links" [ref=e726]
+                        - generic [ref=e727]: issue links
+                    - listitem [ref=e728]:
+                      - generic [ref=e729]:
+                        - checkbox "time tracking" [ref=e730]
+                        - generic [ref=e731]: time tracking
+                    - listitem [ref=e732]:
+                      - generic [ref=e733]:
+                        - checkbox "time tracking provider" [ref=e734]
+                        - generic [ref=e735]: time tracking provider
+              - generic [ref=e736]:
+                - heading "Project related events" [level=3] [ref=e737]
+                - paragraph [ref=e738]: Events for projects and project versions.
+                - generic [ref=e739]:
+                  - generic [ref=e740]:
+                    - heading "Project" [level=4] [ref=e741]
+                    - list [ref=e742]:
+                      - listitem [ref=e743]:
+                        - generic [ref=e744]:
+                          - checkbox "created" [ref=e745]
+                          - generic [ref=e746]: created
+                      - listitem [ref=e747]:
+                        - generic [ref=e748]:
+                          - checkbox "updated" [ref=e749]
+                          - generic [ref=e750]: updated
+                      - listitem [ref=e751]:
+                        - generic [ref=e752]:
+                          - checkbox "deleted" [ref=e753]
+                          - generic [ref=e754]: deleted
+                      - listitem [ref=e755]:
+                        - generic [ref=e756]:
+                          - checkbox "soft_deleted" [ref=e757]
+                          - generic [ref=e758]: soft_deleted
+                      - listitem [ref=e759]:
+                        - generic [ref=e760]:
+                          - checkbox "restore_soft_deleted" [ref=e761]
+                          - generic [ref=e762]: restore_soft_deleted
+                      - listitem [ref=e763]:
+                        - generic [ref=e764]:
+                          - checkbox "archived" [ref=e765]
+                          - generic [ref=e766]: archived
+                      - listitem [ref=e767]:
+                        - generic [ref=e768]:
+                          - checkbox "restore_archived" [ref=e769]
+                          - generic [ref=e770]: restore_archived
+                  - generic [ref=e771]:
+                    - heading "Version" [level=4] [ref=e772]
+                    - list [ref=e773]:
+                      - listitem [ref=e774]:
+                        - generic [ref=e775]:
+                          - checkbox "released" [ref=e776]
+                          - generic [ref=e777]: released
+                      - listitem [ref=e778]:
+                        - generic [ref=e779]:
+                          - checkbox "unreleased" [ref=e780]
+                          - generic [ref=e781]: unreleased
+                      - listitem [ref=e782]:
+                        - generic [ref=e783]:
+                          - checkbox "created" [ref=e784]
+                          - generic [ref=e785]: created
+                      - listitem [ref=e786]:
+                        - generic [ref=e787]:
+                          - checkbox "moved" [ref=e788]
+                          - generic [ref=e789]: moved
+                      - listitem [ref=e790]:
+                        - generic [ref=e791]:
+                          - checkbox "updated" [ref=e792]
+                          - generic [ref=e793]: updated
+                      - listitem [ref=e794]:
+                        - generic [ref=e795]:
+                          - checkbox "merged" [ref=e796]
+                          - generic [ref=e797]: merged
+                      - listitem [ref=e798]:
+                        - generic [ref=e799]:
+                          - checkbox "deleted" [ref=e800]
+                          - generic [ref=e801]: deleted
+                  - generic [ref=e802]:
+                    - heading "Issue Type" [level=4] [ref=e803]
+                    - list [ref=e804]:
+                      - listitem [ref=e805]:
+                        - generic [ref=e806]:
+                          - checkbox "created" [ref=e807]
+                          - generic [ref=e808]: created
+                      - listitem [ref=e809]:
+                        - generic [ref=e810]:
+                          - checkbox "updated" [ref=e811]
+                          - generic [ref=e812]: updated
+                      - listitem [ref=e813]:
+                        - generic [ref=e814]:
+                          - checkbox "deleted" [ref=e815]
+                          - generic [ref=e816]: deleted
+            - generic [ref=e173]:
+              - generic [ref=e174]: Exclude body
+              - generic [ref=e817]:
+                - checkbox "Request with empty body will be sent to the URL. Leave unchecked if you want to receive JSON." [ref=e818]
+                - generic [ref=e819]: Request with empty body will be sent to the URL. Leave unchecked if you want to receive JSON.
+            - generic [ref=e177]:
+              - generic [ref=e178]: Transitions
+              - list [ref=e484]: No linked transitions.
+              - generic [ref=e820]: Configure this field in Workflow Designer by adding this webhook to the transition.
+              - link "Read more" [ref=e822] [cursor=pointer]:
+                - /url: https://confluence.atlassian.com/display/JIRA/Managing+Webhooks
+            - generic [ref=e823]:
+              - button "webhooks.save.webhook" [ref=e824] [cursor=pointer]: Save
+              - link "Cancel" [ref=e825] [cursor=pointer]:
+                - /url: "#"

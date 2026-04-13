@@ -1,0 +1,144 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Banner":
+            - /url: "#page-layout.banner"
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_r0_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_r3_"
+    - generic [ref=e5]:
+      - dialog "Atlassian cookies and tracking notice , (opens new window)" [ref=e9]:
+        - generic [ref=e10]:
+          - generic [ref=e13]:
+            - text: Atlassian uses cookies to improve your browsing experience, perform analytics and research, and conduct advertising. Accept all cookies to indicate that you agree to our use of cookies on your device.
+            - link "Atlassian cookies and tracking notice , (opens new window)" [ref=e14] [cursor=pointer]:
+              - /url: https://www.atlassian.com/legal/cookies
+              - text: Atlassian cookies and tracking notice
+              - generic [ref=e15]: ", (opens new window)"
+          - generic [ref=e16]:
+            - button "Preferences" [ref=e17] [cursor=pointer]:
+              - generic [ref=e18]: Preferences
+            - button "Only necessary" [ref=e19] [cursor=pointer]:
+              - generic [ref=e20]: Only necessary
+            - button "Accept all" [ref=e21] [cursor=pointer]:
+              - generic [ref=e24]: Accept all
+      - banner [ref=e25]
+      - main [ref=e41]
+  - generic [ref=e43]:
+    - list [ref=e48]:
+      - listitem [ref=e49]:
+        - heading "System" [level=1] [ref=e50]
+      - listitem [ref=e51]:
+        - link " Search Jira admin" [ref=e52] [cursor=pointer]:
+          - /url: "#"
+          - generic [ref=e53]: 
+          - text: Search Jira admin
+    - generic [ref=e57]:
+      - generic [ref=e59]:
+        - heading "WebHooks" [level=2] [ref=e61]
+        - navigation "Toolbar" [ref=e63]:
+          - list [ref=e65]:
+            - listitem [ref=e66]:
+              - link "Create a WebHook" [ref=e67]:
+                - /url: "#"
+                - generic [ref=e68]: 
+                - text: Create a WebHook
+            - listitem [ref=e69]:
+              - link "Webhook help" [ref=e70]:
+                - /url: https://confluence.atlassian.com/display/AdminJIRACloud/Managing+webhooks
+      - generic [ref=e72]:
+        - text:  
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - generic [ref=e75]:
+              - generic [ref=e76]: Search webhooks
+              - generic [ref=e77]:
+                - textbox "Text filter for webhooks" [ref=e78]
+                - button "Clear text filter" [ref=e79] [cursor=pointer]: ×
+            - generic [ref=e80]:
+              - generic [ref=e81]: Status
+              - combobox "Status filter for webhooks" [ref=e82]:
+                - option "All" [selected]
+                - option "Enabled"
+                - option "Disabled"
+          - generic [ref=e83]: 1 webhooks found
+        - generic [ref=e84]:
+          - navigation "Webhooks navigation" [ref=e86]:
+            - list [ref=e88]:
+              - listitem [ref=e89]:
+                - generic [ref=e90]:
+                  - link "Laneconductor" [ref=e91] [cursor=pointer]:
+                    - /url: "#"
+                  - generic [ref=e92]: Enabled
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - heading "Laneconductor Enabled" [level=2] [ref=e97]:
+                - text: Laneconductor
+                - generic [ref=e98]: Enabled
+              - generic [ref=e99]: "Last updated: 13/Apr/26 12:59 PM by asaf meller"
+            - generic [ref=e100]:
+              - generic [ref=e101]: URL
+              - link "Webhook URL" [ref=e102] [cursor=pointer]:
+                - /url: https://app.laneconductor.com/v1/webhooks/jira?token=2k9wfikowo3dhet759q8ip
+                - text: https://app.laneconductor.com/v1/webhooks/jira?token=2k9wfikowo3dhet759q8ip
+              - text: ", , , , , , , , , , , , , , , , , , , , , ,"
+            - generic [ref=e103]:
+              - generic [ref=e104]: Secret
+              - generic [ref=e106]: Not set
+              - text:   
+            - generic [ref=e107]:
+              - generic [ref=e108]: Events
+              - text: ": :"
+              - generic [ref=e109]:
+                - heading "Issue related events" [level=3] [ref=e110]
+                - text: 
+                - generic [ref=e112]:
+                  - text: "JQL:"
+                  - generic [ref=e113]: All issues
+                - generic [ref=e114]:
+                  - generic [ref=e115]:
+                    - heading "Issue:" [level=4] [ref=e116]
+                    - list [ref=e117]:
+                      - listitem [ref=e118]: created,
+                      - listitem [ref=e119]: updated
+                  - generic [ref=e120]:
+                    - heading "Worklog:" [level=4] [ref=e121]
+                    - list [ref=e122]:
+                      - listitem [ref=e123]: created,
+                      - listitem [ref=e124]: updated
+                  - generic [ref=e125]:
+                    - heading "Comment:" [level=4] [ref=e126]
+                    - list [ref=e127]:
+                      - listitem [ref=e128]: created,
+                      - listitem [ref=e129]: updated
+                  - generic [ref=e130]:
+                    - heading "Entity property:" [level=4] [ref=e131]
+                    - list [ref=e132]:
+                      - listitem [ref=e133]: created or updated
+                  - generic [ref=e134]:
+                    - heading "Attachment:" [level=4] [ref=e135]
+                    - list [ref=e136]:
+                      - listitem [ref=e137]: created
+                  - generic [ref=e138]:
+                    - heading "Issue link:" [level=4] [ref=e139]
+                    - list [ref=e140]:
+                      - listitem [ref=e141]: created
+                  - text: ":"
+              - text: ": : : : :"
+            - generic [ref=e142]:
+              - generic [ref=e143]: Exclude body
+              - generic [ref=e144]: "No"
+            - generic [ref=e146]:
+              - generic [ref=e147]: Transitions
+              - list
+            - generic [ref=e149]:
+              - button "webhooks.edit.webhook" [ref=e150] [cursor=pointer]: Edit
+              - link "webhooks.delete.webhook" [ref=e151] [cursor=pointer]:
+                - /url: "#"
+                - text: Delete
