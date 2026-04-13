@@ -1,7 +1,7 @@
 # Track 1065: lc deploy — AI Error Recovery
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Waiting for reply**: no
 **Progress**: 0%
 **Phase**: Planning
