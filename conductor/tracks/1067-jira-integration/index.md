@@ -1,9 +1,9 @@
 # Track 1067: Unified Integration Architecture
 
 **Lane**: implement
-**Lane Status**: queue
-**Progress**: 70%
-**Last Run**: 2026-04-10
+**Lane Status**: running
+**Progress**: 90%
+**Last Run**: 2026-04-13
 **Summary**: Modular Inbound Adapters (Jira) and Integration Proxy logic are now fully implemented and hardened across local and cloud environments. Added 'Integrations' management to Project Settings UI.
 
 ## User Workflow
@@ -45,3 +45,13 @@ The `projects` table now supports an `integrations` JSONB column:
 > - Implemented outbound Integration Proxy for worker-led feedback to Jira.
 > - Added 'Integrations' section to Project Settings UI for self-serve configuration.
 > - Standardized API routes between Local Server and Cloud Functions to ensure parity.
+>
+> **human** (note): Target Mapping implemented for Jira
+> - Configurable lane-to-status target mapping logic added to Jira Collector
+> - Added `lc add-target-mapping` CLI tool to let users update their mappings easily
+> - Expanded base fallback lanes to recognize standard workflow `plan`, `implement`, `review`, `quality-gate`, `done`
+>
+> **human** (note): Multi-file sync via Atlassian Document Format (ADF) added
+> - Refactored Jira collector to aggregate `index.md`, `plan.md`, `spec.md`, and `test.md` into the Jira description
+> - Uses markdown `codeBlock` under appropriate `heading` within Jira ADF
+> - Bidirectional parser extracts individual files back out flawlessly during inbound sync
