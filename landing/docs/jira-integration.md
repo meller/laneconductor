@@ -54,21 +54,60 @@ In the same **Integrations** section, fill in:
 
 1. In **Jira**, go to **System** → **Webhooks**
 2. Click **Create a webhook**
-3. Fill in:
-   - **Name**: `LaneConductor Sync`
-   - **URL**: Paste the **Jira Webhook URL** from Step 1 (the full URL with token)
-   - **Events**: Select `Issue Created` and `Issue Updated`
-4. Click **Save**
+3. Fill in these fields:
 
-### 5. Test It
+| Field | Value |
+|-------|-------|
+| **Name** | `LaneConductor` (or `LaneConductor Sync`) |
+| **URL** | Paste the full Jira Webhook URL from Step 1 |
+| **Secret** | Leave blank |
+| **Description** | "Sync Jira issues to LaneConductor tracks" (optional) |
+| **Exclude body** | Uncheck (you need the JSON payload) |
 
-Create or update a Jira issue:
-1. Set label: `ai-task` (or match your project's track pattern)
-2. Watch LaneConductor dashboard → track appears automatically
-3. Check worker logs:
-   ```bash
-   tail -f conductor/.sync.log | grep jira
-   ```
+4. **Events** section:
+   - Expand **Issue related events**
+   - Check: ✅ **created**
+   - Check: ✅ **updated**
+
+5. **JQL filter** (optional):
+   - Leave blank to sync all issues
+   - Or filter by status: `status = "To Do"` (only sync To Do items)
+   - Or filter by label: `labels in (ai-task)` (only sync issues with ai-task label)
+
+6. Click **Create**
+
+**After creation**, you should see:
+- Status: **Enabled** ✅
+- **Last updated**: Recent timestamp
+- Events: **Issue created** and **Issue updated**
+
+### 5. Test the Webhook
+
+**In Jira:**
+1. Create a new issue or update an existing one
+2. (If using JQL filter) Make sure it matches your filter criteria
+
+**In LaneConductor:**
+1. Go to dashboard and refresh
+2. A new track should appear in the **Plan** lane
+3. Track number matches Jira issue key (e.g., PROJ-1067)
+
+**Verify webhook is working:**
+```bash
+# Check worker logs for successful webhook receipt
+tail -f conductor/.sync.log | grep -i "webhook\|jira"
+```
+
+Expected log output:
+```
+[sync] 1067 → plan (source: webhook)
+[sync] Track synced: issue received from Jira webhook
+```
+
+**In Jira webhook dashboard:**
+- Go back to **System → Webhooks**
+- Click on your webhook → check **View request history**
+- Should show recent POST requests with **2xx status** (success)
 
 ## Token Clarification
 
@@ -86,18 +125,46 @@ https://app.laneconductor.com/v1/webhooks/jira?token=<WEBHOOK_TOKEN>
 
 The token is embedded in the URL. When Jira sends a webhook, it calls this URL, and LaneConductor validates the token before processing.
 
+## What Gets Synced From Jira
+
+When a Jira issue is created/updated, LaneConductor captures:
+- **Issue Key** → LC Track Number (e.g., PROJ-1067)
+- **Summary** → Track Title
+- **Description** → Track Index Content
+- **Status** → Track Lane (based on mapping)
+- **Labels** → Track Metadata
+
+## Configure Outbound Hooks (Optional)
+
+To send track updates **back to Jira** (e.g., comments when track moves to "Done"):
+
+1. Edit your project's `workflow.json`
+2. Add hooks to transitions:
+   ```json
+   {
+     "lanes": {
+       "done": {
+         "hooks": [
+           {
+             "provider": "jira",
+             "action": "comment",
+             "template": "✅ Track completed in LaneConductor"
+           }
+         ]
+       }
+     }
+   }
+   ```
+
+3. Ensure Jira API Token is set in **Project Settings → Integrations**
+4. Worker will automatically send updates when tracks move lanes
+
 ## Troubleshooting
 
-**Webhook not triggering:**
-- Verify Jira webhook shows as "Active" (green checkmark)
-- Check that the full URL (with token) is correct
-- Verify issue has the correct label or project key
-
-**Track not syncing:**
-- Check worker logs: `tail -f conductor/.sync.log | grep webhook`
-- Ensure Jira credentials (domain, email, API token) are saved in LC
-
-**Updates not going back to Jira:**
-- Verify API Token is valid and has permissions
-- Check worker logs for hook execution errors
-- Ensure workflow.json has hook definitions for desired lanes
+| Issue | Solution |
+|-------|----------|
+| **Webhook not triggering** | ✓ Verify webhook status is "Enabled" in Jira<br>✓ Check webhook URL request history<br>✓ Verify JQL filter matches your issue (if set) |
+| **Track not appearing in LC** | ✓ Check worker logs: `tail -f conductor/.sync.log \| grep webhook`<br>✓ Verify Jira issue was created AFTER webhook was set up<br>✓ Check if JQL filter excludes your issue |
+| **"Invalid Webhook URL" error in Jira** | ✓ Copy URL carefully from LC Integrations panel<br>✓ Don't include extra text or browser suggestions<br>✓ Paste only: `https://app.laneconductor.com/v1/webhooks/jira?token=...` |
+| **Updates not going back to Jira** | ✓ Verify Jira API Token is valid<br>✓ Check worker logs for hook errors<br>✓ Ensure `workflow.json` has hook definitions<br>✓ Worker needs outbound internet access |
+| **Webhook request history shows errors** | ✓ Check **Jira webhook dashboard** → **View request history**<br>✓ Click on failed request to see error response<br>✓ Share error message for debugging |
