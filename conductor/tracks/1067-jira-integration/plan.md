@@ -103,11 +103,26 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - Update `lc list-targets` to display Jira collectors
 - Update `SKILL.md` quick reference
 
-### Phase 6: Enhanced Sync & Mapping
+### Phase 6: Enhanced Sync & Mapping ✓
 - **1:1 Lane Mapping**: Ensure `add-target-mapping` prevents duplicate source/target lanes.
 - **Multi-file Formatting**: Update `buildTrackAdf` to include `Log` section.
 - **Bidirectional Comments**: Ensure Jira comments flow back to `conversation.md`.
 - **Bug Fixes**: Resolve metadata access bugs in sync worker.
+- **GCP Secrets**: Standardized and added support for GCP Secret Manager for Jira tokens.
+- **ADF Parsing**: Improved ADF parser for comment synchronization.
+- **Loop Prevention**: Added `recentlyPulled` check to prevent sync echoes.
+
+### Phase 7: Optional - Jira Workflow Status Creation ⏳ (Planned)
+*Only implement if teams want automatic Jira status/workflow creation instead of label-based lane tracking*
+
+- **Detect Missing Statuses**: Compare local lanes with Jira project workflow
+- **Create Statuses**: Use Jira Admin API to create missing workflow statuses
+- **Setup Transitions**: Auto-create transitions between statuses (plan → implement → review → quality-gate → done)
+- **Teams Config**: Add `create_missing_statuses` flag to JIRA collector config
+- **Auth Scope**: Require higher OAuth scope for workflow admin permissions
+- **Testing**: E2E test with fresh Jira project
+
+**Note**: Current Phase 1-6 implementation uses **labels** for lane tracking (laneconductor-status-<lane>), which requires no admin access. This phase adds optional workflow status automation for teams that prefer explicit Jira status transitions.
 
 ## Files to Modify
 
