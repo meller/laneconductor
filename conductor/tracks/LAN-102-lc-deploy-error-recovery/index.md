@@ -1,12 +1,12 @@
 # Lc Deploy Error Recovery
 
 **Lane**: plan
-**Lane Status**: plan
+**Lane Status**: queue
 
 # Lc Deploy Error Recovery
 
 **Lane**: plan
-**Lane Status**: plan
+**Lane Status**: queue
 
 # Track 1065: lc deploy — AI Error Recovery
 

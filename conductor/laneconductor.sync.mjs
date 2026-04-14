@@ -680,6 +680,22 @@ function updateTrackMetadata(trackNumber, updates) {
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
+function extractLaneFromIndex(content) {
+  // Extract Lane from index.md (e.g., **Lane**: done)
+  const match = content.match(/\*\*Lane\*\*:\s*([a-z0-9-]+)/i);
+  if (!match) return 'backlog';
+  const lane = match[1].toLowerCase().trim();
+  return LaneAliases[lane] || (Object.values(Lanes).includes(lane) ? lane : 'backlog');
+}
+
+function extractLaneStatusFromIndex(content) {
+  // Extract Lane Status from index.md (e.g., **Lane Status**: success)
+  const match = content.match(/\*\*Lane Status\*\*:\s*([a-z0-9-]+)/i);
+  if (!match) return 'queue';
+  const status = match[1].toLowerCase().trim();
+  return ActionStatusAliases[status] || (Object.values(LaneActionStatus).includes(status) ? status : 'queue');
+}
+
 function parseLaneStatus(content) {
   const match = content.match(/\*\*Lane Status\*\*:\s*([a-z0-9-]+)/i);
   if (!match) return null;
@@ -1965,11 +1981,85 @@ async function runJiraSync() {
       }
     }
 
+    // ── Outbound sync: push FS-newer tracks to Jira ──────────────────────────────
+    console.log('[jira-polling] Starting outbound sync phase...');
+    const tracksDir = 'conductor/tracks';
+    if (existsSync(tracksDir)) {
+      const trackDirs = readdirSync(tracksDir).filter((d) => {
+        const fullPath = join(tracksDir, d);
+        return statSync(fullPath).isDirectory() && d.match(/^LAN-\d+/);
+      });
+
+      for (const trackDir of trackDirs) {
+        try {
+          const trackPath = join(tracksDir, trackDir);
+          const indexPath = join(trackPath, 'index.md');
+          if (!existsSync(indexPath)) continue;
+
+          // Extract track number from folder name (LAN-100-* → LAN-100)
+          const match = trackDir.match(/^(LAN-\d+)-/);
+          if (!match) continue;
+          const trackKey = match[1];
+
+          // Get FS modification time
+          const indexStat = statSync(indexPath);
+          const fsMtime = indexStat.mtime.toISOString();
+
+          // Get Jira update time from metadata
+          const trackMeta = metadata.tracks?.[trackKey];
+          const jiraUpdated = trackMeta?.jira_last_synced
+            ? new Date(trackMeta.jira_last_synced)
+            : new Date(0);
+          const fsModified = new Date(fsMtime);
+          const timeDiffMs = Math.abs(jiraUpdated - fsModified);
+
+          // Skip within grace period
+          if (timeDiffMs < gracePeriodMs) continue;
+
+          // If FS is newer than Jira, push it
+          if (fsModified > jiraUpdated) {
+            const trackNumber = trackKey.replace('LAN-', '');
+            console.log(`[jira-push] ${trackKey}: FS newer (${fsMtime}), pushing to Jira...`);
+
+            // Read track data from filesystem
+            const indexContent = readFileSync(indexPath, 'utf8');
+            const planContent = readIfExists(join(trackPath, 'plan.md'));
+            const specContent = readIfExists(join(trackPath, 'spec.md'));
+            const testContent = readIfExists(join(trackPath, 'test.md'));
+            const logContent = readIfExists(join(trackPath, 'log.md'));
+
+            const trackData = {
+              index: indexContent,
+              plan: planContent,
+              spec: specContent,
+              test: testContent,
+              log: logContent,
+              lane: extractLaneFromIndex(indexContent),
+              status: extractLaneStatusFromIndex(indexContent),
+            };
+
+            // Push to Jira
+            const success = await pushTrackToJira(jiraConfig, trackKey, trackData);
+            if (success) {
+              console.log(`[jira-push] ${trackKey}: Successfully pushed to Jira`);
+              if (!metadata.tracks) metadata.tracks = {};
+              if (!metadata.tracks[trackKey]) metadata.tracks[trackKey] = {};
+              metadata.tracks[trackKey].jira_last_synced = new Date().toISOString();
+            } else {
+              console.error(`[jira-push] ${trackKey}: Failed to push to Jira`);
+            }
+          }
+        } catch (err) {
+          console.error(`[jira-push error] ${trackDir}: ${err.message}`);
+        }
+      }
+    }
+
     // Update global last sync timestamp
     metadata._jira_last_poll = new Date().toISOString();
     saveTracksMetadata(metadata);
 
-    console.log(`[jira-polling] Sync complete: ${issues.length} issues processed`);
+    console.log(`[jira-polling] Sync complete: ${issues.length} issues processed, outbound sync done`);
   } catch (err) {
     console.error('[jira-polling error]:', err.message);
   } finally {
