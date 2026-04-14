@@ -63,6 +63,30 @@ The CLI will:
 - ✅ Validate that required workflow statuses exist
 - ⚠️ Show guidance if any statuses are missing
 
+**What you'll see:**
+```
+🔍 Checking JIRA project: KAN...
+✅ JIRA project KAN exists
+✅ Jira collector added: KAN @ mycompany.atlassian.net
+
+⚠️  LaneConductor detected missing JIRA statuses: "Backlog", "Testing"
+   Issues will sync using labels, but for proper board visualization:
+
+   📋 Create these statuses in your JIRA workflow:
+      1. Go to: https://mycompany.atlassian.net/jira/software/projects/KAN/settings/workflows
+      2. Click "Edit Workflow" on your active workflow
+      3. Click "Add Status" for each missing status
+      4. Save and publish the workflow
+      5. Run: lc worker restart
+
+✅ Jira integration ready! Worker will start syncing in 60 seconds.
+```
+
+If all statuses exist, you'll see:
+```
+✅ All JIRA statuses validated. Ready for lane-to-status transitions.
+```
+
 ### 3. (Optional) Create Missing Jira Statuses
 
 If the `lc add-target` command reports missing statuses, you'll need to create them manually in Jira:

@@ -1,25 +1,10 @@
-# Jira Integration
+# Track 1067: Jira Integration — Polling-Based Bidirectional Sync
 
 **Lane**: implement
-**Lane Status**: implement
-
-# Jira Integration
-
-**Lane**: implement
-**Lane Status**: implement
-
-# Jira Integration
-
-**Lane**: implement
-**Lane Status**: implement
-
-# Track 1067: Unified Integration Architecture
-
-**Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
-**Last Run**: 2026-04-13
-**Summary**: Modular Inbound Adapters (Jira) and Integration Proxy logic are now fully implemented and hardened across local and cloud environments. Added 'Integrations' management to Project Settings UI.
+**Last Run**: 2026-04-14
+**Summary**: Phase 1-6 complete. Worker polls Jira every 60 seconds, creates/updates tracks, syncs bidirectionally with label-based lane tracking. Status validation with user guidance implemented. Ready for production testing once required Jira statuses are created.
 
 ## User Workflow
 
