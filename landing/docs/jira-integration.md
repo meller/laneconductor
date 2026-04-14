@@ -112,11 +112,15 @@ If all statuses exist, you'll see:
 If the `lc add-target` command reports missing statuses, add them to your Kanban board:
 
 ```
-⚠️  LaneConductor detected missing JIRA statuses: "Backlog", "Testing"
-   1. Go to: https://mycompany.atlassian.net/jira/software/projects/KAN/settings/workflows
-   2. Click "Edit Workflow" on your active workflow
-   3. Click "Add Status" for each missing status
-   4. Save and publish the workflow
+⚠️  LaneConductor detected missing JIRA statuses: "In Review", "Testing"
+
+Quick steps to add missing statuses:
+   1. Go to your Kanban board: https://mycompany.atlassian.net/jira/software/projects/LAN/boards
+   2. Look at the status columns at the top of the board
+   3. Click the "+" button next to the statuses
+   4. Add each missing status:
+      - "In Review" (review)
+      - "Testing" (quality-gate)
    5. Run: lc worker restart
 ```
 
