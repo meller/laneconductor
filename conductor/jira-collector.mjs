@@ -617,6 +617,163 @@ export async function getJiraComments(config, issueKey, since) {
 }
 
 /**
+ * Get available statuses for a Jira project
+ *
+ * @param {Object} config - Jira config
+ * @param {string} auth - Base64 auth header
+ * @returns {Promise<Array>} Array of status names
+ */
+async function getProjectStatuses(config, auth) {
+  try {
+    // Try getting statuses from the project endpoint first
+    let url = `https://${config.domain}/rest/api/3/project/${config.project_key}/statuses`;
+    let response = await fetch(url, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      // Fallback to global statuses endpoint
+      console.log(`[jira-collector] Project statuses endpoint returned ${response.status}, trying global endpoint`);
+      url = `https://${config.domain}/rest/api/3/statuses`;
+      response = await fetch(url, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(10000),
+      });
+    }
+
+    if (!response.ok) {
+      console.warn(`[jira-collector] Get statuses error: ${response.status}`);
+      return [];
+    }
+
+    const data = await response.json();
+    const statuses = new Set();
+
+    // Handle array of statuses (global endpoint)
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item.name) statuses.add(item.name);
+        // Also check for nested statuses
+        if (item.statuses && Array.isArray(item.statuses)) {
+          for (const status of item.statuses) {
+            if (status.name) statuses.add(status.name);
+          }
+        }
+      }
+    }
+    // Handle object with issueTypes (project endpoint)
+    else if (data && typeof data === 'object') {
+      if (Array.isArray(data.issueTypes)) {
+        for (const issueType of data.issueTypes) {
+          if (issueType.statuses && Array.isArray(issueType.statuses)) {
+            for (const status of issueType.statuses) {
+              if (status.name) statuses.add(status.name);
+            }
+          }
+        }
+      }
+    }
+
+    return Array.from(statuses);
+  } catch (err) {
+    console.error(`[jira-collector] Get statuses error: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Create a new status in Jira (requires admin access)
+ * Note: In Jira Cloud, statuses must be created via workflow configuration
+ * This is a fallback that attempts the REST API but provides helpful guidance if it fails
+ *
+ * @param {Object} config - Jira config
+ * @param {string} statusName - Status name to create (e.g., "Backlog")
+ * @param {string} auth - Base64 auth header
+ * @returns {Promise<boolean>} True if successful
+ */
+async function createJiraStatus(config, statusName, auth) {
+  try {
+    const url = `https://${config.domain}/rest/api/3/statuses`;
+
+    console.log(`[jira-collector] Attempting to create status: ${statusName}`);
+
+    // Try the standard REST API endpoint first
+    let response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: statusName,
+        description: `Auto-created by LaneConductor for lane tracking`,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(
+        `[jira-collector] REST API status creation failed: ${response.status}`
+      );
+
+      // In Jira Cloud, creating statuses requires workflow management
+      // Provide guidance to the user
+      if (response.status === 400 || response.status === 403) {
+        console.log(
+          `[jira-collector] ⚠️  Cannot auto-create status "${statusName}" via REST API (requires Jira admin + workflow access)\n` +
+          `         To use ${statusName} lane, manually create the status in Jira:\n` +
+          `         1. Go to https://${config.domain}/secure/project/settings/workflows\n` +
+          `         2. Select project "${config.project_key}"\n` +
+          `         3. Add status "${statusName}" to your workflow\n` +
+          `         4. Restart the worker to pick up the new status`
+        );
+      }
+      return false;
+    }
+
+    console.log(`[jira-collector] Successfully created status: ${statusName}`);
+    return true;
+  } catch (err) {
+    console.error(`[jira-collector] Create status error: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Ensure required statuses exist in Jira project, create if missing
+ * Called during first sync to set up the workflow
+ *
+ * @param {Object} config - Jira config
+ * @returns {Promise<void>}
+ */
+export async function ensureJiraStatuses(config) {
+  if (!config || !config.domain || !config.email || !config.token || !config.project_key) {
+    return;
+  }
+
+  const requiredStatuses = ['Backlog', 'Testing'];
+  const auth = Buffer.from(`${config.email}:${config.token}`).toString('base64');
+
+  try {
+    const existing = await getProjectStatuses(config, auth);
+    const existingLower = existing.map(s => s.toLowerCase());
+
+    console.log(`[jira-collector] Found statuses in ${config.project_key}: ${existing.join(', ')}`);
+
+    for (const status of requiredStatuses) {
+      if (!existingLower.includes(status.toLowerCase())) {
+        console.log(`[jira-collector] Missing status: ${status}, attempting to create...`);
+        await createJiraStatus(config, status, auth);
+      }
+    }
+  } catch (err) {
+    console.error(`[jira-collector] ensureJiraStatuses error: ${err.message}`);
+  }
+}
+
+/**
  * Format date for Jira JQL (YYYY-MM-DD)
  *
  * @param {string} isoString - ISO timestamp
