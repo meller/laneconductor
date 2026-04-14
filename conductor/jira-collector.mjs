@@ -322,22 +322,12 @@ export function mapLaneToJiraStatus(lane, config) {
 
 export function mapStatusToJiraLabels(lane, status) {
   const labels = [];
-  
-  // Lane-based status labels
+
+  // Use ONLY lane-based label (one label per track)
+  // Lane is the source of truth for track position in workflow
   if (lane) {
     const canonicalLane = lane.toLowerCase().trim();
     labels.push(`lconductor-${canonicalLane}`);
-  }
-
-  // Action-based status labels (Running/Queue/Done/Failed)
-  if (status === 'queue') labels.push('lconductor-queue');
-  if (status === 'running') labels.push('lconductor-running');
-  if (status === 'success') labels.push('lconductor-success');
-  if (status === 'failure' || status === 'error') labels.push('lconductor-failed');
-
-  // Safety check for Done
-  if (lane === 'done' && !labels.includes('lconductor-success')) {
-    labels.push('lconductor-success');
   }
 
   return labels;
