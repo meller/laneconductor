@@ -1,0 +1,274 @@
+- generic [ref=e2]:
+  - generic:
+    - generic: "Skip to:"
+    - list:
+      - listitem:
+        - link "Top Bar":
+          - /url: "#_Rhp955jal9_"
+      - listitem:
+        - link "Main Content":
+          - /url: "#_R2p955jal9_"
+      - listitem:
+        - link "Sidebar":
+          - /url: "#_R3i9955jal9_"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Switch sites or apps" [ref=e185] [cursor=pointer]:
+            - generic [ref=e12]: Switch sites or apps
+          - link "Go to your Jira homepage" [ref=e15] [cursor=pointer]:
+            - /url: /jira
+            - generic [ref=e16]:
+              - img [ref=e19]
+              - generic [ref=e24]: Jira
+        - button "Collapse sidebar" [ref=e26] [cursor=pointer]:
+          - generic [ref=e28]: Collapse sidebar
+      - generic [ref=e29]:
+        - generic [ref=e2148]:
+          - search [ref=e2149]:
+            - textbox "Search, press enter to navigate to advanced search with your text query" [active] [ref=e2152]:
+              - /placeholder: Search Jira
+              - text: http
+            - button "Clear search session" [ref=e2154]:
+              - img "Clear search session" [ref=e2155]
+          - generic [ref=e2156]:
+            - tablist [ref=e2159]:
+              - tab "Jira" [selected] [ref=e2160] [cursor=pointer]:
+                - generic [ref=e2161]: Jira
+              - tab "Trello" [ref=e2162] [cursor=pointer]:
+                - generic [ref=e2163]: Trello
+            - tabpanel [ref=e2164]:
+              - generic [ref=e2166]:
+                - generic [ref=e2167]:
+                  - generic [ref=e2168]:
+                    - generic [ref=e2170]:
+                      - generic [ref=e2171]: We couldn't find anything matching your search.
+                      - generic [ref=e2172]: Try again with a different term.
+                    - generic [ref=e2174]:
+                      - generic [ref=e2175]: "Go to all:"
+                      - list [ref=e2176]:
+                        - listitem [ref=e2177]:
+                          - link "Boards" [ref=e2178] [cursor=pointer]:
+                            - /url: /secure/ManageRapidViews.jspa?contains=http
+                        - listitem [ref=e2179]:
+                          - link "Projects" [ref=e2180] [cursor=pointer]:
+                            - /url: /projects?contains=http
+                        - listitem [ref=e2181]:
+                          - link "Filters" [ref=e2182] [cursor=pointer]:
+                            - /url: /secure/ManageFilters.jspa?Search=Search&filterView=search&name=http
+                        - listitem [ref=e2183]:
+                          - link "Plans" [ref=e2184] [cursor=pointer]:
+                            - /url: /jira/plans
+                        - listitem [ref=e2185]:
+                          - link "People" [ref=e2186] [cursor=pointer]:
+                            - /url: /jira/people/search?q=http
+                  - generic [ref=e2188]:
+                    - generic [ref=e2189]:
+                      - generic [ref=e2190]:
+                        - heading "Last updated" [level=2] [ref=e2191]
+                        - radiogroup "Last updated" [ref=e2192]:
+                          - button "Any time" [pressed] [ref=e2193] [cursor=pointer]
+                          - button "Today" [ref=e2194] [cursor=pointer]
+                          - button "Yesterday" [ref=e2195] [cursor=pointer]
+                          - button "Past 7 days" [ref=e2196] [cursor=pointer]
+                          - button "Past 30 days" [ref=e2197] [cursor=pointer]
+                          - button "Past year" [ref=e2198] [cursor=pointer]
+                      - generic [ref=e2199]:
+                        - heading "Filter by project" [level=2] [ref=e2200]
+                        - generic [ref=e2202]:
+                          - checkbox "Testproject" [ref=e2203]
+                          - generic [ref=e2205]:
+                            - img [ref=e2209]
+                            - generic [ref=e2210]: Testproject
+                        - generic [ref=e2212]:
+                          - checkbox "(Example) Mobile App Launch" [ref=e2213]
+                          - generic [ref=e2215]:
+                            - img [ref=e2219]
+                            - generic [ref=e2220]: (Example) Mobile App Launch
+                        - button "Find a project" [ref=e2223] [cursor=pointer]:
+                          - generic [ref=e2224]: Show more
+                      - generic [ref=e2225]:
+                        - heading "Filter by assignee" [level=2] [ref=e2226]
+                        - generic [ref=e2228]:
+                          - checkbox "asaf meller" [ref=e2229]
+                          - generic [ref=e2231]:
+                            - img [ref=e2235]
+                            - generic [ref=e2236]: asaf meller
+                        - button "Find an assignee" [ref=e2239] [cursor=pointer]:
+                          - generic [ref=e2240]: Show more
+                      - generic [ref=e2241]:
+                        - heading "Filter by reporter" [level=2] [ref=e2242]
+                        - generic [ref=e2244]:
+                          - checkbox "Reported by me" [ref=e2245]
+                          - generic [ref=e2248]: Reported by me
+                      - generic [ref=e2249]:
+                        - heading "Filter by status" [level=2] [ref=e2250]
+                        - generic [ref=e2251]:
+                          - generic [ref=e2253]:
+                            - checkbox "Open" [ref=e2254]
+                            - generic [ref=e2257]: Open
+                          - generic [ref=e2259]:
+                            - checkbox "Done" [ref=e2260]
+                            - generic [ref=e2263]: Done
+                      - generic [ref=e2264]:
+                        - heading "Filter by label" [level=2] [ref=e2265]
+                        - generic [ref=e2266]:
+                          - status [ref=e2268]
+                          - generic [ref=e2269]:
+                            - generic [ref=e2270]:
+                              - generic [ref=e2271]: Select label
+                              - combobox "Filter by label" [ref=e2273]
+                            - img [ref=e2277]
+                    - button "Give feedback" [ref=e2280] [cursor=pointer]:
+                      - generic [ref=e2281]: Give feedback
+                - link "View all work items View all work items" [ref=e2283] [cursor=pointer]:
+                  - /url: /jira/search?searchString=http
+                  - generic [ref=e2285]:
+                    - img "View all work items" [ref=e2286]
+                    - generic [ref=e2287]: View all work items
+                  - img [ref=e2288]
+        - button "Create" [ref=e40] [cursor=pointer]:
+          - generic [ref=e43]: Create
+      - navigation "Actions" [ref=e44]:
+        - list [ref=e45]:
+          - button "See plans" [ref=e186] [cursor=pointer]: See plans
+          - listitem [ref=e46]:
+            - button "Notifications" [ref=e49] [cursor=pointer]:
+              - generic [ref=e52]: Notifications
+          - listitem [ref=e55]:
+            - button "Help" [ref=e56] [cursor=pointer]:
+              - generic [ref=e59]: Help
+            - generic:
+              - generic:
+                - generic: 3+
+          - listitem [ref=e61]:
+            - button "Settings" [ref=e62] [cursor=pointer]:
+              - generic [ref=e65]: Settings
+          - listitem [ref=e66]:
+            - button "asaf.meller@gmail.com" [ref=e67] [cursor=pointer]:
+              - img "Account" [ref=e69]
+    - navigation "Sidebar" [ref=e70]:
+      - generic [ref=e71]:
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - link "Navigate back to the previous page" [ref=e75] [cursor=pointer]:
+              - /url: /projects/KAN
+              - generic [ref=e78]: Navigate back to the previous page
+            - heading "Space settings" [level=2] [ref=e79]
+          - generic [ref=e81]:
+            - generic [ref=e82]: Testproject
+            - generic [ref=e83]: Software space
+        - list [ref=e86]:
+          - listitem [ref=e87]:
+            - link "Details" [ref=e89] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/details
+              - generic [ref=e94]: Details
+          - listitem [ref=e95]:
+            - link "Access" [ref=e97] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/access
+              - generic [ref=e102]: Access
+          - listitem [ref=e103]:
+            - button "Notifications" [ref=e107] [cursor=pointer]:
+              - generic [ref=e111]: Notifications
+          - listitem [ref=e112]:
+            - link "Automation" [ref=e114] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/automation
+              - generic [ref=e119]: Automation
+          - listitem [ref=e120]:
+            - link "Fields" [ref=e122] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/fields
+              - generic [ref=e127]: Fields
+          - listitem [ref=e128]:
+            - button "Work types" [ref=e132] [cursor=pointer]:
+              - generic [ref=e136]: Work types
+          - listitem [ref=e137]:
+            - link "Features" [ref=e139] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/features
+              - generic [ref=e144]: Features
+          - listitem [ref=e145]:
+            - button "Board" [ref=e149] [cursor=pointer]:
+              - generic [ref=e153]: Board
+          - listitem [ref=e154]:
+            - link "Timeline" [ref=e156] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/boards/2/timeline
+              - generic [ref=e161]: Timeline
+          - listitem [ref=e162]:
+            - link "Toolchain" [ref=e164] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/toolchain?projectId=10001
+              - generic [ref=e169]: Toolchain
+          - listitem [ref=e170]:
+            - button "Apps" [ref=e174] [cursor=pointer]:
+              - generic [ref=e178]: Apps
+    - generic [ref=e190]:
+      - slider "Resize side navigation panel" [ref=e191]: "240"
+      - text: Resize side navigation panel
+    - main [ref=e179]:
+      - generic [ref=e195]:
+        - navigation "Breadcrumbs" [ref=e198]:
+          - list [ref=e199]:
+            - listitem [ref=e200]:
+              - link "Spaces" [ref=e201] [cursor=pointer]:
+                - /url: /jira/projects
+                - generic [ref=e202]: Spaces
+              - text: /
+            - listitem [ref=e203]:
+              - link "Testproject" [ref=e204] [cursor=pointer]:
+                - /url: /browse/KAN
+                - generic [ref=e205]: Testproject
+              - text: /
+            - listitem [ref=e206]:
+              - link "Space settings" [ref=e207] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings
+                - generic [ref=e208]: Space settings
+              - text: /
+            - listitem [ref=e209]:
+              - link "Automation" [ref=e210] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e211]: Automation
+        - generic [ref=e2018]:
+          - generic [ref=e2019]:
+            - heading "Example rule" [level=1] [ref=e2021]
+            - generic [ref=e2022]:
+              - button "Rule details" [ref=e2023] [cursor=pointer]:
+                - generic [ref=e2024]: Rule details
+              - generic [ref=e2025]:
+                - button "Turn on rule" [disabled] [ref=e2027]:
+                  - generic [ref=e2028]: Turn on rule
+                - button "More \"Turn on rule\" options" [disabled] [ref=e2031]:
+                  - generic [ref=e2034]: More "Turn on rule" options
+              - separator [ref=e2035]
+              - button "Return to rules" [ref=e2036] [cursor=pointer]:
+                - generic [ref=e2037]: Return to rules
+          - generic [ref=e2038]:
+            - list [ref=e2071]:
+              - listitem [ref=e2072]:
+                - generic [ref=e2073]:
+                  - 'button "When: Work item created Rule is run when a work item is created." [ref=e2076] [cursor=pointer]':
+                    - generic [ref=e2080]:
+                      - 'heading "When: Work item created" [level=2] [ref=e2081]'
+                      - generic [ref=e2082]: Rule is run when a work item is created.
+                  - img [ref=e2085]
+                  - button "Issue is unassigned Issue is unassigned" [ref=e2100] [cursor=pointer]:
+                    - generic [ref=e2104]:
+                      - heading "Issue is unassigned" [level=2] [ref=e2105]
+                      - generic [ref=e2106]: Issue is unassigned
+                  - img [ref=e2109]
+                  - 'button "Then: Add comment to work item Did you forget to assign the work item?" [ref=e2122] [cursor=pointer]':
+                    - generic [ref=e2126]:
+                      - 'heading "Then: Add comment to work item" [level=2] [ref=e2127]'
+                      - generic "Did you forget to assign the work item?" [ref=e2130]
+                  - img [ref=e2133]
+                  - button "Add component Add component" [disabled] [ref=e2138]:
+                    - img "Add component" [ref=e2140]
+                    - generic [ref=e2141]: Add component
+            - generic [ref=e2045]:
+              - heading "Actions" [level=2] [ref=e2143]
+              - generic [ref=e2049]: Actions allow you to make changes within your system.
+              - generic [ref=e2050]: They allow you to perform many tasks, such as editing a work item, sending a notification, or creating sub-tasks.
+              - separator [ref=e2063]
+              - generic [ref=e2064]:
+                - button "Skip tour" [ref=e2066] [cursor=pointer]:
+                  - generic [ref=e2067]: Skip tour
+                - button "Next" [ref=e2069] [cursor=pointer]:
+                  - generic [ref=e2070]: Next

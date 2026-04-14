@@ -1,0 +1,33 @@
+- generic [ref=e2]:
+  - main [ref=e3]:
+    - generic [ref=e6]:
+      - heading "Page unavailable" [level=1] [ref=e7]
+      - generic [ref=e8]:
+        - text: Your Atlassian Cloud site is currently unavailable.
+        - text: Please check
+        - link "Atlassian Status" [ref=e9] [cursor=pointer]:
+          - /url: https://status.atlassian.com
+        - text: for known problems.
+        - text: If there are no known problems and your page hasn't appeared again in 5-10 minutes then please contact our support team.
+      - paragraph [ref=e10]:
+        - link "Atlassian Status" [ref=e11] [cursor=pointer]:
+          - /url: https://status.atlassian.com
+        - link "Contact Support" [ref=e12] [cursor=pointer]:
+          - /url: https://support.atlassian.com
+      - paragraph [ref=e13]: "Request ID: ddd8b9ad96c1433aa5cbd0f30ad2f75a"
+  - contentinfo [ref=e14]:
+    - generic [ref=e15]:
+      - list [ref=e16]:
+        - listitem [ref=e17]:
+          - link "Atlassian Status" [ref=e18] [cursor=pointer]:
+            - /url: https://status.atlassian.com
+          - text: ·
+        - listitem [ref=e19]:
+          - link "Release Summary" [ref=e20] [cursor=pointer]:
+            - /url: https://confluence.atlassian.com/display/cloud/What's+New
+          - text: ·
+        - listitem [ref=e21]:
+          - link "Documentation" [ref=e22] [cursor=pointer]:
+            - /url: https://confluence.atlassian.com/display/Cloud/Atlassian+Cloud+Documentation
+      - link "Atlassian" [ref=e24] [cursor=pointer]:
+        - /url: https://www.atlassian.com/

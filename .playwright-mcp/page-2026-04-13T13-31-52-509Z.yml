@@ -1,0 +1,6 @@
+- main [ref=e2]:
+  - generic [ref=e6]:
+    - heading "Error" [level=1] [ref=e8]
+    - alert [ref=e9]:
+      - paragraph [ref=e10]: You have not selected a valid project to create an issue in.
+      - text: 

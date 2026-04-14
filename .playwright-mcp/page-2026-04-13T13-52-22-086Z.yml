@@ -1,0 +1,173 @@
+- generic [ref=e2]:
+  - generic:
+    - generic: "Skip to:"
+    - list:
+      - listitem:
+        - link "Top Bar":
+          - /url: "#_Rhp955jal9_"
+      - listitem:
+        - link "Main Content":
+          - /url: "#_R2p955jal9_"
+      - listitem:
+        - link "Sidebar":
+          - /url: "#_R3i9955jal9_"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - button "Switch sites or apps" [ref=e185] [cursor=pointer]:
+            - generic [ref=e12]: Switch sites or apps
+          - link "Go to your Jira homepage" [ref=e15] [cursor=pointer]:
+            - /url: /jira
+            - generic [ref=e16]:
+              - img [ref=e19]
+              - generic [ref=e24]: Jira
+        - button "Collapse sidebar" [ref=e26] [cursor=pointer]:
+          - generic [ref=e28]: Collapse sidebar
+      - generic [ref=e29]:
+        - search [ref=e34]:
+          - textbox "Search" [ref=e37]
+        - button "Create" [ref=e40] [cursor=pointer]:
+          - generic [ref=e43]: Create
+      - navigation "Actions" [ref=e44]:
+        - list [ref=e45]:
+          - button "See plans" [ref=e186] [cursor=pointer]: See plans
+          - listitem [ref=e46]:
+            - button "Notifications" [ref=e49] [cursor=pointer]:
+              - generic [ref=e52]: Notifications
+          - listitem [ref=e55]:
+            - button "Help" [ref=e56] [cursor=pointer]:
+              - generic [ref=e59]: Help
+            - generic:
+              - generic:
+                - generic: 3+
+          - listitem [ref=e61]:
+            - button "Settings" [ref=e62] [cursor=pointer]:
+              - generic [ref=e65]: Settings
+          - listitem [ref=e66]:
+            - button "asaf.meller@gmail.com" [ref=e67] [cursor=pointer]:
+              - img "Account" [ref=e69]
+    - navigation "Sidebar" [ref=e70]:
+      - generic [ref=e71]:
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - link "Navigate back to the previous page" [ref=e75] [cursor=pointer]:
+              - /url: /projects/KAN
+              - generic [ref=e78]: Navigate back to the previous page
+            - heading "Space settings" [level=2] [ref=e79]
+          - generic [ref=e81]:
+            - generic [ref=e82]: Testproject
+            - generic [ref=e83]: Software space
+        - list [ref=e86]:
+          - listitem [ref=e87]:
+            - link "Details" [ref=e89] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/details
+              - generic [ref=e94]: Details
+          - listitem [ref=e95]:
+            - link "Access" [ref=e97] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/access
+              - generic [ref=e102]: Access
+          - listitem [ref=e103]:
+            - button "Notifications" [ref=e107] [cursor=pointer]:
+              - generic [ref=e111]: Notifications
+          - listitem [ref=e112]:
+            - link "Automation" [ref=e114] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/automation
+              - generic [ref=e119]: Automation
+          - listitem [ref=e120]:
+            - link "Fields" [ref=e122] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/fields
+              - generic [ref=e127]: Fields
+          - listitem [ref=e128]:
+            - button "Work types" [ref=e132] [cursor=pointer]:
+              - generic [ref=e136]: Work types
+          - listitem [ref=e137]:
+            - link "Features" [ref=e139] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/features
+              - generic [ref=e144]: Features
+          - listitem [ref=e145]:
+            - button "Board" [ref=e149] [cursor=pointer]:
+              - generic [ref=e153]: Board
+          - listitem [ref=e154]:
+            - link "Timeline" [ref=e156] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/boards/2/timeline
+              - generic [ref=e161]: Timeline
+          - listitem [ref=e162]:
+            - link "Toolchain" [ref=e164] [cursor=pointer]:
+              - /url: /jira/software/projects/KAN/settings/toolchain?projectId=10001
+              - generic [ref=e169]: Toolchain
+          - listitem [ref=e170]:
+            - button "Apps" [ref=e174] [cursor=pointer]:
+              - generic [ref=e178]: Apps
+    - generic [ref=e190]:
+      - slider "Resize side navigation panel" [ref=e191]: "240"
+      - text: Resize side navigation panel
+    - main [ref=e179]:
+      - generic [ref=e195]:
+        - navigation "Breadcrumbs" [ref=e198]:
+          - list [ref=e199]:
+            - listitem [ref=e200]:
+              - link "Spaces" [ref=e201] [cursor=pointer]:
+                - /url: /jira/projects
+                - generic [ref=e202]: Spaces
+              - text: /
+            - listitem [ref=e203]:
+              - link "Testproject" [ref=e204] [cursor=pointer]:
+                - /url: /browse/KAN
+                - generic [ref=e205]: Testproject
+              - text: /
+            - listitem [ref=e206]:
+              - link "Space settings" [ref=e207] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings
+                - generic [ref=e208]: Space settings
+              - text: /
+            - listitem [ref=e209]:
+              - link "Automation" [ref=e210] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e211]: Automation
+        - generic [ref=e2018]:
+          - generic [ref=e2019]:
+            - heading "Example rule" [level=1] [ref=e2021]
+            - generic [ref=e2022]:
+              - button "Rule details" [ref=e2023] [cursor=pointer]:
+                - generic [ref=e2024]: Rule details
+              - generic [ref=e2025]:
+                - button "Turn on rule" [disabled] [ref=e2027]:
+                  - generic [ref=e2028]: Turn on rule
+                - button "More \"Turn on rule\" options" [disabled] [ref=e2031]:
+                  - generic [ref=e2034]: More "Turn on rule" options
+              - separator [ref=e2035]
+              - button "Return to rules" [ref=e2036] [cursor=pointer]:
+                - generic [ref=e2037]: Return to rules
+          - generic [ref=e2038]:
+            - list [ref=e2071]:
+              - listitem [ref=e2072]:
+                - generic [ref=e2073]:
+                  - 'button "When: Work item created Rule is run when a work item is created." [ref=e2076] [cursor=pointer]':
+                    - generic [ref=e2080]:
+                      - 'heading "When: Work item created" [level=2] [ref=e2081]'
+                      - generic [ref=e2082]: Rule is run when a work item is created.
+                  - img [ref=e2085]
+                  - button "Issue is unassigned Issue is unassigned" [ref=e2100] [cursor=pointer]:
+                    - generic [ref=e2104]:
+                      - heading "Issue is unassigned" [level=2] [ref=e2105]
+                      - generic [ref=e2106]: Issue is unassigned
+                  - img [ref=e2109]
+                  - 'button "Then: Add comment to work item Did you forget to assign the work item?" [ref=e2122] [cursor=pointer]':
+                    - generic [ref=e2126]:
+                      - 'heading "Then: Add comment to work item" [level=2] [ref=e2127]'
+                      - generic "Did you forget to assign the work item?" [ref=e2130]
+                  - img [ref=e2133]
+                  - button "Add component Add component" [disabled] [ref=e2138]:
+                    - img "Add component" [ref=e2140]
+                    - generic [ref=e2141]: Add component
+            - generic [ref=e2045]:
+              - heading "Actions" [level=2] [ref=e2143]
+              - generic [ref=e2049]: Actions allow you to make changes within your system.
+              - generic [ref=e2050]: They allow you to perform many tasks, such as editing a work item, sending a notification, or creating sub-tasks.
+              - separator [ref=e2063]
+              - generic [ref=e2064]:
+                - button "Skip tour" [ref=e2066] [cursor=pointer]:
+                  - generic [ref=e2067]: Skip tour
+                - button "Next" [ref=e2069] [cursor=pointer]:
+                  - generic [ref=e2070]: Next

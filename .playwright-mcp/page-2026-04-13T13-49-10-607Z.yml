@@ -1,0 +1,427 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_Rhp955jal9_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_R2p955jal9_"
+        - listitem:
+          - link "Sidebar":
+            - /url: "#_R3i9955jal9_"
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - button "Switch sites or apps" [ref=e9] [cursor=pointer]:
+              - generic [ref=e12]: Switch sites or apps
+            - link "Go to your Jira homepage" [ref=e14] [cursor=pointer]:
+              - /url: /jira
+              - generic [ref=e15]:
+                - img [ref=e18]
+                - generic [ref=e23]: Jira
+          - button "Collapse sidebar" [ref=e25] [cursor=pointer]:
+            - generic [ref=e27]: Collapse sidebar
+        - generic [ref=e28]:
+          - search [ref=e33]:
+            - textbox "Search" [ref=e36]
+          - button "Create" [ref=e39] [cursor=pointer]:
+            - generic [ref=e42]: Create
+        - navigation "Actions" [ref=e43]:
+          - list [ref=e44]:
+            - button "See plans" [ref=e443] [cursor=pointer]: See plans
+            - listitem [ref=e45]:
+              - button "Notifications" [ref=e48] [cursor=pointer]:
+                - generic [ref=e51]: Notifications
+            - listitem [ref=e54]:
+              - button "Help" [ref=e55] [cursor=pointer]:
+                - generic [ref=e58]: Help
+              - generic:
+                - generic:
+                  - generic: 3+
+            - listitem [ref=e60]:
+              - button "Settings" [ref=e61] [cursor=pointer]:
+                - generic [ref=e64]: Settings
+            - listitem [ref=e65]:
+              - button "asaf.meller@gmail.com" [ref=e66] [cursor=pointer]:
+                - img "Account" [ref=e68]
+      - navigation "Sidebar" [ref=e69]:
+        - generic [ref=e70]:
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - link "Navigate back to the previous page" [ref=e74] [cursor=pointer]:
+                - /url: /projects/KAN
+                - generic [ref=e77]: Navigate back to the previous page
+              - heading "Space settings" [level=2] [ref=e78]
+            - generic [ref=e80]:
+              - generic [ref=e81]: Testproject
+              - generic [ref=e82]: Software space
+          - list [ref=e85]:
+            - listitem [ref=e86]:
+              - link "Details" [ref=e88] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/details
+                - generic [ref=e93]: Details
+            - listitem [ref=e94]:
+              - link "Access" [ref=e96] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/access
+                - generic [ref=e101]: Access
+            - listitem [ref=e102]:
+              - button "Notifications" [ref=e106] [cursor=pointer]:
+                - generic [ref=e110]: Notifications
+            - listitem [ref=e111]:
+              - link "Automation" [ref=e113] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/automation
+                - generic [ref=e118]: Automation
+            - listitem [ref=e119]:
+              - link "Fields" [ref=e121] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/fields
+                - generic [ref=e126]: Fields
+            - listitem [ref=e127]:
+              - button "Work types" [ref=e131] [cursor=pointer]:
+                - generic [ref=e135]: Work types
+            - listitem [ref=e136]:
+              - link "Features" [ref=e138] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/features
+                - generic [ref=e143]: Features
+            - listitem [ref=e144]:
+              - button "Board" [ref=e148] [cursor=pointer]:
+                - generic [ref=e152]: Board
+            - listitem [ref=e153]:
+              - link "Timeline" [ref=e155] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/boards/2/timeline
+                - generic [ref=e160]: Timeline
+            - listitem [ref=e161]:
+              - link "Toolchain" [ref=e163] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/toolchain?projectId=10001
+                - generic [ref=e168]: Toolchain
+            - listitem [ref=e169]:
+              - button "Apps" [ref=e173] [cursor=pointer]:
+                - generic [ref=e177]: Apps
+      - generic [ref=e179]:
+        - slider "Resize side navigation panel" [ref=e180]: "240"
+        - text: Resize side navigation panel
+      - main [ref=e182]:
+        - generic [ref=e186]:
+          - navigation "Breadcrumbs" [ref=e189]:
+            - list [ref=e190]:
+              - listitem [ref=e191]:
+                - link "Spaces" [ref=e192] [cursor=pointer]:
+                  - /url: /jira/projects
+                  - generic [ref=e193]: Spaces
+                - text: /
+              - listitem [ref=e194]:
+                - link "Testproject" [ref=e195] [cursor=pointer]:
+                  - /url: /browse/KAN
+                  - generic [ref=e196]: Testproject
+                - text: /
+              - listitem [ref=e197]:
+                - link "Space settings" [ref=e198] [cursor=pointer]:
+                  - /url: /jira/software/projects/KAN/settings
+                  - generic [ref=e199]: Space settings
+          - generic [ref=e201]:
+            - generic [ref=e203]:
+              - heading "Details" [level=1] [ref=e205]
+              - button "More options" [ref=e208] [cursor=pointer]:
+                - img "More options" [ref=e210]
+            - generic [ref=e213]:
+              - generic [ref=e214]:
+                - img "Space avatar" [ref=e216]
+                - button "Change icon" [ref=e218] [cursor=pointer]:
+                  - generic [ref=e219]: Change icon
+              - paragraph [ref=e221]: Required fields are marked with an asterisk *
+              - generic [ref=e223]:
+                - generic [ref=e224]: Name*
+                - textbox "Name" [ref=e225]: Testproject
+              - generic [ref=e227]:
+                - generic [ref=e228]:
+                  - text: Space key
+                  - button "More about space keys" [ref=e229] [cursor=pointer]:
+                    - generic [ref=e232]: More about space keys
+                  - text: "*"
+                - textbox "Space key More about space keys" [ref=e233]: KAN
+              - generic [ref=e235]:
+                - generic [ref=e236]: Category
+                - generic [ref=e237]:
+                  - status [ref=e239]
+                  - generic [ref=e240]:
+                    - generic [ref=e241]:
+                      - generic [ref=e242]: Choose a category
+                      - combobox "Category" [ref=e244]
+                    - img [ref=e248]
+              - generic [ref=e249]:
+                - generic [ref=e250]:
+                  - generic [ref=e251]: Space owner
+                  - generic [ref=e252]:
+                    - status [ref=e254]
+                    - generic [ref=e256]:
+                      - generic [ref=e258]:
+                        - img [ref=e261]
+                        - generic [ref=e265]: asaf meller
+                      - combobox "Space owner" [ref=e267]
+                - generic [ref=e270]: Make sure your space lead has access to work items in the space.
+              - generic [ref=e272]:
+                - generic [ref=e273]: Default assignee
+                - generic [ref=e274]:
+                  - status [ref=e276]
+                  - generic [ref=e277]:
+                    - generic [ref=e278]:
+                      - generic [ref=e279]: Unassigned
+                      - combobox "Default assignee" [ref=e281]
+                    - img [ref=e285]
+              - button "Save" [disabled] [ref=e287]:
+                - generic: Save
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading "Flag notifications" [level=2] [ref=e289]
+          - alert [ref=e291]:
+            - generic [ref=e293]:
+              - img "info-icon" [ref=e295]
+              - generic [ref=e297]:
+                - generic [ref=e298]:
+                  - heading "Join our paid research study 💸" [level=2] [ref=e300]
+                  - button "Dismiss" [ref=e301] [cursor=pointer]:
+                    - generic [ref=e304]: Dismiss
+                - generic [ref=e307]:
+                  - generic [ref=e308]: Tell us about your setup experience and we’ll send you a $100 gift card as a thank you.
+                  - link "Join now" [ref=e311] [cursor=pointer]:
+                    - /url: https://www.userinterviews.com/projects/VyePep5kmg/apply
+                    - generic [ref=e312]: Join now
+    - dialog "Create Task" [ref=e315]:
+      - generic [ref=e318]:
+        - heading "Create Task" [level=1] [ref=e319]:
+          - generic [ref=e320]: Create Task
+        - list [ref=e322]:
+          - listitem [ref=e323]:
+            - button "Minimize" [ref=e324] [cursor=pointer]:
+              - generic [ref=e327]: Minimize
+          - listitem [ref=e328]:
+            - button "Exit full screen" [ref=e329] [cursor=pointer]:
+              - generic [ref=e332]: Exit full screen
+          - listitem [ref=e333]:
+            - button "More actions for this Task" [ref=e334] [cursor=pointer]
+          - listitem [ref=e337]:
+            - button "Close" [ref=e338] [cursor=pointer]:
+              - generic [ref=e341]: Close
+      - region "Scrollable content" [ref=e446]:
+        - generic [ref=e349]:
+          - generic [ref=e351]: Required fields are marked with an asterisk *
+          - generic [ref=e353]:
+            - generic [ref=e354]: Space*
+            - generic [ref=e355]:
+              - status [ref=e357]
+              - generic [ref=e358]:
+                - generic [ref=e359]:
+                  - generic [ref=e361]:
+                    - img [ref=e365]
+                    - generic [ref=e367]: Testproject (KAN)
+                  - combobox "Space" [ref=e369]
+                - img [ref=e376]
+          - generic [ref=e447]:
+            - generic [ref=e448]: Work type*
+            - generic [ref=e450]:
+              - status [ref=e452]
+              - generic [ref=e453]:
+                - generic [ref=e454]:
+                  - generic [ref=e456]:
+                    - img [ref=e460]
+                    - generic [ref=e462]: Task
+                  - combobox "Work type" [ref=e464]
+                - img [ref=e468]
+            - link "Learn about work types , (opens new window)" [ref=e473] [cursor=pointer]:
+              - /url: /secure/ShowConstantsHelp.jspa?decorator=popup#IssueTypes
+              - text: Learn about work types
+              - img [ref=e475]
+              - generic [ref=e477]: ", (opens new window)"
+          - generic [ref=e478]:
+            - generic [ref=e480]: Status
+            - button "To Do - Change status" [ref=e485] [cursor=pointer]:
+              - generic [ref=e486]: To Do
+            - generic [ref=e489]: This is the initial status upon creation
+          - generic [ref=e492]:
+            - generic [ref=e494]:
+              - generic [ref=e495]: Summary*
+              - textbox "Summary" [active] [ref=e496]
+            - generic [ref=e498]:
+              - generic [ref=e499]: Description
+              - generic [ref=e509]:
+                - toolbar "Editor" [ref=e511]:
+                  - generic "Primary Toolbar" [ref=e513]:
+                    - generic [ref=e516]:
+                      - button "Improve description" [disabled] [ref=e518]:
+                        - img "Improve description" [ref=e519]
+                        - text: Improve description
+                      - button "More Rovo options" [disabled] [ref=e521]:
+                        - img "More Rovo options" [ref=e522]
+                    - generic [ref=e524]:
+                      - button "normal Text styles" [ref=e526] [cursor=pointer]:
+                        - img "normal Text styles" [ref=e527]
+                      - generic [ref=e528]:
+                        - button "Bold Ctrl+B" [ref=e530] [cursor=pointer]:
+                          - img "Bold Ctrl+B" [ref=e531]
+                        - button "More formatting" [ref=e533] [cursor=pointer]
+                      - generic [ref=e535]:
+                        - button "Bulleted list" [ref=e537] [cursor=pointer]:
+                          - img "Bulleted list" [ref=e538]
+                        - button "Lists" [ref=e540] [cursor=pointer]:
+                          - img "Lists" [ref=e541]
+                      - button "Text color" [ref=e543] [cursor=pointer]:
+                        - img "Text color" [ref=e546]
+                    - generic [ref=e547]:
+                      - button "Add image, video, or file" [ref=e550] [cursor=pointer]:
+                        - img "Add image, video, or file" [ref=e551]
+                      - button "Code snippet" [ref=e554] [cursor=pointer]:
+                        - img "Code snippet" [ref=e555]
+                      - button "Emoji" [ref=e558] [cursor=pointer]:
+                        - img "Emoji" [ref=e559]
+                      - button "Insert elements" [ref=e562] [cursor=pointer]:
+                        - img "Insert elements" [ref=e563]
+                    - button "Link" [ref=e566] [cursor=pointer]:
+                      - img "Link" [ref=e567]
+                    - generic [ref=e568]:
+                      - button "Undo" [disabled] [ref=e570]:
+                        - img "Undo" [ref=e571]
+                      - button "Redo" [disabled] [ref=e573]:
+                        - img "Redo" [ref=e574]
+                      - button "View changes" [disabled] [ref=e576]:
+                        - img "View changes" [ref=e577]
+                - generic [ref=e578]:
+                  - status [ref=e579]
+                  - textbox "Description area, start typing to enter text." [ref=e580]:
+                    - paragraph [ref=e581]: Type /ai to Ask Rovo or @ to mention and notify someone.
+            - generic [ref=e584]:
+              - generic [ref=e585]: Assignee
+              - generic [ref=e586]:
+                - generic [ref=e587]:
+                  - status [ref=e589]
+                  - generic [ref=e592]:
+                    - generic [ref=e594]:
+                      - img [ref=e597]
+                      - generic [ref=e601]: Automatic
+                    - combobox "Assignee" [ref=e603]
+                - button "Assign to me" [ref=e605] [cursor=pointer]
+            - generic [ref=e607]:
+              - generic [ref=e608]: Priority
+              - generic [ref=e610]:
+                - status [ref=e612]
+                - generic [ref=e613]:
+                  - generic [ref=e614]:
+                    - generic [ref=e616]:
+                      - img [ref=e620]
+                      - generic [ref=e622]: Medium
+                    - combobox "Priority" [ref=e624]
+                  - img [ref=e628]
+              - link "Learn about priority levels , (opens new window)" [ref=e633] [cursor=pointer]:
+                - /url: /secure/ShowConstantsHelp.jspa?decorator=popup#PriorityLevels
+                - text: Learn about priority levels
+                - img [ref=e635]
+                - generic [ref=e637]: ", (opens new window)"
+            - generic [ref=e639]:
+              - generic [ref=e640]: Parent
+              - generic [ref=e641]:
+                - generic [ref=e643]:
+                  - status [ref=e645]
+                  - generic [ref=e646]:
+                    - generic [ref=e647]:
+                      - generic [ref=e648]: Select parent
+                      - combobox "Select parent" [ref=e650]
+                    - img [ref=e654]
+                - generic [ref=e656]: Your work type hierarchy determines the work items you can select here.
+            - generic [ref=e658]:
+              - generic [ref=e659]: Due date
+              - generic [ref=e660]:
+                - generic [ref=e661]:
+                  - status [ref=e663]
+                  - generic [ref=e665]:
+                    - generic [ref=e666]: Select date
+                    - combobox "Due date" [ref=e668]
+                - button "Date picker, Open calendar" [ref=e670] [cursor=pointer]:
+                  - generic [ref=e673]: Date picker, Open calendar
+            - generic [ref=e675]:
+              - generic [ref=e676]: Labels
+              - generic [ref=e678]:
+                - status [ref=e680]
+                - generic [ref=e681]:
+                  - generic [ref=e682]:
+                    - generic [ref=e683]: Select label
+                    - combobox "Labels" [ref=e685]
+                  - img [ref=e689]
+            - generic [ref=e691]:
+              - generic [ref=e692]: Team
+              - generic [ref=e694]:
+                - status [ref=e696]
+                - generic [ref=e698]:
+                  - img [ref=e702]
+                  - generic [ref=e709]: Choose a team
+                  - combobox "Team" [ref=e711]
+              - paragraph [ref=e719]: Associates a team to an issue. You can use this field to search and filter issues by team.
+            - generic [ref=e721]:
+              - generic [ref=e722]: Start date
+              - generic [ref=e723]:
+                - generic [ref=e724]:
+                  - status [ref=e726]
+                  - generic [ref=e728]:
+                    - generic [ref=e729]: Select date
+                    - combobox "Start date" [ref=e731]
+                - button "Date picker, Open calendar" [ref=e733] [cursor=pointer]:
+                  - generic [ref=e736]: Date picker, Open calendar
+              - paragraph [ref=e743]: Allows the planned start date for a piece of work to be set.
+            - generic [ref=e745]:
+              - generic [ref=e746]: Reporter*
+              - generic [ref=e748]:
+                - status [ref=e750]
+                - generic [ref=e752]:
+                  - generic [ref=e754]:
+                    - img [ref=e757]
+                    - generic [ref=e761]: asaf meller
+                  - combobox "Reporter" [ref=e763]
+            - generic [ref=e766]:
+              - generic [ref=e767]: Attachment
+              - generic [ref=e769]:
+                - generic [ref=e771]: Drop files to attach or
+                - button "Browse attachment" [ref=e773] [cursor=pointer]:
+                  - generic [ref=e774]: Browse
+            - generic [ref=e776]:
+              - generic [ref=e777]: Linked Work items
+              - generic [ref=e779]:
+                - generic [ref=e781]:
+                  - status [ref=e783]
+                  - generic [ref=e784]:
+                    - generic [ref=e785]:
+                      - generic [ref=e786]: blocks
+                      - combobox "Linked Work items" [ref=e788]
+                    - img [ref=e792]
+                - generic [ref=e795]:
+                  - status [ref=e797]
+                  - generic [ref=e798]:
+                    - generic [ref=e799]:
+                      - generic [ref=e800]: Type, search or paste URL
+                      - combobox "Type, search or paste URL to link work items" [ref=e802]
+                    - img [ref=e806]
+            - generic [ref=e808]:
+              - generic [ref=e809]: Restrict to
+              - generic [ref=e811]:
+                - status [ref=e813]
+                - generic [ref=e814]:
+                  - generic [ref=e815]:
+                    - generic [ref=e816]: Select Roles
+                    - combobox "Restrict to" [ref=e817]
+                  - img [ref=e821]
+            - generic [ref=e823]:
+              - generic [ref=e824]: Flagged
+              - generic [ref=e827]:
+                - checkbox "Impediment" [ref=e828]
+                - generic [ref=e829]: Impediment
+              - paragraph [ref=e836]: Allows to flag issues with impediments.
+      - generic [ref=e434]:
+        - generic [ref=e435]:
+          - checkbox "Create another" [ref=e436]
+          - generic [ref=e437]: Create another
+        - button "Cancel" [ref=e439] [cursor=pointer]:
+          - generic [ref=e440]: Cancel
+        - button "Create" [ref=e441] [cursor=pointer]:
+          - generic [ref=e442]: Create

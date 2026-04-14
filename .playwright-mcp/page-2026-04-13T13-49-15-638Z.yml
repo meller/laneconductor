@@ -1,0 +1,85 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "The App Switcher is loading" [ref=e9] [cursor=pointer]:
+          - status "The App Switcher is loading" [ref=e13]
+        - link "Go to your Jira homepage" [ref=e15] [cursor=pointer]:
+          - /url: /jira
+          - generic [ref=e16]:
+            - img [ref=e19]
+            - generic [ref=e24]: Jira
+      - button "Collapse sidebar" [ref=e26] [cursor=pointer]:
+        - generic [ref=e28]: Collapse sidebar
+    - generic [ref=e29]:
+      - search [ref=e34]:
+        - textbox "Search" [ref=e37]
+      - button "Create" [ref=e40] [cursor=pointer]:
+        - generic [ref=e43]: Create
+    - navigation "Actions" [ref=e44]:
+      - list [ref=e45]:
+        - listitem [ref=e46]:
+          - button "Notifications" [ref=e49] [cursor=pointer]:
+            - generic [ref=e52]: Notifications
+        - listitem [ref=e55]:
+          - button "Help" [ref=e56] [cursor=pointer]:
+            - generic [ref=e59]: Help
+        - listitem [ref=e61]:
+          - button "Settings" [ref=e62] [cursor=pointer]:
+            - generic [ref=e65]: Settings
+        - listitem [ref=e66]:
+          - button "asaf.meller@gmail.com" [ref=e67] [cursor=pointer]:
+            - img "Account" [ref=e69]
+  - navigation "Sidebar" [ref=e70]:
+    - generic [ref=e71]:
+      - generic [ref=e73]:
+        - generic [ref=e74]:
+          - link "Navigate back to the previous page" [ref=e75] [cursor=pointer]:
+            - /url: /projects/KAN
+            - generic [ref=e78]: Navigate back to the previous page
+          - heading "Space settings" [level=2] [ref=e79]
+        - generic [ref=e81]:
+          - generic [ref=e82]: Testproject
+          - generic [ref=e83]: Software space
+      - list [ref=e86]:
+        - listitem [ref=e87]:
+          - link "Details" [ref=e89] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/details
+            - generic [ref=e94]: Details
+        - listitem [ref=e95]:
+          - link "Access" [ref=e97] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/access
+            - generic [ref=e102]: Access
+        - listitem [ref=e103]:
+          - button "Notifications" [ref=e107] [cursor=pointer]:
+            - generic [ref=e111]: Notifications
+        - listitem [ref=e112]:
+          - link "Automation" [ref=e114] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/automation
+            - generic [ref=e119]: Automation
+        - listitem [ref=e120]:
+          - link "Fields" [ref=e122] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/fields
+            - generic [ref=e127]: Fields
+        - listitem [ref=e128]:
+          - button "Work types" [ref=e132] [cursor=pointer]:
+            - generic [ref=e136]: Work types
+        - listitem [ref=e137]:
+          - link "Features" [ref=e139] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/features
+            - generic [ref=e144]: Features
+        - listitem [ref=e145]:
+          - button "Board" [ref=e149] [cursor=pointer]:
+            - generic [ref=e153]: Board
+        - listitem [ref=e154]:
+          - link "Timeline" [ref=e156] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/boards/2/timeline
+            - generic [ref=e161]: Timeline
+        - listitem [ref=e162]:
+          - link "Toolchain" [ref=e164] [cursor=pointer]:
+            - /url: /jira/software/projects/KAN/settings/toolchain?projectId=10001
+            - generic [ref=e169]: Toolchain
+        - listitem [ref=e170]:
+          - button "Apps" [ref=e174] [cursor=pointer]:
+            - generic [ref=e178]: Apps
+  - main [ref=e179]

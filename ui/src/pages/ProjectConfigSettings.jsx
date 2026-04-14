@@ -92,7 +92,6 @@ export function ProjectConfigSettings({ projectId, onClose }) {
           secondary: config.secondary?.cli ? config.secondary : null,
           dev: config.dev,
           create_quality_gate: config.create_quality_gate,
-          integrations: config.integrations,
         }),
       });
       if (!r.ok) throw new Error(await r.text());
@@ -188,64 +187,6 @@ export function ProjectConfigSettings({ projectId, onClose }) {
               <label className={labelCls}>URL</label>
               <input type="text" value={config?.dev?.url || ''} onChange={e => set('dev.url', e.target.value)}
                 placeholder="e.g. http://localhost:3000" className={inputCls} />
-            </div>
-          </div>
-        </section>
-
-        {/* Integrations */}
-        <section>
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-800">Integrations</h3>
-
-          {/* Jira */}
-          <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 mb-4 shadow-inner">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-black text-white text-lg shadow-lg">J</div>
-              <div>
-                <h4 className="text-sm font-bold text-white tracking-tight">Jira Software</h4>
-                <p className="text-[10px] text-gray-500">Sync Jira tickets to LaneConductor tracks</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Atlassian Domain</label>
-                <input type="text" value={config?.integrations?.jira?.domain || ''}
-                  onChange={e => set('integrations.jira.domain', e.target.value)}
-                  placeholder="your-org.atlassian.net" className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Account Email</label>
-                <input type="email" value={config?.integrations?.jira?.email || ''}
-                  onChange={e => set('integrations.jira.email', e.target.value)}
-                  placeholder="me@company.com" className={inputCls} />
-              </div>
-              <div className="col-span-2">
-                <label className={labelCls}>API Token</label>
-                <input type="password" value={config?.integrations?.jira?.token || ''}
-                  onChange={e => set('integrations.jira.token', e.target.value)}
-                  placeholder="Paste Atlassian API token" className={inputCls} />
-              </div>
-              <div className="col-span-2 border-t border-gray-800/50 pt-3 mt-1">
-                <label className={labelCls}>Incoming Webhook Token</label>
-                <div className="flex gap-2">
-                  <input type="text" readOnly value={config?.integrations?.jira?.webhookToken || ''} className={`${inputCls} bg-gray-950 font-mono text-blue-400`} />
-                  <button onClick={(e) => {
-                    e.preventDefault();
-                    set('integrations.jira.webhookToken', Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2));
-                  }}
-                    className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-[10px] text-gray-300 font-bold rounded-lg border border-gray-700 transition-colors">
-                    Regenerate
-                  </button>
-                </div>
-                {config?.integrations?.jira?.webhookToken && (
-                  <div className="mt-2 p-2 bg-gray-900/50 rounded-lg border border-gray-800/50">
-                    <p className="text-[9px] text-gray-500 mb-1 font-bold uppercase tracking-widest">Jira Webhook URL</p>
-                    <code className="text-[10px] text-gray-400 break-all select-all">
-                      {window.location.origin.replace(':8090', ':8091')}/v1/webhooks/jira?token={config?.integrations?.jira?.webhookToken}
-                    </code>
-                    <p className="text-[9px] text-blue-500/70 mt-1 italic">Copy this URL to Jira Webhook settings</p>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </section>

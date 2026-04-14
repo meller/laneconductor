@@ -1,0 +1,196 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_Rhp955jal9_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_R2p955jal9_"
+        - listitem:
+          - link "Sidebar":
+            - /url: "#_R3i9955jal9_"
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - button "Switch sites or apps" [ref=e185] [cursor=pointer]:
+              - generic [ref=e12]: Switch sites or apps
+            - link "Go to your Jira homepage" [ref=e15] [cursor=pointer]:
+              - /url: /jira
+              - generic [ref=e16]:
+                - img [ref=e19]
+                - generic [ref=e24]: Jira
+          - button "Collapse sidebar" [ref=e26] [cursor=pointer]:
+            - generic [ref=e28]: Collapse sidebar
+        - generic [ref=e29]:
+          - search [ref=e34]:
+            - textbox "Search" [ref=e37]
+          - button "Create" [ref=e40] [cursor=pointer]:
+            - generic [ref=e43]: Create
+        - navigation "Actions" [ref=e44]:
+          - list [ref=e45]:
+            - button "See plans" [ref=e186] [cursor=pointer]: See plans
+            - listitem [ref=e46]:
+              - button "Notifications" [ref=e49] [cursor=pointer]:
+                - generic [ref=e52]: Notifications
+            - listitem [ref=e55]:
+              - button "Help" [ref=e56] [cursor=pointer]:
+                - generic [ref=e59]: Help
+              - generic:
+                - generic:
+                  - generic: 3+
+            - listitem [ref=e61]:
+              - button "Settings" [ref=e62] [cursor=pointer]:
+                - generic [ref=e65]: Settings
+            - listitem [ref=e66]:
+              - button "asaf.meller@gmail.com" [ref=e67] [cursor=pointer]:
+                - img "Account" [ref=e69]
+      - navigation "Sidebar" [ref=e70]:
+        - generic [ref=e71]:
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - link "Navigate back to the previous page" [ref=e75] [cursor=pointer]:
+                - /url: /projects/KAN
+                - generic [ref=e78]: Navigate back to the previous page
+              - heading "Space settings" [level=2] [ref=e79]
+            - generic [ref=e81]:
+              - generic [ref=e82]: Testproject
+              - generic [ref=e83]: Software space
+          - list [ref=e86]:
+            - listitem [ref=e87]:
+              - link "Details" [ref=e89] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/details
+                - generic [ref=e94]: Details
+            - listitem [ref=e95]:
+              - link "Access" [ref=e97] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/access
+                - generic [ref=e102]: Access
+            - listitem [ref=e103]:
+              - button "Notifications" [ref=e107] [cursor=pointer]:
+                - generic [ref=e111]: Notifications
+            - listitem [ref=e112]:
+              - link "Automation" [ref=e114] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/automation
+                - generic [ref=e119]: Automation
+            - listitem [ref=e120]:
+              - link "Fields" [ref=e122] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/fields
+                - generic [ref=e127]: Fields
+            - listitem [ref=e128]:
+              - button "Work types" [ref=e132] [cursor=pointer]:
+                - generic [ref=e136]: Work types
+            - listitem [ref=e137]:
+              - link "Features" [ref=e139] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/features
+                - generic [ref=e144]: Features
+            - listitem [ref=e145]:
+              - button "Board" [ref=e149] [cursor=pointer]:
+                - generic [ref=e153]: Board
+            - listitem [ref=e154]:
+              - link "Timeline" [ref=e156] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/boards/2/timeline
+                - generic [ref=e161]: Timeline
+            - listitem [ref=e162]:
+              - link "Toolchain" [ref=e164] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/toolchain?projectId=10001
+                - generic [ref=e169]: Toolchain
+            - listitem [ref=e170]:
+              - button "Apps" [ref=e174] [cursor=pointer]:
+                - generic [ref=e178]: Apps
+      - generic [ref=e190]:
+        - slider "Resize side navigation panel" [ref=e191]: "240"
+        - text: Resize side navigation panel
+      - main [ref=e179]:
+        - generic [ref=e195]:
+          - navigation "Breadcrumbs" [ref=e198]:
+            - list [ref=e199]:
+              - listitem [ref=e200]:
+                - link "Spaces" [ref=e201] [cursor=pointer]:
+                  - /url: /jira/projects
+                  - generic [ref=e202]: Spaces
+                - text: /
+              - listitem [ref=e203]:
+                - link "Testproject" [ref=e204] [cursor=pointer]:
+                  - /url: /browse/KAN
+                  - generic [ref=e205]: Testproject
+                - text: /
+              - listitem [ref=e206]:
+                - link "Space settings" [ref=e207] [cursor=pointer]:
+                  - /url: /jira/software/projects/KAN/settings
+                  - generic [ref=e208]: Space settings
+                - text: /
+              - listitem [ref=e209]:
+                - link "Automation" [ref=e210] [cursor=pointer]:
+                  - /url: "#"
+                  - generic [ref=e211]: Automation
+          - generic [ref=e213]:
+            - generic [ref=e214]:
+              - heading "Automation" [level=1] [ref=e217]
+              - group [ref=e219]:
+                - link "Global administration" [ref=e221] [cursor=pointer]:
+                  - /url: /jira/settings/automation
+                  - generic [ref=e222]: Global administration
+                - generic [ref=e224]:
+                  - img [ref=e225]
+                  - button "Rovo Create with Rovo" [ref=e229] [cursor=pointer]:
+                    - img "Rovo" [ref=e231]:
+                      - img [ref=e232]
+                    - paragraph [ref=e238]: Create with Rovo
+                - button "Create rule" [expanded] [ref=e240] [cursor=pointer]:
+                  - generic [ref=e241]: Create rule
+                - button "Actions Actions" [ref=e245] [cursor=pointer]:
+                  - generic [ref=e246]:
+                    - img "Actions" [ref=e247]
+                    - generic [ref=e248]: Actions
+            - generic [ref=e250]:
+              - tablist [ref=e251]:
+                - tab "Rules" [selected] [ref=e252] [cursor=pointer]:
+                  - generic [ref=e255]: Rules
+                - tab "Audit log" [ref=e256] [cursor=pointer]:
+                  - generic [ref=e259]: Audit log
+                - tab "Templates" [ref=e260] [cursor=pointer]:
+                  - generic [ref=e263]: Templates
+                - tab "Usage" [ref=e264] [cursor=pointer]:
+                  - generic [ref=e267]: Usage
+              - tabpanel "Rules" [ref=e1950]:
+                - generic [ref=e1955]:
+                  - generic [ref=e1956]:
+                    - generic [ref=e1957]:
+                      - textbox "Filter rules" [ref=e1960]
+                      - generic [ref=e1961]: Typing will update the rules below.
+                    - button "Filter by system label" [ref=e1962] [cursor=pointer]:
+                      - generic [ref=e1965]: "Scope: Space rules"
+                    - generic [ref=e1966]: Changing values will update the rules below.
+                    - button "Filter by rule owner" [ref=e1967] [cursor=pointer]:
+                      - generic [ref=e1970]: Owned by
+                    - generic [ref=e1971]: Changing values will update the rules below.
+                    - button "Action" [ref=e1972] [cursor=pointer]:
+                      - generic [ref=e1975]: Action
+                    - generic [ref=e1976]: Changing values will update the rules below.
+                    - button "Trigger" [ref=e1977] [cursor=pointer]:
+                      - generic [ref=e1980]: Trigger
+                    - generic [ref=e1981]: Changing values will update the rules below.
+                    - button "Advanced" [ref=e1982] [cursor=pointer]:
+                      - generic [ref=e1985]: Advanced
+                    - generic [ref=e1986]: Changing values will update the rules below.
+                    - button "Label" [ref=e1987] [cursor=pointer]:
+                      - generic [ref=e1990]: Label
+                    - generic [ref=e1991]: Changing values will update the rules below.
+                  - generic [ref=e1994]:
+                    - generic [ref=e1996]:
+                      - heading "No rules created yet" [level=2] [ref=e1998]
+                      - paragraph [ref=e2000]: Let Automation take care of the busywork, so your team can focus on work that matters. Create your own automation rules, or browse our rules library to get started.
+                    - group [ref=e2002]:
+                      - button "Browse the library" [ref=e2003] [cursor=pointer]:
+                        - generic [ref=e2004]: Browse the library
+                      - button "Create rule" [ref=e2005] [cursor=pointer]:
+                        - generic [ref=e2006]: Create rule
+  - menu [ref=e2008]:
+    - group [ref=e2009]:
+      - menuitem "Create from scratch" [active] [ref=e2010] [cursor=pointer]:
+        - generic [ref=e2013]: Create from scratch
+      - menuitem "Use a template" [ref=e2014] [cursor=pointer]:
+        - generic [ref=e2017]: Use a template

@@ -332,6 +332,61 @@ function resolveJiraToken(tokenEnv, token, tokenSecret, tokenStore) {
   return token || null;
 }
 
+// Helper: Validate JIRA statuses (from jira-collector logic)
+async function validateJiraStatusesInCli(domain, email, token, projectKey) {
+  try {
+    const auth = Buffer.from(`${email}:${token}`).toString('base64');
+    const url = `https://${domain}/rest/api/3/project/${projectKey}/statuses`;
+
+    let response = await fetch(url, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      url = `https://${domain}/rest/api/3/statuses`;
+      response = await fetch(url, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(10000),
+      });
+    }
+
+    if (!response.ok) return { allExist: false, missing: [] };
+
+    const data = await response.json();
+    const statuses = new Set();
+
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        if (item.name) statuses.add(item.name);
+        if (item.statuses && Array.isArray(item.statuses)) {
+          for (const status of item.statuses) {
+            if (status.name) statuses.add(status.name);
+          }
+        }
+      }
+    } else if (data && typeof data === 'object') {
+      if (Array.isArray(data.issueTypes)) {
+        for (const issueType of data.issueTypes) {
+          if (issueType.statuses && Array.isArray(issueType.statuses)) {
+            for (const status of issueType.statuses) {
+              if (status.name) statuses.add(status.name);
+            }
+          }
+        }
+      }
+    }
+
+    const requiredStatuses = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Testing', 'Done'];
+    const existingLower = Array.from(statuses).map(s => s.toLowerCase());
+    const missing = requiredStatuses.filter(s => !existingLower.includes(s.toLowerCase()));
+
+    return { allExist: missing.length === 0, missing, existing: Array.from(statuses) };
+  } catch (err) {
+    return { allExist: false, missing: [], error: err.message };
+  }
+}
+
 const args = process.argv.slice(2);
 const command = args[0];
 
@@ -1976,7 +2031,23 @@ Please review this, answer any questions (some fields may contain questions rath
                 console.log(`   Auth: Plain text token (⚠️  INSECURE - consider using GCP Secret Manager)`);
             }
 
-            console.log(`\n✅ Jira integration ready! Worker will start syncing in 60 seconds.`);
+            // Validate statuses and show guidance if needed
+            const validation = await validateJiraStatusesInCli(domain, email, resolvedToken, projKey);
+            if (!validation.allExist && validation.missing && validation.missing.length > 0) {
+                const missingNames = validation.missing.map(s => `"${s}"`).join(', ');
+                console.log(`\n⚠️  LaneConductor detected missing JIRA statuses: ${missingNames}`);
+                console.log(`   Issues will sync using labels, but for proper board visualization:`);
+                console.log(`\n   📋 Create these statuses in your JIRA workflow:`);
+                console.log(`      1. Go to: https://${domain}/jira/software/projects/${projKey}/settings/workflows`);
+                console.log(`      2. Click "Edit Workflow" on your active workflow`);
+                console.log(`      3. Click "Add Status" for each missing status`);
+                console.log(`      4. Save and publish the workflow`);
+                console.log(`      5. Run: lc worker restart\n`);
+            } else if (validation.allExist) {
+                console.log(`\n✅ All JIRA statuses validated. Ready for lane-to-status transitions.`);
+            }
+
+            console.log(`✅ Jira integration ready! Worker will start syncing in 60 seconds.`);
             process.exit(0);
         })();
     } else {

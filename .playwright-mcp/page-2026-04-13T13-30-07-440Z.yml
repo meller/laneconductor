@@ -1,0 +1,173 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - img [ref=e7]
+          - link "Support Portal" [ref=e8] [cursor=pointer]:
+            - /url: https://support.atlassian.com/
+        - generic [ref=e9]:
+          - generic [ref=e10]:
+            - heading "Welcome to Atlassian's status page hub" [level=3] [ref=e11]
+            - paragraph [ref=e12]: Below you'll find status information for each of Atlassian's products and services.
+          - img "Status Page Light" [ref=e14]
+      - generic [ref=e126]:
+        - generic [ref=e128]:
+          - generic [ref=e130]: Organization administrators can now receive personalized incident information in Atlassian Administration. Subscribe to System Health (currently in Beta) to receive notifications if a reliability incident affects your organization.
+          - link "Try Now" [ref=e131] [cursor=pointer]:
+            - /url: https://admin.atlassian.com/?redirect=/o/:orgId/status-hub
+            - generic [ref=e133]: Try Now
+        - generic [ref=e134]:
+          - link "Jira Operational" [ref=e135] [cursor=pointer]:
+            - /url: https://jira-software.status.atlassian.com/
+            - img [ref=e137]
+            - generic [ref=e138]:
+              - generic [ref=e139]: Jira
+              - generic [ref=e140]: Operational
+          - link "Jira Service Management Operational" [ref=e141] [cursor=pointer]:
+            - /url: https://jira-service-management.status.atlassian.com
+            - img [ref=e143]
+            - generic [ref=e144]:
+              - generic [ref=e145]: Jira Service Management
+              - generic [ref=e146]: Operational
+          - link "Jira Work Management Operational" [ref=e147] [cursor=pointer]:
+            - /url: https://jira-work-management.status.atlassian.com
+            - img [ref=e149]
+            - generic [ref=e150]:
+              - generic [ref=e151]: Jira Work Management
+              - generic [ref=e152]: Operational
+          - link "Jira Product Discovery Operational" [ref=e153] [cursor=pointer]:
+            - /url: http://jira-product-discovery.status.atlassian.com
+            - img [ref=e155]
+            - generic [ref=e156]:
+              - generic [ref=e157]: Jira Product Discovery
+              - generic [ref=e158]: Operational
+          - link "Confluence Operational" [ref=e159] [cursor=pointer]:
+            - /url: https://confluence.status.atlassian.com
+            - img [ref=e161]
+            - generic [ref=e162]:
+              - generic [ref=e163]: Confluence
+              - generic [ref=e164]: Operational
+          - link "Jira Align Operational" [ref=e165] [cursor=pointer]:
+            - /url: https://jira-align.status.atlassian.com
+            - img [ref=e167]
+            - generic [ref=e168]:
+              - generic [ref=e169]: Jira Align
+              - generic [ref=e170]: Operational
+          - link "Trello Operational" [ref=e171] [cursor=pointer]:
+            - /url: https://www.trellostatus.com/
+            - img [ref=e173]
+            - generic [ref=e174]:
+              - generic [ref=e175]: Trello
+              - generic [ref=e176]: Operational
+          - link "Bitbucket Operational" [ref=e177] [cursor=pointer]:
+            - /url: https://status.bitbucket.org/
+            - img [ref=e179]
+            - generic [ref=e180]:
+              - generic [ref=e181]: Bitbucket
+              - generic [ref=e182]: Operational
+          - link "Opsgenie Operational" [ref=e183] [cursor=pointer]:
+            - /url: https://status.opsgenie.com/
+            - img [ref=e185]
+            - generic [ref=e186]:
+              - generic [ref=e187]: Opsgenie
+              - generic [ref=e188]: Operational
+          - link "Statuspage" [ref=e189] [cursor=pointer]:
+            - /url: https://metastatuspage.com/
+            - img [ref=e191]
+            - generic [ref=e193]: Statuspage
+          - link "Guard Operational" [ref=e195] [cursor=pointer]:
+            - /url: https://guard.status.atlassian.com
+            - img [ref=e197]
+            - generic [ref=e198]:
+              - generic [ref=e199]: Guard
+              - generic [ref=e200]: Operational
+          - link "Compass Operational" [ref=e201] [cursor=pointer]:
+            - /url: https://compass.status.atlassian.com
+            - img [ref=e203]
+            - generic [ref=e204]:
+              - generic [ref=e205]: Compass
+              - generic [ref=e206]: Operational
+          - link "Atlas Operational" [ref=e207] [cursor=pointer]:
+            - /url: https://atlas.status.atlassian.com
+            - img [ref=e209]
+            - generic [ref=e210]:
+              - generic [ref=e211]: Atlas
+              - generic [ref=e212]: Operational
+          - link "Atlassian Analytics Operational" [ref=e213] [cursor=pointer]:
+            - /url: https://analytics.status.atlassian.com
+            - img [ref=e215]
+            - generic [ref=e216]:
+              - generic [ref=e217]: Atlassian Analytics
+              - generic [ref=e218]: Operational
+          - link "Rovo Operational" [ref=e219] [cursor=pointer]:
+            - /url: https://rovo.status.atlassian.com/
+            - img [ref=e221]
+            - generic [ref=e222]:
+              - generic [ref=e223]: Rovo
+              - generic [ref=e224]: Operational
+          - link "Rovo Dev Operational" [ref=e225] [cursor=pointer]:
+            - /url: https://rovodev.status.atlassian.com/
+            - img [ref=e227]
+            - generic [ref=e228]:
+              - generic [ref=e229]: Rovo Dev
+              - generic [ref=e230]: Operational
+          - link "Atlassian Migrations Operational" [ref=e231] [cursor=pointer]:
+            - /url: https://migrations.status.atlassian.com
+            - img [ref=e233]
+            - generic [ref=e234]:
+              - generic [ref=e235]: Atlassian Migrations
+              - generic [ref=e236]: Operational
+          - link "Focus Operational" [ref=e237] [cursor=pointer]:
+            - /url: https://focus.status.atlassian.com
+            - img [ref=e239]
+            - generic [ref=e240]:
+              - generic [ref=e241]: Focus
+              - generic [ref=e242]: Operational
+          - link "Loom Operational" [ref=e243] [cursor=pointer]:
+            - /url: https://loom.status.atlassian.com/
+            - img [ref=e245]
+            - generic [ref=e246]:
+              - generic [ref=e247]: Loom
+              - generic [ref=e248]: Operational
+          - link "Talent Operational" [ref=e249] [cursor=pointer]:
+            - /url: https://talent.status.atlassian.com/
+            - img [ref=e251]
+            - generic [ref=e252]:
+              - generic [ref=e253]: Talent
+              - generic [ref=e254]: Operational
+          - link "Customer Service Management Operational" [ref=e255] [cursor=pointer]:
+            - /url: https://customer-service-management.status.atlassian.com/
+            - img [ref=e257]
+            - generic [ref=e258]:
+              - generic [ref=e259]: Customer Service Management
+              - generic [ref=e260]: Operational
+          - link "Atlassian Support Operational" [ref=e262] [cursor=pointer]:
+            - /url: https://support.status.atlassian.com
+            - img [ref=e264]
+            - generic [ref=e265]:
+              - generic [ref=e266]: Atlassian Support
+              - generic [ref=e267]: Operational
+          - link "Atlassian Partners Operational" [ref=e268] [cursor=pointer]:
+            - /url: https://partners.status.atlassian.com
+            - img [ref=e270]
+            - generic [ref=e271]:
+              - generic [ref=e272]: Atlassian Partners
+              - generic [ref=e273]: Operational
+          - link "Atlassian Developers Active Incident" [ref=e274] [cursor=pointer]:
+            - /url: https://status.developer.atlassian.com/
+            - img [ref=e276]
+            - generic [ref=e277]:
+              - generic [ref=e278]: Atlassian Developers
+              - generic [ref=e279]: Active Incident
+    - generic [ref=e282]:
+      - link [ref=e283] [cursor=pointer]:
+        - /url: https://www.atlassian.com/
+        - img [ref=e284]
+      - navigation [ref=e285]:
+        - link "Terms of use" [ref=e286] [cursor=pointer]:
+          - /url: https://www.atlassian.com/legal/customer-agreement
+        - link "Privacy policy" [ref=e287] [cursor=pointer]:
+          - /url: https://www.atlassian.com/legal/privacy-policy
+        - generic [ref=e288]: Copyright © 2026 Atlassian
+  - img
