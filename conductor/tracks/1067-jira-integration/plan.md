@@ -103,10 +103,10 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - Update `lc list-targets` to display Jira collectors
 - Update `SKILL.md` quick reference
 
-### Phase 6: Enhanced Sync, 1:1 Mapping & Label-Based Lane Tracking ✓
+### Phase 6: Enhanced Sync, 1:1 Mapping & Label-Based Lane Tracking ✓ (Tested 2026-04-14)
 - **1:1 Lane Mapping**: Implemented 1:1 mapping between LC lanes and Jira statuses (backlog↔Backlog, plan↔To Do, implement↔In Progress, review↔In Review, quality-gate↔Testing, done↔Done)
-- **Status Validation**: Worker validates required statuses exist; provides clear guidance if missing
-- **Labels as Source of Truth**: All issues labeled with `lconductor-<lane>` for reliable lane tracking
+- **Status Validation**: ✅ **Tested** — Worker validates required statuses exist; provides clear guidance if missing
+- **Labels as Source of Truth**: ✅ **Tested** — All issues labeled with `lconductor-<lane>` for reliable lane tracking
 - **Graceful Status Transitions**: Status transitions are best-effort; if status doesn't exist, labels carry the lane info
 - **Multi-file Formatting**: Updated `buildTrackAdf` to include `Log` section.
 - **Bidirectional Comments**: Ensured Jira comments flow back to `conversation.md`.
@@ -114,14 +114,21 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - **GCP Secrets**: Standardized and added support for GCP Secret Manager for Jira tokens.
 - **ADF Parsing**: Improved ADF parser for comment synchronization.
 - **Loop Prevention**: Added `recentlyPulled` check to prevent sync echoes.
-- **Project Creation**: CLI now validates/creates JIRA projects via API
+- **Project Creation**: CLI now validates/creates JIRA projects via API (creation returns 404 — users create manually)
 - **Disabled Collector Filtering**: Fixed bug where disabled collectors were still being used
+
+**Test Results (2026-04-14):**
+- ✅ `lc add-target --type jira --domain ... --email ... --project-key KAN` executed successfully
+- ✅ Status validation ran and detected missing statuses: "Backlog", "Testing"
+- ✅ Clear guidance message displayed with exact URL and step-by-step instructions
+- ✅ Worker actively polling and syncing issues with `lconductor-<lane>` labels
+- ✅ CLI configuration properly saved to `.laneconductor.json`
 
 **Important Discovery**: 
 Jira Cloud does NOT allow creating statuses/workflows via REST API. Statuses must be created manually in Jira:
 1. User runs `lc add-target --type jira ...`
 2. CLI validates project exists, creates if needed
-3. CLI checks for required statuses and shows clear guidance if missing
+3. **CLI checks for required statuses and shows clear guidance if missing** ← **VALIDATED**
 4. User manually creates missing statuses in Jira workflow settings
 5. Worker syncs with proper status transitions once statuses exist
 6. Labels provide fallback tracking if statuses don't match expected names
