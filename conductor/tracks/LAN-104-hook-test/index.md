@@ -2,7 +2,7 @@
 lane: done
 This is a test of the workflow hooks.
 **Lane**: done
-**Lane Status**: plan
+**Lane Status**: queue
 
 # Track 9999: Production Sync Test
 

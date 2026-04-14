@@ -1,7 +1,7 @@
 # Track 1052: Show HN Post
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Summary**: Hacker News Show HN — highest-leverage single channel for an OSS dev tool
