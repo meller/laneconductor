@@ -76,11 +76,26 @@ Store per-track Jira state in `conductor/tracks-metadata.json`:
 
 Populated at first sync, updated on each poll.
 
-### R5: Lane ↔ Status Mapping
+### R5: Lane ↔ Label Mapping (Not Status Transitions)
 
-Configurable via `lc add-target-mapping`. CLI configures `.laneconductor.json` adding `target_mapping` string dictionary:
+**Implementation approach**: Use **labels** for lane representation, not Jira workflow status transitions. This avoids the need for Jira admin access to create/modify workflow statuses.
 
-```
+Labels follow the standardized format:
+- `laneconductor-status-plan` — LC lane: plan
+- `laneconductor-status-implement` — LC lane: implement  
+- `laneconductor-status-review` — LC lane: review
+- `laneconductor-status-quality-gate` — LC lane: quality-gate
+- `laneconductor-status-done` — LC lane: done
+- `laneconductor-status-success` — action status: success
+- `laneconductor-status-queue` — action status: queued
+- `laneconductor-status-running` — action status: running
+- `laneconductor-status-failed` — action status: failed
+
+**Optional: Custom status mapping** *(Phase 7)*
+
+Configurable via `lc add-target-mapping`. CLI configures `.laneconductor.json` with optional status mapping for teams that want Jira workflow integration:
+
+```json
 {
   "collectors": [
     {
@@ -88,20 +103,16 @@ Configurable via `lc add-target-mapping`. CLI configures `.laneconductor.json` a
       "target_mapping": {
         "implement": "In Progress",
         "review": "In Review"
-      }
+      },
+      "create_missing_statuses": false
     }
   ]
 }
 ```
 
-If not configured, 1:1 default mapping prioritizes default LC workflow lane names:
-- `'plan'` ↔ `'To Do'` (`'TODO'`, `'Backlog'`, `'Selected for Development'` inbound fallback to `'plan'`)
-- `'implement'` ↔ `'In Progress'` (`'running'` inbound fallback to `'implement'`)
-- `'review'` ↔ `'In Review'` (`'Review'` inbound fallback to `'review'`)
-- `'quality-gate'` ↔ `'Testing'` (`'QA'` inbound fallback to `'quality-gate'`)
-- `'done'` ↔ `'Done'` (`'Resolved'`, `'Closed'` inbound fallback to `'done'`)
+If `target_mapping` is configured (optional), worker can optionally create missing workflow statuses (requires Jira Cloud admin token with workflow admin scope).
 
-**1:1 Constraint**: The CLI `add-target-mapping` ensures that no two LC lanes map to the same Jira status, and no two Jira statuses map to the same LC lane. If a conflict occurs, the previous mapping is removed.
+If not configured, lanes are tracked purely via labels (no Jira status transitions needed).
 
 ### R8: Multi-File Field Mapping (Jira Description)
 
