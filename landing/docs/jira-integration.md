@@ -115,7 +115,8 @@ If the `lc add-target` command reports missing statuses, add them to your Kanban
 ⚠️  LaneConductor detected missing JIRA statuses: "In Review", "Testing"
 
 Quick steps to add missing statuses:
-   1. Go to your Kanban board: https://mycompany.atlassian.net/jira/software/projects/LAN/boards
+   1. Open your Kanban board for project LAN
+      (Go to: https://mycompany.atlassian.net/jira/software/projects/LAN → click the board)
    2. Look at the status columns at the top of the board
    3. Click the "+" button next to the statuses
    4. Add each missing status:
@@ -123,6 +124,8 @@ Quick steps to add missing statuses:
       - "Testing" (quality-gate)
    5. Run: lc worker restart
 ```
+
+**Note**: The board URL will have a board ID (e.g., `/boards/35`). You'll see the correct URL when you click on the board from the project page.
 
 **Why manual?** Jira Cloud doesn't expose a REST API for creating statuses. They must be added through the workflow settings UI.
 

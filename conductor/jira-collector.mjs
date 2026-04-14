@@ -731,7 +731,8 @@ export async function validateJiraStatuses(config) {
       `   Missing: ${missingNames}\n\n` +
       `To enable proper lane-to-status mapping, add these status lanes to your Kanban board:\n\n` +
       `📋 Quick steps to add missing statuses:\n` +
-      `   1. Go to your Kanban board: https://${config.domain}/jira/software/projects/${config.project_key}/boards\n` +
+      `   1. Open your Kanban board for project ${config.project_key}\n` +
+      `      (Go to: https://${config.domain}/jira/software/projects/${config.project_key} → click the board)\n` +
       `   2. Look at the status columns at the top of the board\n` +
       `   3. Click the "+" button next to the statuses\n` +
       `   4. Add each missing status:\n` +
