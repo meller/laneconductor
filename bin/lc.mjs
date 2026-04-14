@@ -1987,12 +1987,26 @@ Please review this, answer any questions (some fields may contain questions rath
             const exists = await jiraProjectExists(domain, email, resolvedToken, projKey);
 
             if (!exists) {
-                console.log(`📁 Project does not exist. Creating ${projKey}...`);
-                const created = await createJiraProject(domain, email, resolvedToken, projKey, projKey);
-                if (!created) {
-                    console.error(`❌ Failed to create JIRA project. Please create manually at https://${domain}/secure/project/create`);
-                    process.exit(1);
-                }
+                console.log(`📁 Project does not exist. Please create manually.`);
+                console.log(`\n📋 Instructions to create Jira Kanban project:\n`);
+                console.log(`   1. Go to: https://${domain}/secure/project/create`);
+                console.log(`   2. Select "Kanban" board template`);
+                console.log(`   3. Fill in:`);
+                console.log(`      • Project name: laneconductor`);
+                console.log(`      • Project key: ${projKey}`);
+                console.log(`      • Project type: Team-managed`);
+                console.log(`   4. Create the project`);
+                console.log(`   5. Add status lanes to the Kanban board:`);
+                console.log(`      ├─ Backlog (for backlog items)`);
+                console.log(`      ├─ To Do (for queued/planned work)`);
+                console.log(`      ├─ In Progress (for active development)`);
+                console.log(`      ├─ In Review (for code/design review)`);
+                console.log(`      ├─ Testing (for quality assurance)`);
+                console.log(`      └─ Done (for completed work)`);
+                console.log(`\n   💡 Tip: In Kanban board settings, you may need to add these as custom statuses`);
+                console.log(`      if they don't exist by default.\n`);
+                console.error(`❌ Please create the project and then run 'lc add-target' again.`);
+                process.exit(1);
             } else {
                 console.log(`✅ JIRA project ${projKey} exists`);
             }
