@@ -20,6 +20,24 @@ Jira status/description updates
 
 **No webhooks. No cloud API required. Worker syncs directly with Jira.**
 
+## Sync Cycle (60 seconds)
+
+The worker runs a complete bidirectional sync cycle every 60 seconds:
+
+1. **Inbound Phase** (`[jira-polling]`): Polls Jira for updated issues
+   - Downloads all issues updated since last poll
+   - Creates/updates local tracks via filesystem
+   - Syncs comments back to `conversation.md`
+   - Compares timestamps: if Jira is newer, updates local track
+
+2. **Outbound Phase** (`[jira-push]`): Pushes filesystem changes back to Jira
+   - Scans all local tracks
+   - For each filesystem-newer track: pushes to Jira
+   - Updates issue description and labels
+   - Transitions issue status if needed
+
+**Conflict Resolution**: "Latest version wins" with 10-second grace period. If both sides change within 10 seconds, the newer timestamp wins.
+
 ## Data Mapping
 
 | Jira | ↔ | LaneConductor |
@@ -184,7 +202,7 @@ LaneConductor lanes map to Jira statuses:
 | quality-gate | Testing | Quality assurance |
 | done, success | Done | Completed work |
 
-**Backup tracking:** All issues are labeled with `lconductor-<lane>` so lane tracking works even if statuses don't exactly match.
+**Backup tracking:** All issues are labeled with `lconductor-<status>` (e.g., `lconductor-queue`, `lconductor-success`) so lane tracking works even if statuses don't exactly match.
 
 ## Troubleshooting
 
@@ -236,14 +254,15 @@ Expected output:
 2. **Edit the track locally**:
    ```bash
    # Change the lane in index.md
-   sed -i 's/^lane: queue/lane: running/' conductor/tracks/KAN-X-*/index.md
+   sed -i 's/^\*\*Lane\*\*: queue/\*\*Lane\*\*: running/' conductor/tracks/KAN-X-*/index.md
    ```
 
-3. **Wait 10 seconds** for the sync to push the change
+3. **Wait 60 seconds** for the next outbound sync cycle (or check logs with: `tail -f conductor/.sync.log | grep "jira-push"`)
 
 4. **Check Jira**:
    - Go to issue KAN-X
    - Status should now be "In Progress" (matching the new lane)
+   - Label should show `lconductor-running` (the status enum value)
 
 ### Test 3: Comments
 
@@ -318,13 +337,8 @@ Your `.laneconductor.json` should now include the Jira collector:
 
 ```json
 {
-  "mode": "multi-api",
+  "mode": "local-fs",
   "collectors": [
-    {
-      "url": "http://127.0.0.1:8091",
-      "token": null,
-      "enabled": true
-    },
     {
       "type": "jira",
       "domain": "mycompany.atlassian.net",
@@ -335,6 +349,8 @@ Your `.laneconductor.json` should now include the Jira collector:
   ]
 }
 ```
+
+The worker uses **local-fs mode**: it reads tracks directly from the filesystem and syncs bidirectionally with Jira every 60 seconds. No API server required.
 
 ## Remove Jira Integration
 
