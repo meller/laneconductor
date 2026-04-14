@@ -103,14 +103,22 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - Update `lc list-targets` to display Jira collectors
 - Update `SKILL.md` quick reference
 
-### Phase 6: Enhanced Sync & Mapping ✓
-- **1:1 Lane Mapping**: Ensure `add-target-mapping` prevents duplicate source/target lanes.
+### Phase 6: Enhanced Sync, 1:1 Mapping & Auto-Status Creation ✓
+- **1:1 Lane Mapping**: Implemented 1:1 mapping (backlog↔Backlog, plan↔To Do, implement↔In Progress, review↔In Review, quality-gate↔Testing, done↔Done)
+- **Auto-Status Creation**: Worker detects missing Jira statuses (Backlog, Testing) and attempts to create them during first sync
+- **Labels for Filtering**: All issues labeled with `lconductor-<lane>` and `lconductor-<action>` for UI filtering/reporting
 - **Multi-file Formatting**: Update `buildTrackAdf` to include `Log` section.
 - **Bidirectional Comments**: Ensure Jira comments flow back to `conversation.md`.
 - **Bug Fixes**: Resolve metadata access bugs in sync worker.
 - **GCP Secrets**: Standardized and added support for GCP Secret Manager for Jira tokens.
 - **ADF Parsing**: Improved ADF parser for comment synchronization.
 - **Loop Prevention**: Added `recentlyPulled` check to prevent sync echoes.
+
+**Note on Auto-Status Creation**: 
+If worker cannot auto-create missing statuses (requires Jira Cloud admin scope), fallback occurs:
+- Missing statuses transition to closest available status
+- User must manually create missing statuses in Jira workflow, then restart worker
+- Phase 7 adds explicit status creation with OAuth scope management
 
 ### Phase 7: Optional - Jira Workflow Status Creation ⏳ (Planned)
 *Only implement if teams want automatic Jira status/workflow creation instead of label-based lane tracking*

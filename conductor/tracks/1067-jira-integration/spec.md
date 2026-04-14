@@ -76,49 +76,50 @@ Store per-track Jira state in `conductor/tracks-metadata.json`:
 
 Populated at first sync, updated on each poll.
 
-### R5: Lane ↔ Label Mapping (Not Status Transitions)
+### R5: Lane ↔ Status Mapping (1:1 with Auto-Creation)
 
-**Implementation approach**: Use **labels** for lane representation, not Jira workflow status transitions. This avoids the need for Jira admin access to create/modify workflow statuses.
+**Implementation approach**: 1:1 mapping between LC lanes and Jira workflow statuses. Worker automatically creates missing statuses during first sync.
 
-Labels follow the standardized format:
-- `lconductor-plan` — LC lane: plan
-- `lconductor-implement` — LC lane: implement  
-- `lconductor-review` — LC lane: review
-- `lconductor-quality-gate` — LC lane: quality-gate
-- `lconductor-done` — LC lane: done
-- `lconductor-success` — action status: success
-- `lconductor-queue` — action status: queued
-- `lconductor-running` — action status: running
-- `lconductor-failed` — action status: failed
+**Default 1:1 Mapping** (Phase 6 implementation):
+```
+LC Lane          → Jira Status
+─────────────────────────────
+backlog          → Backlog (auto-created if missing)
+plan, queue      → To Do
+implement, running → In Progress
+review           → In Review
+quality-gate     → Testing (auto-created if missing)
+done, success    → Done
+```
 
-**Optional: Custom status mapping** *(Phase 7)*
+**Labels** (complementary for filtering/reporting):
+Worker also labels all issues with `lconductor-<lane>` and `lconductor-<action>`:
+- `lconductor-backlog`, `lconductor-plan`, `lconductor-implement`, etc. — lane labels
+- `lconductor-queue`, `lconductor-running`, `lconductor-success`, `lconductor-failed` — action labels
 
-Configurable via `lc add-target-mapping`. CLI configures `.laneconductor.json` with optional status mapping for teams that want Jira workflow integration:
+This enables filtering and cross-lane visibility in Jira UI while status transitions handle workflow automation.
 
+**Custom Mapping** (optional, Phase 7):
+Teams can override defaults via `lc add-target-mapping`:
+```bash
+lc add-target-mapping --lane quality-gate --target "QA Review"
+```
+
+Stored in `.laneconductor.json`:
 ```json
 {
   "collectors": [
     {
       "type": "jira",
       "target_mapping": {
-        "implement": "In Progress",
-        "review": "In Review"
-      },
-      "create_missing_statuses": false
+        "quality-gate": "QA Review"
+      }
     }
   ]
 }
 ```
 
-If `target_mapping` is configured (optional), worker can optionally create missing workflow statuses (requires Jira Cloud admin token with workflow admin scope).
-
-If not configured, lanes are tracked purely via labels (no Jira status transitions needed).
-
-**Available Jira Statuses** (in your KAN project):
-- `To Do` — used for backlog, plan, queue lanes
-- `In Progress` — used for implement, running lanes
-- `In Review` — used for review, quality-gate lanes
-- `Done` — used for done, success lanes
+The 1:1 constraint ensures no ambiguity: each LC lane has exactly one Jira status, and vice versa.
 
 ### R8: Multi-File Field Mapping (Jira Description)
 
