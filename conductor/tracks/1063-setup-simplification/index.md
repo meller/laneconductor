@@ -1,14 +1,14 @@
 # Setup Simplification
 
 **Lane**: review
-**Lane Status**: review
+**Lane Status**: success
 
 # Track 1063: setup simplification
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Progress**: 100%
-**Phase**: Review
-**Summary**: today we have lc setup and then we need to run the lc setup scafold in claude, lets have the setup ask about the llms first and then continue automatically in the primary llm so for the user its one flow.
+**Phase**: Quality Gate
+**Summary**: All core "One-Flow" features verified. Ready for Quality Gate checks (linting, tests, security scan) before final closure.**Last Run**: claude/haiku (primary)
 
