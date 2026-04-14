@@ -40,7 +40,27 @@ Jira status/description updates
 4. Name it (e.g., "LaneConductor")
 5. Copy the token and save it (you'll need it in Step 2)
 
-### 2. Add Jira as a Target
+### 2. Create a Kanban Space in Jira
+
+Before adding a target, create a Kanban space:
+
+1. Go to: `https://mycompany.atlassian.net/jira/software/c/projects/create`
+2. Select **Kanban** template
+3. Configure:
+   - **Name**: laneconductor
+   - **Key**: (auto-assigned, e.g., LAN)
+   - **Type**: Team-managed
+   - **Access**: Open
+4. Click **Create**
+5. Add the 6 status lanes (if not present):
+   - Backlog
+   - To Do
+   - In Progress
+   - In Review
+   - Testing
+   - Done
+
+### 3. Add Jira Space as a Target
 
 Run this command in your LaneConductor project directory:
 
@@ -48,32 +68,32 @@ Run this command in your LaneConductor project directory:
 lc add-target --type jira \
   --domain mycompany.atlassian.net \
   --email your.email@example.com \
-  --project-key KAN \
+  --project-key LAN \
   --token-env JIRA_API_TOKEN
 ```
 
 Replace:
 - `mycompany.atlassian.net` — Your Jira domain
 - `your.email@example.com` — Your Jira account email
-- `KAN` — Your Jira project key (appears in issue keys like KAN-123)
+- `LAN` — Your Kanban space key (the key assigned when you created the space)
 - `JIRA_API_TOKEN` — Environment variable name that will hold your API token
 
 The CLI will:
-- ✅ Check if the project exists (create if needed)
-- ✅ Validate that required workflow statuses exist
+- ✅ Check if the space exists
+- ✅ Validate that required statuses exist
 - ⚠️ Show guidance if any statuses are missing
 
 **What you'll see:**
 ```
-🔍 Checking JIRA project: KAN...
-✅ JIRA project KAN exists
-✅ Jira collector added: KAN @ mycompany.atlassian.net
+🔍 Checking JIRA project: LAN...
+✅ JIRA project LAN exists
+✅ Jira collector added: LAN @ mycompany.atlassian.net
 
 ⚠️  LaneConductor detected missing JIRA statuses: "Backlog", "Testing"
    Issues will sync using labels, but for proper board visualization:
 
    📋 Create these statuses in your JIRA workflow:
-      1. Go to: https://mycompany.atlassian.net/jira/software/projects/KAN/settings/workflows
+      1. Go to: https://mycompany.atlassian.net/jira/software/projects/LAN/settings/workflows
       2. Click "Edit Workflow" on your active workflow
       3. Click "Add Status" for each missing status
       4. Save and publish the workflow
@@ -87,9 +107,9 @@ If all statuses exist, you'll see:
 ✅ All JIRA statuses validated. Ready for lane-to-status transitions.
 ```
 
-### 3. (Optional) Create Missing Jira Statuses
+### 4. (Optional) Add Missing Status Lanes
 
-If the `lc add-target` command reports missing statuses, you'll need to create them manually in Jira:
+If the `lc add-target` command reports missing statuses, add them to your Kanban board:
 
 ```
 ⚠️  LaneConductor detected missing JIRA statuses: "Backlog", "Testing"
@@ -104,7 +124,7 @@ If the `lc add-target` command reports missing statuses, you'll need to create t
 
 **Note:** Even without these statuses, sync will work using labels (`lconductor-backlog`, `lconductor-implement`, etc.) for lane tracking.
 
-### 4. Set the Environment Variable
+### 5. Set the Environment Variable
 
 Add your Jira API token to your environment:
 
@@ -117,7 +137,7 @@ Or add to `.env` in the project root:
 JIRA_API_TOKEN=your_api_token_here
 ```
 
-### 5. Verify Configuration
+### 6. Verify Configuration
 
 Check that Jira was added as a target:
 
@@ -129,10 +149,10 @@ Expected output:
 ```
 Targets:
   api: http://127.0.0.1:8091
-  jira: KAN @ mycompany.atlassian.net
+  jira: LAN @ mycompany.atlassian.net
 ```
 
-### 6. Start the Worker
+### 7. Start the Worker
 
 ```bash
 make lc-worker-start
