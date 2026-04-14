@@ -729,16 +729,16 @@ export async function validateJiraStatuses(config) {
     const guidance =
       `\n⚠️  LaneConductor detected missing JIRA statuses in project ${config.project_key}:\n` +
       `   Missing: ${missingNames}\n\n` +
-      `To enable proper lane-to-status mapping, please create these statuses in your JIRA workflow:\n\n` +
-      `📋 Steps to create missing statuses:\n` +
-      `   1. Go to: https://${config.domain}/jira/software/projects/${config.project_key}/settings/workflows\n` +
-      `   2. Click "Edit Workflow" on your active workflow\n` +
-      `   3. Click "Add Status" and create:\n` +
-      missing.map(m => `      - "${m.status}" (for ${m.lane})`).join('\n') + `\n` +
-      `   4. Save and publish the workflow\n` +
+      `To enable proper lane-to-status mapping, add these status lanes to your Kanban board:\n\n` +
+      `📋 Quick steps to add missing statuses:\n` +
+      `   1. Go to your Kanban board: https://${config.domain}/jira/software/projects/${config.project_key}/boards\n` +
+      `   2. Look at the status columns at the top of the board\n` +
+      `   3. Click the "+" button next to the statuses\n` +
+      `   4. Add each missing status:\n` +
+      missing.map(m => `      - "${m.status}" (${m.lane})`).join('\n') + `\n` +
       `   5. Restart the LaneConductor worker: lc worker restart\n\n` +
-      `   Note: Issues will still sync with label tracking (lconductor-<lane>) until statuses exist.\n` +
-      `   Once statuses are created, the worker will auto-transition issues to the correct status.`;
+      `   💡 Note: Issues will sync with label tracking (lconductor-<lane>) until statuses exist.\n` +
+      `       Once statuses are added, the worker will auto-transition issues to match.`;
 
     console.log(`[jira-collector] ⚠️  Missing statuses: ${missingNames}`);
 
