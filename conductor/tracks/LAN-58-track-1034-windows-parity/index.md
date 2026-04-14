@@ -1,16 +1,6 @@
-# Track 1034: Track 1034: windows parity
+# Track 1034 Windows Parity
 
 **Lane**: plan
-**Lane Status**: success
-**Progress**: 13%
-**Phase**: Planning
-**Summary**: 
+**Lane Status**: queue
 
-## Problem
-
-
-## Solution
-[Empty — awaiting scaffolding]
-
-## Phases
-- [ ] Phase 1: Planning
+(No description)
