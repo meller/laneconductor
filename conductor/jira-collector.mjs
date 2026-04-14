@@ -306,13 +306,13 @@ export function mapLaneToJiraStatus(lane, config) {
   }
 
   const laneMap = {
-    backlog: 'Backlog',
+    backlog: 'To Do',        // No Backlog status in your project, use To Do
     plan: 'To Do',
     queue: 'To Do',
     implement: 'In Progress',
     running: 'In Progress',
     review: 'In Review',
-    'quality-gate': 'Testing',
+    'quality-gate': 'In Review', // No Testing status, use In Review for review/QA
     done: 'Done',
     success: 'Done',
   };

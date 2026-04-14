@@ -114,6 +114,12 @@ If `target_mapping` is configured (optional), worker can optionally create missi
 
 If not configured, lanes are tracked purely via labels (no Jira status transitions needed).
 
+**Available Jira Statuses** (in your KAN project):
+- `To Do` — used for backlog, plan, queue lanes
+- `In Progress` — used for implement, running lanes
+- `In Review` — used for review, quality-gate lanes
+- `Done` — used for done, success lanes
+
 ### R8: Multi-File Field Mapping (Jira Description)
 
 The Jira issue description acts as a container for all relevant track files. The content is formatted using ADF (Atlassian Document Format) with clear headings and code blocks for:
