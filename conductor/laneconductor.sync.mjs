@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, openSync, mkdirSync, statSync, rmSync, copyFileSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, mkdirSync, statSync, rmSync, copyFileSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
@@ -12,6 +12,18 @@ import { createHash } from 'crypto';
 import os from 'os';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
+import {
+  readJiraConfig,
+  pollJira,
+  jiraIssueToTrackUpdate,
+  createJiraIssue,
+  pushTrackToJira,
+  pushCommentToJira,
+  getJiraComments,
+  parseAdfToText,
+  mapLaneToJiraStatus,
+  ensureJiraStatuses,
+} from './jira-collector.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -79,7 +91,11 @@ if (existsSync('.laneconductor.json')) {
 
 // Use current config values (re-evaluated on reload)
 const getProject = () => config.project;
-const getCollectors = () => config.collectors || [];
+const getCollectors = () => {
+  const collectors = config.collectors || [];
+  // Filter out disabled collectors (enabled defaults to true if not specified)
+  return collectors.filter(c => c.enabled !== false);
+};
 const getUi = () => config.ui;
 const getWorktreeLifecycle = () => getProject().worktree_lifecycle ?? 'per-cycle';
 const getWorkerModeConfig = () => config.worker?.mode ?? 'sync+poll';
@@ -151,6 +167,12 @@ async function get(collectorUrl, token, path, timeoutMs = 10000) {
     const r = await fetch(url, { headers, signal: controller.signal });
     clearTimeout(id);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+
+    const contentType = r.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await r.text();
+      throw new Error(`Expected JSON, got ${contentType}: ${text.substring(0, 100)}`);
+    }
     return r.json();
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`Fetch timeout after ${timeoutMs}ms: ${url}`);
@@ -268,7 +290,36 @@ async function executeIntegrationHooks(trackNumber, lane, eventType) {
         .replace(/{{lane}}/g, lane)
         .replace(/{{event}}/g, eventType);
 
-      // Call the Integration Proxy on the API
+      // Handle Jira hooks locally using the polling collector approach
+      if (hook.provider === 'jira') {
+        const jiraConfig = readJiraConfig(getCollectors());
+        if (!jiraConfig) {
+          console.warn(`[hooks] Skipping Jira hook for ${trackNumber}: No Jira collector configured in .laneconductor.json`);
+          continue;
+        }
+
+        const metadata = loadTracksMetadata();
+        const trackMeta = metadata[trackNumber];
+        if (!trackMeta?.jira_key) {
+          console.warn(`[hooks] Skipping Jira hook for ${trackNumber}: Track not linked to a Jira issue`);
+          continue;
+        }
+
+        if (hook.action === 'comment') {
+          // Push comment directly via Jira config
+          try {
+            const success = await pushCommentToJira(jiraConfig, trackMeta.jira_key, bodyText);
+            if (success) {
+              console.log(`[hooks] Pushed Jira comment to ${trackMeta.jira_key}`);
+            }
+          } catch (err) {
+            console.error(`[hooks error] Jira direct push failed:`, err.message);
+          }
+        }
+        continue;
+      }
+
+      // Call the Integration Proxy on the API (Legacy approach for other providers)
       // The API will inject the secrets and forward to the provider
       const proxyPath = `/v1/projects/${projectId}/integrations/${hook.provider}/proxy`;
       
@@ -432,6 +483,7 @@ async function upsertWorker() {
   for (let i = 0; i < cls.length; i++) {
     const c = cls[i];
     const url = c.url;
+    if (!url) continue; // Skip collectors without URL (e.g. Jira)
     const isLocal = url.includes('localhost') || url.includes('127.0.0.1');
     const token = resolveCollectorToken(i);
 
@@ -484,6 +536,7 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
 
   for (let i = 0; i < cls.length; i++) {
     const c = cls[i];
+    if (!c.url) continue;
     try {
       const token = resolveCollectorToken(i);
       const body = { hostname, pid, project_id: proj.id, mode: workerMode };
@@ -507,6 +560,7 @@ async function removeWorker() {
   const cls = getCollectors();
   for (let i = 0; i < cls.length; i++) {
     const c = cls[i];
+    if (!c.url) continue;
     try {
       const token = resolveCollectorToken(i);
       await del(c.url, token, '/worker', { hostname, pid });
@@ -601,13 +655,21 @@ function saveTracksMetadata(metadata) {
 
 function getTrackMetadata(trackNumber) {
   if (!tracksMetadata) tracksMetadata = loadTracksMetadata();
-  if (!tracksMetadata || !tracksMetadata.tracks) return null;
-  return tracksMetadata.tracks[trackNumber] || null;
+  // Support both flat (legacy migration) and nested
+  const meta = tracksMetadata.tracks?.[trackNumber] || tracksMetadata[trackNumber];
+  return meta || null;
 }
 
 function updateTrackMetadata(trackNumber, updates) {
   if (!tracksMetadata) tracksMetadata = loadTracksMetadata();
   if (!tracksMetadata.tracks) tracksMetadata.tracks = {};
+  
+  // If we are updating an existing flat entry, move it to nested first
+  if (tracksMetadata[trackNumber] && !tracksMetadata.tracks[trackNumber]) {
+    tracksMetadata.tracks[trackNumber] = tracksMetadata[trackNumber];
+    delete tracksMetadata[trackNumber];
+  }
+
   if (!tracksMetadata.tracks[trackNumber]) {
     tracksMetadata.tracks[trackNumber] = {};
   }
@@ -1054,6 +1116,7 @@ async function pullTracksMetadataFromDB() {
     }
   } catch (err) {
     console.error('[sync error] pullTracksMetadataFromDB:', err.message);
+    // Don't crash the worker on API errors - continue syncing
   }
 }
 
@@ -1250,6 +1313,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     const planContent = readIfExists(join(trackDir, 'plan.md'));
     const specContent = readIfExists(join(trackDir, 'spec.md'));
     const testContent = readIfExists(join(trackDir, 'test.md'));
+    const logContent = readIfExists(join(trackDir, 'log.md'));
 
     // ── DATA AUTHORITY ──
     // index.md is the absolute authority for the track's state (lane/status).
@@ -1290,6 +1354,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       content_summary: summary, phase_step: phaseStep,
       waiting_for_reply: waitingForReply,
       index_content: indexContent, plan_content: planContent, spec_content: specContent, test_content: testContent,
+      log_content: logContent,
     };
     if (laneActionStatus) payload.lane_action_status = laneActionStatus;
     else if (laneActionStatusFromFile) payload.lane_action_status = laneActionStatusFromFile;
@@ -1306,13 +1371,79 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       }
     }
 
-    await postToCollectors('/track', payload);
+    try {
+      await postToCollectors('/track', payload);
+      
+      updateTrackMetadata(trackNumber, {
+        folder_path: trackDir,
+        last_file_update: new Date().toISOString(),
+        synced: true
+      });
+    } catch (e) {
+      console.warn(`[sync warning] Failed to post to collector for ${trackNumber}: ${e.message}`);
+    }
 
-    updateTrackMetadata(trackNumber, {
-      folder_path: trackDir,
-      last_file_update: new Date().toISOString(),
-      synced: true
-    });
+    // Outbound: Push track changes to Jira if configured
+    (async () => {
+      try {
+        const jiraConfig = readJiraConfig(getCollectors());
+        if (!jiraConfig) return; // No Jira configured
+
+        const trackMeta = getTrackMetadata(trackNumber);
+
+        const resolvedStatus = payload.lane_action_status || laneActionStatusFromFile;
+        if (!trackMeta?.jira_key) {
+           // Prevent rapid duplicate issue creations by checking in-memory lock
+           global._jiraCreationLocks = global._jiraCreationLocks || new Set();
+           if (global._jiraCreationLocks.has(trackNumber)) return;
+           
+           global._jiraCreationLocks.add(trackNumber);
+          // No Jira issue yet: create one ("latest wins" — FS is source of truth for new tracks)
+          console.log(`[jira-push] No Jira issue for ${trackNumber}, creating...`);
+          const issueKey = await createJiraIssue(jiraConfig, { 
+            title, 
+            lane: laneStatus, 
+            status: resolvedStatus,
+            indexContent: indexContent || '',
+            planContent: planContent || '',
+            specContent: specContent || '',
+            testContent: testContent || '',
+            logContent: logContent || ''
+          });
+          if (issueKey) {
+            
+            updateTrackMetadata(trackNumber, { jira_key: issueKey, jira_last_synced: new Date().toISOString() });
+            console.log(`[jira-push] Linked ${trackNumber} → ${issueKey}`);
+          }
+           global._jiraCreationLocks.delete(trackNumber);
+          return;
+        }
+
+        const trackData = {
+          title,
+          lane: laneStatus,
+          status: resolvedStatus,
+          indexContent: indexContent || '',
+          planContent: planContent || '',
+          specContent: specContent || '',
+          testContent: testContent || '',
+          logContent: logContent || '',
+        };
+
+        const success = await pushTrackToJira(jiraConfig, trackMeta.jira_key, trackData);
+        if (success) {
+          const freshMetadata = loadTracksMetadata();
+          if (!freshMetadata.tracks) freshMetadata.tracks = {};
+          if (!freshMetadata.tracks[trackNumber]) freshMetadata.tracks[trackNumber] = {};
+          freshMetadata.tracks[trackNumber].jira_last_synced = new Date().toISOString();
+          saveTracksMetadata(freshMetadata);
+          console.log(`[jira-push] Pushed ${trackNumber} to Jira (${trackMeta.jira_key})`);
+        }
+      } catch (err) {
+        console.error(`[jira-push error] ${trackNumber}:`, err.message);
+        if (global._jiraCreationLocks) global._jiraCreationLocks.delete(trackNumber);
+      }
+    })();
 
     notifyApi('track:updated', { trackNumber, laneStatus, progress, projectId: getProject()?.id });
     console.log(`[sync] ${trackNumber} → ${laneStatus} (source: ${filename})`);
@@ -1375,6 +1506,27 @@ async function syncConversation(filepath) {
         project_id: proj.id,
         author: c.author, body: c.body.trim(), no_wake: c.no_wake
       }).catch(err => console.warn(`[conv-sync] post comment failed: ${err.message}`));
+
+      // Outbound: Push comment to Jira if configured (only for human comments)
+      if (c.author === 'human') {
+        (async () => {
+          try {
+            const jiraConfig = readJiraConfig(getCollectors());
+            if (!jiraConfig) return; // No Jira configured
+
+            const metadata = loadTracksMetadata();
+            const trackMeta = metadata.tracks ? metadata.tracks[trackNumber] : metadata[trackNumber];
+            if (!trackMeta?.jira_key) return; // Track not linked to Jira
+
+            const success = await pushCommentToJira(jiraConfig, trackMeta.jira_key, c.body.trim());
+            if (success) {
+              console.log(`[jira-push-comment] Pushed comment to ${trackMeta.jira_key}`);
+            }
+          } catch (err) {
+            console.error(`[jira-push-comment error] ${trackNumber}:`, err.message);
+          }
+        })();
+      }
 
       // ── Command Side Effects (Filesystem-as-API) ──
       if (c.author === 'human') {
@@ -1626,6 +1778,202 @@ setInterval(async () => {
     console.error('[heartbeat error]:', err.message);
   }
 }, 5000);
+
+// ── Jira Polling (if configured) ──────────────────────────────────────────────
+// Polls Jira for new/updated issues and syncs them to LaneConductor as tracks.
+// Race-condition safe: multiple workers use timestamp-based change detection.
+// Polling interval: every 60 seconds (same as DB pull)
+
+let jiraPollRunning = false;
+let jiraStatusesEnsured = false; // Track if we've checked/created statuses once
+
+async function runJiraSync() {
+  if (getIsLocalFs()) return; // Skip in local-fs mode (filesystem only)
+  if (jiraPollRunning) return; // Prevent concurrent polls (multiple workers race-safe)
+
+  jiraPollRunning = true;
+  try {
+    const jiraConfig = readJiraConfig(getCollectors());
+    if (!jiraConfig) {
+      jiraPollRunning = false;
+      return; // No Jira collector configured
+    }
+
+    // Ensure required Jira statuses exist (run once per worker session)
+    if (!jiraStatusesEnsured) {
+      await ensureJiraStatuses(jiraConfig);
+      jiraStatusesEnsured = true;
+    }
+
+    // Get last sync timestamp (or default to 24 hours ago for first sync)
+    const metadata = loadTracksMetadata();
+    const lastSyncTimestamp = metadata._jira_last_poll || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const since = lastSyncTimestamp;
+
+    console.log(`[jira-polling] Polling ${jiraConfig.project_key} for issues since ${since}`);
+
+    // Poll Jira for updated issues
+    const issues = await pollJira(jiraConfig, since);
+    console.log(`[jira-polling] Found ${issues.length} issues to sync`);
+
+    if (!existsSync('conductor/tracks')) {
+      mkdirSync('conductor/tracks', { recursive: true });
+    }
+
+    const gracePeriodMs = 10000; // 10 second grace period for simultaneous edits
+
+    // Process each issue: apply "latest version wins" conflict resolution
+    for (const issue of issues) {
+      try {
+        const trackUpdate = jiraIssueToTrackUpdate(issue, jiraConfig);
+        const trackKey = trackUpdate.track_number;
+
+        // Check metadata first to see if this Jira key is already linked to a local track
+        const existingTrackId = Object.entries(metadata.tracks || {}).find(
+          ([id, meta]) => meta.jira_key === trackKey
+        )?.[0];
+
+        // Find matching local track folder
+        const tracksDir = 'conductor/tracks';
+        let trackFolder = null;
+        
+        if (existingTrackId) {
+          const matchedDirs = readdirSync(tracksDir).filter(
+            (d) => d.startsWith(`${existingTrackId}-`) && statSync(join(tracksDir, d)).isDirectory()
+          );
+          if (matchedDirs.length > 0) trackFolder = join(tracksDir, matchedDirs[0]);
+        } else {
+          // Fallback check for KAN- folder
+          const matchedDirs = readdirSync(tracksDir).filter(
+            (d) => d.startsWith(`${trackKey}-`) && statSync(join(tracksDir, d)).isDirectory()
+          );
+          if (matchedDirs.length > 0) trackFolder = join(tracksDir, matchedDirs[0]);
+        }
+
+        if (!trackFolder) {
+          // New issue: create track folder
+          console.log(`[jira-polling] Creating new track from ${trackKey}`);
+          trackFolder = join(tracksDir, `${trackKey}-${trackUpdate.title.toLowerCase().replace(/\s+/g, '-')}`);
+          mkdirSync(trackFolder, { recursive: true });
+
+          // Write index.md
+          const indexContent = trackUpdate.indexContent ? String(trackUpdate.indexContent) : `# ${trackUpdate.title}\n\n**Lane Status**: ${trackUpdate.lane}\n\n${String(trackUpdate.content || '(No description)')}\n`;
+          writeFileSync(join(trackFolder, 'index.md'), indexContent, 'utf8');
+
+          if (trackUpdate.planContent) writeFileSync(join(trackFolder, 'plan.md'), trackUpdate.planContent, 'utf8');
+          if (trackUpdate.specContent) writeFileSync(join(trackFolder, 'spec.md'), trackUpdate.specContent, 'utf8');
+          if (trackUpdate.testContent) writeFileSync(join(trackFolder, 'test.md'), trackUpdate.testContent, 'utf8');
+          if (trackUpdate.logContent) writeFileSync(join(trackFolder, 'log.md'), trackUpdate.logContent, 'utf8');
+
+          // Create empty conversation.md
+          writeFileSync(join(trackFolder, 'conversation.md'), '', 'utf8');
+
+          // Update metadata
+          if (!metadata.tracks) metadata.tracks = {};
+          metadata.tracks[trackKey] = { jira_key: trackKey, jira_last_synced: trackUpdate.updated };
+        } else {
+          // Existing track: compare timestamps with "latest version wins"
+          const indexPath = join(trackFolder, 'index.md');
+          const indexStat = statSync(indexPath);
+          const fsMtime = indexStat.mtime.toISOString();
+
+          const jiraUpdated = new Date(trackUpdate.updated);
+          const fsModified = new Date(fsMtime);
+          const timeDiffMs = Math.abs(jiraUpdated - fsModified);
+
+          // If within grace period, skip (allow concurrent edits)
+          if (timeDiffMs < gracePeriodMs) {
+            console.log(`[jira-polling] ${trackKey}: within grace period (${timeDiffMs}ms), skipping`);
+            continue;
+          }
+
+          // Latest version wins
+          if (jiraUpdated > fsModified) {
+            console.log(`[jira-polling] ${trackKey}: Jira newer, updating FS`);
+            const indexContent = readFileSync(indexPath, 'utf8');
+            const titleMatch = indexContent.match(/^# (.+)$/m);
+            const oldTitle = titleMatch ? titleMatch[1] : '';
+
+            // Update lane and title if changed
+            let updatedContent = indexContent.replace(
+              /^\*\*Lane Status\*\*: \w+/m,
+              `**Lane Status**: ${trackUpdate.lane}`
+            );
+            if (oldTitle !== trackUpdate.title) {
+              updatedContent = updatedContent.replace(/^# .+$/m, `# ${trackUpdate.title}`);
+            }
+            
+            // Re-render description area (everything after **Lane Status**)
+            const parts = updatedContent.split(/\*\*Lane Status\*\*: .+\n/);
+            if (parts.length > 1) {
+              updatedContent = parts[0] + `**Lane Status**: ${trackUpdate.lane}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
+            } else {
+               // Fallback if structure is weird
+               updatedContent = `# ${trackUpdate.title}\n\n**Lane Status**: ${trackUpdate.lane}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
+            }
+
+            writeFileSync(indexPath, updatedContent, 'utf8');
+            
+            if (trackUpdate.planContent !== undefined && trackUpdate.planContent !== '') writeFileSync(join(trackFolder, 'plan.md'), trackUpdate.planContent, 'utf8');
+            if (trackUpdate.specContent !== undefined && trackUpdate.specContent !== '') writeFileSync(join(trackFolder, 'spec.md'), trackUpdate.specContent, 'utf8');
+            if (trackUpdate.testContent !== undefined && trackUpdate.testContent !== '') writeFileSync(join(trackFolder, 'test.md'), trackUpdate.testContent, 'utf8');
+            if (trackUpdate.logContent !== undefined && trackUpdate.logContent !== '') writeFileSync(join(trackFolder, 'log.md'), trackUpdate.logContent, 'utf8');
+
+            if (!metadata.tracks) metadata.tracks = {};
+            metadata.tracks[trackKey] = { ...metadata.tracks[trackKey], jira_key: trackKey, jira_last_synced: trackUpdate.updated };
+          } else {
+            console.log(`[jira-polling] ${trackKey}: FS newer, skipping (will push on next outbound sync)`);
+          }
+        }
+
+        // Sync Comments from Jira
+        trackFolder = trackFolder || join(tracksDir, readdirSync(tracksDir).find(d => d.startsWith(`${issue.key}-`)));
+        if (trackFolder && existsSync(trackFolder)) {
+          const convFile = join(trackFolder, 'conversation.md');
+          const lastSynced = (metadata.tracks && metadata.tracks[issue.key]?.jira_last_comment_synced) || metadata._jira_last_poll || since;
+          const jiraComments = await getJiraComments(jiraConfig, issue.key, lastSynced);
+          
+          if (jiraComments.length > 0) {
+            console.log(`[jira-polling] ${issue.key}: found ${jiraComments.length} new comments`);
+            let appended = false;
+            for (const jc of jiraComments) {
+              const body = parseAdfToText(jc.body);
+              const author = jc.author?.displayName || 'Jira User';
+              const entry = `\n> **human** (jira: ${author}): ${body}\n`;
+              
+              // Only append if not already in conversation (basic dedup)
+              const existingConv = readIfExists(convFile) || '';
+              if (!existingConv.includes(body.slice(0, 50))) {
+                appendFileSync(convFile, entry, 'utf8');
+                appended = true;
+              }
+            }
+            if (appended) {
+               if (!metadata.tracks) metadata.tracks = {};
+               if (!metadata.tracks[issue.key]) metadata.tracks[issue.key] = {};
+               metadata.tracks[issue.key].jira_last_comment_synced = new Date().toISOString();
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[jira-polling error] Processing ${issue.key}: ${err.message}`);
+      }
+    }
+
+    // Update global last sync timestamp
+    metadata._jira_last_poll = new Date().toISOString();
+    saveTracksMetadata(metadata);
+
+    console.log(`[jira-polling] Sync complete: ${issues.length} issues processed`);
+  } catch (err) {
+    console.error('[jira-polling error]:', err.message);
+  } finally {
+    jiraPollRunning = false;
+  }
+}
+
+runJiraSync(); // Run immediately on startup
+setInterval(runJiraSync, 60000); // Poll every 60 seconds
 
 // ── Auto-implement + auto-review ──────────────────────────────────────────────
 
