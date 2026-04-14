@@ -77,3 +77,7 @@ fix_*.mjs
 reset_*.mjs
 .test-tmp-local-api
 .conv-cursor
+# Scratch files with potential secrets
+scratch/*.cjs
+scratch/check_prod_*.* 
+scratch/delete_prod_*.* 

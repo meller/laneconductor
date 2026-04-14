@@ -1,10 +1,10 @@
 # Track 1052: Show HN Post
 
-**Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
-**Summary**: Hacker News Show HN — highest-leverage single channel for an OSS dev tool
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Published
+**Summary**: HN post live at https://news.ycombinator.com/item?id=47338664. Phases 1-3 (strategy, writing, submission) complete. Phase 4 (engagement) optional ongoing work.
 
 ## Problem
 HN is the best channel for reaching developers who would use LaneConductor. A strong Show HN can drive 500–2000 GitHub stars in 24 hours. But it requires the right timing, framing, and engagement.
