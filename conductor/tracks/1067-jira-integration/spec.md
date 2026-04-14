@@ -121,6 +121,44 @@ Stored in `.laneconductor.json`:
 
 The 1:1 constraint ensures no ambiguity: each LC lane has exactly one Jira status, and vice versa.
 
+### R10: Workspace/Folder Mapping (Phase 8)
+
+**Problem**: Multiple source folders (conductor, ui, infra) may need to sync to different Jira projects.
+
+**Solution**: `lc add-target --workspace` saves folder path to config. Worker uses this to route tracks:
+```json
+{
+  "collectors": [
+    {
+      "type": "jira",
+      "domain": "...",
+      "project_key": "KAN",
+      "workspace": "conductor"
+    },
+    {
+      "type": "jira",
+      "domain": "...",
+      "project_key": "INFRA",
+      "workspace": "infra"
+    },
+    {
+      "type": "jira",
+      "domain": "...",
+      "project_key": "UI",
+      "workspace": "ui"
+    }
+  ]
+}
+```
+
+**Worker Behavior**:
+- Track in `conductor/tracks/NNN-*` → syncs to KAN project
+- Track in `infra/tracks/NNN-*` → syncs to INFRA project
+- Track in `ui/tracks/NNN-*` → syncs to UI project
+- Track in other folders → syncs to first collector without workspace (default fallback)
+
+**No workspace specified** → collector applies to all folders (default behavior)
+
 ### R8: Multi-File Field Mapping (Jira Description)
 
 The Jira issue description acts as a container for all relevant track files. The content is formatted using ADF (Atlassian Document Format) with clear headings and code blocks for:
@@ -145,17 +183,19 @@ lc add-target --type jira \
   --domain mycompany.atlassian.net \
   --email user@example.com \
   --project-key KAN \
-  --token-env JIRA_API_TOKEN
+  --token-env JIRA_API_TOKEN \
+  --workspace conductor
 ```
 
 When `--type jira`:
 - Skip `--url` requirement
 - Require `--domain`, `--email`, `--project-key`
 - Accept `--token` (inline) or `--token-env` (env var reference)
+- Accept optional `--workspace` (folder path like `conductor`, `ui`, `infra` — defaults to all folders)
 - Store as collector entry with `type: 'jira'`
 
 Update `lc list-targets`:
-- Display Jira collectors as: `jira: KAN @ mycompany.atlassian.net`
+- Display Jira collectors as: `jira: KAN @ mycompany.atlassian.net (workspace: conductor)`
 - Display API collectors as: `api: http://...`
 
 ### R7: Multiple Workers (Race Condition Safety)

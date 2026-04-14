@@ -132,6 +132,19 @@ If worker cannot auto-create missing statuses (requires Jira Cloud admin scope),
 
 **Note**: Current Phase 1-6 implementation uses **labels** for lane tracking (lconductor-<lane>), which requires no admin access. This phase adds optional workflow status automation for teams that prefer explicit Jira status transitions.
 
+### Phase 8: Workspace/Folder Mapping ⏳ (Planned)
+*Allow different source folders to sync to different Jira projects*
+
+- **CLI Extension**: `lc add-target --type jira ... --workspace conductor` saves folder mapping
+- **Config Storage**: Store workspace path in .laneconductor.json per JIRA collector
+- **Worker Logic**: When syncing track, match track folder path to collector workspace
+  - Track in `conductor/tracks/` → check for `workspace: conductor` collector
+  - If no match → use default collector (no workspace specified, fallback)
+  - Supports multiple JIRA collectors, one per workspace
+- **Testing**: Test with 3+ folders each syncing to different Jira projects
+
+**Use Case**: Organization with multiple repos/folders (conductor, ui, infra) each with their own Jira project (KAN, UI, INFRA)
+
 ## Files to Modify
 
 | File | Change |
