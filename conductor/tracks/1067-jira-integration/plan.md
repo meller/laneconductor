@@ -103,22 +103,28 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - Update `lc list-targets` to display Jira collectors
 - Update `SKILL.md` quick reference
 
-### Phase 6: Enhanced Sync, 1:1 Mapping & Auto-Status Creation ✓
-- **1:1 Lane Mapping**: Implemented 1:1 mapping (backlog↔Backlog, plan↔To Do, implement↔In Progress, review↔In Review, quality-gate↔Testing, done↔Done)
-- **Auto-Status Creation**: Worker detects missing Jira statuses (Backlog, Testing) and attempts to create them during first sync
-- **Labels for Filtering**: All issues labeled with `lconductor-<lane>` and `lconductor-<action>` for UI filtering/reporting
-- **Multi-file Formatting**: Update `buildTrackAdf` to include `Log` section.
-- **Bidirectional Comments**: Ensure Jira comments flow back to `conversation.md`.
-- **Bug Fixes**: Resolve metadata access bugs in sync worker.
+### Phase 6: Enhanced Sync, 1:1 Mapping & Label-Based Lane Tracking ✓
+- **1:1 Lane Mapping**: Implemented 1:1 mapping between LC lanes and Jira statuses (backlog↔Backlog, plan↔To Do, implement↔In Progress, review↔In Review, quality-gate↔Testing, done↔Done)
+- **Status Validation**: Worker validates required statuses exist; provides clear guidance if missing
+- **Labels as Source of Truth**: All issues labeled with `lconductor-<lane>` for reliable lane tracking
+- **Graceful Status Transitions**: Status transitions are best-effort; if status doesn't exist, labels carry the lane info
+- **Multi-file Formatting**: Updated `buildTrackAdf` to include `Log` section.
+- **Bidirectional Comments**: Ensured Jira comments flow back to `conversation.md`.
+- **Bug Fixes**: Resolved metadata access bugs in sync worker.
 - **GCP Secrets**: Standardized and added support for GCP Secret Manager for Jira tokens.
 - **ADF Parsing**: Improved ADF parser for comment synchronization.
 - **Loop Prevention**: Added `recentlyPulled` check to prevent sync echoes.
+- **Project Creation**: CLI now validates/creates JIRA projects via API
+- **Disabled Collector Filtering**: Fixed bug where disabled collectors were still being used
 
-**Note on Auto-Status Creation**: 
-If worker cannot auto-create missing statuses (requires Jira Cloud admin scope), fallback occurs:
-- Missing statuses transition to closest available status
-- User must manually create missing statuses in Jira workflow, then restart worker
-- Phase 7 adds explicit status creation with OAuth scope management
+**Important Discovery**: 
+Jira Cloud does NOT allow creating statuses/workflows via REST API. Statuses must be created manually in Jira:
+1. User runs `lc add-target --type jira ...`
+2. CLI validates project exists, creates if needed
+3. CLI checks for required statuses and shows clear guidance if missing
+4. User manually creates missing statuses in Jira workflow settings
+5. Worker syncs with proper status transitions once statuses exist
+6. Labels provide fallback tracking if statuses don't match expected names
 
 ### Phase 7: Optional - Jira Workflow Status Creation ⏳ (Planned)
 *Only implement if teams want automatic Jira status/workflow creation instead of label-based lane tracking*

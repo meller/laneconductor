@@ -1,0 +1,245 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_Rhp955jal9_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_R2p955jal9_"
+        - listitem:
+          - link "Sidebar":
+            - /url: "#_R3i9955jal9_"
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - button "Switch sites or apps" [ref=e9] [cursor=pointer]:
+              - generic [ref=e12]: Switch sites or apps
+            - link "Go to your Jira homepage" [ref=e14] [cursor=pointer]:
+              - /url: /jira
+              - generic [ref=e15]:
+                - img [ref=e18]
+                - generic [ref=e23]: Jira
+          - button "Collapse sidebar" [ref=e25] [cursor=pointer]:
+            - generic [ref=e27]: Collapse sidebar
+        - generic [ref=e28]:
+          - search [ref=e33]:
+            - textbox "Search" [ref=e36]
+          - button "Create" [ref=e39] [cursor=pointer]:
+            - generic [ref=e42]: Create
+        - navigation "Actions" [ref=e43]:
+          - list [ref=e44]:
+            - listitem [ref=e45]:
+              - button "Notifications" [ref=e48] [cursor=pointer]:
+                - generic [ref=e51]: Notifications
+            - listitem [ref=e54]:
+              - button "Help" [ref=e55] [cursor=pointer]:
+                - generic [ref=e58]: Help
+              - generic:
+                - generic:
+                  - generic: 3+
+            - listitem [ref=e60]:
+              - button "Settings" [ref=e61] [cursor=pointer]:
+                - generic [ref=e64]: Settings
+            - listitem [ref=e65]:
+              - button "asaf.meller@gmail.com" [ref=e66] [cursor=pointer]:
+                - img "Account" [ref=e68]
+      - navigation "Sidebar" [ref=e69]:
+        - generic [ref=e70]:
+          - generic [ref=e72]:
+            - generic [ref=e73]:
+              - link "Navigate back to the previous page" [ref=e74] [cursor=pointer]:
+                - /url: /projects/KAN
+                - generic [ref=e77]: Navigate back to the previous page
+              - heading "Space settings" [level=2] [ref=e78]
+            - generic [ref=e80]:
+              - generic [ref=e81]: Testproject
+              - generic [ref=e82]: Software space
+          - list [ref=e85]:
+            - listitem [ref=e86]:
+              - link "Details" [ref=e88] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/details
+                - generic [ref=e93]: Details
+            - listitem [ref=e94]:
+              - link "Access" [ref=e96] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/access
+                - generic [ref=e101]: Access
+            - listitem [ref=e102]:
+              - button "Notifications" [ref=e106] [cursor=pointer]:
+                - generic [ref=e110]: Notifications
+            - listitem [ref=e111]:
+              - link "Automation" [ref=e113] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/automation
+                - generic [ref=e118]: Automation
+            - listitem [ref=e119]:
+              - link "Fields" [ref=e121] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/fields
+                - generic [ref=e126]: Fields
+            - listitem [ref=e127]:
+              - button "Work types" [ref=e131] [cursor=pointer]:
+                - generic [ref=e135]: Work types
+            - listitem [ref=e136]:
+              - link "Features" [ref=e138] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/features
+                - generic [ref=e143]: Features
+            - listitem [ref=e144]:
+              - button "Board" [ref=e148] [cursor=pointer]:
+                - generic [ref=e152]: Board
+            - listitem [ref=e153]:
+              - link "Timeline" [ref=e155] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/boards/2/timeline
+                - generic [ref=e160]: Timeline
+            - listitem [ref=e161]:
+              - link "Toolchain" [ref=e163] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/settings/toolchain?projectId=10001
+                - generic [ref=e168]: Toolchain
+            - listitem [ref=e169]:
+              - button "Apps" [ref=e173] [cursor=pointer]:
+                - generic [ref=e177]: Apps
+      - generic [ref=e179]:
+        - slider "Resize side navigation panel" [ref=e180]: "240"
+        - text: Resize side navigation panel
+      - main [ref=e182]:
+        - generic [ref=e186]:
+          - navigation "Breadcrumbs" [ref=e189]:
+            - list [ref=e190]:
+              - listitem [ref=e191]:
+                - link "Spaces" [ref=e192] [cursor=pointer]:
+                  - /url: /jira/projects
+                  - generic [ref=e193]: Spaces
+                - text: /
+              - listitem [ref=e194]:
+                - link "Testproject" [ref=e195] [cursor=pointer]:
+                  - /url: /browse/KAN
+                  - generic [ref=e196]: Testproject
+                - text: /
+              - listitem [ref=e197]:
+                - link "Space settings" [ref=e198] [cursor=pointer]:
+                  - /url: /jira/software/projects/KAN/settings
+                  - generic [ref=e199]: Space settings
+          - generic [ref=e201]:
+            - generic [ref=e203]:
+              - heading "Details" [level=1] [ref=e205]
+              - button "More options" [ref=e208] [cursor=pointer]:
+                - img "More options" [ref=e210]
+            - generic [ref=e213]:
+              - generic [ref=e214]:
+                - img "Space avatar" [ref=e216]
+                - button "Change icon" [ref=e218] [cursor=pointer]:
+                  - generic [ref=e219]: Change icon
+              - paragraph [ref=e221]: Required fields are marked with an asterisk *
+              - generic [ref=e223]:
+                - generic [ref=e224]: Name*
+                - textbox "Name" [ref=e225]: Testproject
+              - generic [ref=e227]:
+                - generic [ref=e228]:
+                  - text: Space key
+                  - button "More about space keys" [ref=e229] [cursor=pointer]:
+                    - generic [ref=e232]: More about space keys
+                  - text: "*"
+                - textbox "Space key More about space keys" [ref=e233]: KAN
+              - generic [ref=e235]:
+                - generic [ref=e236]: Category
+                - generic [ref=e237]:
+                  - status [ref=e239]
+                  - generic [ref=e240]:
+                    - generic [ref=e241]:
+                      - generic [ref=e242]: Choose a category
+                      - combobox "Category" [ref=e244]
+                    - img [ref=e248]
+              - generic [ref=e249]:
+                - generic [ref=e250]:
+                  - generic [ref=e251]: Space owner
+                  - generic [ref=e252]:
+                    - status [ref=e254]
+                    - generic [ref=e256]:
+                      - generic [ref=e258]:
+                        - img [ref=e261]
+                        - generic [ref=e265]: asaf meller
+                      - combobox "Space owner" [ref=e267]
+                - generic [ref=e270]: Make sure your space lead has access to work items in the space.
+              - generic [ref=e272]:
+                - generic [ref=e273]: Default assignee
+                - generic [ref=e274]:
+                  - status [ref=e276]
+                  - generic [ref=e277]:
+                    - generic [ref=e278]:
+                      - generic [ref=e279]: Unassigned
+                      - combobox "Default assignee" [ref=e281]
+                    - img [ref=e285]
+              - button "Save" [disabled] [ref=e287]:
+                - generic: Save
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading "Flag notifications" [level=2] [ref=e289]
+          - alert [ref=e291]:
+            - generic [ref=e293]:
+              - img "info-icon" [ref=e295]
+              - generic [ref=e297]:
+                - generic [ref=e298]:
+                  - heading "Join our paid research study 💸" [level=2] [ref=e300]
+                  - button "Dismiss" [ref=e301] [cursor=pointer]:
+                    - generic [ref=e304]: Dismiss
+                - generic [ref=e307]:
+                  - generic [ref=e308]: Tell us about your setup experience and we’ll send you a $100 gift card as a thank you.
+                  - link "Join now" [ref=e311] [cursor=pointer]:
+                    - /url: https://www.userinterviews.com/projects/VyePep5kmg/apply
+                    - generic [ref=e312]: Join now
+    - dialog "Create Task" [ref=e315]:
+      - generic [ref=e318]:
+        - heading "Create Task" [level=1] [ref=e319]:
+          - generic [ref=e320]: Create Task
+        - list [ref=e322]:
+          - listitem [ref=e323]:
+            - button "Minimize" [active] [ref=e324] [cursor=pointer]:
+              - generic [ref=e327]: Minimize
+          - listitem [ref=e328]:
+            - button "Exit full screen" [ref=e329] [cursor=pointer]:
+              - generic [ref=e332]: Exit full screen
+          - listitem [ref=e333]:
+            - button "More actions for this Task" [ref=e334] [cursor=pointer]
+          - listitem [ref=e337]:
+            - button "Close" [ref=e338] [cursor=pointer]:
+              - generic [ref=e341]: Close
+      - generic [ref=e349]:
+        - generic [ref=e351]: Required fields are marked with an asterisk *
+        - generic [ref=e353]:
+          - generic [ref=e354]: Space*
+          - generic [ref=e355]:
+            - status [ref=e357]
+            - generic [ref=e358]:
+              - generic [ref=e359]:
+                - generic [ref=e361]:
+                  - img [ref=e365]
+                  - generic [ref=e367]: Testproject (KAN)
+                - combobox "Space" [ref=e369]
+              - img [ref=e376]
+        - generic [ref=e378]:
+          - generic [ref=e379]: Work type*
+          - generic [ref=e381]:
+            - status [ref=e383]
+            - generic [ref=e384]:
+              - generic [ref=e385]:
+                - generic [ref=e387]:
+                  - img [ref=e391]
+                  - generic [ref=e393]: Task
+                - combobox "Work type" [ref=e395]
+              - img [ref=e399]
+          - link "Learn about work types , (opens new window)" [ref=e404] [cursor=pointer]:
+            - /url: /secure/ShowConstantsHelp.jspa?decorator=popup#IssueTypes
+            - text: Learn about work types
+            - img [ref=e406]
+            - generic [ref=e408]: ", (opens new window)"
+      - generic [ref=e434]:
+        - generic [ref=e435]:
+          - checkbox "Create another" [ref=e436]
+          - generic [ref=e437]: Create another
+        - button "Cancel" [ref=e439] [cursor=pointer]:
+          - generic [ref=e440]: Cancel
+        - button "Create" [ref=e441] [cursor=pointer]:
+          - generic [ref=e442]: Create

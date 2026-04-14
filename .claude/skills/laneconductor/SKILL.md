@@ -114,6 +114,8 @@ make install-cli
 - `lc new "Title" "Description"`: Create a new track.
 - `lc setup`: Initialize a new project with LaneConductor.
 - `lc add-target --url <url> [--key <key>] [--store-type gcp-secret] [--secret-name <name>]`: Add a sync endpoint.
+- `lc add-target --type jira --domain <domain> --email <email> --project-key <key> [--token-env <env>]`: Add a Jira sync target.
+- `lc add-target-mapping --lane <lc_lane> --target "<target_status>"`: Configure custom Jira status mapping for a specific Lane. (Example: `lc add-target-mapping --lane implement --target "In Progress"`)
 - `lc list-targets`: Show all sync targets and their active/disabled status.
 
 ---

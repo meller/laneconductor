@@ -683,93 +683,69 @@ async function getProjectStatuses(config, auth) {
 }
 
 /**
- * Create a new status in Jira (requires admin access)
- * Note: In Jira Cloud, statuses must be created via workflow configuration
- * This is a fallback that attempts the REST API but provides helpful guidance if it fails
+ * Validate that required Jira statuses exist for LaneConductor lanes
+ * In Jira Cloud, statuses must be created manually via workflow configuration
  *
  * @param {Object} config - Jira config
- * @param {string} statusName - Status name to create (e.g., "Backlog")
- * @param {string} auth - Base64 auth header
- * @returns {Promise<boolean>} True if successful
+ * @returns {Promise<Object>} { allExist: boolean, missing: Array, guidance: string }
  */
-async function createJiraStatus(config, statusName, auth) {
-  try {
-    const url = `https://${config.domain}/rest/api/3/statuses`;
-
-    console.log(`[jira-collector] Attempting to create status: ${statusName}`);
-
-    // Try the standard REST API endpoint first
-    let response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: statusName,
-        description: `Auto-created by LaneConductor for lane tracking`,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn(
-        `[jira-collector] REST API status creation failed: ${response.status}`
-      );
-
-      // In Jira Cloud, creating statuses requires workflow management
-      // Provide guidance to the user
-      if (response.status === 400 || response.status === 403) {
-        console.log(
-          `[jira-collector] ⚠️  Cannot auto-create status "${statusName}" via REST API (requires Jira admin + workflow access)\n` +
-          `         To use ${statusName} lane, manually create the status in Jira:\n` +
-          `         1. Go to https://${config.domain}/secure/project/settings/workflows\n` +
-          `         2. Select project "${config.project_key}"\n` +
-          `         3. Add status "${statusName}" to your workflow\n` +
-          `         4. Restart the worker to pick up the new status`
-        );
-      }
-      return false;
-    }
-
-    console.log(`[jira-collector] Successfully created status: ${statusName}`);
-    return true;
-  } catch (err) {
-    console.error(`[jira-collector] Create status error: ${err.message}`);
-    return false;
-  }
-}
-
-/**
- * Ensure required statuses exist in Jira project, create if missing
- * Called during first sync to set up the workflow
- *
- * @param {Object} config - Jira config
- * @returns {Promise<void>}
- */
-export async function ensureJiraStatuses(config) {
+export async function validateJiraStatuses(config) {
   if (!config || !config.domain || !config.email || !config.token || !config.project_key) {
-    return;
+    return { allExist: false, missing: [], guidance: '' };
   }
 
-  const requiredStatuses = ['Backlog', 'Testing'];
+  const requiredStatuses = {
+    'Backlog': 'backlog lane',
+    'To Do': 'plan/queue lanes',
+    'In Progress': 'implement/running lanes',
+    'In Review': 'review lane',
+    'Testing': 'quality-gate lane',
+    'Done': 'done/success lanes',
+  };
+
   const auth = Buffer.from(`${config.email}:${config.token}`).toString('base64');
 
   try {
     const existing = await getProjectStatuses(config, auth);
     const existingLower = existing.map(s => s.toLowerCase());
 
-    console.log(`[jira-collector] Found statuses in ${config.project_key}: ${existing.join(', ')}`);
+    console.log(`[jira-collector] Project ${config.project_key} statuses: ${existing.join(', ') || '(none found)'}`);
 
-    for (const status of requiredStatuses) {
-      if (!existingLower.includes(status.toLowerCase())) {
-        console.log(`[jira-collector] Missing status: ${status}, attempting to create...`);
-        await createJiraStatus(config, status, auth);
+    // Check which required statuses are missing
+    const missing = [];
+    for (const [statusName, laneDesc] of Object.entries(requiredStatuses)) {
+      if (!existingLower.includes(statusName.toLowerCase())) {
+        missing.push({ status: statusName, lane: laneDesc });
       }
     }
+
+    if (missing.length === 0) {
+      console.log(`[jira-collector] ✅ All required statuses exist`);
+      return { allExist: true, missing: [], guidance: '' };
+    }
+
+    // Build guidance for missing statuses
+    const missingNames = missing.map(m => `"${m.status}"`).join(', ');
+    const guidance =
+      `\n⚠️  LaneConductor detected missing JIRA statuses in project ${config.project_key}:\n` +
+      `   Missing: ${missingNames}\n\n` +
+      `To enable proper lane-to-status mapping, please create these statuses in your JIRA workflow:\n\n` +
+      `📋 Steps to create missing statuses:\n` +
+      `   1. Go to: https://${config.domain}/jira/software/projects/${config.project_key}/settings/workflows\n` +
+      `   2. Click "Edit Workflow" on your active workflow\n` +
+      `   3. Click "Add Status" and create:\n` +
+      missing.map(m => `      - "${m.status}" (for ${m.lane})`).join('\n') + `\n` +
+      `   4. Save and publish the workflow\n` +
+      `   5. Restart the LaneConductor worker: lc worker restart\n\n` +
+      `   Note: Issues will still sync with label tracking (lconductor-<lane>) until statuses exist.\n` +
+      `   Once statuses are created, the worker will auto-transition issues to the correct status.`;
+
+    console.log(`[jira-collector] ⚠️  Missing statuses: ${missingNames}`);
+
+    return { allExist: false, missing, guidance };
   } catch (err) {
-    console.error(`[jira-collector] ensureJiraStatuses error: ${err.message}`);
+    console.error(`[jira-collector] validateJiraStatuses error: ${err.message}`);
+    return { allExist: false, missing: [], guidance: `Error validating statuses: ${err.message}` };
   }
 }
 

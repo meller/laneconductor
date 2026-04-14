@@ -1,0 +1,378 @@
+- generic [ref=e2]:
+  - generic:
+    - generic: "Skip to:"
+    - list:
+      - listitem:
+        - link "Top Bar":
+          - /url: "#_Rhp955jal9_"
+      - listitem:
+        - link "Main Content":
+          - /url: "#_R2p955jal9_"
+      - listitem:
+        - link "Sidebar":
+          - /url: "#_R3i9955jal9_"
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e709]:
+        - generic [ref=e710]:
+          - button "Switch sites or apps" [ref=e712] [cursor=pointer]:
+            - generic [ref=e715]: Switch sites or apps
+          - link "Go to your Jira homepage" [ref=e717] [cursor=pointer]:
+            - /url: /jira
+            - generic [ref=e718]:
+              - img [ref=e721]
+              - generic [ref=e726]: Jira
+        - button "Collapse sidebar" [ref=e728] [cursor=pointer]:
+          - generic [ref=e730]: Collapse sidebar
+      - generic [ref=e731]:
+        - search [ref=e736]:
+          - textbox "Search" [ref=e739]
+        - button "Create" [ref=e742] [cursor=pointer]:
+          - generic [ref=e745]: Create
+      - navigation "Actions" [ref=e746]:
+        - list [ref=e747]:
+          - button "Premium trial" [ref=e748] [cursor=pointer]: Premium trial
+          - listitem [ref=e751]:
+            - button "Notifications" [ref=e754] [cursor=pointer]:
+              - generic [ref=e757]: Notifications
+          - listitem [ref=e760]:
+            - button "Help" [ref=e761] [cursor=pointer]:
+              - generic [ref=e764]: Help
+            - generic:
+              - generic:
+                - generic: 3+
+          - listitem [ref=e766]:
+            - button "Settings" [ref=e767] [cursor=pointer]:
+              - generic [ref=e770]: Settings
+          - listitem [ref=e771]:
+            - button "asaf.meller@gmail.com" [ref=e772] [cursor=pointer]:
+              - img "Account" [ref=e774]
+    - navigation "Sidebar" [ref=e70]:
+      - list [ref=e74]:
+        - listitem [ref=e75]:
+          - link "For you" [ref=e77] [cursor=pointer]:
+            - /url: /jira/for-you
+            - generic [ref=e82]: For you
+        - listitem [ref=e83]:
+          - button "Recent" [ref=e85] [cursor=pointer]:
+            - generic [ref=e89]: Recent
+        - listitem [ref=e90]:
+          - button "Starred" [ref=e92] [cursor=pointer]:
+            - generic [ref=e96]: Starred
+        - listitem [ref=e97]:
+          - generic [ref=e100]:
+            - button "Apps" [ref=e101] [cursor=pointer]:
+              - generic [ref=e105]: Apps
+            - generic:
+              - button "More actions for Apps":
+                - generic [ref=e108] [cursor=pointer]: More actions for Apps
+        - listitem [ref=e109]:
+          - generic [ref=e112]:
+            - button "Plans" [ref=e113] [cursor=pointer]:
+              - generic [ref=e117]: Plans
+            - generic:
+              - button "Create plan" [ref=e118] [cursor=pointer]:
+                - generic [ref=e121]: Create plan
+              - button "More actions for Plans":
+                - generic [ref=e124] [cursor=pointer]: More actions for Plans
+        - listitem [ref=e125]:
+          - generic [ref=e126]:
+            - generic [ref=e128]:
+              - button "Spaces" [expanded] [ref=e129] [cursor=pointer]:
+                - generic [ref=e133]: Spaces
+              - generic [ref=e134]:
+                - button "Create space" [ref=e135] [cursor=pointer]:
+                  - generic [ref=e138]: Create space
+                - button "More actions for spaces" [ref=e139] [cursor=pointer]:
+                  - generic [ref=e142]: More actions for spaces
+            - list [ref=e143]:
+              - listitem [ref=e145]:
+                - group "Starred" [ref=e146]:
+                  - paragraph [ref=e147]: Starred
+                  - list [ref=e148]:
+                    - listitem [ref=e149]:
+                      - generic [ref=e150]:
+                        - link "(Example) Mobile App Launch" [ref=e151] [cursor=pointer]:
+                          - /url: /jira/software/projects/EMAL/boards/1
+                          - generic [ref=e156]: (Example) Mobile App Launch
+                        - generic:
+                          - button "More actions for (Example) Mobile App Launch":
+                            - generic [ref=e159] [cursor=pointer]: More actions for (Example) Mobile App Launch
+              - listitem [ref=e160]:
+                - group "Recent" [ref=e161]:
+                  - paragraph [ref=e162]: Recent
+                  - list [ref=e163]:
+                    - listitem [ref=e164]:
+                      - generic [ref=e165]:
+                        - link "Testproject" [ref=e166] [cursor=pointer]:
+                          - /url: /jira/software/projects/KAN/boards/2
+                          - generic [ref=e171]: Testproject
+                        - generic:
+                          - button "More actions for Testproject":
+                            - generic [ref=e174] [cursor=pointer]: More actions for Testproject
+              - listitem [ref=e175]:
+                - group [ref=e176]:
+                  - list [ref=e177]:
+                    - listitem [ref=e178]:
+                      - button "More spaces" [ref=e180] [cursor=pointer]:
+                        - generic [ref=e184]: More spaces
+                    - list [ref=e336]:
+                      - group [ref=e337]:
+                        - heading "Recommended" [level=2] [ref=e338]
+                        - listitem [ref=e339]:
+                          - listitem [ref=e340]:
+                            - generic [ref=e341]:
+                              - button "Collect requests" [ref=e342] [cursor=pointer]:
+                                - generic [ref=e346]: Collect requests
+                              - generic:
+                                - img
+                              - generic:
+                                - generic:
+                                  - generic: Try
+                    - listitem [ref=e185]:
+                      - button "Import work" [ref=e187] [cursor=pointer]:
+                        - generic [ref=e191]: Import work
+        - list [ref=e194]:
+          - listitem [ref=e196]:
+            - generic [ref=e197]:
+              - link "Teams , (opens new window)" [ref=e347] [cursor=pointer]:
+                - /url: https://home.atlassian.com/o/db64ab02-7427-4750-b058-82202a22ccfa/people?cloudId=4c49c15a-5d51-4f17-862d-8af34c8e6254&xpis=eyJicmlkZ2UiOiJnbG9iYWxTaG9ydGN1dHMiLCJpZCI6IjE3NzYwODU0NTkzMzUiLCJzb3VyY2UiOiJqaXJhIn0%3D
+                - generic [ref=e352]: Teams
+                - generic [ref=e353]: ", (opens new window)"
+              - generic:
+                - generic:
+                  - img
+              - generic:
+                - button "open menu":
+                  - generic [ref=e207] [cursor=pointer]: open menu
+              - generic:
+                - img "Open external link icon"
+        - listitem [ref=e209]:
+          - button "More" [ref=e213] [cursor=pointer]:
+            - generic [ref=e217]: More
+    - generic [ref=e356]:
+      - slider "Resize side navigation panel" [ref=e357]: "240"
+      - text: Resize side navigation panel
+    - main [ref=e218]:
+      - generic [ref=e776]:
+        - generic [ref=e782]:
+          - heading "For you" [level=1] [ref=e786]
+          - generic [ref=e788]:
+            - generic [ref=e789]:
+              - heading "Recent spaces" [level=2] [ref=e790]
+              - link "View all spaces" [ref=e791] [cursor=pointer]:
+                - /url: /jira/projects
+            - list [ref=e794]:
+              - listitem [ref=e795]:
+                - generic [ref=e796]:
+                  - link "Testproject Team-managed software" [ref=e797] [cursor=pointer]:
+                    - /url: https://asafmeller.atlassian.net/jira/software/projects/KAN/boards/2
+                    - generic [ref=e799]:
+                      - heading "Testproject" [level=3] [ref=e801]:
+                        - generic [ref=e802]: Testproject
+                      - paragraph [ref=e803]: Team-managed software
+                  - generic [ref=e804]:
+                    - heading "Quick links" [level=4] [ref=e807]
+                    - list [ref=e808]:
+                      - listitem [ref=e809]:
+                        - link "My open work items" [ref=e811] [cursor=pointer]:
+                          - /url: /issues/?jql=assignee%20%3D%20currentUser()%20AND%20project%3D'KAN'%20AND%20statusCategory%20!%3D%203
+                          - paragraph [ref=e813]: My open work items
+                          - generic [ref=e814]: "0"
+                      - listitem [ref=e815]:
+                        - link "Done work items" [ref=e817] [cursor=pointer]:
+                          - /url: /issues/?jql=project%3D'KAN'%20AND%20statusCategory%20%3D%20Done
+                          - paragraph [ref=e819]: Done work items
+                  - button "1 board" [ref=e821] [cursor=pointer]:
+                    - paragraph [ref=e823]: 1 board
+          - generic [ref=e829]:
+            - tablist [ref=e830]:
+              - tab "Worked on" [selected] [ref=e831] [cursor=pointer]:
+                - generic [ref=e832]: Worked on
+              - tab "Viewed" [ref=e833] [cursor=pointer]:
+                - generic [ref=e834]: Viewed
+              - tab "Assigned to me 0" [ref=e835] [cursor=pointer]:
+                - generic [ref=e836]:
+                  - text: Assigned to me
+                  - generic [ref=e839]: "0"
+              - tab "Starred" [ref=e840] [cursor=pointer]:
+                - generic [ref=e841]: Starred
+              - tab "Boards" [ref=e842] [cursor=pointer]:
+                - generic [ref=e843]: Boards
+            - tabpanel "Worked on" [ref=e844]:
+              - generic [ref=e846]:
+                - heading "Today" [level=3] [ref=e848]
+                - list [ref=e849]:
+                  - listitem [ref=e850]:
+                    - 'link "Task KAN-8: Webhook diagnostic test with database token KAN-6·Testproject Created avatar group" [ref=e851] [cursor=pointer]':
+                      - /url: https://asafmeller.atlassian.net/browse/KAN-6
+                      - img "Task" [ref=e853]
+                      - generic [ref=e854]:
+                        - 'heading "KAN-8: Webhook diagnostic test with database token" [level=4] [ref=e855]'
+                        - generic [ref=e856]: KAN-6·Testproject
+                      - generic [ref=e857]: Created
+                      - list "avatar group" [ref=e859]:
+                        - listitem [ref=e860]:
+                          - img "asaf meller" [ref=e861]:
+                            - img [ref=e863]
+                  - listitem [ref=e864]:
+                    - link "Task Test 5 KAN-5·Testproject Created avatar group" [ref=e865] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/KAN-5
+                      - img "Task" [ref=e867]
+                      - generic [ref=e868]:
+                        - heading "Test 5" [level=4] [ref=e869]
+                        - generic [ref=e870]: KAN-5·Testproject
+                      - generic [ref=e871]: Created
+                      - list "avatar group" [ref=e873]:
+                        - listitem [ref=e874]:
+                          - img "asaf meller" [ref=e875]:
+                            - img [ref=e877]
+                  - listitem [ref=e878]:
+                    - link "Task Test lane 2 KAN-4·Testproject Created avatar group" [ref=e879] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/KAN-4
+                      - img "Task" [ref=e881]
+                      - generic [ref=e882]:
+                        - heading "Test lane 2" [level=4] [ref=e883]
+                        - generic [ref=e884]: KAN-4·Testproject
+                      - generic [ref=e885]: Created
+                      - list "avatar group" [ref=e887]:
+                        - listitem [ref=e888]:
+                          - img "asaf meller" [ref=e889]:
+                            - img [ref=e891]
+                  - listitem [ref=e892]:
+                    - link "Task Testing the lane KAN-3·Testproject Created avatar group" [ref=e893] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/KAN-3
+                      - img "Task" [ref=e895]
+                      - generic [ref=e896]:
+                        - heading "Testing the lane" [level=4] [ref=e897]
+                        - generic [ref=e898]: KAN-3·Testproject
+                      - generic [ref=e899]: Created
+                      - list "avatar group" [ref=e901]:
+                        - listitem [ref=e902]:
+                          - img "asaf meller" [ref=e903]:
+                            - img [ref=e905]
+                  - listitem [ref=e906]:
+                    - link "Task Agentic laneconductor planning KAN-2·Testproject Created avatar group" [ref=e907] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/KAN-2
+                      - img "Task" [ref=e909]
+                      - generic [ref=e910]:
+                        - heading "Agentic laneconductor planning" [level=4] [ref=e911]
+                        - generic [ref=e912]: KAN-2·Testproject
+                      - generic [ref=e913]: Created
+                      - list "avatar group" [ref=e915]:
+                        - listitem [ref=e916]:
+                          - img "asaf meller" [ref=e917]:
+                            - img [ref=e919]
+                - heading "In the last week" [level=3] [ref=e921]
+                - list [ref=e922]:
+                  - listitem [ref=e923]:
+                    - link "Task Sync jira and laneconductor api KAN-1·Testproject Created avatar group" [ref=e924] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/KAN-1
+                      - img "Task" [ref=e926]
+                      - generic [ref=e927]:
+                        - heading "Sync jira and laneconductor api" [level=4] [ref=e928]
+                        - generic [ref=e929]: KAN-1·Testproject
+                      - generic [ref=e930]: Created
+                      - list "avatar group" [ref=e932]:
+                        - listitem [ref=e933]:
+                          - img "asaf meller" [ref=e934]:
+                            - img [ref=e936]
+                  - listitem [ref=e937]:
+                    - link "Subtask Build login and signup screens EMAL-7·(Example) Mobile App Launch Created avatar group" [ref=e938] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-7
+                      - img "Subtask" [ref=e940]
+                      - generic [ref=e941]:
+                        - heading "Build login and signup screens" [level=4] [ref=e942]
+                        - generic [ref=e943]: EMAL-7·(Example) Mobile App Launch
+                      - generic [ref=e944]: Created
+                      - list "avatar group" [ref=e946]:
+                        - listitem [ref=e947]:
+                          - img "asaf meller" [ref=e948]:
+                            - img [ref=e950]
+                  - listitem [ref=e951]:
+                    - link "Task Implement feature flags and rollout controls EMAL-6·(Example) Mobile App Launch Created avatar group" [ref=e952] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-6
+                      - img "Task" [ref=e954]
+                      - generic [ref=e955]:
+                        - heading "Implement feature flags and rollout controls" [level=4] [ref=e956]
+                        - generic [ref=e957]: EMAL-6·(Example) Mobile App Launch
+                      - generic [ref=e958]: Created
+                      - list "avatar group" [ref=e960]:
+                        - listitem [ref=e961]:
+                          - img "asaf meller" [ref=e962]:
+                            - img [ref=e964]
+                  - listitem [ref=e965]:
+                    - link "Task Perform end-to-end testing EMAL-5·(Example) Mobile App Launch Created avatar group" [ref=e966] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-5
+                      - img "Task" [ref=e968]
+                      - generic [ref=e969]:
+                        - heading "Perform end-to-end testing" [level=4] [ref=e970]
+                        - generic [ref=e971]: EMAL-5·(Example) Mobile App Launch
+                      - generic [ref=e972]: Created
+                      - list "avatar group" [ref=e974]:
+                        - listitem [ref=e975]:
+                          - img "asaf meller" [ref=e976]:
+                            - img [ref=e978]
+                  - listitem [ref=e979]:
+                    - link "Task Implement user authentication EMAL-4·(Example) Mobile App Launch Created avatar group" [ref=e980] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-4
+                      - img "Task" [ref=e982]
+                      - generic [ref=e983]:
+                        - heading "Implement user authentication" [level=4] [ref=e984]
+                        - generic [ref=e985]: EMAL-4·(Example) Mobile App Launch
+                      - generic [ref=e986]: Created
+                      - list "avatar group" [ref=e988]:
+                        - listitem [ref=e989]:
+                          - img "asaf meller" [ref=e990]:
+                            - img [ref=e992]
+                  - listitem [ref=e993]:
+                    - link "Task Add tasks to tracking tool EMAL-3·(Example) Mobile App Launch Created avatar group" [ref=e994] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-3
+                      - img "Task" [ref=e996]
+                      - generic [ref=e997]:
+                        - heading "Add tasks to tracking tool" [level=4] [ref=e998]
+                        - generic [ref=e999]: EMAL-3·(Example) Mobile App Launch
+                      - generic [ref=e1000]: Created
+                      - list "avatar group" [ref=e1002]:
+                        - listitem [ref=e1003]:
+                          - img "asaf meller" [ref=e1004]:
+                            - img [ref=e1006]
+                  - listitem [ref=e1007]:
+                    - link "Epic Prepare features for release EMAL-2·(Example) Mobile App Launch Created avatar group" [ref=e1008] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-2
+                      - img "Epic" [ref=e1010]
+                      - generic [ref=e1011]:
+                        - heading "Prepare features for release" [level=4] [ref=e1012]
+                        - generic [ref=e1013]: EMAL-2·(Example) Mobile App Launch
+                      - generic [ref=e1014]: Created
+                      - list "avatar group" [ref=e1016]:
+                        - listitem [ref=e1017]:
+                          - img "asaf meller" [ref=e1018]:
+                            - img [ref=e1020]
+                  - listitem [ref=e1021]:
+                    - link "Epic Build signup flow for mobile app EMAL-1·(Example) Mobile App Launch Created avatar group" [ref=e1022] [cursor=pointer]:
+                      - /url: https://asafmeller.atlassian.net/browse/EMAL-1
+                      - img "Epic" [ref=e1024]
+                      - generic [ref=e1025]:
+                        - heading "Build signup flow for mobile app" [level=4] [ref=e1026]
+                        - generic [ref=e1027]: EMAL-1·(Example) Mobile App Launch
+                      - generic [ref=e1028]: Created
+                      - list "avatar group" [ref=e1030]:
+                        - listitem [ref=e1031]:
+                          - img "asaf meller" [ref=e1032]:
+                            - img [ref=e1034]
+        - complementary [ref=e1035]:
+          - generic [ref=e1036]:
+            - img [ref=e1037]
+            - generic [ref=e1106]:
+              - img "Jira Service Management" [ref=e1107]:
+                - img [ref=e1108]
+              - generic [ref=e1111]:
+                - heading "Link your teams, make work visible" [level=1] [ref=e1112]
+                - paragraph [ref=e1113]: Connect support teams with development teams to get the full picture, from request to resolution.
+            - generic [ref=e1114]:
+              - button "Try it now" [ref=e1115] [cursor=pointer]:
+                - generic [ref=e1116]: Try it now
+              - button "Discover more about Jira Service Management" [ref=e1117] [cursor=pointer]: Learn more
+            - button "More actions" [ref=e1119] [cursor=pointer]:
+              - generic [ref=e1122]: More actions

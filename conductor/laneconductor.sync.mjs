@@ -22,7 +22,7 @@ import {
   getJiraComments,
   parseAdfToText,
   mapLaneToJiraStatus,
-  ensureJiraStatuses,
+  validateJiraStatuses,
 } from './jira-collector.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -1785,7 +1785,7 @@ setInterval(async () => {
 // Polling interval: every 60 seconds (same as DB pull)
 
 let jiraPollRunning = false;
-let jiraStatusesEnsured = false; // Track if we've checked/created statuses once
+let jiraStatusesValidated = false; // Track if we've validated statuses once
 
 async function runJiraSync() {
   if (getIsLocalFs()) return; // Skip in local-fs mode (filesystem only)
@@ -1799,10 +1799,13 @@ async function runJiraSync() {
       return; // No Jira collector configured
     }
 
-    // Ensure required Jira statuses exist (run once per worker session)
-    if (!jiraStatusesEnsured) {
-      await ensureJiraStatuses(jiraConfig);
-      jiraStatusesEnsured = true;
+    // Validate Jira statuses exist (run once per worker session)
+    if (!jiraStatusesValidated) {
+      const validation = await validateJiraStatuses(jiraConfig);
+      if (!validation.allExist) {
+        console.log(validation.guidance);
+      }
+      jiraStatusesValidated = true;
     }
 
     // Get last sync timestamp (or default to 24 hours ago for first sync)

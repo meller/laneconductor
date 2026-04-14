@@ -1,0 +1,656 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic:
+      - generic: "Skip to:"
+      - list:
+        - listitem:
+          - link "Top Bar":
+            - /url: "#_Rhp955jal9_"
+        - listitem:
+          - link "Main Content":
+            - /url: "#_R2p955jal9_"
+        - listitem:
+          - link "Sidebar":
+            - /url: "#_R3i9955jal9_"
+        - listitem:
+          - link "Space navigation":
+            - /url: "#_R1lbefap955jal9_"
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - button "Switch sites or apps" [ref=e332] [cursor=pointer]:
+              - generic [ref=e12]: Switch sites or apps
+            - link "Go to your Jira homepage" [ref=e15] [cursor=pointer]:
+              - /url: /jira
+              - generic [ref=e16]:
+                - img [ref=e19]
+                - generic [ref=e24]: Jira
+          - button "Collapse sidebar" [ref=e26] [cursor=pointer]:
+            - generic [ref=e28]: Collapse sidebar
+        - generic [ref=e29]:
+          - search [ref=e1209]:
+            - textbox "Search, press enter to navigate to advanced search with your text query" [ref=e1212]:
+              - /placeholder: Search
+              - text: Webhook test from asafmeller Jira
+            - button "Clear search session" [ref=e1214]:
+              - img "Clear search session" [ref=e1215]
+          - button "Create" [ref=e40] [cursor=pointer]:
+            - generic [ref=e43]: Create
+        - navigation "Actions" [ref=e44]:
+          - list [ref=e45]:
+            - button "See plans" [ref=e333] [cursor=pointer]: See plans
+            - listitem [ref=e46]:
+              - button "Notifications" [ref=e49] [cursor=pointer]:
+                - generic [ref=e52]: Notifications
+            - listitem [ref=e55]:
+              - button "Help" [ref=e56] [cursor=pointer]:
+                - generic [ref=e59]: Help
+              - generic:
+                - generic:
+                  - generic: 3+
+            - listitem [ref=e61]:
+              - button "Settings" [ref=e62] [cursor=pointer]:
+                - generic [ref=e65]: Settings
+            - listitem [ref=e66]:
+              - button "asaf.meller@gmail.com" [ref=e67] [cursor=pointer]:
+                - img "Account" [ref=e69]
+      - navigation "Sidebar" [ref=e70]:
+        - list [ref=e74]:
+          - listitem [ref=e75]:
+            - link "For you" [ref=e77] [cursor=pointer]:
+              - /url: /jira/for-you
+              - generic [ref=e82]: For you
+          - listitem [ref=e83]:
+            - button "Recent" [ref=e85] [cursor=pointer]:
+              - generic [ref=e89]: Recent
+          - listitem [ref=e90]:
+            - button "Starred" [ref=e92] [cursor=pointer]:
+              - generic [ref=e96]: Starred
+          - listitem [ref=e97]:
+            - generic [ref=e100]:
+              - button "Apps" [ref=e101] [cursor=pointer]:
+                - generic [ref=e105]: Apps
+              - generic:
+                - button "More actions for Apps":
+                  - generic [ref=e108] [cursor=pointer]: More actions for Apps
+          - listitem [ref=e109]:
+            - generic [ref=e112]:
+              - button "Plans" [ref=e113] [cursor=pointer]:
+                - generic [ref=e117]: Plans
+              - generic:
+                - button "Create plan" [ref=e118] [cursor=pointer]:
+                  - generic [ref=e121]: Create plan
+                - button "More actions for Plans":
+                  - generic [ref=e124] [cursor=pointer]: More actions for Plans
+          - listitem [ref=e125]:
+            - generic [ref=e126]:
+              - generic [ref=e128]:
+                - button "Spaces" [expanded] [ref=e129] [cursor=pointer]:
+                  - generic [ref=e133]: Spaces
+                - generic [ref=e134]:
+                  - button "Create space" [ref=e135] [cursor=pointer]:
+                    - generic [ref=e138]: Create space
+                  - button "More actions for spaces" [ref=e139] [cursor=pointer]:
+                    - generic [ref=e142]: More actions for spaces
+              - list [ref=e143]:
+                - listitem [ref=e145]:
+                  - group "Starred" [ref=e146]:
+                    - paragraph [ref=e147]: Starred
+                    - list [ref=e148]:
+                      - listitem [ref=e149]:
+                        - generic [ref=e150]:
+                          - link "(Example) Mobile App Launch" [ref=e151] [cursor=pointer]:
+                            - /url: /jira/software/projects/EMAL/boards/1
+                            - generic [ref=e156]: (Example) Mobile App Launch
+                          - generic:
+                            - button "More actions for (Example) Mobile App Launch":
+                              - generic [ref=e159] [cursor=pointer]: More actions for (Example) Mobile App Launch
+                - listitem [ref=e160]:
+                  - group "Recent" [ref=e161]:
+                    - paragraph [ref=e162]: Recent
+                    - list [ref=e163]:
+                      - listitem [ref=e164]:
+                        - generic [ref=e165]:
+                          - link "Testproject" [ref=e166] [cursor=pointer]:
+                            - /url: /jira/software/projects/KAN/boards/2
+                            - generic [ref=e171]: Testproject
+                          - generic:
+                            - button "More actions for Testproject":
+                              - generic [ref=e174] [cursor=pointer]: More actions for Testproject
+                - listitem [ref=e175]:
+                  - group [ref=e176]:
+                    - list [ref=e177]:
+                      - listitem [ref=e178]:
+                        - button "More spaces" [ref=e180] [cursor=pointer]:
+                          - generic [ref=e184]: More spaces
+                      - list [ref=e336]:
+                        - group [ref=e337]:
+                          - heading "Recommended" [level=2] [ref=e338]
+                          - listitem [ref=e339]:
+                            - listitem [ref=e340]:
+                              - generic [ref=e341]:
+                                - button "Collect requests" [ref=e342] [cursor=pointer]:
+                                  - generic [ref=e346]: Collect requests
+                                - generic:
+                                  - img
+                                - generic:
+                                  - generic:
+                                    - generic: Try
+                      - listitem [ref=e185]:
+                        - button "Import work" [ref=e187] [cursor=pointer]:
+                          - generic [ref=e191]: Import work
+          - list [ref=e194]:
+            - listitem [ref=e196]:
+              - generic [ref=e197]:
+                - link "Teams , (opens new window)" [ref=e347] [cursor=pointer]:
+                  - /url: https://home.atlassian.com/o/db64ab02-7427-4750-b058-82202a22ccfa/people?cloudId=4c49c15a-5d51-4f17-862d-8af34c8e6254&xpis=eyJicmlkZ2UiOiJnbG9iYWxTaG9ydGN1dHMiLCJpZCI6IjE3NzYwODU0NTkzMzUiLCJzb3VyY2UiOiJqaXJhIn0%3D
+                  - generic [ref=e352]: Teams
+                  - generic [ref=e353]: ", (opens new window)"
+                - generic:
+                  - generic:
+                    - img
+                - generic:
+                  - button "open menu":
+                    - generic [ref=e207] [cursor=pointer]: open menu
+                - generic:
+                  - img "Open external link icon"
+          - listitem [ref=e209]:
+            - button "More" [ref=e213] [cursor=pointer]:
+              - generic [ref=e217]: More
+      - generic [ref=e356]:
+        - slider "Resize side navigation panel" [ref=e357]: "240"
+        - text: Resize side navigation panel
+      - main [ref=e218]:
+        - generic [ref=e219]:
+          - generic [ref=e221]:
+            - generic [ref=e222]:
+              - navigation "Breadcrumbs" [ref=e225]:
+                - list [ref=e226]:
+                  - listitem [ref=e227]:
+                    - link "Spaces" [ref=e228] [cursor=pointer]:
+                      - /url: /jira/projects
+                      - generic [ref=e229]: Spaces
+              - generic [ref=e230]:
+                - heading "Testproject" [level=1] [ref=e232]
+                - generic [ref=e233]:
+                  - button "Link contributing teams" [ref=e235] [cursor=pointer]
+                  - button "More actions" [ref=e237] [cursor=pointer]:
+                    - img "More actions" [ref=e239]
+                - generic [ref=e240]:
+                  - button "Share" [ref=e241] [cursor=pointer]:
+                    - img "Share" [ref=e243]
+                  - button "Automation" [ref=e244] [cursor=pointer]:
+                    - img "Automation" [ref=e246]
+                  - button "Give feedback" [ref=e248] [cursor=pointer]:
+                    - generic [ref=e251]: Give feedback
+                  - button "Enter full screen" [ref=e253] [cursor=pointer]:
+                    - generic [ref=e256]: Enter full screen
+            - navigation "Space navigation" [ref=e257]:
+              - list [ref=e258]:
+                - listitem [ref=e259]:
+                  - link "Summary" [ref=e264] [cursor=pointer]:
+                    - /url: /jira/software/projects/KAN/summary
+                    - generic [ref=e267]: Summary
+                - listitem [ref=e268]:
+                  - link "List" [ref=e273] [cursor=pointer]:
+                    - /url: /jira/software/projects/KAN/list
+                    - generic [ref=e276]: List
+                - listitem [ref=e277]:
+                  - heading "Board" [level=2] [ref=e282]:
+                    - generic [ref=e285]: Board
+                - listitem [ref=e286]:
+                  - link "Code" [ref=e291] [cursor=pointer]:
+                    - /url: /jira/software/projects/KAN/code
+                    - generic [ref=e294]: Code
+                - listitem [ref=e295]:
+                  - link "Forms" [ref=e300] [cursor=pointer]:
+                    - /url: /jira/software/projects/KAN/form
+                    - generic [ref=e303]: Forms
+                - listitem [ref=e304]:
+                  - link "Timeline" [ref=e309] [cursor=pointer]:
+                    - /url: /jira/software/projects/KAN/boards/2/timeline
+                    - generic [ref=e312]: Timeline
+                - listitem [ref=e314]:
+                  - link "Pages" [ref=e319] [cursor=pointer]:
+                    - /url: /jira/software/projects/KAN/pages
+                    - generic [ref=e322]: Pages
+              - button "Add to navigation" [ref=e325] [cursor=pointer]:
+                - img "Add to navigation" [ref=e327]
+          - generic [ref=e360]:
+            - generic [ref=e363]:
+              - generic [ref=e367]:
+                - textbox "Search board" [ref=e373]
+                - group "Filter by assignee" [ref=e375]:
+                  - generic [ref=e376]: Filter by assignee
+                  - generic [ref=e377]:
+                    - generic [ref=e378]:
+                      - checkbox "Filter assignees by Unassigned" [ref=e379] [cursor=pointer]
+                      - img [ref=e382] [cursor=pointer]
+                    - generic [ref=e386]:
+                      - checkbox "Filter assignees by asaf meller" [ref=e387] [cursor=pointer]
+                      - img [ref=e390] [cursor=pointer]:
+                        - img [ref=e392]
+                - button "Filter, 0 selected" [ref=e394] [cursor=pointer]:
+                  - generic [ref=e398]: Filter
+              - generic [ref=e399]:
+                - generic [ref=e400]:
+                  - button "Group by" [ref=e402] [cursor=pointer]:
+                    - generic [ref=e404]: Group
+                  - button "Board insights" [ref=e408] [cursor=pointer]:
+                    - generic [ref=e411]: Board insights
+                  - button "View settings" [ref=e413] [cursor=pointer]:
+                    - generic [ref=e416]: View settings
+                - button "More actions" [ref=e419] [cursor=pointer]:
+                  - generic [ref=e422]: More actions
+            - generic [ref=e427]:
+              - generic [ref=e429]:
+                - generic [ref=e431]:
+                  - generic [ref=e434]:
+                    - heading "To Do" [level=2] [ref=e441]:
+                      - generic [ref=e442]:
+                        - generic "To Do" [ref=e443]
+                        - generic [ref=e448]:
+                          - generic: "6"
+                    - generic:
+                      - generic:
+                        - generic:
+                          - button "To Do column more actions":
+                            - generic [ref=e451] [cursor=pointer]: To Do column more actions
+                  - list [ref=e452]:
+                    - listitem [ref=e453]:
+                      - generic [ref=e454]:
+                        - button
+                        - generic [ref=e460]:
+                          - generic:
+                            - button "KAN-1 Sync jira and laneconductor api. Use the enter key to load the work item." [ref=e461] [cursor=pointer]
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic [ref=e463] [cursor=pointer]: Sync jira and laneconductor api
+                                  - generic [ref=e465] [cursor=pointer]:
+                                    - generic [ref=e466]:
+                                      - img "Task" [ref=e468]
+                                      - link "KAN-1" [ref=e470]:
+                                        - /url: /browse/KAN-1
+                                        - generic [ref=e471]: KAN-1
+                                    - img "Medium priority" [ref=e475]
+                                    - img "Unassigned" [ref=e479]
+                    - listitem [ref=e483]:
+                      - generic [ref=e484]:
+                        - button
+                        - generic [ref=e490]:
+                          - generic:
+                            - button "KAN-2 Agentic laneconductor planning. Use the enter key to load the work item." [ref=e491] [cursor=pointer]
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic [ref=e493] [cursor=pointer]: Agentic laneconductor planning
+                                  - generic [ref=e495] [cursor=pointer]:
+                                    - generic [ref=e496]:
+                                      - img "Task" [ref=e498]
+                                      - link "KAN-2" [ref=e500]:
+                                        - /url: /browse/KAN-2
+                                        - generic [ref=e501]: KAN-2
+                                    - img "Medium priority" [ref=e505]
+                                    - img "Unassigned" [ref=e509]
+                    - listitem [ref=e513]:
+                      - generic [ref=e517]:
+                        - generic:
+                          - button "KAN-3 Testing the lane. Use the enter key to load the work item." [ref=e518] [cursor=pointer]
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic [ref=e520] [cursor=pointer]: Testing the lane
+                                - generic [ref=e522] [cursor=pointer]:
+                                  - generic [ref=e523]:
+                                    - img "Task" [ref=e525]
+                                    - link "KAN-3" [ref=e527]:
+                                      - /url: /browse/KAN-3
+                                      - generic [ref=e528]: KAN-3
+                                  - img "Medium priority" [ref=e532]
+                                  - img "Unassigned" [ref=e536]
+                    - listitem [ref=e540]:
+                      - generic [ref=e544]:
+                        - generic:
+                          - button "KAN-4 Test lane 2. Use the enter key to load the work item." [ref=e545] [cursor=pointer]
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic [ref=e547] [cursor=pointer]: Test lane 2
+                                - generic [ref=e549] [cursor=pointer]:
+                                  - generic [ref=e550]:
+                                    - img "Task" [ref=e552]
+                                    - link "KAN-4" [ref=e554]:
+                                      - /url: /browse/KAN-4
+                                      - generic [ref=e555]: KAN-4
+                                  - img "Medium priority" [ref=e559]
+                                  - img "Unassigned" [ref=e563]
+                    - listitem [ref=e567]:
+                      - generic [ref=e571]:
+                        - generic:
+                          - button "KAN-5 Test 5. Use the enter key to load the work item." [ref=e572] [cursor=pointer]
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic [ref=e574] [cursor=pointer]: Test 5
+                                - generic [ref=e576] [cursor=pointer]:
+                                  - generic [ref=e577]:
+                                    - img "Task" [ref=e579]
+                                    - link "KAN-5" [ref=e581]:
+                                      - /url: /browse/KAN-5
+                                      - generic [ref=e582]: KAN-5
+                                  - img "Medium priority" [ref=e586]
+                                  - img "Unassigned" [ref=e590]
+                    - listitem [ref=e594]:
+                      - generic [ref=e598]:
+                        - generic:
+                          - 'button "KAN-6 KAN-8: Webhook diagnostic test with database token. Use the enter key to load the work item." [ref=e599] [cursor=pointer]'
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic [ref=e601] [cursor=pointer]: "KAN-8: Webhook diagnostic test with database token"
+                                - generic [ref=e603] [cursor=pointer]:
+                                  - generic [ref=e604]:
+                                    - img "Task" [ref=e606]
+                                    - link "KAN-6" [ref=e608]:
+                                      - /url: /browse/KAN-6
+                                      - generic [ref=e609]: KAN-6
+                                  - img "Medium priority" [ref=e613]
+                                  - img "Unassigned" [ref=e617]
+                - generic [ref=e622]:
+                  - generic [ref=e625]:
+                    - heading "In Progress" [level=2] [ref=e632]:
+                      - generic "In Progress" [ref=e634]
+                    - generic:
+                      - generic:
+                        - generic:
+                          - button "In Progress column more actions":
+                            - generic [ref=e637] [cursor=pointer]: In Progress column more actions
+                  - list [ref=e638]:
+                    - listitem [ref=e639]:
+                      - button "Create" [ref=e641]: Create
+                - generic [ref=e644]:
+                  - generic [ref=e647]:
+                    - heading "In Review" [level=2] [ref=e654]:
+                      - generic "In Review" [ref=e656]
+                    - generic:
+                      - generic:
+                        - generic:
+                          - button "In Review column more actions":
+                            - generic [ref=e659] [cursor=pointer]: In Review column more actions
+                  - list [ref=e660]:
+                    - listitem [ref=e661]:
+                      - button "Create" [ref=e663]: Create
+                - generic [ref=e666]:
+                  - generic [ref=e669]:
+                    - generic [ref=e676]:
+                      - button "Done, edit"
+                      - heading "Done" [level=2] [ref=e678]:
+                        - generic "Done" [ref=e680]
+                    - button "Done column more actions" [ref=e687] [cursor=pointer]:
+                      - generic [ref=e690]: Done column more actions
+                  - list [ref=e691]:
+                    - listitem [ref=e692]:
+                      - button "Create" [ref=e694]: Create
+                - generic [ref=e696]:
+                  - generic:
+                    - status [ref=e697]
+                    - status [ref=e698]
+              - button "Create column" [ref=e703] [cursor=pointer]:
+                - generic [ref=e706]: Create column
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading "Flag notifications" [level=2] [ref=e715]
+          - alert [ref=e717]:
+            - generic [ref=e719]:
+              - img "info-icon" [ref=e721]
+              - generic [ref=e723]:
+                - generic [ref=e724]:
+                  - heading "Join our paid research study 💸" [level=2] [ref=e726]
+                  - button "Dismiss" [ref=e727] [cursor=pointer]:
+                    - generic [ref=e730]: Dismiss
+                - generic [ref=e733]:
+                  - generic [ref=e734]: Tell us about your setup experience and we’ll send you a $100 gift card as a thank you.
+                  - link "Join now" [ref=e737] [cursor=pointer]:
+                    - /url: https://www.userinterviews.com/projects/VyePep5kmg/apply
+                    - generic [ref=e738]: Join now
+    - dialog "Create Task" [ref=e741]:
+      - generic [ref=e744]:
+        - heading "Create Task" [level=1] [ref=e745]:
+          - generic [ref=e746]: Create Task
+        - list [ref=e748]:
+          - listitem [ref=e749]:
+            - button "Minimize" [ref=e750] [cursor=pointer]:
+              - generic [ref=e753]: Minimize
+          - listitem [ref=e754]:
+            - button "Exit full screen" [ref=e755] [cursor=pointer]:
+              - generic [ref=e758]: Exit full screen
+          - listitem [ref=e759]:
+            - button "More actions for this Task" [ref=e760] [cursor=pointer]
+          - listitem [ref=e763]:
+            - button "Close" [ref=e764] [cursor=pointer]:
+              - generic [ref=e767]: Close
+      - region "Scrollable content" [ref=e768]:
+        - generic [ref=e775]:
+          - generic [ref=e777]: Required fields are marked with an asterisk *
+          - generic [ref=e779]:
+            - generic [ref=e780]: Space*
+            - generic [ref=e781]:
+              - status [ref=e783]
+              - generic [ref=e784]:
+                - generic [ref=e785]:
+                  - generic [ref=e787]:
+                    - img [ref=e791]
+                    - generic [ref=e793]: Testproject (KAN)
+                  - combobox "Space" [ref=e795]
+                - img [ref=e799]
+          - generic [ref=e801]:
+            - generic [ref=e802]: Work type*
+            - generic [ref=e804]:
+              - status [ref=e806]
+              - generic [ref=e807]:
+                - generic [ref=e808]:
+                  - generic [ref=e810]:
+                    - img [ref=e814]
+                    - generic [ref=e816]: Task
+                  - combobox "Work type" [ref=e818]
+                - img [ref=e822]
+            - link "Learn about work types , (opens new window)" [ref=e827] [cursor=pointer]:
+              - /url: /secure/ShowConstantsHelp.jspa?decorator=popup#IssueTypes
+              - text: Learn about work types
+              - img [ref=e829]
+              - generic [ref=e831]: ", (opens new window)"
+          - generic [ref=e833]:
+            - generic [ref=e835]: Status
+            - button "To Do - Change status" [ref=e840] [cursor=pointer]:
+              - generic [ref=e841]: To Do
+            - generic [ref=e844]: This is the initial status upon creation
+          - generic [ref=e847]:
+            - generic [ref=e849]:
+              - generic [ref=e850]: Summary*
+              - textbox "Summary" [active] [ref=e851]
+              - generic [ref=e1201]:
+                - img "error" [ref=e1203]
+                - text: Summary is required
+            - generic [ref=e853]:
+              - generic [ref=e854]: Description
+              - generic [ref=e864]:
+                - toolbar "Editor" [ref=e866]:
+                  - generic "Primary Toolbar" [ref=e868]:
+                    - generic [ref=e871]:
+                      - button "Improve description" [disabled] [ref=e873]:
+                        - img "Improve description" [ref=e874]
+                        - text: Improve description
+                      - button "More Rovo options" [disabled] [ref=e876]:
+                        - img "More Rovo options" [ref=e877]
+                    - generic [ref=e879]:
+                      - button "normal Text styles" [ref=e881] [cursor=pointer]:
+                        - img "normal Text styles" [ref=e882]
+                      - generic [ref=e883]:
+                        - button "Bold Ctrl+B" [ref=e885] [cursor=pointer]:
+                          - img "Bold Ctrl+B" [ref=e886]
+                        - button "More formatting" [ref=e888] [cursor=pointer]
+                      - generic [ref=e890]:
+                        - button "Bulleted list" [ref=e892] [cursor=pointer]:
+                          - img "Bulleted list" [ref=e893]
+                        - button "Lists" [ref=e895] [cursor=pointer]:
+                          - img "Lists" [ref=e896]
+                      - button "Text color" [ref=e898] [cursor=pointer]:
+                        - img "Text color" [ref=e901]
+                    - generic [ref=e902]:
+                      - button "Add image, video, or file" [ref=e905] [cursor=pointer]:
+                        - img "Add image, video, or file" [ref=e906]
+                      - button "Code snippet" [ref=e909] [cursor=pointer]:
+                        - img "Code snippet" [ref=e910]
+                      - button "Emoji" [ref=e913] [cursor=pointer]:
+                        - img "Emoji" [ref=e914]
+                      - button "Insert elements" [ref=e917] [cursor=pointer]:
+                        - img "Insert elements" [ref=e918]
+                    - button "Link" [ref=e921] [cursor=pointer]:
+                      - img "Link" [ref=e922]
+                    - generic [ref=e923]:
+                      - button "Undo" [disabled] [ref=e925]:
+                        - img "Undo" [ref=e926]
+                      - button "Redo" [disabled] [ref=e928]:
+                        - img "Redo" [ref=e929]
+                      - button "View changes" [disabled] [ref=e931]:
+                        - img "View changes" [ref=e932]
+                - generic [ref=e933]:
+                  - status [ref=e934]
+                  - textbox "Description area, start typing to enter text." [ref=e935]:
+                    - paragraph [ref=e936]: Type /ai to Ask Rovo or @ to mention and notify someone.
+            - generic [ref=e939]:
+              - generic [ref=e940]: Assignee
+              - generic [ref=e941]:
+                - generic [ref=e942]:
+                  - status [ref=e944]
+                  - generic [ref=e947]:
+                    - generic [ref=e949]:
+                      - img [ref=e952]
+                      - generic [ref=e956]: Automatic
+                    - combobox "Assignee" [ref=e958]
+                - button "Assign to me" [ref=e960] [cursor=pointer]
+            - generic [ref=e962]:
+              - generic [ref=e963]: Priority
+              - generic [ref=e965]:
+                - status [ref=e967]
+                - generic [ref=e968]:
+                  - generic [ref=e969]:
+                    - generic [ref=e971]:
+                      - img [ref=e975]
+                      - generic [ref=e977]: Medium
+                    - combobox "Priority" [ref=e979]
+                  - img [ref=e983]
+              - link "Learn about priority levels , (opens new window)" [ref=e988] [cursor=pointer]:
+                - /url: /secure/ShowConstantsHelp.jspa?decorator=popup#PriorityLevels
+                - text: Learn about priority levels
+                - img [ref=e990]
+                - generic [ref=e992]: ", (opens new window)"
+            - generic [ref=e994]:
+              - generic [ref=e995]: Parent
+              - generic [ref=e996]:
+                - generic [ref=e998]:
+                  - status [ref=e1000]
+                  - generic [ref=e1001]:
+                    - generic [ref=e1002]:
+                      - generic [ref=e1003]: Select parent
+                      - combobox "Select parent" [ref=e1005]
+                    - img [ref=e1009]
+                - generic [ref=e1011]: Your work type hierarchy determines the work items you can select here.
+            - generic [ref=e1013]:
+              - generic [ref=e1014]: Due date
+              - generic [ref=e1015]:
+                - generic [ref=e1016]:
+                  - status [ref=e1018]
+                  - generic [ref=e1020]:
+                    - generic [ref=e1021]: Select date
+                    - combobox "Due date" [ref=e1023]
+                - button "Date picker, Open calendar" [ref=e1025] [cursor=pointer]:
+                  - generic [ref=e1028]: Date picker, Open calendar
+            - generic [ref=e1030]:
+              - generic [ref=e1031]: Labels
+              - generic [ref=e1033]:
+                - status [ref=e1035]
+                - generic [ref=e1036]:
+                  - generic [ref=e1037]:
+                    - generic [ref=e1038]: Select label
+                    - combobox "Labels" [ref=e1040]
+                  - img [ref=e1044]
+            - generic [ref=e1046]:
+              - generic [ref=e1047]: Team
+              - generic [ref=e1049]:
+                - status [ref=e1051]
+                - generic [ref=e1053]:
+                  - img [ref=e1057]
+                  - generic [ref=e1064]: Choose a team
+                  - combobox "Team" [ref=e1066]
+              - paragraph [ref=e1074]: Associates a team to an issue. You can use this field to search and filter issues by team.
+            - generic [ref=e1076]:
+              - generic [ref=e1077]: Start date
+              - generic [ref=e1078]:
+                - generic [ref=e1079]:
+                  - status [ref=e1081]
+                  - generic [ref=e1083]:
+                    - generic [ref=e1084]: Select date
+                    - combobox "Start date" [ref=e1086]
+                - button "Date picker, Open calendar" [ref=e1088] [cursor=pointer]:
+                  - generic [ref=e1091]: Date picker, Open calendar
+              - paragraph [ref=e1098]: Allows the planned start date for a piece of work to be set.
+            - generic [ref=e1100]:
+              - generic [ref=e1101]: Reporter*
+              - generic [ref=e1103]:
+                - status [ref=e1105]
+                - generic [ref=e1107]:
+                  - generic [ref=e1109]:
+                    - img [ref=e1112]
+                    - generic [ref=e1116]: asaf meller
+                  - combobox "Reporter" [ref=e1118]
+            - generic [ref=e1121]:
+              - generic [ref=e1122]: Attachment
+              - generic [ref=e1124]:
+                - generic [ref=e1126]: Drop files to attach or
+                - button "Browse attachment" [ref=e1128] [cursor=pointer]:
+                  - generic [ref=e1129]: Browse
+            - generic [ref=e1131]:
+              - generic [ref=e1132]: Linked Work items
+              - generic [ref=e1134]:
+                - generic [ref=e1136]:
+                  - status [ref=e1138]
+                  - generic [ref=e1139]:
+                    - generic [ref=e1140]:
+                      - generic [ref=e1141]: blocks
+                      - combobox "Linked Work items" [ref=e1143]
+                    - img [ref=e1147]
+                - generic [ref=e1150]:
+                  - status [ref=e1152]
+                  - generic [ref=e1153]:
+                    - generic [ref=e1154]:
+                      - generic [ref=e1155]: Type, search or paste URL
+                      - combobox "Type, search or paste URL to link work items" [ref=e1157]
+                    - img [ref=e1161]
+            - generic [ref=e1163]:
+              - generic [ref=e1164]: Restrict to
+              - generic [ref=e1166]:
+                - status [ref=e1168]
+                - generic [ref=e1169]:
+                  - generic [ref=e1170]:
+                    - generic [ref=e1171]: Select Roles
+                    - combobox "Restrict to" [ref=e1172]
+                  - img [ref=e1176]
+            - generic [ref=e1178]:
+              - generic [ref=e1179]: Flagged
+              - generic [ref=e1182]:
+                - checkbox "Impediment" [ref=e1183]
+                - generic [ref=e1184]: Impediment
+              - paragraph [ref=e1191]: Allows to flag issues with impediments.
+      - generic [ref=e1192]:
+        - generic [ref=e1193]:
+          - checkbox "Create another" [ref=e1194]
+          - generic [ref=e1195]: Create another
+        - button "Cancel" [ref=e1197] [cursor=pointer]:
+          - generic [ref=e1198]: Cancel
+        - button "Create" [ref=e1199] [cursor=pointer]:
+          - generic [ref=e1200]: Create

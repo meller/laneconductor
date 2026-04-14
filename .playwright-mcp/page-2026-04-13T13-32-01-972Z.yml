@@ -1,0 +1,180 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - button "The App Switcher is loading" [ref=e9] [cursor=pointer]:
+          - status "The App Switcher is loading" [ref=e13]
+        - link "Go to your Jira homepage" [ref=e15] [cursor=pointer]:
+          - /url: /jira
+          - generic [ref=e16]:
+            - img [ref=e19]
+            - generic [ref=e24]: Jira
+      - button "Collapse sidebar" [ref=e26] [cursor=pointer]:
+        - generic [ref=e28]: Collapse sidebar
+    - generic [ref=e29]:
+      - search [ref=e34]:
+        - textbox "Search" [ref=e37]
+      - button "Create" [ref=e40] [cursor=pointer]:
+        - generic [ref=e43]: Create
+    - navigation "Actions" [ref=e44]:
+      - list [ref=e45]:
+        - listitem [ref=e46]:
+          - button "Notifications" [ref=e49] [cursor=pointer]:
+            - generic [ref=e52]: Notifications
+        - listitem [ref=e55]:
+          - button "Help" [ref=e56] [cursor=pointer]:
+            - generic [ref=e59]: Help
+        - listitem [ref=e61]:
+          - button "Settings" [ref=e62] [cursor=pointer]:
+            - generic [ref=e65]: Settings
+        - listitem [ref=e66]:
+          - button "asaf.meller@gmail.com" [ref=e67] [cursor=pointer]:
+            - img "Account" [ref=e69]
+  - navigation "Sidebar" [ref=e70]:
+    - list [ref=e74]:
+      - listitem [ref=e75]:
+        - link "For you" [ref=e77] [cursor=pointer]:
+          - /url: /jira/for-you
+          - generic [ref=e82]: For you
+      - listitem [ref=e83]:
+        - button "Recent" [ref=e85] [cursor=pointer]:
+          - generic [ref=e89]: Recent
+      - listitem [ref=e90]:
+        - button "Starred" [ref=e92] [cursor=pointer]:
+          - generic [ref=e96]: Starred
+      - listitem [ref=e97]:
+        - generic [ref=e100]:
+          - button "Apps" [ref=e101] [cursor=pointer]:
+            - generic [ref=e105]: Apps
+          - generic:
+            - button "More actions for Apps":
+              - generic [ref=e108] [cursor=pointer]: More actions for Apps
+      - listitem [ref=e109]:
+        - generic [ref=e112]:
+          - button "Plans" [ref=e113] [cursor=pointer]:
+            - generic [ref=e117]: Plans
+          - generic:
+            - button "Create plan" [ref=e118] [cursor=pointer]:
+              - generic [ref=e121]: Create plan
+            - button "More actions for Plans":
+              - generic [ref=e124] [cursor=pointer]: More actions for Plans
+      - listitem [ref=e125]:
+        - generic [ref=e126]:
+          - generic [ref=e128]:
+            - button "Spaces" [expanded] [ref=e129] [cursor=pointer]:
+              - generic [ref=e133]: Spaces
+            - generic [ref=e134]:
+              - button "Create space" [ref=e135] [cursor=pointer]:
+                - generic [ref=e138]: Create space
+              - button "More actions for spaces" [ref=e139] [cursor=pointer]:
+                - generic [ref=e142]: More actions for spaces
+          - list [ref=e143]:
+            - listitem [ref=e145]:
+              - group "Starred" [ref=e146]:
+                - paragraph [ref=e147]: Starred
+                - list [ref=e148]:
+                  - listitem [ref=e149]:
+                    - generic [ref=e150]:
+                      - link "(Example) Mobile App Launch" [ref=e151] [cursor=pointer]:
+                        - /url: /jira/software/projects/EMAL/boards/1
+                        - generic [ref=e156]: (Example) Mobile App Launch
+                      - generic:
+                        - button "More actions for (Example) Mobile App Launch":
+                          - generic [ref=e159] [cursor=pointer]: More actions for (Example) Mobile App Launch
+            - listitem [ref=e160]:
+              - group "Recent" [ref=e161]:
+                - paragraph [ref=e162]: Recent
+                - list [ref=e163]:
+                  - listitem [ref=e164]:
+                    - generic [ref=e165]:
+                      - link "Testproject" [ref=e166] [cursor=pointer]:
+                        - /url: /jira/software/projects/KAN/boards/2
+                        - generic [ref=e171]: Testproject
+                      - generic:
+                        - button "More actions for Testproject":
+                          - generic [ref=e174] [cursor=pointer]: More actions for Testproject
+            - listitem [ref=e175]:
+              - group [ref=e176]:
+                - list [ref=e177]:
+                  - listitem [ref=e178]:
+                    - button "More spaces" [ref=e180] [cursor=pointer]:
+                      - generic [ref=e184]: More spaces
+                  - listitem [ref=e185]:
+                    - button "Import work" [ref=e187] [cursor=pointer]:
+                      - generic [ref=e191]: Import work
+      - list [ref=e194]:
+        - listitem [ref=e196]:
+          - generic [ref=e197]:
+            - link "Teams , (opens new window)" [ref=e198] [cursor=pointer]:
+              - /url: /jira/people/search
+              - generic [ref=e203]: Teams
+              - generic [ref=e204]: ", (opens new window)"
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - button "open menu":
+                - generic [ref=e207] [cursor=pointer]: open menu
+            - generic:
+              - img "Open external link icon"
+      - listitem [ref=e209]:
+        - listitem [ref=e211]:
+          - button "More" [ref=e213] [cursor=pointer]:
+            - generic [ref=e217]: More
+  - main [ref=e218]:
+    - generic [ref=e219]:
+      - generic [ref=e221]:
+        - generic [ref=e222]:
+          - navigation "Breadcrumbs" [ref=e225]:
+            - list [ref=e226]:
+              - listitem [ref=e227]:
+                - link "Spaces" [ref=e228] [cursor=pointer]:
+                  - /url: /jira/projects
+                  - generic [ref=e229]: Spaces
+          - generic [ref=e230]:
+            - heading "Testproject" [level=1] [ref=e232]
+            - generic [ref=e233]:
+              - button "Link contributing teams" [ref=e235] [cursor=pointer]
+              - button "More actions" [ref=e237] [cursor=pointer]:
+                - img "More actions" [ref=e239]
+            - generic [ref=e240]:
+              - button "Share" [ref=e241] [cursor=pointer]:
+                - img "Share" [ref=e243]
+              - button "Automation" [ref=e244] [cursor=pointer]:
+                - img "Automation" [ref=e246]
+              - button "Give feedback" [ref=e248] [cursor=pointer]:
+                - generic [ref=e251]: Give feedback
+              - button "Enter full screen" [ref=e253] [cursor=pointer]:
+                - generic [ref=e256]: Enter full screen
+        - navigation "Space navigation" [ref=e257]:
+          - list [ref=e258]:
+            - listitem [ref=e259]:
+              - link "Summary" [ref=e264] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/summary
+                - generic [ref=e267]: Summary
+            - listitem [ref=e268]:
+              - link "List" [ref=e273] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/list
+                - generic [ref=e276]: List
+            - listitem [ref=e277]:
+              - heading "Board" [level=2] [ref=e282]:
+                - generic [ref=e285]: Board
+            - listitem [ref=e286]:
+              - link "Code" [ref=e291] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/code
+                - generic [ref=e294]: Code
+            - listitem [ref=e295]:
+              - link "Forms" [ref=e300] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/form
+                - generic [ref=e303]: Forms
+            - listitem [ref=e304]:
+              - link "Timeline" [ref=e309] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/boards/2/timeline
+                - generic [ref=e312]: Timeline
+            - listitem [ref=e314]:
+              - link "Pages" [ref=e319] [cursor=pointer]:
+                - /url: /jira/software/projects/KAN/pages
+                - generic [ref=e322]: Pages
+          - button "Add to navigation" [ref=e325] [cursor=pointer]:
+            - img "Add to navigation" [ref=e327]
+      - img "Loading..." [ref=e331]
