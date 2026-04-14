@@ -1987,25 +1987,27 @@ Please review this, answer any questions (some fields may contain questions rath
             const exists = await jiraProjectExists(domain, email, resolvedToken, projKey);
 
             if (!exists) {
-                console.log(`📁 Project does not exist. Please create manually.`);
-                console.log(`\n📋 Instructions to create Jira Kanban project:\n`);
-                console.log(`   1. Go to: https://${domain}/secure/project/create`);
-                console.log(`   2. Select "Kanban" board template`);
-                console.log(`   3. Fill in:`);
-                console.log(`      • Project name: laneconductor`);
-                console.log(`      • Project key: ${projKey}`);
-                console.log(`      • Project type: Team-managed`);
-                console.log(`   4. Create the project`);
-                console.log(`   5. Add status lanes to the Kanban board:`);
-                console.log(`      ├─ Backlog (for backlog items)`);
-                console.log(`      ├─ To Do (for queued/planned work)`);
-                console.log(`      ├─ In Progress (for active development)`);
-                console.log(`      ├─ In Review (for code/design review)`);
-                console.log(`      ├─ Testing (for quality assurance)`);
-                console.log(`      └─ Done (for completed work)`);
-                console.log(`\n   💡 Tip: In Kanban board settings, you may need to add these as custom statuses`);
-                console.log(`      if they don't exist by default.\n`);
-                console.error(`❌ Please create the project and then run 'lc add-target' again.`);
+                console.log(`📁 Kanban space "${projKey}" does not exist. Please create manually.\n`);
+                console.log(`📋 Instructions to create Jira Kanban space:\n`);
+                console.log(`   1. Go to: https://${domain}/jira/software/c/projects/create`);
+                console.log(`   2. Select "Kanban" template`);
+                console.log(`   3. Configure the space:`);
+                console.log(`      • Name: laneconductor`);
+                console.log(`      • Key: ${projKey}`);
+                console.log(`      • How it's managed: Team-managed`);
+                console.log(`      • Access: Open`);
+                console.log(`   4. Click "Create"`);
+                console.log(`   5. Once created, add these status lanes to the board:\n`);
+                console.log(`      LC Lane          →  Jira Status`);
+                console.log(`      ──────────────────────────────`);
+                console.log(`      backlog          →  Backlog`);
+                console.log(`      queue/plan       →  To Do`);
+                console.log(`      implement/running →  In Progress`);
+                console.log(`      review           →  In Review`);
+                console.log(`      quality-gate     →  Testing`);
+                console.log(`      done/success     →  Done\n`);
+                console.log(`   💡 Tip: Click the "+" button on the board to add status columns if needed.\n`);
+                console.error(`❌ Please create the Kanban space and then run 'lc add-target' again.`);
                 process.exit(1);
             } else {
                 console.log(`✅ JIRA project ${projKey} exists`);
