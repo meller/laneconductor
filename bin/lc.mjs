@@ -4,7 +4,7 @@ import { readFileSync, existsSync, writeFileSync, openSync, unlinkSync, readdirS
 import { join, dirname, resolve, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
-import { spawn, spawnSync } from 'child_process';
+import { spawn, spawnSync, execSync } from 'child_process';
 import { createInterface } from 'readline';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../conductor/constants.mjs';
@@ -267,6 +267,71 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
     return exitCode;
 }
 
+// Helper: Check if a JIRA project exists
+async function jiraProjectExists(domain, email, token, projectKey) {
+  try {
+    const auth = Buffer.from(`${email}:${token}`).toString('base64');
+    const url = `https://${domain}/rest/api/3/project/${projectKey}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Helper: Create a JIRA project
+async function createJiraProject(domain, email, token, projectKey, projectName) {
+  try {
+    const auth = Buffer.from(`${email}:${token}`).toString('base64');
+    const url = `https://${domain}/rest/api/3/projects`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        key: projectKey,
+        name: projectName || projectKey,
+        projectTypeKey: 'software',
+        isPrivate: false,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`❌ Failed to create JIRA project: ${response.status}`);
+      return false;
+    }
+
+    console.log(`✅ Created JIRA project: ${projectKey}`);
+    return true;
+  } catch (err) {
+    console.error(`❌ Error creating JIRA project: ${err.message}`);
+    return false;
+  }
+}
+
+// Helper: Resolve JIRA token
+function resolveJiraToken(tokenEnv, token, tokenSecret, tokenStore) {
+  if (tokenEnv && process.env[tokenEnv]) {
+    return process.env[tokenEnv];
+  }
+  if (tokenStore === 'gcp-secret' && tokenSecret) {
+    try {
+      return execSync(`gcloud secrets versions access latest --secret="${tokenSecret}"`, { encoding: 'utf8' }).trim();
+    } catch {
+      return null;
+    }
+  }
+  return token || null;
+}
+
 const args = process.argv.slice(2);
 const command = args[0];
 
@@ -307,6 +372,8 @@ Project & Track Management:
   list-targets         List all configured collector targets and their sync status
   add-target --url <url> [--key <key>] [--store-type <type>] [--secret-name <name>] [--type local|remote]
                        Add a new collector target
+  add-target-mapping [--type jira] [--project-key <key>] --lane <lc_lane> --target "<status>"
+                       Add a 1:1 status mapping for a collector (e.g., Jira)
   remove-target <url>  Remove a configured collector target
   enable-target <url>  Enable sync for a specific target
   disable-target <url> Disable sync for a specific target
@@ -1768,8 +1835,62 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log(`\n--- .laneconductor.json ---\n`, JSON.stringify(cfg, null, 2));
     }
     process.exit(0);
+
+} else if (command === 'add-target-mapping') {
+    if (!projectRoot) {
+        console.error('❌ No LaneConductor project found.');
+        process.exit(1);
+    }
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
+
+    const targetType = args.includes('--type') ? args[args.indexOf('--type') + 1] : 'jira';
+    const projKey = args.includes('--project-key') ? args[args.indexOf('--project-key') + 1] : null;
+    const laneMatch = args.includes('--lane') ? args[args.indexOf('--lane') + 1] : null;
+    const targetMatch = args.includes('--target') ? args[args.indexOf('--target') + 1] : null;
+
+    if (!laneMatch || !targetMatch) {
+        console.error('❌ Usage: lc add-target-mapping [--type jira] [--project-key <key>] --lane <lc_lane> --target "<target_status>"');
+        console.error('   Example: lc add-target-mapping --lane implement --target "In Progress"');
+        process.exit(1);
+    }
+
+    if (!cfg.collectors || cfg.collectors.length === 0) {
+        console.error('❌ No collectors found. Run lc add-target first.');
+        process.exit(1);
+    }
+
+    const collectors = cfg.collectors.filter(c => c.type === targetType && (!projKey || c.project_key === projKey));
+    
+    if (collectors.length === 0) {
+        console.error(`❌ No ${targetType} collector found matching criteria.`);
+        process.exit(1);
+    }
+    if (collectors.length > 1) {
+        console.error(`❌ Multiple ${targetType} collectors found. Please specify --project-key.`);
+        process.exit(1);
+    }
+
+    const collector = collectors[0];
+    if (!collector.target_mapping) collector.target_mapping = {};
+
+    // 1:1 Mapping Validation
+    // Remove any existing mappings that use the same lane or the same target
+    for (const key of Object.keys(collector.target_mapping)) {
+        if (key === laneMatch || collector.target_mapping[key] === targetMatch) {
+            delete collector.target_mapping[key];
+        }
+    }
+
+    collector.target_mapping[laneMatch] = targetMatch;
+
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+    console.log(`✅ Mapping added: ${laneMatch} <-> "${targetMatch}"`);
+    process.exit(0);
+
 } else if (command === 'add-target') {
     // lc add-target --url <url> --key <key>
+    // lc add-target --type jira --domain <domain> --email <email> --project-key <key> [--token-env <env>]
     // Adds a new collector target and triggers an initial bidirectional sync.
     if (!projectRoot) {
         console.error('❌ No LaneConductor project found.');
@@ -1778,25 +1899,109 @@ Please review this, answer any questions (some fields may contain questions rath
     const cfgPath = join(projectRoot, '.laneconductor.json');
     const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'));
 
-    const targetUrl    = args.includes('--url') ? args[args.indexOf('--url') + 1] : null;
+    const targetType   = args.includes('--type') ? args[args.indexOf('--type') + 1] : null;
+
+    // Handle Jira type
+    if (targetType === 'jira') {
+        const domain      = args.includes('--domain') ? args[args.indexOf('--domain') + 1] : null;
+        const email       = args.includes('--email') ? args[args.indexOf('--email') + 1] : null;
+        const projKey     = args.includes('--project-key') ? args[args.indexOf('--project-key') + 1] : null;
+        const tokenEnv    = args.includes('--token-env') ? args[args.indexOf('--token-env') + 1] : null;
+        const token       = args.includes('--token') ? args[args.indexOf('--token') + 1] : null;
+        const tokenSecret = args.includes('--token-secret-name') ? args[args.indexOf('--token-secret-name') + 1] : null;
+        const tokenStore  = args.includes('--token-store-type') ? args[args.indexOf('--token-store-type') + 1] : (tokenSecret ? 'gcp-secret' : null);
+
+        if (!domain || !email || !projKey || (!tokenEnv && !token && !tokenSecret)) {
+            console.error('❌ Usage: lc add-target --type jira --domain <domain> --email <email> --project-key <key>');
+            console.error('         [--token-env <env> | --token <value> | --token-secret-name <name>]');
+            process.exit(1);
+        }
+
+        if (!cfg.collectors) cfg.collectors = [];
+
+        // Resolve token
+        const resolvedToken = resolveJiraToken(tokenEnv, token, tokenSecret, tokenStore);
+        if (!resolvedToken) {
+            console.error(`❌ Could not resolve JIRA token`);
+            process.exit(1);
+        }
+
+        // Check if project exists, create if not
+        (async () => {
+            console.log(`🔍 Checking JIRA project: ${projKey}...`);
+            const exists = await jiraProjectExists(domain, email, resolvedToken, projKey);
+
+            if (!exists) {
+                console.log(`📁 Project does not exist. Creating ${projKey}...`);
+                const created = await createJiraProject(domain, email, resolvedToken, projKey, projKey);
+                if (!created) {
+                    console.error(`❌ Failed to create JIRA project. Please create manually at https://${domain}/secure/project/create`);
+                    process.exit(1);
+                }
+            } else {
+                console.log(`✅ JIRA project ${projKey} exists`);
+            }
+
+            // Check if Jira collector already exists
+            const existingIdx = cfg.collectors.findIndex(c => c.type === 'jira' && c.project_key === projKey);
+
+            const newConfig = {
+                type: 'jira',
+                domain,
+                email,
+                project_key: projKey,
+                token_env: tokenEnv || undefined,
+                token: token || undefined,
+                token_store_type: tokenStore || undefined,
+                token_secret_name: tokenSecret || undefined
+            };
+
+            if (existingIdx !== -1) {
+                cfg.collectors[existingIdx] = { ...cfg.collectors[existingIdx], ...newConfig };
+                console.log(`ℹ️  Jira collector for ${projKey} updated.`);
+            } else {
+                cfg.collectors.push(newConfig);
+                console.log(`✅ Jira collector added: ${projKey} @ ${domain}`);
+            }
+
+            writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
+
+            if (tokenEnv) {
+                console.log(`   Auth: Environment variable ${tokenEnv}`);
+                console.log(`   ⚠️  Make sure ${tokenEnv} is set: export ${tokenEnv}="your_jira_api_token"`);
+            } else if (tokenStore === 'gcp-secret' && tokenSecret) {
+                console.log(`   Auth: GCP Secret Manager (${tokenSecret})`);
+                console.log(`   ⚠️  Make sure gcloud is configured and you have access to secret: ${tokenSecret}`);
+            } else if (token) {
+                console.log(`   Auth: Plain text token (⚠️  INSECURE - consider using GCP Secret Manager)`);
+            }
+
+            console.log(`\n✅ Jira integration ready! Worker will start syncing in 60 seconds.`);
+            process.exit(0);
+        })();
+    } else {
+        // Handle API/HTTP type (existing behavior)
+        const targetUrl    = args.includes('--url') ? args[args.indexOf('--url') + 1] : null;
     const targetKey    = args.includes('--key') ? args[args.indexOf('--key') + 1] : null;
     const targetStore  = args.includes('--store-type') ? args[args.indexOf('--store-type') + 1] : null;
     const targetSecret = args.includes('--secret-name') ? args[args.indexOf('--secret-name') + 1] : null;
-    const targetType   = args.includes('--type') ? args[args.indexOf('--type') + 1] : (targetUrl && (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) ? 'local' : 'remote');
+    const inferredType = targetUrl && (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) ? 'local' : 'remote';
+    const resolvedType = targetType || inferredType;
 
     if (!targetUrl) {
         console.error('❌ Usage: lc add-target --url <url> [--key <lc_xxx...>] [--store-type <type>] [--secret-name <name>] [--type local|remote]');
+        console.error('       or: lc add-target --type jira --domain <domain> --email <email> --project-key <key> [--token-env <env>]');
         process.exit(1);
     }
 
     if (!cfg.collectors) cfg.collectors = [];
     const alreadyExists = cfg.collectors.some(c => c.url === targetUrl);
-    
-    const newConfig = { 
-        url: targetUrl, 
+
+    const newConfig = {
+        url: targetUrl,
         enabled: true,
-        type: targetType,
-        token: null 
+        type: resolvedType,
+        token: null
     };
     if (targetStore) newConfig.store_type = targetStore;
     if (targetSecret) newConfig.secret_name = targetSecret;
@@ -1807,9 +2012,9 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log(`ℹ️  Target ${targetUrl} updated.`);
     } else {
         cfg.collectors.push(newConfig);
-        console.log(`✅ Target added: ${targetUrl} (type: ${targetType})`);
+        console.log(`✅ Target added: ${targetUrl} (type: ${resolvedType})`);
     }
-    
+
     writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n');
 
     const newIdx = cfg.collectors.findIndex(c => c.url === targetUrl);
@@ -1839,6 +2044,7 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     process.exit(0);
+    }
 } else if (command === 'remove-target') {
     // lc remove-target <url>
     if (!projectRoot) {
@@ -1938,10 +2144,32 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log('   (no collectors configured — running in local-fs mode)');
     } else {
         collectors.forEach((c, i) => {
+            const status = c.enabled !== false ? '✅' : '❌';
+
+            // Handle Jira collectors separately
+            if (c.type === 'jira') {
+                let authDisplay = '';
+                if (c.token_env) {
+                    authDisplay = `🔑 Env var (${c.token_env})`;
+                } else if (c.token_store_type === 'gcp-secret' && c.token_secret_name) {
+                    authDisplay = `🔒 GCP Secret (${c.token_secret_name})`;
+                } else if (c.token) {
+                    authDisplay = `🔑 Inline token (⚠️  INSECURE)`;
+                } else {
+                    authDisplay = `⚠️  UNSECURED (No token provided)`;
+                }
+
+                console.log(`   [${i}] ${status} 🔗 jira   ${c.project_key} @ ${c.domain}`);
+                console.log(`       Email: ${c.email}`);
+                console.log(`       Auth: ${authDisplay}`);
+                return;
+            }
+
+            // Handle HTTP/API collectors
             const envToken = getEnvToken(i);
             const inlineToken = c.token || c.machine_token;
             let authDisplay = '';
-            
+
             if (c.store_type === 'gcp-secret') {
                 authDisplay = `🔒 GCP Secret Manager (${c.secret_name})`;
             } else if (envToken) {
@@ -1953,10 +2181,9 @@ Please review this, answer any questions (some fields may contain questions rath
             } else {
                 authDisplay = `⚠️  UNSECURED (No key provided)`;
             }
-            
+
             const isLocal = c.type === 'local' || c.url.includes('localhost') || c.url.includes('127.0.0.1');
             const tag = isLocal ? '🏠 local ' : '☁️  remote';
-            const status = c.enabled !== false ? '✅' : '❌';
             console.log(`   [${i}] ${status} ${tag}  ${c.url}`);
             console.log(`       Auth: ${authDisplay}`);
         });
