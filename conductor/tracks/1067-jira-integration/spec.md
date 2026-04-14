@@ -81,15 +81,15 @@ Populated at first sync, updated on each poll.
 **Implementation approach**: Use **labels** for lane representation, not Jira workflow status transitions. This avoids the need for Jira admin access to create/modify workflow statuses.
 
 Labels follow the standardized format:
-- `laneconductor-status-plan` — LC lane: plan
-- `laneconductor-status-implement` — LC lane: implement  
-- `laneconductor-status-review` — LC lane: review
-- `laneconductor-status-quality-gate` — LC lane: quality-gate
-- `laneconductor-status-done` — LC lane: done
-- `laneconductor-status-success` — action status: success
-- `laneconductor-status-queue` — action status: queued
-- `laneconductor-status-running` — action status: running
-- `laneconductor-status-failed` — action status: failed
+- `lconductor-plan` — LC lane: plan
+- `lconductor-implement` — LC lane: implement  
+- `lconductor-review` — LC lane: review
+- `lconductor-quality-gate` — LC lane: quality-gate
+- `lconductor-done` — LC lane: done
+- `lconductor-success` — action status: success
+- `lconductor-queue` — action status: queued
+- `lconductor-running` — action status: running
+- `lconductor-failed` — action status: failed
 
 **Optional: Custom status mapping** *(Phase 7)*
 

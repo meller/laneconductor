@@ -122,7 +122,7 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - **Auth Scope**: Require higher OAuth scope for workflow admin permissions
 - **Testing**: E2E test with fresh Jira project
 
-**Note**: Current Phase 1-6 implementation uses **labels** for lane tracking (laneconductor-status-<lane>), which requires no admin access. This phase adds optional workflow status automation for teams that prefer explicit Jira status transitions.
+**Note**: Current Phase 1-6 implementation uses **labels** for lane tracking (lconductor-<lane>), which requires no admin access. This phase adds optional workflow status automation for teams that prefer explicit Jira status transitions.
 
 ## Files to Modify
 
