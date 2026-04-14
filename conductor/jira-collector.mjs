@@ -323,11 +323,11 @@ export function mapLaneToJiraStatus(lane, config) {
 export function mapStatusToJiraLabels(lane, status) {
   const labels = [];
 
-  // Use ONLY lane-based label (one label per track)
-  // Lane is the source of truth for track position in workflow
-  if (lane) {
-    const canonicalLane = lane.toLowerCase().trim();
-    labels.push(`lconductor-${canonicalLane}`);
+  // Use status-based label (lane_status: queue, running, review, success)
+  // Status is the source of truth for track's current state
+  if (status) {
+    const canonicalStatus = status.toLowerCase().trim();
+    labels.push(`lconductor-${canonicalStatus}`);
   }
 
   return labels;
