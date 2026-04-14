@@ -22,6 +22,7 @@ import {
   getJiraComments,
   parseAdfToText,
   mapLaneToJiraStatus,
+  mapLaneToLaneStatus,
   validateJiraStatuses,
 } from './jira-collector.mjs';
 
@@ -1859,7 +1860,8 @@ async function runJiraSync() {
           mkdirSync(trackFolder, { recursive: true });
 
           // Write index.md
-          const indexContent = trackUpdate.indexContent ? String(trackUpdate.indexContent) : `# ${trackUpdate.title}\n\n**Lane Status**: ${trackUpdate.lane}\n\n${String(trackUpdate.content || '(No description)')}\n`;
+          const laneStatus = mapLaneToLaneStatus(trackUpdate.lane);
+          const indexContent = trackUpdate.indexContent ? String(trackUpdate.indexContent) : `# ${trackUpdate.title}\n\n**Lane Status**: ${laneStatus}\n\n${String(trackUpdate.content || '(No description)')}\n`;
           writeFileSync(join(trackFolder, 'index.md'), indexContent, 'utf8');
 
           if (trackUpdate.planContent) writeFileSync(join(trackFolder, 'plan.md'), trackUpdate.planContent, 'utf8');
@@ -1899,7 +1901,7 @@ async function runJiraSync() {
             // Update lane and title if changed
             let updatedContent = indexContent.replace(
               /^\*\*Lane Status\*\*: \w+/m,
-              `**Lane Status**: ${trackUpdate.lane}`
+              `**Lane Status**: ${mapLaneToLaneStatus(trackUpdate.lane)}`
             );
             if (oldTitle !== trackUpdate.title) {
               updatedContent = updatedContent.replace(/^# .+$/m, `# ${trackUpdate.title}`);
@@ -1907,11 +1909,12 @@ async function runJiraSync() {
             
             // Re-render description area (everything after **Lane Status**)
             const parts = updatedContent.split(/\*\*Lane Status\*\*: .+\n/);
+            const laneStatus = mapLaneToLaneStatus(trackUpdate.lane);
             if (parts.length > 1) {
-              updatedContent = parts[0] + `**Lane Status**: ${trackUpdate.lane}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
+              updatedContent = parts[0] + `**Lane Status**: ${laneStatus}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
             } else {
                // Fallback if structure is weird
-               updatedContent = `# ${trackUpdate.title}\n\n**Lane Status**: ${trackUpdate.lane}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
+               updatedContent = `# ${trackUpdate.title}\n\n**Lane Status**: ${laneStatus}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
             }
 
             writeFileSync(indexPath, updatedContent, 'utf8');

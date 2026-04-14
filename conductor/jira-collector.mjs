@@ -320,6 +320,24 @@ export function mapLaneToJiraStatus(lane, config) {
   return laneMap[lane] || 'To Do';
 }
 
+/**
+ * Map LaneConductor lane to lane_status enum value
+ * lanes → lane_status_enum
+ */
+export function mapLaneToLaneStatus(lane) {
+  const laneStatusMap = {
+    'backlog': 'queue',
+    'plan': 'queue',
+    'queue': 'queue',
+    'implement': 'running',
+    'review': 'review',
+    'quality-gate': 'review',
+    'done': 'success',
+    'success': 'success',
+  };
+  return laneStatusMap[String(lane).toLowerCase()] || 'queue';
+}
+
 export function mapStatusToJiraLabels(lane, status) {
   const labels = [];
 
