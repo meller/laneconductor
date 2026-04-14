@@ -1788,7 +1788,6 @@ let jiraPollRunning = false;
 let jiraStatusesValidated = false; // Track if we've validated statuses once
 
 async function runJiraSync() {
-  if (getIsLocalFs()) return; // Skip in local-fs mode (filesystem only)
   if (jiraPollRunning) return; // Prevent concurrent polls (multiple workers race-safe)
 
   jiraPollRunning = true;
