@@ -122,6 +122,7 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - ✅ Worker now reads `conductor/tracks/` and `tracks-metadata.json` directly
 - ✅ Direct FS → Jira sync, no intermediate API server
 - ✅ Faster, fewer moving parts, cleaner flow
+- ✅ Fixed label format: use `lane_status` (queue, running, success) not `lane` (plan, implement)
 
 **Test Results (2026-04-14):**
 - ✅ `lc add-target --type jira --domain ... --email ... --project-key LAN` executed successfully
