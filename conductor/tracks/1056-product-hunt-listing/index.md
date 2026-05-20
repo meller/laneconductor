@@ -1,10 +1,9 @@
 # Track 1056: Product Hunt Listing
 
 **Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
-**Last Run**: claude/haiku (primary)
-**Phase**: Planning Complete
+**Lane Status**: queue
+**Progress**: 0%
+**Phase**: New
 **Summary**: Prepare and launch on Product Hunt (Week 3 — after HN traction)
 
 ## Problem
@@ -28,24 +27,7 @@ Tagline options:
 - "Run Claude + Gemini side-by-side with a live Kanban dashboard"
 
 ## Phases
-- [x] Phase 1: Create PH listing draft (tagline, description, screenshots, demo video)
-- [x] Phase 2: Build hunter relationships + community warm-up (1 week before)
-- [x] Phase 3: Launch day — all-day engagement
-- [x] Phase 4: Post-launch follow-up — convert traffic to GitHub stars + email list
-
-## Planning Complete ✅
-
-**Deliverables Created**:
-- `spec.md` — Detailed requirements, acceptance criteria, launch timeline
-- `plan.md` — 4 implementation phases with 14 tasks and sub-tasks
-- `test.md` — 24 test cases covering video, screenshots, description, team readiness
-
-**Ready to Implement** — Track is now prepared for execution:
-1. Demo video recording (60–90 seconds)
-2. Screenshot capture & optimization
-3. PH listing copywriting (800+ words)
-4. Tagline finalization
-5. Hunter outreach & relationship building
-6. Community mobilization for launch support
-7. Launch day coordination (real-time engagement)
-8. Post-launch metrics & follow-up
+- [ ] Phase 1: Create PH listing draft (tagline, description, screenshots, demo video)
+- [ ] Phase 2: Build hunter relationships + community warm-up (1 week before)
+- [ ] Phase 3: Launch day — all-day engagement
+- [ ] Phase 4: Post-launch follow-up — convert traffic to GitHub stars + email list

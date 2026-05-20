@@ -396,23 +396,32 @@
         <main>
             <header>
                 <h1>Knowledge Base</h1>
-                <p>A deep dive into the sovereign orchestration of AI development agents.</p>
+                <p>The AI orchestration layer for your whole business — dev, marketing, sales, support. One board. Closed loop.</p>
             </header>
 
             <section id="what-is-it">
                 <h2>What is LaneConductor?</h2>
-                <p>LaneConductor is a professional-grade orchestrator designed to manage AI agents (like Claude or
-                    Gemini) as they work through complex software engineering tasks. Unlike simple chat interfaces,
-                    LaneConductor provides a **persistent, file-based state machine** that coordinates multiple agents
-                    across multiple repositories.</p>
+                <p>LaneConductor is the AI orchestration layer for your whole business — not just code. Dev ships features, marketing posts launches, sales runs outreach, support resolves tickets. Every function runs as a <strong>track</strong> on one board, executed or assisted by AI agents, and measured against a KPI so you know what actually worked.</p>
+
+                <p>It is not a project tracker (those are passive — humans do the work). LaneConductor is an <strong>operating layer</strong>: agents execute the work, outcomes are measured, and failed experiments automatically replan with measurement data attached. The Conductor metaphor is exact — it doesn't play the instruments, it orchestrates them.</p>
 
                 <div class="diagram-container">
                     <img src="/docs/architecture.png" alt="LaneConductor Architecture" />
                     <div class="diagram-caption">Figure 1: High-level architecture of the LaneConductor ecosystem.</div>
                 </div>
 
-                <p>It acts as the "connective tissue" between your local development environment and the AI agent,
-                    providing visibility, guardrails, and automated verification for every change the agent makes.</p>
+                <p>It acts as the "connective tissue" between every business function and its AI agent — providing visibility, guardrails, KPI measurement, and closed-loop replanning for every track.</p>
+
+                <h3>Track Types</h3>
+                <table>
+                    <thead><tr><th>Type</th><th>What AI does</th><th>How success is measured</th></tr></thead>
+                    <tbody>
+                        <tr><td><strong>dev</strong></td><td>Plans, implements, reviews, and ships code</td><td>Tests pass, quality gate clears</td></tr>
+                        <tr><td><strong>marketing</strong></td><td>Drafts launch posts, copy, campaigns — human publishes</td><td>KPI: HN score, Reddit upvotes, PH upvotes</td></tr>
+                        <tr><td><strong>sales</strong></td><td>Writes outreach sequences, pitches, one-pagers — human sends</td><td>KPI: replies, conversions</td></tr>
+                        <tr><td><strong>support</strong></td><td>Drafts responses, knowledge base articles</td><td>KPI: resolution rate, CSAT</td></tr>
+                    </tbody>
+                </table>
             </section>
 
             <section id="conductor-pattern">
@@ -458,8 +467,7 @@ make install</code></pre>
                 <h3>Project Setup</h3>
                 <p>Navigate to any repo you want to track. LaneConductor needs to be initialized in each repository.</p>
                 <pre><code>cd ~/Code/my-awesome-app
-                lc install  # Installs local deps like chokidar
-                lc setup    # Scaffolds conductor/ directory</code></pre>
+lc setup    # Scaffolds conductor/ directory and registers the project</code></pre>
 
                 <p>After initializing with the CLI, use <strong>any AI Agent</strong> (Claude or Gemini) to generate
                     your AI context
@@ -578,11 +586,16 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
             
             <section id="modular-integrations">
                 <h2>Modular Integrations</h2>
-                <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. Instead of hardcoding third-party logic into the core engine, we use a <strong>Modular Adapter Registry</strong> on the Cloud API.</p>
+                <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. It is designed to bridge the gap between your local environment and enterprise tools across multiple operating modes.</p>
                 
                 <div class="callout">
-                    <div class="callout-title">Architecture</div>
-                    <p>Integrations are split between <strong>Inbound Webhooks</strong> (Provider &rarr; Cloud &rarr; LC Command) and <strong>Outbound Hooks</strong> (Worker &rarr; Cloud Proxy &rarr; Provider).</p>
+                    <div class="callout-title">Supported Targets</div>
+                    <ul>
+                        <li><strong>Local API:</strong> Connects to your local Postgres instance for personal project tracking.</li>
+                        <li><strong>Remote API:</strong> Scales to centralized teams via Cloud Functions and Neon Postgres.</li>
+                        <li><strong>Jira:</strong> Bidirectional sync with Atlassian Jira projects (Cloud and On-Premise).</li>
+                        <li><strong>Extensible:</strong> Modular adapters allow adding new providers (GitHub, Slack, etc.) with minimal overhead.</li>
+                    </ul>
                 </div>
 
                 <h3>Secure Proxying</h3>
@@ -593,25 +606,31 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
             </section>
 
             <section id="jira-workflow">
-                <h2>Jira Workflow</h2>
-                <p>The Jira integration allows for automated track creation and feedback loops.</p>
-                
-                <h3>1. Inbound (Jira &rarr; LC)</h3>
-                <p>When a Jira issue is labeled or moved to a specific status, a webhook is sent to <code>/v1/webhooks/jira</code>. The Jira Adapter translates this payload into a standard LaneConductor command to create or update a track.</p>
-                
-                <h3>2. Outbound (LC &rarr; Jira)</h3>
-                <p>Feedback is driven by hooks defined in <code>workflow.json</code>. When a track completes or fails a lane, the worker triggers an outbound action:</p>
-                
-                <pre><code>"done": {
-  "hooks": [
-    {
-      "on": "success",
-      "provider": "jira",
-      "action": "comment",
-      "body": "Track {{track}} completed."
-    }
-  ]
-}</code></pre>
+                <h2>Jira Workflow — Hybrid Sync</h2>
+                <p>The Jira integration uses a <strong>Hybrid Sync</strong> model: Inbound Webhooks for instant updates, and Polling-based Bidirectional Sync for reliability and conflict resolution.</p>
+
+                <h3>1. Inbound (Jira → LC)</h3>
+                <p>When a Jira issue is labeled or moved, LaneConductor processes the update via two paths:</p>
+                <ul>
+                    <li><strong>Webhooks (Instant):</strong> Jira sends a POST to <code>/v1/webhooks/jira</code>. The Cloud API translates this to a command that notifies all active workers.</li>
+                    <li><strong>Polling (Reliable):</strong> Workers poll the Jira API every 60 seconds. This captures any updates missed during downtime and performs deep-sync of contents.</li>
+                </ul>
+
+                <h3>2. Outbound (LC → Jira)</h3>
+                <p>Workers push filesystem changes back to Jira after every sync cycle:</p>
+                <ul>
+                    <li><strong>Multi-file Sync:</strong> LaneConductor aggregates <code>index.md</code>, <code>plan.md</code>, <code>spec.md</code>, and <code>test.md</code> into the Jira issue description using Atlassian Document Format (ADF).</li>
+                    <li><strong>Lane Tracking Labels:</strong> Issues are tagged with <code>lconductor-status-&lt;status&gt;</code> (e.g., <code>lconductor-status-running</code>) for state visibility within Jira.</li>
+                    <li><strong>Transitions:</strong> Jira issue status is automatically transitioned to match the local lane (e.g., "Implement" &rarr; "In Progress").</li>
+                </ul>
+
+                <h3>Conflict Resolution</h3>
+                <p><strong>Latest version wins</strong> with a 10-second "edit grace period":</p>
+                <ul>
+                    <li>If both sides are modified within 10 seconds, the sync is delayed to prevent thrashing.</li>
+                    <li>After the grace period, the newer timestamp (Filesystem mtime vs. Jira's <code>updated</code>) becomes the source of truth.</li>
+                    <li><strong>Timestamp-based Dedup:</strong> Multiple workers can safely poll the same project; only the worker that detects a newer timestamp will perform the write.</li>
+                </ul>
             </section>
 
             <section id="modes">
@@ -755,6 +774,76 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 - [ ] Syntax: `npm run lint`
 - [ ] Logic: `npm test`
 - [ ] Security: `npm audit`</code></pre>
+            </section>
+
+            <section id="autoresearch">
+                <h2>Autoresearch Pattern — Karpathy-Inspired KPI Loops</h2>
+
+                <p>Most AI workflows focus on the <em>generate</em> step but skip the <em>evaluate</em> step. Andrej
+                    Karpathy's autoresearch idea is simple: <strong>define the measurement method before you start,
+                    automate it, and let the eval loop close itself.</strong> If you can measure automatically, you can
+                    run experiments at scale and the system tells you what worked.</p>
+
+                <p>LaneConductor applies this to every business function — not just evals on model outputs, but on
+                    real-world outcomes: did the Show HN post score 100? Did the cold email get replies? Did the support
+                    doc reduce repeat questions?</p>
+
+                <h3>The Four Steps</h3>
+                <table>
+                    <thead><tr><th>Step</th><th>What happens</th><th>Where it lives</th></tr></thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1. Define success first</strong></td>
+                            <td>The <code>## KPI</code> block in <code>spec.md</code> forces you to declare Target, Threshold, Source, and Window <em>before</em> writing a line of content or code.</td>
+                            <td><code>spec.md</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>2. Automate the measurement</strong></td>
+                            <td><code>conductor/measure.mjs</code> queries live sources (HN API, Reddit API, manual marker, custom URL) and returns <code>{ actual, passed, raw }</code>. Zero external dependencies, native Node 18 fetch.</td>
+                            <td><code>conductor/measure.mjs</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Wait for the right window</strong></td>
+                            <td>When a non-dev track is published, the worker writes <code>kpi_check_after = now + window</code> to <code>index.md</code>. The quality gate auto-triggers when the window expires — not immediately. Measuring a Show HN score 5 minutes after posting is noise.</td>
+                            <td><code>index.md</code> → <code>**KPI Check After**</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>4. Close the loop</strong></td>
+                            <td>On KPI miss, the worker writes <code>## ❌ KPI MISS</code> to <code>plan.md</code> with target, actual, delta, and raw snapshot. The planning skill reads this on re-entry and generates a <em>different hypothesis</em> — new angle, different channel, adjusted CTA. Misses accumulate so the planner can see the full experiment trail.</td>
+                            <td><code>plan.md</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Example: Show HN KPI Block</h3>
+                <pre><code>## KPI
+
+**Metric**: HN Score (upvotes)
+**Source**: hn-api
+**Source Config**: item_id=47338664
+**Target**: 100
+**Threshold**: 50
+**Window**: 48h
+**Maps To**: Show HN Score</code></pre>
+
+                <p>After 48 hours, <code>measure.mjs</code> queries the HN API, writes the score back to
+                    <code>index.md</code> as <code>**KPI Actual**: N</code>, and the quality gate evaluates pass/fail.
+                    If the score missed, the next planning cycle gets the full measurement snapshot as context.</p>
+
+                <h3>Supported Sources</h3>
+                <table>
+                    <thead><tr><th>Source</th><th>What it measures</th><th>Source Config</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>hn-api</code></td><td>Hacker News item score</td><td><code>item_id=12345</code></td></tr>
+                        <tr><td><code>reddit-api</code></td><td>Reddit post upvotes</td><td>Post URL or path</td></tr>
+                        <tr><td><code>manual</code></td><td>Human-entered value</td><td>Write <code>**KPI Actual**: N</code> in <code>index.md</code></td></tr>
+                        <tr><td><code>custom-url</code></td><td>First numeric value from any JSON endpoint</td><td>Full URL</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="callout">
+                    <strong>Why this matters:</strong> Without autoresearch, "done" means shipped. With it, "done" means <em>worked</em>. The system knows the difference, replans on failure, and builds an experiment trail over time — turning every business function into a measurable, improvable loop.
+                </div>
             </section>
 
             <section id="cli-general">

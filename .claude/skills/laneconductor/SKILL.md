@@ -235,8 +235,24 @@ Your job is **only to generate the context files**. Do not ask questions.
 - **`conductor/workflow.md`** — commit strategy, branching, testing approach, code review process
 - **`conductor/product-guidelines.md`** — brand/style/UX principles (stub with placeholders if unknown)
 - **`conductor/deployment-stack.md`** — stub: "Not configured. Run `lc setup-deploy`."
+- **`conductor/kpis.md`** — project north-star metrics (see KPI template below)
 - **`conductor/tracks/`** and **`conductor/code_styleguides/`** — create dirs if missing
 - **`.claude/MEMORY.md`** — create if not present
+
+**`conductor/kpis.md` template** (populate from brainstorm_summary if it contains goal/metric statements; otherwise use stubs):
+```markdown
+# Project KPIs
+
+## North-Star Metrics
+
+| Metric | Target | Time Horizon | Status | Notes |
+|--------|--------|--------------|--------|-------|
+| <metric> | <target> | <e.g. Q2 2026> | tracking | <context> |
+
+## Contributing Tracks
+
+Tracks with `**Maps To**` referencing a metric above will appear here automatically.
+```
 
 Print progress as you write each file:
 ```
@@ -245,6 +261,7 @@ Print progress as you write each file:
 📝 Writing conductor/workflow.md...           ✅
 📝 Writing conductor/product-guidelines.md... ✅
 📝 Writing conductor/deployment-stack.md...   ✅
+📝 Writing conductor/kpis.md...               ✅
 ```
 
 **Also symlink the skill** (if not already linked):
@@ -276,6 +293,7 @@ Asks first:
    - `workflow.md` — inferred from `.git` log patterns, CI files, test setup
    - `product-guidelines.md` — minimal template (hard to infer; leave stubs for user)
    - `code_styleguides/` — inferred from `.eslintrc`, `.prettierrc`, `tsconfig.json` if present
+3. Ask one KPI question: **"What does success look like? What are your 2–3 north-star metrics and rough targets?"** — use answer to populate `kpis.md`; if user skips, generate stub rows from README/product description inferences
 
 **Mode B — New project:**
 Ask a short questionnaire:
@@ -283,6 +301,7 @@ Ask a short questionnaire:
 - What language/framework/database will you use?
 - TDD? Commit strategy? Branching model?
 - Any brand/style standards?
+- **What does success look like? What are your 2–3 north-star metrics and rough targets?** (e.g. "500 signups by Q2", "1000 DAUs", "HN front page")
 
 Generate all conductor files with content from answers, including a stub for `deployment-stack.md`.
 
@@ -296,6 +315,7 @@ conductor/
 ├── tech-stack.md
 ├── deployment-stack.md
 ├── workflow.md
+├── kpis.md
 ├── tracks.md
 └── laneconductor.sync.mjs
 ```
@@ -621,8 +641,7 @@ Start the heartbeat worker.
 
 1. Verify `.laneconductor.json` exists — if not, tell user to run `setup collection` first
 2. Check `.sync.pid` — warn if process already running
-3. Ensure `pg` and `chokidar` are installed: `npm install --save-dev pg chokidar`
-4. Start: `node bin/lc.mjs worker start [--sync-only]`
+3. Start: `node bin/lc.mjs worker start [--sync-only]`
 
 By default, the worker will only perform file↔API synchronization and will NOT poll the database for queued tracks to execute. If `--sync-and-work` is provided, it will also poll and execute tracks from the queue.
 
@@ -932,8 +951,10 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Lane Status**: queue
    **Progress**: 0%
    **Phase**: New
+   **Type**: [dev|marketing|sales|support|other]
    **Summary**: [description]
    ```
+   Default `**Type**` to `dev` unless the user specified a type.
 3. Append a typed entry to `conductor/tracks/file_sync_queue.md` (under `## Track Creation Requests`):
    ```markdown
    ### Track NNN: [name]
@@ -945,7 +966,12 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Metadata**: { "priority": "medium", "assignee": null }
    ```
 4. The sync worker detects the change (via chokidar or 5s heartbeat), creates the DB row, and moves the entry to `## Completed Queue`.
-5. Print: `✅ Track NNN queued in file_sync_queue.md. Worker will register in DB on next cycle.`
+5. **Skill check for non-dev types**: if type is `marketing` or `sales`, check `.claude/skills/` for recommended skills:
+   - Marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`
+   - Sales: `sales-enablement`, `cold-email`
+   - Print `⚠️ Track type 'marketing' works best with [skill] — not found in .claude/skills/` for each missing skill.
+   - Print `✅ [skill] available` for each present skill.
+6. Print: `✅ Track NNN queued in file_sync_queue.md. Worker will register in DB on next cycle.`
 
 ---
 
@@ -998,8 +1024,31 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Check for human comments in `conversation.md`. **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
     - Flesh out missing requirements or phase details based on current codebase context.
     - Update `test.md` with test cases for any new phases or requirements.
-4.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
-5.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`.
+    - **Check for `## ❌ KPI MISS` in plan.md**: if present, this is a replanning cycle after a KPI failure. Read the failure data (target, actual, delta, snapshot) and use it as context. Generate a *different* hypothesis — new content angle, different channel, different CTA. Print: `♻️ Replanning with KPI data: target=X, actual=Y, delta=Z`. Append a new `## ❌ KPI MISS` entry (don't overwrite old ones).
+4.  **KPI enforcement** (for `marketing` and `sales` tracks):
+    - Read `**Type**` from index.md.
+    - If type is `marketing` or `sales`: check spec.md for `## KPI` block.
+    - If missing: print `⚠️ KPI block required for marketing/sales tracks` and write a stub `## KPI` section with TODOs.
+    - Block transition to `on_success` until all required fields are filled: Target, Metric, Source, Threshold.
+    - Required `## KPI` block format in spec.md:
+      ```markdown
+      ## KPI
+      **Target**: <number>
+      **Metric**: <label>
+      **Source**: hn-api | reddit-api | manual | custom-url
+      **Source Config**: <item_id=NNN or URL>
+      **Threshold**: <number>
+      **Window**: <e.g. 48h or 7d>
+      **Maps To**: <metric name from conductor/kpis.md>   ← optional
+      ```
+5.  **Draft section** (for non-dev tracks):
+    - After planning is complete for non-dev tracks: write a `## Draft` section to spec.md (alongside KPI and Requirements).
+    - Draft = publish-ready content the human will execute (post text, email copy, social content).
+    - Include a `### Publish Instructions` subsection with step-by-step numbered instructions.
+    - Do NOT create a separate `draft.md` — everything stays in spec.md.
+    - Moving the track to implement (drag or Run) IS the approval — no extra gate needed.
+6.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
+7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`.
 
 **🛑 BOUNDARY ENFORCEMENT**: Your job ends here. Do NOT start implementing code. Wait for the next worker cycle to pick up the track in its new lane.
 
@@ -1043,20 +1092,36 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 2. **Read existing context:**
    - Read `conductor/tracks/NNN-*/plan.md` to understand phases
-   - Read `conductor/tracks/NNN-*/spec.md` for technical details
-   - Read `conductor/deployment-stack.md` (if present) for deployment context (ADC, Secret Manager, target runtime)
-   - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first (before any implementation), run the test and confirm it fails (feature missing, not a typo), then write minimal code to make it pass, then confirm green. A phase is not complete until its `test.md` test cases pass. If no test cases exist for a phase, proceed without this step.
-   - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. This contains the human-to-AI conversation history. Treat human comments as overriding instructions or blocker resolutions.
+   - Read `conductor/tracks/NNN-*/spec.md` for technical details and `**Type**` 
+   - Read `conductor/deployment-stack.md` (if present) for deployment context
+   - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first, run the test and confirm it fails, then write minimal code to make it pass, then confirm green.
+   - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. Treat human comments as overriding instructions.
    - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed.
    - Update `index.md` to `**Status**: implement`
 
-3. **For each phase:**
+2b. **Skill check for non-dev tracks** (type = marketing or sales):
+   - Check `.claude/skills/` for recommended skills:
+     - Marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`
+     - Sales: `sales-enablement`, `cold-email`
+   - Print `⚠️ Track type 'marketing' works best with [skill] — not found in .claude/skills/` for missing.
+   - Print `💡 Invoke /[skill] before writing content` for present skills.
+
+3. **Non-dev track supervised implement**:
+   - If `**Type**` is not `dev`: this is a supervised implement — do NOT write code.
+   - Read `## Draft` from spec.md (written by the plan phase).
+   - Output the full publish-ready content to the user with clear formatting.
+   - Output the `### Publish Instructions` step-by-step.
+   - Set `**Waiting for reply**: yes` in index.md.
+   - The worker will detect "done" reply in conversation.md and automatically schedule the quality gate.
+   - **Stop here** — do not transition the lane yourself. The worker handles the transition.
+
+4. **Dev track: For each phase** (skip for non-dev tracks):
    - Implement tasks
    - Update `plan.md` (⏳ → ✅ per task as completed)
    - Update `index.md` `**Progress**` marker
    - Commit: `feat(track-NNN): Phase X - description`
 
-4. **On complete:**
+5. **Dev track: On complete** (skip for non-dev tracks):
    - Update `index.md` `**Progress**` marker to 100%.
    - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
@@ -1098,20 +1163,42 @@ Structured review of a track against its plan and product guidelines. Posts the 
 Runs automated checks and updates status files based on results.
 
 0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
-1. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
+0b. **KPI window check** (early trigger warning):
+   - Read `**KPI Check After**` from index.md. If it exists and is in the future:
+     > "KPI window not reached — Xh remaining. Measuring now may give unreliable results. Run anyway? (y/n)"
+   - If user says "n", stop. If "y", proceed.
+   - If invoked automatically by the worker, the worker already checked the time — skip this warning.
+1. **KPI measurement** (runs BEFORE code checks):
+   - Read `**Type**` from index.md.
+   - If type is non-dev (`marketing`, `sales`, `support`, `other`) OR spec.md has a `## KPI` block: run `conductor/measure.mjs` for this track.
+   - `node conductor/measure.mjs --track NNN`
+   - Write result back to index.md: `**KPI Actual**: N` and `**KPI Snapshot**: {JSON}`
+   - Append to `conversation.md`: `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true/false`
+   - **If KPI failed** (`passed: false`):
+     - Append `## ❌ KPI MISS` to `plan.md`:
+       ```markdown
+       ## ❌ KPI MISS — [ISO timestamp]
+       **Target**: T | **Actual**: N | **Delta**: -D | **Window**: W
+       **Snapshot**: `{raw JSON}`
+       ```
+     - Transition to `on_failure` lane. **Do NOT run code checks.**
+   - **If KPI passed**: continue to code checks below.
+   - Dev tracks without a `## KPI` block: skip measurement entirely.
+2. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
    - `test.md` test commands are the primary automated check for this specific track.
    - `quality-gate.md` commands apply project-wide quality standards.
    - **Deployment Safety**: Scan modified files for hardcoded secrets (API keys, tokens). Verify that `.gitignore` contains the patterns defined in the Zero-Secrets Policy.
    - If a command is missing from your system (e.g., `playwright` not installed), you MUST install it or report a failure.
    - Do NOT just mark them as checked; you must actually run the code and verify the output.
-2. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However, before writing any fix:
+   - For non-dev tracks that passed KPI: skip code checks (there's no code to check).
+3. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However, before writing any fix:
    - **Write a failing test that reproduces the bug first.** The test must fail before you fix anything.
    - Then implement the fix.
    - Re-run to confirm the test now passes.
    - You MUST commit both the test and the fix together with `fix(quality-gate): [description]`.
    - You MUST post a comment to `conversation.md` explaining what failed and what was fixed.
-3. **Post Results**: Append results to `conversation.md`.
-4. **Transition**:
+4. **Post Results**: Append results to `conversation.md`.
+5. **Transition**:
    - Read `conductor/workflow.json`.
    - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
@@ -1503,7 +1590,6 @@ The system adds a "Moved to [lane]" or "Human comment" marker which **resets the
 | `/laneconductor remote-sync [track-num?]` | Sync track changes from API to local files (Phase 5) |
 | `/laneconductor init-tracks-summary` | Regenerate conductor/tracks.md from all track files (Phase 6) |
 | `lc brainstorm <track>` | Start brainstorm dialogue for a track via conversation.md |
-| `lc install` | Install pg + chokidar deps |
 | `lc start` | Start heartbeat worker |
 | `lc stop` | Stop heartbeat worker |
 | `lc status` | Quick track list |

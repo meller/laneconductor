@@ -397,21 +397,23 @@ LaneConductor CLI (lc) v${VERSION}
 Usage:
   lc <command> [arguments]
 
-Core Commands:
-  status               Show track status for the current project
-  start                Start the heartbeat sync worker for this project
+Shared Infrastructure  (run once per machine — from anywhere)
+  api [start|stop]     Manage the shared Collector API at :8091
+  ui [start|stop]      Manage the shared Vite dashboard at :8090
+
+Project Setup  (run once per project — from project root)
+  setup                Initialize LaneConductor in the current project
+  setup-deploy         Guided deployment setup (writes deployment-stack.md + deploy.json)
+
+Worker  (per session — run from project root)
+  start                Start the heartbeat sync worker
   stop                 Stop the heartbeat sync worker
   restart              Restart the heartbeat sync worker
   worker [start|stop|restart|status|logs|sync]
-                       Manage the sync worker process and force sync all targets
-  api [start|stop]     Manage the Collector API
-  ui [start|stop]      Manage the Vite dashboard (default: start)
-  setup                Initialize LaneConductor in the current project
-  setup-deploy         Guided deployment setup (writes deployment-stack.md + deploy.json)
-  deploy [env]         Execute deployment for a specific environment (prod/staging/preview)
-  install              Install required project dependencies
+                       Manage the sync worker and force sync all targets
+  status               Show track status for the current project
 
-Project & Track Management:
+Track Management  (per project)
   new [name] [desc]    Create a new track
   brainstorm [id]      Start a brainstorm dialogue for a track via conversation.md
   comment [id] [msg]   Post a comment to a track
@@ -419,12 +421,21 @@ Project & Track Management:
   pulse [id] [s] [%]   Pulse track status and progress
   show [id]            Show track details (plan, spec, logs)
   logs [id|worker|worker-run [id]] Show logs for a track or the worker
-  workflow [set ...]   Manage workflow configuration (or show if no args)
+  delete [id]          Permanently delete a track
+
+Track Transitions
+  plan [id] [--run]          Move to plan lane (--run: execute immediately in foreground)
+  implement [id] [--run]     Move to implement lane (--run: execute immediately in foreground)
+  review [id] [--run]        Move to review lane (--run: execute immediately in foreground)
+  quality-gate [id] [--run]  Move to quality-gate lane (--run: execute immediately in foreground)
+  backlog [id], done [id], rerun [id]
+
+Configuration  (per project)
   config [set ...]     Manage project configuration (or show if no args)
   config mode [mode] [--url <url>] [--key <key>] [--store-type <type>] [--secret-name <name>]
                        Switch mode (local-fs, local-api, remote-api, multi-api)
   config visibility [private|team|public] Set worker visibility level
-  list-targets         List all configured collector targets and their sync status
+  workflow [set ...]   Manage workflow configuration (or show if no args)
   add-target --url <url> [--key <key>] [--store-type <type>] [--secret-name <name>] [--type local|remote]
                        Add a new collector target
   add-target-mapping [--type jira] [--project-key <key>] --lane <lc_lane> --target "<status>"
@@ -432,20 +443,16 @@ Project & Track Management:
   remove-target <url>  Remove a configured collector target
   enable-target <url>  Enable sync for a specific target
   disable-target <url> Disable sync for a specific target
-  verify-isolation     Check if worker environment is correctly sandboxed
+  list-targets         List all configured collector targets and their sync status
   project [show|set]   Manage project settings (or show summary if no args)
   doc set SECTION VAL  Update conductor/product.md, tech-stack.md, etc.
-  verify               Run project verification checks
-  quality-gate         Run quality gate checks
+  verify-isolation     Check if worker environment is correctly sandboxed
+
+Deployment  (per project)
+  deploy [env]         Execute deployment for a specific environment (prod/staging/preview)
   remote-sync          Bidirectional sync between API and local files (newer wins)
   init-summary         Regenerate conductor/tracks.md
-
-Track transitions:
-  plan [id] [--run]          Move to plan lane (--run: execute immediately in foreground)
-  implement [id] [--run]     Move to implement lane (--run: execute immediately in foreground)
-  review [id] [--run]        Move to review lane (--run: execute immediately in foreground)
-  quality-gate [id] [--run]  Move to quality-gate lane (--run: execute immediately in foreground)
-  backlog [id], done [id], rerun [id]
+  verify               Run project verification checks
 
 Global configuration: ${RC_FILE}
 Installation path: ${getInstallPath()}
@@ -799,6 +806,7 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
 - conductor/tech-stack.md     (languages, frameworks, databases, infra)
 - conductor/workflow.md       (how development works — commits, branches, reviews, testing)
 - conductor/product-guidelines.md  (brand, style, UX principles)
+- conductor/kpis.md           (north-star metrics — 2-3 measurable targets with time horizons)
 
 Project: ${name}
 Git remote: ${remoteUrl || 'none'}
@@ -810,7 +818,8 @@ ${scanSnippets.join('\n')}
 Your job:
 1. Propose what the content of each context file should be based on what you can infer
 2. Ask about anything you can't infer (one question at a time)
-3. When you have enough to generate all 4 files, end with:
+3. Always ask: "What does success look like? What are your 2-3 north-star metrics and rough targets?" (e.g. "500 signups by Q2", "1000 DAUs", "HN front page")
+4. When you have enough to generate all 5 files, end with:
    "✅ Ready to generate context files."
 
 Keep responses concise. If the project has existing code, infer as much as possible before asking.`;
@@ -877,10 +886,9 @@ Keep responses concise. If the project has existing code, infer as much as possi
         }
 
         console.log('\nNext steps:');
-        console.log('  1. Run "lc install" to add required dependencies (chokidar).');
-        console.log('  2. Run "lc start" to begin the heartbeat worker.');
-        console.log('  3. Run "lc ui start" to open the Kanban dashboard.');
-        console.log('  4. Create your first track with "lc new".');
+        console.log('  1. Run "lc ui start" to open the shared Kanban dashboard (once per machine).');
+        console.log('  2. Run "lc start" to begin the project heartbeat worker.');
+        console.log('  3. Create your first track with "lc new".');
 
         const deployYN = await question(`\nWould you like to configure the deployment stack now? (lc setup-deploy) (y/n) [n]: `);
         if (deployYN.toLowerCase() === 'y') {
@@ -1531,7 +1539,15 @@ Please review this, answer any questions (some fields may contain questions rath
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
     const name = args[1];
     const desc = args[2] || '';
-    if (!name) { console.log('❌ Usage: lc new "Track name" "Description"'); process.exit(1); }
+    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other]'); process.exit(1); }
+
+    const typeIdx = args.indexOf('--type');
+    const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
+    let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
+    if (!VALID_TRACK_TYPES.includes(trackType)) {
+        console.error(`❌ Invalid track type "${trackType}". Must be one of: ${VALID_TRACK_TYPES.join(', ')}`);
+        process.exit(1);
+    }
 
     const queuePath = join(projectRoot, 'conductor', 'tracks', 'file_sync_queue.md');
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
@@ -1554,8 +1570,25 @@ Please review this, answer any questions (some fields may contain questions rath
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNum}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Summary**: ${desc}\n`;
+    const indexContent = `# Track ${nextNum}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
+
+    // Warn about missing skills for non-dev track types
+    const SKILL_MAP = {
+        marketing: ['social-content', 'copywriting', 'content-strategy', 'launch-strategy'],
+        sales: ['sales-enablement', 'cold-email'],
+    };
+    if (SKILL_MAP[trackType]) {
+        const skillsDir = join(projectRoot, '.claude', 'skills');
+        for (const skill of SKILL_MAP[trackType]) {
+            const skillPath = join(skillsDir, skill);
+            if (!existsSync(skillPath)) {
+                console.log(`⚠️  Track type '${trackType}' works best with [${skill}] — not found in .claude/skills/`);
+            } else {
+                console.log(`✅ ${skill} available`);
+            }
+        }
+    }
 
     const now = new Date().toISOString();
     const queueEntry = `\n### Track ${nextNum}: ${name}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${name}\n**Description**: ${desc || 'No description.'}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
@@ -1567,6 +1600,40 @@ Please review this, answer any questions (some fields may contain questions rath
         writeFileSync(queuePath, `# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n${queueEntry}\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n`);
     }
     console.log(`✅ Track ${nextNum} created in ${trackFolderName}`);
+    process.exit(0);
+} else if (command === 'measure') {
+    if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
+    const trackNum = args[1];
+    if (!trackNum) { console.log('❌ Usage: lc measure <track-number> [--dry-run]'); process.exit(1); }
+    const { spawn } = await import('child_process');
+    const measureScript = join(projectRoot, 'conductor', 'measure.mjs');
+    const measureArgs = ['--track', trackNum, ...args.slice(2)];
+    const child = spawn(process.execPath, [measureScript, ...measureArgs], { stdio: 'inherit' });
+    child.on('exit', (code) => process.exit(code || 0));
+} else if (command === 'check-skills') {
+    if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
+    const trackNum = args[1];
+    if (!trackNum) { console.log('❌ Usage: lc check-skills <track-number>'); process.exit(1); }
+    const tracksDir = join(projectRoot, 'conductor', 'tracks');
+    const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    if (!trackDir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
+    const indexPath = join(tracksDir, trackDir, 'index.md');
+    const indexContent = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
+    const typeMatch = indexContent.match(/\*\*Type\*\*:\s*([^\n]+)/i);
+    const trackType = typeMatch ? typeMatch[1].trim().toLowerCase() : 'dev';
+    const SKILL_MAP = {
+        marketing: ['social-content', 'copywriting', 'content-strategy', 'launch-strategy'],
+        sales: ['sales-enablement', 'cold-email'],
+    };
+    const skills = SKILL_MAP[trackType];
+    if (!skills) { console.log(`ℹ️  Track type '${trackType}' has no skill recommendations`); process.exit(0); }
+    const skillsDir = join(projectRoot, '.claude', 'skills');
+    console.log(`\n📋 Skill check for Track ${trackNum} (type: ${trackType})\n`);
+    for (const skill of skills) {
+        const exists = existsSync(join(skillsDir, skill));
+        console.log(`  ${exists ? '✅' : '⚠️ '} ${skill}${exists ? '' : ' — not found in .claude/skills/'}`);
+    }
+    console.log('');
     process.exit(0);
 } else if (command === 'comment') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
@@ -2482,10 +2549,7 @@ Please review this, answer any questions (some fields may contain questions rath
 
     console.log(`✅ Track ${trackNum} deleted`);
     process.exit(0);
-} else if (command === 'install') {
-    if (!projectRoot) { process.exit(1); }
-    spawnSync('npm', ['install', '--save-dev', 'chokidar'], { stdio: 'inherit', cwd: projectRoot });
-    process.exit(0);
+// 'install' command removed — chokidar/pg are deps of the laneconductor repo itself (covered by make install)
 } else {
     console.log(`Unknown command: ${command}`);
     process.exit(1);

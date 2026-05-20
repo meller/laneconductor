@@ -106,7 +106,7 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 ### Phase 6: Enhanced Sync, 1:1 Mapping & Label-Based Lane Tracking ✓ (2026-04-14)
 - **1:1 Lane Mapping**: Implemented 1:1 mapping between LC lanes and Jira statuses (backlog↔Backlog, plan↔To Do, implement↔In Progress, review↔In Review, quality-gate↔Testing, done↔Done)
 - **Status Validation**: ✅ Worker validates required statuses exist; provides clear guidance if missing
-- **Labels as Source of Truth**: ✅ All issues labeled with `lconductor-<status>` for reliable lane tracking
+- **Labels as Source of Truth**: ✅ All issues labeled with `lconductor-<lane>` for reliable lane tracking
 - **Graceful Status Transitions**: Status transitions are best-effort; if status doesn't exist, labels carry the lane info
 - **Multi-file Formatting**: Updated `buildTrackAdf` to include `Log` section.
 - **Bidirectional Comments**: Ensured Jira comments flow back to `conversation.md`.
@@ -122,33 +122,15 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - ✅ Worker now reads `conductor/tracks/` and `tracks-metadata.json` directly
 - ✅ Direct FS → Jira sync, no intermediate API server
 - ✅ Faster, fewer moving parts, cleaner flow
-- ✅ Fixed label format: use `lconductor-<status>` (queue, running, success, review) not lane names (plan, implement, done, backlog)
+- ✅ Fixed label format: use `lane_status` (queue, running, success) not `lane` (plan, implement)
 
 **Test Results (2026-04-14):**
 - ✅ `lc add-target --type jira --domain ... --email ... --project-key LAN` executed successfully
 - ✅ Status validation ran and detected missing statuses: "Backlog", "Testing"
 - ✅ Clear guidance message displayed with exact URL and step-by-step instructions
-- ✅ Worker actively polling Jira and syncing issues with correct labels
+- ✅ Worker actively polling Jira and syncing issues with `lconductor-<lane>` labels
 - ✅ CLI configuration properly saved to `.laneconductor.json`
 - ✅ Tracks syncing without API server dependency (local-fs mode confirmed)
-
-### Phase 7: Bidirectional Outbound Sync ✓ (2026-04-14)
-**Problem**: Worker was in `--sync-only` mode, polling from Jira but not pushing changes back.
-
-**Solution Implemented**:
-- ✅ **Worker Mode Fixed**: Changed from `--sync-only` to `sync+poll` to enable bidirectional sync
-- ✅ **Outbound Sync Phase**: Added loop after polling that pushes all FS-newer tracks back to Jira
-- ✅ **Label Format Corrected**: Fixed to use `lconductor-<status_enum>` (queue, running, success, review) instead of lane names
-- ✅ **Track Updates**: Converted all 100+ local tracks to proper Lane Status enum values (done→success, plan→queue, etc.)
-- ✅ **Parameter Passing Fixed**: Corrected `pushTrackToJira` to use `status` parameter for label generation
-
-**Test Results (2026-04-14)**:
-- ✅ 78/100 tracks successfully re-synced with corrected labels in first cycle
-- ✅ Worker polls every 60s and pushes FS-newer tracks in outbound phase
-- ✅ All labels now follow format: `lconductor-<status_enum>` (e.g., `lconductor-success`, `lconductor-queue`)
-- ✅ Bidirectional sync verified: Jira→FS (inbound) and FS→Jira (outbound) working
-- ✅ Conflict resolution: "latest version wins" with 10-second grace period
-- ✅ Worker logs show `[jira-polling]` for inbound and `[jira-push]` for outbound operations
 
 **Important Discovery**: 
 Jira Cloud does NOT allow creating statuses/workflows via REST API. Statuses must be created manually:
