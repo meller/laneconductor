@@ -82,6 +82,10 @@ async function callLLMConversational(cfg, prompt) {
         cmd = 'npx';
         cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', prompt];
         if (model) cmdArgs.push('--model', model);
+    } else if (cli === 'antigravity' || cli === 'agy') {
+        cmd = 'agy';
+        cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
+        if (model) cmdArgs.push('--model', model);
     } else {
         cmd = 'claude';
         cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
@@ -150,6 +154,10 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
             cmd = 'npx';
             // Prepend skill instructions directly to prompt for Gemini to avoid workspace/symlink restriction issues
             cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
+            if (model) cmdArgs.push('--model', model);
+        } else if (cli === 'antigravity' || cli === 'agy') {
+            cmd = 'agy';
+            cmdArgs = ['--dangerously-skip-permissions', '-p', `${skillContext}${slashCmd}`];
             if (model) cmdArgs.push('--model', model);
         } else {
             cmd = cli;
@@ -415,6 +423,9 @@ Worker  (per session — run from project root)
 
 Track Management  (per project)
   new [name] [desc]    Create a new track
+  update-track [id] [msg] Add work/bug/feature to track and return to backlog
+  report-bug [desc]    Smart bug intake (creates or updates bug track)
+  feature-request [desc] Smart feature intake (creates or updates feature track)
   brainstorm [id]      Start a brainstorm dialogue for a track via conversation.md
   comment [id] [msg]   Post a comment to a track
   move [id] [l:s]      Move track to lane:status
@@ -601,24 +612,26 @@ Choice [1]: `) || '1';
         const agentChoice = await question(`
 Primary AI agent:
   [1] claude  (recommended)
-  [2] gemini
-  [3] other
+  [2] antigravity (agy)
+  [3] gemini
+  [4] other
 Choice [1]: `) || '1';
-        const agentMap = { '1': 'claude', '2': 'gemini', '3': 'other' };
+        const agentMap = { '1': 'claude', '2': 'agy', '3': 'gemini', '4': 'other' };
         const primaryCli = agentMap[agentChoice] || 'claude';
         const primaryModel = await question(`Primary model [default]: `) || null;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
         let secondary = null;
         if (secondaryYN.toLowerCase() !== 'n') {
-            const secAgentChoice = primaryCli === 'claude' ? '2' : '1'; // Default to the "other" one
+            const secAgentChoice = primaryCli === 'claude' ? '2' : '1'; // Default to antigravity if primary is claude
             const secChoice = await question(`
 Secondary AI agent:
   [1] claude
-  [2] gemini
-  [3] other
+  [2] antigravity (agy)
+  [3] gemini
+  [4] other
 Choice [${secAgentChoice}]: `) || secAgentChoice;
-            const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : 'gemini');
+            const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : (secAgentChoice === '2' ? 'agy' : 'gemini'));
             const secModel = await question(`Secondary model [default]: `) || null;
             secondary = { cli: secCli, model: secModel || null };
         }
@@ -667,6 +680,41 @@ Choice [${secAgentChoice}]: `) || secAgentChoice;
         } catch (e) {
             console.warn(`⚠️  Could not symlink skill: ${e.message}`);
         }
+
+        // Create Antigravity workspace skill symlink so Antigravity agent can use custom skills
+        console.log('🔗 Symlinking Antigravity workspace skill...');
+        try {
+            const skillDir = existsSync(RC_FILE) ? readFileSync(RC_FILE, 'utf8').trim() : join(getInstallPath(), '.claude/skills/laneconductor');
+            const targetDir = '.agents/skills';
+            if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
+            const targetPath = join(targetDir, 'laneconductor');
+            
+            if (existsSync(targetPath)) {
+                try { unlinkSync(targetPath); } catch (ex) {}
+            }
+            spawnSync('ln', ['-sf', skillDir, targetPath]);
+            console.log(`✅ Antigravity workspace skill symlinked → ${targetPath}`);
+        } catch (e) {
+            console.warn(`⚠️  Could not symlink Antigravity skill: ${e.message}`);
+        }
+
+        // Create Antigravity rule symlink so Antigravity agent can use LaneConductor rules
+        console.log('🔗 Symlinking Antigravity workspace rule...');
+        try {
+            const ruleSrc = join(getInstallPath(), '.agents/rules/laneconductor.md');
+            const targetDir = '.agents/rules';
+            if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
+            const targetPath = join(targetDir, 'laneconductor.md');
+            
+            if (existsSync(targetPath)) {
+                try { unlinkSync(targetPath); } catch (ex) {}
+            }
+            spawnSync('ln', ['-sf', ruleSrc, targetPath]);
+            console.log(`✅ Antigravity workspace rule symlinked → ${targetPath}`);
+        } catch (e) {
+            console.warn(`⚠️  Could not symlink Antigravity rule: ${e.message}`);
+        }
+
 
         // Update .env
         let envContent = '';
@@ -1674,6 +1722,173 @@ Please review this, answer any questions (some fields may contain questions rath
               .catch(e => console.error(`❌ collector[${idx}] failed: ${e.message}`));
         }));
     }
+    process.exit(0);
+} else if (command === 'updateTrack' || command === 'update-track') {
+    if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
+    const trackNum = args[1];
+    const what = args[2];
+    if (!trackNum || !what) { console.log('❌ Usage: lc update-track [track-num] "what needs to be updated"'); process.exit(1); }
+
+    const tracksDir = join(projectRoot, 'conductor', 'tracks');
+    const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    if (!dir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
+
+    const trackPath = join(tracksDir, dir);
+    const planPath = join(trackPath, 'plan.md');
+    const indexPath = join(trackPath, 'index.md');
+
+    // 1. Append work description to plan.md
+    if (existsSync(planPath)) {
+        let planContent = readFileSync(planPath, 'utf8');
+        planContent += `\n\n## Update: Additional Work\n- [ ] ${what}\n`;
+        writeFileSync(planPath, planContent);
+        console.log(`✅ Appended task to plan.md for Track ${trackNum}`);
+    } else {
+        const planContent = `# Track ${trackNum}\n\n## Additional Work\n- [ ] ${what}\n`;
+        writeFileSync(planPath, planContent);
+        console.log(`✅ Created plan.md with task for Track ${trackNum}`);
+    }
+
+    // 2. Modify index.md to move it back to backlog
+    if (existsSync(indexPath)) {
+        let content = readFileSync(indexPath, 'utf8');
+        
+        if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, '**Lane**: backlog');
+        } else if (content.match(/- \*\*Lane\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/- \*\*Lane\*\*:\s*[^\n]+/i, '- **Lane**: backlog');
+        }
+        
+        if (content.match(/\*\*Lane Status\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+        } else if (content.match(/\*\*Status\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/\*\*Status\*\*:\s*[^\n]+/i, '**Status**: backlog');
+        } else if (content.match(/- \*\*Status\*\*:\s*[^\n]+/i)) {
+            content = content.replace(/- \*\*Status\*\*:\s*[^\n]+/i, '- **Status**: backlog');
+        }
+
+        if (content.match(/\*\*Progress\*\*:\s*(\d+)%/i)) {
+            content = content.replace(/\*\*Progress\*\*:\s*(\d+)%/i, '**Progress**: 0%');
+        } else if (content.match(/- \*\*Progress\*\*:\s*(\d+)%/i)) {
+            content = content.replace(/- \*\*Progress\*\*:\s*(\d+)%/i, '- **Progress**: 0%');
+        }
+        
+        writeFileSync(indexPath, content);
+        console.log(`✅ Moved Track ${trackNum} back to backlog (Progress: 0%)`);
+    }
+    process.exit(0);
+} else if (command === 'reportaBug' || command === 'report-bug' || command === 'featureRequest' || command === 'feature-request') {
+    if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
+    const desc = args.slice(1).join(' ');
+    if (!desc) {
+        console.log(`❌ Usage: lc ${command} "description of bug/feature"`);
+        process.exit(1);
+    }
+
+    const isBug = command.toLowerCase().includes('bug');
+    const typeLabel = isBug ? 'Bug' : 'Feature';
+    const trackType = 'dev';
+
+    // Check if the description references an existing track
+    const trackRefMatch = desc.match(/(?:track\s+|#|#\s*)(\d{3,4})\b/i) || desc.match(/\b(\d{3,4})\b/);
+    if (trackRefMatch) {
+        const trackNum = trackRefMatch[1];
+        const tracksDir = join(projectRoot, 'conductor', 'tracks');
+        const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+        if (dir) {
+            console.log(`ℹ️  Referenced existing Track ${trackNum} in description. Appending to it...`);
+            const trackPath = join(tracksDir, dir);
+            const planPath = join(trackPath, 'plan.md');
+            const indexPath = join(trackPath, 'index.md');
+
+            if (existsSync(planPath)) {
+                let planContent = readFileSync(planPath, 'utf8');
+                planContent += `\n\n## Update: Reported ${typeLabel}\n- [ ] ${desc}\n`;
+                writeFileSync(planPath, planContent);
+            } else {
+                writeFileSync(planPath, `# Track ${trackNum}\n\n## Reported ${typeLabel}\n- [ ] ${desc}\n`);
+            }
+
+            if (existsSync(indexPath)) {
+                let content = readFileSync(indexPath, 'utf8');
+                if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
+                    content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, '**Lane**: backlog');
+                } else if (content.match(/- \*\*Lane\*\*:\s*[^\n]+/i)) {
+                    content = content.replace(/- \*\*Lane\*\*:\s*[^\n]+/i, '- **Lane**: backlog');
+                }
+                
+                if (content.match(/\*\*Lane Status\*\*:\s*[^\n]+/i)) {
+                    content = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+                } else if (content.match(/\*\*Status\*\*:\s*[^\n]+/i)) {
+                    content = content.replace(/\*\*Status\*\*:\s*[^\n]+/i, '**Status**: backlog');
+                } else if (content.match(/- \*\*Status\*\*:\s*[^\n]+/i)) {
+                    content = content.replace(/- \*\*Status\*\*:\s*[^\n]+/i, '- **Status**: backlog');
+                }
+
+                if (content.match(/\*\*Progress\*\*:\s*(\d+)%/i)) {
+                    content = content.replace(/\*\*Progress\*\*:\s*(\d+)%/i, '**Progress**: 0%');
+                } else if (content.match(/- \*\*Progress\*\*:\s*(\d+)%/i)) {
+                    content = content.replace(/- \*\*Progress\*\*:\s*(\d+)%/i, '- **Progress**: 0%');
+                }
+                writeFileSync(indexPath, content);
+            }
+            console.log(`✅ Updated Track ${trackNum} with new ${typeLabel} description and moved to backlog.`);
+            process.exit(0);
+        }
+    }
+
+    const title = desc.split(/[.\n]/)[0].slice(0, 50).trim() || `New ${typeLabel}`;
+    const name = `${typeLabel}: ${title}`;
+
+    const queuePath = join(projectRoot, 'conductor', 'tracks', 'file_sync_queue.md');
+    const tracksDir = join(projectRoot, 'conductor', 'tracks');
+    if (!existsSync(tracksDir)) mkdirSync(tracksDir, { recursive: true });
+
+    let queueContent = '';
+    if (existsSync(queuePath)) queueContent = readFileSync(queuePath, 'utf8');
+    const trackLines = queueContent.match(/### Track (\d+):/g) || [];
+    const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
+
+    const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
+    const dirNums = existingDirs.map(d => parseInt(d.split('-')[0]));
+
+    const allNums = [...queueNums, ...dirNums];
+    const nextNum = allNums.length ? Math.max(...allNums) + 1 : 1000;
+
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const trackFolderName = `${nextNum}-${isBug ? 'bug' : 'feat'}-${slug}`;
+    const trackPath = join(tracksDir, trackFolderName);
+
+    if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
+
+    const indexPath = join(trackPath, 'index.md');
+    const indexContent = `# Track ${nextNum}: ${name}\n\n**Lane**: backlog\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    writeFileSync(indexPath, indexContent);
+
+    const specPath = join(trackPath, 'spec.md');
+    const specContent = `# Spec: ${name}\n\n## Problem Statement\n${desc}\n\n## Requirements\n- [ ] Address the reported ${typeLabel.toLowerCase()}.\n\n## Acceptance Criteria\n- [ ] Verification shows the request is satisfied.\n`;
+    writeFileSync(specPath, specContent);
+
+    const planPath = join(trackPath, 'plan.md');
+    const planContent = `# Plan: Track ${nextNum} — ${name}\n\n## Phase 1: Execution\n- [ ] Implement and verify the ${typeLabel.toLowerCase()}.\n`;
+    writeFileSync(planPath, planContent);
+
+    const testPath = join(trackPath, 'test.md');
+    const testContent = `# Tests: Track ${nextNum} — ${name}\n\n## Test Cases\n- [ ] Verify functionality works as expected.\n`;
+    writeFileSync(testPath, testContent);
+
+    const now = new Date().toISOString();
+    const queueEntry = `\n### Track ${nextNum}: ${name}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${name}\n**Description**: ${desc}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
+    
+    if (existsSync(queuePath)) {
+        let existing = readFileSync(queuePath, 'utf8');
+        existing = existing.replace(/^(## Config Sync Requests)/m, queueEntry + '$1');
+        writeFileSync(queuePath, existing);
+    } else {
+        writeFileSync(queuePath, `# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n${queueEntry}\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n`);
+    }
+
+    console.log(`✅ Created new ${typeLabel} Track ${nextNum} in ${trackFolderName}`);
     process.exit(0);
 } else if (command === 'brainstorm') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
