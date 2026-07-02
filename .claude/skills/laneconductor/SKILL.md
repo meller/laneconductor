@@ -22,6 +22,9 @@ parameters:
       - move
       - pulse
       - newTrack
+      - updateTrack
+      - reportaBug
+      - featureRequest
       - lock
       - unlock
       - plan
@@ -264,12 +267,19 @@ Print progress as you write each file:
 📝 Writing conductor/kpis.md...               ✅
 ```
 
-**Also symlink the skill** (if not already linked):
+**Also symlink the skill and Antigravity workspace rule/skill** (if not already linked):
 ```bash
 SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
 TARGET=".claude/skills/laneconductor"
 mkdir -p .claude/skills
 ln -sf "$SKILL_DIR" "$TARGET"
+
+# Symlink skill and rules for Antigravity
+mkdir -p .agents/skills .agents/rules
+ln -sf "$SKILL_DIR" ".agents/skills/laneconductor"
+REPO_DIR=$(dirname $(dirname $(dirname "$SKILL_DIR")))
+RULE_SRC="$REPO_DIR/.agents/rules/laneconductor.md"
+ln -sf "$RULE_SRC" ".agents/rules/laneconductor.md"
 ```
 
 After writing all files, check for foreign tracks and print summary.
@@ -329,9 +339,12 @@ Also:
   if [ "$(realpath $TARGET 2>/dev/null)" = "$(realpath $SKILL_DIR 2>/dev/null)" ]; then
     echo "ℹ️  Skill already present (this is the laneconductor repo)"
   else
-    mkdir -p .claude/skills
+    mkdir -p .claude/skills .agents/skills .agents/rules
     ln -sf "$SKILL_DIR" "$TARGET"
-    echo "✅ Skill symlinked → $TARGET → $SKILL_DIR"
+    ln -sf "$SKILL_DIR" ".agents/skills/laneconductor"
+    REPO_DIR=$(dirname $(dirname $(dirname "$SKILL_DIR")))
+    ln -sf "$REPO_DIR/.agents/rules/laneconductor.md" ".agents/rules/laneconductor.md"
+    echo "✅ Skill and rules symlinked for Claude and Antigravity"
   fi
   ```
   **Windows/Manual Note**: On Windows (without WSL), use `mklink /D` or `mklink /J` to create the symlink, or simply copy the `laneconductor` skill folder from your installation path into `.claude/skills/`.
