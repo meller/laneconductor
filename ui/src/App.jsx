@@ -11,6 +11,7 @@ import { InboxPanel } from './components/InboxPanel.jsx';
 import { CloudOnboarding } from './components/CloudOnboarding.jsx';
 import { WorkflowSettings } from './pages/WorkflowSettings.jsx';
 import { ProjectConfigSettings } from './pages/ProjectConfigSettings.jsx';
+import { KpiRollupPanel } from './components/KpiRollupPanel.jsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { AccountPanel } from './pages/AccountPanel.jsx';
@@ -136,6 +137,20 @@ function AppContent({ user, logout }) {
       refetch();
     } catch (err) {
       console.error('Fix review failed:', err);
+    }
+  }
+
+  async function handleMarkPublished(track) {
+    const pid = track.project_id ?? selectedProjectId;
+    try {
+      await apiFetch(`/api/projects/${pid}/tracks/${track.track_number}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author: 'human', body: 'done' }),
+      });
+      refetch();
+    } catch (err) {
+      console.error('Mark published failed:', err);
     }
   }
 
@@ -374,14 +389,18 @@ function AppContent({ user, logout }) {
         ) : tracks.length === 0 && user && !user.local ? (
           <RemoteEmptyState onOpenAccount={() => setAccountOpen(true)} />
         ) : (
-          <KanbanBoard
-            tracks={tracks}
-            onTrackClick={handleTrackClick}
-            onLaneChange={handleLaneChange}
-            onFixReview={handleFixReview}
-            onRerunImplement={handleRerunImplement}
-            onDeleteTrack={handleDeleteTrack}
-          />
+          <>
+            <KpiRollupPanel tracks={tracks} />
+            <KanbanBoard
+              tracks={tracks}
+              onTrackClick={handleTrackClick}
+              onLaneChange={handleLaneChange}
+              onFixReview={handleFixReview}
+              onRerunImplement={handleRerunImplement}
+              onDeleteTrack={handleDeleteTrack}
+              onMarkPublished={handleMarkPublished}
+            />
+          </>
         )}
       </main>
 

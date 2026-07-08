@@ -1,69 +1,175 @@
-# Spec: Reddit Launch Posts
+# Spec: Track 1053 — Reddit Launch Posts
 
 ## Problem Statement
-LaneConductor's core value proposition differs across audience segments. Reddit communities for AI developers are active, engaged, and perfect for targeted outreach. However, generic posts get lost in the noise. We need tailored messaging for each community to maximize visibility and discussion.
+Reddit has active communities of exactly our target users — privacy-conscious developers, Claude Code users, and indie builders. Generic posts get scrolled past. Each community needs a different angle that speaks their language, but the underlying story is the same: LLM crash recovery via filesystem state, whole-business AI orchestration, and a closed measurement loop.
+
+**Context from Track 1052**: HN v2 is live at https://news.ycombinator.com/item?id=48046969. Reddit posts should go out same week, tailored per community.
 
 ## Target Communities & Angles
 
-| Subreddit | Primary Audience | Angle | Key Value Prop |
-|-----------|-----------------|-------|-----------------|
-| **r/LocalLLaMA** | AI enthusiasts, privacy-focused devs | Sovereignty & privacy | No cloud, no tracking, $0 cost, air-gapped |
-| **r/ClaudeAI** | Claude users, Claude Code users | Workflow extension | Native Claude Code integration, extends your IDE |
-| **r/SideProject** | Indie builders, founders | Builder story | Built a Kanban dashboard for AI agents, syncs with terminal |
+| Subreddit | Audience | Lead Angle |
+|-----------|----------|-----------|
+| r/LocalLLaMA | Privacy-focused, local model users | LLM crash recovery + 100% local, no cloud |
+| r/ClaudeAI | Claude Code users | Skill-file setup, agents persist across context resets |
+| r/SideProject | Indie builders, founders | Meta story: HN scored 1, system measured it, replanned, this is the repost |
+
+## What to Avoid
+- Don't lead with product name or "AI agent" without showing what it does
+- Don't use superlatives
+- Don't sound like a changelog or product announcement
+- Write like a person who built something and is explaining it honestly
 
 ## Requirements
-
-### REQ-1: Problem-Solution Format
-- Each post must clearly state the problem before pitching LaneConductor
-- Anchor to subreddit values (privacy, productivity, indie spirit)
-- Use community language and references
-
-### REQ-2: Demo & Proof
-- Include a demo GIF or screenshot showing the Kanban dashboard
-- Show real track execution in the UI (e.g., a track transitioning lanes)
-- Make it visual and clickable (link to GIF hosted on Imgur or similar)
-
-### REQ-3: Call-to-Action
-- Invite discussion: "What pain point does this solve for you?"
-- Encourage questions: "Ask anything — I'll be monitoring this thread"
-- Link to GitHub repo (not sales page)
-- Optionally link to docs for quick setup
-
-### REQ-4: Post Quality Baseline
-- No broken links
-- Grammar/spelling check (no typos)
-- Tone: friendly, humble, helpful (not salesy)
-- Length: 150–400 words per post (Reddit ideal)
-
-### REQ-5: Timing Coordination
-- All three posts must go out **same week as HN launch** (Track 1052)
-- Stagger by 1–2 days if possible (Mon/Wed/Fri pattern)
-- Note the HN launch date once Track 1052 confirms it
-
-### REQ-6: Community Participation
-- Must be present to respond to comments for first 24 hours post-launch
-- Reply within 2 hours of comments during peak hours
-- Aim for 100% reply rate on substantive questions
+- REQ-1: Each post leads with a concrete problem, not the product name
+- REQ-2: LLM crash recovery explained in each post (it's the universal hook)
+- REQ-3: Whole-business scope mentioned — not just dev, also marketing/sales/support
+- REQ-4: Skill-only mode mentioned with specific detail (30s, Windows, no deps)
+- REQ-5: GitHub link in every post
+- REQ-6: Human voice — skeptical engineer test
 
 ## Acceptance Criteria
-- [ ] r/LocalLLaMA post drafted, reviewed, and ready to post
-- [ ] r/ClaudeAI post drafted, reviewed, and ready to post
-- [ ] r/SideProject post drafted, reviewed, and ready to post
-- [ ] Each post includes problem statement, demo screenshot/GIF, and CTA
-- [ ] All three posts have consistent branding and tone
-- [ ] No broken links or typos in any post
-- [ ] Posting schedule confirmed against HN launch week (Track 1052)
-- [ ] Community response plan drafted (how/when to answer comments)
+- [ ] All three posts drafted with titles
+- [ ] Each post has a problem-first opening
+- [ ] LLM crash recovery hook present in all three
+- [ ] Skill-only mode mentioned with concrete detail
+- [ ] GitHub link present in all three
+- [ ] Tone is conversational, not product marketing
+- [ ] Publish instructions present for each post
 
-## Data Model Changes
-None — this is a content/marketing initiative, no code changes.
+## KPI
 
-## Dependencies
-- **Track 1052**: HN launch post timing coordination
-- **Demo assets**: Screenshot or GIF of Kanban dashboard (should already exist)
-- **Community research**: Subreddit posting rules and recent top posts
+**Metric**: Reddit upvotes (best post of the three)
+**Source**: manual
+**Source Config**: enter best post score manually after 72h window
+**Target**: 50
+**Threshold**: 25
+**Window**: 72h
+**Maps To**: Reddit Post Upvotes
 
-## Out of Scope
-- Creating the demo GIF (assume it exists or will be provided separately)
-- Full community engagement plan (Phase 4 is monitoring + responses only)
-- Long-term Reddit strategy (this is one-time launch posts only)
+---
+
+## Draft
+
+---
+
+### Post 1: r/LocalLLaMA
+
+**Title:**
+```
+Built a local Kanban board for AI agents where state lives in Markdown files — means any agent picks up where the last one crashed
+```
+
+**Body:**
+```
+I run Claude Code and Gemini CLI for development tasks, and I kept losing work when context windows fill up mid-implementation. The agent crashes, whatever was in flight evaporates, and the next session starts over.
+
+My fix: all task state lives in files. Each task is a folder — index.md for current status, plan.md for phases and next steps, spec.md for requirements. When Claude hits its context limit halfway through, the next session opens the same folder and picks up exactly where the previous one stopped. Claude and Gemini can hand off to each other without either one knowing the other exists. They just see the files. This is the conductor pattern — one orchestrator coordinating multiple specialized agents — which is becoming the standard way to build multi-model systems without tight coupling.
+
+The system covers more than dev. AI agents handle dev, marketing, sales, and support tasks — all running locally, all state in Markdown files. A background worker (chokidar) watches the folder and syncs to local Postgres for a Vite dashboard at localhost:8090.
+
+One feature I added recently: define success before execution. Before a task starts, you set a metric, a threshold, and a time window. When the window closes, a quality gate fetches the real number from the source (HN API, Reddit API, or manual entry) and either closes the task or sends it back to planning with the failure data attached. My own HN launch post was one of these tasks. It scored 1. The system detected it and kicked it back to planning. This Reddit post is one of the outputs of that loop.
+
+Two ways to run it: full local stack (Postgres + Vite dashboard at localhost:8090), or drop a single skill file into Claude Desktop — no Node, no database, no daemon. Second mode works on Windows and takes about 30 seconds.
+
+100% local. No cloud, no auth, nothing leaves your machine.
+
+https://github.com/meller/laneconductor
+```
+
+**Status:** Removed — insufficient account karma. Defer until account has standing.
+**Posted:** 2026-05-07 (removed by AutoModerator)
+
+**Publish Instructions:**
+1. Go to https://www.reddit.com/r/LocalLLaMA/submit
+2. Select "Text" post type
+3. Title: paste the title above exactly
+4. Body: paste the body above
+5. Submit
+6. Monitor and reply to comments for first 24 hours
+7. Update this spec with the post URL and score after 72h
+
+---
+
+### Post 2: r/ClaudeAI
+
+**Title:**
+```
+I added a Kanban board to Claude Code — agents write their progress to Markdown files and pick up across context resets
+```
+
+**Body:**
+```
+One of the pain points with Claude Code for longer tasks: when the context fills, work in progress is gone. The next session doesn't know what the previous one was doing.
+
+I built LaneConductor to fix this. Each task is a folder with a few Markdown files — index.md for current status, plan.md for phases, spec.md for requirements. Claude reads and writes these files directly. When context resets mid-task, the next session opens the same folder and picks up from the last checkpoint. No re-explanation needed.
+
+The simplest way to use it: drop a skill file into Claude Desktop. That's it — no Node, no Postgres, no daemon. Claude manages everything through the filesystem. Works on Windows, takes about 30 seconds to set up.
+
+It follows the conductor pattern — one agent orchestrating others through shared state — so you can mix Claude and Gemini on different tasks without either one needing to know the other exists.
+
+If you want the full stack: there's a Vite dashboard at localhost:8090, a background worker that watches the folder with chokidar, and a quality gate that measures results after tasks complete. Before a task enters execution, you define success upfront — a metric, a source, a threshold, a time window. The system fetches the real number when the window closes and either closes the task or replans with the failure data. Covers dev, marketing, sales, and support — not just code.
+
+If your team uses Jira, it syncs both ways — track status in LaneConductor updates Jira automatically, and you can still drag cards in either place.
+
+100% local. Nothing leaves the machine.
+
+https://github.com/meller/laneconductor
+
+Happy to answer questions about how the skill-file integration works or how it handles multi-session Claude Code tasks.
+```
+
+**Published:** https://www.reddit.com/r/ClaudeAI/comments/1t64y5z/i_added_a_kanban_board_to_claude_code_agents/
+**Posted:** 2026-05-07
+
+**Publish Instructions:**
+1. Go to https://www.reddit.com/r/ClaudeAI/submit
+2. Select "Text" post type
+3. Title: paste the title above exactly
+4. Body: paste the body above
+5. Submit
+6. Monitor and reply to comments for first 24 hours
+
+---
+
+### Post 3: r/SideProject
+
+**Title:**
+```
+I have AI agents running my entire side project — dev, marketing, cold emails, Reddit posts. Built the system to manage all of it.
+```
+
+**Body:**
+```
+At some point I realized I was using AI agents for almost everything in my side project — writing code, drafting launch posts, handling support questions. But I had no way to track what was happening across all of it, and no way to measure whether any of it was actually working.
+
+So I built LaneConductor. It's a local Kanban board where AI agents run tasks across your whole operation — dev, marketing, sales, support. Each task is a folder with a few Markdown files: index.md for current status, plan.md for phases, spec.md for requirements. Agents read and write these files directly. A background worker syncs state to a local Postgres DB and Vite dashboard at localhost:8090. No cloud, no auth, nothing leaves the machine.
+
+The part I'm most happy with: inspired by Karpathy's autoresearch idea, every task has a KPI defined before it enters execution. A metric, a source, a threshold, a time window. When the window closes, a quality gate fetches the real number — from the HN API, Reddit API, or manual entry — and either marks the task done or sends it back to planning with the failure data attached so the next attempt starts with a different hypothesis. This post is a task. The HN launch post was a task. The cold email sequence is a task. Each one measured.
+
+The other thing it solves: LLMs lose context mid-task. With all state in files, any agent picks up exactly where the last one stopped. Claude and Gemini can hand off without either knowing the other exists.
+
+Simplest setup: drop one skill file into Claude Desktop — no Node, no Postgres, no daemon. About 30 seconds. Works on Windows.
+
+Open source: https://github.com/meller/laneconductor
+
+Curious what others are using to manage AI agents across a whole project, not just code.
+```
+
+**Published:** https://www.reddit.com/r/SideProject/comments/1t64ztj/i_have_ai_agents_running_my_entire_side_project/
+**Posted:** 2026-05-07
+
+**Publish Instructions:**
+1. Go to https://www.reddit.com/r/SideProject/submit (or r/SideProjects — check which is more active)
+2. Select "Text" post type
+3. Title: paste the title above exactly
+4. Body: paste the body above
+5. Submit
+6. Monitor and reply to comments for first 24 hours
+
+---
+
+### Posting Schedule
+- **Day 1** (same week as HN post): r/LocalLLaMA — largest relevant community, post first
+- **Day 3**: r/ClaudeAI — targeted to Claude Code users
+- **Day 5**: r/SideProject — builder story, ends the launch week
+- Stagger to avoid Reddit spam filter and maximize comment momentum per post

@@ -20,6 +20,7 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState(initialDescription);
   const [type, setType] = useState(initialType);
+  const [trackType, setTrackType] = useState('dev');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? null);
@@ -101,7 +102,7 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
     try {
       const r = await apiFetch(`/api/projects/${activeProjectId}/tracks`, {
         method: 'POST',
-        body: JSON.stringify({ title: title.trim(), description: description.trim(), type }),
+        body: JSON.stringify({ title: title.trim(), description: description.trim(), type, trackType }),
       });
       if (r.ok) {
         await r.json();
@@ -245,6 +246,35 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
                           : 'bg-blue-900 text-blue-300'
                         : 'bg-gray-900 text-gray-500 hover:text-gray-300'
                         }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Track domain type */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Domain</span>
+                <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+                  {[
+                    { value: 'dev', label: 'Dev' },
+                    { value: 'marketing', label: 'Mktg' },
+                    { value: 'sales', label: 'Sales' },
+                    { value: 'support', label: 'Support' },
+                    { value: 'other', label: 'Other' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTrackType(opt.value)}
+                      className={`px-2.5 py-1 transition-colors ${trackType === opt.value
+                        ? opt.value === 'marketing' ? 'bg-blue-900 text-blue-300'
+                          : opt.value === 'sales' ? 'bg-green-900 text-green-300'
+                          : opt.value === 'support' ? 'bg-amber-900 text-amber-300'
+                          : 'bg-gray-700 text-gray-200'
+                        : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                      }`}
                     >
                       {opt.label}
                     </button>

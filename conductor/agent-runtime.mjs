@@ -260,6 +260,11 @@ export async function buildCliArgs(skill, command, trackNumber, customPrompt = n
     if (chosenModel) args.push('--model', chosenModel);
     return ['npx', args, chosenCli];
   }
+  if (chosenCli === 'antigravity' || chosenCli === 'agy') {
+    const args = ['--dangerously-skip-permissions', '-p', `${contextMsg}${prompt}`];
+    if (chosenModel) args.push('--model', chosenModel);
+    return ['agy', args, chosenCli];
+  }
   if (chosenCli === 'claude') {
     const fullPrompt = customPrompt ? `${contextMsg}\n\n${prompt}` : prompt;
     const args = ['--dangerously-skip-permissions', '-p', fullPrompt];
@@ -285,14 +290,14 @@ async function checkExhaustion(logPath, cli, primaryCollector) {
   const { url, token } = primaryCollector;
 
   const geminiMatch = content.match(/quota will reset after\s+(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?/i);
-  if ((geminiMatch || content.includes('exhausted your capacity') || content.includes('code: 429')) && (cli === 'gemini' || cli === 'npx')) {
+  if ((geminiMatch || content.includes('exhausted your capacity') || content.includes('code: 429')) && (cli === 'gemini' || cli === 'npx' || cli === 'antigravity' || cli === 'agy')) {
     const hours = parseInt(geminiMatch?.[1] || 0);
     const mins = parseInt(geminiMatch?.[2] || 0);
     const secs = parseInt(geminiMatch?.[3] || 0);
     const resetMs = (hours * 3600 + mins * 60 + secs) * 1000;
     const resetAt = new Date(Date.now() + (resetMs > 0 ? resetMs : 60000));
-    providerStatusCache.set('gemini', { status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Quota exhausted' });
-    if (url) await post(url, token, '/provider-status', { provider: 'gemini', status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Quota exhausted' }).catch(() => { });
+    providerStatusCache.set(cli, { status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Quota exhausted' });
+    if (url) await post(url, token, '/provider-status', { provider: cli, status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Quota exhausted' }).catch(() => { });
     return;
   }
 

@@ -64,6 +64,10 @@ playwright-report/
 .claude/skills/*/
 !.claude/skills/laneconductor/
 
+# Antigravity local skills
+.agents/skills/
+
+
 # PID files
 ui/.ui.pid
 ui/.api.pid

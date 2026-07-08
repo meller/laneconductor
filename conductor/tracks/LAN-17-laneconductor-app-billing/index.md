@@ -1,6 +1,11 @@
 # Track 1003: LaneConductor App Billing
 
 **Lane**: backlog
+**Lane Status**: queue
+
+# Track 1003: LaneConductor App Billing
+
+**Lane**: backlog
 **Lane Status**: success
 **Progress**: 2%
 **Phase**: Planning & Requirements Gathering
@@ -29,3 +34,4 @@ Implement a comprehensive billing infrastructure with:
 ## Tracking
 - **Step**: planning
 - **Summary**: Initial planning phase - defining billing requirements and data model
+

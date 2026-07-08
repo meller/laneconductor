@@ -1,8 +1,13 @@
 # Track 1067: Jira Integration — Polling-Based Bidirectional Sync
 
+**Lane**: review
+**Lane Status**: queue
+
+# Track 1067: Jira Integration — Polling-Based Bidirectional Sync
+
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Last Run**: 2026-04-14
 **Summary**: ✅ COMPLETE. Worker polls Jira every 60 seconds with bidirectional sync. Latest-version-wins conflict resolution implemented. API dependency removed (local-fs mode). Jira status validation + label-based lane tracking. Multi-file ADF support. GCP Secret Manager integration. All phases complete.
 
@@ -55,6 +60,4 @@ The `projects` table now supports an `integrations` JSONB column:
 > - Refactored Jira collector to aggregate `index.md`, `plan.md`, `spec.md`, and `test.md` into the Jira description
 > - Uses markdown `codeBlock` under appropriate `heading` within Jira ADF
 > - Bidirectional parser extracts individual files back out flawlessly during inbound sync
-
-
-
+**Phase**: Optional - Jira Workflow Status Creation

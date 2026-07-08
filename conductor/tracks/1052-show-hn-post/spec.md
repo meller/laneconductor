@@ -41,3 +41,13 @@ HN Show HN is the highest-signal developer launch channel. The audience values t
 - [x] GitHub link present
 - [x] Post submitted (https://news.ycombinator.com/item?id=47338664)
 - [ ] Comments engaged within 1 hour of posting
+
+## KPI
+
+**Metric**: HN Score (upvotes)
+**Source**: hn-api
+**Source Config**: item_id=47338664
+**Target**: 100
+**Threshold**: 50
+**Window**: 48h
+**Maps To**: Show HN Score

@@ -54,10 +54,12 @@ CREATE TABLE "projects" (
     "create_quality_gate" BOOLEAN DEFAULT false,
     "owner_uid" TEXT,
     "conductor_files" JSONB DEFAULT '{}',
+    "integrations" JSONB DEFAULT '{}',
     "dev_command" TEXT,
     "dev_url" TEXT,
     "dev_server_pid" INTEGER,
     "mode" TEXT DEFAULT 'local-fs',
+    "workspace_id" UUID,
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
@@ -121,6 +123,7 @@ CREATE TABLE "tracks" (
     "spec_content" TEXT,
     "test_content" TEXT,
     "last_log_tail" TEXT,
+    "integrations" JSONB DEFAULT '{}',
     "auto_planning_launched" TIMESTAMP(6),
     "auto_implement_launched" TIMESTAMP(6),
     "auto_review_launched" TIMESTAMP(6),
@@ -136,6 +139,19 @@ CREATE TABLE "tracks" (
     "git_branch" TEXT,
     "git_lock_commit" TEXT,
     "locked_by" TEXT,
+    "track_type" TEXT DEFAULT 'dev',
+    "kpi_target" INTEGER,
+    "kpi_actual" INTEGER,
+    "kpi_metric" TEXT,
+    "kpi_source" TEXT,
+    "kpi_source_config" TEXT,
+    "kpi_threshold" INTEGER,
+    "kpi_window" TEXT,
+    "kpi_snapshot" JSONB,
+    "kpi_measured_at" TIMESTAMP(6),
+    "kpi_check_after" TIMESTAMP(6),
+    "kpi_scheduled_at" TIMESTAMP(6),
+    "kpi_maps_to" TEXT,
 
     CONSTRAINT "tracks_pkey" PRIMARY KEY ("id")
 );
@@ -179,6 +195,37 @@ CREATE TABLE "worker_permissions" (
     CONSTRAINT "worker_permissions_pkey" PRIMARY KEY ("worker_id","user_uid")
 );
 
+-- CreateTable
+CREATE TABLE "workspaces" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "github_org" TEXT NOT NULL,
+    "display_name" TEXT,
+    "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "workspaces_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspace_members" (
+    "workspace_id" UUID NOT NULL,
+    "firebase_uid" TEXT NOT NULL,
+    "github_username" TEXT NOT NULL,
+    "role" TEXT DEFAULT 'member',
+    "joined_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "workspace_members_pkey" PRIMARY KEY ("workspace_id","firebase_uid")
+);
+
+-- CreateTable
+CREATE TABLE "api_tokens" (
+    "token" TEXT NOT NULL,
+    "workspace_id" UUID,
+    "created_by" TEXT NOT NULL,
+    "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "api_tokens_pkey" PRIMARY KEY ("token")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "api_keys_key_hash_key" ON "api_keys"("key_hash");
 
@@ -203,11 +250,17 @@ CREATE UNIQUE INDEX "workers_machine_token_key" ON "workers"("machine_token");
 -- CreateIndex
 CREATE UNIQUE INDEX "workers_project_id_hostname_pid_key" ON "workers"("project_id", "hostname", "pid");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "workspaces_github_org_key" ON "workspaces"("github_org");
+
 -- AddForeignKey
 ALTER TABLE "file_sync_queue" ADD CONSTRAINT "file_sync_queue_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "project_members" ADD CONSTRAINT "project_members_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "projects" ADD CONSTRAINT "projects_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "provider_status" ADD CONSTRAINT "provider_status_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
@@ -229,4 +282,10 @@ ALTER TABLE "workers" ADD CONSTRAINT "workers_project_id_fkey" FOREIGN KEY ("pro
 
 -- AddForeignKey
 ALTER TABLE "worker_permissions" ADD CONSTRAINT "worker_permissions_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 

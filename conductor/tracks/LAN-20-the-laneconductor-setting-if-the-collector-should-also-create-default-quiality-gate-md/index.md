@@ -2,6 +2,11 @@
 
 **Lane**: done
 **Lane Status**: success
+
+# Track 012: the laneconductor setting if the collector should also create default quiality gate.md
+
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 
 ## Problem
@@ -18,3 +23,4 @@ Currently, the workflow moves directly from Review to Done. Users want an interm
 - [ ] Phase 2: UI Updates
 - [ ] Phase 3: Skill & CLI Updates
 - [ ] Phase 4: Sync Worker & Template Updates
+

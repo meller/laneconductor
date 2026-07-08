@@ -2,6 +2,11 @@
 
 **Lane**: queue
 **Lane Status**: queue
+
+# End-to-End Jira Sync Test
+
+**Lane**: queue
+**Lane Status**: queue
 **Progress**: 0%
 
 ## Test Description
@@ -14,3 +19,4 @@ This track tests bidirectional sync between LaneConductor and Jira:
 4. Comments sync bidirectionally
 
 Created: 2026-04-14 16:10 UTC
+

@@ -113,9 +113,90 @@ function AgentBadge({ agent }) {
   );
 }
 
+// ── Track type badge ──────────────────────────────────────────────────────────
+
+const TRACK_TYPE_STYLES = {
+  dev:       { label: 'DEV',     color: 'bg-gray-800 text-gray-400 border-gray-700' },
+  marketing: { label: 'MKTG',    color: 'bg-blue-900/60 text-blue-300 border-blue-800' },
+  sales:     { label: 'SALES',   color: 'bg-green-900/60 text-green-300 border-green-800' },
+  support:   { label: 'SUPPORT', color: 'bg-amber-900/60 text-amber-300 border-amber-800' },
+  other:     { label: 'OTHER',   color: 'bg-gray-800 text-gray-400 border-gray-700' },
+};
+
+function TrackTypeBadge({ trackType }) {
+  if (!trackType || trackType === 'dev') return null;
+  const style = TRACK_TYPE_STYLES[trackType] ?? TRACK_TYPE_STYLES.other;
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold tracking-wide ${style.color}`}>
+      {style.label}
+    </span>
+  );
+}
+
+// ── KPI window countdown ─────────────────────────────────────────────────────
+
+function KpiWindowCountdown({ kpiCheckAfter }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!kpiCheckAfter) return null;
+
+  const readyAt = new Date(kpiCheckAfter).getTime();
+  const msLeft = readyAt - now;
+
+  if (msLeft <= 0) {
+    return (
+      <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-green-900/30 border border-green-700/50">
+        <span className="text-green-400 text-xs">✓</span>
+        <span className="text-[10px] uppercase font-bold text-green-300 tracking-wider">KPI window closed — ready to measure</span>
+      </div>
+    );
+  }
+
+  const totalHours = Math.floor(msLeft / 3_600_000);
+  const mins = Math.floor((msLeft % 3_600_000) / 60_000);
+  const label = totalHours >= 24
+    ? `${Math.floor(totalHours / 24)}d ${totalHours % 24}h`
+    : `${totalHours}h ${mins}m`;
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-purple-900/20 border border-purple-800/40">
+      <span className="text-purple-400 text-xs">⏳</span>
+      <span className="text-[10px] text-purple-300">KPI window closes in <span className="font-bold">{label}</span></span>
+    </div>
+  );
+}
+
+// ── KPI progress bar ──────────────────────────────────────────────────────────
+
+function KpiProgressBar({ kpiActual, kpiTarget }) {
+  if (!kpiTarget || kpiTarget <= 0) return null;
+  const actual = kpiActual ?? 0;
+  const pct = Math.min(100, Math.round((actual / kpiTarget) * 100));
+  const passed = actual >= kpiTarget;
+  return (
+    <div className="space-y-0.5">
+      <div className="flex justify-between text-[10px]">
+        <span className="text-gray-500">KPI</span>
+        <span className={passed ? 'text-green-400' : 'text-gray-400'}>{actual}/{kpiTarget} ({pct}%)</span>
+      </div>
+      <div className="w-full bg-gray-800 rounded-full h-1">
+        <div
+          className={`h-1 rounded-full transition-all duration-500 ${passed ? 'bg-green-500' : 'bg-blue-500'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── TrackCard ─────────────────────────────────────────────────────────────────
 
-export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack }) {
+export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
   const styles = LANE_STYLES[track.lane_status] ?? LANE_STYLES.backlog;
 
   let nextLane = NEXT_LANE[track.lane_status];
@@ -155,6 +236,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                 {track.project_name}
               </span>
             )}
+            <TrackTypeBadge trackType={track.track_type} />
             {(track.human_needs_reply || track.unreplied_count > 0) && (
               <span
                 className={`flex items-center gap-0.5 text-[10px] px-1 rounded ${track.human_needs_reply ? 'bg-amber-900/40 text-amber-400 border border-amber-800/40' : 'bg-blue-900/40 text-blue-400 border border-blue-800/40'
@@ -194,6 +276,28 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
           />
         </div>
       </div>
+
+      {/* KPI progress */}
+      <KpiProgressBar kpiActual={track.kpi_actual} kpiTarget={track.kpi_target} />
+
+      {/* KPI window countdown — quality-gate cards only */}
+      {track.lane_status === 'quality-gate' && (
+        <KpiWindowCountdown kpiCheckAfter={track.kpi_check_after} />
+      )}
+
+      {/* Publish Required — non-dev tracks waiting for human to publish draft */}
+      {track.track_type && track.track_type !== 'dev' && track.lane_status === 'implement' && track.lane_action_status === 'success' && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-amber-900/30 border border-amber-800/50">
+          <span className="text-amber-400 text-xs">📤</span>
+          <span className="text-[10px] uppercase font-bold text-amber-300 tracking-wider">Publish Required</span>
+          <button
+            onClick={e => { e.stopPropagation(); onMarkPublished?.(track); }}
+            className="ml-auto text-[10px] px-1.5 py-0.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-900/50 transition-colors"
+          >
+            Mark Published
+          </button>
+        </div>
+      )}
 
       {/* Failure/Failed state */}
       {track.lane_action_status === 'failure' && (

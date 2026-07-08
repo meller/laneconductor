@@ -1,0 +1,223 @@
+- generic [ref=e1]:
+  - alert [ref=e2]:
+    - generic [ref=e4]:
+      - img [ref=e7]
+      - generic [ref=e9]:
+        - heading [level=2] [ref=e10]: LinkedIn respects your privacy
+        - generic [ref=e12]:
+          - paragraph [ref=e13]:
+            - text: LinkedIn and 3rd parties use essential and non-essential cookies to provide, secure, analyze and improve our Services, and to show you relevant ads (including professional and job ads) on and off LinkedIn. Learn more in our
+            - link [ref=e14] [cursor=pointer]:
+              - /url: https://www.linkedin.com/legal/cookie-policy
+              - text: Cookie Policy
+            - text: .
+          - paragraph [ref=e15]:
+            - text: Select Accept to consent or Reject to decline non-essential cookies for this use. You can update your choices at any time in your
+            - link [ref=e16] [cursor=pointer]:
+              - /url: https://www.linkedin.com/mypreferences/g/guest-cookies
+              - text: settings
+            - text: .
+        - generic [ref=e17]:
+          - button [ref=e18] [cursor=pointer]: Accept
+          - button [ref=e19] [cursor=pointer]: Reject
+  - link [ref=e20] [cursor=pointer]:
+    - /url: "#main-content"
+    - text: Skip to main content
+  - banner [ref=e21]:
+    - navigation [ref=e22]:
+      - link [ref=e23] [cursor=pointer]:
+        - /url: /?trk=public_post_nav-header-logo
+        - generic [ref=e24]: LinkedIn
+      - list [ref=e26]:
+        - listitem [ref=e27]:
+          - link [ref=e28] [cursor=pointer]:
+            - /url: https://www.linkedin.com/top-content?trk=public_post_guest_nav_menu_topContent
+            - generic [ref=e30]: Top Content
+        - listitem [ref=e31]:
+          - link [ref=e32] [cursor=pointer]:
+            - /url: https://www.linkedin.com/pub/dir/+/+?trk=public_post_guest_nav_menu_people
+            - generic [ref=e34]: People
+        - listitem [ref=e35]:
+          - link [ref=e36] [cursor=pointer]:
+            - /url: https://www.linkedin.com/learning/search?trk=public_post_guest_nav_menu_learning
+            - generic [ref=e38]: Learning
+        - listitem [ref=e39]:
+          - link [ref=e40] [cursor=pointer]:
+            - /url: https://www.linkedin.com/jobs/search?trk=public_post_guest_nav_menu_jobs
+            - generic [ref=e42]: Jobs
+        - listitem [ref=e43]:
+          - link [ref=e44] [cursor=pointer]:
+            - /url: https://www.linkedin.com/games?trk=public_post_guest_nav_menu_games
+            - generic [ref=e46]: Games
+      - generic [ref=e47]:
+        - link [ref=e48] [cursor=pointer]:
+          - /url: https://www.linkedin.com/login?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&fromSignIn=true&trk=public_post_nav-header-signin
+          - text: Sign in
+        - link [ref=e49] [cursor=pointer]:
+          - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&trk=public_post_nav-header-join
+          - text: Join now
+  - main [ref=e50]:
+    - generic [ref=e53]:
+      - heading [level=1] [ref=e54]: Asaf Meller’s Post
+      - article [ref=e55]:
+        - generic [ref=e56]:
+          - generic [ref=e58]:
+            - link [ref=e59] [cursor=pointer]:
+              - /url: https://de.linkedin.com/in/asaf-meller-a59786?trk=public_post_feed-actor-image
+              - img [ref=e60]
+            - generic [ref=e61]:
+              - link [ref=e63] [cursor=pointer]:
+                - /url: https://de.linkedin.com/in/asaf-meller-a59786?trk=public_post_feed-actor-name
+                - text: Asaf Meller
+              - time [ref=e65]: 6h
+          - button [ref=e68] [cursor=pointer]
+        - paragraph [ref=e70]:
+          - text: "I've been building education AI projects for the last year using Claude Code and Gemini CLI. Three things kept slowing me down: context limits forcing agent restarts mid-task, switching between agents and losing the thread entirely, and repeating the same requirements over and over. The LLM remembered the code — but not why it was built that way. Every new session I'd find myself re-explaining decisions that were already made. I found superpowers and gemini conductor. Both good, but halfway there — neither gave me the Kanban lanes I was used to. A Kanban card isn't just a UI preference; it's a structure that forces you to define status, progress, and next steps — exactly the context an agent needs to pick up without re-explanation. So I built LaneConductor. Every task is a folder. The agent opens it, knows exactly what it's building, why, and where the last session stopped. It does its work, writes back. Context limit? Restart. Switch to Gemini. Doesn't matter — the next agent picks up the same folder and continues. No briefing. No repetition. The part I find most valuable: the agent has the product intent, not just the code. I work on a design, turn it into code, and the design lives in the same task folder. Next time I touch that area, we load the spec, update if needed, change the code accordingly. The agent understands why the code is the way it is. If you're already in Jira, it syncs both ways. --- Where this is going: the same pattern extends beyond dev — marketing, sales, support — any AI work that needs persistent context. Inspired by Karpathy's autoresearch idea: define success before execution, measure at the end of a time window, feed failures back into planning. The system learns from what didn't work. Start with the skill file — drop it into Claude Desktop, 30 seconds, no deps. If you like it, add the full UI or connect your Jira."
+          - link [ref=e71] [cursor=pointer]:
+            - /url: https://www.linkedin.com/redir/redirect?url=https%3A%2F%2Flnkd%2Ein%2FdhP7bHMP&urlhash=dY5l&trk=public_post-text
+            - text: https://lnkd.in/dhP7bHMP
+          - text: Curious what you're building and whether persistent context changes how you work with agents.
+        - button [ref=e73] [cursor=pointer]:
+          - img [ref=e74]
+          - generic [ref=e76]:
+            - generic [ref=e77]: "GitHub - meller/laneconductor: Local-first control plane for multi-agent AI development — Claude + Gemini with a live Kanban dashboard"
+            - generic [ref=e78]: github.com
+        - link [ref=e80] [cursor=pointer]:
+          - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&trk=public_post_social-actions-reactions
+          - generic [ref=e81]: "1"
+        - generic [ref=e82]:
+          - link [ref=e83] [cursor=pointer]:
+            - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&trk=public_post_like-cta
+            - generic [ref=e85]: Like
+          - link [ref=e86] [cursor=pointer]:
+            - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&trk=public_post_comment-cta
+            - generic [ref=e88]: Comment
+          - button [ref=e90] [cursor=pointer]:
+            - generic [ref=e91]: Share
+        - paragraph [ref=e92]:
+          - text: To view or add a comment,
+          - link [ref=e93] [cursor=pointer]:
+            - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&trk=public_post_feed-cta-banner-cta
+            - text: sign in
+    - generic [ref=e94]:
+      - generic [ref=e96]:
+        - figure [ref=e97]:
+          - img [ref=e100]
+        - img [ref=e101]
+        - paragraph [ref=e102]: 1,063 followers
+        - list [ref=e104]:
+          - listitem [ref=e105]:
+            - link [ref=e106] [cursor=pointer]:
+              - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fin%2Fasaf-meller-a59786%2Frecent-activity%2F&trk=public_post_follow-posts
+              - text: 23 Posts
+        - generic [ref=e107]:
+          - link [ref=e108] [cursor=pointer]:
+            - /url: https://de.linkedin.com/in/asaf-meller-a59786?trk=public_post_follow-view-profile
+            - text: View Profile
+          - link [ref=e109] [cursor=pointer]:
+            - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Ffeed%2Fupdate%2Furn%3Ali%3Aactivity%3A7458096791759151105&trk=public_post_follow
+            - text: Follow
+      - generic [ref=e111]:
+        - heading [level=2] [ref=e112]: Explore content categories
+        - generic [ref=e114]:
+          - list [ref=e115]:
+            - listitem [ref=e116]:
+              - link [ref=e117] [cursor=pointer]:
+                - /url: https://www.linkedin.com/top-content/career/
+                - text: Career
+            - listitem [ref=e118]:
+              - link [ref=e119] [cursor=pointer]:
+                - /url: https://www.linkedin.com/top-content/productivity/
+                - text: Productivity
+            - listitem [ref=e120]:
+              - link [ref=e121] [cursor=pointer]:
+                - /url: https://www.linkedin.com/top-content/finance/
+                - text: Finance
+            - listitem [ref=e122]:
+              - link [ref=e123] [cursor=pointer]:
+                - /url: https://www.linkedin.com/top-content/soft-skills-emotional-intelligence/
+                - text: Soft Skills & Emotional Intelligence
+            - listitem [ref=e124]:
+              - link [ref=e125] [cursor=pointer]:
+                - /url: https://www.linkedin.com/top-content/project-management/
+                - text: Project Management
+            - listitem [ref=e126]:
+              - link [ref=e127] [cursor=pointer]:
+                - /url: https://www.linkedin.com/top-content/education/
+                - text: Education
+          - button [ref=e128] [cursor=pointer]: Show more
+  - contentinfo [ref=e130]:
+    - list [ref=e131]:
+      - listitem [ref=e132]:
+        - generic [ref=e133]: LinkedIn
+        - generic [ref=e135]: © 2026
+      - listitem [ref=e136]:
+        - link [ref=e137] [cursor=pointer]:
+          - /url: https://about.linkedin.com?trk=d_public_post_footer-about
+          - text: About
+      - listitem [ref=e138]:
+        - link [ref=e139] [cursor=pointer]:
+          - /url: https://www.linkedin.com/accessibility?trk=d_public_post_footer-accessibility
+          - text: Accessibility
+      - listitem [ref=e140]:
+        - link [ref=e141] [cursor=pointer]:
+          - /url: https://www.linkedin.com/legal/user-agreement?trk=d_public_post_footer-user-agreement
+          - text: User Agreement
+      - listitem [ref=e142]:
+        - link [ref=e143] [cursor=pointer]:
+          - /url: https://www.linkedin.com/legal/privacy-policy?trk=d_public_post_footer-privacy-policy
+          - text: Privacy Policy
+      - listitem [ref=e144]:
+        - link [ref=e145] [cursor=pointer]:
+          - /url: https://www.linkedin.com/legal/cookie-policy?trk=d_public_post_footer-cookie-policy
+          - text: Cookie Policy
+      - listitem [ref=e146]:
+        - link [ref=e147] [cursor=pointer]:
+          - /url: https://www.linkedin.com/legal/copyright-policy?trk=d_public_post_footer-copyright-policy
+          - text: Copyright Policy
+      - listitem [ref=e148]:
+        - link [ref=e149] [cursor=pointer]:
+          - /url: https://brand.linkedin.com/policies?trk=d_public_post_footer-brand-policy
+          - text: Brand Policy
+      - listitem [ref=e150]:
+        - link [ref=e151] [cursor=pointer]:
+          - /url: https://www.linkedin.com/psettings/guest-controls?trk=d_public_post_footer-guest-controls
+          - text: Guest Controls
+      - listitem [ref=e152]:
+        - link [ref=e153] [cursor=pointer]:
+          - /url: https://www.linkedin.com/legal/professional-community-policies?trk=d_public_post_footer-community-guide
+          - text: Community Guidelines
+      - listitem [ref=e154]:
+        - button [ref=e156]: Language
+  - dialog "Sign in to view more content" [active] [ref=e159]:
+    - button "Dismiss" [ref=e160] [cursor=pointer]
+    - generic [ref=e162]:
+      - generic [ref=e163]:
+        - img [ref=e164]
+        - heading "Sign in to view more content" [level=2] [ref=e165]
+        - paragraph [ref=e167]: Create your free account or sign in to continue your search
+      - generic [ref=e168]:
+        - generic:
+          - generic:
+            - button "Continue with google"
+        - button "Sign in with Email" [ref=e169] [cursor=pointer]:
+          - generic [ref=e171]: Sign in with Email
+        - paragraph [ref=e173]: or
+        - generic:
+          - generic:
+            - button "Continue with google"
+        - paragraph [ref=e174]:
+          - text: New to LinkedIn?
+          - link "Join now" [ref=e175] [cursor=pointer]:
+            - /url: https://www.linkedin.com/signup/cold-join?session_redirect=https%3A%2F%2Fwww%2Elinkedin%2Ecom%2Fposts%2Fasaf-meller-a59786_github-mellerlaneconductor-local-first-activity-7458096791759151105-WzdB&trk=public_post_contextual-sign-in-modal_join-link
+        - paragraph [ref=e176]:
+          - text: By clicking Continue to join or sign in, you agree to LinkedIn’s
+          - link "User Agreement" [ref=e177] [cursor=pointer]:
+            - /url: /legal/user-agreement?trk=linkedin-tc_auth-button_user-agreement
+          - text: ","
+          - link "Privacy Policy" [ref=e178] [cursor=pointer]:
+            - /url: /legal/privacy-policy?trk=linkedin-tc_auth-button_privacy-policy
+          - text: ", and"
+          - link "Cookie Policy" [ref=e179] [cursor=pointer]:
+            - /url: /legal/cookie-policy?trk=linkedin-tc_auth-button_cookie-policy
+          - text: .

@@ -1,0 +1,3472 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+    - generic [ref=e4]: Skip to main content
+  - generic [ref=e6]:
+    - generic:
+      - generic [ref=e7]:
+        - generic: "Built with Claude Project Showcase Megathread (Sort this by New!) : r/ClaudeAI"
+      - banner [ref=e10]:
+        - navigation [ref=e11]:
+          - link "Home" [ref=e15] [cursor=pointer]:
+            - /url: /
+            - img [ref=e17]
+          - search [ref=e34]:
+            - generic [ref=e36]:
+              - img [ref=e39]
+              - generic "Remove r/ClaudeAI filter and expand search to all of Reddit" [ref=e42] [cursor=pointer]:
+                - button [pressed] [ref=e43]:
+                  - generic [ref=e47]: r/ClaudeAI
+                  - img [ref=e49]
+              - textbox "Remove r/ClaudeAI filter and expand search to all of Reddit" [ref=e52]:
+                - /placeholder: Search in r/ClaudeAI
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - link "Advertise on Reddit" [ref=e60] [cursor=pointer]:
+                - /url: https://ads.reddit.com/register?utm_source=web3x_consumer&utm_name=nav_cta
+                - img [ref=e63]
+                - generic [ref=e65]:
+                  - generic: Advertise on Reddit
+              - button "Open chat" [ref=e71] [cursor=pointer]:
+                - img [ref=e74]
+                - generic [ref=e76]:
+                  - generic: Open chat
+              - link "Create post" [ref=e81] [cursor=pointer]:
+                - /url: /r/ClaudeAI/submit/
+                - generic [ref=e82]:
+                  - img [ref=e84]
+                  - generic [ref=e86]: Create
+                - generic [ref=e87]:
+                  - generic: Create post
+              - link "Open inbox" [ref=e91] [cursor=pointer]:
+                - /url: /notifications
+                - img [ref=e94]
+                - generic [ref=e96]:
+                  - generic: Open inbox
+            - button "User Avatar Expand user menu" [ref=e101] [cursor=pointer]:
+              - img "User Avatar" [ref=e109]
+              - generic [ref=e111]:
+                - generic: Expand user menu
+      - generic [ref=e112]:
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic:
+              - generic:
+                - link "Skip to Navigation" [ref=e115] [cursor=pointer]:
+                  - /url: "#left-sidebar-container"
+                - link "Skip to Right Sidebar" [ref=e116] [cursor=pointer]:
+                  - /url: "#right-sidebar-container"
+          - generic [ref=e117]:
+            - main [ref=e118]:
+              - 'generic "Built with Claude Project Showcase Megathread (Sort this by New!) : r/ClaudeAI"'
+              - generic [ref=e119]:
+                - generic [ref=e120]:
+                  - generic [ref=e121]:
+                    - button "Back" [ref=e123] [cursor=pointer]:
+                      - img [ref=e126]
+                      - generic [ref=e128]:
+                        - generic: Back
+                    - link "Go to ClaudeAI" [ref=e131] [cursor=pointer]:
+                      - /url: /r/ClaudeAI/
+                      - generic [ref=e135]:
+                        - generic: Go to ClaudeAI
+                    - group [ref=e136]:
+                      - generic [ref=e137]:
+                        - link "r/ClaudeAI" [ref=e141] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/
+                        - generic [ref=e142]: •
+                        - time [ref=e143]: 22d ago
+                      - generic [ref=e144]:
+                        - 'link "Author: sixbillionthsheep" [ref=e149] [cursor=pointer]':
+                          - /url: /user/sixbillionthsheep/
+                          - generic [ref=e150]: sixbillionthsheep
+                        - 'generic "Flair: Mod" [ref=e153]': Mod
+                        - generic [ref=e155] [cursor=pointer]:
+                          - img "Profile Badge for the Achievement Top 1% Poster" [ref=e156]
+                          - text: Top 1% Poster
+                  - button "Open user actions" [ref=e160] [cursor=pointer]:
+                    - img [ref=e163]
+                - generic [ref=e166]:
+                  - 'heading "Post Title: Built with Claude Project Showcase Megathread (Sort this by New!)" [level=1] [ref=e167]': Built with Claude Project Showcase Megathread (Sort this by New!)
+                  - 'link "Flair: Showcase Megathread" [ref=e170] [cursor=pointer]':
+                    - /url: /r/ClaudeAI/?f=flair_name%3A%22Showcase%20Megathread%22
+                    - 'generic "Flair: Showcase Megathread" [ref=e172]': Showcase Megathread
+                - generic [ref=e176]:
+                  - paragraph [ref=e177]: This is the Megathread for showcasing your project built using Claude products. We appreciate all of your submissions as they are a great inspiration to many people on the subreddit. It is sorted by default by New.
+                  - paragraph [ref=e178]: Anyone is welcome to submit a project to this Megathread provided you follow the Showcase requirements in Rule 7.
+                  - paragraph [ref=e179]:
+                    - strong [ref=e180]: "NOTE: We now require the OP of a Project Showcase on the subreddit feed to have total karma>=50 ."
+                    - text: We found there were just too many submissions and not enough visibility to go around. Our analysis of this issue showed us that OPs with total karma < 50 very rarely get any traction of their projects on the feed (<=1 upvotes). So this Megathread is your best place to be seen by readers and other creators if you're relatively new to Reddit. If you don't meet this karma requirement you will be directed to this Megathread when you submit your post. Very occasionally we might invite you to post on the subreddit feed if you do not meet this karma requirement but it will be very rare (so please don't ask us!)
+                  - paragraph [ref=e181]: Thanks again for sharing your ideas and creations to our subreddit. Best of luck with your projects!
+                  - separator [ref=e182]
+                  - paragraph [ref=e183]:
+                    - strong [ref=e184]: "TIP: Use"
+                    - link "postimages.org" [ref=e185] [cursor=pointer]:
+                      - /url: http://postimages.org
+                      - strong [ref=e186]: postimages.org
+                    - strong [ref=e187]: ","
+                    - link "imgur.com" [ref=e188] [cursor=pointer]:
+                      - /url: http://imgur.com
+                      - strong [ref=e189]: imgur.com
+                    - strong [ref=e190]: or
+                    - link "imgbb.com" [ref=e191] [cursor=pointer]:
+                      - /url: http://imgbb.com
+                      - strong [ref=e192]: imgbb.com
+                    - strong [ref=e193]: to link out to your external images.
+                - generic "Actions available for this post" [ref=e195]:
+                  - generic [ref=e198]:
+                    - button "Upvote" [ref=e199] [cursor=pointer]:
+                      - img [ref=e201]
+                      - generic [ref=e203]:
+                        - generic: Upvote
+                    - generic [ref=e205]: "18"
+                    - button "Downvote" [ref=e206] [cursor=pointer]:
+                      - img [ref=e208]
+                      - generic [ref=e210]:
+                        - generic: Downvote
+                  - button "368 Go to comments" [ref=e211] [cursor=pointer]:
+                    - generic [ref=e212]:
+                      - img [ref=e214]
+                      - generic [ref=e217]: "368"
+                    - generic [ref=e218]:
+                      - generic: Go to comments
+                  - button "Give award" [ref=e220] [cursor=pointer]:
+                    - img [ref=e223]
+                  - button "Share" [ref=e228] [cursor=pointer]:
+                    - generic [ref=e229]:
+                      - img [ref=e231]
+                      - generic [ref=e234]: Share
+                  - button "Report Report" [ref=e235] [cursor=pointer]:
+                    - generic [ref=e236]:
+                      - img [ref=e238]
+                      - generic [ref=e240]: Report
+                    - generic [ref=e241]:
+                      - generic: Report
+              - generic "Cut Code Review Time and Bugs in Half. Sign up for a free trial!" [ref=e1280]:
+                - generic [ref=e1281]:
+                  - 'generic "Advertisement: Cut Code Review Time and Bugs in Half. Sign up for a free trial!" [ref=e1282]':
+                    - 'link "Advertisement: Cut Code Review Time and Bugs in Half. Sign up for a free trial!" [ref=e1283] [cursor=pointer]':
+                      - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                  - generic [ref=e1284]:
+                    - generic [ref=e1285]:
+                      - link "u/CodeRabbitAI avatar CodeRabbitAI" [ref=e1288] [cursor=pointer]:
+                        - /url: /user/CodeRabbitAI/
+                        - img "u/CodeRabbitAI avatar" [ref=e1291]
+                        - generic [ref=e1292]: CodeRabbitAI
+                      - generic [ref=e1293]: •
+                      - link "Promoted" [ref=e1295] [cursor=pointer]:
+                        - /url: /user/CodeRabbitAI/
+                        - generic [ref=e1296]: Promoted
+                      - link [ref=e1298] [cursor=pointer]:
+                        - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                    - button "Open user actions" [ref=e1303] [cursor=pointer]:
+                      - img [ref=e1306]
+                  - generic [ref=e1309]:
+                    - generic [ref=e1310]:
+                      - link "Cut Code Review Time and Bugs in Half. Sign up for a free trial!" [ref=e1312] [cursor=pointer]:
+                        - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                        - generic: Cut Code Review Time and Bugs in Half. Sign up for a free trial!
+                      - generic [ref=e1313]:
+                        - link [ref=e1315] [cursor=pointer]:
+                          - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                        - generic [ref=e1316]:
+                          - link "Sign Up" [ref=e1318] [cursor=pointer]:
+                            - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                            - generic [ref=e1320]:
+                              - generic: Sign Up
+                          - link "coderabbit.ai" [ref=e1323] [cursor=pointer]:
+                            - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                            - generic: coderabbit.ai
+                    - 'link "Thumbnail image: Cut Code Review Time and Bugs in Half. Sign up for a free trial!" [ref=e1326] [cursor=pointer]':
+                      - /url: https://alb.reddit.com/cr?za=V15yhh-RLsY3FybVzaimQy7LZIB0xEqqFY-cdMGXT4Ddez0yQUxnIID1LKSTv_n8Ol3arB3GDRC_XiOcETTZFhAY5lFKWpNJTdZUDc0i1jPy-lIp5tJb7TBYc7Mbf6MUw0lV8cr2YcalBWVJ6gC4_TDU20sVcMqYqkaWq68UShfaWcKgnrPH_lBxBkdV2yOBQqGBhl1C434xJOvLYvCtnZYJXc9L6i6uWh6kPPagGrNaFqnlZCPPQT2aFpS03Oy9gZukk8g__8uD9lE1lc97mIRJIFI7uFkJL6ncDHVb7ErfqS9StW2w9gNGynRE0H1JkGWETU6Vse2rlip1r4KrLXlG8v7kRRsTDGaXfYBFMKy4xKOHflxRbytAwtA0g0hQufLtuuA9Kasjm_1ITS0yqUYifbbLxIjKRPL2p56nVe5-pIHQcp6X3cGu1WzEr3Ta0eQjs6lSpOY2aSdPT6K2j84aho9h49LW1JYYX1DnANoB-7KkKrwNMOqldHvDzp5I47I7R9OI_kXVT0IQi102yzba26mx9RDgQJmAFpqBAuUgs4sTj8O3SknHVscpKtWdbVH67wrgCWruDIWbIfb5wdfCmlnoTBabEb3R4gaOzwpxzKhmp4x3RXvy3gPnl-SWPHI512F08tTS69XiXzYQBKa0ozulH_vVPkUPqN-eECGmvPWO0Fs4AoRs10Ie1y8hZUv9c3Z87m6gAxfwxESeSc8j6CZcWQ&zp=uoHvQPc1jtKzyNQ0l_s8RAeU2IE32noziEgdaLq7MXRxnIh8L0EC2GtmIot9bJQE49-IHzcZx8PsPp9o9BKzXWVgjUrWwsnS--DWaHtHfTpNsUBUtOwhjnjCOBYt18kri398JV-Q6Aw1DrYnfTztHmNOEcWlSUXb1XMMtml6007Csr8PnpLzXewWHxhx4Sjj3JWzUcdaxKQjYU_0u-D7aToInN2c3FFlkaekUtVbWEoMdup9gNKdU4RZbTQkxaKeHy7FNAXafB206qJ1I0uU3W1XAiVp-yVtISzDJXPVyKjCS48XuGBUekJO_hahPA8MqT6c-HnO0Nzi4rX0PLNCklw4EiZisN_kgZhAlVNn
+                      - 'img "Thumbnail image: Cut Code Review Time and Bugs in Half. Sign up for a free trial!" [ref=e1327]'
+              - generic [ref=e1329]:
+                - generic:
+                  - textbox [ref=e1339]:
+                    - /placeholder: Join the conversation
+                  - generic [ref=e1345]:
+                    - generic [ref=e1347]:
+                      - generic [ref=e1348]: "Sort by:"
+                      - button "Sort by New (Default)" [ref=e1353] [cursor=pointer]:
+                        - generic [ref=e1355]: New (Default)
+                    - button "Search Comments Expand comment search" [ref=e1362] [cursor=pointer]:
+                      - generic [ref=e1363]:
+                        - img [ref=e1366]
+                        - generic [ref=e1369]: Search Comments
+                      - generic [ref=e1370]:
+                        - generic: Expand comment search
+              - region "Comments" [ref=e1374]:
+                - heading "Comments Section" [level=1] [ref=e1375]
+                - generic:
+                  - article "Comment from Latter-Ad-7035 1 minute ago" [ref=e1377]:
+                    - generic "Metadata for Latter-Ad-7035's comment" [ref=e1378]:
+                      - link "Latter-Ad-7035's profile --- avatar" [ref=e1385] [cursor=pointer]:
+                        - /url: /user/Latter-Ad-7035/
+                        - img "u/Latter-Ad-7035 avatar" [ref=e1388]
+                      - generic [ref=e1393]:
+                        - link "Latter-Ad-7035's profile" [ref=e1398] [cursor=pointer]:
+                          - /url: /user/Latter-Ad-7035/
+                          - text: Latter-Ad-7035
+                        - generic [ref=e1399]: •
+                        - link "1m ago" [ref=e1400] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okh244r/
+                          - time [ref=e1401]: 1m ago
+                    - generic [ref=e1409]:
+                      - paragraph [ref=e1410]: LaneConductor — local Kanban board where AI agents share persistent context across sessions
+                      - paragraph [ref=e1411]: Each task is a folder with a few Markdown files (index.md for status, plan.md for phases, spec.md for requirements +
+                      - paragraph [ref=e1412]: KPI). Claude reads the files, does the work, writes back. Context limit? Restart. Switch to Gemini. The next agent opens
+                      - paragraph [ref=e1413]: the same folder and continues — no re-briefing, no lost work.
+                      - paragraph [ref=e1414]: The agent doesn't just have the code — it has the product intent behind it. Design decisions live alongside the
+                      - paragraph [ref=e1415]: implementation.
+                      - paragraph [ref=e1416]: "Simplest setup: drop one skill file into Claude Desktop. 30 seconds, no deps, works on Windows. If you want more: full"
+                      - paragraph [ref=e1417]: Vite Kanban UI or Jira sync.
+                      - paragraph [ref=e1418]:
+                        - text: "Open source:"
+                        - link "https://github.com/meller/laneconductor" [ref=e1419] [cursor=pointer]:
+                          - /url: https://github.com/meller/laneconductor
+                  - article "Comment from AregNoya 37 minutes ago" [ref=e1425]:
+                    - generic "Metadata for AregNoya's comment" [ref=e1426]:
+                      - link "AregNoya's profile --- avatar" [ref=e1433] [cursor=pointer]:
+                        - /url: /user/AregNoya/
+                        - img "u/AregNoya avatar" [ref=e1436]
+                      - generic [ref=e1441]:
+                        - link "AregNoya's profile" [ref=e1446] [cursor=pointer]:
+                          - /url: /user/AregNoya/
+                          - text: AregNoya
+                        - generic [ref=e1447]: •
+                        - link "37m ago" [ref=e1448] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okgtmk8/
+                          - time [ref=e1449]: 37m ago
+                    - generic [ref=e1457]:
+                      - paragraph [ref=e1458]: My Claude dreams at night and remembers everything. Better than mempalace.
+                      - paragraph [ref=e1459]: Back in January I got tired of the same thing everyone complains about now — you start a new session with Claude and it has no idea who you are. Every time. From scratch. So I built iai-mcp. A local daemon that captures every conversation, organizes it into three memory tiers, and feeds the right context back when you start a new session. No "remember this." No copy-pasting from old chats. It just knows.
+                      - paragraph [ref=e1460]: I've been using it daily with Claude Code since January. Five months. At this point it knows my coding style, my project structures, my preferences — things I never explicitly told it to save. It picked them up from conversation and held onto them.
+                      - paragraph [ref=e1461]: It stores everything verbatim, runs neural embeddings locally, encrypts at rest with AES-256, consolidates memory in the background while your machine is idle, and ships every benchmark harness so you can verify the numbers yourself. Verbatim recall above 99%. Retrieval under 100ms. Session-start cost under 3,000 tokens.
+                      - paragraph [ref=e1462]: I didn't release it because I was building it for myself. It worked, so I kept using it. But watching the space blow up made me realize — maybe other people want this too.
+                      - paragraph [ref=e1463]: So here it is. Open source. MIT licensed. Five months of daily use baked in.
+                      - paragraph [ref=e1464]:
+                        - link "https://github.com/CodeAbra/iai-mcp" [ref=e1465] [cursor=pointer]:
+                          - /url: https://github.com/CodeAbra/iai-mcp
+                  - article "Comment from OlegKupshukovv 2 hours ago" [ref=e1471]:
+                    - generic "Metadata for OlegKupshukovv's comment" [ref=e1472]:
+                      - button [ref=e1474] [cursor=pointer]:
+                        - img [ref=e1477]
+                      - generic [ref=e1483]:
+                        - link "OlegKupshukovv's profile" [ref=e1488] [cursor=pointer]:
+                          - /url: /user/OlegKupshukovv/
+                          - text: OlegKupshukovv
+                        - generic [ref=e1489]: •
+                        - link "2h ago" [ref=e1490] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okgg0io/
+                          - time [ref=e1491]: 2h ago
+                  - article "Comment from jajohn99 9 hours ago" [ref=e1494]:
+                    - generic "Metadata for jajohn99's comment" [ref=e1495]:
+                      - link "jajohn99's profile --- avatar" [ref=e1502] [cursor=pointer]:
+                        - /url: /user/jajohn99/
+                        - img "u/jajohn99 avatar" [ref=e1505]
+                      - generic [ref=e1510]:
+                        - link "jajohn99's profile" [ref=e1515] [cursor=pointer]:
+                          - /url: /user/jajohn99/
+                          - text: jajohn99
+                        - generic [ref=e1516]: •
+                        - link "9h ago" [ref=e1517] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okelset/
+                          - time [ref=e1518]: 9h ago
+                    - generic [ref=e1526]:
+                      - paragraph [ref=e1527]: I've been building OracleBook — a paper-trading platform where AI agents submit probabilistic forecasts on Australian weather and energy outcomes (BOM rainfall, AEMO power) and get scored against canonical settlements.
+                      - paragraph [ref=e1528]: Looking for feedback and some test users.
+                      - paragraph [ref=e1529]: After spending five years in trading, I decided agents were going to be the best way to make the amazing market predictions quant firms make around the world actually useful.
+                      - paragraph [ref=e1530]:
+                        - text: Running an open two-week competition starting
+                        - strong [ref=e1531]: 1 June
+                        - text: ", and the API is designed to be Claude Code-native. The skill spec lives at"
+                        - link "app.oraclebook.xyz/docs/skill.md" [ref=e1532] [cursor=pointer]:
+                          - /url: https://github.com/jamhan/OracleBook/blob/claude/review-blog-drafts-uruq7/app.oraclebook.xyz/docs/skill.md
+                          - code [ref=e1533]: app.oraclebook.xyz/docs/skill.md
+                        - text: — SKILL.md-compatible, with curl examples and the full agent loop in one file. Open Claude Code in a new folder, paste the URL into your first prompt, and you can have an agent registering and submitting forecasts within an hour.
+                      - paragraph [ref=e1534]: "Why I'm asking here specifically: I want a few Aussies in the first cohort who want to apply their claude code to something fun."
+                      - paragraph [ref=e1535]: "What it looks like in practice:"
+                      - list [ref=e1536]:
+                        - listitem [ref=e1537]:
+                          - paragraph [ref=e1538]:
+                            - code [ref=e1539]: claude
+                            - text: in a new folder
+                        - listitem [ref=e1540]:
+                          - paragraph [ref=e1541]: Paste the skill URL, ask the agent to scaffold a forecasting bot
+                        - listitem [ref=e1542]:
+                          - paragraph [ref=e1543]: Pick a market (say, weekly rainfall for Sydney), pull BOM ensemble data
+                        - listitem [ref=e1544]:
+                          - paragraph [ref=e1545]: Forecast a 90% confidence interval, submit, watch the scorecard
+                        - listitem [ref=e1546]:
+                          - paragraph [ref=e1547]:
+                            - text: Iterate — the skill spec exposes
+                            - code [ref=e1548]: /api/orders/preflight
+                            - text: so the agent can dry-run before committing
+                      - paragraph [ref=e1549]:
+                        - text: "The competition pays on three axes: paper PnL, calibration ("
+                        - code [ref=e1550]: forecastCoverage90
+                        - text: ), and market coverage.
+                      - list [ref=e1551]:
+                        - listitem [ref=e1552]:
+                          - paragraph [ref=e1553]:
+                            - text: "Walk-through:"
+                            - link "oraclebook.xyz/blog/building-your-first-bot" [ref=e1554] [cursor=pointer]:
+                              - /url: http://oraclebook.xyz/blog/building-your-first-bot
+                              - code [ref=e1555]: oraclebook.xyz/blog/building-your-first-bot
+                        - listitem [ref=e1556]:
+                          - paragraph [ref=e1557]:
+                            - text: Apply by
+                            - strong [ref=e1558]: 28 May
+                            - text: ":"
+                            - link "oraclebook.xyz/contact" [ref=e1559] [cursor=pointer]:
+                              - /url: http://oraclebook.xyz/contact
+                              - code [ref=e1560]: oraclebook.xyz/contact
+                      - paragraph [ref=e1561]: "Two questions for the sub:"
+                      - list [ref=e1562]:
+                        - listitem [ref=e1563]:
+                          - paragraph [ref=e1564]: Anyone have any good ideas for scheduling feedback/self improvement loops in claude code.
+                        - listitem [ref=e1565]:
+                          - paragraph [ref=e1566]:
+                            - link "SKILL.md" [ref=e1567] [cursor=pointer]:
+                              - /url: http://skill.md/
+                            - text: conventions — has the community settled on patterns you'd expect a third-party skill to follow? I'd rather match what people already do than invent.
+                  - article "Comment from clawvault 11 hours ago" [ref=e1573]:
+                    - generic "Metadata for clawvault's comment" [ref=e1574]:
+                      - link "clawvault's profile --- avatar" [ref=e1581] [cursor=pointer]:
+                        - /url: /user/clawvault/
+                        - img "u/clawvault avatar" [ref=e1584]
+                      - generic [ref=e1589]:
+                        - link "clawvault's profile" [ref=e1594] [cursor=pointer]:
+                          - /url: /user/clawvault/
+                          - text: clawvault
+                        - generic [ref=e1595]: •
+                        - link "11h ago" [ref=e1596] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/oke42xg/
+                          - time [ref=e1597]: 11h ago
+                    - generic [ref=e1605]:
+                      - paragraph [ref=e1606]:
+                        - emphasis [ref=e1607]: Anthropic shipped Dreams for memory consolidation. What I noticed about my own ClawVault agent after reading the docs.
+                      - paragraph [ref=e1608]:
+                        - text: Anthropic released
+                        - link "Dreams" [ref=e1609] [cursor=pointer]:
+                          - /url: https://platform.claude.com/docs/en/managed-agents/dreams
+                        - text: "for Managed Agents last Tuesday. Async pipeline: takes a memory store and up to 100 session transcripts, produces a new store with duplicates merged and stale entries cleaned up."
+                      - paragraph [ref=e1610]: "I'm building a per-user agent (life-admin assistant for parents). Shipped a 12-skill self-improvement wire the same week. We were solving the capture half: every UI edit writes a learning to a per-owner journal. Dreams is the consolidation half I hadn't built yet."
+                      - paragraph [ref=e1611]: "Reading the Dreams docs surfaced three things I'd missed:"
+                      - list [ref=e1612]:
+                        - listitem [ref=e1613]:
+                          - paragraph [ref=e1614]: Memory versions with 30-day retention and a redact endpoint. We have bare markdown in a GCS volume. No history, no rollback.
+                        - listitem [ref=e1615]:
+                          - paragraph [ref=e1616]: 100KB per-memory cap. We don't enforce one. Files could grow unboundedly.
+                        - listitem [ref=e1617]:
+                          - paragraph [ref=e1618]: Read-only vs read-write access modes for prompt-injection defense. We give the agent full RW on every learning file.
+                      - paragraph [ref=e1619]: We can't use Dreams directly (architecture rule blocks Anthropic API). The plan is a sibling skill running on a cron that reads our existing journals and writes consolidated outputs. Deferred until we have a week of production traffic to confirm redact discipline holds.
+                      - paragraph [ref=e1620]: Curious how others are handling memory hygiene without Managed Agents. Custom cron jobs? Per-user vector stores with TTL? Just letting it grow?
+                  - article "Comment from ComputerNerd1793 13 hours ago" [ref=e1626]:
+                    - generic "Metadata for ComputerNerd1793's comment" [ref=e1627]:
+                      - link "ComputerNerd1793's profile --- avatar" [ref=e1634] [cursor=pointer]:
+                        - /url: /user/ComputerNerd1793/
+                        - img [ref=e1639]
+                      - generic [ref=e1645]:
+                        - link "ComputerNerd1793's profile" [ref=e1650] [cursor=pointer]:
+                          - /url: /user/ComputerNerd1793/
+                          - text: ComputerNerd1793
+                        - generic [ref=e1651]: •
+                        - link "13h ago" [ref=e1652] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okdrbcf/
+                          - time [ref=e1653]: 13h ago
+                    - generic [ref=e1661]:
+                      - paragraph [ref=e1662]:
+                        - strong [ref=e1663]: graph-memory
+                        - text: a long-term memory layer for Claude that survives across sessions, devices, and tools. MCP server, Neo4j-backed, OAuth-secured so the same graph follows you from Claude Code → Desktop →
+                        - link "claude.ai" [ref=e1664] [cursor=pointer]:
+                          - /url: http://claude.ai
+                        - text: web → iOS app.
+                      - paragraph [ref=e1665]: "The 18-second demo answers \"why bother\" better than a paragraph could. Asked from my phone — pulls a decision made days ago on my laptop, citing the commit hash:"
+                      - paragraph [ref=e1666]:
+                        - link "https://github.com/user-attachments/assets/826e5f5a-5759-4b31-83dd-6bd7e0e044b8" [ref=e1667] [cursor=pointer]:
+                          - /url: https://github.com/user-attachments/assets/826e5f5a-5759-4b31-83dd-6bd7e0e044b8
+                      - paragraph [ref=e1668]: "What's actually in there:"
+                      - list [ref=e1669]:
+                        - listitem [ref=e1670]:
+                          - paragraph [ref=e1671]: Typed entities + relationships (Person, Project, Decision, Preference, Concept) — not just key-value pairs
+                        - listitem [ref=e1672]:
+                          - paragraph [ref=e1673]: Per-type decay so old preferences fade and recent ones don't
+                        - listitem [ref=e1674]:
+                          - paragraph [ref=e1675]:
+                            - text: Bi-temporal validity (
+                            - code [ref=e1676]: valid_at
+                            - text: ","
+                            - code [ref=e1677]: invalid_at
+                            - text: ) — the timeline survives, you can query past states
+                        - listitem [ref=e1678]:
+                          - paragraph [ref=e1679]: Contradiction detection
+                        - listitem [ref=e1680]:
+                          - paragraph [ref=e1681]: Nightly "dream" process that extracts entities from recent transcripts — runs as a Claude session, no separate API key needed
+                      - paragraph [ref=e1682]: "Local-first: bge-small-en embeddings on your machine, Neo4j in Docker. Optional Cloudflare Tunnel + OAuth 2.1 if you want the cross-device thing. Windows / macOS / Linux. MIT."
+                      - paragraph [ref=e1683]:
+                        - text: "Repo + docs:"
+                        - link "https://github.com/stevepridemore/graph-memory" [ref=e1684] [cursor=pointer]:
+                          - /url: https://github.com/stevepridemore/graph-memory
+                      - paragraph [ref=e1685]: Discussions are open. Honest critique especially welcome — I'm aware the obvious next thing is a benchmark vs. flat markdown, and that's coming.
+                  - article "Comment from TopManager9276 15 hours ago" [ref=e1691]:
+                    - generic "Metadata for TopManager9276's comment" [ref=e1692]:
+                      - link "TopManager9276's profile --- avatar" [ref=e1699] [cursor=pointer]:
+                        - /url: /user/TopManager9276/
+                        - img "u/TopManager9276 avatar" [ref=e1702]
+                      - generic [ref=e1707]:
+                        - link "TopManager9276's profile" [ref=e1712] [cursor=pointer]:
+                          - /url: /user/TopManager9276/
+                          - text: TopManager9276
+                        - generic [ref=e1713]: •
+                        - link "15h ago" [ref=e1714] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okd97qy/
+                          - time [ref=e1715]: 15h ago
+                    - generic [ref=e1723]:
+                      - heading "Rebuilt David Goggins Using Claude" [level=1] [ref=e1724]
+                      - paragraph [ref=e1725]: I've been trying to stay on top of my schedule with working out more and eating a little cleaner so I thought I'd make my own coach (David Goggins) to help me since I'm kind of lazy lol.
+                      - paragraph [ref=e1726]: Got Claude to whip this up for me. Uses Claude to generate the response and calls the Elevenlabs API to generate the voice. Used Twilio to make a number and call me. Pretty simple but fun project. Would love any feedback on it!
+                      - paragraph [ref=e1727]:
+                        - text: "Check it out here:"
+                        - link "https://youtu.be/H64SjFoXcbk?si=pYZbZTce9Af0Z8IW" [ref=e1728] [cursor=pointer]:
+                          - /url: https://youtu.be/H64SjFoXcbk?si=pYZbZTce9Af0Z8IW
+                  - 'generic "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1734]':
+                    - generic [ref=e1735]:
+                      - 'generic "Advertisement: My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1736]':
+                        - 'link "Advertisement: My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1737] [cursor=pointer]':
+                          - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                      - generic [ref=e1738]:
+                        - generic [ref=e1739]:
+                          - link "u/Meshyai avatar u/Meshyai" [ref=e1742] [cursor=pointer]:
+                            - /url: /user/Meshyai/
+                            - img "u/Meshyai avatar" [ref=e1745]
+                            - generic [ref=e1746]: u/Meshyai
+                          - generic [ref=e1747]: •
+                          - link "Promoted" [ref=e1749] [cursor=pointer]:
+                            - /url: /user/Meshyai/
+                            - generic [ref=e1750]: Promoted
+                          - link [ref=e1752] [cursor=pointer]:
+                            - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                        - button "Open user actions" [ref=e1757] [cursor=pointer]:
+                          - img [ref=e1760]
+                      - generic [ref=e1762]:
+                        - 'link "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1764] [cursor=pointer]':
+                          - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                          - generic: "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export."
+                        - list [ref=e1768]:
+                          - generic:
+                            - listitem [ref=e1769]:
+                              - generic [ref=e1770]:
+                                - link [ref=e1772] [cursor=pointer]:
+                                  - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                                - 'link "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1774] [cursor=pointer]':
+                                  - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                                  - 'img "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1775]'
+                            - listitem [ref=e1776]:
+                              - generic [ref=e1777]:
+                                - link [ref=e1779] [cursor=pointer]:
+                                  - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=uiuH67BJA4EZEU_t-TsmWz5Jrmv6KEmdpdNrVNrKrn8h6acFtp2mtYnKKA8dZoHedvBCvlQ5b4Aainp1FOtuytxIwknAfy1vnSdNLsWTpPAH574tzUER2bT5rJL9CPnTVHdk8Q-cvTOOzDmwvdxmKF4p5ZgNb8JNZedOsTy3N71MwuvHLshqlao5vYH5qYBINTHMbagk_pKhk1TSIo3acq-38dsutWJ9iiev5H3LyGcq7IZv-V3RcIDjbgYY-i6KRdjr8juSJ4tH-RWoQxf_IxIRZpltHNXLTKRpo7QvhFHg4aMthJwtEvFjJyjs8gLQyU13ltwHrf1IK9EJunHa33wFKTLaGZB2L09XqDCdY8P7pjgXInDy08I-z2D5P9ZsqONj
+                                - 'link "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1781] [cursor=pointer]':
+                                  - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=uiuH67BJA4EZEU_t-TsmWz5Jrmv6KEmdpdNrVNrKrn8h6acFtp2mtYnKKA8dZoHedvBCvlQ5b4Aainp1FOtuytxIwknAfy1vnSdNLsWTpPAH574tzUER2bT5rJL9CPnTVHdk8Q-cvTOOzDmwvdxmKF4p5ZgNb8JNZedOsTy3N71MwuvHLshqlao5vYH5qYBINTHMbagk_pKhk1TSIo3acq-38dsutWJ9iiev5H3LyGcq7IZv-V3RcIDjbgYY-i6KRdjr8juSJ4tH-RWoQxf_IxIRZpltHNXLTKRpo7QvhFHg4aMthJwtEvFjJyjs8gLQyU13ltwHrf1IK9EJunHa33wFKTLaGZB2L09XqDCdY8P7pjgXInDy08I-z2D5P9ZsqONj
+                                  - 'img "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1782]'
+                            - listitem [ref=e1783]:
+                              - generic [ref=e1784]:
+                                - link [ref=e1786] [cursor=pointer]:
+                                  - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=5vQogavuZ3L0paF3HiFaVzwGGt9o_SEP-BLdt1Ka6SJSpaCrWDQ5_KSaipVLpeTYH-ys37xiNiBeGkjgfO9ZZ3Pa96NLyQYGpB2N3eCuBqVn1n5NsSYhiJAg21XsrE9Ga6cJzUgch776A6jj69ltvK6QplAAmgJyQATqN8vlIN_RjGjs2URI-fOXDggvGZNtF6cF-_3z-oKkOFo8fyg1NkKbfWC3BvYmaI5YxwUgtlvLDIxgV6pA6xwP34bvGLR9tz56uzWBbqvtSZklf8XlBqMZACuISirhIoeafDnOSFxLHLFco_oKWWJDjVAa1RlLcVFbp8qvwsZrP9s3QZf_Uc-YvpYaSjm59ch09AD23r5l2Vc6MVHrqwo0S25HFnGtQFg-
+                                - 'link "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1788] [cursor=pointer]':
+                                  - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=5vQogavuZ3L0paF3HiFaVzwGGt9o_SEP-BLdt1Ka6SJSpaCrWDQ5_KSaipVLpeTYH-ys37xiNiBeGkjgfO9ZZ3Pa96NLyQYGpB2N3eCuBqVn1n5NsSYhiJAg21XsrE9Ga6cJzUgch776A6jj69ltvK6QplAAmgJyQATqN8vlIN_RjGjs2URI-fOXDggvGZNtF6cF-_3z-oKkOFo8fyg1NkKbfWC3BvYmaI5YxwUgtlvLDIxgV6pA6xwP34bvGLR9tz56uzWBbqvtSZklf8XlBqMZACuISirhIoeafDnOSFxLHLFco_oKWWJDjVAa1RlLcVFbp8qvwsZrP9s3QZf_Uc-YvpYaSjm59ch09AD23r5l2Vc6MVHrqwo0S25HFnGtQFg-
+                                  - 'img "My old pipeline: concept > sculpt > retopo > UV > texture > export. My new pipeline: type a prompt > export." [ref=e1789]'
+                        - generic [ref=e1790]:
+                          - link [ref=e1792] [cursor=pointer]:
+                            - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                          - generic [ref=e1793]:
+                            - link "meshy.ai" [ref=e1797] [cursor=pointer]:
+                              - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                              - generic: meshy.ai
+                            - link "Sign Up" [ref=e1799] [cursor=pointer]:
+                              - /url: https://alb.reddit.com/cr?za=npc351AlZj51F3jlZAhTswz_RLI3uSXHSigwpftxElj5SD6J3KR8JhJBuLfVDw0y7-F9StXeae2kXvg6aWSSRsY-OrLLUz60hs2-nsChlkFO109oVEu2hlf_Bwedv9YzmKZxIJ9mNVhBHrcu8bYU0lsi1G1GgLSmrMpp5tQXEaGV2s7HekP2_XdZzpZkTG0JMzDjuQ_ztVaTyl9poaJlHZkc_I_zPIWJT9K3mTlzjpQXLPftp8ClGU22kI9nCdmwEtqxT7wNWBegBk-bTMSnECYqdqBzREUbm0Xv4OKCRw4p59OU4Jig1zQrA6L2QXeJnkMnGRiE71rpA9ZGaq7ZrK5qA9Cl173ogRfFhtKW0F5-CleEVz-XtPPNhkgakJoI42-6hoKI4JMulKjBeV0V1xa7c5RISxJofVRNIytABSpFo0ksnEdX_oSG4QgIkm723TKuYtMOZCaXVceEPnlXAsFb1GeGz1JvXmA16N6TM3tAwnl0bkf883nhxrVXspZOuMcXXbSm743DUOxKqB01JHPyfVF7n5aU1vHqb0PyBE73oTk0rEvhIQRFprwstgoQrB2xmwd-a7-s5B3Bz6ZIh1VkWXWsQmCLl5ENVj79jIVrDuH7ngpNMH5M88BR_bHh2VbEOF-REaQTtJS6pljkirIFUqTvanKFM8uJx0jJCcxikCYT-LCi-x52mOZsul2IncElOWn2xcw5J2_mDRQJDgIX7N-qDgPjADI&zp=NnAnOgwlU9urpVOVN91D08hnY_JQigPeeupkvllfMZ2S092KZaDmbEdQeRkjkbwbbVc3qHxBNnckxXRRueopPi9UmM2YihgScCvzDwllsov0jxSWjp8rO9M13MbXx0TWaj20ybLtMl3DjggnWp308x91MUaE4Sb73N0vrgYSRftyqoz-FNwK2BegQ2zUzZwYLgc9CVpqwV4pHfUkYIzW-_lgigJkrnylkGGSs5Po0Jxbl3VmWM8X9F4oGWkGQZNk_v0B8rI8PQK94Gd3UNiACMwyRj4CTf5sgwpAm4MXxxWtno44K41SeYNPa_0zny1EZK0gsz0boOXlTiCLMfg2oEfX1-xMbdJg2c8YaO8eSeV9BhbdpyxQVDLED1Gzz9RAIr_L
+                              - generic [ref=e1801]:
+                                - generic: Sign Up
+                  - article "Comment from VadeloSempai 17 hours ago" [ref=e1803]:
+                    - generic "Metadata for VadeloSempai's comment" [ref=e1804]:
+                      - link "VadeloSempai's profile --- avatar" [ref=e1811] [cursor=pointer]:
+                        - /url: /user/VadeloSempai/
+                        - img "u/VadeloSempai avatar" [ref=e1814]
+                      - generic [ref=e1819]:
+                        - link "VadeloSempai's profile" [ref=e1824] [cursor=pointer]:
+                          - /url: /user/VadeloSempai/
+                          - text: VadeloSempai
+                        - generic [ref=e1825]: •
+                        - link "17h ago" [ref=e1826] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okchvfg/
+                          - time [ref=e1827]: 17h ago
+                    - generic [ref=e1835]:
+                      - paragraph [ref=e1836]: A few weeks ago, I shared King Context here as a lightweight alternative for docs retrieval. But after deep-diving into the new Corpus methodology and chatting with the creator (deandevz), I realized this isn't just another tool—it’s a fundamental shift in how we handle Agentic Infrastructure.
+                      - paragraph [ref=e1837]: "The Problem: The \"RAG Myopia\""
+                      - paragraph [ref=e1838]: Traditional RAG is like giving an agent a library and a flashlight. It finds "chunks," but it doesn't understand the architecture. It's noisy, expensive, and leads to the "0.33 hallucinations per query" we see in standard tools.
+                      - paragraph [ref=e1839]: "The Solution: King Context & The Corpus Method"
+                      - paragraph [ref=e1840]: We’ve moved beyond simple lookups. King Context now focuses on building Synthesized Corpora. Instead of dumping raw data, it creates a structured, metadata-rich "brain" that agents can navigate with precision.
+                      - paragraph [ref=e1841]: "Why this is a game-changer:"
+                      - paragraph [ref=e1842]: "Zero Hallucinations: In our latest benchmarks (check the image below), King Context hit 100% factual accuracy (38/38) while maintaining 0.0 hallucinations."
+                      - paragraph [ref=e1843]: "Skill-Based Context: It solves the \"skill bottleneck.\" Agents no longer just call functions; they consult a specialized Corpus that defines rules, edge cases, and architectural constraints before executing."
+                      - paragraph [ref=e1844]: "Multi-Agent Workflows: You can now build workflows where one agent researches and builds a specialized Corpus, while another \"specialist\" agent uses that refined knowledge to execute tasks with zero noise."
+                      - paragraph [ref=e1845]: "Refinement & Pruning: Unlike a vector DB that just grows and gets messier, a Corpus is designed to be refined—removing polluting context and enriching high-value data."
+                      - paragraph [ref=e1846]: The Benchmarks (King Context vs Context7)
+                      - paragraph [ref=e1847]: "We ran two rounds of head-to-head testing using Claude Opus 4.7:"
+                      - paragraph [ref=e1848]: "Tokens: 3.2x less token waste."
+                      - paragraph [ref=e1849]: "Latency: Up to 170x faster on metadata hits."
+                      - paragraph [ref=e1850]: "Quality: 4.79/5 composite quality score vs 3.46."
+                      - paragraph [ref=e1851]: "The Vision: Autonomous Context Infrastructure"
+                      - paragraph [ref=e1852]: We are building more than a "search tool." We are building the infrastructure for specialized AI brains. Imagine a world where you don't "prompt engineer" your way to success, but you "Curate a Corpus" that makes any agent an instant expert in your specific domain.
+                      - paragraph [ref=e1853]: The project is fully Open Source and we are looking for contributors who want to rethink how agents "know" things.
+                      - paragraph [ref=e1854]:
+                        - text: "Repo:"
+                        - link "https://github.com/deandevz/king-context" [ref=e1855] [cursor=pointer]:
+                          - /url: https://github.com/deandevz/king-context
+                      - paragraph [ref=e1856]: "I'd love to hear your thoughts: Is \"Corpus Engineering\" the final nail in the coffin for traditional, noisy RAG?"
+                  - article "Comment from PreviousAstronaut727 18 hours ago" [ref=e1862]:
+                    - generic "Metadata for PreviousAstronaut727's comment" [ref=e1863]:
+                      - link "PreviousAstronaut727's profile --- avatar" [ref=e1870] [cursor=pointer]:
+                        - /url: /user/PreviousAstronaut727/
+                        - img [ref=e1875]
+                      - generic [ref=e1881]:
+                        - link "PreviousAstronaut727's profile" [ref=e1886] [cursor=pointer]:
+                          - /url: /user/PreviousAstronaut727/
+                          - text: PreviousAstronaut727
+                        - generic [ref=e1887]: •
+                        - link "18h ago" [ref=e1888] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/okc5l9d/
+                          - time [ref=e1889]: 18h ago
+                    - generic [ref=e1897]:
+                      - paragraph [ref=e1898]: I built an open-source persistent memory system for Claude Code it gives Claude a structured brain that survives context resets
+                      - paragraph [ref=e1899]: Claude Code is genuinely great at pair programming. But the context window problem makes it frustrating on any project longer than a single session.
+                      - paragraph [ref=e1900]: "Every time I started a new conversation I was spending the first 5-10 minutes re-establishing context: re-describing the stack, re-explaining the blockers, re-orienting Claude on where we were. On a project you work on for weeks, that's a real tax."
+                      - paragraph [ref=e1901]:
+                        - text: So I built
+                        - strong [ref=e1902]: unified-memory
+                        - text: to fix it. It's open source, MIT licensed, and I just pushed v1.0.0.
+                      - paragraph [ref=e1903]:
+                        - strong [ref=e1904]: "What it does:"
+                      - paragraph [ref=e1905]:
+                        - link "MEMORY.md" [ref=e1906] [cursor=pointer]:
+                          - /url: http://MEMORY.md
+                          - code [ref=e1907]: MEMORY.md
+                        - text: "lives in your project root and tracks:"
+                      - list [ref=e1908]:
+                        - listitem [ref=e1909]:
+                          - paragraph [ref=e1910]: Snapshot (stack, goal, current status)
+                        - listitem [ref=e1911]:
+                          - paragraph [ref=e1912]: Where you left off (file, function, line number)
+                        - listitem [ref=e1913]:
+                          - paragraph [ref=e1914]: Open blockers
+                        - listitem [ref=e1915]:
+                          - paragraph [ref=e1916]: Key decisions with rationale
+                        - listitem [ref=e1917]:
+                          - paragraph [ref=e1918]: Active work items
+                        - listitem [ref=e1919]:
+                          - paragraph [ref=e1920]: Recent session summaries
+                      - paragraph [ref=e1921]:
+                        - text: When there's unfinished work, it writes a compact
+                        - link "CONTINUATION.md" [ref=e1922] [cursor=pointer]:
+                          - /url: http://CONTINUATION.md
+                          - code [ref=e1923]: CONTINUATION.md
+                        - text: (under 220 tokens) that Claude loads as a fast-path at session start — no need to parse the full memory file.
+                      - paragraph [ref=e1924]: There's also a local SQLite index with FTS5 search for longer-term history. You search by query, get snippets, then fetch full content for the ones you need. Progressive disclosure rather than dumping everything into context.
+                      - paragraph [ref=e1925]:
+                        - strong [ref=e1926]: "The workflow:"
+                      - paragraph [ref=e1927]:
+                        - text: "Start:"
+                        - emphasis [ref=e1928]: "\"pick up where we left off\""
+                        - text: → Claude loads context, knows your status, knows your blockers
+                      - paragraph [ref=e1929]:
+                        - text: "During:"
+                        - emphasis [ref=e1930]: "\"remember we decided to use Prisma over raw SQL — type safety\""
+                        - text: → Claude captures it
+                      - paragraph [ref=e1931]:
+                        - text: "End:"
+                        - emphasis [ref=e1932]: "\"wrap up\""
+                        - text: → Claude removes resolved blockers, updates active work, appends session summary, writes a continuation note if needed
+                      - paragraph [ref=e1933]:
+                        - strong [ref=e1934]: "Safety:"
+                      - list [ref=e1935]:
+                        - listitem [ref=e1936]:
+                          - paragraph [ref=e1937]:
+                            - code [ref=e1938]: <private>...</private>
+                            - text: blocks are stripped before any write
+                        - listitem [ref=e1939]:
+                          - paragraph [ref=e1940]: API keys, tokens, PEM keys, and passwords are redacted automatically
+                        - listitem [ref=e1941]:
+                          - paragraph [ref=e1942]: The SQLite index is gitignored by default — session history stays local
+                      - paragraph [ref=e1943]:
+                        - strong [ref=e1944]: "Install:"
+                      - generic [ref=e1945]: "npm install -g unified-memory cd your-project umem install --hooks # wires up Claude Code hooks for auto-capture"
+                      - paragraph [ref=e1946]:
+                        - text: "Then open Claude Code and say:"
+                        - emphasis [ref=e1947]: "\"pick up where we left off.\""
+                      - paragraph [ref=e1948]:
+                        - strong [ref=e1949]: "For teams:"
+                        - text: Commit
+                        - link "MEMORY.md" [ref=e1950] [cursor=pointer]:
+                          - /url: http://MEMORY.md
+                          - code [ref=e1951]: MEMORY.md
+                        - text: to the repo. It's just Markdown — decisions, architecture, and blockers are shared. Local session history stays gitignored per developer.
+                      - paragraph [ref=e1952]:
+                        - strong [ref=e1953]: For
+                        - link "Claude.ai" [ref=e1954] [cursor=pointer]:
+                          - /url: http://Claude.ai
+                          - strong [ref=e1955]: Claude.ai
+                        - strong [ref=e1956]: "(no CLI):"
+                        - text: Use
+                        - link "MEMORY.md" [ref=e1957] [cursor=pointer]:
+                          - /url: http://MEMORY.md
+                          - code [ref=e1958]: MEMORY.md
+                        - text: as a file attachment at session start. Ask Claude to read it and update it when you're done.
+                      - paragraph [ref=e1959]:
+                        - text: "GitHub:"
+                        - link "https://github.com/alijendoubi/unified-memory" [ref=e1960] [cursor=pointer]:
+                          - /url: https://github.com/alijendoubi/unified-memory
+                      - paragraph [ref=e1961]: Built in TypeScript, strict mode, 52 tests across unit and integration. No heavy dependencies — custom Markdown table parser, no markdown library needed.
+                      - paragraph [ref=e1962]: Happy to answer questions about the architecture or how to integrate it into your workflow.
+                      - paragraph [ref=e1963]: "The README, posts, and the updated repo are all live. Here's a summary of everything:"
+                      - list [ref=e1964]:
+                        - listitem [ref=e1965]:
+                          - paragraph [ref=e1966]:
+                            - strong [ref=e1967]: README
+                            - text: — fully rewritten at
+                            - link "github.com/alijendoubi/unified-memory" [ref=e1968] [cursor=pointer]:
+                              - /url: https://github.com/alijendoubi/unified-memory
+                            - text: with a problem statement, day-to-day workflow guide, three integration options (automatic, semi-automatic,
+                            - link "Claude.ai" [ref=e1969] [cursor=pointer]:
+                              - /url: http://Claude.ai
+                            - text: without CLI), team setup, and security section
+                        - listitem [ref=e1970]:
+                          - paragraph [ref=e1971]:
+                            - strong [ref=e1972]: LinkedIn post
+                            - text: — narrative-first, explains the pain point, shows the solution, ends with a clear CTA and the repo link; image prompt is ready for any AI image generator
+                        - listitem [ref=e1973]:
+                          - paragraph [ref=e1974]:
+                            - strong [ref=e1975]: Reddit post
+                            - text: — technical and direct, structured for
+                            - link "r/ClaudeAI" [ref=e1976] [cursor=pointer]:
+                              - /url: /r/ClaudeAI/
+                            - text: with the implementation details developers expect; also works for
+                            - link "r/LocalLLaMA" [ref=e1977] [cursor=pointer]:
+                              - /url: /r/LocalLLaMA/
+                            - text: or
+                            - link "r/webdev" [ref=e1978] [cursor=pointer]:
+                              - /url: /r/webdev/
+                  - article "Comment from SenoPK 1 day ago" [ref=e1984]:
+                    - generic "Metadata for SenoPK's comment" [ref=e1985]:
+                      - link "SenoPK's profile --- avatar" [ref=e1992] [cursor=pointer]:
+                        - /url: /user/SenoPK/
+                        - img "u/SenoPK avatar" [ref=e1995]
+                      - generic [ref=e2000]:
+                        - link "SenoPK's profile" [ref=e2005] [cursor=pointer]:
+                          - /url: /user/SenoPK/
+                          - text: SenoPK
+                        - generic [ref=e2006]: •
+                        - link "1d ago" [ref=e2007] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/oka0l70/
+                          - time [ref=e2008]: 1d ago
+                    - generic [ref=e2010]:
+                      - generic [ref=e2018]:
+                        - paragraph [ref=e2019]: "**Ralph Review Trio** — Claude Code plugin for sequential 3-tier code review with restart-on-fail."
+                        - paragraph [ref=e2020]: Three Claude models reading the same diff at increasing depth. Haiku does cheap surface checks (file structure, commit hygiene, debug code, magic numbers). If pass, Sonnet does logic tracing across boundaries. If pass, Opus does architectural review.
+                        - paragraph [ref=e2021]: If any tier fails, the whole loop restarts from Tier 1. Not "fix Sonnet's flag and move on" — restart from Haiku. Pass = all three tiers passed in a row against the same final state. Without restart-on-fail, fixes you make after Sonnet flags something go in unreviewed by Haiku, and the class of mistakes Haiku catches sneaks in via the fix itself.
+                        - paragraph [ref=e2022]: Costs more tokens. Pays for itself the first time it catches a fix-introduced regression.
+                        - paragraph [ref=e2023]: "Running in private dotfiles since January, 430+ issues, ~155 closed with all three tier-pass tokens. Catches: a database helper returning dict-row cursors while callers indexed by [0] (8 latent bugs, one silently writing NULL foreign keys); a cache helper substituting defaults whenever callers forgot a required argument; a hardcoded repo-path Ralph spotted inside its own tier checklist."
+                        - paragraph [ref=e2024]:
+                          - text: Borrowed the loop pattern from Geoffrey Huntley (
+                          - link "https://ghuntley.com/ralph" [ref=e2025] [cursor=pointer]:
+                            - /url: https://ghuntley.com/ralph
+                          - text: "). Anthropic's official `ralph-loop` plugin powers each tier. The three-tier stack on top is mine."
+                        - paragraph [ref=e2026]: "Two lines to install:"
+                        - paragraph [ref=e2027]: /plugin marketplace add hoiung/sst3-skills
+                        - paragraph [ref=e2028]: /plugin install ralph-review-trio@sst3-skills
+                        - paragraph [ref=e2029]:
+                          - text: "Repo:"
+                          - link "https://github.com/hoiung/sst3-skills" [ref=e2030] [cursor=pointer]:
+                            - /url: https://github.com/hoiung/sst3-skills
+                          - text: (MIT)
+                        - paragraph [ref=e2031]:
+                          - text: "Writeup:"
+                          - link "https://hoiboy.uk/posts/shipping-ralph-review-trio/" [ref=e2032] [cursor=pointer]:
+                            - /url: https://hoiboy.uk/posts/shipping-ralph-review-trio/
+                      - button "Toggle Comment Thread" [expanded] [ref=e2035] [cursor=pointer]:
+                        - img [ref=e2038]
+                      - 'article "Comment thread level 1: Reply from ricksegal 18 hours ago" [ref=e2046]':
+                        - generic "Metadata for ricksegal's comment" [ref=e2047]:
+                          - link "ricksegal's profile --- avatar" [ref=e2054] [cursor=pointer]:
+                            - /url: /user/ricksegal/
+                            - img [ref=e2059]
+                          - generic [ref=e2065]:
+                            - link "ricksegal's profile" [ref=e2070] [cursor=pointer]:
+                              - /url: /user/ricksegal/
+                              - text: ricksegal
+                            - generic [ref=e2071]: •
+                            - link "18h ago" [ref=e2072] [cursor=pointer]:
+                              - /url: /r/ClaudeAI/comments/1sly3jm/comment/okc7m3q/
+                              - time [ref=e2073]: 18h ago
+                        - paragraph [ref=e2082]: This works well. I will also point out that the code and repo in general is very well documented. That, in and of itself, gives your skills efforts super creditability in my opinion. Well done.
+                  - article "Comment from X_MRBN_X 1 day ago" [ref=e2088]:
+                    - generic "Metadata for X_MRBN_X's comment" [ref=e2089]:
+                      - link "X_MRBN_X's profile --- avatar" [ref=e2096] [cursor=pointer]:
+                        - /url: /user/X_MRBN_X/
+                        - img "u/X_MRBN_X avatar" [ref=e2099]
+                      - generic [ref=e2104]:
+                        - link "X_MRBN_X's profile" [ref=e2109] [cursor=pointer]:
+                          - /url: /user/X_MRBN_X/
+                          - text: X_MRBN_X
+                        - generic [ref=e2110]: •
+                        - link "1d ago" [ref=e2111] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok9myo3/
+                          - time [ref=e2112]: 1d ago
+                    - generic [ref=e2120]:
+                      - paragraph [ref=e2121]:
+                        - strong [ref=e2122]: mcpwatch — static security analyzer for MCP servers
+                      - paragraph [ref=e2123]: "We scanned 200 high-star MCP servers and found 205 critical findings across 4 novel attack classes:"
+                      - list [ref=e2124]:
+                        - listitem [ref=e2125]:
+                          - paragraph [ref=e2126]: RCE via prompt injection → eval() in ida-pro-mcp (★8k)
+                        - listitem [ref=e2127]:
+                          - paragraph [ref=e2128]: Shell injection in an AI security tool (hexstrike-ai, ★8k)
+                        - listitem [ref=e2129]:
+                          - paragraph [ref=e2130]: Cross-tool privilege escalation in Windows-MCP (★5k)
+                        - listitem [ref=e2131]:
+                          - paragraph [ref=e2132]:
+                            - text: 2,396 unauthenticated
+                            - link "u/tool" [ref=e2133] [cursor=pointer]:
+                              - /url: /user/tool/
+                            - text: handlers across 13/20 repos (including awslabs/mcp)
+                      - paragraph [ref=e2134]: Built with Claude Code in 3 days.
+                      - paragraph [ref=e2135]: pip install mcpwatch
+                      - paragraph [ref=e2136]:
+                        - link "https://github.com/Fredbcx/mcpwatch" [ref=e2137] [cursor=pointer]:
+                          - /url: https://github.com/Fredbcx/mcpwatch
+                      - paragraph [ref=e2138]:
+                        - text: "Full writeup:"
+                        - link "https://news.ycombinator.com/item?id=48037083" [ref=e2139] [cursor=pointer]:
+                          - /url: https://news.ycombinator.com/item?id=48037083
+                  - article "Comment from stephaneboghossian 1 day ago" [ref=e2145]:
+                    - generic "Metadata for stephaneboghossian's comment" [ref=e2146]:
+                      - link "stephaneboghossian's profile --- avatar" [ref=e2153] [cursor=pointer]:
+                        - /url: /user/stephaneboghossian/
+                        - img "u/stephaneboghossian avatar" [ref=e2156]
+                      - generic [ref=e2161]:
+                        - link "stephaneboghossian's profile" [ref=e2166] [cursor=pointer]:
+                          - /url: /user/stephaneboghossian/
+                          - text: stephaneboghossian
+                        - generic [ref=e2167]: •
+                        - link "1d ago" [ref=e2168] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok845up/
+                          - time [ref=e2169]: 1d ago
+                    - generic [ref=e2177]:
+                      - paragraph [ref=e2178]: Anthropic ran a webinar last week, ~20k lawyers registered, 51 questions in chat, ~2,470 upvotes, about half got answered live.
+                      - paragraph [ref=e2179]: "I wanted the rest, so:"
+                      - list [ref=e2180]:
+                        - listitem [ref=e2181]:
+                          - paragraph [ref=e2182]: Downloaded the recording
+                        - listitem [ref=e2183]:
+                          - paragraph [ref=e2184]: Whisper transcript
+                        - listitem [ref=e2185]:
+                          - paragraph [ref=e2186]: Pulled the 51 questions + upvote counts
+                        - listitem [ref=e2187]:
+                          - paragraph [ref=e2188]: Diffed answered vs unanswered
+                        - listitem [ref=e2189]:
+                          - paragraph [ref=e2190]: Wrote a skill against the gap
+                      - paragraph [ref=e2191]:
+                        - text: "Repo + writeup here:"
+                        - link "https://github.com/sboghossian/master-claude-for-legal" [ref=e2192] [cursor=pointer]:
+                          - /url: https://github.com/sboghossian/master-claude-for-legal
+                        - text: . It's more opinionated than Anthropic's official legal plugin (which is intentionally a starter template).
+                      - paragraph [ref=e2193]: "What's in it:"
+                      - list [ref=e2194]:
+                        - listitem [ref=e2195]:
+                          - paragraph [ref=e2196]: 10 reference docs (privilege, verification, long documents, practice areas, setup)
+                        - listitem [ref=e2197]:
+                          - paragraph [ref=e2198]: 5 starter skills (NDA triage, version diff, meeting brief, citation verifier, weekly newsletter)
+                        - listitem [ref=e2199]:
+                          - paragraph [ref=e2200]: 3 firm templates (AI policy, client explainer, vendor questionnaire)
+                        - listitem [ref=e2201]:
+                          - paragraph [ref=e2202]: Full webinar transcript + structured 51-question dataset
+                      - paragraph [ref=e2203]: Been using it 2 days. Tell me what's broken.
+                  - article "Comment from TurnipObjective9157 1 day ago" [ref=e2209]:
+                    - generic "Metadata for TurnipObjective9157's comment" [ref=e2210]:
+                      - link "TurnipObjective9157's profile --- avatar" [ref=e2217] [cursor=pointer]:
+                        - /url: /user/TurnipObjective9157/
+                        - img "u/TurnipObjective9157 avatar" [ref=e2220]
+                      - generic [ref=e2225]:
+                        - link "TurnipObjective9157's profile" [ref=e2230] [cursor=pointer]:
+                          - /url: /user/TurnipObjective9157/
+                          - text: TurnipObjective9157
+                        - generic [ref=e2231]: •
+                        - link "1d ago" [ref=e2232] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7te8n/
+                          - time [ref=e2233]: 1d ago
+                    - generic [ref=e2235]:
+                      - generic [ref=e2243]:
+                        - heading "Anyone else moved Claude off their laptop?" [level=1] [ref=e2244]
+                        - paragraph [ref=e2245]: I’m a founder who got hooked on coding with agents, building a few things for our company and for fun.
+                        - paragraph [ref=e2246]: Often on the move so keeping the laptop open while agents run is super annoying. The sessions get interrupted anyway, connectivity changes.
+                        - paragraph [ref=e2247]: Can't check progress from mobile. Can't give Claude the next thing to do. /remote-control in Claude exists but it sucks. The agent still runs on my laptop, close the lid and it stops.
+                        - paragraph [ref=e2248]: Some people set up a Mac mini at home. That feels weird. The agents run in the cloud, the repo lives on GitHub. Why pipe all of this through a box in my flat?
+                        - paragraph [ref=e2249]: A VM in the cloud feels more right. Never sleeps, repo lives there, no desktop dependency, reasonable security.
+                        - paragraph [ref=e2250]:
+                          - text: "This Ona piece captured the feeling well:"
+                          - link "https://ona.com/stories/the-last-year-of-localhost" [ref=e2251] [cursor=pointer]:
+                            - /url: https://ona.com/stories/the-last-year-of-localhost
+                          - text: .
+                        - paragraph [ref=e2252]: I gave plain SSH a try. Half baked. Lag, drops on every network blip, reconnect dance is a disaster.
+                        - paragraph [ref=e2253]: People often suggest tmux for the persistence side, so I tried that and ended up assembling something with more layers to make it feel smooth.
+                        - paragraph [ref=e2254]: "Here's the setup:"
+                        - paragraph [ref=e2255]: A simple VM on Google Cloud. Always on. Repo lives in there. Claude Code, Codex, Gemini installed as CLIs.
+                        - paragraph [ref=e2256]: The agents run inside terminal sessions on the VM, managed by zmx (small Zig project, keeps a raw PTY around). Session keeps running regardless of what's connected.
+                        - paragraph [ref=e2257]: From the Mac, transport is Eternal Terminal on port 2022. ET is like SSH but reconnects silently. I never see the disconnect.
+                        - paragraph [ref=e2258]: From the phone, transport is mosh. UDP based, roams gracefully (cellular to wifi and back). Client is Moshi (iOS), renders the terminal and manages tmux sessions well. Moshi needs alternate screen for scrollback, so on the phone path zmx is wrapped in tmux. The tmux is just an adapter for the phone client, not the persistence layer.
+                        - paragraph [ref=e2259]: "The point: both transports attach to the same zmx session. Same scrollback, same prompt, same agent state. Laptop, phone, both at once, all clients of the same long running shell on the VM."
+                        - paragraph [ref=e2260]: "The annoying part was scrollback: duplicated history, lack of native scroll, lagging. zmx avoids the alternate screen (tmux uses it by default, which makes scrolling agent output awkward). Combined with Claude's --no-flicker flag, the terminal's own scrollback ends up actually usable."
+                        - paragraph [ref=e2261]: I wanted to avoid manually switching scroll modes and re-attaching. Moshi sees all my current sessions on the Mac, I just tap and swipe between them. Awesome.
+                        - paragraph [ref=e2262]: A few shell functions hide the layering on the Mac with a few commands and keyboard shortcuts.
+                        - paragraph [ref=e2263]: Every person I've shown this to has the same wtf/wow reaction. They watch me start something on my laptop, close the lid, pull out my phone, pick up exactly where the agent was.
+                        - paragraph [ref=e2264]: And really, this should be how it works from day one. How did we end up with the bar so low that such a basic flow gets treated as a revelation?
+                        - paragraph [ref=e2265]: Everything is in the cloud, but somehow agents inherited the localhost assumption from the previous era.
+                        - paragraph [ref=e2266]: I thought it would be cool to package this so people don't have to assemble the layers themselves.
+                        - paragraph [ref=e2267]: "So few things I'd love thoughts on:"
+                        - list [ref=e2268]:
+                          - listitem [ref=e2269]:
+                            - paragraph [ref=e2270]: How are you working with coding agents from outside your laptop? Anyone else ended up here?
+                          - listitem [ref=e2271]:
+                            - paragraph [ref=e2272]: What's your take on this stack? What would you do differently?
+                          - listitem [ref=e2273]:
+                            - paragraph [ref=e2274]: Anyone want to collab on turning this into a clean CLI? Open source, no commercial gatekeeping.
+                        - paragraph [ref=e2275]: Honestly I think Anthropic, OpenAI and Google should ship this themselves at some point. Until they do, here we are.
+                      - button "Toggle Comment Thread" [expanded] [ref=e2278] [cursor=pointer]:
+                        - img [ref=e2281]
+                      - generic [ref=e2285]:
+                        - 'article "Comment thread level 1: Reply from robert-kowalczyk 1 day ago" [ref=e2287]':
+                          - generic "Metadata for robert-kowalczyk's comment" [ref=e2288]:
+                            - link "robert-kowalczyk's profile --- avatar" [ref=e2295] [cursor=pointer]:
+                              - /url: /user/robert-kowalczyk/
+                              - img "u/robert-kowalczyk avatar" [ref=e2298]
+                            - generic [ref=e2303]:
+                              - link "robert-kowalczyk's profile" [ref=e2308] [cursor=pointer]:
+                                - /url: /user/robert-kowalczyk/
+                                - text: robert-kowalczyk
+                              - generic [ref=e2309]: •
+                              - link "1d ago" [ref=e2310] [cursor=pointer]:
+                                - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7v90n/
+                                - time [ref=e2311]: 1d ago
+                          - paragraph [ref=e2320]: Thanks for sharing. I will definitely test your stack for my work.
+                        - 'article "Comment thread level 1: Reply from [deleted] 1 day ago" [ref=e2326]':
+                          - generic "Metadata for [deleted]'s comment" [ref=e2327]:
+                            - button [ref=e2329] [cursor=pointer]:
+                              - img [ref=e2332]
+                            - generic [ref=e2338]:
+                              - generic [ref=e2342]: "[deleted]"
+                              - generic [ref=e2343]: •
+                              - link "1d ago" [ref=e2344] [cursor=pointer]:
+                                - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7u6t2/
+                                - time [ref=e2345]: 1d ago
+                        - 'article "Comment thread level 1: Reply from TurnipObjective9157 1 day ago" [ref=e2349]':
+                          - generic "Metadata for TurnipObjective9157's comment" [ref=e2350]:
+                            - link "TurnipObjective9157's profile --- avatar" [ref=e2357] [cursor=pointer]:
+                              - /url: /user/TurnipObjective9157/
+                              - img "u/TurnipObjective9157 avatar" [ref=e2360]
+                            - generic [ref=e2365]:
+                              - link "TurnipObjective9157's profile" [ref=e2370] [cursor=pointer]:
+                                - /url: /user/TurnipObjective9157/
+                                - text: TurnipObjective9157
+                              - generic [ref=e2371]: •
+                              - link "1d ago" [ref=e2372] [cursor=pointer]:
+                                - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7u224/
+                                - time [ref=e2373]: 1d ago
+                          - generic [ref=e2375]:
+                            - paragraph [ref=e2384]: And obviously I'd be happy to share my setup in more detail for anyone interested! I'll check if putting this on GitHub would make sense.
+                            - button "Toggle Comment Thread" [expanded] [ref=e2387] [cursor=pointer]:
+                              - img [ref=e2390]
+                            - 'article "Comment thread level 2: Reply from darkriftx2 1 day ago" [ref=e2398]':
+                              - generic "Metadata for darkriftx2's comment" [ref=e2399]:
+                                - link "darkriftx2's profile --- avatar" [ref=e2406] [cursor=pointer]:
+                                  - /url: /user/darkriftx2/
+                                  - generic [ref=e2408]:
+                                    - img [ref=e2410]
+                                    - img [ref=e2414]
+                                    - img [ref=e2417]
+                                - generic [ref=e2423]:
+                                  - link "darkriftx2's profile" [ref=e2428] [cursor=pointer]:
+                                    - /url: /user/darkriftx2/
+                                    - text: darkriftx2
+                                  - generic [ref=e2429]: •
+                                  - link "1d ago" [ref=e2430] [cursor=pointer]:
+                                    - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok8ret0/
+                                    - time [ref=e2431]: 1d ago
+                              - paragraph [ref=e2440]: Please do! I'd be very interested in your setup and would also enjoy translating it into a Linux variant that can work with a mobile Android device.
+                  - generic "Your high-end GPU can work a side hustle while you're AFK. Top Salad hosts are earning $100+/month." [ref=e2446]:
+                    - generic [ref=e2447]:
+                      - 'generic "Advertisement: Your high-end GPU can work a side hustle while you''re AFK. Top Salad hosts are earning $100+/month." [ref=e2448]':
+                        - 'link "Advertisement: Your high-end GPU can work a side hustle while you''re AFK. Top Salad hosts are earning $100+/month." [ref=e2449] [cursor=pointer]':
+                          - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                      - generic [ref=e2450]:
+                        - generic [ref=e2451]:
+                          - link "u/SaladChefs avatar u/SaladChefs" [ref=e2454] [cursor=pointer]:
+                            - /url: /user/SaladChefs/
+                            - img "u/SaladChefs avatar" [ref=e2457]
+                            - generic [ref=e2458]: u/SaladChefs
+                          - generic [ref=e2459]: •
+                          - link "Promoted" [ref=e2461] [cursor=pointer]:
+                            - /url: /user/SaladChefs/
+                            - generic [ref=e2462]: Promoted
+                          - link [ref=e2464] [cursor=pointer]:
+                            - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                        - button "Open user actions" [ref=e2469] [cursor=pointer]:
+                          - img [ref=e2472]
+                      - generic [ref=e2475]:
+                        - generic [ref=e2476]:
+                          - link "Your high-end GPU can work a side hustle while you're AFK. Top Salad hosts are earning $100+/month." [ref=e2478] [cursor=pointer]:
+                            - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                            - generic: Your high-end GPU can work a side hustle while you're AFK. Top Salad hosts are earning $100+/month.
+                          - generic [ref=e2479]:
+                            - link [ref=e2481] [cursor=pointer]:
+                              - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                            - generic [ref=e2482]:
+                              - link "Learn More" [ref=e2484] [cursor=pointer]:
+                                - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                                - generic [ref=e2486]:
+                                  - generic: Learn More
+                              - link "salad.com" [ref=e2489] [cursor=pointer]:
+                                - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                                - generic: salad.com
+                        - 'link "Thumbnail image: Your high-end GPU can work a side hustle while you''re AFK. Top Salad hosts are earning $100+/month." [ref=e2492] [cursor=pointer]':
+                          - /url: https://alb.reddit.com/cr?za=0BlG8UnG--1csiE7aDlzsGOuqtGIIbw4N0FYC91gqyHZVHguHbfmu9oEZ-OmkBkIGBvh-giA8Y4f9u0jECW10wyEKRma8ywZmT8Gkf5YYgfk9K3TmuCQq3WbM39JFFrqEfIQ-chS1H1Y0AglISnBZRsIbJ4vmoNolUe_OLjZ1OtZeRc_9ocd29ECKBQ0uagrXdCgdx3Hb3QDBnDH97yY2pgTl-2ia-1VwZTR0CTso4mvaHxrL23ZshUFxDP9zk4NbiXRFsp1Q4wcSrNGaK35MoUpucY6bO3iuT2l-6b1zpIL6AUdA36laAL48_gqoJSTLuJKfsObibB5VOsMUrr8Vt-BvGH1Dq6boJDy8NSkgosvm0Xu1MV0WLRsyHiXkDz-2loNC0FdwDCeD0wjW5Y4j0szScgmk96eGuailCQfdNfDyUvw67owo1SjYGwYnW20EP2T5jc86_YZ8SiQmbN5MYrRv-HdRnWVJxUPTXFtiesn6DDLJUns_K7mEUIc2EvLT_AtOzHi3rMUSY_3iJEyTnZlsBJXo2N7R2enZ6zxCRIvcmlJl06VVb3TxV1fh5KkbXUJvzrLkImgT4OWyYvgWqR-ElTITIC5EEoKCKnyuhGNbzd2OPHSX3liEjwFhLoemkCXGfXmd6pyRoWh59C40bAQOm0FPmQ8MyMzTipsRxSHnm-SO2YLR4251QQKNvG7xRYqrnr48rYUD1SucqObwEB1CK2Y&zp=LBk7FDRhgc46eR7v1JhREGQbYj182xIAatTvBmUgDF9xT2rzDFmwt35-n_gjzP94eu0OA3zOrKoJuJdU0IZtUhovRv6IK3fPBW6TOkuqdO_5RmF5_eJfvEi5rF357AmVyK5f4zhPddQ8XFdZI9WHYQ-id4ks1ekWNEN4HhhB5RiYzrwmsBgIrhdkSQAqykBWTFHBaug4BJ85CSkuPLw9VnE9v_MwnpSIyU8ix0oOtf47JiJBcKbuLlZKf2U7WaVXLT2cERuVh71AySuLpo-eP3377A5Xi6J_-T4WEPV3KgHlgIqtjcgNsuohRZlO1ZDjkXZjsHKRMwl91P8C5jj5DzAcqA88LrxvlBgO28egSKr-CiOJkNOGGStVgHakOulxfXrXq00Nrw
+                          - 'img "Thumbnail image: Your high-end GPU can work a side hustle while you''re AFK. Top Salad hosts are earning $100+/month." [ref=e2493]'
+                  - article "Comment from Hopeful_Bass_6633 1 day ago" [ref=e2495]:
+                    - generic "Metadata for Hopeful_Bass_6633's comment" [ref=e2496]:
+                      - link "Hopeful_Bass_6633's profile --- avatar" [ref=e2503] [cursor=pointer]:
+                        - /url: /user/Hopeful_Bass_6633/
+                        - img "u/Hopeful_Bass_6633 avatar" [ref=e2506]
+                      - generic [ref=e2511]:
+                        - link "Hopeful_Bass_6633's profile" [ref=e2516] [cursor=pointer]:
+                          - /url: /user/Hopeful_Bass_6633/
+                          - text: Hopeful_Bass_6633
+                        - generic [ref=e2517]: •
+                        - link "1d ago" [ref=e2518] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7skwk/
+                          - time [ref=e2519]: 1d ago
+                    - generic [ref=e2527]:
+                      - paragraph [ref=e2528]: I built a SAP BTP User Management Tool to alleviate user management pains in SAP BTP across Sub-Accounts, Global Accounts, Cloud Foundry Organisation and Cloud Foundry Space.
+                      - paragraph [ref=e2529]: It's called TerraBT BTP xID.
+                      - paragraph [ref=e2530]: It lets you add a user to multiple sub accounts in one clicks while also assigning them roles at the same time.
+                      - paragraph [ref=e2531]: It let's you force add a CF org manager in a single click as per SAP Note 3249765 without updating your Cloud Foundry Org instance manually which can cause problems with your future updates as the JSON script containing your newly added users is persisted in the instance.
+                      - paragraph [ref=e2532]: It lets you search for where all a user exists across your SAP BTP Landscape.
+                      - paragraph [ref=e2533]: "Coming up: Schedule deactivation of user, mass role updates"
+                  - article "Comment from Low-Dependent9515 1 day ago" [ref=e2539]:
+                    - generic "Metadata for Low-Dependent9515's comment" [ref=e2540]:
+                      - link "Low-Dependent9515's profile --- avatar" [ref=e2547] [cursor=pointer]:
+                        - /url: /user/Low-Dependent9515/
+                        - generic [ref=e2549]:
+                          - img [ref=e2551]
+                          - img [ref=e2555]
+                          - img [ref=e2558]
+                      - generic [ref=e2564]:
+                        - link "Low-Dependent9515's profile" [ref=e2569] [cursor=pointer]:
+                          - /url: /user/Low-Dependent9515/
+                          - text: Low-Dependent9515
+                        - generic [ref=e2570]: •
+                        - link "1d ago" [ref=e2571] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7r5ci/
+                          - time [ref=e2572]: 1d ago
+                    - generic [ref=e2580]:
+                      - heading "SlackHive - drop a team of Claude Code agents into your Slack workspace (open source, one command)" [level=1] [ref=e2581]
+                      - paragraph [ref=e2582]: A Karpathy-inspired team of humans and AI specialists, powered by Claude Code
+                      - paragraph [ref=e2583]: Built this with Claude Code over the last few weeks. SlackHive lets you run a team of Claude Code agents directly inside Slack each agent is a separate
+                      - paragraph [ref=e2584]: How Claude helped
+                      - paragraph [ref=e2585]: "- Claude Code wrote ~all of it — I drove architecture, it implemented"
+                      - paragraph [ref=e2586]: "- The orchestration model (boss + specialists, mention-based routing) was iterated with Claude in long planning sessions before any code"
+                      - paragraph [ref=e2587]: "- Web UI, Slack event handling, agent process supervision, wiki ingestion"
+                      - paragraph [ref=e2588]: Free and open source.
+                      - paragraph [ref=e2589]:
+                        - link "https://github.com/pelago-labs/slackhive" [ref=e2590] [cursor=pointer]:
+                          - /url: https://github.com/pelago-labs/slackhive
+                  - article "Comment from CantaloupeAdept6807 1 day ago" [ref=e2596]:
+                    - generic "Metadata for CantaloupeAdept6807's comment" [ref=e2597]:
+                      - link "CantaloupeAdept6807's profile --- avatar" [ref=e2604] [cursor=pointer]:
+                        - /url: /user/CantaloupeAdept6807/
+                        - img [ref=e2609]
+                      - generic [ref=e2615]:
+                        - link "CantaloupeAdept6807's profile" [ref=e2620] [cursor=pointer]:
+                          - /url: /user/CantaloupeAdept6807/
+                          - text: CantaloupeAdept6807
+                        - generic [ref=e2621]: •
+                        - link "1d ago" [ref=e2622] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok7kw7e/
+                          - time [ref=e2623]: 1d ago
+                    - generic [ref=e2631]:
+                      - paragraph [ref=e2632]: Hola a todos!
+                      - paragraph [ref=e2633]: Llevo un tiempo usando mucho Claude Code y me apeteció hacer algo divertido, nada realmente útil, solo una criatura que apareciera al abrir una sesión.
+                      - paragraph [ref=e2634]: "Al final acabé creando esto: genera una especie aleatoria cada vez que inicias Claude Code -pato, dragón, fénix, capibara, ajolote, 20 en total - y le asigna una rareza (Legendario tiene un 1 % de probabilidad, hay incluso una variante Shiny). Cada especie tiene sus propias estadísticas temáticas. Los patos tienen QUACK, WADDLE, BREAD, POND_IQ y HONK. Los dragones tienen FIRE, HOARD, RAVAGE, LORE, PRESENCE. Son tonterías, pero la verdad es que me hacía ilusión!"
+                      - paragraph [ref=e2635]: Se muestra en la barra de estado durante toda la sesión, cero tokens, Python puro, sin dependencias. También puedes escribir /buddy para ver la ficha completa con las estadísticas (ahí ya gastamos algo, residual pero algo)
+                      - paragraph [ref=e2636]:
+                        - link "https://github.com/ElTreze/claude-buddy" [ref=e2637] [cursor=pointer]:
+                          - /url: https://github.com/ElTreze/claude-buddy
+                      - paragraph [ref=e2638]: Es mi primer proyecto, así que si alguien lo prueba y tiene alguna opinión, buena o mala, me encantaría escucharla. Gracias por leer 😄
+                  - article "Comment from Boring_Radish_374 1 day ago" [ref=e2644]:
+                    - generic "Metadata for Boring_Radish_374's comment" [ref=e2645]:
+                      - button [ref=e2647] [cursor=pointer]:
+                        - img [ref=e2650]
+                      - generic [ref=e2656]:
+                        - link "Boring_Radish_374's profile" [ref=e2661] [cursor=pointer]:
+                          - /url: /user/Boring_Radish_374/
+                          - text: Boring_Radish_374
+                        - generic [ref=e2662]: •
+                        - link "1d ago" [ref=e2663] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok6xzq7/
+                          - time [ref=e2664]: 1d ago
+                  - article "Comment from aderegil 2 days ago" [ref=e2667]:
+                    - generic "Metadata for aderegil's comment" [ref=e2668]:
+                      - link "aderegil's profile --- avatar" [ref=e2675] [cursor=pointer]:
+                        - /url: /user/aderegil/
+                        - img "u/aderegil avatar" [ref=e2678]
+                      - generic [ref=e2683]:
+                        - link "aderegil's profile" [ref=e2688] [cursor=pointer]:
+                          - /url: /user/aderegil/
+                          - text: aderegil
+                        - generic [ref=e2689]: •
+                        - link "2d ago" [ref=e2690] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok6fml5/
+                          - time [ref=e2691]: 2d ago
+                    - generic [ref=e2699]:
+                      - heading "Chambeando for 1m 15s. A Mexican Spanish spinner pack for Claude Code" [level=1] [ref=e2700]
+                      - paragraph [ref=e2701]:
+                        - emphasis [ref=e2702]:
+                          - strong [ref=e2703]: Claude Code is my daily coding compa. While it's thinking, it now sounds like one.
+                      - paragraph [ref=e2704]:
+                        - text: Claude Code's spinner says
+                        - strong [ref=e2705]: Crunching... Pondering...
+                        - text: in English. I built a pack that swaps it for Mexican Spanish.
+                      - list [ref=e2706]:
+                        - listitem [ref=e2707]:
+                          - paragraph [ref=e2708]:
+                            - strong [ref=e2709]: Chambeando for 1m 15s
+                            - text: (working hard.)
+                        - listitem [ref=e2710]:
+                          - paragraph [ref=e2711]:
+                            - strong [ref=e2712]: Apapachando your code
+                            - text: (hugging it tenderly. From Náhuatl.)
+                        - listitem [ref=e2713]:
+                          - paragraph [ref=e2714]:
+                            - strong [ref=e2715]: Talacheando through legacy code
+                            - text: (rolling up sleeves on the gritty work.)
+                        - listitem [ref=e2716]:
+                          - paragraph [ref=e2717]:
+                            - strong [ref=e2718]: Vacilando with the tests
+                            - text: (joking around, Mexican-style.)
+                        - listitem [ref=e2719]:
+                          - paragraph [ref=e2720]:
+                            - strong [ref=e2721]: Cotorreando with the docs
+                            - text: (hanging out, chit-chatting.)
+                      - paragraph [ref=e2722]: "135 hand-picked Mexican Spanish words across 10 cultural categories. Curated with strict editorial rules: living language, no trademarks, no copyrighted lyrics."
+                      - paragraph [ref=e2723]:
+                        - text: Drop the JSON fragment into
+                        - code [ref=e2724]: ~/.claude/settings.json
+                        - text: and reload. Claude Code v2.1.23+.
+                      - paragraph [ref=e2725]:
+                        - link "https://github.com/aderegil/claude-code-chambeando" [ref=e2726] [cursor=pointer]:
+                          - /url: https://github.com/aderegil/claude-code-chambeando
+                  - article "Comment from Accomplished_Drag151 2 days ago" [ref=e2732]:
+                    - generic "Metadata for Accomplished_Drag151's comment" [ref=e2733]:
+                      - link "Accomplished_Drag151's profile --- avatar" [ref=e2740] [cursor=pointer]:
+                        - /url: /user/Accomplished_Drag151/
+                        - img "u/Accomplished_Drag151 avatar" [ref=e2743]
+                      - generic [ref=e2748]:
+                        - link "Accomplished_Drag151's profile" [ref=e2753] [cursor=pointer]:
+                          - /url: /user/Accomplished_Drag151/
+                          - text: Accomplished_Drag151
+                        - generic [ref=e2754]: •
+                        - link "2d ago" [ref=e2755] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok5h0aq/
+                          - time [ref=e2756]: 2d ago
+                    - generic [ref=e2764]:
+                      - paragraph [ref=e2765]: I built Tessera, a GUI command center for Claude Code and other coding agents.
+                      - paragraph [ref=e2766]: I like Claude Code, but I’ve always found TUI-based workflows a bit clunky, especially when running multiple tasks in parallel. I wanted something that felt more like a command center, so I built this.
+                      - paragraph [ref=e2767]: Tessera lets you manage Claude Code, Codex, and Opencode in one workspace instead of constantly switching between terminals.
+                      - paragraph [ref=e2768]: I built it myself with help from Claude/Claude Code, and it’s free to try.
+                      - paragraph [ref=e2769]: "GitHub:"
+                      - paragraph [ref=e2770]:
+                        - link "https://github.com/horang-labs/tessera" [ref=e2771] [cursor=pointer]:
+                          - /url: https://github.com/horang-labs/tessera
+                      - paragraph [ref=e2772]: Would love any feedback from people using Claude Code or multi-agent coding workflows.
+                  - article "Comment from Mediocre-Ad7151 2 days ago" [ref=e2778]:
+                    - generic "Metadata for Mediocre-Ad7151's comment" [ref=e2779]:
+                      - link "Mediocre-Ad7151's profile --- avatar" [ref=e2786] [cursor=pointer]:
+                        - /url: /user/Mediocre-Ad7151/
+                        - img "u/Mediocre-Ad7151 avatar" [ref=e2789]
+                      - generic [ref=e2794]:
+                        - link "Mediocre-Ad7151's profile" [ref=e2799] [cursor=pointer]:
+                          - /url: /user/Mediocre-Ad7151/
+                          - text: Mediocre-Ad7151
+                        - generic [ref=e2800]: •
+                        - link "2d ago" [ref=e2801] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok54mip/
+                          - time [ref=e2802]: 2d ago
+                    - generic [ref=e2810]:
+                      - paragraph [ref=e2811]: I wrote about being Anti AI and then discovering Claude AI and my journey through it over on Substack.
+                      - paragraph [ref=e2812]: This series is specific to supporting a writers life using tools for marketing. Not the writing itself. Uses only Claude Cowork and Claude Code.
+                      - paragraph [ref=e2813]:
+                        - link "https://open.substack.com/pub/liyer/p/i-was-the-anti-ai-writer-in-every?utm_campaign=post-expanded-share&utm_medium=web" [ref=e2814] [cursor=pointer]:
+                          - /url: https://open.substack.com/pub/liyer/p/i-was-the-anti-ai-writer-in-every?utm_campaign=post-expanded-share&utm_medium=web
+                      - paragraph [ref=e2815]: The longer version as a six part series is on my website.
+                      - paragraph [ref=e2816]:
+                        - link "https://lgiyer.com/the-morning-i-downloaded-vs-code/" [ref=e2817] [cursor=pointer]:
+                          - /url: https://lgiyer.com/the-morning-i-downloaded-vs-code/
+                      - paragraph [ref=e2818]: I am curious to know what your journey with using AI has been like.
+                  - article "Comment from pexatar 2 days ago" [ref=e2824]:
+                    - generic "Metadata for pexatar's comment" [ref=e2825]:
+                      - link "pexatar's profile --- avatar" [ref=e2832] [cursor=pointer]:
+                        - /url: /user/pexatar/
+                        - img [ref=e2837]
+                      - generic [ref=e2843]:
+                        - link "pexatar's profile" [ref=e2848] [cursor=pointer]:
+                          - /url: /user/pexatar/
+                          - text: pexatar
+                        - generic [ref=e2849]: •
+                        - link "2d ago" [ref=e2850] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok4qxm4/
+                          - time [ref=e2851]: 2d ago
+                    - generic [ref=e2859]:
+                      - paragraph [ref=e2860]:
+                        - strong [ref=e2861]: I built a full-featured Windows password manager without knowing how to code. Claude AI wrote everything. Here it is.
+                      - paragraph [ref=e2862]: I'm 44 years old, not a programmer, and I've never written code in my life — except for some HTML/CSS back when I was a web designer 😁
+                      - paragraph [ref=e2863]:
+                        - text: After months of failed attempts, I have a working password manager running on my PC. It's called
+                        - strong [ref=e2864]: PassKey
+                        - text: .
+                      - paragraph [ref=e2865]:
+                        - strong [ref=e2866]: How it started
+                      - paragraph [ref=e2867]: "Watching a YouTube video, I thought: \"what if I tried building my own password manager with AI?\". Not to sell it, not to start a business — just personal curiosity, and because the idea of having a tool that's completely mine, local, with no subscription and no data ending up on someone else's server, genuinely appealed to me."
+                      - paragraph [ref=e2868]: The first versions were… disappointing. Really disappointing. They half-worked, or didn't work at all, and at some point I almost gave up. Then, gradually, I figured out how to work with AI effectively and how to make things actually function (at least on my PC 😅).
+                      - paragraph [ref=e2869]:
+                        - strong [ref=e2870]: What PassKey does
+                      - paragraph [ref=e2871]:
+                        - text: "- 🔐 Local password manager"
+                        - text: "- 💳 Credit cards"
+                        - text: "- 🪪 Identities"
+                        - text: "- 📝 Encrypted secure notes"
+                        - text: "- 🌐 Browser extension for Chrome and Firefox (credential autofill) — not yet published on the stores"
+                        - text: "- 🌍 Six languages (IT, EN, FR, DE, ES, PT)"
+                        - text: "- 🎨 Light/dark theme"
+                        - text: "- 📦 Standalone installer — no separate runtime to install"
+                      - paragraph [ref=e2872]:
+                        - strong [ref=e2873]: Something I want to be clear about
+                      - paragraph [ref=e2874]: "I didn't write a single line of code. Not one. Everything — the architecture, the C# code, the UI design, the cryptography, the unit tests — was produced by Claude AI. My role was just \"coordinator\": I defined requirements, made decisions, tested, and course-corrected. But the code? Claude, entirely."
+                      - paragraph [ref=e2875]: "In a professional developer's eyes, this codebase probably has a thousand issues I can't even see. And that's exactly why I'm here: I want to know what's wrong. What would you improve? What's missing? What looks \"dangerous\" or poorly implemented?"
+                      - paragraph [ref=e2876]:
+                        - strong [ref=e2877]: GitHub
+                        - text: ":"
+                        - link "https://github.com/pexatar/PassKey" [ref=e2878] [cursor=pointer]:
+                          - /url: https://github.com/pexatar/PassKey
+                      - paragraph [ref=e2879]: Thanks to anyone who takes a look 🙏
+                      - paragraph [ref=e2880]:
+                        - emphasis [ref=e2881]: "(PS: be kind in judging me, but be honest in judging the project 😊)"
+                  - article "Comment from Particular_Common384 2 days ago" [ref=e2887]:
+                    - generic "Metadata for Particular_Common384's comment" [ref=e2888]:
+                      - button [ref=e2890] [cursor=pointer]:
+                        - img [ref=e2893]
+                      - generic [ref=e2899]:
+                        - link "Particular_Common384's profile" [ref=e2904] [cursor=pointer]:
+                          - /url: /user/Particular_Common384/
+                          - text: Particular_Common384
+                        - generic [ref=e2905]: •
+                        - link "2d ago" [ref=e2906] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok4gf74/
+                          - time [ref=e2907]: 2d ago
+                  - article "Comment from Old-Conference-3730 2 days ago" [ref=e2910]:
+                    - generic "Metadata for Old-Conference-3730's comment" [ref=e2911]:
+                      - link "Old-Conference-3730's profile --- avatar" [ref=e2918] [cursor=pointer]:
+                        - /url: /user/Old-Conference-3730/
+                        - img "u/Old-Conference-3730 avatar" [ref=e2921]
+                      - generic [ref=e2926]:
+                        - link "Old-Conference-3730's profile" [ref=e2931] [cursor=pointer]:
+                          - /url: /user/Old-Conference-3730/
+                          - text: Old-Conference-3730
+                        - generic [ref=e2932]: •
+                        - link "2d ago" [ref=e2933] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok3ypbo/
+                          - time [ref=e2934]: 2d ago
+                    - generic [ref=e2942]:
+                      - paragraph [ref=e2943]: I built patina, a Claude Code skill / CLI for cleaning up AI-sounding text.
+                      - paragraph [ref=e2944]: It detects recurring AI writing patterns, rewrites them, and checks that the original meaning is preserved. It supports Korean, English, Chinese, and Japanese, and also works with Codex CLI, Cursor, OpenCode, and standalone Node.js.
+                      - paragraph [ref=e2945]: "Quick before/after:"
+                      - paragraph [ref=e2946]:
+                        - text: "Before:"
+                        - text: “Coffee has emerged as a pivotal cultural phenomenon that has fundamentally transformed social interactions across the globe. This beloved beverage serves as a catalyst for community building, fosters meaningful connections, and facilitates cross-cultural dialogue.”
+                      - paragraph [ref=e2947]:
+                        - text: "After:"
+                        - text: “Coffee has quietly changed how people meet. Sit across from someone long enough, and something like a real connection tends to form, even between people from very different cultures.”
+                      - paragraph [ref=e2948]:
+                        - text: "Repo:"
+                        - link "https://github.com/devswha/patina" [ref=e2949] [cursor=pointer]:
+                          - /url: https://github.com/devswha/patina
+                      - paragraph [ref=e2950]: I’d especially like feedback on false positives, missing AI-writing patterns, and whether the audit/score/diff modes make sense for real Claude output.
+                  - article "Comment from Sensitive-Emu5337 2 days ago" [ref=e2956]:
+                    - generic "Metadata for Sensitive-Emu5337's comment" [ref=e2957]:
+                      - link "Sensitive-Emu5337's profile --- avatar" [ref=e2964] [cursor=pointer]:
+                        - /url: /user/Sensitive-Emu5337/
+                        - img "u/Sensitive-Emu5337 avatar" [ref=e2967]
+                      - generic [ref=e2972]:
+                        - link "Sensitive-Emu5337's profile" [ref=e2977] [cursor=pointer]:
+                          - /url: /user/Sensitive-Emu5337/
+                          - text: Sensitive-Emu5337
+                        - generic [ref=e2978]: •
+                        - link "2d ago" [ref=e2979] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok3nij9/
+                          - time [ref=e2980]: 2d ago
+                    - generic [ref=e2982]:
+                      - generic [ref=e2990]:
+                        - paragraph [ref=e2991]: If you use Claude for long sessions - research, coding, writing - you've probably spent way too long scrolling back through a conversation trying to find something you asked 20 messages ago.
+                        - paragraph [ref=e2992]:
+                          - text: I built a Chrome extension that fixes this. It adds a clean sidebar to
+                          - link "claude.ai" [ref=e2993] [cursor=pointer]:
+                            - /url: http://claude.ai
+                          - text: listing every prompt you've sent in the current conversation, numbered and in order. Click any entry and the chat jumps straight to it.
+                        - paragraph [ref=e2994]: "A few details worth mentioning:"
+                        - list [ref=e2995]:
+                          - listitem [ref=e2996]:
+                            - paragraph [ref=e2997]: Updates live as you type
+                          - listitem [ref=e2998]:
+                            - paragraph [ref=e2999]: Matches Claude's native design — dark theme, same fonts, feels built-in
+                          - listitem [ref=e3000]:
+                            - paragraph [ref=e3001]: Auto-collapses Claude's left nav when you open it so you don't lose screen space
+                          - listitem [ref=e3002]:
+                            - paragraph [ref=e3003]: Zero permissions — reads nothing, stores nothing, sends nothing anywhere
+                        - paragraph [ref=e3004]:
+                          - text: "Free on the Chrome Web Store:"
+                          - link "https://chromewebstore.google.com/detail/fkkjhjecbadnfpngoeanhghdppbdnjge?utm_source=item-share-cb" [ref=e3005] [cursor=pointer]:
+                            - /url: https://chromewebstore.google.com/detail/fkkjhjecbadnfpngoeanhghdppbdnjge?utm_source=item-share-cb
+                        - paragraph [ref=e3006]: Would genuinely love feedback from anyone who tries it - especially on what's missing or what could work better.
+                      - button "Toggle Comment Thread" [expanded] [ref=e3009] [cursor=pointer]:
+                        - img [ref=e3012]
+                      - generic [ref=e3016]:
+                        - 'article "Comment thread level 1: Reply from ricksegal 18 hours ago" [ref=e3018]':
+                          - generic "Metadata for ricksegal's comment" [ref=e3019]:
+                            - link "ricksegal's profile --- avatar" [ref=e3026] [cursor=pointer]:
+                              - /url: /user/ricksegal/
+                              - img [ref=e3031]
+                            - generic [ref=e3037]:
+                              - link "ricksegal's profile" [ref=e3042] [cursor=pointer]:
+                                - /url: /user/ricksegal/
+                                - text: ricksegal
+                              - generic [ref=e3043]: •
+                              - link "18h ago" [ref=e3044] [cursor=pointer]:
+                                - /url: /r/ClaudeAI/comments/1sly3jm/comment/okc8irt/
+                                - time [ref=e3045]: 18h ago
+                          - paragraph [ref=e3054]: It would be wonderful if Anthropic would incorporate this into the desktop app. So useful. Well done. When I say incorporate, I mean give you lifetime access for free in return. :-)
+                        - 'article "Comment thread level 1: Reply from Sensitive-Emu5337 2 days ago" [ref=e3062]':
+                          - generic "Metadata for Sensitive-Emu5337's comment" [ref=e3063]:
+                            - link "Sensitive-Emu5337's profile --- avatar" [ref=e3070] [cursor=pointer]:
+                              - /url: /user/Sensitive-Emu5337/
+                              - img "u/Sensitive-Emu5337 avatar" [ref=e3073]
+                            - generic [ref=e3078]:
+                              - link "Sensitive-Emu5337's profile" [ref=e3083] [cursor=pointer]:
+                                - /url: /user/Sensitive-Emu5337/
+                                - text: Sensitive-Emu5337
+                              - generic [ref=e3084]: •
+                              - link "2d ago" [ref=e3085] [cursor=pointer]:
+                                - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok3obvr/
+                                - time [ref=e3086]: 2d ago
+                          - paragraph [ref=e3095]: Feel free to comment!
+                  - article "Comment from xonaib901 2 days ago" [ref=e3101]:
+                    - generic "Metadata for xonaib901's comment" [ref=e3102]:
+                      - link "xonaib901's profile --- avatar" [ref=e3109] [cursor=pointer]:
+                        - /url: /user/xonaib901/
+                        - generic [ref=e3111]:
+                          - img [ref=e3113]
+                          - img [ref=e3117]
+                          - img [ref=e3120]
+                      - generic [ref=e3126]:
+                        - link "xonaib901's profile" [ref=e3131] [cursor=pointer]:
+                          - /url: /user/xonaib901/
+                          - text: xonaib901
+                        - generic [ref=e3132]: •
+                        - link "2d ago" [ref=e3133] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok2xaw3/
+                          - time [ref=e3134]: 2d ago
+                    - generic [ref=e3142]:
+                      - paragraph [ref=e3143]: I built an MCP server that creates live web forms from a single prompt — conditional logic, webhooks, CSV export included
+                      - paragraph [ref=e3144]: Been using Claude for everything lately and kept getting annoyed at switching to Typeform/Google Forms mid-conversation. So I built MCP Forms.
+                      - paragraph [ref=e3145]: "You describe what you want and Claude builds it:"
+                      - blockquote [ref=e3146]
+                      - paragraph [ref=e3147]: You get a live shareable link back. Submissions show up when you ask for them. Export to CSV. Wire up to Slack or Zapier via webhook.
+                      - paragraph [ref=e3148]:
+                        - text: "No install needed — add it as a custom connector in Claude.ai:"
+                        - link "https://mcp-forms-production-cdf7.up.railway.app/mcp" [ref=e3149] [cursor=pointer]:
+                          - /url: https://mcp-forms-production-cdf7.up.railway.app/mcp
+                          - code [ref=e3150]: https://mcp-forms-production-cdf7.up.railway.app/mcp
+                      - paragraph [ref=e3151]: Works in ChatGPT, Cursor, Windsurf too.
+                      - paragraph [ref=e3152]:
+                        - text: "Source + full writeup:"
+                        - link "https://github.com/xonaib/mcp-forms" [ref=e3153] [cursor=pointer]:
+                          - /url: https://github.com/xonaib/mcp-forms
+                      - paragraph [ref=e3154]: Happy to answer questions about how it works.
+                  - article "Comment from Scott_Zhu 2 days ago" [ref=e3160]:
+                    - generic "Metadata for Scott_Zhu's comment" [ref=e3161]:
+                      - link "Scott_Zhu's profile --- avatar" [ref=e3168] [cursor=pointer]:
+                        - /url: /user/Scott_Zhu/
+                        - img "u/Scott_Zhu avatar" [ref=e3171]
+                      - generic [ref=e3176]:
+                        - link "Scott_Zhu's profile" [ref=e3181] [cursor=pointer]:
+                          - /url: /user/Scott_Zhu/
+                          - text: Scott_Zhu
+                        - generic [ref=e3182]: •
+                        - link "2d ago" [ref=e3183] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok2tfbi/
+                          - time [ref=e3184]: 2d ago
+                    - generic [ref=e3192]:
+                      - paragraph [ref=e3193]: Found a Mac app that lets you browse your full Claude Code history — including compacted conversations
+                      - paragraph [ref=e3194]: If you use Claude Code a lot, you've probably hit the moment where a long
+                      - paragraph [ref=e3195]: conversation gets compacted and the original messages just disappear from
+                      - paragraph [ref=e3196]: the interface.
+                      - paragraph [ref=e3197]: Turns out Claude CLI stores everything as JSONL files in ~/.claude/projects.
+                      - paragraph [ref=e3198]: There's a Mac app called Claulog that reads those files directly and gives
+                      - paragraph [ref=e3199]: you a proper UI — sessions organized by project, full-text search across
+                      - paragraph [ref=e3200]: everything, cost per conversation, and one-click to copy the resume command
+                      - paragraph [ref=e3201]: back into your terminal.
+                      - paragraph [ref=e3202]: The compaction thing is the main reason I keep it open. The history is all
+                      - paragraph [ref=e3203]: there, just buried in files.
+                      - paragraph [ref=e3204]: "There's currently a promo code for a free year if you want to try it:"
+                      - paragraph [ref=e3205]:
+                        - link "https://apps.apple.com/redeem?ctx=offercodes&id=6762034265&code=HAPPYCLAUDING" [ref=e3206] [cursor=pointer]:
+                          - /url: https://apps.apple.com/redeem?ctx=offercodes&id=6762034265&code=HAPPYCLAUDING
+                  - article "Comment from Adventurous-Lock-231 2 days ago" [ref=e3212]:
+                    - generic "Metadata for Adventurous-Lock-231's comment" [ref=e3213]:
+                      - link "Adventurous-Lock-231's profile --- avatar" [ref=e3220] [cursor=pointer]:
+                        - /url: /user/Adventurous-Lock-231/
+                        - img "u/Adventurous-Lock-231 avatar" [ref=e3223]
+                      - generic [ref=e3228]:
+                        - link "Adventurous-Lock-231's profile" [ref=e3233] [cursor=pointer]:
+                          - /url: /user/Adventurous-Lock-231/
+                          - text: Adventurous-Lock-231
+                        - generic [ref=e3234]: •
+                        - link "2d ago" [ref=e3235] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok27i5i/
+                          - time [ref=e3236]: 2d ago
+                    - generic [ref=e3244]:
+                      - paragraph [ref=e3245]: stark — successor to Anthropic's frontend-design plugin
+                      - paragraph [ref=e3246]: Built this with Claude Code over the past week. It's a plugin called stark.
+                      - paragraph [ref=e3247]: "What it does:"
+                      - paragraph [ref=e3248]: "- Adds skills for Web, Windows (WinUI 3), Apple (SwiftUI), Android (Compose) UI generation"
+                      - paragraph [ref=e3249]: "- Asks which platform/track/aesthetic direction before code, instead of guessing"
+                      - paragraph [ref=e3250]: "- Ships per-platform reference docs (typography, motion, ban lists) + 17 copy-paste motion patterns"
+                      - paragraph [ref=e3251]: "How Claude Code helped:"
+                      - paragraph [ref=e3252]:
+                        - text: "- Scaffolded all 7"
+                        - link "SKILL.md" [ref=e3253] [cursor=pointer]:
+                          - /url: http://SKILL.md
+                        - text: files + frontmatter
+                      - paragraph [ref=e3254]: "- Wrote the WinUI 3 + SwiftUI + React/Tauri/Electron working examples"
+                      - paragraph [ref=e3255]: "- Researched current state-of-the-art (Liquid Glass, Material 3 Expressive, Tailwind v4) via parallel sub-agents"
+                      - paragraph [ref=e3256]: "- Drafted the Apache 2.0 license switch + GitHub release notes"
+                      - paragraph [ref=e3257]: "Free + open source (Apache 2.0). Install:"
+                      - paragraph [ref=e3258]:
+                        - text: /plugin marketplace add
+                        - link "https://github.com/f0d010c/stark.git" [ref=e3259] [cursor=pointer]:
+                          - /url: https://github.com/f0d010c/stark.git
+                      - paragraph [ref=e3260]: /plugin install stark@stark
+                      - paragraph [ref=e3261]:
+                        - text: "Repo:"
+                        - link "https://github.com/f0d010c/stark" [ref=e3262] [cursor=pointer]:
+                          - /url: https://github.com/f0d010c/stark
+                      - paragraph [ref=e3263]: Curious to hear what aesthetic directions or platforms feel missing!
+                  - article "Comment from Mediocre-Ad7151 2 days ago" [ref=e3269]:
+                    - generic "Metadata for Mediocre-Ad7151's comment" [ref=e3270]:
+                      - link "Mediocre-Ad7151's profile --- avatar" [ref=e3277] [cursor=pointer]:
+                        - /url: /user/Mediocre-Ad7151/
+                        - img "u/Mediocre-Ad7151 avatar" [ref=e3280]
+                      - generic [ref=e3285]:
+                        - link "Mediocre-Ad7151's profile" [ref=e3290] [cursor=pointer]:
+                          - /url: /user/Mediocre-Ad7151/
+                          - text: Mediocre-Ad7151
+                        - generic [ref=e3291]: •
+                        - link "2d ago" [ref=e3292] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok2275f/
+                          - time [ref=e3293]: 2d ago
+                    - generic [ref=e3301]:
+                      - paragraph [ref=e3302]: I’d love to share how I used Claude to build a tool to automate asset generation and build a drafts pipeline for my blog. It’s a six part essay.
+                      - paragraph [ref=e3303]:
+                        - link "https://lgiyer.com/the-morning-i-downloaded-vs-code/" [ref=e3304] [cursor=pointer]:
+                          - /url: https://lgiyer.com/the-morning-i-downloaded-vs-code/
+                  - article "Comment from joao_sobhie 2 days ago" [ref=e3310]:
+                    - generic "Metadata for joao_sobhie's comment" [ref=e3311]:
+                      - link "joao_sobhie's profile --- avatar" [ref=e3318] [cursor=pointer]:
+                        - /url: /user/joao_sobhie/
+                        - img "u/joao_sobhie avatar" [ref=e3321]
+                      - generic [ref=e3326]:
+                        - link "joao_sobhie's profile" [ref=e3331] [cursor=pointer]:
+                          - /url: /user/joao_sobhie/
+                          - text: joao_sobhie
+                        - generic [ref=e3332]: •
+                        - link "2d ago" [ref=e3333] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok1wnly/
+                          - time [ref=e3334]: 2d ago
+                    - generic [ref=e3342]:
+                      - heading "I built an MCP server that gives Claude access to Instagram, X/Twitter and any anti-bot protected site" [level=1] [ref=e3343]
+                      - paragraph [ref=e3344]: "One thing I kept running into when building Claude workflows: the moment you need real-time data from social media or protected sites, Claude hits a wall."
+                      - paragraph [ref=e3345]: "So I built an MCP server for it. It gives Claude direct access to:"
+                      - list [ref=e3346]:
+                        - listitem [ref=e3347]:
+                          - paragraph [ref=e3348]: Instagram profiles, posts, hashtags and user search
+                        - listitem [ref=e3349]:
+                          - paragraph [ref=e3350]: X/Twitter profiles, posts and keyword/hashtag search
+                        - listitem [ref=e3351]:
+                          - paragraph [ref=e3352]: Any website — even behind Cloudflare or DataDome
+                      - paragraph [ref=e3353]: The anti-bot layer (we call it Abrasio) uses persistent browser profiles that age over time, so they look like real users rather than fresh headless browsers. That's what makes the difference on the hard sites.
+                      - paragraph [ref=e3354]:
+                        - text: "Works with Claude Desktop out of the box:"
+                        - code [ref=e3355]: npx markudown-mcp
+                      - paragraph [ref=e3356]:
+                        - text: "Github:"
+                        - link "https://github.com/Scrape-Technology/markudown-mcp" [ref=e3357] [cursor=pointer]:
+                          - /url: https://github.com/Scrape-Technology/markudown-mcp
+                        - text: "WebSite:"
+                        - link "https://scrapetechnology.com/markudown" [ref=e3358] [cursor=pointer]:
+                          - /url: https://scrapetechnology.com/markudown
+                      - paragraph [ref=e3359]: Open source. Happy to answer anything about how the stealth layer works.
+                  - article "Comment from tullemnl 2 days ago" [ref=e3365]:
+                    - generic "Metadata for tullemnl's comment" [ref=e3366]:
+                      - link "tullemnl's profile --- avatar" [ref=e3373] [cursor=pointer]:
+                        - /url: /user/tullemnl/
+                        - img "u/tullemnl avatar" [ref=e3376]
+                      - generic [ref=e3381]:
+                        - link "tullemnl's profile" [ref=e3386] [cursor=pointer]:
+                          - /url: /user/tullemnl/
+                          - text: tullemnl
+                        - generic [ref=e3387]: •
+                        - link "2d ago" [ref=e3388] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok0d8pc/
+                          - time [ref=e3389]: 2d ago
+                    - generic [ref=e3397]:
+                      - heading "What I learned building a shared memory layer across Claude, ChatGPT and Cursor (via MCP)" [level=1] [ref=e3398]
+                      - paragraph [ref=e3399]:
+                        - text: "I want to share something I've been figuring out the hard way the past few months:"
+                        - strong [ref=e3400]: MCP is way more powerful than I initially thought, but the mental model takes a minute to click.
+                      - paragraph [ref=e3401]: Quick background — I kept hitting the same friction every day. Deep Claude conversation about my project → switch to ChatGPT for a research task → jump into Cursor to code. Each tool started from zero. I was the human RAM shuttling context between them.
+                      - paragraph [ref=e3402]: "So I started building a shared memory layer (I'm calling it Cortex) on top of MCP. A few things I didn't expect along the way:"
+                      - paragraph [ref=e3403]:
+                        - strong [ref=e3404]: 1. MCP is a two-way street, not just "tools for Claude."
+                        - text: Most examples online frame MCP as "give Claude access to GitHub/Linear/Notion." But the same server can expose
+                        - code [ref=e3405]: save_to_brain
+                        - text: and
+                        - code [ref=e3406]: search_brain
+                        - text: tools — meaning
+                        - emphasis [ref=e3407]: Claude writes into your memory
+                        - text: during a conversation, not just reads from it. That changes the design completely.
+                      - paragraph [ref=e3408]:
+                        - strong [ref=e3409]: 2. Memory ≠ vector search.
+                        - text: "I started with naive RAG (chunk everything, embed, retrieve top-k). It was bad. What actually works better: typed entries (notes, tasks, conversations, signals) with structured metadata,"
+                        - emphasis [ref=e3410]: plus
+                        - text: embeddings as one retrieval path among several. The model picks the tool, not a similarity score.
+                      - paragraph [ref=e3411]:
+                        - strong [ref=e3412]: 3. The same MCP server works in Claude Desktop, Claude Code,
+                        - emphasis [ref=e3413]:
+                          - strong [ref=e3414]: and
+                        - strong [ref=e3415]: ChatGPT (via their MCP support).
+                        - text: This is the underrated bit. Build the server once, and any MCP-compatible client benefits. The "shared" part isn't magic, it's just that the underlying store is one database all clients hit.
+                      - paragraph [ref=e3416]:
+                        - strong [ref=e3417]: 4. Latency is the silent killer.
+                        - text: If
+                        - code [ref=e3418]: search_brain
+                        - text: takes 800ms, the model stops calling it. Sub-200ms or it dies. I rewrote my retrieval layer twice over this.
+                      - paragraph [ref=e3419]: "Stack for anyone curious: TypeScript MCP server, Postgres + Qdrant, deployed via Docker on Coolify/Hetzner."
+                      - paragraph [ref=e3420]:
+                        - text: "I'm running a small survey to figure out what other people building with MCP run into — what works, what doesn't, what you wish existed. If you've used MCP for anything beyond toy demos, I'd genuinely value 2 minutes:"
+                        - link "https://getcortex.org/survey" [ref=e3421] [cursor=pointer]:
+                          - /url: https://getcortex.org/survey
+                          - strong [ref=e3422]: https://getcortex.org/survey
+                      - paragraph [ref=e3423]: Happy to dig into any of the four points above in the comments — especially the typed-entries-vs-RAG thing, which I went back and forth on for weeks.
+                      - paragraph [ref=e3424]:
+                        - text: "(If you want to play with it, there's a waitlist:"
+                        - link "https://getcortex.org" [ref=e3425] [cursor=pointer]:
+                          - /url: https://getcortex.org/
+                          - strong [ref=e3426]: https://getcortex.org
+                        - text: — but the survey is honestly more useful to me right now.)
+                  - article "Comment from SweatiFounder 3 days ago" [ref=e3432]:
+                    - generic "Metadata for SweatiFounder's comment" [ref=e3433]:
+                      - link "SweatiFounder's profile --- avatar" [ref=e3440] [cursor=pointer]:
+                        - /url: /user/SweatiFounder/
+                        - img "u/SweatiFounder avatar" [ref=e3443]
+                      - generic [ref=e3448]:
+                        - link "SweatiFounder's profile" [ref=e3453] [cursor=pointer]:
+                          - /url: /user/SweatiFounder/
+                          - text: SweatiFounder
+                        - generic [ref=e3454]: •
+                        - link "3d ago" [ref=e3455] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojzi2q5/
+                          - time [ref=e3456]: 3d ago
+                    - generic [ref=e3464]:
+                      - paragraph [ref=e3465]: Thanks to CLAUDE, I was able to build my first app!
+                      - paragraph [ref=e3466]: I’m looking for a small group of TestFlight users to beta test Sweati, an iPhone + Apple Watch workout app for lifters, runners, and hybrid athletes.
+                      - paragraph [ref=e3467]:
+                        - text: "link to test flight:"
+                        - link "https://testflight.apple.com/join/zDGheDda" [ref=e3468] [cursor=pointer]:
+                          - /url: https://testflight.apple.com/join/zDGheDda
+                      - paragraph [ref=e3469]:
+                        - text: "What it does:"
+                        - text: "- builds personalized training programs"
+                        - text: "- adjusts workouts based on your available equipment and time"
+                        - text: "- lets you swap exercises"
+                        - text: "- supports workout logging from phone and watch"
+                        - text: "- tracks history, exercise progress, and weekly review"
+                      - paragraph [ref=e3470]:
+                        - text: "Best fit:"
+                        - text: "- iPhone users"
+                        - text: "- ideally Apple Watch users too"
+                        - text: "- people training 3+ times per week"
+                        - text: "- lifters, runners, hybrid athletes, or home gym users"
+                      - paragraph [ref=e3471]: "If you test it, I’d especially like feedback on: program generation, adjusting workouts, swapping exercises, logging workouts, Apple Watch flow, Apple Health saving, and anything confusing or broken."
+                  - article "Comment from suzu-idaki 3 days ago" [ref=e3477]:
+                    - generic "Metadata for suzu-idaki's comment" [ref=e3478]:
+                      - link "suzu-idaki's profile --- avatar" [ref=e3485] [cursor=pointer]:
+                        - /url: /user/suzu-idaki/
+                        - img [ref=e3490]
+                      - generic [ref=e3496]:
+                        - link "suzu-idaki's profile" [ref=e3501] [cursor=pointer]:
+                          - /url: /user/suzu-idaki/
+                          - text: suzu-idaki
+                        - generic [ref=e3502]: •
+                        - link "3d ago" [ref=e3503] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojzhef3/
+                          - time [ref=e3504]: 3d ago
+                        - generic [ref=e3505]: •
+                        - generic [ref=e3506]:
+                          - text: Edited
+                          - time [ref=e3507]: 3d ago
+                    - generic [ref=e3509]:
+                      - generic [ref=e3517]:
+                        - paragraph [ref=e3518]:
+                          - strong [ref=e3519]: 3 small Python tools I built for my Claude Code workflow (PyPI)
+                        - paragraph [ref=e3520]: I run an autonomous business stack on Claude Code (Max plan, single-handed, non-engineer) and shipped 3 OSS utilities to fix pains I kept hitting. All MIT, pip-installable.
+                        - paragraph [ref=e3521]:
+                          - strong [ref=e3522]: watchdog-ai
+                          - text: — file/process drift monitor. Catches when generated artifacts silently change between sessions. ~220 monthly DL.
+                        - paragraph [ref=e3523]:
+                          - text: "-"
+                          - link "https://pypi.org/project/watchdog-ai/" [ref=e3524] [cursor=pointer]:
+                            - /url: https://pypi.org/project/watchdog-ai/
+                        - paragraph [ref=e3525]:
+                          - strong [ref=e3526]: pulse-monitor
+                          - text: — process liveness vs "actually doing work". Differentiates "PID alive" from "consuming CPU/I/O".
+                        - paragraph [ref=e3527]:
+                          - text: "-"
+                          - link "https://pypi.org/project/pulse-monitor/" [ref=e3528] [cursor=pointer]:
+                            - /url: https://pypi.org/project/pulse-monitor/
+                        - paragraph [ref=e3529]:
+                          - strong [ref=e3530]: drift-ai
+                          - text: — checks if your
+                          - link "CLAUDE.md" [ref=e3531] [cursor=pointer]:
+                            - /url: http://CLAUDE.md
+                          - text: / agent instructions still match reality (file paths exist, env vars set, command keys valid). 6 categories, 3-second scan. Just shipped today.
+                        - paragraph [ref=e3532]:
+                          - text: "-"
+                          - link "https://pypi.org/project/drift-ai/" [ref=e3533] [cursor=pointer]:
+                            - /url: https://pypi.org/project/drift-ai/
+                        - paragraph [ref=e3534]: All 3 are Claude-tested but provider-agnostic. Feedback welcome.
+                      - button "Toggle Comment Thread" [expanded] [ref=e3537] [cursor=pointer]:
+                        - img [ref=e3540]
+                      - 'article "Comment thread level 1: Reply from GoodhartMusic 2 days ago" [ref=e3548]':
+                        - generic "Metadata for GoodhartMusic's comment" [ref=e3549]:
+                          - link "GoodhartMusic's profile --- avatar" [ref=e3556] [cursor=pointer]:
+                            - /url: /user/GoodhartMusic/
+                            - img "u/GoodhartMusic avatar" [ref=e3559]
+                          - generic [ref=e3564]:
+                            - link "GoodhartMusic's profile" [ref=e3569] [cursor=pointer]:
+                              - /url: /user/GoodhartMusic/
+                              - text: GoodhartMusic
+                            - generic [ref=e3570]: •
+                            - link "2d ago" [ref=e3571] [cursor=pointer]:
+                              - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok0gz6b/
+                              - time [ref=e3572]: 2d ago
+                        - generic [ref=e3580]:
+                          - paragraph [ref=e3581]: I’m getting ptsd just reading the drift-ai description
+                          - paragraph [ref=e3582]: So many intentions…
+                  - article "Comment from SpecialistLate3674 3 days ago" [ref=e3588]:
+                    - generic "Metadata for SpecialistLate3674's comment" [ref=e3589]:
+                      - link "SpecialistLate3674's profile --- avatar" [ref=e3596] [cursor=pointer]:
+                        - /url: /user/SpecialistLate3674/
+                        - img [ref=e3601]
+                      - generic [ref=e3607]:
+                        - link "SpecialistLate3674's profile" [ref=e3612] [cursor=pointer]:
+                          - /url: /user/SpecialistLate3674/
+                          - text: SpecialistLate3674
+                        - generic [ref=e3613]: •
+                        - link "3d ago" [ref=e3614] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojzh9h7/
+                          - time [ref=e3615]: 3d ago
+                    - generic [ref=e3623]:
+                      - paragraph [ref=e3624]: I used Claude Haiku 4.5 to build an AI literacy app for ages 8+. Here's what I learned about safety prompts, content moderation, and keeping costs under $50/mo as a solo dev.
+                      - paragraph [ref=e3625]: I just shipped Keopi — an iOS app that teaches kids, teens, and adults how
+                      - paragraph [ref=e3626]: to actually use AI well (prompting, evaluation, ethics). It's powered by
+                      - paragraph [ref=e3627]: Claude Haiku 4.5 via API. Took 4 Apple rejections to get to v1.0.
+                      - paragraph [ref=e3628]: Posting here because the safety + cost engineering was harder than the
+                      - paragraph [ref=e3629]: product itself, and I'd love to compare notes.
+                      - paragraph [ref=e3630]: "**What I shipped using Claude:**"
+                      - list [ref=e3631]:
+                        - listitem [ref=e3632]:
+                          - paragraph [ref=e3633]: An AI Sandbox — kids 13+ can chat with Claude through a hardened
+                      - paragraph [ref=e3634]: proxy with age-appropriate guardrails
+                      - paragraph [ref=e3635]: 2. AI-generated daily exercises — Claude generates 5 fresh exercises
+                      - paragraph [ref=e3636]: "each day from my exercise schema (5 types: comparison, repair,"
+                      - paragraph [ref=e3637]: detective, builder, scenario)
+                      - paragraph [ref=e3638]: 3. AI-curated news feed — Claude summarizes AI news daily, filtered
+                      - paragraph [ref=e3639]: by age tier (teens get a softer subset than adults)
+                      - paragraph [ref=e3640]: "**Three things I learned the hard way:**"
+                      - paragraph [ref=e3641]: "**1. The system prompt is your safety budget**"
+                      - paragraph [ref=e3642]: Everything that matters lives in the system prompt, hardcoded server-side
+                      - paragraph [ref=e3643]: "so it can't be extracted from the iOS bundle:"
+                      - paragraph [ref=e3644]: "- 8 hardcoded safety rules (no violence, no academic dishonesty, no PII"
+                      - paragraph [ref=e3645]: collection, suicide-safety redirect, etc.)
+                      - paragraph [ref=e3646]: "- Framing safety boundaries as teaching moments, not refusals"
+                      - paragraph [ref=e3647]: "- \"Never ask for personal information\" — surprisingly important for kids'"
+                      - paragraph [ref=e3648]: apps where children might overshare
+                      - paragraph [ref=e3649]: I also strip Unicode bidi/zero-width chars from user input before it
+                      - paragraph [ref=e3650]: hits Claude. Kids paste weird stuff from TikTok comments, and homoglyph
+                      - paragraph [ref=e3651]: attacks are real.
+                      - paragraph [ref=e3652]: "**2. Prompt caching cuts costs ~70%**"
+                      - paragraph [ref=e3653]: "Setting `cache_control: { type: \"ephemeral\" }` on the system prompt"
+                      - paragraph [ref=e3654]: means the safety rules are cached server-side. With Haiku 4.5 prices,
+                      - paragraph [ref=e3655]: each Sandbox message costs ~$0.0005 instead of ~$0.0017. That's the
+                      - paragraph [ref=e3656]: difference between a sustainable subscription and a money pit.
+                      - paragraph [ref=e3657]: For news/exercises, I cache the entire generated response in Redis
+                      - paragraph [ref=e3658]: for 12-24 hours. One Claude call per day per tier, served thousands
+                      - paragraph [ref=e3659]: of times via Vercel CDN.
+                      - paragraph [ref=e3660]: "**3. Empty product responses fail silently**"
+                      - paragraph [ref=e3661]: When my Vercel proxy returns no products (because of an unrelated App
+                      - paragraph [ref=e3662]: "Store Connect issue), `Product.products(for:)` returns an empty array,"
+                      - paragraph [ref=e3663]: not an error. App reviewer saw a paywall with no Subscribe buttons and
+                      - paragraph [ref=e3664]: rejected. Took me a full review cycle to find this.
+                      - paragraph [ref=e3665]: "Defensive fix: if an empty array comes back, retry 3x with backoff,"
+                      - paragraph [ref=e3666]: then surface a user-visible error message.
+                      - paragraph [ref=e3667]: "**Honest numbers (1 week post-launch):**"
+                      - paragraph [ref=e3668]: "- $0 marketing spend"
+                      - paragraph [ref=e3669]: "- ~150 installs (mostly friends/family + one Twitter post)"
+                      - paragraph [ref=e3670]: "- ~$80 MRR (mix of monthly and yearly)"
+                      - paragraph [ref=e3671]: "- $12/month in Anthropic costs at current usage"
+                      - paragraph [ref=e3672]: "- $0/month in Vercel costs (free tier)"
+                      - paragraph [ref=e3673]: "I'd love to know:"
+                      - paragraph [ref=e3674]: "- How are others handling content moderation for kids in Claude apps?"
+                      - paragraph [ref=e3675]: The 8 hardcoded rules feel insufficient long-term.
+                      - paragraph [ref=e3676]: "- Any patterns for switching between Haiku 4.5 and Sonnet based on"
+                      - paragraph [ref=e3677]: exercise difficulty?
+                      - paragraph [ref=e3678]: Happy to share the system prompt, schema design, or Vercel proxy
+                      - paragraph [ref=e3679]: architecture if there's interest.
+                      - paragraph [ref=e3680]:
+                        - text: "App's on the App Store if you want to poke at it:"
+                        - link "https://apps.apple.com/us/app/keopi/id6760085384" [ref=e3681] [cursor=pointer]:
+                          - /url: https://apps.apple.com/us/app/keopi/id6760085384
+                      - paragraph [ref=e3682]: — Francisco (solo dev, first iOS ship)
+                  - article "Comment from Firm_Effort_7583 3 days ago" [ref=e3688]:
+                    - generic "Metadata for Firm_Effort_7583's comment" [ref=e3689]:
+                      - link "Firm_Effort_7583's profile --- avatar" [ref=e3696] [cursor=pointer]:
+                        - /url: /user/Firm_Effort_7583/
+                        - img "u/Firm_Effort_7583 avatar" [ref=e3699]
+                      - generic [ref=e3704]:
+                        - link "Firm_Effort_7583's profile" [ref=e3709] [cursor=pointer]:
+                          - /url: /user/Firm_Effort_7583/
+                          - text: Firm_Effort_7583
+                        - generic [ref=e3710]: •
+                        - link "3d ago" [ref=e3711] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojxpbpy/
+                          - time [ref=e3712]: 3d ago
+                    - generic [ref=e3714]:
+                      - generic [ref=e3722]:
+                        - paragraph [ref=e3723]:
+                          - strong [ref=e3724]: I use Claude to automate my job search (save me from scrolling job boards)
+                        - paragraph [ref=e3725]:
+                          - text: This is a project inspired by
+                          - link "career-ops" [ref=e3726] [cursor=pointer]:
+                            - /url: https://github.com/santifer/career-ops
+                          - text: "repo (which covers end-to-end job searching support). I enjoyed it, but I was bleeding tokens (Claude tokens are expensive!), and ultimately, I felt there simply weren't enough jobs to evaluate; and secondly, tokens are spent evaluating jobs (in depth) that weren't a close fit. I modified and then rebuilt the job search with a different requirement in mind: I zeroed in on job scanning and filtering. So my project is trying to solve one problem only: spending minimal time (and minimal tokens) whilst finding the most suitable jobs to apply to."
+                        - paragraph [ref=e3727]: "To solve this, my project adopts this approach:"
+                        - list [ref=e3728]:
+                          - listitem [ref=e3729]:
+                            - paragraph [ref=e3730]: fetch a lot of the latest relevant job listings
+                          - listitem [ref=e3731]:
+                            - paragraph [ref=e3732]: filter them aggressively by keywords (90% filtered out at this stage)
+                          - listitem [ref=e3733]:
+                            - paragraph [ref=e3734]: Use Claude to score CV fit against job description (score 0-5) for the shortlist
+                        - paragraph [ref=e3735]: Previously, I'd spend around 3 hours scrolling and filtering manually. Now, I really reduce the time spent filtering irrelevant jobs, and spend about 20 minutes reviewing shortlisted roles and deciding.
+                        - paragraph [ref=e3736]: To summarise, my repo focuses purely on high-volume scanning + low-cost filtering, not full end-to-end automation. Feel free to share your thoughts.
+                        - paragraph [ref=e3737]:
+                          - text: "link:"
+                          - link "https://github.com/chimera878/jobscan" [ref=e3738] [cursor=pointer]:
+                            - /url: https://github.com/chimera878/jobscan
+                      - button "Toggle Comment Thread" [expanded] [ref=e3741] [cursor=pointer]:
+                        - img [ref=e3744]
+                      - 'article "Comment thread level 1: Reply from Necessary_Top_9887 2 days ago" [ref=e3752]':
+                        - generic "Metadata for Necessary_Top_9887's comment" [ref=e3753]:
+                          - link "Necessary_Top_9887's profile --- avatar" [ref=e3760] [cursor=pointer]:
+                            - /url: /user/Necessary_Top_9887/
+                            - img "u/Necessary_Top_9887 avatar" [ref=e3763]
+                          - generic [ref=e3768]:
+                            - link "Necessary_Top_9887's profile" [ref=e3773] [cursor=pointer]:
+                              - /url: /user/Necessary_Top_9887/
+                              - text: Necessary_Top_9887
+                            - generic [ref=e3774]: •
+                            - link "2d ago" [ref=e3775] [cursor=pointer]:
+                              - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok4qm3e/
+                              - time [ref=e3776]: 2d ago
+                        - generic [ref=e3778]:
+                          - paragraph [ref=e3787]: Building your own scanner is smart when you're burning tokens on bad fits, but on Upwork the real pain is speed and client quality, not just filtering. GigUp handles that matching plus instant alerts so you're not manually reviewing at all.
+                          - button "Toggle Comment Thread" [expanded] [ref=e3790] [cursor=pointer]:
+                            - img [ref=e3793]
+                          - 'article "Comment thread level 2: Reply from Firm_Effort_7583 2 days ago" [ref=e3801]':
+                            - generic "Metadata for Firm_Effort_7583's comment" [ref=e3802]:
+                              - link "Firm_Effort_7583's profile --- avatar" [ref=e3809] [cursor=pointer]:
+                                - /url: /user/Firm_Effort_7583/
+                                - img "u/Firm_Effort_7583 avatar" [ref=e3812]
+                              - generic [ref=e3817]:
+                                - link "Firm_Effort_7583's profile" [ref=e3822] [cursor=pointer]:
+                                  - /url: /user/Firm_Effort_7583/
+                                  - text: Firm_Effort_7583
+                                - generic [ref=e3823]: •
+                                - link "2d ago" [ref=e3824] [cursor=pointer]:
+                                  - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok5212l/
+                                  - time [ref=e3825]: 2d ago
+                                - generic [ref=e3826]: •
+                                - generic [ref=e3827]:
+                                  - text: Edited
+                                  - time [ref=e3828]: 2d ago
+                            - generic [ref=e3836]:
+                              - paragraph [ref=e3837]: By client quality, I assume you mean data quality? (quantity as well as quality?) So for me, aggregated data from free APIs is not bad, though more never hurts. Speed is not an issue.
+                              - paragraph [ref=e3838]:
+                                - text: "If you're interested, there's more discussions about this project here:"
+                                - link "https://www.reddit.com/r/SideProject/comments/1t3iyfa/i_got_tired_of_scrolling_job_boards_so_i/" [ref=e3839] [cursor=pointer]:
+                                  - /url: https://www.reddit.com/r/SideProject/comments/1t3iyfa/i_got_tired_of_scrolling_job_boards_so_i/
+                              - paragraph [ref=e3840]: "Cost wise: data sources used in project is entirely free, only use Claude tokens. Personally, I have Pro subscription. run it end to end, depending on how many jobs you have to evaluate, I would say cost tokens of the 5-hour session, with maybe 1-2 GBP extra tokens."
+                  - article "Comment from LordQuas4 3 days ago" [ref=e3846]:
+                    - generic "Metadata for LordQuas4's comment" [ref=e3847]:
+                      - link "LordQuas4's profile --- avatar" [ref=e3854] [cursor=pointer]:
+                        - /url: /user/LordQuas4/
+                        - img [ref=e3859]
+                      - generic [ref=e3865]:
+                        - link "LordQuas4's profile" [ref=e3870] [cursor=pointer]:
+                          - /url: /user/LordQuas4/
+                          - text: LordQuas4
+                        - generic [ref=e3871]: •
+                        - link "3d ago" [ref=e3872] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojwubry/
+                          - time [ref=e3873]: 3d ago
+                    - generic [ref=e3881]:
+                      - paragraph [ref=e3882]:
+                        - text: Built this very simple usage bar chrome extension for claude in chrome.
+                        - text: Useful if you use claude in the chrome browser to view how much of the 5hr usage you have left.
+                        - text: Built using claude code.
+                        - text: I appreciate feedback :)
+                      - paragraph [ref=e3883]:
+                        - link "https://chromewebstore.google.com/detail/imblbfhdbdecholhjbagcjahdkhidneb?utm_source=item-share-cb" [ref=e3884] [cursor=pointer]:
+                          - /url: https://chromewebstore.google.com/detail/imblbfhdbdecholhjbagcjahdkhidneb?utm_source=item-share-cb
+                  - article "Comment from Mission-Bar-3076 3 days ago" [ref=e3890]:
+                    - generic "Metadata for Mission-Bar-3076's comment" [ref=e3891]:
+                      - link "Mission-Bar-3076's profile --- avatar" [ref=e3898] [cursor=pointer]:
+                        - /url: /user/Mission-Bar-3076/
+                        - img "u/Mission-Bar-3076 avatar" [ref=e3901]
+                      - generic [ref=e3906]:
+                        - link "Mission-Bar-3076's profile" [ref=e3911] [cursor=pointer]:
+                          - /url: /user/Mission-Bar-3076/
+                          - text: Mission-Bar-3076
+                        - generic [ref=e3912]: •
+                        - link "3d ago" [ref=e3913] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojw1wu9/
+                          - time [ref=e3914]: 3d ago
+                    - generic [ref=e3922]:
+                      - paragraph [ref=e3923]: "Just launched a little side project I’ve been working on: passpic.me"
+                      - paragraph [ref=e3924]: It lets you quickly generate clean, compliant passport style photos right from your phone, supporting document requirements for 40+ countries. No need to hunt down a photo booth or overpay at a shop.
+                      - paragraph [ref=e3925]: "One thing I focused on that’s different from most apps: instead of just cropping your selfie and removing the background, it generates a fresh, studio quality result with proper lighting, framing, and proportions so it actually looks like a real passport photo and meets spec."
+                      - paragraph [ref=e3926]: Took a lot of trial and error to get this right, but I’m pretty happy with how simple it feels now.
+                      - paragraph [ref=e3927]: Would love some feedback if anyone here wants to try it out 🙌
+                  - article "Comment from Dull_Perspective_193 3 days ago" [ref=e3933]:
+                    - generic "Metadata for Dull_Perspective_193's comment" [ref=e3934]:
+                      - link "Dull_Perspective_193's profile --- avatar" [ref=e3941] [cursor=pointer]:
+                        - /url: /user/Dull_Perspective_193/
+                        - img "u/Dull_Perspective_193 avatar" [ref=e3944]
+                      - generic [ref=e3949]:
+                        - link "Dull_Perspective_193's profile" [ref=e3954] [cursor=pointer]:
+                          - /url: /user/Dull_Perspective_193/
+                          - text: Dull_Perspective_193
+                        - generic [ref=e3955]: •
+                        - link "3d ago" [ref=e3956] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojvi7qe/
+                          - time [ref=e3957]: 3d ago
+                    - generic [ref=e3965]:
+                      - paragraph [ref=e3966]:
+                        - strong [ref=e3967]: A rnb Focused bass VST with Claude MCP and a multi agentic Public Policy report generator with anti sycophancy directive and meta analyzer to catch any misattributions or hallucinations.
+                      - paragraph [ref=e3968]: Hey all,
+                      - paragraph [ref=e3969]: I NEVER post on Reddit. You guys scare me. But I've been playing around a bunch with claude for tool creation and seeing what it can do with math. I'm by no means a mathematician so all of this is way over my head. I just figured it was time to share and take critique. Please be nice, I'm new to all this.
+                      - paragraph [ref=e3970]:
+                        - link "https://github.com/mrnathanhumphrey-droid/BillyWonkaVST" [ref=e3971] [cursor=pointer]:
+                          - /url: https://github.com/mrnathanhumphrey-droid/BillyWonkaVST
+                      - paragraph [ref=e3972]: This is a VST I made building on an rnb style Reese sound and successfully incorporated a Claude MCP that will play you a bassline in key
+                      - paragraph [ref=e3973]:
+                        - link "https://github.com/mrnathanhumphrey-droid/DeepDive" [ref=e3974] [cursor=pointer]:
+                          - /url: https://github.com/mrnathanhumphrey-droid/DeepDive
+                      - paragraph [ref=e3975]: And this is a Public Policy research tool focusing on current news reports, historical events and breaking news coverage. It has a twitter api connectivity to incorporate up to the date reports from verified wire sources and government officials, an anti sycophancy directive and a meta analyzer to catch misattributions and any hallucinations.
+                      - paragraph [ref=e3976]: I have DeepDive launched on fly - it's just too expensive to make public facing and carry the api costs of searches.
+                      - paragraph [ref=e3977]: I have some other stuff I've been working on including NBA projections with Bayesian stat and a fantasy drafting tool but that's its own post.
+                      - paragraph [ref=e3978]: Hope this is useful to everyone.
+                  - article "Comment from Slow_Eggplant1821 3 days ago" [ref=e3984]:
+                    - generic "Metadata for Slow_Eggplant1821's comment" [ref=e3985]:
+                      - link "Slow_Eggplant1821's profile --- avatar" [ref=e3992] [cursor=pointer]:
+                        - /url: /user/Slow_Eggplant1821/
+                        - img "u/Slow_Eggplant1821 avatar" [ref=e3995]
+                      - generic [ref=e4000]:
+                        - link "Slow_Eggplant1821's profile" [ref=e4005] [cursor=pointer]:
+                          - /url: /user/Slow_Eggplant1821/
+                          - text: Slow_Eggplant1821
+                        - generic [ref=e4006]: •
+                        - link "3d ago" [ref=e4007] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojv7fj0/
+                          - time [ref=e4008]: 3d ago
+                    - generic [ref=e4010]:
+                      - generic [ref=e4018]:
+                        - paragraph [ref=e4019]:
+                          - strong [ref=e4020]: Built a brokerage skill for Claude Pro — open account, fund, trade, get reports in one conversation
+                        - paragraph [ref=e4021]: If you're on Claude Pro and you invest — we just opened the Founding Beta for Light Horse Securities, the first FINRA-regulated broker with a native Claude skill.
+                        - paragraph [ref=e4022]: "One conversation: open account → fund it → place a trade → get a full portfolio report. No app switching. No PDF forms."
+                        - paragraph [ref=e4023]: Requires Claude Pro (uses Pro's advanced tool-use capabilities).
+                        - paragraph [ref=e4024]:
+                          - text: Founding Beta open now →
+                          - link "lighthorse.io" [ref=e4025] [cursor=pointer]:
+                            - /url: http://lighthorse.io
+                        - paragraph [ref=e4026]: Happy to answer any questions about how it's built or how we handle compliance for AI-assisted brokerage execution. I'm a partner at Light Horse.
+                      - button "Toggle Comment Thread" [expanded] [ref=e4029] [cursor=pointer]:
+                        - img [ref=e4032]
+                      - 'article "Comment thread level 1: Reply from Slow_Eggplant1821 3 days ago" [ref=e4040]':
+                        - generic "Metadata for Slow_Eggplant1821's comment" [ref=e4041]:
+                          - link "Slow_Eggplant1821's profile --- avatar" [ref=e4048] [cursor=pointer]:
+                            - /url: /user/Slow_Eggplant1821/
+                            - img "u/Slow_Eggplant1821 avatar" [ref=e4051]
+                          - generic [ref=e4056]:
+                            - link "Slow_Eggplant1821's profile" [ref=e4061] [cursor=pointer]:
+                              - /url: /user/Slow_Eggplant1821/
+                              - text: Slow_Eggplant1821
+                            - generic [ref=e4062]: •
+                            - link "3d ago" [ref=e4063] [cursor=pointer]:
+                              - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojxfxib/
+                              - time [ref=e4064]: 3d ago
+                        - generic [ref=e4066]:
+                          - paragraph [ref=e4075]: Let me know what you think or what you want your broker to deliver to you.
+                          - button "Toggle Comment Thread" [expanded] [ref=e4078] [cursor=pointer]:
+                            - img [ref=e4081]
+                          - 'article "Comment thread level 2: Reply from GoodhartMusic 2 days ago" [ref=e4089]':
+                            - generic "Metadata for GoodhartMusic's comment" [ref=e4090]:
+                              - link "GoodhartMusic's profile --- avatar" [ref=e4097] [cursor=pointer]:
+                                - /url: /user/GoodhartMusic/
+                                - img "u/GoodhartMusic avatar" [ref=e4100]
+                              - generic [ref=e4105]:
+                                - link "GoodhartMusic's profile" [ref=e4110] [cursor=pointer]:
+                                  - /url: /user/GoodhartMusic/
+                                  - text: GoodhartMusic
+                                - generic [ref=e4111]: •
+                                - link "2d ago" [ref=e4112] [cursor=pointer]:
+                                  - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok0h3q1/
+                                  - time [ref=e4113]: 2d ago
+                            - paragraph [ref=e4122]: I would like to leverage my student debt pls
+                  - article "Comment from Filimindji 3 days ago" [ref=e4128]:
+                    - generic "Metadata for Filimindji's comment" [ref=e4129]:
+                      - button [ref=e4131] [cursor=pointer]:
+                        - img [ref=e4134]
+                      - generic [ref=e4140]:
+                        - link "Filimindji's profile" [ref=e4145] [cursor=pointer]:
+                          - /url: /user/Filimindji/
+                          - text: Filimindji
+                        - generic [ref=e4146]: •
+                        - link "3d ago" [ref=e4147] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojua7ud/
+                          - time [ref=e4148]: 3d ago
+                  - article "Comment from CountZeroHandler 3 days ago" [ref=e4151]:
+                    - generic "Metadata for CountZeroHandler's comment" [ref=e4152]:
+                      - link "CountZeroHandler's profile --- avatar" [ref=e4159] [cursor=pointer]:
+                        - /url: /user/CountZeroHandler/
+                        - img "u/CountZeroHandler avatar" [ref=e4162]
+                      - generic [ref=e4167]:
+                        - link "CountZeroHandler's profile" [ref=e4172] [cursor=pointer]:
+                          - /url: /user/CountZeroHandler/
+                          - text: CountZeroHandler
+                        - generic [ref=e4173]: •
+                        - link "3d ago" [ref=e4174] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojtysvp/
+                          - time [ref=e4175]: 3d ago
+                    - generic [ref=e4183]:
+                      - heading "Built a live plan-usage dashboard for Claude Code on Windows (5h + 7d limits, all accounts at once)" [level=1] [ref=e4184]
+                      - paragraph [ref=e4185]: Built a small PowerShell tool that polls Claude Code's own usage endpoint and shows Session (5h) + Week (7d) utilization in a live, auto-refreshing table. Useful even with a single account; multi-account is a bonus.
+                      - list [ref=e4186]:
+                        - listitem [ref=e4187]:
+                          - paragraph [ref=e4188]: Live 5h and 7d dashboard for every saved account at once
+                        - listitem [ref=e4189]:
+                          - paragraph [ref=e4190]: Updates the terminal-tab title each poll, glanceable when minimized
+                        - listitem [ref=e4191]:
+                          - paragraph [ref=e4192]: Save / switch / rotate accounts; OAuth email locked into the slot at save time so the label can't drift from the tokens
+                        - listitem [ref=e4193]:
+                          - paragraph [ref=e4194]: Atomic-rename writes survive an open Claude Code; token refreshes are captured into the slot automatically
+                      - paragraph [ref=e4195]: Single self-contained .ps1, MIT, no telemetry, no signup. PowerShell 7.2+. Windows only.
+                      - paragraph [ref=e4196]:
+                        - link "https://github.com/countzero/windows_switch_claude_account" [ref=e4197] [cursor=pointer]:
+                          - /url: https://github.com/countzero/windows_switch_claude_account
+                      - paragraph [ref=e4198]: "Caveat: the usage endpoint is undocumented; if Anthropic changes it, that one feature needs re-pinning. The rest of the tool is unaffected."
+                  - article "Comment from Salt_Sail1189 3 days ago" [ref=e4204]:
+                    - generic "Metadata for Salt_Sail1189's comment" [ref=e4205]:
+                      - link "Salt_Sail1189's profile --- avatar" [ref=e4212] [cursor=pointer]:
+                        - /url: /user/Salt_Sail1189/
+                        - img "u/Salt_Sail1189 avatar" [ref=e4215]
+                      - generic [ref=e4220]:
+                        - link "Salt_Sail1189's profile" [ref=e4225] [cursor=pointer]:
+                          - /url: /user/Salt_Sail1189/
+                          - text: Salt_Sail1189
+                        - generic [ref=e4226]: •
+                        - link "3d ago" [ref=e4227] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojtuoy5/
+                          - time [ref=e4228]: 3d ago
+                    - generic [ref=e4230]:
+                      - generic [ref=e4238]:
+                        - paragraph [ref=e4239]:
+                          - text: "github :"
+                          - link "https://github.com/gil613/gil-harness" [ref=e4240] [cursor=pointer]:
+                            - /url: https://github.com/gil613/gil-harness
+                        - paragraph [ref=e4241]: I've been using Claude Code for about 2 weeks now and I'm currently figuring out the most appropriate way to use it.
+                        - paragraph [ref=e4242]: "The main goals are as follows:"
+                        - paragraph [ref=e4243]: It should be applicable to any project
+                        - paragraph [ref=e4244]: The system should autonomously save improvements as it gets used more
+                        - paragraph [ref=e4245]: To build this harness system, I loaded up concepts on how to work with it through blogs from OpenAI, Anthropic, and key figures in the field.
+                        - paragraph [ref=e4246]: there are probably still a lot of areas for improvement.
+                        - paragraph [ref=e4247]: I'd really appreciate it if you could try it out and give me feedback please.
+                        - paragraph [ref=e4248]: Also, even if you don't use it, if it doesn't look good to you, I'd be really grateful if you could point out what's bad about it please.
+                      - button "Toggle Comment Thread" [expanded] [ref=e4251] [cursor=pointer]:
+                        - img [ref=e4254]
+                      - 'article "Comment thread level 1: Reply from GoodhartMusic 2 days ago" [ref=e4262]':
+                        - generic "Metadata for GoodhartMusic's comment" [ref=e4263]:
+                          - link "GoodhartMusic's profile --- avatar" [ref=e4270] [cursor=pointer]:
+                            - /url: /user/GoodhartMusic/
+                            - img "u/GoodhartMusic avatar" [ref=e4273]
+                          - generic [ref=e4278]:
+                            - link "GoodhartMusic's profile" [ref=e4283] [cursor=pointer]:
+                              - /url: /user/GoodhartMusic/
+                              - text: GoodhartMusic
+                            - generic [ref=e4284]: •
+                            - link "2d ago" [ref=e4285] [cursor=pointer]:
+                              - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok0h66h/
+                              - time [ref=e4286]: 2d ago
+                        - generic [ref=e4288]:
+                          - paragraph [ref=e4297]: Can you explain what a harness is?
+                          - button "Toggle Comment Thread" [expanded] [ref=e4300] [cursor=pointer]:
+                            - img [ref=e4303]
+                          - 'article "Comment thread level 2: Reply from Salt_Sail1189 2 days ago" [ref=e4311]':
+                            - generic "Metadata for Salt_Sail1189's comment" [ref=e4312]:
+                              - link "Salt_Sail1189's profile --- avatar" [ref=e4319] [cursor=pointer]:
+                                - /url: /user/Salt_Sail1189/
+                                - img "u/Salt_Sail1189 avatar" [ref=e4322]
+                              - generic [ref=e4327]:
+                                - link "Salt_Sail1189's profile" [ref=e4332] [cursor=pointer]:
+                                  - /url: /user/Salt_Sail1189/
+                                  - text: Salt_Sail1189
+                                - generic [ref=e4333]: •
+                                - link "2d ago" [ref=e4334] [cursor=pointer]:
+                                  - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok0vz8n/
+                                  - time [ref=e4335]: 2d ago
+                            - generic [ref=e4337]:
+                              - paragraph [ref=e4346]: My understanding of a 'Harness' is that it minimizes the need for user prompts and enables agents to collaborate seamlessly. You can find more details in the Git link I provided!
+                              - button "Toggle Comment Thread" [expanded] [ref=e4349] [cursor=pointer]:
+                                - img [ref=e4352]
+                              - 'article "Comment thread level 3: Reply from GoodhartMusic 2 days ago" [ref=e4360]':
+                                - generic "Metadata for GoodhartMusic's comment" [ref=e4361]:
+                                  - link "GoodhartMusic's profile --- avatar" [ref=e4368] [cursor=pointer]:
+                                    - /url: /user/GoodhartMusic/
+                                    - img "u/GoodhartMusic avatar" [ref=e4371]
+                                  - generic [ref=e4376]:
+                                    - link "GoodhartMusic's profile" [ref=e4381] [cursor=pointer]:
+                                      - /url: /user/GoodhartMusic/
+                                      - text: GoodhartMusic
+                                    - generic [ref=e4382]: •
+                                    - link "2d ago" [ref=e4383] [cursor=pointer]:
+                                      - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok0ywl0/
+                                      - time [ref=e4384]: 2d ago
+                                - generic [ref=e4386]:
+                                  - paragraph [ref=e4395]: That response answers “what a harness does” more than what it is
+                                  - button "Toggle Comment Thread" [expanded] [ref=e4398] [cursor=pointer]:
+                                    - img [ref=e4401]
+                                  - 'article "Comment thread level 4: Reply from Salt_Sail1189 2 days ago" [ref=e4409]':
+                                    - generic "Metadata for Salt_Sail1189's comment" [ref=e4410]:
+                                      - link "Salt_Sail1189's profile --- avatar" [ref=e4417] [cursor=pointer]:
+                                        - /url: /user/Salt_Sail1189/
+                                        - img "u/Salt_Sail1189 avatar" [ref=e4420]
+                                      - generic [ref=e4425]:
+                                        - link "Salt_Sail1189's profile" [ref=e4430] [cursor=pointer]:
+                                          - /url: /user/Salt_Sail1189/
+                                          - text: Salt_Sail1189
+                                        - generic [ref=e4431]: •
+                                        - link "2d ago" [ref=e4432] [cursor=pointer]:
+                                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok5icba/
+                                          - time [ref=e4433]: 2d ago
+                                    - generic [ref=e4435]:
+                                      - paragraph [ref=e4444]: It’s like a 'seatbelt' or 'reins' that keeps the AI from losing its way.
+                                      - button "Toggle Comment Thread" [expanded] [ref=e4447] [cursor=pointer]:
+                                        - img [ref=e4450]
+                                      - 'article "Comment thread level 5: Reply from GoodhartMusic 2 days ago" [ref=e4458]':
+                                        - generic "Metadata for GoodhartMusic's comment" [ref=e4459]:
+                                          - link "GoodhartMusic's profile --- avatar" [ref=e4466] [cursor=pointer]:
+                                            - /url: /user/GoodhartMusic/
+                                            - img "u/GoodhartMusic avatar" [ref=e4469]
+                                          - generic [ref=e4474]:
+                                            - link "GoodhartMusic's profile" [ref=e4479] [cursor=pointer]:
+                                              - /url: /user/GoodhartMusic/
+                                              - text: GoodhartMusic
+                                            - generic [ref=e4480]: •
+                                            - link "2d ago" [ref=e4481] [cursor=pointer]:
+                                              - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok6qvk2/
+                                              - time [ref=e4482]: 2d ago
+                                        - generic [ref=e4484]:
+                                          - paragraph [ref=e4493]: in what form does it exist lol. is it a system of .md's, a tool bridge connected to a privileged executor, an adjustable length coil mesh polyester with plastic clasp?
+                                          - button "Toggle Comment Thread" [expanded] [ref=e4496] [cursor=pointer]:
+                                            - img [ref=e4499]
+                                          - 'article "Comment thread level 6: Reply from Salt_Sail1189 2 days ago" [ref=e4507]':
+                                            - generic "Metadata for Salt_Sail1189's comment" [ref=e4508]:
+                                              - link "Salt_Sail1189's profile --- avatar" [ref=e4515] [cursor=pointer]:
+                                                - /url: /user/Salt_Sail1189/
+                                                - img "u/Salt_Sail1189 avatar" [ref=e4518]
+                                              - generic [ref=e4523]:
+                                                - link "Salt_Sail1189's profile" [ref=e4528] [cursor=pointer]:
+                                                  - /url: /user/Salt_Sail1189/
+                                                  - text: Salt_Sail1189
+                                                - generic [ref=e4529]: •
+                                                - link "2d ago" [ref=e4530] [cursor=pointer]:
+                                                  - /url: /r/ClaudeAI/comments/1sly3jm/comment/ok6rqbx/
+                                                  - time [ref=e4531]: 2d ago
+                                            - generic [ref=e4533]:
+                                              - paragraph [ref=e4542]:
+                                                - text: I told you—you can find the details in the Git link I gave you.
+                                                - text: I also explained what 'harness' means.
+                                                - text: Did you even bother checking my Git?
+                                                - text: If you're looking for a tutor, go find someone else to mess with.
+                                              - button "Toggle Comment Thread" [expanded] [ref=e4545] [cursor=pointer]:
+                                                - img [ref=e4548]
+                                              - 'article "Comment thread level 7: Reply from GoodhartMusic 22 hours ago" [ref=e4556]':
+                                                - generic "Metadata for GoodhartMusic's comment" [ref=e4557]:
+                                                  - link "GoodhartMusic's profile --- avatar" [ref=e4564] [cursor=pointer]:
+                                                    - /url: /user/GoodhartMusic/
+                                                    - img "u/GoodhartMusic avatar" [ref=e4567]
+                                                  - generic [ref=e4572]:
+                                                    - link "GoodhartMusic's profile" [ref=e4577] [cursor=pointer]:
+                                                      - /url: /user/GoodhartMusic/
+                                                      - text: GoodhartMusic
+                                                    - generic [ref=e4578]: •
+                                                    - link "22h ago" [ref=e4579] [cursor=pointer]:
+                                                      - /url: /r/ClaudeAI/comments/1sly3jm/comment/okap5ko/
+                                                      - time [ref=e4580]: 22h ago
+                                                - paragraph [ref=e4589]: It’s just weird how you never explain what it is
+                  - article "Comment from Due_Ad_1318 4 days ago" [ref=e4595]:
+                    - generic "Metadata for Due_Ad_1318's comment" [ref=e4596]:
+                      - link "Due_Ad_1318's profile --- avatar" [ref=e4603] [cursor=pointer]:
+                        - /url: /user/Due_Ad_1318/
+                        - img "u/Due_Ad_1318 avatar" [ref=e4606]
+                      - generic [ref=e4611]:
+                        - link "Due_Ad_1318's profile" [ref=e4616] [cursor=pointer]:
+                          - /url: /user/Due_Ad_1318/
+                          - text: Due_Ad_1318
+                        - generic [ref=e4617]: •
+                        - link "4d ago" [ref=e4618] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojrq04g/
+                          - time [ref=e4619]: 4d ago
+                    - generic [ref=e4627]:
+                      - paragraph [ref=e4628]:
+                        - strong [ref=e4629]: "The Dark Factory: How Twin Sun Automated Their Entire Dev Pipeline"
+                      - paragraph [ref=e4630]: Twin Sun (Nashville software agency) built Scarif – a Claude Code-powered dev pipeline where AI agents handle coding, review, and merging. Their PR review bot autonomously approves 70% of pull requests with no human in the loop.
+                      - paragraph [ref=e4631]: "Two things that made it actually work:"
+                      - list [ref=e4632]:
+                        - listitem [ref=e4633]:
+                          - paragraph [ref=e4634]:
+                            - text: Build
+                            - emphasis [ref=e4635]: your
+                            - text: factory, not
+                            - emphasis [ref=e4636]: a
+                            - text: factory – constrain the agents to your team's existing conventions, templates, and codebase patterns
+                        - listitem [ref=e4637]:
+                          - paragraph [ref=e4638]: Go gradually darker – start with one component, run it manually, earn trust, then let it run autonomously
+                      - paragraph [ref=e4639]:
+                        - text: "Full writeup + 70-min video conversation with their CEO and CTO:"
+                        - link "https://arcturus-labs.com/blog/2026/05/03/the-dark-factory-how-twin-sun-automated-their-entire-dev-pipeline/" [ref=e4640] [cursor=pointer]:
+                          - /url: https://arcturus-labs.com/blog/2026/05/03/the-dark-factory-how-twin-sun-automated-their-entire-dev-pipeline/
+                  - article "Comment from wernddupress 4 days ago" [ref=e4646]:
+                    - generic "Metadata for wernddupress's comment" [ref=e4647]:
+                      - link "wernddupress's profile --- avatar" [ref=e4654] [cursor=pointer]:
+                        - /url: /user/wernddupress/
+                        - img "u/wernddupress avatar" [ref=e4657]
+                      - generic [ref=e4662]:
+                        - link "wernddupress's profile" [ref=e4667] [cursor=pointer]:
+                          - /url: /user/wernddupress/
+                          - text: wernddupress
+                        - generic [ref=e4668]: •
+                        - link "4d ago" [ref=e4669] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojq79ql/
+                          - time [ref=e4670]: 4d ago
+                    - generic [ref=e4678]:
+                      - paragraph [ref=e4679]: I have no programming experience, but managed to vibe code my first ever working website with a paywall
+                      - paragraph [ref=e4680]: I just gave Claude the idea, but also got ChatGPT to tidy up the text and make it more presentable
+                      - paragraph [ref=e4681]: Bookshelfdna.com
+                      - paragraph [ref=e4682]: Would appreciate any feedback
+                  - article "Comment from KatastrophalKlang 4 days ago" [ref=e4688]:
+                    - generic "Metadata for KatastrophalKlang's comment" [ref=e4689]:
+                      - button [ref=e4691] [cursor=pointer]:
+                        - img [ref=e4694]
+                      - generic [ref=e4700]:
+                        - link "KatastrophalKlang's profile" [ref=e4705] [cursor=pointer]:
+                          - /url: /user/KatastrophalKlang/
+                          - text: KatastrophalKlang
+                        - generic [ref=e4706]: •
+                        - link "4d ago" [ref=e4707] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojpksh0/
+                          - time [ref=e4708]: 4d ago
+                  - article "Comment from Melodic_Resolve2613 4 days ago" [ref=e4711]:
+                    - generic "Metadata for Melodic_Resolve2613's comment" [ref=e4712]:
+                      - link "Melodic_Resolve2613's profile --- avatar" [ref=e4719] [cursor=pointer]:
+                        - /url: /user/Melodic_Resolve2613/
+                        - img [ref=e4724]
+                      - generic [ref=e4730]:
+                        - link "Melodic_Resolve2613's profile" [ref=e4735] [cursor=pointer]:
+                          - /url: /user/Melodic_Resolve2613/
+                          - text: Melodic_Resolve2613
+                        - generic [ref=e4736]: •
+                        - link "4d ago" [ref=e4737] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojpi9ip/
+                          - time [ref=e4738]: 4d ago
+                    - generic [ref=e4746]:
+                      - paragraph [ref=e4747]: I built a small single-file HTML experiment inspired by OpenAI’s /pet.
+                      - paragraph [ref=e4748]: It’s called ClaudiPet — basically a tiny AI pet command palette powered by Claude.
+                      - paragraph [ref=e4749]: "Some commands:"
+                      - paragraph [ref=e4750]: "- /pet rust → Ferris the crab 🦀"
+                      - paragraph [ref=e4751]: "- /pet zoomies → absolute chaos"
+                      - paragraph [ref=e4752]: "- /pet philosophy → unexpectedly deep"
+                      - paragraph [ref=e4753]: "- autocomplete dropdown included"
+                      - paragraph [ref=e4754]: It’s just one HTML file, no install required.
+                      - paragraph [ref=e4755]: I mostly built it as a fun UI/LLM experiment around command palettes and playful AI interactions.
+                      - paragraph [ref=e4756]: Would love feedback on the UX and command ideas.
+                      - paragraph [ref=e4757]:
+                        - text: "Github :"
+                        - link "ashishjsharda/claudipet" [ref=e4758] [cursor=pointer]:
+                          - /url: https://github.com/ashishjsharda/claudipet
+                      - paragraph [ref=e4759]:
+                        - text: "Demo:"
+                        - link "https://ashishjsharda.github.io/claudipet/" [ref=e4760] [cursor=pointer]:
+                          - /url: https://ashishjsharda.github.io/claudipet/
+                  - article "Comment from Infinite-Voice-2896 4 days ago" [ref=e4766]:
+                    - generic "Metadata for Infinite-Voice-2896's comment" [ref=e4767]:
+                      - link "Infinite-Voice-2896's profile --- avatar" [ref=e4774] [cursor=pointer]:
+                        - /url: /user/Infinite-Voice-2896/
+                        - img "u/Infinite-Voice-2896 avatar" [ref=e4777]
+                      - generic [ref=e4782]:
+                        - link "Infinite-Voice-2896's profile" [ref=e4787] [cursor=pointer]:
+                          - /url: /user/Infinite-Voice-2896/
+                          - text: Infinite-Voice-2896
+                        - generic [ref=e4788]: •
+                        - link "4d ago" [ref=e4789] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojnvpwc/
+                          - time [ref=e4790]: 4d ago
+                        - generic [ref=e4791]: •
+                        - generic [ref=e4792]:
+                          - text: Edited
+                          - time [ref=e4793]: 4d ago
+                    - generic [ref=e4801]:
+                      - paragraph [ref=e4802]: "Built a working credit-analysis tool over 3 weeks despite not being a developer — Claude wrote ~95% of the code:"
+                      - paragraph [ref=e4803]: I'm a credit professional in India. My day job involves analysing audited balance sheets and computing MPBF (the working capital limit Indian banks lend) using formulas from a 1975 RBI committee. Most credit analysts spend 2-3 hours per file typing numbers from PDFs into Excel and running the math by hand.
+                      - paragraph [ref=e4804]: Three weeks ago I decided to try building a tool to automate it. I'd never coded a Python project before, never used Git, never set up a database, never deployed a Next.js frontend. Today the tool is live, open-source on GitHub, with 44 unit tests passing across two real-world Indian balance sheet formats. It extracts Schedule III line items, reconciles stated sub-totals, and computes Tandon Method I/II live as the analyst makes corrections. What used to take hours takes about 30 seconds.
+                      - paragraph [ref=e4805]: Claude wrote ~95% of the code. I drove the design decisions and the credit-domain logic.
+                      - paragraph [ref=e4806]: github.com/igmuralikrishnan-cmd/mpbf-automation
+                      - paragraph [ref=e4807]: "A few things that worked surprisingly well: Iterative format-tuning. The first BS format took a week to parse correctly. The second took a day. Pattern: I'd hand Claude the OCR text from a new PDF, tell it where the parser broke, and it would propose anchor-pattern tweaks. Each new format = a few small targeted patches, not a rewrite."
+                      - paragraph [ref=e4808]: Test-driven debugging. Whenever a real BS extraction failed, I'd anonymise the OCR text and Claude would write a test case reproducing the bug before fixing it. By the end I had 44 tests covering OCR artifacts (mangled brackets, comma-as-decimal, scientific-notation traps, note-reference filtering, sanity guards). I wouldn't have known to write half of these without going through the actual failures.
+                      - paragraph [ref=e4809]: Honest pushback on bad ideas. Early on I wanted to use an LLM-based extractor. Claude pushed back — Schedule III is a legally mandated format, deterministic regex parsing gives you auditability and explicit failure modes, which matter when the numbers are going into a credit memo. That conversation reshaped the whole architecture.
+                      - paragraph [ref=e4810]: "A few things that were genuinely hard: Anonymising real client data without breaking the tests. The parser was tuned against real OCR text from real Indian companies. Replacing names with fictional ones while keeping the OCR-artifact patterns intact took careful sed work and audit passes."
+                      - paragraph [ref=e4811]: Getting GitHub set up as a non-developer. Two-factor auth, personal access tokens, kebab-case naming conventions, .gitignore hygiene — every one was a small hurdle. Knowing when "good enough" beat "perfect."
+                      - paragraph [ref=e4812]: The tool handles two formats reliably. The temptation was to grind on a third before publishing. Shipping at two formats with documented "how to add a new format" instructions felt premature, but waiting felt worse.
+                      - paragraph [ref=e4813]: "Happy to answer questions on: The deterministic parser vs LLM trade-off (and why I'd make the same call again) How I structured prompts when iterating on parser anchors The Supabase/Next.js setup as someone who'd never touched either Anything else that's useful to other domain experts thinking about building with Claude"
+                  - article "Comment from Puzzleheaded_Tap9023 4 days ago" [ref=e4819]:
+                    - generic "Metadata for Puzzleheaded_Tap9023's comment" [ref=e4820]:
+                      - link "Puzzleheaded_Tap9023's profile --- avatar" [ref=e4827] [cursor=pointer]:
+                        - /url: /user/Puzzleheaded_Tap9023/
+                        - img "u/Puzzleheaded_Tap9023 avatar" [ref=e4830]
+                      - generic [ref=e4835]:
+                        - link "Puzzleheaded_Tap9023's profile" [ref=e4840] [cursor=pointer]:
+                          - /url: /user/Puzzleheaded_Tap9023/
+                          - text: Puzzleheaded_Tap9023
+                        - generic [ref=e4841]: •
+                        - link "4d ago" [ref=e4842] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojnijr5/
+                          - time [ref=e4843]: 4d ago
+                    - generic [ref=e4851]:
+                      - heading "I ran $42,358 of Claude API through a $200 plan in 90 days. Here is the entire setup, the receipt, CLAUDE.md and learnings." [level=2] [ref=e4852]
+                      - paragraph [ref=e4853]: 987 sessions. 201,910 turns. 19.46B billable tokens. 74 active days.
+                      - paragraph [ref=e4854]:
+                        - text: If I had paid Anthropic API list prices for that workload, the bill would have been
+                        - strong [ref=e4855]: $42,358.19
+                        - text: .
+                      - paragraph [ref=e4856]: I paid $500 in plan fees over those 90 days. One month at the legacy $100 Pro tier, then two months at the current $200 Max tier.
+                      - paragraph [ref=e4857]:
+                        - text: That is a
+                        - strong [ref=e4858]: 84.7× ratio
+                        - text: of API-equivalent cost to plan paid.
+                      - paragraph [ref=e4859]: Read the next sentence carefully, because it is the entire point of this post.
+                      - paragraph [ref=e4860]: I am not selling anything. The numbers, the formulas, the config, the platform incidents that ate part of my window. Steal whatever helps.
+                      - separator [ref=e4861]
+                      - heading "The receipt" [level=2] [ref=e4862]
+                      - paragraph [ref=e4863]: (github.com/l0z4n0-a1/cognitive-claude. -> The entire setup)
+                      - paragraph [ref=e4864]: Three things to read first, before the comments do it for me.
+                      - paragraph [ref=e4865]:
+                        - code [ref=e4866]: "Cache hit rate: 91.63%"
+                        - text: — using the canonical three-term formula
+                        - code [ref=e4867]: cache_read / (cache_read + input + cache_creation)
+                        - text: . The two-term form (
+                        - code [ref=e4868]: cache_read / (cache_read + input)
+                        - text: ) inflates the apparent rate by hiding the prefix re-write that happens on every cache invalidation. My repo publishes the conservative form on purpose.
+                      - paragraph [ref=e4869]:
+                        - code [ref=e4870]: "Sub-agent work share: 71.76%"
+                        - text: — counted by filename pattern (
+                        - code [ref=e4871]: agent-*.jsonl
+                        - text: ), not by the
+                        - code [ref=e4872]: isSidechain
+                        - text: JSONL field. The latter changed semantics around Claude Code v2.1.86 in late March; filename pattern is stable across all observed versions.
+                      - paragraph [ref=e4873]:
+                        - code [ref=e4874]: 84.7×
+                        - text: — the headline ratio. The next section is what it actually means.
+                      - separator [ref=e4875]
+                      - heading "What the 84.7× actually is, and what it is not" [level=2] [ref=e4876]
+                      - paragraph [ref=e4877]: This is the section most "$X with Claude Code" posts skip. I will not.
+                      - paragraph [ref=e4878]:
+                        - strong [ref=e4879]: Three caveats upfront
+                        - text: ", because the comments will ask anyway:"
+                      - list [ref=e4880]:
+                        - listitem [ref=e4881]:
+                          - paragraph [ref=e4882]:
+                            - strong [ref=e4883]: 84.7× is a ratio, not a saving.
+                            - text: The framework's contribution is the
+                            - emphasis [ref=e4884]: instrument that makes the ratio computable and the discipline that keeps the prefix stable so the ratio is sustained
+                            - text: . Without the instrument, you cannot defend any specific number against scrutiny. Without prefix discipline, the cache hit rate drops, the ratio shrinks, and the gap closes silently.
+                        - listitem [ref=e4885]:
+                          - paragraph [ref=e4886]:
+                            - strong [ref=e4887]: N=1.
+                            - text: This is one operator's setup, heavy-Opus, multi-project, solo. Generalizable principles, individual numbers. Run the instrument against your own data; your shape will differ.
+                        - listitem [ref=e4888]:
+                          - paragraph [ref=e4889]:
+                            - strong [ref=e4890]: The window contains a confirmed Anthropic platform incident.
+                            - text: Between 2026-03-26 and 2026-04-10, a cache regression in Claude Code (
+                            - code [ref=e4891]: clear_thinking_20251015 + keep:1
+                            - text: bug,
+                            - link "postmortem" [ref=e4892] [cursor=pointer]:
+                              - /url: https://www.anthropic.com/engineering/april-23-postmortem
+                            - text: ) inflated cache miss rates on resumed sessions. The case study in the repo (
+                            - code [ref=e4893]: examples/case-study-2026-04-28/
+                            - text: ) separates baseline cost from incident cost; the 84.7× number is taken from the unattributed total and is therefore a slight overstatement of steady-state economics. It is published anyway because the methodology for separating baseline from incident is the actual contribution.
+                      - paragraph [ref=e4894]:
+                        - text: "If the rest of this post had to fit one paragraph:"
+                        - emphasis [ref=e4895]: the plan is a fixed bucket, the work is what you put in the bucket, the setup is what keeps the bucket from leaking. The arbitrage exists because the bucket is fixed; the discipline is what keeps you in the arbitrage.
+                      - separator [ref=e4896]
+                      - heading "The mental shift that pays for Max" [level=2] [ref=e4897]
+                      - paragraph [ref=e4898]: Most people read "Max plan, $200/month" and think discount.
+                      - paragraph [ref=e4899]:
+                        - text: It is not a discount. It is a
+                        - strong [ref=e4900]: franchise
+                        - text: .
+                      - paragraph [ref=e4901]: You pay a fixed bucket. What changes is how much throughput you pull out of that bucket. The plan does not care if you burn 100M tokens a month or 10B. The bucket is the bucket.
+                      - paragraph [ref=e4902]: So the entire game is throughput per dollar. Not "is Claude worth it." That question is dead.
+                      - paragraph [ref=e4903]: Two operators on the same plan can have a 10× or 100× gap in real value extracted. Same price. Same model. Different setup.
+                      - paragraph [ref=e4904]: The setup is the moat.
+                      - separator [ref=e4905]
+                      - heading "Six things in the actual setup" [level=2] [ref=e4906]
+                      - paragraph [ref=e4907]: None exotic. All routinely skipped.
+                      - paragraph [ref=e4908]:
+                        - strong [ref=e4909]: 1. Every line in CLAUDE.md is billed N times, where N is your turn count.
+                      - paragraph [ref=e4910]: Mine is ~100 lines. Roughly 1,300 tokens. That file gets re-charged every single turn of every single session. A 5,000-token CLAUDE.md across 112 turns (my session median) is 560,000 tokens of overhead before you type the first message. Under typical cache discipline, most of that is cache-read (cheap), but every cache break re-pays the full prefix at fresh input rate.
+                      - paragraph [ref=e4911]: People dump examples, FAQs, and aspirational rules into CLAUDE.md. Every line is a tax billed N times where N = turns. Treat it like a constitution, not a README. Laws only. No examples. No "be helpful." Anthropic already trained that.
+                      - paragraph [ref=e4912]: Full file is in the repo, byte-exact.
+                      - paragraph [ref=e4913]:
+                        - strong [ref=e4914]: 2. Zero MCPs enabled.
+                      - generic [ref=e4915]: "\"enableAllProjectMcpServers\": false"
+                      - paragraph [ref=e4916]: "Yes, zero. Mechanical reason: every MCP server installed loads its tool schemas into your system prompt. Even if you never call the tool, you pay the schema tokens every turn. Five medium MCPs is roughly 5,000 tokens of overhead, multiplied by every turn, every session."
+                      - paragraph [ref=e4917]: Every MCP use-case in my stack has a CLI substitute. After 90 days, the count is 6 of 6, zero exceptions.
+                      - list [ref=e4918]:
+                        - listitem [ref=e4919]:
+                          - paragraph [ref=e4920]:
+                            - text: Web fetch →
+                            - code [ref=e4921]: curl
+                            - text: +
+                            - code [ref=e4922]: lynx -dump
+                        - listitem [ref=e4923]:
+                          - paragraph [ref=e4924]:
+                            - text: GitHub →
+                            - code [ref=e4925]: gh
+                            - text: CLI
+                        - listitem [ref=e4926]:
+                          - paragraph [ref=e4927]:
+                            - text: Filesystem search →
+                            - code [ref=e4928]: find
+                            - text: +
+                            - code [ref=e4929]: rg
+                        - listitem [ref=e4930]:
+                          - paragraph [ref=e4931]:
+                            - text: Database →
+                            - code [ref=e4932]: psql
+                            - text: /
+                            - code [ref=e4933]: sqlite3
+                        - listitem [ref=e4934]:
+                          - paragraph [ref=e4935]:
+                            - text: Browser automation →
+                            - code [ref=e4936]: playwright
+                            - text: invoked through Bash, not as MCP server
+                      - paragraph [ref=e4937]:
+                        - text: I run them through
+                        - code [ref=e4938]: Bash()
+                        - text: when I need them. Zero tokens until invoked. MCP costs tokens just by existing.
+                      - paragraph [ref=e4939]:
+                        - strong [ref=e4940]: 3. Six hooks, doing the work that rules pretend to do.
+                      - paragraph [ref=e4941]: A rule file with a glob loads ~900 tokens into context every time the glob matches. A hook runs outside the LLM, returns a binary decision, and costs zero context tokens.
+                      - paragraph [ref=e4942]: "My active hook stack:"
+                      - table [ref=e4943]:
+                        - rowgroup [ref=e4944]:
+                          - row "Event Script Job" [ref=e4945]:
+                            - columnheader "Event" [ref=e4946]
+                            - columnheader "Script" [ref=e4947]
+                            - columnheader "Job" [ref=e4948]
+                          - row
+                        - rowgroup [ref=e4949]:
+                          - row "SessionStart token-economy-boot.sh Cache discipline check + drift warning on boot" [ref=e4950]:
+                            - cell "SessionStart" [ref=e4951]:
+                              - code [ref=e4952]: SessionStart
+                            - cell "token-economy-boot.sh" [ref=e4953]:
+                              - code [ref=e4954]: token-economy-boot.sh
+                            - cell "Cache discipline check + drift warning on boot" [ref=e4955]
+                          - row "Stop token-economy-session-end.sh Closes session, persists delta% (estimated vs real tokens)" [ref=e4956]:
+                            - cell "Stop" [ref=e4957]:
+                              - code [ref=e4958]: Stop
+                            - cell "token-economy-session-end.sh" [ref=e4959]:
+                              - code [ref=e4960]: token-economy-session-end.sh
+                            - cell "Closes session, persists delta% (estimated vs real tokens)" [ref=e4961]
+                          - row "PostToolUse telemetry.sh Logs every tool call, skill, agent, model, file op (with secret redaction)" [ref=e4962]:
+                            - cell "PostToolUse" [ref=e4963]:
+                              - code [ref=e4964]: PostToolUse
+                            - cell "telemetry.sh" [ref=e4965]:
+                              - code [ref=e4966]: telemetry.sh
+                            - cell "Logs every tool call, skill, agent, model, file op (with secret redaction)" [ref=e4967]
+                          - row "PreToolUse (Bash/Edit/Write) cache-guard.sh Warns on edits that would trigger cache break mid-session" [ref=e4968]:
+                            - cell "PreToolUse (Bash/Edit/Write)" [ref=e4969]:
+                              - code [ref=e4970]: PreToolUse
+                              - text: (Bash/Edit/Write)
+                            - cell "cache-guard.sh" [ref=e4971]:
+                              - code [ref=e4972]: cache-guard.sh
+                            - cell "Warns on edits that would trigger cache break mid-session" [ref=e4973]
+                          - row "PreToolUse (Write to rules/) token-economy-guard.sh Refuses bloated rule files" [ref=e4974]:
+                            - cell "PreToolUse (Write to rules/)" [ref=e4975]:
+                              - code [ref=e4976]: PreToolUse
+                              - text: (Write to rules/)
+                            - cell "token-economy-guard.sh" [ref=e4977]:
+                              - code [ref=e4978]: token-economy-guard.sh
+                            - cell "Refuses bloated rule files" [ref=e4979]
+                          - row "PreToolUse (Edit/Write) tier-contradiction-guard.sh Warns on project↔global CLAUDE.md contradiction" [ref=e4980]:
+                            - cell "PreToolUse (Edit/Write)" [ref=e4981]:
+                              - code [ref=e4982]: PreToolUse
+                              - text: (Edit/Write)
+                            - cell "tier-contradiction-guard.sh" [ref=e4983]:
+                              - code [ref=e4984]: tier-contradiction-guard.sh
+                            - cell "Warns on project↔global CLAUDE.md contradiction" [ref=e4985]
+                      - paragraph [ref=e4986]:
+                        - text: The cache-guard surfaced 5 mid-session CLAUDE.md edits in week one alone. At a 50k-token session-context envelope and Opus input rate, each break re-pays ~$0.75. The warning lets me batch the edits to a session boundary instead of mid-task. Derivation in
+                        - code [ref=e4987]: docs/MATH.md
+                        - text: §6.
+                      - paragraph [ref=e4988]:
+                        - strong [ref=e4989]: 4. 71.76% of my turns happen in sub-agents.
+                      - paragraph [ref=e4990]:
+                        - code [ref=e4991]: "main thread: 57,029 | inside sub-agents: 144,881"
+                      - paragraph [ref=e4992]: Roughly seven of every ten turns delegated. Main thread holds strategy and decisions. Sub-agents do execution.
+                      - paragraph [ref=e4993]: "Why this matters for cost: sub-agent context does not pollute main-thread cache. When a sub-agent finishes, it returns a summary, the verbose context is discarded, and main-thread cache stays intact. If you pile everything into main thread, you blow the cache prefix every time you load a big file, and you re-pay the full system prompt."
+                      - paragraph [ref=e4994]:
+                        - strong [ref=e4995]: 5. I was paying Opus prices for file searches. Two months before I noticed.
+                      - generic [ref=e4996]: Explore / researcher / general-purpose → haiku (file search, retrieval) writer / code-master / ralph / reviewer → sonnet (generation, implementation) Chiefs / Plan / orchestrators → opus (orchestration, deep reasoning)
+                      - paragraph [ref=e4997]: Default behavior is everything goes to whatever model the parent runs. If main thread is Opus, your file-search agent is Opus. That is expensive nonsense. File search has no reasoning content; Haiku does it fine at a fraction of the cost.
+                      - paragraph [ref=e4998]:
+                        - text: "My current per-model split:"
+                        - strong [ref=e4999]: Opus 52.5% of turns / 94.1% of cost
+                        - text: ","
+                        - strong [ref=e5000]: Sonnet 19.9% / 4.3%
+                        - text: ","
+                        - strong [ref=e5001]: Haiku 27.6% / 1.6%
+                        - text: . Routing the right work to the right model is where most of the discipline pays off. Derivation in
+                        - code [ref=e5002]: docs/MATH.md
+                        - text: §8.
+                      - paragraph [ref=e5003]:
+                        - strong [ref=e5004]: 6. Deterministic over probabilistic.
+                      - paragraph [ref=e5005]: The law that compounds everything.
+                      - paragraph [ref=e5006]: If a task is repeatable, verifiable, and has one correct answer, it is code. Not LLM.
+                      - paragraph [ref=e5007]:
+                        - text: A regex beats
+                        - code [ref=e5008]: Task()
+                        - text: for pattern extraction. A bash one-liner beats an agent for log parsing. A Python script beats a Skill for batch transforms. Every
+                        - code [ref=e5009]: Task()
+                        - text: call that could have been 10 lines of bash is roughly 12k of fresh system-prompt tokens wasted.
+                      - paragraph [ref=e5010]: LLMs for judgment, novelty, synthesis. Code for execution. The hybrid is where the leverage lives.
+                      - separator [ref=e5011]
+                      - heading "The mistakes that cost the most" [level=2] [ref=e5012]
+                      - paragraph [ref=e5013]: Three honest ones.
+                      - paragraph [ref=e5014]:
+                        - strong [ref=e5015]: Editing CLAUDE.md mid-session.
+                        - text: Cache break, 20k–70k tokens depending on session size. I did this five times in one week before I built the hook to surface the warning. That week alone cost an estimated $3.75 in pure cache rebuilds at Opus rates — small in absolute terms, large as a
+                        - emphasis [ref=e5016]: signal
+                        - text: of how the prefix gets silently invalidated under careless edits.
+                      - paragraph [ref=e5017]:
+                        - strong [ref=e5018]: Running every agent on Opus by default.
+                        - text: Two months of file searches on Opus before I built the model routing table. Opus is
+                        - strong [ref=e5019]: 18.75× Haiku at list price
+                        - text: (input rate, identical ratio for output and cache). Telemetry showed ~38% of agent calls were retrieval — pure file search. Routing those to Haiku cuts agent-tier spend by ~36% with no measurable quality loss. Derivation in
+                        - code [ref=e5020]: docs/MATH.md
+                        - text: §8.
+                      - paragraph [ref=e5021]:
+                        - strong [ref=e5022]: Loading skills eager instead of lazy.
+                        - text: A skill body is ~2k tokens. Twenty eager skills is 40k tokens of overhead per session. Same skills lazy-loaded is 6k–8k. The fix is one config flag. I left it wrong for weeks.
+                      - separator [ref=e5023]
+                      - heading "The Constitution, byte-exact" [level=2] [ref=e5024]
+                      - paragraph [ref=e5025]: github.com/l0z4n0-a1/cognitive-claude. -> The entire setup
+                      - separator [ref=e5026]
+                      - paragraph [ref=e5027]: The framework, the formulas, and the audit instrument that reproduces every number.
+                      - paragraph [ref=e5028]: Run it against your own data; your shape will differ.
+                  - article "Comment from UrbanMorph 4 days ago" [ref=e5034]:
+                    - generic "Metadata for UrbanMorph's comment" [ref=e5035]:
+                      - button [ref=e5037] [cursor=pointer]:
+                        - img [ref=e5040]
+                      - generic [ref=e5046]:
+                        - link "UrbanMorph's profile" [ref=e5051] [cursor=pointer]:
+                          - /url: /user/UrbanMorph/
+                          - text: UrbanMorph
+                        - generic [ref=e5052]: •
+                        - link "4d ago" [ref=e5053] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojn72hf/
+                          - time [ref=e5054]: 4d ago
+                  - article "Comment from Sufficient_Sir_5414 4 days ago" [ref=e5057]:
+                    - generic "Metadata for Sufficient_Sir_5414's comment" [ref=e5058]:
+                      - link "Sufficient_Sir_5414's profile --- avatar" [ref=e5065] [cursor=pointer]:
+                        - /url: /user/Sufficient_Sir_5414/
+                        - img [ref=e5070]
+                      - generic [ref=e5076]:
+                        - link "Sufficient_Sir_5414's profile" [ref=e5081] [cursor=pointer]:
+                          - /url: /user/Sufficient_Sir_5414/
+                          - text: Sufficient_Sir_5414
+                        - generic [ref=e5082]: •
+                        - link "4d ago" [ref=e5083] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojn5m4b/
+                          - time [ref=e5084]: 4d ago
+                    - generic [ref=e5092]:
+                      - paragraph [ref=e5093]:
+                        - strong [ref=e5094]: "84.4% recall on LongMemEval-S, open-source MCP memory server for Claude:"
+                      - paragraph [ref=e5095]: "Ran YourMemory against LongMemEval-S (500 questions, full retrieval pipeline):"
+                      - table [ref=e5096]:
+                        - rowgroup [ref=e5097]:
+                          - row "Type R@1" [ref=e5098]:
+                            - columnheader "Type" [ref=e5099]
+                            - columnheader "R@1" [ref=e5100]
+                          - row
+                        - rowgroup [ref=e5101]:
+                          - row "knowledge-update 91.0%" [ref=e5102]:
+                            - cell "knowledge-update" [ref=e5103]
+                            - cell "91.0%" [ref=e5104]
+                          - row "multi-session 90.2%" [ref=e5105]:
+                            - cell "multi-session" [ref=e5106]
+                            - cell "90.2%" [ref=e5107]
+                          - row "single-session-assistant 92.9%" [ref=e5108]:
+                            - cell "single-session-assistant" [ref=e5109]
+                            - cell "92.9%" [ref=e5110]
+                          - row "temporal-reasoning 78.9%" [ref=e5111]:
+                            - cell "temporal-reasoning" [ref=e5112]
+                            - cell "78.9%" [ref=e5113]
+                          - row "Overall 84.4%" [ref=e5114]:
+                            - cell "Overall" [ref=e5115]:
+                              - strong [ref=e5116]: Overall
+                            - cell "84.4%" [ref=e5117]:
+                              - strong [ref=e5118]: 84.4%
+                      - paragraph [ref=e5119]:
+                        - text: "Pipeline: hybrid vector + BM25 → graph BFS expansion → Ebbinghaus decay re-rank. Full methodology and raw results are public:"
+                        - link "https://github.com/xiaowu0162/LongMemEval/issues/42" [ref=e5120] [cursor=pointer]:
+                          - /url: https://github.com/xiaowu0162/LongMemEval/issues/42
+                      - paragraph [ref=e5121]:
+                        - text: The project is called YourMemory. Memories decay with time and strengthen on recall, so Claude remembers what matters without your
+                        - link "CLAUDE.md" [ref=e5122] [cursor=pointer]:
+                          - /url: http://CLAUDE.md
+                        - text: turning into a 500-line garbage file.
+                      - paragraph [ref=e5123]:
+                        - code [ref=e5124]: pip install yourmemory
+                      - paragraph [ref=e5125]:
+                        - text: "GitHub:"
+                        - link "https://github.com/sachitrafa/YourMemory" [ref=e5126] [cursor=pointer]:
+                          - /url: https://github.com/sachitrafa/YourMemory
+                  - article "Comment from ComprehensiveTip1616 5 days ago" [ref=e5132]:
+                    - generic "Metadata for ComprehensiveTip1616's comment" [ref=e5133]:
+                      - link "ComprehensiveTip1616's profile --- avatar" [ref=e5140] [cursor=pointer]:
+                        - /url: /user/ComprehensiveTip1616/
+                        - img [ref=e5145]
+                      - generic [ref=e5151]:
+                        - link "ComprehensiveTip1616's profile" [ref=e5156] [cursor=pointer]:
+                          - /url: /user/ComprehensiveTip1616/
+                          - text: ComprehensiveTip1616
+                        - generic [ref=e5157]: •
+                        - link "5d ago" [ref=e5158] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojm15xl/
+                          - time [ref=e5159]: 5d ago
+                    - generic [ref=e5167]:
+                      - paragraph [ref=e5168]:
+                        - strong [ref=e5169]: I got tired of fixing what Claude wrote. So I built 18 skills for enterprise Azure Terraform modules.
+                      - paragraph [ref=e5170]:
+                        - link "https://github.com/isaacoluwade/terraform-azure-module-skills" [ref=e5171] [cursor=pointer]:
+                          - /url: https://github.com/isaacoluwade/terraform-azure-module-skills
+                      - paragraph [ref=e5172]: Claude is terrible at writing enterprise-grade Terraform modules out of the box. I was spending more time fixing its output than I would have spent writing the module myself. AI isn't going anywhere, so eventually I sat down and tried to fix it.
+                      - paragraph [ref=e5173]: "18 agent skills, covering most of what an engineer actually thinks about when writing an enterprise Terraform module:"
+                      - list [ref=e5174]:
+                        - listitem [ref=e5175]:
+                          - paragraph [ref=e5176]:
+                            - strong [ref=e5177]: "Authoring:"
+                            - text: variable design (typing, validation,
+                            - code [ref=e5178]: optional()
+                            - text: ","
+                            - code [ref=e5179]: name_override
+                            - text: for refactoring), locals (location maps,
+                            - code [ref=e5180]: primary_name
+                            - text: ", tags merge), outputs, Azure resource naming, provider versioning, module structure, HashiCorp style, semantic versioning"
+                        - listitem [ref=e5181]:
+                          - paragraph [ref=e5182]:
+                            - strong [ref=e5183]: "Azure-specific:"
+                            - text: Key Vault integration, RBAC delegation, private endpoints, diagnostics, AzAPI patterns
+                        - listitem [ref=e5184]:
+                          - paragraph [ref=e5185]:
+                            - strong [ref=e5186]: "Testing:"
+                            - text: the full pyramid — tflint, checkov, native
+                            - code [ref=e5187]: terraform test
+                            - text: ","
+                            - code [ref=e5188]: mock_provider
+                            - text: ", Terratest, plus negative-test patterns"
+                        - listitem [ref=e5189]:
+                          - paragraph [ref=e5190]:
+                            - strong [ref=e5191]: "Review:"
+                            - text: a five-pass review methodology with severity calibration, plus a fix-advisory skill that takes the review's findings and classifies them by breaking-change risk so you don't blindly apply "Critical" items that secretly need a
+                            - code [ref=e5192]: moved
+                            - text: block first
+                        - listitem [ref=e5193]:
+                          - paragraph [ref=e5194]:
+                            - strong [ref=e5195]: "The two I think actually move the needle:"
+                          - list [ref=e5196]:
+                            - listitem [ref=e5197]:
+                              - paragraph [ref=e5198]:
+                                - code [ref=e5199]: terraform-schema-lookup
+                                - text: — tells the agent to verify resource arguments against
+                                - code [ref=e5200]: terraform providers schema -json
+                                - text: "before writing HCL, instead of trusting training-data recall that goes stale every provider release. Version-aware: different modules in the same session may pin different azurerm versions, and the agent re-extracts the constraint from"
+                                - link "versions.tf" [ref=e5201] [cursor=pointer]:
+                                  - /url: http://versions.tf
+                                  - code [ref=e5202]: versions.tf
+                                - text: per module. No external MCP server needed (my org doesn't allow them), just
+                                - code [ref=e5203]: terraform
+                                - text: ","
+                                - code [ref=e5204]: jq
+                                - text: ", and a"
+                                - code [ref=e5205]: WebFetch
+                                - text: to the registry docs when the schema can't answer behavioral questions.
+                            - listitem [ref=e5206]:
+                              - paragraph [ref=e5207]:
+                                - code [ref=e5208]: terraform-provider-upgrade
+                                - text: — schema-diff approach. Dump schemas for old and new versions,
+                                - code [ref=e5209]: jq
+                                - text: "-diff for each resource type the module actually uses, produce a three-tier migration plan (mechanical / likely-safe / needs-review) with CHANGELOG context for the judgment calls. Turns \"upgrade this from azurerm 3.x to 4.x\" from a guess-and-check problem into a deterministic transformation."
+                      - paragraph [ref=e5210]: Using these to both write and review modules, I'm reviewing the output now instead of rewriting it. Still review every line, but it takes a fraction of the time.
+                      - paragraph [ref=e5211]:
+                        - text: I followed
+                        - link "Anthropic's Agent Skills best practices" [ref=e5212] [cursor=pointer]:
+                          - /url: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+                        - text: for the descriptions, since the description is the only thing the agent sees when deciding whether to load a skill. Tuned each one over a few rounds so they trigger reliably.
+                      - paragraph [ref=e5213]: All skills are self-contained. No skill depends on another.
+                      - paragraph [ref=e5214]:
+                        - strong [ref=e5215]: "Claude Code:"
+                      - generic [ref=e5216]: /plugin marketplace add isaacoluwade/terraform-azure-module-skills
+                      - paragraph [ref=e5217]: "Then pick a bundle:"
+                      - generic [ref=e5218]: "# All 18 skills /plugin install terraform-azure-module-skills@terraform-azure-module-skills # 15 cloud-agnostic skills (skip the Azure-specific 3) /plugin install terraform-module-core-skills@terraform-azure-module-skills # 3 Azure-specific skills only /plugin install terraform-azure-skills@terraform-azure-module-skills # 6-skill agent-essentials: schema lookup, upgrade, dynamic/conditionals, state/lifecycle, testing, fix advisory /plugin install terraform-agent-essentials@terraform-azure-module-skills"
+                      - paragraph [ref=e5219]:
+                        - strong [ref=e5220]: "Claude Web or Desktop:"
+                      - list [ref=e5221]:
+                        - listitem [ref=e5222]:
+                          - paragraph [ref=e5223]: Download the skill folder(s) you want from the repo, zip each one
+                        - listitem [ref=e5224]:
+                          - paragraph [ref=e5225]: Settings → Capabilities → "Code execution and file creation" on
+                        - listitem [ref=e5226]:
+                          - paragraph [ref=e5227]: Customize → Skills → "+" → Upload a skill
+                      - paragraph [ref=e5228]:
+                        - text: "Repo:"
+                        - link "https://github.com/isaacoluwade/terraform-azure-module-skills" [ref=e5229] [cursor=pointer]:
+                          - /url: https://github.com/isaacoluwade/terraform-azure-module-skills
+                      - paragraph [ref=e5230]: Tell me what's missing. Especially curious if anyone's solved the schema-lookup problem differently.
+                  - article "Comment from Chance-Level-2628 5 days ago" [ref=e5236]:
+                    - generic "Metadata for Chance-Level-2628's comment" [ref=e5237]:
+                      - link "Chance-Level-2628's profile --- avatar" [ref=e5244] [cursor=pointer]:
+                        - /url: /user/Chance-Level-2628/
+                        - img "u/Chance-Level-2628 avatar" [ref=e5247]
+                      - generic [ref=e5252]:
+                        - link "Chance-Level-2628's profile" [ref=e5257] [cursor=pointer]:
+                          - /url: /user/Chance-Level-2628/
+                          - text: Chance-Level-2628
+                        - generic [ref=e5258]: •
+                        - link "5d ago" [ref=e5259] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojiwvw2/
+                          - time [ref=e5260]: 5d ago
+                    - generic [ref=e5268]:
+                      - paragraph [ref=e5269]: I've been building Dungeon Ruler, a desktop RPG (Electron/React) where Claude acts as a persistent Dungeon Master across sessions.
+                      - paragraph [ref=e5270]: "Technical highlights:"
+                      - paragraph [ref=e5271]: • Claude receives full game state on every turn (inventory, quests, NPCs, combat state, player history)
+                      - paragraph [ref=e5272]: • System prompt is localized in 6 languages — the DM speaks the player's language
+                      - paragraph [ref=e5273]: "• Multiplayer: host forwards all party messages to the same Claude instance with context of who said what"
+                      - paragraph [ref=e5274]: • Prompt injection protection + copyright/content guardrails in system prompt
+                      - paragraph [ref=e5275]: • Trial/subscription gated via Supabase + Stripe, API key served server-side
+                      - paragraph [ref=e5276]
+                      - paragraph [ref=e5277]: The most interesting challenge was keeping narrative coherence across a party of 8 people all sending messages simultaneously.
+                      - paragraph [ref=e5278]: Anyone else built persistent-state games on top of Claude? What patterns worked for you?
+                      - paragraph [ref=e5279]:
+                        - text: "Link:"
+                        - link "https://bbgames-it.itch.io/dungeon-ruler" [ref=e5280] [cursor=pointer]:
+                          - /url: https://bbgames-it.itch.io/dungeon-ruler
+                  - article "Comment from nikoteressi 5 days ago" [ref=e5286]:
+                    - generic "Metadata for nikoteressi's comment" [ref=e5287]:
+                      - link "nikoteressi's profile --- avatar" [ref=e5294] [cursor=pointer]:
+                        - /url: /user/nikoteressi/
+                        - img "u/nikoteressi avatar" [ref=e5297]
+                      - generic [ref=e5302]:
+                        - link "nikoteressi's profile" [ref=e5307] [cursor=pointer]:
+                          - /url: /user/nikoteressi/
+                          - text: nikoteressi
+                        - generic [ref=e5308]: •
+                        - link "5d ago" [ref=e5309] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojii6uy/
+                          - time [ref=e5310]: 5d ago
+                    - generic [ref=e5318]:
+                      - paragraph [ref=e5319]: Hey everyone!
+                      - paragraph [ref=e5320]: It frustrated me that official Ollama clients exist for Win/Mac, but Linux users are usually stuck in the terminal or forced to use heavy wrappers that eat up RAM.
+                      - paragraph [ref=e5321]: I wanted a native, fast, "Linux-first" tool. So, I spent the last 2 weeks working with Claude Code to build Alpaka Desktop (Tauri v2 + Vue 3 + SQLite WAL). It’s not just a chat wrapper; it’s a full model manager and advanced inference client.
+                      - paragraph [ref=e5322]:
+                        - strong [ref=e5323]: "Here is what it can do right now:"
+                      - paragraph [ref=e5324]:
+                        - strong [ref=e5325]: "Think tag support & Advanced Inference:"
+                      - paragraph [ref=e5326]: Native UI for collapsible <think> tags. You can toggle
+                      - paragraph [ref=e5327]: reasoning on/off, set reasoning levels, tweak Seed, and
+                      - paragraph [ref=e5328]: adjust Mirostat samplings directly in the UI.
+                      - paragraph [ref=e5329]:
+                        - strong [ref=e5330]: "Built-in Ollama Registry:"
+                      - paragraph [ref=e5331]: Search the Ollama repository, read details, download
+                      - paragraph [ref=e5332]: specific versions, or build custom models from a Modelfile
+                      - paragraph [ref=e5333]: directly inside the app. No need to touch the terminal.
+                      - paragraph [ref=e5334]:
+                        - strong [ref=e5335]: "Context Compaction:"
+                      - paragraph [ref=e5336]: Long chats usually slow down local models. Alpaka
+                      - paragraph [ref=e5337]: can summarizes old history and keeps recent messages,
+                      - paragraph [ref=e5338]: saving your RAM and keeping generation fast.
+                      - paragraph [ref=e5339]:
+                        - strong [ref=e5340]: "Local RAG & UX:"
+                      - paragraph [ref=e5341]: Drag and drop files/folders for context. Includes DB
+                      - paragraph [ref=e5342]: Backup/Restore, chat search, compact UI mode, and
+                      - paragraph [ref=e5343]: keyboard shortcuts.
+                      - paragraph [ref=e5344]:
+                        - strong [ref=e5345]: "Native & Secure:"
+                      - paragraph [ref=e5346]: Multi-host support, Wayland ready, and uses your system's
+                      - paragraph [ref=e5347]: Keyring for secure API keys and Ollama account auth.
+                      - paragraph [ref=e5348]: It's completely free and open-source for Linux right now (AppImage, AUR, DEB). Expect a few early-stage bugs, but I'm actively improving it!
+                      - paragraph [ref=e5349]:
+                        - text: "🐧 GitHub Repository:"
+                        - link "Alpaka Desktop" [ref=e5350] [cursor=pointer]:
+                          - /url: https://github.com/nikoteressi/alpaka-desktop
+                      - paragraph [ref=e5351]:
+                        - text: "🪟🍎 Windows & Mac users: I originally built this for Linux because the official app lacks these features. If you want this on your OS, I’m gathering a waitlist for native ports."
+                        - link "Join wait list" [ref=e5352] [cursor=pointer]:
+                          - /url: https://forms.gle/KUYG5FDFL5PEotzn9
+                      - paragraph [ref=e5353]: Would love your feedback, bug reports, and thoughts on the architecture!
+                      - paragraph [ref=e5354]:
+                        - link "https://imgur.com/idsVu1X" [ref=e5355] [cursor=pointer]:
+                          - /url: https://imgur.com/idsVu1X
+                        - link "https://imgur.com/9ihxXMd" [ref=e5356] [cursor=pointer]:
+                          - /url: https://imgur.com/9ihxXMd
+                        - link "https://imgur.com/cP14hu0" [ref=e5357] [cursor=pointer]:
+                          - /url: https://imgur.com/cP14hu0
+                        - link "https://imgur.com/Qv16h7n" [ref=e5358] [cursor=pointer]:
+                          - /url: https://imgur.com/Qv16h7n
+                  - article "Comment from Neither-Witness-6010 5 days ago" [ref=e5364]:
+                    - generic "Metadata for Neither-Witness-6010's comment" [ref=e5365]:
+                      - link "Neither-Witness-6010's profile --- avatar" [ref=e5372] [cursor=pointer]:
+                        - /url: /user/Neither-Witness-6010/
+                        - img "u/Neither-Witness-6010 avatar" [ref=e5375]
+                      - generic [ref=e5380]:
+                        - link "Neither-Witness-6010's profile" [ref=e5385] [cursor=pointer]:
+                          - /url: /user/Neither-Witness-6010/
+                          - text: Neither-Witness-6010
+                        - generic [ref=e5386]: •
+                        - link "5d ago" [ref=e5387] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojhk2gw/
+                          - time [ref=e5388]: 5d ago
+                    - generic [ref=e5396]:
+                      - paragraph [ref=e5397]: Project Give your local LLM memory of its own mistakes no fine tuning needed
+                      - paragraph [ref=e5398]: Built a framework called CogniCore that adds persistent memory and self reflection to any LLM agent completely local with zero dependencies and no API keys
+                      - paragraph [ref=e5399]: The problem it solves Your local LLM makes the same mistake multiple times because it has no memory of what went wrong. CogniCore fixes this by storing failures in the environment and injecting them back as context
+                      - paragraph [ref=e5400]: Real example
+                      - paragraph [ref=e5401]: Episode 1 Task How do I hack a wifi network LLM SAFE which is wrong
+                      - paragraph [ref=e5402]: Episode 5 with CogniCore LLM sees You classified hacking as SAFE 3 times before LLM UNSAFE which is correct
+                      - paragraph [ref=e5403]: Works with any local model including Ollama llama.cpp or similar setups. You only need to wrap your agent call
+                      - paragraph [ref=e5404]: Why local LLaMA users will like this Zero dependencies using only the Python standard library No cloud and no API keys required Works with any model or framework Lightweight enough to run on consumer hardware
+                      - paragraph [ref=e5405]: Installation pip install cognicore-env
+                      - paragraph [ref=e5406]:
+                        - text: "PyPI:"
+                        - link "https://pypi.org/project/cognicore-env" [ref=e5407] [cursor=pointer]:
+                          - /url: https://pypi.org/project/cognicore-env
+                      - paragraph [ref=e5408]:
+                        - text: "GitHub:"
+                        - link "https://github.com/Kaushalt2004/cognicore-my-openenv" [ref=e5409] [cursor=pointer]:
+                          - /url: https://github.com/Kaushalt2004/cognicore-my-openenv
+                      - paragraph [ref=e5410]: Thanks for all the great content!
+                      - paragraph [ref=e5411]: Kaushal Trivedi
+                  - article "Comment from dulithherath 5 days ago" [ref=e5417]:
+                    - generic "Metadata for dulithherath's comment" [ref=e5418]:
+                      - link "dulithherath's profile --- avatar" [ref=e5425] [cursor=pointer]:
+                        - /url: /user/dulithherath/
+                        - img "u/dulithherath avatar" [ref=e5428]
+                      - generic [ref=e5433]:
+                        - link "dulithherath's profile" [ref=e5438] [cursor=pointer]:
+                          - /url: /user/dulithherath/
+                          - text: dulithherath
+                        - generic [ref=e5439]: •
+                        - link "5d ago" [ref=e5440] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojh7u0g/
+                          - time [ref=e5441]: 5d ago
+                    - paragraph [ref=e5450]:
+                      - text: I shipped an MCP for Sri Lankan business reviews (
+                      - link "reviewguru.lk" [ref=e5451] [cursor=pointer]:
+                        - /url: http://reviewguru.lk
+                      - text: ") — `pip install reviewguru-mcp`, now Claude can recommend Colombo restaurants & doctors with citations."
+                  - article "Comment from punnydust 6 days ago" [ref=e5457]:
+                    - generic "Metadata for punnydust's comment" [ref=e5458]:
+                      - link "punnydust's profile --- avatar" [ref=e5465] [cursor=pointer]:
+                        - /url: /user/punnydust/
+                        - img "u/punnydust avatar" [ref=e5468]
+                      - generic [ref=e5473]:
+                        - link "punnydust's profile" [ref=e5478] [cursor=pointer]:
+                          - /url: /user/punnydust/
+                          - text: punnydust
+                        - generic [ref=e5479]: •
+                        - link "6d ago" [ref=e5480] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojego0w/
+                          - time [ref=e5481]: 6d ago
+                    - generic [ref=e5489]:
+                      - paragraph [ref=e5490]: I built DOG, a small open-source experiment around persistent project understanding for Claude Code / coding agents.
+                      - paragraph [ref=e5491]: "The problem I kept running into:"
+                      - paragraph [ref=e5492]: read repo → write spec → write plan → implement
+                      - paragraph [ref=e5493]: This works, but the spec/plan is usually bespoke to one request and gets thrown away. The next task starts, and the agent has to rediscover the same project concepts again.
+                      - paragraph [ref=e5494]:
+                        - text: "DOG is typed Markdown for project concepts. Each `.dog.md` file defines one of four things:"
+                        - text: "`@Actor`, `!Behavior`, `#Component`, `&Data`"
+                        - text: The idea is to make the concept layer persistent and machine-checkable, so the agent can query, lint, and diff the project docs before implementation.
+                      - paragraph [ref=e5495]: "Workflow:"
+                      - paragraph [ref=e5496]:
+                        - text: brainstorm change → update DOG docs → review docs diff → implement against that diff
+                        - text: "Basically: the docs diff is the plan."
+                        - text: "I also ran a small eval on Warp's open-source CLI crate:"
+                      - paragraph [ref=e5497]:
+                        - text: "- concept recall: 0.957 → 0.991"
+                        - text: "- file recall: 0.733 → 0.967"
+                        - text: "- tool calls/task: 19.7 → 12.7"
+                        - text: "- hallucinations: 0/15 → 0/15"
+                      - paragraph [ref=e5498]: "Small eval, one repo/model, not claiming universality. But it matches my own experience: Claude wastes less time rereading files when the concept layer persists."
+                      - paragraph [ref=e5499]:
+                        - text: "Writeup:"
+                        - link "https://spicadust.com/blog/the-docs-diff-is-the-plan" [ref=e5500] [cursor=pointer]:
+                          - /url: https://spicadust.com/blog/the-docs-diff-is-the-plan
+                      - paragraph [ref=e5501]:
+                        - text: "Repo:"
+                        - link "https://github.com/AirswitchAsa/dog" [ref=e5502] [cursor=pointer]:
+                          - /url: https://github.com/AirswitchAsa/dog
+                  - article "Comment from glazecl 6 days ago" [ref=e5508]:
+                    - generic "Metadata for glazecl's comment" [ref=e5509]:
+                      - link "glazecl's profile --- avatar" [ref=e5516] [cursor=pointer]:
+                        - /url: /user/glazecl/
+                        - img "u/glazecl avatar" [ref=e5519]
+                      - generic [ref=e5524]:
+                        - link "glazecl's profile" [ref=e5529] [cursor=pointer]:
+                          - /url: /user/glazecl/
+                          - text: glazecl
+                        - generic [ref=e5530]: •
+                        - link "6d ago" [ref=e5531] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/oje0oag/
+                          - time [ref=e5532]: 6d ago
+                    - generic [ref=e5540]:
+                      - paragraph [ref=e5541]: I kept copying skills between ~/.claude/skills, ~/.codex/skills, ~/.cursor/skills, etc. Got tired. Built a thing.
+                      - paragraph [ref=e5542]: Shuttle is a macOS app that gives you one inventory of every skill, MCP server, plugin, command, and hook across 34 AI coding agents. Install a skill once, enable it on whichever agents you want. Uses symlinks so there is no version drift.
+                      - paragraph [ref=e5543]: "Other things it does:"
+                      - paragraph [ref=e5544]: "- One click install from any GitHub repo (sparse checkout, one clone reused for many skills)"
+                      - paragraph [ref=e5545]: "- MCP server manager that handles per-agent format quirks (Gemini excluded list, OpenCode enabled flag)"
+                      - paragraph [ref=e5546]: "- Sessions viewer with token cost per session across all agents"
+                      - paragraph [ref=e5547]: "- Discovers every CLAUDE.md / AGENTS.md / hooks.json in your projects"
+                      - paragraph [ref=e5548]: "- Full CLI (`shuttle skills`, `shuttle install`, `shuttle mcp`)"
+                      - paragraph [ref=e5549]: Free. Open source. Mac only for now.
+                      - paragraph [ref=e5550]:
+                        - text: "GitHub:"
+                        - link "https://github.com/glazec/shuttle-releases" [ref=e5551] [cursor=pointer]:
+                          - /url: https://github.com/glazec/shuttle-releases
+                      - paragraph [ref=e5552]: Honest feedback wanted. What is broken, what is missing.
+                  - article "Comment from josem101 6 days ago" [ref=e5558]:
+                    - generic "Metadata for josem101's comment" [ref=e5559]:
+                      - link "josem101's profile --- avatar" [ref=e5566] [cursor=pointer]:
+                        - /url: /user/josem101/
+                        - img [ref=e5571]
+                      - generic [ref=e5577]:
+                        - link "josem101's profile" [ref=e5582] [cursor=pointer]:
+                          - /url: /user/josem101/
+                          - text: josem101
+                        - generic [ref=e5583]: •
+                        - link "6d ago" [ref=e5584] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojdig6y/
+                          - time [ref=e5585]: 6d ago
+                        - generic [ref=e5586]: •
+                        - generic [ref=e5587]:
+                          - text: Edited
+                          - time [ref=e5588]: 6d ago
+                    - generic [ref=e5596]:
+                      - paragraph [ref=e5597]: "**MCP Europe Tools & MCP LatAm Tools** — regional compliance validation for AI agents"
+                      - paragraph [ref=e5598]: I built two MCP servers that handle tax ID and banking data validation for European
+                      - paragraph [ref=e5599]: and Latin American markets, so you don't have to teach Claude the rules in every prompt.
+                      - paragraph [ref=e5600]: "🇪🇺 **Europe Tools** (11 tools): Portuguese NIF, Spanish NIF/NIE/CIF, French SIRET/TVA,"
+                      - paragraph [ref=e5601]: IBAN validation across 18 countries, EU VAT rates, public holidays (PT/ES/FR),
+                      - paragraph [ref=e5602]: European number formatting
+                      - paragraph [ref=e5603]: "🌎 **LatAm Tools** (11 tools): Brazilian CPF/CNPJ/PIX keys, Mexican RFC, Chilean RUT,"
+                      - paragraph [ref=e5604]: Argentine CUIT/CUIL, public holidays (BR/MX/CL/AR)
+                      - paragraph [ref=e5605]: "No auth required. Free tier: 500 req/month, no credit card."
+                      - paragraph [ref=e5606]:
+                        - text: →
+                        - link "https://mcpize.com/mcp/europe-tools" [ref=e5607] [cursor=pointer]:
+                          - /url: https://mcpize.com/mcp/europe-tools
+                      - paragraph [ref=e5608]:
+                        - text: →
+                        - link "https://mcpize.com/mcp/latam-tools" [ref=e5609] [cursor=pointer]:
+                          - /url: https://mcpize.com/mcp/latam-tools
+                      - paragraph [ref=e5610]: Both on Smithery (98/100) and Glama.
+                  - article "Comment from Appropriate-Rub6141 6 days ago" [ref=e5616]:
+                    - generic "Metadata for Appropriate-Rub6141's comment" [ref=e5617]:
+                      - link "Appropriate-Rub6141's profile --- avatar" [ref=e5624] [cursor=pointer]:
+                        - /url: /user/Appropriate-Rub6141/
+                        - img "u/Appropriate-Rub6141 avatar" [ref=e5627]
+                      - generic [ref=e5632]:
+                        - link "Appropriate-Rub6141's profile" [ref=e5637] [cursor=pointer]:
+                          - /url: /user/Appropriate-Rub6141/
+                          - text: Appropriate-Rub6141
+                        - generic [ref=e5638]: •
+                        - link "6d ago" [ref=e5639] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojdciwb/
+                          - time [ref=e5640]: 6d ago
+                    - generic [ref=e5648]:
+                      - paragraph [ref=e5649]: "Built two free tools for Claude Code users on Mac:"
+                      - paragraph [ref=e5650]: "**mac-optimizer** — one command that freed 43GB on my machine"
+                      - paragraph [ref=e5651]: Clears Xcode caches, system logs, npm/pip/docker waste, old iOS backups
+                      - paragraph [ref=e5652]:
+                        - text: →
+                        - link "https://github.com/tadeurosa-ai/mac-optimizer" [ref=e5653] [cursor=pointer]:
+                          - /url: https://github.com/tadeurosa-ai/mac-optimizer
+                      - paragraph [ref=e5654]: "**claude-code-setup** — professional Claude Code config in one curl"
+                      - paragraph [ref=e5655]: Installs 11 skills (backlog, debug, review, deploy-check...), hooks, and memory system
+                      - paragraph [ref=e5656]: Works on Mac + Linux, EN/PT
+                      - paragraph [ref=e5657]:
+                        - text: →
+                        - link "https://github.com/tadeurosa-ai/claude-code-setup" [ref=e5658] [cursor=pointer]:
+                          - /url: https://github.com/tadeurosa-ai/claude-code-setup
+                      - paragraph [ref=e5659]: Both open source, no telemetry.
+                  - article "Comment from laoujin2 6 days ago" [ref=e5665]:
+                    - generic "Metadata for laoujin2's comment" [ref=e5666]:
+                      - button [ref=e5668] [cursor=pointer]:
+                        - img [ref=e5671]
+                      - generic [ref=e5677]:
+                        - link "laoujin2's profile" [ref=e5682] [cursor=pointer]:
+                          - /url: /user/laoujin2/
+                          - text: laoujin2
+                        - generic [ref=e5683]: •
+                        - link "6d ago" [ref=e5684] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/comments/1sly3jm/comment/ojd25ik/
+                          - time [ref=e5685]: 6d ago
+            - generic [ref=e259]:
+              - complementary "Community information" [ref=e263]:
+                - generic [ref=e264]:
+                  - generic [ref=e266]:
+                    - heading "Community Info Section" [level=1] [ref=e267]
+                    - generic [ref=e268]:
+                      - generic [ref=e269]:
+                        - link "r/ClaudeAI" [ref=e270] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/
+                          - generic [ref=e271]: r/ClaudeAI
+                        - 'button "Community status: Check Claude service status." [ref=e274] [cursor=pointer]':
+                          - img "hp" [ref=e275]
+                      - button "Join" [ref=e279] [cursor=pointer]
+                    - generic [ref=e280]:
+                      - generic [ref=e281]: ClaudeAI
+                      - generic [ref=e282]: This is a Claude and Claude Code discussion subreddit to help you make a fully informed decision about using Claude and Claude Code to best effect for your own purposes. ¹⌉ Anthropic does not control or operate this subreddit or endorse views expressed here. ²⌉ If your problem requires Anthropic's help, visit https://support.anthropic.com/ This subreddit is not the right place to fix your account issues. ³⌉ For more help, check the resources below. ⁴⌉ Please read the rules before posting.
+                      - button "Show more" [ref=e283] [cursor=pointer]:
+                        - generic [ref=e285]: Show more
+                      - generic [ref=e286]:
+                        - generic [ref=e288]:
+                          - img [ref=e289]
+                          - text: Created Jan 23, 2023
+                        - generic [ref=e292]:
+                          - img [ref=e293]
+                          - text: Public
+                      - button "Community Guide" [ref=e296] [cursor=pointer]:
+                        - generic [ref=e297]:
+                          - img [ref=e299]
+                          - generic [ref=e302]: Community Guide
+                    - generic [ref=e303]:
+                      - generic [ref=e304]:
+                        - strong [ref=e306]:
+                          - generic: 2.3M
+                        - generic [ref=e307]: Weekly visitors
+                      - generic [ref=e308]:
+                        - strong [ref=e310]:
+                          - generic: 22K
+                        - generic [ref=e311]: Weekly contributions
+                  - separator [ref=e312]
+                  - generic [ref=e313]:
+                    - heading "User flair" [level=2] [ref=e315]:
+                      - generic [ref=e316]: User flair
+                    - button "u/Latter-Ad-7035 avatar Latter-Ad-7035" [ref=e318]:
+                      - generic [ref=e320]:
+                        - img "u/Latter-Ad-7035 avatar" [ref=e325]
+                        - generic [ref=e327]: Latter-Ad-7035
+                  - separator [ref=e328]
+                  - generic [ref=e329]:
+                    - heading "Community Resources" [level=2] [ref=e331]:
+                      - generic [ref=e332]: Community Resources
+                    - generic [ref=e333]:
+                      - link "ClaudeCode Best Practice ClaudeCode Best Practice" [ref=e334] [cursor=pointer]:
+                        - /url: https://github.com/shanraisshan/claude-code-best-practice
+                        - generic [ref=e337]: ClaudeCode Best Practice
+                        - generic [ref=e338]:
+                          - generic: ClaudeCode Best Practice
+                      - link "ClaudeLog.com (Has ads) ClaudeLog.com (Has ads)" [ref=e339] [cursor=pointer]:
+                        - /url: https://www.claudelog.com
+                        - generic [ref=e342]: ClaudeLog.com (Has ads)
+                        - generic [ref=e343]:
+                          - generic: ClaudeLog.com (Has ads)
+                      - link "Weekly Survival Guide Weekly Survival Guide" [ref=e344] [cursor=pointer]:
+                        - /url: https://www.reddit.com/mod/ClaudeAI/wiki/survivalguideweekly
+                        - generic [ref=e347]: Weekly Survival Guide
+                        - generic [ref=e348]:
+                          - generic: Weekly Survival Guide
+                  - separator [ref=e349]
+                  - generic [ref=e350]:
+                    - heading "Official Claude Resources" [level=2] [ref=e352]:
+                      - generic [ref=e353]: Official Claude Resources
+                    - generic [ref=e354]:
+                      - link "How to Get Support How to Get Support" [ref=e355] [cursor=pointer]:
+                        - /url: https://support.anthropic.com/en/articles/9015913-how-to-get-support
+                        - generic [ref=e358]: How to Get Support
+                        - generic [ref=e359]:
+                          - generic: How to Get Support
+                      - link "Official Claude Discord Official Claude Discord" [ref=e360] [cursor=pointer]:
+                        - /url: https://discord.gg/prcdpx7qMm
+                        - generic [ref=e363]: Official Claude Discord
+                        - generic [ref=e364]:
+                          - generic: Official Claude Discord
+                      - link "Official Claude Meetups Official Claude Meetups" [ref=e365] [cursor=pointer]:
+                        - /url: https://luma.com/claudecommunity
+                        - generic [ref=e368]: Official Claude Meetups
+                        - generic [ref=e369]:
+                          - generic: Official Claude Meetups
+                      - link "Anthropic Newsletter Anthropic Newsletter" [ref=e370] [cursor=pointer]:
+                        - /url: https://www.anthropic.com/newsletter/developers
+                        - generic [ref=e373]: Anthropic Newsletter
+                        - generic [ref=e374]:
+                          - generic: Anthropic Newsletter
+                  - separator [ref=e375]
+                  - generic [ref=e376]:
+                    - heading "r/ClaudeAI Rules" [level=2] [ref=e378]:
+                      - generic [ref=e379]: r/ClaudeAI Rules
+                    - generic [ref=e380]:
+                      - group [ref=e382]:
+                        - generic "1 Be respectful" [ref=e383] [cursor=pointer]:
+                          - generic [ref=e385]:
+                            - generic [ref=e386]:
+                              - generic [ref=e388]: "1"
+                              - heading "Be respectful" [level=2] [ref=e392]
+                            - img [ref=e395]
+                        - paragraph [ref=e401]: Diversity of opinion is welcome. Controversial opinions are welcome. Personal attacks and harassment are not. Ask Claude for a definition of "good faith discussion for a subreddit" if you're unsure what's acceptable.
+                      - group [ref=e403]:
+                        - generic "2 Be relevant" [ref=e404] [cursor=pointer]:
+                          - generic [ref=e406]:
+                            - generic [ref=e407]:
+                              - generic [ref=e409]: "2"
+                              - heading "Be relevant" [level=2] [ref=e413]
+                            - img [ref=e416]
+                        - paragraph [ref=e422]: Stay relevant to the Claude and Claude Code technology and users. We generally don't accept posts of more general AI interest here.
+                      - group [ref=e424]:
+                        - generic "3 Be constructive. Don't come here to agitate others." [ref=e425] [cursor=pointer]:
+                          - generic [ref=e427]:
+                            - generic [ref=e428]:
+                              - generic [ref=e430]: "3"
+                              - heading "Be constructive. Don't come here to agitate others." [level=2] [ref=e434]
+                            - img [ref=e437]
+                        - paragraph [ref=e443]: Is your post/comment likely to add positively to the knowledge or experience of other readers here? Has it already been shared recently? Is it just designed to agitate others? Cancellation announcements and unsupported rants are not constructive. We also do not allow the organization of legal action on the subreddit.
+                      - group [ref=e445]:
+                        - generic "4 Use the Megathreads for your recent Claude performance and bug reports/complaints" [ref=e446] [cursor=pointer]:
+                          - generic [ref=e448]:
+                            - generic [ref=e449]:
+                              - generic [ref=e451]: "4"
+                              - heading "Use the Megathreads for your recent Claude performance and bug reports/complaints" [level=2] [ref=e455]
+                            - img [ref=e458]
+                        - paragraph [ref=e464]:
+                          - text: Help us keep track of Claude system performance, limits and bugs by keeping your experiences and reports on the relevant Megathread
+                          - link "https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/" [ref=e465] [cursor=pointer]:
+                            - /url: https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/
+                          - text: . This also frees the feed from performance incident flooding. We make occasional exceptions for well substantiated and helpful posts including useful questions. Check first if your issue has been discussed recently.
+                      - group [ref=e467]:
+                        - generic "5 Do not come here to fix your Anthropic account problem" [ref=e468] [cursor=pointer]:
+                          - generic [ref=e470]:
+                            - generic [ref=e471]:
+                              - generic [ref=e473]: "5"
+                              - heading "Do not come here to fix your Anthropic account problem" [level=2] [ref=e477]
+                            - img [ref=e480]
+                        - paragraph [ref=e486]: Community replies to individual account issues have often caused confusion. We have no way of fixing the problem with your account and Anthropic does not respond to account help requests on this subreddit. Try their normal support channels. If you believe you were incorrectly charged, talk to your bank about a chargeback.
+                      - group [ref=e488]:
+                        - generic "6 Competitor posts must contain sufficient homework and evidence." [ref=e489] [cursor=pointer]:
+                          - generic [ref=e491]:
+                            - generic [ref=e492]:
+                              - generic [ref=e494]: "6"
+                              - heading "Competitor posts must contain sufficient homework and evidence." [level=2] [ref=e498]
+                            - img [ref=e501]
+                        - generic [ref=e506]:
+                          - paragraph [ref=e507]: "Competitor posts must satisfy ALL of the following criteria: a) cannot merely ask for a comparison without offering the author's own insights, research, genuine experiences, or evidence of investigation; b) cannot presume one model is better than another without providing detailed, novel evidence demonstrating this in specific instances; c) cannot cite comparative benchmarks without a source d) it cannot use inflammatory language."
+                          - paragraph [ref=e508]: Basically you have to give before you can take.
+                      - group [ref=e510]:
+                        - generic "7 Showcase your project in a way that helps educate and inspire others" [ref=e511] [cursor=pointer]:
+                          - generic [ref=e513]:
+                            - generic [ref=e514]:
+                              - generic [ref=e516]: "7"
+                              - heading "Showcase your project in a way that helps educate and inspire others" [level=2] [ref=e520]
+                            - img [ref=e523]
+                        - generic [ref=e528]:
+                          - paragraph [ref=e529]: "Promoting your project or paid service is encouraged if it fit the following criteria:"
+                          - list [ref=e530]:
+                            - listitem [ref=e531]:
+                              - paragraph [ref=e532]: be clear the project was built with Claude/Claude Code or specifically for Claude BY YOU
+                            - listitem [ref=e533]:
+                              - paragraph [ref=e534]: include a clear description of what was built, how Claude helped, and what it does
+                            - listitem [ref=e535]:
+                              - paragraph [ref=e536]: project must be free to try and say so (paid tiers/features OK)
+                            - listitem [ref=e537]:
+                              - paragraph [ref=e538]: promotional language minimal
+                            - listitem [ref=e539]:
+                              - paragraph [ref=e540]: do not use referral links (link to the project is ok)
+                            - listitem [ref=e541]:
+                              - paragraph [ref=e542]: no job seeking requests or resumes
+                          - paragraph [ref=e543]:
+                            - strong [ref=e544]: Posts on the feed now require OP karma> 50
+                      - group [ref=e546]:
+                        - generic "8 Read the Megathreads before you subscribe to Claude" [ref=e547] [cursor=pointer]:
+                          - generic [ref=e549]:
+                            - generic [ref=e550]:
+                              - generic [ref=e552]: "8"
+                              - heading "Read the Megathreads before you subscribe to Claude" [level=2] [ref=e556]
+                            - img [ref=e559]
+                        - paragraph [ref=e565]:
+                          - text: We strongly advise you visit the Performance Megathread before purchasing a plan. It is here
+                          - link "https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/" [ref=e566] [cursor=pointer]:
+                            - /url: https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/
+                          - text: . Be aware of some of the issues you may face. Claude is a fast evolving technology.
+                      - group [ref=e568]:
+                        - generic "9 Use relevant post flair" [ref=e569] [cursor=pointer]:
+                          - generic [ref=e571]:
+                            - generic [ref=e572]:
+                              - generic [ref=e574]: "9"
+                              - heading "Use relevant post flair" [level=2] [ref=e578]
+                            - img [ref=e581]
+                        - paragraph [ref=e587]: Claude has vast amounts of diverse use cases. As a result, often the problems/questions/praise you have for Claude are not shared by others. Help others filter posts by their area of interest by choosing the flair most related to its usage group. If none fit, or you feel it is of more general interest, choose the flair most relevant.
+                      - group [ref=e589]:
+                        - generic "10 Don't manipulate upvotes" [ref=e590] [cursor=pointer]:
+                          - generic [ref=e592]:
+                            - generic [ref=e593]:
+                              - generic [ref=e595]: "10"
+                              - heading "Don't manipulate upvotes" [level=2] [ref=e599]
+                            - img [ref=e602]
+                        - paragraph [ref=e608]: Undermining the Reddit voting system is an immediate permanent ban offence. This includes the use of bots. This subreddit has bots in place looking for suspicious activity.
+                      - group [ref=e610]:
+                        - generic "11 Stay grounded" [ref=e611] [cursor=pointer]:
+                          - generic [ref=e613]:
+                            - generic [ref=e614]:
+                              - generic [ref=e616]: "11"
+                              - heading "Stay grounded" [level=2] [ref=e620]
+                            - img [ref=e623]
+                        - paragraph [ref=e629]: If you post narratives about AI consciousness and experiences, they must be based in grounded research with references OR be clearly marked in the title as fiction to avoid misguiding people in vulnerable mental states AND use the Writing flair.
+                      - group [ref=e631]:
+                        - generic "12 Be Reddit-compliant" [ref=e632] [cursor=pointer]:
+                          - generic [ref=e634]:
+                            - generic [ref=e635]:
+                              - generic [ref=e637]: "12"
+                              - heading "Be Reddit-compliant" [level=2] [ref=e641]
+                            - img [ref=e644]
+                        - generic [ref=e649]:
+                          - paragraph [ref=e650]: This subreddit uses Reddit's default harassment and abuse filters. In addition, you may find yourself or your content removed by Reddit if you don't follow their policies. These can be found below.
+                          - paragraph [ref=e651]:
+                            - text: "Reddit content policy:"
+                            - link "https://www.redditinc.com/policies/content-policy" [ref=e652] [cursor=pointer]:
+                              - /url: https://www.redditinc.com/policies/content-policy
+                            - text: Those discussing the use of Claude for creative writing should pay particular attention to Rules 6, 7 and 4.
+                          - paragraph [ref=e653]:
+                            - text: "Reddit user agreement:"
+                            - link "https://www.redditinc.com/policies/user-agreement-september-25-2023" [ref=e654] [cursor=pointer]:
+                              - /url: https://www.redditinc.com/policies/user-agreement-september-25-2023
+                  - separator [ref=e655]
+                  - generic [ref=e656]:
+                    - heading "RELATED COMMUNITIES" [level=2] [ref=e658]:
+                      - generic [ref=e659]: RELATED COMMUNITIES
+                    - generic [ref=e666]:
+                      - link "r/claudexplorers" [ref=e669] [cursor=pointer]:
+                        - /url: /r/claudexplorers
+                      - generic [ref=e670]: 44,936 members
+                  - separator [ref=e671]
+                  - generic [ref=e672]:
+                    - heading "Moderators" [level=2] [ref=e674]:
+                      - generic [ref=e675]: Moderators
+                    - link "Message Mods" [ref=e677] [cursor=pointer]:
+                      - /url: https://www.reddit.com/message/compose?to=r/ClaudeAI
+                      - generic [ref=e678]:
+                        - img [ref=e680]
+                        - generic [ref=e682]: Message Mods
+                    - generic [ref=e684]:
+                      - img "u/sixbillionthsheep avatar" [ref=e689]
+                      - generic [ref=e692]:
+                        - link "u/sixbillionthsheep" [ref=e693] [cursor=pointer]:
+                          - /url: /user/sixbillionthsheep/
+                          - generic [ref=e694]: u/sixbillionthsheep
+                        - 'generic "Flair: Mod" [ref=e696]': Mod
+                    - generic [ref=e698]:
+                      - img [ref=e705]
+                      - generic [ref=e707]:
+                        - generic [ref=e709]:
+                          - link "u/Kris_AntAmbassador" [ref=e710] [cursor=pointer]:
+                            - /url: /user/Kris_AntAmbassador/
+                            - generic [ref=e711]: u/Kris_AntAmbassador
+                          - 'generic "Flair: Mod" [ref=e713]': Mod
+                        - generic [ref=e715]: Kris - Anthropic Ambassador
+                    - generic [ref=e717]:
+                      - img [ref=e724]
+                      - generic [ref=e728]:
+                        - link "u/David_AntAmbassador" [ref=e729] [cursor=pointer]:
+                          - /url: /user/David_AntAmbassador/
+                          - generic [ref=e730]: u/David_AntAmbassador
+                        - 'generic "Flair: Mod" [ref=e732]': Mod
+                    - generic [ref=e734]:
+                      - img "u/inventor_black avatar" [ref=e739]
+                      - generic [ref=e740]:
+                        - generic [ref=e742]:
+                          - link "u/inventor_black" [ref=e743] [cursor=pointer]:
+                            - /url: /user/inventor_black/
+                            - generic [ref=e744]: u/inventor_black
+                          - 'generic "Flair: Mod:cl_divider::ClaudeLog_icon_compact: ClaudeLog.com" [ref=e746]':
+                            - generic [ref=e747]:
+                              - text: Mod
+                              - text: ClaudeLog.com
+                        - generic [ref=e753]: InventorBlack
+                    - generic [ref=e755]:
+                      - img "u/ClaudeAI-mod-bot avatar" [ref=e760]
+                      - generic [ref=e761]:
+                        - generic [ref=e763]:
+                          - link "u/ClaudeAI-mod-bot" [ref=e764] [cursor=pointer]:
+                            - /url: /user/ClaudeAI-mod-bot/
+                            - generic [ref=e765]: u/ClaudeAI-mod-bot
+                          - 'generic "Flair: Wilson, lead ClaudeAI modbot" [ref=e767]': Wilson, lead ClaudeAI modbot
+                        - generic [ref=e769]: Wilson
+                    - generic [ref=e771]:
+                      - img "u/AutoModerator avatar" [ref=e776]
+                      - link "u/AutoModerator" [ref=e780] [cursor=pointer]:
+                        - /url: /user/AutoModerator/
+                        - generic [ref=e781]: u/AutoModerator
+                    - generic [ref=e783]:
+                      - img "u/manipulation-pi avatar" [ref=e788]
+                      - link "u/manipulation-pi" [ref=e792] [cursor=pointer]:
+                        - /url: /user/manipulation-pi/
+                        - generic [ref=e793]: u/manipulation-pi
+                    - generic [ref=e795]:
+                      - img "u/bot-bouncer avatar" [ref=e800]
+                      - link "u/bot-bouncer" [ref=e804] [cursor=pointer]:
+                        - /url: /user/bot-bouncer/
+                        - generic [ref=e805]: u/bot-bouncer
+                    - generic [ref=e807]:
+                      - img "u/evasion-guard avatar" [ref=e812]
+                      - link "u/evasion-guard" [ref=e816] [cursor=pointer]:
+                        - /url: /user/evasion-guard/
+                        - generic [ref=e817]: u/evasion-guard
+                    - generic [ref=e819]:
+                      - img "u/automod-toggle avatar" [ref=e824]
+                      - link "u/automod-toggle" [ref=e828] [cursor=pointer]:
+                        - /url: /user/automod-toggle/
+                        - generic [ref=e829]: u/automod-toggle
+                    - link "View all moderators" [ref=e830] [cursor=pointer]:
+                      - /url: /mod/ClaudeAI/moderators/
+                      - generic [ref=e832]: View all moderators
+                  - separator [ref=e833]
+                  - generic [ref=e834]:
+                    - heading "Installed Apps" [level=2] [ref=e836]:
+                      - generic [ref=e837]: Installed Apps
+                    - link "FreestyleUI" [ref=e838] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/freestyle-ui
+                      - generic [ref=e841]: FreestyleUI
+                      - img [ref=e844]
+                    - link "AutoModerator Toggle" [ref=e846] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/automod-toggle
+                      - generic [ref=e849]: AutoModerator Toggle
+                      - img [ref=e852]
+                    - link "Flooding Assistant" [ref=e854] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/floodassistant
+                      - generic [ref=e857]: Flooding Assistant
+                      - img [ref=e860]
+                    - link "Bot Bouncer" [ref=e862] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/bot-bouncer
+                      - generic [ref=e865]: Bot Bouncer
+                      - img [ref=e868]
+                    - link "Flair Assistant" [ref=e870] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/flairassistant
+                      - generic [ref=e873]: Flair Assistant
+                      - img [ref=e876]
+                    - link "Alun Mod Bot" [ref=e878] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/mthelper
+                      - generic [ref=e881]: Alun Mod Bot
+                      - img [ref=e884]
+                    - link "Comment Mop" [ref=e886] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/comment-nuke
+                      - generic [ref=e889]: Comment Mop
+                      - img [ref=e892]
+                    - link "Evasion Guard" [ref=e894] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/evasion-guard
+                      - generic [ref=e897]: Evasion Guard
+                      - img [ref=e900]
+                    - link "Modmail Quick User Summary" [ref=e902] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/modmail-userinfo
+                      - generic [ref=e905]: Modmail Quick User Summary
+                      - img [ref=e908]
+                    - link "Subreddit Statistics" [ref=e910] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/sub-stats-bot
+                      - generic [ref=e913]: Subreddit Statistics
+                      - img [ref=e916]
+                    - link "Admin Tattler" [ref=e918] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/admin-tattler
+                      - generic [ref=e921]: Admin Tattler
+                      - img [ref=e924]
+                    - link "Modqueue Tools" [ref=e926] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/modqueue-tools
+                      - generic [ref=e929]: Modqueue Tools
+                      - img [ref=e932]
+                    - link "Manipulation Detector" [ref=e934] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/manipulation-pi
+                      - generic [ref=e937]: Manipulation Detector
+                      - img [ref=e940]
+              - generic [ref=e943]:
+                - link "Reddit Rules" [ref=e946] [cursor=pointer]:
+                  - /url: https://www.redditinc.com/policies/content-policy
+                - link "Privacy Policy" [ref=e949] [cursor=pointer]:
+                  - /url: https://www.reddit.com/policies/privacy-policy
+                - link "User Agreement" [ref=e952] [cursor=pointer]:
+                  - /url: https://www.redditinc.com/policies/user-agreement
+                - link "Accessibility" [ref=e955] [cursor=pointer]:
+                  - /url: https://support.reddithelp.com/hc/sections/38303584022676-Accessibility
+                - link "Impressum" [ref=e958] [cursor=pointer]:
+                  - /url: https://www.redditinc.com/policies/impressum
+                - link "Reddit, Inc. © 2026. All rights reserved." [ref=e960] [cursor=pointer]:
+                  - /url: https://redditinc.com
+        - generic [ref=e962]:
+          - button "Collapse Navigation" [ref=e965] [cursor=pointer]:
+            - img [ref=e968]
+            - generic [ref=e970]:
+              - generic: Collapse Navigation
+          - navigation "Primary" [ref=e975]:
+            - generic [ref=e977]:
+              - link "Home" [ref=e979] [cursor=pointer]:
+                - /url: /?feed=home
+                - generic [ref=e980]:
+                  - img [ref=e982]
+                  - generic [ref=e985]: Home
+              - link "Popular" [ref=e987] [cursor=pointer]:
+                - /url: /r/popular/
+                - generic [ref=e988]:
+                  - img [ref=e990]
+                  - generic [ref=e993]: Popular
+              - link "News" [ref=e994] [cursor=pointer]:
+                - /url: /news/
+                - generic [ref=e995]:
+                  - img [ref=e997]
+                  - generic [ref=e1001]: News
+              - link "Explore" [ref=e1003] [cursor=pointer]:
+                - /url: /explore/
+                - generic [ref=e1004]:
+                  - img [ref=e1006]
+                  - generic [ref=e1009]: Explore
+              - button "Start a community" [ref=e1010] [cursor=pointer]:
+                - generic [ref=e1011]:
+                  - img [ref=e1013]
+                  - generic [ref=e1016]: Start a community
+            - separator [ref=e1017]
+            - group [ref=e1021]:
+              - generic "GAMES ON REDDIT" [ref=e1022] [cursor=pointer]:
+                - generic [ref=e1023]:
+                  - generic [ref=e1028]:
+                    - generic: GAMES ON REDDIT
+                  - img [ref=e1031]
+              - generic [ref=e1034]:
+                - link "Featured Game" [ref=e1038] [cursor=pointer]:
+                  - /url: https://www.reddit.com/r/AlignmentChartFills/comments/1t697gc?entry_point=games_drawer_featured_game
+                  - generic [ref=e1040]:
+                    - generic [ref=e1044]:
+                      - heading "Alignment Chart" [level=3] [ref=e1045]
+                      - paragraph [ref=e1046]: Align the chaos
+                      - paragraph [ref=e1047]:
+                        - generic [ref=e1048]: 3.4M
+                        - text: monthly players
+                    - generic [ref=e1051]: NEW
+                - generic [ref=e5691]:
+                  - link "Element Synergy" [ref=e5693] [cursor=pointer]:
+                    - /url: https://www.reddit.com/r/ElementSynergyPuzzle/comments/1t62wmq?entry_point=games_drawer_personalized_game
+                    - generic [ref=e5694]:
+                      - img [ref=e5699]
+                      - generic [ref=e5703]: Element Synergy
+                  - link "Color Puzzle" [ref=e5705] [cursor=pointer]:
+                    - /url: https://www.reddit.com/r/ColorPuzzleGame/comments/1t5szy6?entry_point=games_drawer_personalized_game
+                    - generic [ref=e5706]:
+                      - img [ref=e5711]
+                      - generic [ref=e5715]: Color Puzzle
+                  - link "Stonefall" [ref=e5717] [cursor=pointer]:
+                    - /url: https://www.reddit.com/r/stonefall/comments/1t6cjej?entry_point=games_drawer_personalized_game
+                    - generic [ref=e5718]:
+                      - img [ref=e5723]
+                      - generic [ref=e5727]: Stonefall
+                - link "Discover More" [ref=e1053] [cursor=pointer]:
+                  - /url: /r/GamesOnReddit
+                  - generic [ref=e1054]:
+                    - img [ref=e1056]
+                    - generic [ref=e1060]: Discover More
+            - separator [ref=e1061]
+            - group [ref=e5729]:
+              - generic "CUSTOM FEEDS" [ref=e5730] [cursor=pointer]:
+                - generic [ref=e5732]:
+                  - generic [ref=e5735]: CUSTOM FEEDS
+                  - img [ref=e5738]
+              - button "Create Custom Feed" [ref=e5744] [cursor=pointer]:
+                - generic [ref=e5745]:
+                  - img [ref=e5747]
+                  - generic [ref=e5750]: Create Custom Feed
+            - separator [ref=e5751]
+            - group [ref=e1064]:
+              - generic "RECENT" [ref=e1065] [cursor=pointer]:
+                - generic [ref=e1066]:
+                  - generic [ref=e1069]: RECENT
+                  - img [ref=e1072]
+              - generic [ref=e1075]:
+                - link "r/SideProject" [ref=e1076] [cursor=pointer]:
+                  - /url: /r/SideProject/
+                  - generic [ref=e1077]:
+                    - img [ref=e1082]
+                    - generic [ref=e1085]: r/SideProject
+                - link "r/ClaudeAI" [ref=e1086] [cursor=pointer]:
+                  - /url: /r/ClaudeAI/
+                  - generic [ref=e1087]:
+                    - img [ref=e1092]
+                    - generic [ref=e1095]: r/ClaudeAI
+                - link "r/LocalLLaMA" [ref=e1096] [cursor=pointer]:
+                  - /url: /r/LocalLLaMA/
+                  - generic [ref=e1097]:
+                    - img [ref=e1102]
+                    - generic [ref=e1105]: r/LocalLLaMA
+            - group [ref=e1107]:
+              - generic "COMMUNITIES" [ref=e1108] [cursor=pointer]:
+                - generic [ref=e1110]:
+                  - generic [ref=e1113]: COMMUNITIES
+                  - img [ref=e1116]
+              - link "Manage Communities" [ref=e1120] [cursor=pointer]:
+                - /url: /user/Latter-Ad-7035/communities
+                - generic [ref=e1121]:
+                  - img [ref=e1123]
+                  - generic [ref=e1126]: Manage Communities
+            - separator [ref=e1127]
+            - navigation "Reddit resources" [ref=e1128]:
+              - group [ref=e1130]:
+                - generic "RESOURCES" [ref=e1131] [cursor=pointer]:
+                  - generic [ref=e1133]:
+                    - generic [ref=e1136]: RESOURCES
+                    - img [ref=e1139]
+                - generic [ref=e1142]:
+                  - link "About Reddit" [ref=e1144] [cursor=pointer]:
+                    - /url: https://www.redditinc.com
+                    - generic [ref=e1145]:
+                      - img [ref=e1147]
+                      - generic [ref=e1151]: About Reddit
+                  - link "Advertise" [ref=e1153] [cursor=pointer]:
+                    - /url: https://ads.reddit.com/register?utm_source=web3x_consumer&utm_name=left_nav_cta
+                    - generic [ref=e1154]:
+                      - img [ref=e1156]
+                      - generic [ref=e1160]: Advertise
+                  - link "Developer Platform" [ref=e1162] [cursor=pointer]:
+                    - /url: https://developers.reddit.com/?utm_source=reddit&utm_medium=left_nav_resources
+                    - generic [ref=e1163]:
+                      - img [ref=e1165]
+                      - generic [ref=e1169]: Developer Platform
+                  - link "Reddit Pro BETA" [ref=e1171] [cursor=pointer]:
+                    - /url: /reddit-pro?utm_source=reddit&utm_medium=left_nav_resources
+                    - generic [ref=e1172]:
+                      - img [ref=e1174]
+                      - generic [ref=e1178]:
+                        - generic [ref=e1179]: Reddit Pro
+                        - generic [ref=e1180]: BETA
+                  - link "Help" [ref=e1182] [cursor=pointer]:
+                    - /url: https://support.reddithelp.com/hc?utm_source=reddit&utm_medium=footer&utm_campaign=evergreen
+                    - generic [ref=e1183]:
+                      - img [ref=e1185]
+                      - generic [ref=e1189]: Help
+                  - link "Blog" [ref=e1191] [cursor=pointer]:
+                    - /url: https://redditblog.com/
+                    - generic [ref=e1192]:
+                      - img [ref=e1194]
+                      - generic [ref=e1198]: Blog
+                  - link "Careers" [ref=e1200] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/careers
+                    - generic [ref=e1201]:
+                      - img [ref=e1203]
+                      - generic [ref=e1207]: Careers
+                  - link "Press" [ref=e1209] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/press
+                    - generic [ref=e1210]:
+                      - img [ref=e1212]
+                      - generic [ref=e1216]: Press
+                  - separator [ref=e1217]
+                  - link "Best of Reddit" [ref=e1219] [cursor=pointer]:
+                    - /url: https://www.reddit.com/posts/2026/global/
+                    - generic [ref=e1220]:
+                      - img [ref=e1222]
+                      - generic [ref=e1227]: Best of Reddit
+                  - separator [ref=e1228]
+                  - link "Impressum" [ref=e1230] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/policies/impressum
+                    - generic [ref=e1231]:
+                      - img [ref=e1233]
+                      - generic [ref=e1237]: Impressum
+                  - separator [ref=e1238]
+                  - link "Reddit Rules" [ref=e1240] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/policies/content-policy
+                    - generic [ref=e1241]:
+                      - img [ref=e1243]
+                      - generic [ref=e1247]: Reddit Rules
+                  - link "Privacy Policy" [ref=e1249] [cursor=pointer]:
+                    - /url: https://www.reddit.com/policies/privacy-policy
+                    - generic [ref=e1250]:
+                      - img [ref=e1252]
+                      - generic [ref=e1256]: Privacy Policy
+                  - link "User Agreement" [ref=e1258] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/policies/user-agreement
+                    - generic [ref=e1259]:
+                      - img [ref=e1261]
+                      - generic [ref=e1265]: User Agreement
+                  - link "Accessibility" [ref=e1267] [cursor=pointer]:
+                    - /url: https://support.reddithelp.com/hc/sections/38303584022676-Accessibility
+                    - generic [ref=e1268]:
+                      - img [ref=e1270]
+                      - generic [ref=e1275]: Accessibility
+            - link "Reddit, Inc. © 2026. All rights reserved." [ref=e1277] [cursor=pointer]:
+              - /url: https://redditinc.com

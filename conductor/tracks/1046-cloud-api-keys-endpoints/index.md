@@ -1,6 +1,11 @@
 # Cloud Api Keys Endpoints
 
 **Lane**: done
+**Lane Status**: success
+
+# Cloud Api Keys Endpoints
+
+**Lane**: done
 **Lane Status**: done
 
 # Track 1046: Cloud /api/keys endpoints missing
@@ -9,7 +14,7 @@
 **Lane Status**: success
 **Progress**: 100%
 **Phase**: Complete
-**Summary**: The /api/keys (GET/POST/DELETE) endpoints implemented in ui/server/index.mjs for API key management were never ported to cloud/functions/index.js. The AccountPanel and ProjectConfigSettings UI components call /api/keys which returns 404 on app.laneconductor.com. Needs: POST /api/keys (generate lc_live_ key, store SHA-256 hash), GET /api/keys (list by firebase_uid, prefix only), DELETE /api/keys/:id (revoke). Also update auth middleware to check api_keys table (key_hash) in addition to api_tokens table.
+**Summary**: Three endpoints missing from cloud function — UI gets 404.
 
 ## Problem
 `/api/keys` returns 404 on `app.laneconductor.com` — the endpoints exist in the local server but were never added to `cloud/functions/index.js`.
@@ -21,4 +26,5 @@ Port the three `/api/keys` endpoints from `ui/server/index.mjs` to `cloud/functi
 - [ ] Phase 1: Add POST/GET/DELETE /api/keys to cloud/functions/index.js
 - [ ] Phase 2: Update cloud auth middleware to support api_keys table
 - [ ] Phase 3: Deploy and verify
+
 

@@ -1,0 +1,20 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - img "LaneConductor"
+        - generic [ref=e7]: LaneConductor
+      - generic [ref=e9]: Claude Skill • Kanban UI
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - button "📥 Inbox" [ref=e12] [cursor=pointer]
+        - button "+ Track" [ref=e13] [cursor=pointer]
+        - button "⚠ Bug" [ref=e14] [cursor=pointer]
+      - combobox [ref=e15]:
+        - option "All Projects" [selected]
+      - generic [ref=e16]: connecting…
+  - generic [ref=e18]:
+    - generic [ref=e19]: "Workers:"
+    - generic [ref=e20]: none active
+  - main [ref=e21]:
+    - generic [ref=e22]: Connecting to LaneConductor DB…

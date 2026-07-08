@@ -798,6 +798,56 @@ function parseWaitingForReply(content) {
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
 }
 
+function parseTrackType(content) {
+  const match = content.match(/\*\*Type\*\*:\s*([^\n]+)/i);
+  if (!match) return 'dev';
+  const val = match[1].trim().toLowerCase();
+  return ['dev', 'marketing', 'sales', 'support', 'other'].includes(val) ? val : 'dev';
+}
+
+function parseKpiTarget(content) {
+  const match = content.match(/\*\*KPI Target\*\*:\s*([^\n]+)/i);
+  return match ? parseInt(match[1].trim(), 10) || null : null;
+}
+
+function parseKpiActual(content) {
+  const match = content.match(/\*\*KPI Actual\*\*:\s*([^\n]+)/i);
+  return match ? parseInt(match[1].trim(), 10) || null : null;
+}
+
+function parseKpiSnapshot(content) {
+  const match = content.match(/\*\*KPI Snapshot\*\*:\s*([^\n]+)/i);
+  if (!match) return null;
+  try { return JSON.parse(match[1].trim()); } catch { return null; }
+}
+
+function parseKpiCheckAfter(content) {
+  const match = content.match(/\*\*KPI Check After\*\*:\s*([^\n]+)/i);
+  return match ? new Date(match[1].trim()) : null;
+}
+
+function parseKpiScheduledAt(content) {
+  const match = content.match(/\*\*KPI Scheduled At\*\*:\s*([^\n]+)/i);
+  return match ? new Date(match[1].trim()) : null;
+}
+
+// Parses the ## KPI block from spec.md
+function parseKpiSpec(specContent) {
+  if (!specContent) return {};
+  const kpiBlock = specContent.match(/## KPI\n([\s\S]*?)(?=\n## |\n# |$)/i);
+  if (!kpiBlock) return {};
+  const block = kpiBlock[1];
+  const get = (key) => { const m = block.match(new RegExp(`\\*\\*${key}\\*\\*:\\s*([^\\n]+)`, 'i')); return m ? m[1].trim() : null; };
+  return {
+    kpi_metric: get('Metric'),
+    kpi_source: get('Source'),
+    kpi_source_config: get('Source Config'),
+    kpi_threshold: get('Threshold') ? parseInt(get('Threshold'), 10) || null : null,
+    kpi_window: get('Window'),
+    kpi_maps_to: get('Maps To'),
+  };
+}
+
 /**
  * Resolves a transition string (e.g. "implement:queue" or "plan") 
  * into a target lane and lane_action_status.
@@ -1364,6 +1414,12 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     };
 
     const proj = getProject();
+    // Parse KPI fields from index.md (runtime state) and spec.md (planning config)
+    const trackType = parseTrackType(stateContent);
+    const kpiSpec = parseKpiSpec(specContent);
+    const kpiCheckAfter = parseKpiCheckAfter(stateContent);
+    const kpiScheduledAt = parseKpiScheduledAt(stateContent);
+
     const payload = {
       project_id: proj.id,
       track_number: trackNumber, title, lane_status: laneStatus,
@@ -1372,6 +1428,14 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       waiting_for_reply: waitingForReply,
       index_content: indexContent, plan_content: planContent, spec_content: specContent, test_content: testContent,
       log_content: logContent,
+      // KPI fields
+      track_type: trackType,
+      kpi_target: parseKpiTarget(stateContent),
+      kpi_actual: parseKpiActual(stateContent),
+      kpi_snapshot: parseKpiSnapshot(stateContent),
+      kpi_check_after: kpiCheckAfter && !isNaN(kpiCheckAfter) ? kpiCheckAfter.toISOString() : null,
+      kpi_scheduled_at: kpiScheduledAt && !isNaN(kpiScheduledAt) ? kpiScheduledAt.toISOString() : null,
+      ...kpiSpec,
     };
     if (laneActionStatus) payload.lane_action_status = laneActionStatus;
     else if (laneActionStatusFromFile) payload.lane_action_status = laneActionStatusFromFile;
@@ -1839,7 +1903,7 @@ async function runJiraSync() {
       mkdirSync('conductor/tracks', { recursive: true });
     }
 
-    const gracePeriodMs = 10000; // 10 second grace period for simultaneous edits
+    const gracePeriodMs = 2000; // 2 second grace period for simultaneous edits
 
     // Process each issue: apply "latest version wins" conflict resolution
     for (const issue of issues) {
@@ -1901,15 +1965,13 @@ async function runJiraSync() {
           const fsModified = new Date(fsMtime);
           const timeDiffMs = Math.abs(jiraUpdated - fsModified);
 
-          // If within grace period, skip (allow concurrent edits)
           if (timeDiffMs < gracePeriodMs) {
-            console.log(`[jira-polling] ${trackKey}: within grace period (${timeDiffMs}ms), skipping`);
             continue;
           }
 
           // Latest version wins
           if (jiraUpdated > fsModified) {
-            console.log(`[jira-polling] ${trackKey}: Jira newer, updating FS`);
+             console.log(`[jira-polling] ${trackKey}: Jira newer, updating FS`);
             const indexContent = readFileSync(indexPath, 'utf8');
             const titleMatch = indexContent.match(/^# (.+)$/m);
             const oldTitle = titleMatch ? titleMatch[1] : '';
@@ -1927,18 +1989,23 @@ async function runJiraSync() {
             const parts = updatedContent.split(/\*\*Lane Status\*\*: .+\n/);
             const laneStatus = mapLaneToLaneStatus(trackUpdate.lane);
             if (parts.length > 1) {
-              updatedContent = parts[0] + `**Lane Status**: ${laneStatus}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
+              const currentDescription = parts[1] || '';
+              const newDescription = trackUpdate.is_empty ? currentDescription : (trackUpdate.indexContent || trackUpdate.content || '(No description)');
+              updatedContent = parts[0] + `**Lane Status**: ${laneStatus}\n\n${newDescription}\n`;
             } else {
                // Fallback if structure is weird
-               updatedContent = `# ${trackUpdate.title}\n\n**Lane Status**: ${laneStatus}\n\n${trackUpdate.indexContent || trackUpdate.content || '(No description)'}\n`;
+               const newDescription = trackUpdate.is_empty ? '' : (trackUpdate.indexContent || trackUpdate.content || '(No description)');
+               updatedContent = `# ${trackUpdate.title}\n\n**Lane Status**: ${laneStatus}\n\n${newDescription}\n`;
             }
 
             writeFileSync(indexPath, updatedContent, 'utf8');
             
-            if (trackUpdate.planContent !== undefined && trackUpdate.planContent !== '') writeFileSync(join(trackFolder, 'plan.md'), trackUpdate.planContent, 'utf8');
-            if (trackUpdate.specContent !== undefined && trackUpdate.specContent !== '') writeFileSync(join(trackFolder, 'spec.md'), trackUpdate.specContent, 'utf8');
-            if (trackUpdate.testContent !== undefined && trackUpdate.testContent !== '') writeFileSync(join(trackFolder, 'test.md'), trackUpdate.testContent, 'utf8');
-            if (trackUpdate.logContent !== undefined && trackUpdate.logContent !== '') writeFileSync(join(trackFolder, 'log.md'), trackUpdate.logContent, 'utf8');
+            if (!trackUpdate.is_empty) {
+              if (trackUpdate.planContent !== undefined && trackUpdate.planContent !== '') writeFileSync(join(trackFolder, 'plan.md'), trackUpdate.planContent, 'utf8');
+              if (trackUpdate.specContent !== undefined && trackUpdate.specContent !== '') writeFileSync(join(trackFolder, 'spec.md'), trackUpdate.specContent, 'utf8');
+              if (trackUpdate.testContent !== undefined && trackUpdate.testContent !== '') writeFileSync(join(trackFolder, 'test.md'), trackUpdate.testContent, 'utf8');
+              if (trackUpdate.logContent !== undefined && trackUpdate.logContent !== '') writeFileSync(join(trackFolder, 'log.md'), trackUpdate.logContent, 'utf8');
+            }
 
             if (!metadata.tracks) metadata.tracks = {};
             metadata.tracks[trackKey] = { ...metadata.tracks[trackKey], jira_key: trackKey, jira_last_synced: trackUpdate.updated };
@@ -1987,7 +2054,7 @@ async function runJiraSync() {
     if (existsSync(tracksDir)) {
       const trackDirs = readdirSync(tracksDir).filter((d) => {
         const fullPath = join(tracksDir, d);
-        return statSync(fullPath).isDirectory() && d.match(/^LAN-\d+/);
+        return statSync(fullPath).isDirectory() && (d.match(/^LAN-\d+/) || d.match(/^\d+/));
       });
 
       for (const trackDir of trackDirs) {
@@ -1996,8 +2063,8 @@ async function runJiraSync() {
           const indexPath = join(trackPath, 'index.md');
           if (!existsSync(indexPath)) continue;
 
-          // Extract track number from folder name (LAN-100-* → LAN-100)
-          const match = trackDir.match(/^(LAN-\d+)-/);
+          // Extract track number from folder name
+          const match = trackDir.match(/^((?:LAN-)?\d+)-/);
           if (!match) continue;
           const trackKey = match[1];
 
@@ -2018,35 +2085,51 @@ async function runJiraSync() {
 
           // If FS is newer than Jira, push it
           if (fsModified > jiraUpdated) {
-            const trackNumber = trackKey.replace('LAN-', '');
-            console.log(`[jira-push] ${trackKey}: FS newer (${fsMtime}), pushing to Jira...`);
+            console.log(`[jira-push] ${trackKey}: FS newer, pushing to Jira...`);
 
             // Read track data from filesystem
             const indexContent = readFileSync(indexPath, 'utf8');
+            const titleMatch = indexContent.match(/^# (.+)$/m);
+            const title = titleMatch ? titleMatch[1] : `Issue ${trackKey}`;
+            
             const planContent = readIfExists(join(trackPath, 'plan.md'));
             const specContent = readIfExists(join(trackPath, 'spec.md'));
             const testContent = readIfExists(join(trackPath, 'test.md'));
             const logContent = readIfExists(join(trackPath, 'log.md'));
-
+ 
             const trackData = {
-              index: indexContent,
-              plan: planContent,
-              spec: specContent,
-              test: testContent,
-              log: logContent,
+              track_number: trackKey,
+              title: title,
+              indexContent: indexContent,
+              planContent: planContent,
+              specContent: specContent,
+              testContent: testContent,
+              logContent: logContent,
               lane: extractLaneFromIndex(indexContent),
               status: extractLaneStatusFromIndex(indexContent),
             };
-
+ 
             // Push to Jira
-            const success = await pushTrackToJira(jiraConfig, trackKey, trackData);
-            if (success) {
-              console.log(`[jira-push] ${trackKey}: Successfully pushed to Jira`);
-              if (!metadata.tracks) metadata.tracks = {};
-              if (!metadata.tracks[trackKey]) metadata.tracks[trackKey] = {};
-              metadata.tracks[trackKey].jira_last_synced = new Date().toISOString();
+            if (!trackMeta?.jira_key) {
+              console.log(`[jira-push] ${trackKey}: No Jira key, creating issue...`);
+              const issueKey = await createJiraIssue(jiraConfig, trackData);
+              if (issueKey) {
+                if (!metadata.tracks) metadata.tracks = {};
+                if (!metadata.tracks[trackKey]) metadata.tracks[trackKey] = {};
+                metadata.tracks[trackKey].jira_key = issueKey;
+                metadata.tracks[trackKey].jira_last_synced = new Date().toISOString();
+                console.log(`[jira-push] ${trackKey}: Created Jira issue ${issueKey}`);
+              }
             } else {
-              console.error(`[jira-push] ${trackKey}: Failed to push to Jira`);
+              const success = await pushTrackToJira(jiraConfig, trackMeta.jira_key, trackData);
+              if (success) {
+                console.log(`[jira-push] ${trackKey}: Successfully pushed to Jira (${trackMeta.jira_key})`);
+                if (!metadata.tracks) metadata.tracks = {};
+                if (!metadata.tracks[trackKey]) metadata.tracks[trackKey] = {};
+                metadata.tracks[trackKey].jira_last_synced = new Date().toISOString();
+              } else {
+                console.error(`[jira-push] ${trackKey}: Failed to push to Jira (${trackMeta.jira_key})`);
+              }
             }
           }
         } catch (err) {
@@ -2447,26 +2530,26 @@ async function checkExhaustion(logPath, cli) {
   const hasMins = geminiMatch?.[2] !== undefined;
   const hasSecs = geminiMatch?.[3] !== undefined;
 
-  if ((geminiMatch && (hasHours || hasMins || hasSecs) || content.includes('exhausted your capacity') || content.includes('code: 429')) && (cli === 'gemini' || cli === 'npx')) {
+  if ((geminiMatch && (hasHours || hasMins || hasSecs) || content.includes('exhausted your capacity') || content.includes('code: 429')) && (cli === 'gemini' || cli === 'npx' || cli === 'antigravity' || cli === 'agy')) {
     const hours = parseInt(geminiMatch?.[1] || 0);
     const mins = parseInt(geminiMatch?.[2] || 0);
     const secs = parseInt(geminiMatch?.[3] || 0);
     const resetMs = (hours * 3600 + mins * 60 + secs) * 1000;
     const resetAt = new Date(Date.now() + (resetMs > 0 ? resetMs : 60000));
     // Only POST if status changed in cache
-    const cached = providerStatusCache.get('gemini');
+    const cached = providerStatusCache.get(cli);
     if (!cached || cached.status !== 'exhausted') {
-      console.log(`[exhaustion] Gemini exhausted! Reset in ${hours}h ${mins}m ${secs}s -> ${resetAt.toISOString()}`);
+      console.log(`[exhaustion] Provider ${cli} exhausted! Reset in ${hours}h ${mins}m ${secs}s -> ${resetAt.toISOString()}`);
 
       // Update in-memory cache
-      providerStatusCache.set('gemini', {
+      providerStatusCache.set(cli, {
         status: 'exhausted',
         reset_at: resetAt.toISOString(),
         last_error: 'Quota exhausted'
       });
 
       await post(url, token, '/provider-status', {
-        provider: 'gemini', status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Quota exhausted'
+        provider: cli, status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Quota exhausted'
       }).catch(() => { });
     }
     return;
@@ -2977,7 +3060,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     let isExhausted = false;
     if (!isSuccess && existsSync(logPath)) {
       const logContent = readFileSync(logPath, 'utf8');
-      if ((cli === 'gemini' || cli === 'npx') &&
+      if ((cli === 'gemini' || cli === 'npx' || cli === 'antigravity' || cli === 'agy') &&
         (logContent.includes('quota will reset after') || logContent.includes('exhausted your capacity') || logContent.includes('code: 429'))) {
         isExhausted = true;
       } else if (cli === 'claude' &&
@@ -3342,6 +3425,11 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     if (chosenModel) args.push('--model', chosenModel);
     return ['npx', args, chosenCli, chosenModel || 'default', chosenTier];
   }
+  if (chosenCli === 'antigravity' || chosenCli === 'agy') {
+    const args = ['--dangerously-skip-permissions', '-p', `${contextMsg}${prompt}`];
+    if (chosenModel) args.push('--model', chosenModel);
+    return ['agy', args, chosenCli, chosenModel || 'default', chosenTier];
+  }
   if (chosenCli === 'claude') {
     // Inject skill context even for Claude to ensure it uses the right skill definition
     const fullPrompt = customPrompt ? `${contextMsg}\n\n${prompt}` : prompt;
@@ -3406,6 +3494,63 @@ async function autoLaunchLocalFs(globalLimit) {
     const track_number = trackNumMatch[1];
 
     const waitingForReply = parseWaitingForReply(content);
+
+    // ── Supervised implement: "done" reply transitions to quality-gate with scheduling ──
+    if (waitingForReply && lane_status === 'implement') {
+      const trackType = parseTrackType(content);
+      if (trackType !== 'dev') {
+        const convPath = join(tracksDir, dir, 'conversation.md');
+        if (existsSync(convPath)) {
+          const convContent = readFileSync(convPath, 'utf8');
+          // Find the last human message — if it's "done" (or contains "done"), transition
+          const lastHumanMatch = convContent.match(/>\s+\*\*human\*\*:\s+([^\n]+)(?:\n[\s\S]*)?$/im);
+          if (lastHumanMatch && /\bdone\b/i.test(lastHumanMatch[1])) {
+            console.log(`[local-fs] Track ${track_number}: supervised implement "done" detected — scheduling quality gate`);
+            // Parse KPI window from spec.md
+            const specPath = join(tracksDir, dir, 'spec.md');
+            let windowMs = 0;
+            if (existsSync(specPath)) {
+              const spec = readFileSync(specPath, 'utf8');
+              const windowMatch = spec.match(/\*\*Window\*\*:\s*([^\n]+)/i);
+              if (windowMatch) {
+                const w = windowMatch[1].trim();
+                const hours = w.match(/(\d+)h/i)?.[1];
+                const days = w.match(/(\d+)d/i)?.[1];
+                windowMs = ((parseInt(hours || 0) + parseInt(days || 0) * 24) * 60 * 60 * 1000);
+              }
+            }
+            const now = new Date();
+            const checkAfter = new Date(now.getTime() + (windowMs || 0));
+            const updateHeader = (c, h, v) => {
+              const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+              return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+            };
+            let updated = content;
+            updated = updateHeader(updated, 'Waiting for reply', 'no');
+            updated = updateHeader(updated, 'Lane', workflowConfig?.lanes?.implement?.on_success || 'quality-gate');
+            updated = updateHeader(updated, 'Lane Status', 'queue');
+            if (windowMs > 0) {
+              updated = updateHeader(updated, 'KPI Check After', checkAfter.toISOString());
+              updated = updateHeader(updated, 'KPI Scheduled At', now.toISOString());
+            }
+            writeFileSync(indexPath, updated, 'utf8');
+            console.log(`[local-fs] Track ${track_number}: transitioned to quality-gate${windowMs > 0 ? `, KPI check after ${checkAfter.toISOString()}` : ''}`);
+            continue; // Don't spawn a CLI — the file change will trigger normal pickup next cycle
+          }
+        }
+      }
+    }
+
+    // ── KPI scheduling: skip quality-gate if kpi_check_after hasn't passed ──
+    if (lane_status === 'quality-gate' && lane_action_status === 'queue') {
+      const kpiCheckAfter = parseKpiCheckAfter(content);
+      if (kpiCheckAfter && !isNaN(kpiCheckAfter) && kpiCheckAfter > new Date()) {
+        const remainingMs = kpiCheckAfter - new Date();
+        const remainingH = Math.round(remainingMs / 3600000 * 10) / 10;
+        console.log(`[local-fs] Track ${track_number}: KPI window not reached — ${remainingH}h remaining. Skipping.`);
+        continue;
+      }
+    }
 
     // Normally only process 'queue' status
     // EXCEPTION: if we are answering a human, bypass 'queue' check
