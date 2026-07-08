@@ -71,37 +71,39 @@ export async function pollJira(config, since) {
 
   try {
     const jqlDate = formatJqlDate(since);
-    const jql = `project = "${config.project_key}" AND updated >= "${jqlDate}"`;
-    const url = `https://${config.domain}/rest/api/3/search/jql`;
+    const jql = `project = "${config.project_key}" AND updated >= "${jqlDate}" ORDER BY updated DESC`;
     const auth = Buffer.from(`${config.email}:${config.token}`).toString('base64');
+    
+    let allIssues = [];
+    let startAt = 0;
+    const maxResults = 100;
 
-    const body = {
-      jql,
-      maxResults: 100,
-      fields: ['key', 'summary', 'description', 'created', 'updated', 'status'],
-    };
+    while (true) {
+      const url = `https://${config.domain}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=key,summary,description,created,updated,status`;
+      
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
 
-    console.log(`[jira-collector] Fetching from new API: ${url} with JQL: ${jql}`);
+      if (!response.ok) break;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10000), // 10s timeout
-    });
-
-    if (!response.ok) {
-      console.error(
-        `[jira-collector] Fetch error: ${response.status} ${await response.text()}`
-      );
-      return [];
+      const data = await response.json();
+      const issues = data.issues || [];
+      if (issues.length === 0) break;
+      
+      allIssues = allIssues.concat(issues);
+      startAt += issues.length;
+      
+      if (typeof data.total !== 'undefined' && startAt >= data.total) break;
+      if (issues.length < maxResults) break;
+      if (startAt >= 2000) break; 
     }
 
-    const data = await response.json();
-    return data.issues || [];
+    return allIssues;
   } catch (err) {
     console.error(`[jira-collector] Poll error: ${err.message}`);
     return [];
@@ -141,6 +143,7 @@ export function jiraIssueToTrackUpdate(issue, config) {
     jira_key: String(issue.key),
     jira_status: String(issue.fields.status?.name || ''),
     updated: String(issue.fields.updated || ''),
+    is_empty: !!parsedFiles.isEmpty
   };
 }
 
@@ -179,11 +182,13 @@ export function parseAdfToTrackFiles(descriptionDoc) {
     }
   }
 
-  if (!files.indexContent && !files.planContent && !files.specContent && !files.testContent && !files.logContent) {
+  const isEmpty = !files.indexContent && !files.planContent && !files.specContent && !files.testContent && !files.logContent;
+  if (isEmpty) {
     files.content = fallbackContent.trim();
     files.indexContent = fallbackContent.trim();
   }
 
+  files.isEmpty = isEmpty && !fallbackContent.trim();
   return files;
 }
 
@@ -434,6 +439,7 @@ export async function pushTrackToJira(config, issueKey, trackData) {
     // Update description and labels
     const updatePayload = {
       fields: {
+        summary: trackData.title || undefined,
         description: buildTrackAdf(trackData),
         labels: mapStatusToJiraLabels(trackData.lane, trackData.status),
       },
@@ -453,8 +459,9 @@ export async function pushTrackToJira(config, issueKey, trackData) {
     });
 
     if (!updateResponse.ok) {
+      const errorBody = await updateResponse.text();
       console.error(
-        `[jira-collector] Update description error: ${updateResponse.status}`
+        `[jira-collector] Update description error: ${updateResponse.status} - ${errorBody}`
       );
       return false;
     }
@@ -766,5 +773,10 @@ export async function validateJiraStatuses(config) {
  */
 export function formatJqlDate(isoString) {
   const date = new Date(isoString);
-  return date.toISOString().split('T')[0];
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${min}`;
 }

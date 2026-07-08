@@ -61,3 +61,12 @@ LaneConductor has strong initial traction from HackerNews and early adopter comm
 - **Day -3 (Week 2 Fri)**: Lock tagline, brief team/community
 - **Day 0 (Week 3 Tue)**: Launch on Product Hunt, all-day engagement
 - **Day +1 (Week 3 Wed)**: Monitor, respond, share recap thread
+
+## KPI
+
+**Metric**: Product Hunt upvotes
+**Source**: manual
+**Target**: 200
+**Threshold**: 100
+**Window**: 24h
+**Maps To**: Product Hunt Upvotes

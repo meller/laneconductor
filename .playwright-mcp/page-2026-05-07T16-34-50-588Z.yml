@@ -1,0 +1,954 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - link "Skip to content" [ref=e4] [cursor=pointer]:
+      - /url: "#start-of-content"
+    - banner [ref=e6]:
+      - heading "Navigation Menu" [level=2] [ref=e7]
+      - generic [ref=e8]:
+        - link "Homepage" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+        - generic [ref=e13]:
+          - navigation "Global" [ref=e16]:
+            - list [ref=e17]:
+              - listitem [ref=e18]:
+                - button "Platform" [ref=e20] [cursor=pointer]:
+                  - text: Platform
+                  - img [ref=e21]
+              - listitem [ref=e23]:
+                - button "Solutions" [ref=e25] [cursor=pointer]:
+                  - text: Solutions
+                  - img [ref=e26]
+              - listitem [ref=e28]:
+                - button "Resources" [ref=e30] [cursor=pointer]:
+                  - text: Resources
+                  - img [ref=e31]
+              - listitem [ref=e33]:
+                - button "Open Source" [ref=e35] [cursor=pointer]:
+                  - text: Open Source
+                  - img [ref=e36]
+              - listitem [ref=e38]:
+                - button "Enterprise" [ref=e40] [cursor=pointer]:
+                  - text: Enterprise
+                  - img [ref=e41]
+              - listitem [ref=e43]:
+                - link "Pricing" [ref=e44] [cursor=pointer]:
+                  - /url: https://github.com/pricing
+                  - generic [ref=e45]: Pricing
+          - generic [ref=e46]:
+            - button "Search or jump to…" [ref=e49] [cursor=pointer]:
+              - img [ref=e51]
+              - generic [ref=e53]: Search or jump to...
+              - img [ref=e55]
+            - link "Sign in" [ref=e59] [cursor=pointer]:
+              - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fmeller%2Flaneconductor
+            - link "Sign up" [ref=e60] [cursor=pointer]:
+              - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=meller%2Flaneconductor
+            - button "Appearance settings" [ref=e63] [cursor=pointer]:
+              - img
+  - main [ref=e67]:
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - generic [ref=e71]:
+          - img [ref=e72]
+          - link "meller" [ref=e75] [cursor=pointer]:
+            - /url: /meller
+          - generic [ref=e76]: /
+          - strong [ref=e77]:
+            - link "laneconductor" [ref=e78] [cursor=pointer]:
+              - /url: /meller/laneconductor
+          - generic [ref=e79]: Public
+        - generic [ref=e80]:
+          - list:
+            - listitem [ref=e81]:
+              - link "You must be signed in to change notification settings" [ref=e82] [cursor=pointer]:
+                - /url: /login?return_to=%2Fmeller%2Flaneconductor
+                - img [ref=e83]
+                - text: Notifications
+            - listitem [ref=e85]:
+              - link "Fork 2" [ref=e86] [cursor=pointer]:
+                - /url: /login?return_to=%2Fmeller%2Flaneconductor
+                - img [ref=e87]
+                - text: Fork
+                - generic "2" [ref=e89]
+            - listitem [ref=e90]:
+              - link "You must be signed in to star a repository" [ref=e92] [cursor=pointer]:
+                - /url: /login?return_to=%2Fmeller%2Flaneconductor
+                - img [ref=e93]
+                - text: Star
+                - generic "8 users starred this repository" [ref=e95]: "8"
+      - navigation "Repository" [ref=e96]:
+        - list [ref=e97]:
+          - listitem [ref=e98]:
+            - link "Code" [ref=e99] [cursor=pointer]:
+              - /url: /meller/laneconductor
+              - img [ref=e100]
+              - generic [ref=e102]: Code
+          - listitem [ref=e103]:
+            - link "Issues" [ref=e104] [cursor=pointer]:
+              - /url: /meller/laneconductor/issues
+              - img [ref=e105]
+              - generic [ref=e108]: Issues
+          - listitem [ref=e109]:
+            - link "Pull requests" [ref=e110] [cursor=pointer]:
+              - /url: /meller/laneconductor/pulls
+              - img [ref=e111]
+              - generic [ref=e113]: Pull requests
+          - listitem [ref=e114]:
+            - link "Actions" [ref=e115] [cursor=pointer]:
+              - /url: /meller/laneconductor/actions
+              - img [ref=e116]
+              - generic [ref=e118]: Actions
+          - listitem [ref=e119]:
+            - link "Projects" [ref=e120] [cursor=pointer]:
+              - /url: /meller/laneconductor/projects
+              - img [ref=e121]
+              - generic [ref=e123]: Projects
+          - listitem [ref=e124]:
+            - link "Security and quality" [ref=e125] [cursor=pointer]:
+              - /url: /meller/laneconductor/security
+              - img [ref=e126]
+              - generic [ref=e128]: Security and quality
+          - listitem [ref=e129]:
+            - link "Insights" [ref=e130] [cursor=pointer]:
+              - /url: /meller/laneconductor/pulse
+              - img [ref=e131]
+              - generic [ref=e133]: Insights
+    - generic [ref=e146]:
+      - heading "meller/laneconductor" [level=1] [ref=e148]
+      - generic [ref=e149]:
+        - generic [ref=e152]:
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - button "main branch" [ref=e156] [cursor=pointer]:
+                - generic [ref=e157]:
+                  - generic [ref=e159]:
+                    - img [ref=e161]
+                    - generic [ref=e164]: main
+                  - generic:
+                    - img
+              - generic [ref=e165]:
+                - link "1 Branch" [ref=e166] [cursor=pointer]:
+                  - /url: /meller/laneconductor/branches
+                  - generic [ref=e167]:
+                    - generic:
+                      - img
+                    - generic [ref=e169]:
+                      - strong [ref=e170]: "1"
+                      - text: Branch
+                - link "0 Tags" [ref=e171] [cursor=pointer]:
+                  - /url: /meller/laneconductor/tags
+                  - generic [ref=e172]:
+                    - generic:
+                      - img
+                    - generic [ref=e174]:
+                      - strong [ref=e175]: "0"
+                      - text: Tags
+            - generic [ref=e176]:
+              - generic [ref=e180]:
+                - img [ref=e182]
+                - combobox "Go to file" [ref=e184]
+              - button "Code" [ref=e185] [cursor=pointer]:
+                - generic [ref=e186]:
+                  - generic:
+                    - img
+                  - generic [ref=e187]: Code
+                  - generic:
+                    - img
+          - generic [ref=e188]:
+            - generic [ref=e189]:
+              - heading "Folders and files" [level=2] [ref=e190]
+              - table "Folders and files" [ref=e191]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message":
+                      - generic "Last commit message"
+                    - columnheader "Last commit date":
+                      - generic "Last commit date"
+                - rowgroup [ref=e192]:
+                  - 'row "Latest commit meller commits by meller chore(track-1063): sync files before worktree Commit a3e4e0e · Apr 13, 20263 weeks ago History 89 Commits" [ref=e193]':
+                    - 'cell "Latest commit meller commits by meller chore(track-1063): sync files before worktree Commit a3e4e0e · Apr 13, 20263 weeks ago History 89 Commits" [ref=e194]':
+                      - generic [ref=e195]:
+                        - heading "Latest commit" [level=2] [ref=e196]
+                        - generic [ref=e197]:
+                          - generic [ref=e199]:
+                            - link "meller" [ref=e200] [cursor=pointer]:
+                              - /url: /meller
+                              - img "meller" [ref=e201]
+                            - link "commits by meller" [ref=e202] [cursor=pointer]:
+                              - /url: /meller/laneconductor/commits?author=meller
+                              - text: meller
+                          - 'link "chore(track-1063): sync files before worktree" [ref=e206] [cursor=pointer]':
+                            - /url: /meller/laneconductor/commit/a3e4e0e88c571aa32f4176fb6ac236a58f1dc9f7
+                        - generic [ref=e207]:
+                          - generic [ref=e209]:
+                            - link "Commit a3e4e0e" [ref=e210] [cursor=pointer]:
+                              - /url: /meller/laneconductor/commit/a3e4e0e88c571aa32f4176fb6ac236a58f1dc9f7
+                              - text: a3e4e0e
+                            - text: ·
+                            - generic "Apr 13, 2026, 7:22 PM GMT+2" [ref=e211]: Apr 13, 20263 weeks ago
+                          - generic [ref=e212]:
+                            - heading "History" [level=2] [ref=e213]
+                            - link "89 Commits" [ref=e214] [cursor=pointer]:
+                              - /url: /meller/laneconductor/commits/main/
+                              - generic [ref=e215]:
+                                - generic:
+                                  - img
+                                - generic [ref=e216]: 89 Commits
+                  - row ".agents, (Directory) more features Mar 12, 20262 months ago" [ref=e217]:
+                    - cell ".agents, (Directory)" [ref=e218]:
+                      - generic [ref=e219]:
+                        - img [ref=e220]
+                        - link ".agents, (Directory)" [ref=e225] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/.agents
+                          - text: .agents
+                    - cell "more features" [ref=e226]:
+                      - link "more features" [ref=e229] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/5256fdd2f9e858437dd3f278e021174b1d4fd879
+                    - cell "Mar 12, 20262 months ago" [ref=e230]:
+                      - generic [ref=e231]: Mar 12, 20262 months ago
+                  - 'row ".claude, (Directory) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e232]':
+                    - cell ".claude, (Directory)" [ref=e233]:
+                      - generic [ref=e234]:
+                        - img [ref=e235]
+                        - link ".claude, (Directory)" [ref=e240] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/.claude
+                          - text: .claude
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e241]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e244] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e245]:
+                      - generic [ref=e246]: Apr 10, 2026last month
+                  - 'row ".playwright-mcp, (Directory) feat(webhook-diagnostics): add ping endpoint and comprehensive reques… Apr 13, 20263 weeks ago" [ref=e247]':
+                    - cell ".playwright-mcp, (Directory)" [ref=e248]:
+                      - generic [ref=e249]:
+                        - img [ref=e250]
+                        - link ".playwright-mcp, (Directory)" [ref=e255] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/.playwright-mcp
+                          - text: .playwright-mcp
+                    - 'cell "feat(webhook-diagnostics): add ping endpoint and comprehensive reques…" [ref=e256]':
+                      - 'link "feat(webhook-diagnostics): add ping endpoint and comprehensive reques…" [ref=e259] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/a99a3dc4da1de9aa8af3401a7a4b67aff485121a
+                    - cell "Apr 13, 20263 weeks ago" [ref=e260]:
+                      - generic [ref=e261]: Apr 13, 20263 weeks ago
+                  - 'row ".test-worker-mode-1/conductor, (Directory) feat(track-1066): Quality gate passed - production ready Mar 16, 20262 months ago" [ref=e262]':
+                    - cell ".test-worker-mode-1/conductor, (Directory)" [ref=e263]:
+                      - generic [ref=e264]:
+                        - img [ref=e265]
+                        - link ".test-worker-mode-1/conductor, (Directory)" [ref=e270] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/.test-worker-mode-1/conductor
+                          - text: .test-worker-mode-1/conductor
+                    - 'cell "feat(track-1066): Quality gate passed - production ready" [ref=e271]':
+                      - 'link "feat(track-1066): Quality gate passed - production ready" [ref=e274] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/65a32a5180515de4260e285bc2a511d5842bcc54
+                    - cell "Mar 16, 20262 months ago" [ref=e275]:
+                      - generic [ref=e276]: Mar 16, 20262 months ago
+                  - 'row "bin, (Directory) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e277]':
+                    - cell "bin, (Directory)" [ref=e278]:
+                      - generic [ref=e279]:
+                        - img [ref=e280]
+                        - link "bin, (Directory)" [ref=e285] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/bin
+                          - text: bin
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e286]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e289] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e290]:
+                      - generic [ref=e291]: Apr 10, 2026last month
+                  - 'row "cloud, (Directory) feat(webhook-diagnostics): add ping endpoint and comprehensive reques… Apr 13, 20263 weeks ago" [ref=e292]':
+                    - cell "cloud, (Directory)" [ref=e293]:
+                      - generic [ref=e294]:
+                        - img [ref=e295]
+                        - link "cloud, (Directory)" [ref=e300] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/cloud
+                          - text: cloud
+                    - 'cell "feat(webhook-diagnostics): add ping endpoint and comprehensive reques…" [ref=e301]':
+                      - 'link "feat(webhook-diagnostics): add ping endpoint and comprehensive reques…" [ref=e304] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/a99a3dc4da1de9aa8af3401a7a4b67aff485121a
+                    - cell "Apr 13, 20263 weeks ago" [ref=e305]:
+                      - generic [ref=e306]: Apr 13, 20263 weeks ago
+                  - 'row "conductor, (Directory) chore(track-1063): sync files before worktree Apr 13, 20263 weeks ago" [ref=e307]':
+                    - cell "conductor, (Directory)" [ref=e308]:
+                      - generic [ref=e309]:
+                        - img [ref=e310]
+                        - link "conductor, (Directory)" [ref=e315] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/conductor
+                          - text: conductor
+                    - 'cell "chore(track-1063): sync files before worktree" [ref=e316]':
+                      - 'link "chore(track-1063): sync files before worktree" [ref=e319] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/a3e4e0e88c571aa32f4176fb6ac236a58f1dc9f7
+                    - cell "Apr 13, 20263 weeks ago" [ref=e320]:
+                      - generic [ref=e321]: Apr 13, 20263 weeks ago
+                  - 'row "docs, (Directory) docs(track-1049): compress and trim dead time from demo GIF (3min → 5… Mar 11, 20262 months ago" [ref=e322]':
+                    - cell "docs, (Directory)" [ref=e323]:
+                      - generic [ref=e324]:
+                        - img [ref=e325]
+                        - link "docs, (Directory)" [ref=e330] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/docs
+                          - text: docs
+                    - 'cell "docs(track-1049): compress and trim dead time from demo GIF (3min → 5…" [ref=e331]':
+                      - 'link "docs(track-1049): compress and trim dead time from demo GIF (3min → 5…" [ref=e334] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/020b99711dd8ff59f602f1fdb1816aec6cede9a4
+                    - cell "Mar 11, 20262 months ago" [ref=e335]:
+                      - generic [ref=e336]: Mar 11, 20262 months ago
+                  - 'row "landing, (Directory) docs: expand Jira integration guide with webhook events, configuratio… Apr 13, 20263 weeks ago" [ref=e337]':
+                    - cell "landing, (Directory)" [ref=e338]:
+                      - generic [ref=e339]:
+                        - img [ref=e340]
+                        - link "landing, (Directory)" [ref=e345] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/landing
+                          - text: landing
+                    - 'cell "docs: expand Jira integration guide with webhook events, configuratio…" [ref=e346]':
+                      - 'link "docs: expand Jira integration guide with webhook events, configuratio…" [ref=e349] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/45ab00909b9d62145581c1af8441511fc83dbfd0
+                    - cell "Apr 13, 20263 weeks ago" [ref=e350]:
+                      - generic [ref=e351]: Apr 13, 20263 weeks ago
+                  - 'row "migrations, (Directory) fix: remove invalid ''done'' status migration that doesn''t exist in enum Apr 13, 20263 weeks ago" [ref=e352]':
+                    - cell "migrations, (Directory)" [ref=e353]:
+                      - generic [ref=e354]:
+                        - img [ref=e355]
+                        - link "migrations, (Directory)" [ref=e360] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/migrations
+                          - text: migrations
+                    - 'cell "fix: remove invalid ''done'' status migration that doesn''t exist in enum" [ref=e361]':
+                      - 'link "fix: remove invalid ''done'' status migration that doesn''t exist in enum" [ref=e364] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/ac8037eb4d356cae3348e92693d98ee1e1fa1c24
+                    - cell "Apr 13, 20263 weeks ago" [ref=e365]:
+                      - generic [ref=e366]: Apr 13, 20263 weeks ago
+                  - 'row "prisma, (Directory) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e367]':
+                    - cell "prisma, (Directory)" [ref=e368]:
+                      - generic [ref=e369]:
+                        - img [ref=e370]
+                        - link "prisma, (Directory)" [ref=e375] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/prisma
+                          - text: prisma
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e376]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e379] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e380]:
+                      - generic [ref=e381]: Apr 10, 2026last month
+                  - 'row "scratch, (Directory) feat(webhook-diagnostics): add ping endpoint and comprehensive reques… Apr 13, 20263 weeks ago" [ref=e382]':
+                    - cell "scratch, (Directory)" [ref=e383]:
+                      - generic [ref=e384]:
+                        - img [ref=e385]
+                        - link "scratch, (Directory)" [ref=e390] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/scratch
+                          - text: scratch
+                    - 'cell "feat(webhook-diagnostics): add ping endpoint and comprehensive reques…" [ref=e391]':
+                      - 'link "feat(webhook-diagnostics): add ping endpoint and comprehensive reques…" [ref=e394] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/a99a3dc4da1de9aa8af3401a7a4b67aff485121a
+                    - cell "Apr 13, 20263 weeks ago" [ref=e395]:
+                      - generic [ref=e396]: Apr 13, 20263 weeks ago
+                  - 'row "scripts, (Directory) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e397]':
+                    - cell "scripts, (Directory)" [ref=e398]:
+                      - generic [ref=e399]:
+                        - img [ref=e400]
+                        - link "scripts, (Directory)" [ref=e405] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/scripts
+                          - text: scripts
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e406]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e409] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e410]:
+                      - generic [ref=e411]: Apr 10, 2026last month
+                  - 'row "ui, (Directory) fix: remove invalid ''done'' status migration that doesn''t exist in enum Apr 13, 20263 weeks ago" [ref=e412]':
+                    - cell "ui, (Directory)" [ref=e413]:
+                      - generic [ref=e414]:
+                        - img [ref=e415]
+                        - link "ui, (Directory)" [ref=e420] [cursor=pointer]:
+                          - /url: /meller/laneconductor/tree/main/ui
+                          - text: ui
+                    - 'cell "fix: remove invalid ''done'' status migration that doesn''t exist in enum" [ref=e421]':
+                      - 'link "fix: remove invalid ''done'' status migration that doesn''t exist in enum" [ref=e424] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/ac8037eb4d356cae3348e92693d98ee1e1fa1c24
+                    - cell "Apr 13, 20263 weeks ago" [ref=e425]:
+                      - generic [ref=e426]: Apr 13, 20263 weeks ago
+                  - row ".env.example, (File) Initial commit Mar 10, 20262 months ago" [ref=e427]:
+                    - cell ".env.example, (File)" [ref=e428]:
+                      - generic [ref=e429]:
+                        - img [ref=e430]
+                        - link ".env.example, (File)" [ref=e435] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/.env.example
+                          - text: .env.example
+                    - cell "Initial commit" [ref=e436]:
+                      - link "Initial commit" [ref=e439] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e440]:
+                      - generic [ref=e441]: Mar 10, 20262 months ago
+                  - row ".firebaserc.example, (File) Initial commit Mar 10, 20262 months ago" [ref=e442]:
+                    - cell ".firebaserc.example, (File)" [ref=e443]:
+                      - generic [ref=e444]:
+                        - img [ref=e445]
+                        - link ".firebaserc.example, (File)" [ref=e450] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/.firebaserc.example
+                          - text: .firebaserc.example
+                    - cell "Initial commit" [ref=e451]:
+                      - link "Initial commit" [ref=e454] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e455]:
+                      - generic [ref=e456]: Mar 10, 20262 months ago
+                  - 'row ".gitignore, (File) feat(track-1062): Last Run metadata + setup-deploy prompt in lc setup Mar 13, 20262 months ago" [ref=e457]':
+                    - cell ".gitignore, (File)" [ref=e458]:
+                      - generic [ref=e459]:
+                        - img [ref=e460]
+                        - link ".gitignore, (File)" [ref=e465] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/.gitignore
+                          - text: .gitignore
+                    - 'cell "feat(track-1062): Last Run metadata + setup-deploy prompt in lc setup" [ref=e466]':
+                      - 'link "feat(track-1062): Last Run metadata + setup-deploy prompt in lc setup" [ref=e469] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/32747f132adbc7153be3847e1b5ebb66e1709600
+                    - cell "Mar 13, 20262 months ago" [ref=e470]:
+                      - generic [ref=e471]: Mar 13, 20262 months ago
+                  - row ".laneconductor.json.example, (File) Initial commit Mar 10, 20262 months ago" [ref=e472]:
+                    - cell ".laneconductor.json.example, (File)" [ref=e473]:
+                      - generic [ref=e474]:
+                        - img [ref=e475]
+                        - link ".laneconductor.json.example, (File)" [ref=e480] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/.laneconductor.json.example
+                          - text: .laneconductor.json.example
+                    - cell "Initial commit" [ref=e481]:
+                      - link "Initial commit" [ref=e484] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e485]:
+                      - generic [ref=e486]: Mar 10, 20262 months ago
+                  - 'row "DEPLOYMENT.md, (File) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e487]':
+                    - cell "DEPLOYMENT.md, (File)" [ref=e488]:
+                      - generic [ref=e489]:
+                        - img [ref=e490]
+                        - link "DEPLOYMENT.md, (File)" [ref=e495] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/DEPLOYMENT.md
+                          - text: DEPLOYMENT.md
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e496]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e499] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e500]:
+                      - generic [ref=e501]: Apr 10, 2026last month
+                  - row "LICENSE, (File) Initial commit Mar 10, 20262 months ago" [ref=e502]:
+                    - cell "LICENSE, (File)" [ref=e503]:
+                      - generic [ref=e504]:
+                        - img [ref=e505]
+                        - link "LICENSE, (File)" [ref=e510] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/LICENSE
+                          - text: LICENSE
+                    - cell "Initial commit" [ref=e511]:
+                      - link "Initial commit" [ref=e514] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e515]:
+                      - generic [ref=e516]: Mar 10, 20262 months ago
+                  - row "Makefile, (File) Initial commit Mar 10, 20262 months ago" [ref=e517]:
+                    - cell "Makefile, (File)" [ref=e518]:
+                      - generic [ref=e519]:
+                        - img [ref=e520]
+                        - link "Makefile, (File)" [ref=e525] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/Makefile
+                          - text: Makefile
+                    - cell "Initial commit" [ref=e526]:
+                      - link "Initial commit" [ref=e529] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e530]:
+                      - generic [ref=e531]: Mar 10, 20262 months ago
+                  - 'row "README.md, (File) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e532]':
+                    - cell "README.md, (File)" [ref=e533]:
+                      - generic [ref=e534]:
+                        - img [ref=e535]
+                        - link "README.md, (File)" [ref=e540] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/README.md
+                          - text: README.md
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e541]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e544] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e545]:
+                      - generic [ref=e546]: Apr 10, 2026last month
+                  - row "atlas.hcl, (File) Initial commit Mar 10, 20262 months ago" [ref=e547]:
+                    - cell "atlas.hcl, (File)" [ref=e548]:
+                      - generic [ref=e549]:
+                        - img [ref=e550]
+                        - link "atlas.hcl, (File)" [ref=e555] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/atlas.hcl
+                          - text: atlas.hcl
+                    - cell "Initial commit" [ref=e556]:
+                      - link "Initial commit" [ref=e559] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e560]:
+                      - generic [ref=e561]: Mar 10, 20262 months ago
+                  - 'row "firebase.json, (File) feat(track-1067): add missing Cloud Functions adapters and UI hooks f… Apr 10, 2026last month" [ref=e562]':
+                    - cell "firebase.json, (File)" [ref=e563]:
+                      - generic [ref=e564]:
+                        - img [ref=e565]
+                        - link "firebase.json, (File)" [ref=e570] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/firebase.json
+                          - text: firebase.json
+                    - 'cell "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e571]':
+                      - 'link "feat(track-1067): add missing Cloud Functions adapters and UI hooks f…" [ref=e574] [cursor=pointer]':
+                        - /url: /meller/laneconductor/commit/6486327ed1ece0d59d73151698259b1c7de857f6
+                    - cell "Apr 10, 2026last month" [ref=e575]:
+                      - generic [ref=e576]: Apr 10, 2026last month
+                  - row "package-lock.json, (File) Initial commit Mar 10, 20262 months ago" [ref=e577]:
+                    - cell "package-lock.json, (File)" [ref=e578]:
+                      - generic [ref=e579]:
+                        - img [ref=e580]
+                        - link "package-lock.json, (File)" [ref=e585] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/package-lock.json
+                          - text: package-lock.json
+                    - cell "Initial commit" [ref=e586]:
+                      - link "Initial commit" [ref=e589] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e590]:
+                      - generic [ref=e591]: Mar 10, 20262 months ago
+                  - row "package.json, (File) Initial commit Mar 10, 20262 months ago" [ref=e592]:
+                    - cell "package.json, (File)" [ref=e593]:
+                      - generic [ref=e594]:
+                        - img [ref=e595]
+                        - link "package.json, (File)" [ref=e600] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/package.json
+                          - text: package.json
+                    - cell "Initial commit" [ref=e601]:
+                      - link "Initial commit" [ref=e604] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e605]:
+                      - generic [ref=e606]: Mar 10, 20262 months ago
+                  - row "playwright.config.js, (File) Initial commit Mar 10, 20262 months ago" [ref=e607]:
+                    - cell "playwright.config.js, (File)" [ref=e608]:
+                      - generic [ref=e609]:
+                        - img [ref=e610]
+                        - link "playwright.config.js, (File)" [ref=e615] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/playwright.config.js
+                          - text: playwright.config.js
+                    - cell "Initial commit" [ref=e616]:
+                      - link "Initial commit" [ref=e619] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e620]:
+                      - generic [ref=e621]: Mar 10, 20262 months ago
+                  - row "prisma.config.ts, (File) Initial commit Mar 10, 20262 months ago" [ref=e622]:
+                    - cell "prisma.config.ts, (File)" [ref=e623]:
+                      - generic [ref=e624]:
+                        - img [ref=e625]
+                        - link "prisma.config.ts, (File)" [ref=e630] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/prisma.config.ts
+                          - text: prisma.config.ts
+                    - cell "Initial commit" [ref=e631]:
+                      - link "Initial commit" [ref=e634] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e635]:
+                      - generic [ref=e636]: Mar 10, 20262 months ago
+                  - row "winmake.ps1, (File) Initial commit Mar 10, 20262 months ago" [ref=e637]:
+                    - cell "winmake.ps1, (File)" [ref=e638]:
+                      - generic [ref=e639]:
+                        - img [ref=e640]
+                        - link "winmake.ps1, (File)" [ref=e645] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/winmake.ps1
+                          - text: winmake.ps1
+                    - cell "Initial commit" [ref=e646]:
+                      - link "Initial commit" [ref=e649] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e650]:
+                      - generic [ref=e651]: Mar 10, 20262 months ago
+                  - row "workflow.md, (File) Initial commit Mar 10, 20262 months ago" [ref=e652]:
+                    - cell "workflow.md, (File)" [ref=e653]:
+                      - generic [ref=e654]:
+                        - img [ref=e655]
+                        - link "workflow.md, (File)" [ref=e660] [cursor=pointer]:
+                          - /url: /meller/laneconductor/blob/main/workflow.md
+                          - text: workflow.md
+                    - cell "Initial commit" [ref=e661]:
+                      - link "Initial commit" [ref=e664] [cursor=pointer]:
+                        - /url: /meller/laneconductor/commit/55653e98afdd325767d88773aff903be01fd4389
+                    - cell "Mar 10, 20262 months ago" [ref=e665]:
+                      - generic [ref=e666]: Mar 10, 20262 months ago
+            - generic [ref=e668]:
+              - generic [ref=e669]:
+                - heading "Repository files navigation" [level=2] [ref=e670]
+                - navigation "Repository files" [ref=e671]:
+                  - list [ref=e672]:
+                    - listitem [ref=e673]:
+                      - link "README" [ref=e674] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e676]
+                        - generic [ref=e678]: README
+                    - listitem [ref=e679]:
+                      - link "MIT license" [ref=e680] [cursor=pointer]:
+                        - /url: "#"
+                        - img [ref=e682]
+                        - generic [ref=e684]: MIT license
+                - button "Outline" [ref=e685] [cursor=pointer]:
+                  - img [ref=e686]
+              - article [ref=e689]:
+                - generic [ref=e690]:
+                  - heading "LaneConductor 🛰️" [level=1] [ref=e691]
+                  - 'link "Permalink: LaneConductor 🛰️" [ref=e692] [cursor=pointer]':
+                    - /url: "#laneconductor-️"
+                    - img [ref=e693]
+                - paragraph [ref=e695]:
+                  - strong [ref=e696]: The local-first control plane for multi-agent AI development.
+                - paragraph [ref=e697]:
+                  - link "LaneConductor Kanban Dashboard" [ref=e698] [cursor=pointer]:
+                    - /url: /meller/laneconductor/blob/main/docs/hero.png
+                    - img "LaneConductor Kanban Dashboard" [ref=e699]
+                - generic [ref=e700]:
+                  - 'heading "See it in action: Brainstorming → Planning → Automated Implementation" [level=3] [ref=e701]'
+                  - 'link "Permalink: See it in action: Brainstorming → Planning → Automated Implementation" [ref=e702] [cursor=pointer]':
+                    - /url: "#see-it-in-action-brainstorming--planning--automated-implementation"
+                    - img [ref=e703]
+                - paragraph [ref=e705]:
+                  - 'link "Demo: LaneConductor Workflow" [ref=e707] [cursor=pointer]':
+                    - /url: /meller/laneconductor/blob/main/docs/demo.gif
+                    - 'img "Demo: LaneConductor Workflow" [ref=e708]'
+                - paragraph [ref=e709]:
+                  - text: LaneConductor is a
+                  - strong [ref=e710]: sovereign developer environment
+                  - text: that orchestrates AI agents (Claude, Gemini, and more) across multiple repositories, giving you real-time visibility through a unified Kanban dashboard — with zero cloud dependency and zero cost.
+                - paragraph [ref=e711]:
+                  - 'link "License: MIT" [ref=e712] [cursor=pointer]':
+                    - /url: /meller/laneconductor/blob/main/LICENSE
+                    - 'img "License: MIT" [ref=e713]'
+                  - link "Works with Claude Code" [ref=e714] [cursor=pointer]:
+                    - /url: https://claude.ai/code
+                    - img "Works with Claude Code" [ref=e715]
+                  - link "Works with Gemini CLI" [ref=e716] [cursor=pointer]:
+                    - /url: https://github.com/google-gemini/gemini-cli
+                    - img "Works with Gemini CLI" [ref=e717]
+                  - link "Documentation" [ref=e718] [cursor=pointer]:
+                    - /url: https://laneconductor-site.web.app/wiki.html
+                    - img "Documentation" [ref=e719]
+                - separator [ref=e720]
+                - generic [ref=e721]:
+                  - heading "⚡ Key Features" [level=2] [ref=e722]
+                  - 'link "Permalink: ⚡ Key Features" [ref=e723] [cursor=pointer]':
+                    - /url: "#-key-features"
+                    - img [ref=e724]
+                - list [ref=e726]:
+                  - listitem [ref=e727]:
+                    - strong [ref=e728]: Hybrid Operating Modes
+                    - text: ":"
+                    - list [ref=e729]:
+                      - listitem [ref=e730]:
+                        - strong [ref=e731]: Local-First
+                        - text: ": Runs 100% on your hardware via local SQLite/Postgres. Zero cloud, zero cost."
+                      - listitem [ref=e732]:
+                        - strong [ref=e733]: Remote / Team Mode
+                        - text: ": Scales to production via Google Cloud Functions and"
+                        - strong [ref=e734]: Neon Postgres
+                        - text: ", enabling shared visibility for distributed teams."
+                  - listitem [ref=e735]:
+                    - strong [ref=e736]: The Conductor Pattern
+                    - text: ": A structured"
+                    - strong [ref=e737]: Plan → Implement → Review → Quality Gate → Done
+                    - text: pipeline. Compatible with the
+                    - link "Gemini CLI conductor format" [ref=e738] [cursor=pointer]:
+                      - /url: https://github.com/google-gemini/gemini-cli
+                    - text: .
+                  - listitem [ref=e739]:
+                    - strong [ref=e740]: Filesystem Message Bus
+                    - text: ": Uses simple Markdown files in"
+                    - code [ref=e741]: conductor/tracks/
+                    - text: as the source of truth, enabling agents and humans to coordinate seamlessly.
+                  - listitem [ref=e742]:
+                    - strong [ref=e743]: Live Kanban Dashboard
+                    - text: ": A Vite + React dashboard that syncs in real-time with your filesystem via a local Postgres database."
+                  - listitem [ref=e744]:
+                    - strong [ref=e745]: Quality Gates
+                    - text: ": Automated verification (tests, linting, builds) that must pass before any work is considered \"Done\"."
+                  - listitem [ref=e746]:
+                    - strong [ref=e747]: Multi-Agent Support
+                    - text: ": Natively optimized for"
+                    - strong [ref=e748]: Claude Code
+                    - text: and
+                    - strong [ref=e749]: Gemini
+                    - text: ", with support for primary and fallback LLM configurations."
+                - separator [ref=e750]
+                - generic [ref=e751]:
+                  - heading "🚀 Quick Start" [level=2] [ref=e752]
+                  - 'link "Permalink: 🚀 Quick Start" [ref=e753] [cursor=pointer]':
+                    - /url: "#-quick-start"
+                    - img [ref=e754]
+                - generic [ref=e756]:
+                  - 'heading "Option A: Standard (CLI-driven)" [level=3] [ref=e757]'
+                  - 'link "Permalink: Option A: Standard (CLI-driven)" [ref=e758] [cursor=pointer]':
+                    - /url: "#option-a-standard-cli-driven"
+                    - img [ref=e759]
+                - generic [ref=e761]:
+                  - generic [ref=e762]:
+                    - generic [ref=e763]: "# 1. Install the lc CLI globally"
+                    - text: git clone https://github.com/meller/laneconductor.git && cd laneconductor && make install
+                    - generic [ref=e764]: "# 2. Initialize in your project"
+                    - text: cd ~/your-project && lc setup
+                    - generic [ref=e765]: "# 3. Start the worker and dashboard"
+                    - text: lc start && lc ui
+                  - button "Copy" [ref=e767] [cursor=pointer]:
+                    - img [ref=e768]
+                - paragraph [ref=e771]:
+                  - text: The Kanban dashboard will be available at
+                  - link "localhost:8090" [ref=e772] [cursor=pointer]:
+                    - /url: http://localhost:8090
+                    - strong [ref=e773]: localhost:8090
+                  - text: .
+                - generic [ref=e774]:
+                  - 'heading "🧠 Option B: AI-Native (Skill Only)" [level=3] [ref=e775]'
+                  - 'link "Permalink: 🧠 Option B: AI-Native (Skill Only)" [ref=e776] [cursor=pointer]':
+                    - /url: "#-option-b-ai-native-skill-only"
+                    - img [ref=e777]
+                - paragraph [ref=e779]:
+                  - text: No CLI, no local DB, no UI required.
+                  - strong [ref=e780]: Works on Windows, macOS, and Linux.
+                - list [ref=e781]:
+                  - listitem [ref=e782]:
+                    - strong [ref=e783]: Install Skill
+                    - text: ": Copy the"
+                    - code [ref=e784]: laneconductor
+                    - text: folder from
+                    - code [ref=e785]: .claude/skills/
+                    - text: into your Claude Desktop skill directory.
+                  - listitem [ref=e786]:
+                    - strong [ref=e787]: Initialize
+                    - text: ": Open your"
+                    - strong [ref=e788]: project codebase
+                    - text: "and run the following within Claude:"
+                    - generic [ref=e789]:
+                      - generic [ref=e790]: /laneconductor setup
+                      - button "Copy" [ref=e792] [cursor=pointer]:
+                        - img [ref=e793]
+                  - listitem [ref=e796]:
+                    - strong [ref=e797]: Conduct
+                    - text: ": Manage your project entirely through the AI skill. Try these commands:"
+                    - list [ref=e798]:
+                      - listitem [ref=e799]:
+                        - code [ref=e800]: /laneconductor newTrack "Feature Name" "Short Description"
+                      - listitem [ref=e801]:
+                        - code [ref=e802]: /laneconductor plan NNN
+                      - listitem [ref=e803]:
+                        - code [ref=e804]: /laneconductor implement NNN
+                        - text: Check
+                        - code [ref=e805]: conductor/tracks.md
+                        - text: at any time for a project-wide summary.
+                - separator [ref=e806]
+                - generic [ref=e807]:
+                  - 'heading "Optional: AI Context Scaffolding" [level=3] [ref=e808]'
+                  - 'link "Permalink: Optional: AI Context Scaffolding" [ref=e809] [cursor=pointer]':
+                    - /url: "#optional-ai-context-scaffolding"
+                    - img [ref=e810]
+                - paragraph [ref=e812]: "Use the Claude Code skill to automatically scan your codebase and generate project documentation:"
+                - generic [ref=e813]:
+                  - generic [ref=e814]:
+                    - generic [ref=e815]: "# Within Claude Code"
+                    - text: /laneconductor setup scaffold
+                  - button "Copy" [ref=e817] [cursor=pointer]:
+                    - img [ref=e818]
+                - separator [ref=e821]
+                - generic [ref=e822]:
+                  - heading "📖 Documentation" [level=2] [ref=e823]
+                  - 'link "Permalink: 📖 Documentation" [ref=e824] [cursor=pointer]':
+                    - /url: "#-documentation"
+                    - img [ref=e825]
+                - paragraph [ref=e827]:
+                  - text: For a deep dive into operating modes, CLI reference, and workflow configuration, visit the
+                  - link "LaneConductor Knowledge Base" [ref=e828] [cursor=pointer]:
+                    - /url: https://laneconductor-site.web.app/wiki.html
+                    - strong [ref=e829]: LaneConductor Knowledge Base
+                  - text: .
+                - separator [ref=e830]
+                - generic [ref=e831]:
+                  - heading "🛠️ Project Structure" [level=2] [ref=e832]
+                  - 'link "Permalink: 🛠️ Project Structure" [ref=e833] [cursor=pointer]':
+                    - /url: "#️-project-structure"
+                    - img [ref=e834]
+                - list [ref=e836]:
+                  - listitem [ref=e837]:
+                    - code [ref=e838]: bin/
+                    - text: ": The universal"
+                    - code [ref=e839]: lc
+                    - text: command-line tool.
+                  - listitem [ref=e840]:
+                    - code [ref=e841]: conductor/
+                    - text: ": Core orchestrator logic and heartbeat worker."
+                  - listitem [ref=e842]:
+                    - code [ref=e843]: ui/
+                    - text: ": Vite + React Kanban dashboard and Express API."
+                  - listitem [ref=e844]:
+                    - code [ref=e845]: cloud/
+                    - text: ": Firebase functions and Postgres connectors for remote/team mode."
+                  - listitem [ref=e846]:
+                    - code [ref=e847]: migrations/
+                    - text: ": Schema versioning using Atlas."
+                  - listitem [ref=e848]:
+                    - code [ref=e849]: .claude/skills/
+                    - text: ": The specialized AI skill definition for Claude."
+                - separator [ref=e850]
+                - generic [ref=e851]:
+                  - heading "📄 License" [level=2] [ref=e852]
+                  - 'link "Permalink: 📄 License" [ref=e853] [cursor=pointer]':
+                    - /url: "#-license"
+                    - img [ref=e854]
+                - paragraph [ref=e856]:
+                  - text: This project is licensed under the MIT License - see the
+                  - link "LICENSE" [ref=e857] [cursor=pointer]:
+                    - /url: /meller/laneconductor/blob/main/LICENSE
+                  - text: file for details.
+        - generic [ref=e861]:
+          - generic [ref=e864]:
+            - heading "About" [level=2] [ref=e865]
+            - paragraph [ref=e866]: Local-first control plane for multi-agent AI development — Claude + Gemini with a live Kanban dashboard
+            - generic [ref=e867]:
+              - img [ref=e868]
+              - link "laneconductor.com" [ref=e871] [cursor=pointer]:
+                - /url: https://laneconductor.com
+            - heading "Topics" [level=3] [ref=e872]
+            - generic [ref=e874]:
+              - link "cli" [ref=e875] [cursor=pointer]:
+                - /url: /topics/cli
+              - link "gemini" [ref=e876] [cursor=pointer]:
+                - /url: /topics/gemini
+              - link "kanban" [ref=e877] [cursor=pointer]:
+                - /url: /topics/kanban
+              - link "developer-tools" [ref=e878] [cursor=pointer]:
+                - /url: /topics/developer-tools
+              - link "ai-agents" [ref=e879] [cursor=pointer]:
+                - /url: /topics/ai-agents
+              - link "claude" [ref=e880] [cursor=pointer]:
+                - /url: /topics/claude
+              - link "local-first" [ref=e881] [cursor=pointer]:
+                - /url: /topics/local-first
+              - link "llm" [ref=e882] [cursor=pointer]:
+                - /url: /topics/llm
+            - heading "Resources" [level=3] [ref=e883]
+            - link "Readme" [ref=e885] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+              - img [ref=e886]
+              - text: Readme
+            - heading "License" [level=3] [ref=e888]
+            - link "MIT license" [ref=e890] [cursor=pointer]:
+              - /url: "#MIT-1-ov-file"
+              - img [ref=e891]
+              - text: MIT license
+            - link "Activity" [ref=e894] [cursor=pointer]:
+              - /url: /meller/laneconductor/activity
+              - img [ref=e895]
+              - text: Activity
+            - heading "Stars" [level=3] [ref=e897]
+            - link "8 stars" [ref=e899] [cursor=pointer]:
+              - /url: /meller/laneconductor/stargazers
+              - img [ref=e900]
+              - strong [ref=e902]: "8"
+              - text: stars
+            - heading "Watchers" [level=3] [ref=e903]
+            - link "1 watching" [ref=e905] [cursor=pointer]:
+              - /url: /meller/laneconductor/watchers
+              - img [ref=e906]
+              - strong [ref=e908]: "1"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e909]
+            - link "2 forks" [ref=e911] [cursor=pointer]:
+              - /url: /meller/laneconductor/forks
+              - img [ref=e912]
+              - strong [ref=e914]: "2"
+              - text: forks
+            - link "Report repository" [ref=e916] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Fmeller%2Flaneconductor&report=meller+%28user%29
+          - generic [ref=e918]:
+            - heading "Releases" [level=2] [ref=e919]:
+              - link "Releases" [ref=e920] [cursor=pointer]:
+                - /url: /meller/laneconductor/releases
+            - generic [ref=e921]: No releases published
+          - generic [ref=e923]:
+            - heading "Packages" [level=2] [ref=e924]:
+              - link "Packages" [ref=e925] [cursor=pointer]:
+                - /url: /users/meller/packages?repo_name=laneconductor
+            - generic [ref=e926]: No packages published
+          - generic [ref=e928]:
+            - heading "Contributors 2" [level=2] [ref=e929]:
+              - link "Contributors 2" [ref=e930] [cursor=pointer]:
+                - /url: /meller/laneconductor/graphs/contributors
+                - text: Contributors
+                - generic "2" [ref=e931]
+            - list [ref=e932]:
+              - listitem [ref=e933]:
+                - link "@meller" [ref=e934] [cursor=pointer]:
+                  - /url: https://github.com/meller
+                  - img "@meller" [ref=e935]
+                - link "meller Meller" [ref=e937] [cursor=pointer]:
+                  - /url: https://github.com/meller
+                  - strong [ref=e938]: meller
+                  - text: Meller
+              - listitem [ref=e939]:
+                - link "@claude" [ref=e940] [cursor=pointer]:
+                  - /url: https://github.com/claude
+                  - img "@claude" [ref=e941]
+                - link "claude Claude" [ref=e943] [cursor=pointer]:
+                  - /url: https://github.com/claude
+                  - strong [ref=e944]: claude
+                  - text: Claude
+          - generic [ref=e946]:
+            - heading "Languages" [level=2] [ref=e947]
+            - list [ref=e956]:
+              - listitem [ref=e957]:
+                - link "JavaScript 86.1%" [ref=e958] [cursor=pointer]:
+                  - /url: /meller/laneconductor/search?l=javascript
+                  - img [ref=e959]
+                  - generic [ref=e961]: JavaScript
+                  - generic [ref=e962]: 86.1%
+              - listitem [ref=e963]:
+                - link "HTML 10.8%" [ref=e964] [cursor=pointer]:
+                  - /url: /meller/laneconductor/search?l=html
+                  - img [ref=e965]
+                  - generic [ref=e967]: HTML
+                  - generic [ref=e968]: 10.8%
+              - listitem [ref=e969]:
+                - link "Shell 2.1%" [ref=e970] [cursor=pointer]:
+                  - /url: /meller/laneconductor/search?l=shell
+                  - img [ref=e971]
+                  - generic [ref=e973]: Shell
+                  - generic [ref=e974]: 2.1%
+              - listitem [ref=e975]:
+                - link "Makefile 0.5%" [ref=e976] [cursor=pointer]:
+                  - /url: /meller/laneconductor/search?l=makefile
+                  - img [ref=e977]
+                  - generic [ref=e979]: Makefile
+                  - generic [ref=e980]: 0.5%
+              - listitem [ref=e981]:
+                - link "PowerShell 0.4%" [ref=e982] [cursor=pointer]:
+                  - /url: /meller/laneconductor/search?l=powershell
+                  - img [ref=e983]
+                  - generic [ref=e985]: PowerShell
+                  - generic [ref=e986]: 0.4%
+              - listitem [ref=e987]:
+                - link "HCL 0.1%" [ref=e988] [cursor=pointer]:
+                  - /url: /meller/laneconductor/search?l=hcl
+                  - img [ref=e989]
+                  - generic [ref=e991]: HCL
+                  - generic [ref=e992]: 0.1%
+  - contentinfo [ref=e994]:
+    - heading "Footer" [level=2] [ref=e995]
+    - generic [ref=e996]:
+      - generic [ref=e997]:
+        - link "GitHub Homepage" [ref=e998] [cursor=pointer]:
+          - /url: https://github.com
+          - img [ref=e999]
+        - generic [ref=e1001]: © 2026 GitHub, Inc.
+      - navigation "Footer" [ref=e1002]:
+        - heading "Footer navigation" [level=3] [ref=e1003]
+        - list "Footer navigation" [ref=e1004]:
+          - listitem [ref=e1005]:
+            - link "Terms" [ref=e1006] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+          - listitem [ref=e1007]:
+            - link "Privacy" [ref=e1008] [cursor=pointer]:
+              - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+          - listitem [ref=e1009]:
+            - link "Security" [ref=e1010] [cursor=pointer]:
+              - /url: https://github.com/security
+          - listitem [ref=e1011]:
+            - link "Status" [ref=e1012] [cursor=pointer]:
+              - /url: https://www.githubstatus.com/
+          - listitem [ref=e1013]:
+            - link "Community" [ref=e1014] [cursor=pointer]:
+              - /url: https://github.community/
+          - listitem [ref=e1015]:
+            - link "Docs" [ref=e1016] [cursor=pointer]:
+              - /url: https://docs.github.com/
+          - listitem [ref=e1017]:
+            - link "Contact" [ref=e1018] [cursor=pointer]:
+              - /url: https://support.github.com?tags=dotcom-footer
+          - listitem [ref=e1019]:
+            - button "Manage cookies" [ref=e1021] [cursor=pointer]
+          - listitem [ref=e1022]:
+            - button "Do not share my personal information" [ref=e1024] [cursor=pointer]

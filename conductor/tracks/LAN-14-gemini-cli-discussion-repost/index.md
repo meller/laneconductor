@@ -2,6 +2,11 @@
 
 **Lane**: done
 **Lane Status**: success
+
+# Track 1050: Gemini CLI Discussion Repost
+
+**Lane**: done
+**Lane Status**: success
 **Progress**: 35%
 **Phase**: Complete
 **Summary**: Live at https://github.com/google-gemini/gemini-cli/discussions/22041
@@ -18,3 +23,4 @@ Story-first post in "Show and tell" category with embedded demo GIF, Gemini cond
 - [ ] Phase 2: Write post draft
 - [ ] Phase 3: Post in correct category
 - [ ] Phase 4: Engage with replies
+

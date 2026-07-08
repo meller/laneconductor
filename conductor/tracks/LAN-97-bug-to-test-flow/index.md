@@ -1,6 +1,11 @@
 # Bug To Test Flow
 
 **Lane**: done
+**Lane Status**: success
+
+# Bug To Test Flow
+
+**Lane**: done
 **Lane Status**: done
 
 # Track 1045: Bug-to-Test Flow
@@ -22,4 +27,5 @@ Added `POST /api/projects/:id/tracks/:num/open-bug` endpoint that atomically pos
 - [x] Phase 1: Backend — `/open-bug` endpoint + `appendRegressionTest` helper
 - [x] Phase 2: Frontend — wire "Open Bug" button to new endpoint
 - [x] Phase 3: Tests — 10/10 passing
+
 

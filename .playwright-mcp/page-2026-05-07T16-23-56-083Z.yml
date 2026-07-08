@@ -1,0 +1,702 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+    - generic [ref=e4]: Skip to main content
+  - generic [ref=e6]:
+    - generic:
+      - generic [ref=e7]:
+        - generic: "Built with Claude Project Showcase Megathread (Sort this by New!) : r/ClaudeAI"
+      - banner [ref=e10]:
+        - navigation [ref=e11]:
+          - link "Home" [ref=e15] [cursor=pointer]:
+            - /url: /
+            - img [ref=e17]
+          - search [ref=e34]:
+            - generic [ref=e36]:
+              - img [ref=e39]
+              - generic "Remove r/ClaudeAI filter and expand search to all of Reddit" [ref=e42] [cursor=pointer]:
+                - button [pressed] [ref=e43]:
+                  - generic [ref=e47]: r/ClaudeAI
+                  - img [ref=e49]
+              - textbox "Remove r/ClaudeAI filter and expand search to all of Reddit" [ref=e52]:
+                - /placeholder: Search in r/ClaudeAI
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - link "Advertise on Reddit" [ref=e60] [cursor=pointer]:
+                - /url: https://ads.reddit.com/register?utm_source=web3x_consumer&utm_name=nav_cta
+                - img [ref=e63]
+                - generic [ref=e65]:
+                  - generic: Advertise on Reddit
+              - button "Open chat" [ref=e71] [cursor=pointer]:
+                - img [ref=e74]
+                - generic [ref=e76]:
+                  - generic: Open chat
+              - link "Create post" [ref=e81] [cursor=pointer]:
+                - /url: /r/ClaudeAI/submit/
+                - generic [ref=e82]:
+                  - img [ref=e84]
+                  - generic [ref=e86]: Create
+                - generic [ref=e87]:
+                  - generic: Create post
+              - link "Open inbox" [ref=e91] [cursor=pointer]:
+                - /url: /notifications
+                - img [ref=e94]
+                - generic [ref=e96]:
+                  - generic: Open inbox
+            - button "User Avatar Expand user menu" [ref=e101] [cursor=pointer]:
+              - img "User Avatar" [ref=e109]
+              - generic [ref=e111]:
+                - generic: Expand user menu
+      - generic [ref=e112]:
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - generic:
+              - generic:
+                - link "Skip to Navigation" [ref=e115] [cursor=pointer]:
+                  - /url: "#left-sidebar-container"
+                - link "Skip to Right Sidebar" [ref=e116] [cursor=pointer]:
+                  - /url: "#right-sidebar-container"
+          - generic [ref=e117]:
+            - main [ref=e118]:
+              - 'generic "Built with Claude Project Showcase Megathread (Sort this by New!) : r/ClaudeAI"'
+              - generic [ref=e119]:
+                - generic [ref=e120]:
+                  - generic [ref=e121]:
+                    - button "Back" [ref=e123] [cursor=pointer]:
+                      - img [ref=e126]
+                      - generic [ref=e128]:
+                        - generic: Back
+                    - link "Go to ClaudeAI" [ref=e131] [cursor=pointer]:
+                      - /url: /r/ClaudeAI/
+                      - generic [ref=e135]:
+                        - generic: Go to ClaudeAI
+                    - group [ref=e136]:
+                      - generic [ref=e137]:
+                        - link "r/ClaudeAI" [ref=e141] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/
+                        - generic [ref=e142]: •
+                        - time [ref=e143]: 22d ago
+                      - generic [ref=e144]:
+                        - 'link "Author: sixbillionthsheep" [ref=e149] [cursor=pointer]':
+                          - /url: /user/sixbillionthsheep/
+                          - generic [ref=e150]: sixbillionthsheep
+                        - 'generic "Flair: Mod" [ref=e153]': Mod
+                        - generic [ref=e155] [cursor=pointer]:
+                          - img "Profile Badge for the Achievement Top 1% Poster" [ref=e156]
+                          - text: Top 1% Poster
+                  - button "Open user actions" [ref=e160] [cursor=pointer]:
+                    - img [ref=e163]
+                - generic [ref=e166]:
+                  - 'heading "Post Title: Built with Claude Project Showcase Megathread (Sort this by New!)" [level=1] [ref=e167]': Built with Claude Project Showcase Megathread (Sort this by New!)
+                  - 'link "Flair: Showcase Megathread" [ref=e170] [cursor=pointer]':
+                    - /url: /r/ClaudeAI/?f=flair_name%3A%22Showcase%20Megathread%22
+                    - 'generic "Flair: Showcase Megathread" [ref=e172]': Showcase Megathread
+                - generic [ref=e176]:
+                  - paragraph [ref=e177]: This is the Megathread for showcasing your project built using Claude products. We appreciate all of your submissions as they are a great inspiration to many people on the subreddit. It is sorted by default by New.
+                  - paragraph [ref=e178]: Anyone is welcome to submit a project to this Megathread provided you follow the Showcase requirements in Rule 7.
+                  - paragraph [ref=e179]:
+                    - strong [ref=e180]: "NOTE: We now require the OP of a Project Showcase on the subreddit feed to have total karma>=50 ."
+                    - text: We found there were just too many submissions and not enough visibility to go around. Our analysis of this issue showed us that OPs with total karma < 50 very rarely get any traction of their projects on the feed (<=1 upvotes). So this Megathread is your best place to be seen by readers and other creators if you're relatively new to Reddit. If you don't meet this karma requirement you will be directed to this Megathread when you submit your post. Very occasionally we might invite you to post on the subreddit feed if you do not meet this karma requirement but it will be very rare (so please don't ask us!)
+                  - paragraph [ref=e181]: Thanks again for sharing your ideas and creations to our subreddit. Best of luck with your projects!
+                  - separator [ref=e182]
+                  - paragraph [ref=e183]:
+                    - strong [ref=e184]: "TIP: Use"
+                    - link "postimages.org" [ref=e185] [cursor=pointer]:
+                      - /url: http://postimages.org
+                      - strong [ref=e186]: postimages.org
+                    - strong [ref=e187]: ","
+                    - link "imgur.com" [ref=e188] [cursor=pointer]:
+                      - /url: http://imgur.com
+                      - strong [ref=e189]: imgur.com
+                    - strong [ref=e190]: or
+                    - link "imgbb.com" [ref=e191] [cursor=pointer]:
+                      - /url: http://imgbb.com
+                      - strong [ref=e192]: imgbb.com
+                    - strong [ref=e193]: to link out to your external images.
+                - generic "Actions available for this post" [ref=e195]:
+                  - generic [ref=e198]:
+                    - button "Upvote" [ref=e199] [cursor=pointer]:
+                      - img [ref=e201]
+                      - generic [ref=e203]:
+                        - generic: Upvote
+                    - generic [ref=e205]: "18"
+                    - button "Downvote" [ref=e206] [cursor=pointer]:
+                      - img [ref=e208]
+                      - generic [ref=e210]:
+                        - generic: Downvote
+                  - button "368 Go to comments" [ref=e211] [cursor=pointer]:
+                    - generic [ref=e212]:
+                      - img [ref=e214]
+                      - generic [ref=e217]: "368"
+                    - generic [ref=e218]:
+                      - generic: Go to comments
+                  - button "Give award" [ref=e220] [cursor=pointer]:
+                    - img [ref=e223]
+                  - button "Share" [ref=e228] [cursor=pointer]:
+                    - generic [ref=e229]:
+                      - img [ref=e231]
+                      - generic [ref=e234]: Share
+                  - button "Report Report" [ref=e235] [cursor=pointer]:
+                    - generic [ref=e236]:
+                      - img [ref=e238]
+                      - generic [ref=e240]: Report
+                    - generic [ref=e241]:
+                      - generic: Report
+              - img [ref=e246]
+            - generic [ref=e259]:
+              - complementary "Community information" [ref=e263]:
+                - generic [ref=e264]:
+                  - generic [ref=e266]:
+                    - heading "Community Info Section" [level=1] [ref=e267]
+                    - generic [ref=e268]:
+                      - generic [ref=e269]:
+                        - link "r/ClaudeAI" [ref=e270] [cursor=pointer]:
+                          - /url: /r/ClaudeAI/
+                          - generic [ref=e271]: r/ClaudeAI
+                        - 'button "Community status: Check Claude service status." [ref=e274] [cursor=pointer]':
+                          - img "hp" [ref=e275]
+                      - button "Join" [ref=e279] [cursor=pointer]
+                    - generic [ref=e280]:
+                      - generic [ref=e281]: ClaudeAI
+                      - generic [ref=e282]: This is a Claude and Claude Code discussion subreddit to help you make a fully informed decision about using Claude and Claude Code to best effect for your own purposes. ¹⌉ Anthropic does not control or operate this subreddit or endorse views expressed here. ²⌉ If your problem requires Anthropic's help, visit https://support.anthropic.com/ This subreddit is not the right place to fix your account issues. ³⌉ For more help, check the resources below. ⁴⌉ Please read the rules before posting.
+                      - button "Show more" [ref=e283] [cursor=pointer]:
+                        - generic [ref=e285]: Show more
+                      - generic [ref=e286]:
+                        - generic [ref=e288]:
+                          - img [ref=e289]
+                          - text: Created Jan 23, 2023
+                        - generic [ref=e292]:
+                          - img [ref=e293]
+                          - text: Public
+                      - button "Community Guide" [ref=e296] [cursor=pointer]:
+                        - generic [ref=e297]:
+                          - img [ref=e299]
+                          - generic [ref=e302]: Community Guide
+                    - generic [ref=e303]:
+                      - generic [ref=e304]:
+                        - strong [ref=e306]:
+                          - generic: 2.3M
+                        - generic [ref=e307]: Weekly visitors
+                      - generic [ref=e308]:
+                        - strong [ref=e310]:
+                          - generic: 22K
+                        - generic [ref=e311]: Weekly contributions
+                  - separator [ref=e312]
+                  - generic [ref=e313]:
+                    - heading "User flair" [level=2] [ref=e315]:
+                      - generic [ref=e316]: User flair
+                    - button "u/Latter-Ad-7035 avatar Latter-Ad-7035" [ref=e318]:
+                      - generic [ref=e320]:
+                        - img "u/Latter-Ad-7035 avatar" [ref=e325]
+                        - generic [ref=e327]: Latter-Ad-7035
+                  - separator [ref=e328]
+                  - generic [ref=e329]:
+                    - heading "Community Resources" [level=2] [ref=e331]:
+                      - generic [ref=e332]: Community Resources
+                    - generic [ref=e333]:
+                      - link "ClaudeCode Best Practice ClaudeCode Best Practice" [ref=e334] [cursor=pointer]:
+                        - /url: https://github.com/shanraisshan/claude-code-best-practice
+                        - generic [ref=e337]: ClaudeCode Best Practice
+                        - generic [ref=e338]:
+                          - generic: ClaudeCode Best Practice
+                      - link "ClaudeLog.com (Has ads) ClaudeLog.com (Has ads)" [ref=e339] [cursor=pointer]:
+                        - /url: https://www.claudelog.com
+                        - generic [ref=e342]: ClaudeLog.com (Has ads)
+                        - generic [ref=e343]:
+                          - generic: ClaudeLog.com (Has ads)
+                      - link "Weekly Survival Guide Weekly Survival Guide" [ref=e344] [cursor=pointer]:
+                        - /url: https://www.reddit.com/mod/ClaudeAI/wiki/survivalguideweekly
+                        - generic [ref=e347]: Weekly Survival Guide
+                        - generic [ref=e348]:
+                          - generic: Weekly Survival Guide
+                  - separator [ref=e349]
+                  - generic [ref=e350]:
+                    - heading "Official Claude Resources" [level=2] [ref=e352]:
+                      - generic [ref=e353]: Official Claude Resources
+                    - generic [ref=e354]:
+                      - link "How to Get Support How to Get Support" [ref=e355] [cursor=pointer]:
+                        - /url: https://support.anthropic.com/en/articles/9015913-how-to-get-support
+                        - generic [ref=e358]: How to Get Support
+                        - generic [ref=e359]:
+                          - generic: How to Get Support
+                      - link "Official Claude Discord Official Claude Discord" [ref=e360] [cursor=pointer]:
+                        - /url: https://discord.gg/prcdpx7qMm
+                        - generic [ref=e363]: Official Claude Discord
+                        - generic [ref=e364]:
+                          - generic: Official Claude Discord
+                      - link "Official Claude Meetups Official Claude Meetups" [ref=e365] [cursor=pointer]:
+                        - /url: https://luma.com/claudecommunity
+                        - generic [ref=e368]: Official Claude Meetups
+                        - generic [ref=e369]:
+                          - generic: Official Claude Meetups
+                      - link "Anthropic Newsletter Anthropic Newsletter" [ref=e370] [cursor=pointer]:
+                        - /url: https://www.anthropic.com/newsletter/developers
+                        - generic [ref=e373]: Anthropic Newsletter
+                        - generic [ref=e374]:
+                          - generic: Anthropic Newsletter
+                  - separator [ref=e375]
+                  - generic [ref=e376]:
+                    - heading "r/ClaudeAI Rules" [level=2] [ref=e378]:
+                      - generic [ref=e379]: r/ClaudeAI Rules
+                    - generic [ref=e380]:
+                      - group [ref=e382]:
+                        - generic "1 Be respectful" [ref=e383] [cursor=pointer]:
+                          - generic [ref=e385]:
+                            - generic [ref=e386]:
+                              - generic [ref=e388]: "1"
+                              - heading "Be respectful" [level=2] [ref=e392]
+                            - img [ref=e395]
+                        - paragraph [ref=e401]: Diversity of opinion is welcome. Controversial opinions are welcome. Personal attacks and harassment are not. Ask Claude for a definition of "good faith discussion for a subreddit" if you're unsure what's acceptable.
+                      - group [ref=e403]:
+                        - generic "2 Be relevant" [ref=e404] [cursor=pointer]:
+                          - generic [ref=e406]:
+                            - generic [ref=e407]:
+                              - generic [ref=e409]: "2"
+                              - heading "Be relevant" [level=2] [ref=e413]
+                            - img [ref=e416]
+                        - paragraph [ref=e422]: Stay relevant to the Claude and Claude Code technology and users. We generally don't accept posts of more general AI interest here.
+                      - group [ref=e424]:
+                        - generic "3 Be constructive. Don't come here to agitate others." [ref=e425] [cursor=pointer]:
+                          - generic [ref=e427]:
+                            - generic [ref=e428]:
+                              - generic [ref=e430]: "3"
+                              - heading "Be constructive. Don't come here to agitate others." [level=2] [ref=e434]
+                            - img [ref=e437]
+                        - paragraph [ref=e443]: Is your post/comment likely to add positively to the knowledge or experience of other readers here? Has it already been shared recently? Is it just designed to agitate others? Cancellation announcements and unsupported rants are not constructive. We also do not allow the organization of legal action on the subreddit.
+                      - group [ref=e445]:
+                        - generic "4 Use the Megathreads for your recent Claude performance and bug reports/complaints" [ref=e446] [cursor=pointer]:
+                          - generic [ref=e448]:
+                            - generic [ref=e449]:
+                              - generic [ref=e451]: "4"
+                              - heading "Use the Megathreads for your recent Claude performance and bug reports/complaints" [level=2] [ref=e455]
+                            - img [ref=e458]
+                        - paragraph [ref=e464]:
+                          - text: Help us keep track of Claude system performance, limits and bugs by keeping your experiences and reports on the relevant Megathread
+                          - link "https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/" [ref=e465] [cursor=pointer]:
+                            - /url: https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/
+                          - text: . This also frees the feed from performance incident flooding. We make occasional exceptions for well substantiated and helpful posts including useful questions. Check first if your issue has been discussed recently.
+                      - group [ref=e467]:
+                        - generic "5 Do not come here to fix your Anthropic account problem" [ref=e468] [cursor=pointer]:
+                          - generic [ref=e470]:
+                            - generic [ref=e471]:
+                              - generic [ref=e473]: "5"
+                              - heading "Do not come here to fix your Anthropic account problem" [level=2] [ref=e477]
+                            - img [ref=e480]
+                        - paragraph [ref=e486]: Community replies to individual account issues have often caused confusion. We have no way of fixing the problem with your account and Anthropic does not respond to account help requests on this subreddit. Try their normal support channels. If you believe you were incorrectly charged, talk to your bank about a chargeback.
+                      - group [ref=e488]:
+                        - generic "6 Competitor posts must contain sufficient homework and evidence." [ref=e489] [cursor=pointer]:
+                          - generic [ref=e491]:
+                            - generic [ref=e492]:
+                              - generic [ref=e494]: "6"
+                              - heading "Competitor posts must contain sufficient homework and evidence." [level=2] [ref=e498]
+                            - img [ref=e501]
+                        - generic [ref=e506]:
+                          - paragraph [ref=e507]: "Competitor posts must satisfy ALL of the following criteria: a) cannot merely ask for a comparison without offering the author's own insights, research, genuine experiences, or evidence of investigation; b) cannot presume one model is better than another without providing detailed, novel evidence demonstrating this in specific instances; c) cannot cite comparative benchmarks without a source d) it cannot use inflammatory language."
+                          - paragraph [ref=e508]: Basically you have to give before you can take.
+                      - group [ref=e510]:
+                        - generic "7 Showcase your project in a way that helps educate and inspire others" [ref=e511] [cursor=pointer]:
+                          - generic [ref=e513]:
+                            - generic [ref=e514]:
+                              - generic [ref=e516]: "7"
+                              - heading "Showcase your project in a way that helps educate and inspire others" [level=2] [ref=e520]
+                            - img [ref=e523]
+                        - generic [ref=e528]:
+                          - paragraph [ref=e529]: "Promoting your project or paid service is encouraged if it fit the following criteria:"
+                          - list [ref=e530]:
+                            - listitem [ref=e531]:
+                              - paragraph [ref=e532]: be clear the project was built with Claude/Claude Code or specifically for Claude BY YOU
+                            - listitem [ref=e533]:
+                              - paragraph [ref=e534]: include a clear description of what was built, how Claude helped, and what it does
+                            - listitem [ref=e535]:
+                              - paragraph [ref=e536]: project must be free to try and say so (paid tiers/features OK)
+                            - listitem [ref=e537]:
+                              - paragraph [ref=e538]: promotional language minimal
+                            - listitem [ref=e539]:
+                              - paragraph [ref=e540]: do not use referral links (link to the project is ok)
+                            - listitem [ref=e541]:
+                              - paragraph [ref=e542]: no job seeking requests or resumes
+                          - paragraph [ref=e543]:
+                            - strong [ref=e544]: Posts on the feed now require OP karma> 50
+                      - group [ref=e546]:
+                        - generic "8 Read the Megathreads before you subscribe to Claude" [ref=e547] [cursor=pointer]:
+                          - generic [ref=e549]:
+                            - generic [ref=e550]:
+                              - generic [ref=e552]: "8"
+                              - heading "Read the Megathreads before you subscribe to Claude" [level=2] [ref=e556]
+                            - img [ref=e559]
+                        - paragraph [ref=e565]:
+                          - text: We strongly advise you visit the Performance Megathread before purchasing a plan. It is here
+                          - link "https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/" [ref=e566] [cursor=pointer]:
+                            - /url: https://www.reddit.com/r/ClaudeAI/comments/1s7fepn/rclaudeai_list_of_ongoing_megathreads/
+                          - text: . Be aware of some of the issues you may face. Claude is a fast evolving technology.
+                      - group [ref=e568]:
+                        - generic "9 Use relevant post flair" [ref=e569] [cursor=pointer]:
+                          - generic [ref=e571]:
+                            - generic [ref=e572]:
+                              - generic [ref=e574]: "9"
+                              - heading "Use relevant post flair" [level=2] [ref=e578]
+                            - img [ref=e581]
+                        - paragraph [ref=e587]: Claude has vast amounts of diverse use cases. As a result, often the problems/questions/praise you have for Claude are not shared by others. Help others filter posts by their area of interest by choosing the flair most related to its usage group. If none fit, or you feel it is of more general interest, choose the flair most relevant.
+                      - group [ref=e589]:
+                        - generic "10 Don't manipulate upvotes" [ref=e590] [cursor=pointer]:
+                          - generic [ref=e592]:
+                            - generic [ref=e593]:
+                              - generic [ref=e595]: "10"
+                              - heading "Don't manipulate upvotes" [level=2] [ref=e599]
+                            - img [ref=e602]
+                        - paragraph [ref=e608]: Undermining the Reddit voting system is an immediate permanent ban offence. This includes the use of bots. This subreddit has bots in place looking for suspicious activity.
+                      - group [ref=e610]:
+                        - generic "11 Stay grounded" [ref=e611] [cursor=pointer]:
+                          - generic [ref=e613]:
+                            - generic [ref=e614]:
+                              - generic [ref=e616]: "11"
+                              - heading "Stay grounded" [level=2] [ref=e620]
+                            - img [ref=e623]
+                        - paragraph [ref=e629]: If you post narratives about AI consciousness and experiences, they must be based in grounded research with references OR be clearly marked in the title as fiction to avoid misguiding people in vulnerable mental states AND use the Writing flair.
+                      - group [ref=e631]:
+                        - generic "12 Be Reddit-compliant" [ref=e632] [cursor=pointer]:
+                          - generic [ref=e634]:
+                            - generic [ref=e635]:
+                              - generic [ref=e637]: "12"
+                              - heading "Be Reddit-compliant" [level=2] [ref=e641]
+                            - img [ref=e644]
+                        - generic [ref=e649]:
+                          - paragraph [ref=e650]: This subreddit uses Reddit's default harassment and abuse filters. In addition, you may find yourself or your content removed by Reddit if you don't follow their policies. These can be found below.
+                          - paragraph [ref=e651]:
+                            - text: "Reddit content policy:"
+                            - link "https://www.redditinc.com/policies/content-policy" [ref=e652] [cursor=pointer]:
+                              - /url: https://www.redditinc.com/policies/content-policy
+                            - text: Those discussing the use of Claude for creative writing should pay particular attention to Rules 6, 7 and 4.
+                          - paragraph [ref=e653]:
+                            - text: "Reddit user agreement:"
+                            - link "https://www.redditinc.com/policies/user-agreement-september-25-2023" [ref=e654] [cursor=pointer]:
+                              - /url: https://www.redditinc.com/policies/user-agreement-september-25-2023
+                  - separator [ref=e655]
+                  - generic [ref=e656]:
+                    - heading "RELATED COMMUNITIES" [level=2] [ref=e658]:
+                      - generic [ref=e659]: RELATED COMMUNITIES
+                    - generic [ref=e666]:
+                      - link "r/claudexplorers" [ref=e669] [cursor=pointer]:
+                        - /url: /r/claudexplorers
+                      - generic [ref=e670]: 44,936 members
+                  - separator [ref=e671]
+                  - generic [ref=e672]:
+                    - heading "Moderators" [level=2] [ref=e674]:
+                      - generic [ref=e675]: Moderators
+                    - link "Message Mods" [ref=e677] [cursor=pointer]:
+                      - /url: https://www.reddit.com/message/compose?to=r/ClaudeAI
+                      - generic [ref=e678]:
+                        - img [ref=e680]
+                        - generic [ref=e682]: Message Mods
+                    - generic [ref=e684]:
+                      - img "u/sixbillionthsheep avatar" [ref=e689]
+                      - generic [ref=e692]:
+                        - link "u/sixbillionthsheep" [ref=e693] [cursor=pointer]:
+                          - /url: /user/sixbillionthsheep/
+                          - generic [ref=e694]: u/sixbillionthsheep
+                        - 'generic "Flair: Mod" [ref=e696]': Mod
+                    - generic [ref=e698]:
+                      - img [ref=e705]
+                      - generic [ref=e707]:
+                        - generic [ref=e709]:
+                          - link "u/Kris_AntAmbassador" [ref=e710] [cursor=pointer]:
+                            - /url: /user/Kris_AntAmbassador/
+                            - generic [ref=e711]: u/Kris_AntAmbassador
+                          - 'generic "Flair: Mod" [ref=e713]': Mod
+                        - generic [ref=e715]: Kris - Anthropic Ambassador
+                    - generic [ref=e717]:
+                      - img [ref=e724]
+                      - generic [ref=e728]:
+                        - link "u/David_AntAmbassador" [ref=e729] [cursor=pointer]:
+                          - /url: /user/David_AntAmbassador/
+                          - generic [ref=e730]: u/David_AntAmbassador
+                        - 'generic "Flair: Mod" [ref=e732]': Mod
+                    - generic [ref=e734]:
+                      - img "u/inventor_black avatar" [ref=e739]
+                      - generic [ref=e740]:
+                        - generic [ref=e742]:
+                          - link "u/inventor_black" [ref=e743] [cursor=pointer]:
+                            - /url: /user/inventor_black/
+                            - generic [ref=e744]: u/inventor_black
+                          - 'generic "Flair: Mod:cl_divider::ClaudeLog_icon_compact: ClaudeLog.com" [ref=e746]':
+                            - generic [ref=e747]:
+                              - text: Mod
+                              - text: ClaudeLog.com
+                        - generic [ref=e753]: InventorBlack
+                    - generic [ref=e755]:
+                      - img "u/ClaudeAI-mod-bot avatar" [ref=e760]
+                      - generic [ref=e761]:
+                        - generic [ref=e763]:
+                          - link "u/ClaudeAI-mod-bot" [ref=e764] [cursor=pointer]:
+                            - /url: /user/ClaudeAI-mod-bot/
+                            - generic [ref=e765]: u/ClaudeAI-mod-bot
+                          - 'generic "Flair: Wilson, lead ClaudeAI modbot" [ref=e767]': Wilson, lead ClaudeAI modbot
+                        - generic [ref=e769]: Wilson
+                    - generic [ref=e771]:
+                      - img "u/AutoModerator avatar" [ref=e776]
+                      - link "u/AutoModerator" [ref=e780] [cursor=pointer]:
+                        - /url: /user/AutoModerator/
+                        - generic [ref=e781]: u/AutoModerator
+                    - generic [ref=e783]:
+                      - img "u/manipulation-pi avatar" [ref=e788]
+                      - link "u/manipulation-pi" [ref=e792] [cursor=pointer]:
+                        - /url: /user/manipulation-pi/
+                        - generic [ref=e793]: u/manipulation-pi
+                    - generic [ref=e795]:
+                      - img "u/bot-bouncer avatar" [ref=e800]
+                      - link "u/bot-bouncer" [ref=e804] [cursor=pointer]:
+                        - /url: /user/bot-bouncer/
+                        - generic [ref=e805]: u/bot-bouncer
+                    - generic [ref=e807]:
+                      - img "u/evasion-guard avatar" [ref=e812]
+                      - link "u/evasion-guard" [ref=e816] [cursor=pointer]:
+                        - /url: /user/evasion-guard/
+                        - generic [ref=e817]: u/evasion-guard
+                    - generic [ref=e819]:
+                      - img "u/automod-toggle avatar" [ref=e824]
+                      - link "u/automod-toggle" [ref=e828] [cursor=pointer]:
+                        - /url: /user/automod-toggle/
+                        - generic [ref=e829]: u/automod-toggle
+                    - link "View all moderators" [ref=e830] [cursor=pointer]:
+                      - /url: /mod/ClaudeAI/moderators/
+                      - generic [ref=e832]: View all moderators
+                  - separator [ref=e833]
+                  - generic [ref=e834]:
+                    - heading "Installed Apps" [level=2] [ref=e836]:
+                      - generic [ref=e837]: Installed Apps
+                    - link "FreestyleUI" [ref=e838] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/freestyle-ui
+                      - generic [ref=e841]: FreestyleUI
+                      - img [ref=e844]
+                    - link "AutoModerator Toggle" [ref=e846] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/automod-toggle
+                      - generic [ref=e849]: AutoModerator Toggle
+                      - img [ref=e852]
+                    - link "Flooding Assistant" [ref=e854] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/floodassistant
+                      - generic [ref=e857]: Flooding Assistant
+                      - img [ref=e860]
+                    - link "Bot Bouncer" [ref=e862] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/bot-bouncer
+                      - generic [ref=e865]: Bot Bouncer
+                      - img [ref=e868]
+                    - link "Flair Assistant" [ref=e870] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/flairassistant
+                      - generic [ref=e873]: Flair Assistant
+                      - img [ref=e876]
+                    - link "Alun Mod Bot" [ref=e878] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/mthelper
+                      - generic [ref=e881]: Alun Mod Bot
+                      - img [ref=e884]
+                    - link "Comment Mop" [ref=e886] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/comment-nuke
+                      - generic [ref=e889]: Comment Mop
+                      - img [ref=e892]
+                    - link "Evasion Guard" [ref=e894] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/evasion-guard
+                      - generic [ref=e897]: Evasion Guard
+                      - img [ref=e900]
+                    - link "Modmail Quick User Summary" [ref=e902] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/modmail-userinfo
+                      - generic [ref=e905]: Modmail Quick User Summary
+                      - img [ref=e908]
+                    - link "Subreddit Statistics" [ref=e910] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/sub-stats-bot
+                      - generic [ref=e913]: Subreddit Statistics
+                      - img [ref=e916]
+                    - link "Admin Tattler" [ref=e918] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/admin-tattler
+                      - generic [ref=e921]: Admin Tattler
+                      - img [ref=e924]
+                    - link "Modqueue Tools" [ref=e926] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/modqueue-tools
+                      - generic [ref=e929]: Modqueue Tools
+                      - img [ref=e932]
+                    - link "Manipulation Detector" [ref=e934] [cursor=pointer]:
+                      - /url: https://developers.reddit.com/apps/manipulation-pi
+                      - generic [ref=e937]: Manipulation Detector
+                      - img [ref=e940]
+              - generic [ref=e943]:
+                - link "Reddit Rules" [ref=e946] [cursor=pointer]:
+                  - /url: https://www.redditinc.com/policies/content-policy
+                - link "Privacy Policy" [ref=e949] [cursor=pointer]:
+                  - /url: https://www.reddit.com/policies/privacy-policy
+                - link "User Agreement" [ref=e952] [cursor=pointer]:
+                  - /url: https://www.redditinc.com/policies/user-agreement
+                - link "Accessibility" [ref=e955] [cursor=pointer]:
+                  - /url: https://support.reddithelp.com/hc/sections/38303584022676-Accessibility
+                - link "Impressum" [ref=e958] [cursor=pointer]:
+                  - /url: https://www.redditinc.com/policies/impressum
+                - link "Reddit, Inc. © 2026. All rights reserved." [ref=e960] [cursor=pointer]:
+                  - /url: https://redditinc.com
+        - generic [ref=e962]:
+          - button "Collapse Navigation" [ref=e965] [cursor=pointer]:
+            - img [ref=e968]
+            - generic [ref=e970]:
+              - generic: Collapse Navigation
+          - navigation "Primary" [ref=e975]:
+            - generic [ref=e977]:
+              - link "Home" [ref=e979] [cursor=pointer]:
+                - /url: /?feed=home
+                - generic [ref=e980]:
+                  - img [ref=e982]
+                  - generic [ref=e985]: Home
+              - link "Popular" [ref=e987] [cursor=pointer]:
+                - /url: /r/popular/
+                - generic [ref=e988]:
+                  - img [ref=e990]
+                  - generic [ref=e993]: Popular
+              - link "News" [ref=e994] [cursor=pointer]:
+                - /url: /news/
+                - generic [ref=e995]:
+                  - img [ref=e997]
+                  - generic [ref=e1001]: News
+              - link "Explore" [ref=e1003] [cursor=pointer]:
+                - /url: /explore/
+                - generic [ref=e1004]:
+                  - img [ref=e1006]
+                  - generic [ref=e1009]: Explore
+              - button "Start a community" [ref=e1010] [cursor=pointer]:
+                - generic [ref=e1011]:
+                  - img [ref=e1013]
+                  - generic [ref=e1016]: Start a community
+            - separator [ref=e1017]
+            - group [ref=e1021]:
+              - generic "GAMES ON REDDIT" [ref=e1022] [cursor=pointer]:
+                - generic [ref=e1023]:
+                  - generic [ref=e1028]:
+                    - generic: GAMES ON REDDIT
+                  - img [ref=e1031]
+              - generic [ref=e1034]:
+                - link "Featured Game" [ref=e1038] [cursor=pointer]:
+                  - /url: https://www.reddit.com/r/AlignmentChartFills/comments/1t697gc?entry_point=games_drawer_featured_game
+                  - generic [ref=e1040]:
+                    - generic [ref=e1044]:
+                      - heading "Alignment Chart" [level=3] [ref=e1045]
+                      - paragraph [ref=e1046]: Align the chaos
+                      - paragraph [ref=e1047]:
+                        - generic [ref=e1048]: 3.4M
+                        - text: monthly players
+                    - generic [ref=e1051]: NEW
+                - link "Discover More" [ref=e1053] [cursor=pointer]:
+                  - /url: /r/GamesOnReddit
+                  - generic [ref=e1054]:
+                    - img [ref=e1056]
+                    - generic [ref=e1060]: Discover More
+            - separator [ref=e1061]
+            - group [ref=e1064]:
+              - generic "RECENT" [ref=e1065] [cursor=pointer]:
+                - generic [ref=e1066]:
+                  - generic [ref=e1069]: RECENT
+                  - img [ref=e1072]
+              - generic [ref=e1075]:
+                - link "r/SideProject" [ref=e1076] [cursor=pointer]:
+                  - /url: /r/SideProject/
+                  - generic [ref=e1077]:
+                    - img [ref=e1082]
+                    - generic [ref=e1085]: r/SideProject
+                - link "r/ClaudeAI" [ref=e1086] [cursor=pointer]:
+                  - /url: /r/ClaudeAI/
+                  - generic [ref=e1087]:
+                    - img [ref=e1092]
+                    - generic [ref=e1095]: r/ClaudeAI
+                - link "r/LocalLLaMA" [ref=e1096] [cursor=pointer]:
+                  - /url: /r/LocalLLaMA/
+                  - generic [ref=e1097]:
+                    - img [ref=e1102]
+                    - generic [ref=e1105]: r/LocalLLaMA
+            - group [ref=e1107]:
+              - generic "COMMUNITIES" [ref=e1108] [cursor=pointer]:
+                - generic [ref=e1110]:
+                  - generic [ref=e1113]: COMMUNITIES
+                  - img [ref=e1116]
+              - link "Manage Communities" [ref=e1120] [cursor=pointer]:
+                - /url: /user/Latter-Ad-7035/communities
+                - generic [ref=e1121]:
+                  - img [ref=e1123]
+                  - generic [ref=e1126]: Manage Communities
+            - separator [ref=e1127]
+            - navigation "Reddit resources" [ref=e1128]:
+              - group [ref=e1130]:
+                - generic "RESOURCES" [ref=e1131] [cursor=pointer]:
+                  - generic [ref=e1133]:
+                    - generic [ref=e1136]: RESOURCES
+                    - img [ref=e1139]
+                - generic [ref=e1142]:
+                  - link "About Reddit" [ref=e1144] [cursor=pointer]:
+                    - /url: https://www.redditinc.com
+                    - generic [ref=e1145]:
+                      - img [ref=e1147]
+                      - generic [ref=e1151]: About Reddit
+                  - link "Advertise" [ref=e1153] [cursor=pointer]:
+                    - /url: https://ads.reddit.com/register?utm_source=web3x_consumer&utm_name=left_nav_cta
+                    - generic [ref=e1154]:
+                      - img [ref=e1156]
+                      - generic [ref=e1160]: Advertise
+                  - link "Developer Platform" [ref=e1162] [cursor=pointer]:
+                    - /url: https://developers.reddit.com/?utm_source=reddit&utm_medium=left_nav_resources
+                    - generic [ref=e1163]:
+                      - img [ref=e1165]
+                      - generic [ref=e1169]: Developer Platform
+                  - link "Reddit Pro BETA" [ref=e1171] [cursor=pointer]:
+                    - /url: /reddit-pro?utm_source=reddit&utm_medium=left_nav_resources
+                    - generic [ref=e1172]:
+                      - img [ref=e1174]
+                      - generic [ref=e1178]:
+                        - generic [ref=e1179]: Reddit Pro
+                        - generic [ref=e1180]: BETA
+                  - link "Help" [ref=e1182] [cursor=pointer]:
+                    - /url: https://support.reddithelp.com/hc?utm_source=reddit&utm_medium=footer&utm_campaign=evergreen
+                    - generic [ref=e1183]:
+                      - img [ref=e1185]
+                      - generic [ref=e1189]: Help
+                  - link "Blog" [ref=e1191] [cursor=pointer]:
+                    - /url: https://redditblog.com/
+                    - generic [ref=e1192]:
+                      - img [ref=e1194]
+                      - generic [ref=e1198]: Blog
+                  - link "Careers" [ref=e1200] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/careers
+                    - generic [ref=e1201]:
+                      - img [ref=e1203]
+                      - generic [ref=e1207]: Careers
+                  - link "Press" [ref=e1209] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/press
+                    - generic [ref=e1210]:
+                      - img [ref=e1212]
+                      - generic [ref=e1216]: Press
+                  - separator [ref=e1217]
+                  - link "Best of Reddit" [ref=e1219] [cursor=pointer]:
+                    - /url: https://www.reddit.com/posts/2026/global/
+                    - generic [ref=e1220]:
+                      - img [ref=e1222]
+                      - generic [ref=e1227]: Best of Reddit
+                  - separator [ref=e1228]
+                  - link "Impressum" [ref=e1230] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/policies/impressum
+                    - generic [ref=e1231]:
+                      - img [ref=e1233]
+                      - generic [ref=e1237]: Impressum
+                  - separator [ref=e1238]
+                  - link "Reddit Rules" [ref=e1240] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/policies/content-policy
+                    - generic [ref=e1241]:
+                      - img [ref=e1243]
+                      - generic [ref=e1247]: Reddit Rules
+                  - link "Privacy Policy" [ref=e1249] [cursor=pointer]:
+                    - /url: https://www.reddit.com/policies/privacy-policy
+                    - generic [ref=e1250]:
+                      - img [ref=e1252]
+                      - generic [ref=e1256]: Privacy Policy
+                  - link "User Agreement" [ref=e1258] [cursor=pointer]:
+                    - /url: https://www.redditinc.com/policies/user-agreement
+                    - generic [ref=e1259]:
+                      - img [ref=e1261]
+                      - generic [ref=e1265]: User Agreement
+                  - link "Accessibility" [ref=e1267] [cursor=pointer]:
+                    - /url: https://support.reddithelp.com/hc/sections/38303584022676-Accessibility
+                    - generic [ref=e1268]:
+                      - img [ref=e1270]
+                      - generic [ref=e1275]: Accessibility
+            - link "Reddit, Inc. © 2026. All rights reserved." [ref=e1277] [cursor=pointer]:
+              - /url: https://redditinc.com

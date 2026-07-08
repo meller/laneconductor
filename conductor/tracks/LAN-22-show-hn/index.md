@@ -1,6 +1,11 @@
 # Track 1052: Show HN Post
 
 **Lane**: done
+**Lane Status**: success
+
+# Track 1052: Show HN Post
+
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: New
@@ -18,3 +23,4 @@ Submit with a title that leads with the technical problem (not the product name)
 - [ ] Phase 2: Write post title + body
 - [x] Phase 3: Submit to HN
 - [ ] Phase 4: Engage with comments
+

@@ -1,6 +1,11 @@
 # Github Repo Polish
 
 **Lane**: done
+**Lane Status**: success
+
+# Github Repo Polish
+
+**Lane**: done
 **Lane Status**: done
 
 # Github Repo Polish
@@ -19,7 +24,7 @@
 **Lane Status**: success
 **Progress**: 64%
 **Phase**: Complete
-**Summary**: Hero image, Quick Start rewrite, badges, and GitHub metadata all done.
+**Summary**: README has no visual. hero.png exists at ui/public/hero.png but needs to be at a stable, publicly accessible path in the repo.
 
 ## Problem
 The GitHub repo has no description, no website link, no topics, and no visual in the README. Every channel we post on links here — it must convert.
@@ -35,6 +40,7 @@ The GitHub repo has no description, no website link, no topics, and no visual in
 - [ ] Phase 1: Update GitHub repo metadata (description, URL, topics)
 - [ ] Phase 2: Embed landing page screenshot as README hero image
 - [ ] Phase 3: Rewrite Quick Start section to 3 commands
+
 
 
 

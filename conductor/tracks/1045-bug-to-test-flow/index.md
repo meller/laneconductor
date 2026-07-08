@@ -1,6 +1,11 @@
 # Bug To Test Flow
 
 **Lane**: done
+**Lane Status**: success
+
+# Bug To Test Flow
+
+**Lane**: done
 **Lane Status**: done
 
 # Track 1045: Bug-to-Test Flow
@@ -10,7 +15,7 @@
 **Progress**: 97%
 **Phase**: Complete
 **Waiting for reply**: no
-**Summary**: When "Open Bug" is clicked, automatically append a regression test to test.md (disk + DB) so the bug cannot silently recur.
+**Summary**: The "Open Bug" action is split across two frontend fetch calls with no test.md update. We need a single atomic backend endpoint that handles all side-effects.
 
 ## Problem
 The "Open Bug" button in the Conversation tab posts a comment and changes the lane but leaves `test.md` unchanged. Without a regression test, the same bug can resurface undetected.
@@ -22,4 +27,5 @@ Added `POST /api/projects/:id/tracks/:num/open-bug` endpoint that atomically pos
 - [x] Phase 1: Backend — `/open-bug` endpoint + `appendRegressionTest` helper
 - [x] Phase 2: Frontend — wire "Open Bug" button to new endpoint
 - [x] Phase 3: Tests — 10/10 passing
+
 

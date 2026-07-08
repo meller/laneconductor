@@ -1,0 +1,117 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+    - generic [ref=e4]: Skip to main content
+  - generic [ref=e6]:
+    - generic:
+      - banner [ref=e9]:
+        - navigation [ref=e10]:
+          - link "Home" [ref=e14] [cursor=pointer]:
+            - /url: /
+            - img [ref=e16]
+          - generic [ref=e30]:
+            - img [ref=e32]
+            - generic [ref=e34]:
+              - img [ref=e36]
+              - generic [ref=e38]: r/SideProject
+              - img [ref=e40]
+            - textbox "Search in r/SideProject" [ref=e43]
+          - generic [ref=e44]:
+            - generic [ref=e45]:
+              - link "Advertise on Reddit" [ref=e51] [cursor=pointer]:
+                - /url: https://ads.reddit.com/register?utm_source=web3x_consumer&utm_name=nav_cta
+                - img [ref=e54]
+                - generic [ref=e56]:
+                  - generic: Advertise on Reddit
+              - button "Open chat" [ref=e64] [cursor=pointer]:
+                - img [ref=e67]
+                - generic [ref=e69]:
+                  - generic: Open chat
+              - link "Create post" [ref=e74] [cursor=pointer]:
+                - /url: /r/SideProject/submit/
+                - generic [ref=e75]:
+                  - img [ref=e77]
+                  - generic [ref=e79]: Create
+                - generic [ref=e80]:
+                  - generic: Create post
+              - link "Open inbox" [ref=e86] [cursor=pointer]:
+                - /url: /notifications
+                - img [ref=e89]
+                - generic [ref=e91]:
+                  - generic: Open inbox
+            - button "Expand user menu" [ref=e96] [cursor=pointer]:
+              - generic [ref=e103]:
+                - generic: Expand user menu
+      - generic [ref=e104]:
+        - generic [ref=e107]:
+          - main [ref=e108]:
+            - 'generic "I have AI agents running my entire side project — dev, marketing, cold emails, Reddit posts. Built the system to manage all of it. : r/SideProject"'
+            - generic [ref=e109]:
+              - generic [ref=e110]:
+                - generic [ref=e111]:
+                  - link "Go to SideProject" [ref=e115] [cursor=pointer]:
+                    - /url: /r/SideProject/
+                    - generic [ref=e119]:
+                      - generic: Go to SideProject
+                  - group [ref=e120]:
+                    - generic [ref=e121]:
+                      - link "r/SideProject" [ref=e125] [cursor=pointer]:
+                        - /url: /r/SideProject/
+                      - generic [ref=e126]: •
+                      - time [ref=e127]: 7h ago
+                    - 'link "Author: Latter-Ad-7035" [ref=e133] [cursor=pointer]':
+                      - /url: /user/Latter-Ad-7035/
+                      - generic [ref=e134]: Latter-Ad-7035
+                - button "Open user actions" [ref=e137] [cursor=pointer]:
+                  - img [ref=e140]
+              - 'heading "Post Title: I have AI agents running my entire side project — dev, marketing, cold emails, Reddit posts. Built the system to manage all of it." [level=1] [ref=e142]': I have AI agents running my entire side project — dev, marketing, cold emails, Reddit posts. Built the system to manage all of it.
+              - generic [ref=e147]: "At some point I realized I was using AI agents for almost everything in my side project — writing code, drafting launch posts, handling support questions. But I had no way to track what was happening across all of it, and no way to measure whether any of it was actually working. So I built LaneConductor. It's a local Kanban board where AI agents run tasks across your whole operation — dev, marketing, sales, support. Each task is a folder with a few Markdown files: index.md for current status, plan.md for phases, spec.md for requirements. Agents read and write these files directly. A background worker syncs state to a local Postgres DB and Vite dashboard at localhost:8090. No cloud, no auth, nothing leaves the machine. The part I'm most happy with: inspired by Karpathy's autoresearch idea, every task has a KPI defined before it enters execution. A metric, a source, a threshold, a time window. When the window closes, a quality gate fetches the real number — from the HN API, Reddit API, or manual entry — and either marks the task done or sends it back to planning with the failure data attached so the next attempt starts with a different hypothesis. This post is a task. The HN launch post was a task. The cold email sequence is a task. Each one measured. The other thing it solves: LLMs lose context mid-task. With all state in files, any agent picks up exactly where the last one stopped. Claude and Gemini can hand off without either knowing the other exists. Simplest setup: drop one skill file into Claude Desktop — no Node, no Postgres, no daemon. About 30 seconds. Works on Windows. Open source: https://github.com/meller/laneconductor Curious what others are using to manage AI agents across a whole project, not just code."
+              - generic [ref=e149]:
+                - img [ref=e150]
+                - generic [ref=e152]: Sorry, this post was removed by Reddit’s filters.
+            - img [ref=e157]
+          - generic [ref=e170]:
+            - complementary "Community information" [ref=e174]:
+              - generic [ref=e175]:
+                - generic [ref=e176]:
+                  - generic [ref=e195]: 361K
+                  - generic [ref=e196]: 23K
+                - separator [ref=e197]
+                - generic [ref=e198]:
+                  - heading "Moderators" [level=2] [ref=e200]:
+                    - generic [ref=e201]: Moderators
+                  - link "Message Mods" [ref=e203] [cursor=pointer]:
+                    - /url: https://www.reddit.com/message/compose?to=r/SideProject
+                    - generic [ref=e204]:
+                      - img [ref=e206]
+                      - generic [ref=e208]: Message Mods
+                  - generic [ref=e210]:
+                    - img [ref=e217]
+                    - link "u/MurtzaM" [ref=e222] [cursor=pointer]:
+                      - /url: /user/MurtzaM/
+                      - generic [ref=e223]: u/MurtzaM
+                  - generic [ref=e225]:
+                    - img "u/walruswilderness avatar" [ref=e230]
+                    - link "u/walruswilderness" [ref=e234] [cursor=pointer]:
+                      - /url: /user/walruswilderness/
+                      - generic [ref=e235]: u/walruswilderness
+                  - link "View all moderators" [ref=e236] [cursor=pointer]:
+                    - /url: /mod/SideProject/moderators/
+                    - generic [ref=e238]: View all moderators
+            - generic [ref=e240]:
+              - link "Reddit Rules" [ref=e243] [cursor=pointer]:
+                - /url: https://www.redditinc.com/policies/content-policy
+              - link "Privacy Policy" [ref=e246] [cursor=pointer]:
+                - /url: https://www.reddit.com/policies/privacy-policy
+              - link "User Agreement" [ref=e249] [cursor=pointer]:
+                - /url: https://www.redditinc.com/policies/user-agreement
+              - link "Accessibility" [ref=e252] [cursor=pointer]:
+                - /url: https://support.reddithelp.com/hc/sections/38303584022676-Accessibility
+              - link "Impressum" [ref=e255] [cursor=pointer]:
+                - /url: https://www.redditinc.com/policies/impressum
+              - link "Reddit, Inc. © 2026. All rights reserved." [ref=e257] [cursor=pointer]:
+                - /url: https://redditinc.com
+        - button "Collapse Navigation" [ref=e262] [cursor=pointer]:
+          - img [ref=e265]
+          - generic [ref=e267]:
+            - generic: Collapse Navigation

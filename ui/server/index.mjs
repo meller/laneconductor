@@ -392,6 +392,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.last_heartbeat AS last_updated,
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
+              t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -487,7 +488,7 @@ app.patch('/api/projects/:id/tracks/:num', async (req, res) => {
 
 app.post('/api/projects/:id/tracks', async (req, res) => {
   try {
-    const { title, description = '', type = 'feature' } = req.body;
+    const { title, description = '', type = 'feature', trackType = 'dev' } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' });
 
     // Get project repo_path
@@ -515,10 +516,11 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
       trackNumber = String(nextNum).padStart(3, '0');
 
       // Register in DB - this effectively 'owns' the track number now
+      const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
       await client.query(
-        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by)
-         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human')`,
-        [req.params.id, trackNumber, title.trim(), description.trim()]
+        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by, track_type)
+         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human', $5)`,
+        [req.params.id, trackNumber, title.trim(), description.trim(), safeTrackType]
       );
       await client.query('COMMIT');
     } catch (dbErr) {
@@ -544,7 +546,8 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
         // By writing the description to index.md directly, we solve the 'overwrite' problem in the sync queue.
         if (!existsSync(trackPath)) {
           mkdirSync(trackPath, { recursive: true });
-          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type);
+          const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
+          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType);
           writeFileSync(join(trackPath, 'index.md'), index, 'utf8');
           writeFileSync(join(trackPath, 'plan.md'), plan, 'utf8');
           writeFileSync(join(trackPath, 'spec.md'), spec, 'utf8');
@@ -1750,6 +1753,10 @@ app.post('/track', collectorAuth, async (req, res) => {
       current_phase, content_summary, phase_step,
       index_content, plan_content, spec_content, test_content,
       lane_action_status,
+      // KPI fields
+      track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
+      kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
+      kpi_check_after, kpi_scheduled_at, kpi_maps_to,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -1795,28 +1802,51 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     const params = [projectId, track_number, title, insertLaneStatus, progress,
       current_phase, content_summary, phase_step,
-      index_content, plan_content, spec_content, test_content, insertActionStatus];
+      index_content, plan_content, spec_content, test_content, insertActionStatus,
+      // KPI params $14-$26
+      track_type ?? 'dev', kpi_target ?? null, kpi_actual ?? null,
+      kpi_metric ?? null, kpi_source ?? null, kpi_source_config ?? null,
+      kpi_threshold ?? null, kpi_window ?? null,
+      kpi_snapshot ? JSON.stringify(kpi_snapshot) : null,
+      kpi_measured_at ?? null, kpi_check_after ?? null, kpi_scheduled_at ?? null, kpi_maps_to ?? null,
+    ];
 
     const qRes = await pool.query(`
     INSERT INTO tracks
       (project_id, track_number, title, lane_status, progress_percent,
        current_phase, content_summary, phase_step, index_content, plan_content, spec_content, test_content,
-       last_heartbeat, sync_status, last_updated_by, lane_action_status)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13)
+       last_heartbeat, sync_status, last_updated_by, lane_action_status,
+       track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
+       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
-      title            = EXCLUDED.title,
+      title              = EXCLUDED.title,
       ${laneStatusClause}
-      progress_percent = EXCLUDED.progress_percent,
-      current_phase    = EXCLUDED.current_phase,
-      content_summary  = EXCLUDED.content_summary,
-      phase_step       = EXCLUDED.phase_step,
-      index_content    = EXCLUDED.index_content,
-      plan_content     = EXCLUDED.plan_content,
-      spec_content     = EXCLUDED.spec_content,
-      test_content     = COALESCE(EXCLUDED.test_content, tracks.test_content),
-      last_heartbeat   = NOW(),
-      sync_status      = 'syncing',
-      last_updated_by  = 'worker'
+      progress_percent   = EXCLUDED.progress_percent,
+      current_phase      = EXCLUDED.current_phase,
+      content_summary    = EXCLUDED.content_summary,
+      phase_step         = EXCLUDED.phase_step,
+      index_content      = EXCLUDED.index_content,
+      plan_content       = EXCLUDED.plan_content,
+      spec_content       = EXCLUDED.spec_content,
+      test_content       = COALESCE(EXCLUDED.test_content, tracks.test_content),
+      last_heartbeat     = NOW(),
+      sync_status        = 'syncing',
+      last_updated_by    = 'worker',
+      track_type         = COALESCE(EXCLUDED.track_type, tracks.track_type, 'dev'),
+      kpi_target         = COALESCE(EXCLUDED.kpi_target, tracks.kpi_target),
+      kpi_actual         = COALESCE(EXCLUDED.kpi_actual, tracks.kpi_actual),
+      kpi_metric         = COALESCE(EXCLUDED.kpi_metric, tracks.kpi_metric),
+      kpi_source         = COALESCE(EXCLUDED.kpi_source, tracks.kpi_source),
+      kpi_source_config  = COALESCE(EXCLUDED.kpi_source_config, tracks.kpi_source_config),
+      kpi_threshold      = COALESCE(EXCLUDED.kpi_threshold, tracks.kpi_threshold),
+      kpi_window         = COALESCE(EXCLUDED.kpi_window, tracks.kpi_window),
+      kpi_snapshot       = COALESCE(EXCLUDED.kpi_snapshot, tracks.kpi_snapshot),
+      kpi_measured_at    = COALESCE(EXCLUDED.kpi_measured_at, tracks.kpi_measured_at),
+      kpi_check_after    = EXCLUDED.kpi_check_after,
+      kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
+      kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to)
     RETURNING id
   `, params);
 

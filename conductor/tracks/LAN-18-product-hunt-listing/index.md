@@ -2,6 +2,11 @@
 
 **Lane**: plan
 **Lane Status**: queue
+
+# Track 1056: Product Hunt Listing
+
+**Lane**: plan
+**Lane Status**: queue
 **Progress**: 0%
 **Phase**: New
 **Summary**: Prepare and launch on Product Hunt (Week 3 — after HN traction)
@@ -31,3 +36,4 @@ Tagline options:
 - [ ] Phase 2: Build hunter relationships + community warm-up (1 week before)
 - [ ] Phase 3: Launch day — all-day engagement
 - [ ] Phase 4: Post-launch follow-up — convert traffic to GitHub stars + email list
+

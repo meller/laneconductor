@@ -1,29 +1,25 @@
 # Track 1053: Reddit Launch Posts
 
-**Lane**: plan
+**Lane**: quality-gate
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
-**Summary**: Post in three subreddits the same week as HN with tailored angles
+**Progress**: 100%
+**Phase**: KPI Window — waiting 72h
+**Type**: marketing
+**Summary**: All direct posts removed (karma). Submitted to r/ClaudeAI Built with Claude Showcase Megathread — live. r/LocalLLaMA and r/SideProject deferred until karma established.
+**KPI Scheduled At**: 2026-05-07T16:25:00.000Z
+**KPI Check After**: 2026-05-10T16:25:00.000Z
+**Waiting for reply**: no
 
-## Problem
-Reddit has active communities of exactly our target users. Three subreddits, three slightly different framings, all same week as HN.
-
-## Solution
-
-| Subreddit | Angle |
-|-----------|-------|
-| r/LocalLLaMA | Local-first, air-gapped, no cloud dependency, $0 cost |
-| r/ClaudeAI | Works natively with Claude Code, extends your workflow |
-| r/SideProject | Built a Kanban dashboard that syncs with your terminal |
-
-Rules:
-- Each post must provide value — show the demo GIF, explain the problem, invite discussion
-- Do NOT just drop a link
-- Be present to respond to comments
+## Posts
+- r/LocalLLaMA: removed (insufficient karma) — retry later
+- r/ClaudeAI direct post: removed by moderators
+- r/SideProject: removed by spam filter — retry later
+- r/ClaudeAI Showcase Megathread: https://www.reddit.com/r/ClaudeAI/comments/1sly3jm/built_with_claude_project_showcase_megathread/ ✅ live
 
 ## Phases
-- [ ] Phase 1: Draft r/LocalLLaMA post (sovereignty + privacy angle)
-- [ ] Phase 2: Draft r/ClaudeAI post (Claude Code workflow angle)
-- [ ] Phase 3: Draft r/SideProject post (builder story angle)
-- [ ] Phase 4: Post all three same week as HN, monitor and respond
+- [x] Phase 1: Draft r/LocalLLaMA post
+- [x] Phase 2: Draft r/ClaudeAI post
+- [x] Phase 3: Draft r/SideProject post
+- [x] Phase 4: Post all three (all removed — karma issue)
+- [x] Phase 5: Submit to r/ClaudeAI Showcase Megathread
+- [ ] Phase 6: KPI measurement at 72h window close (2026-05-10)

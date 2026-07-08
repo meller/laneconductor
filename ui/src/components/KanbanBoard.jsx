@@ -10,7 +10,7 @@ const LANES = [
   { id: 'done', label: 'Done', color: 'text-green-400 border-green-800', drop: 'border-green-500 bg-green-900/20' },
 ];
 
-export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack }) {
+export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
   const [dragOverLane, setDragOverLane] = useState(null);
 
   const byLane = Object.fromEntries(
@@ -107,6 +107,7 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
                           onFixReview={onFixReview}
                           onRerunImplement={onRerunImplement}
                           onDeleteTrack={onDeleteTrack}
+                          onMarkPublished={onMarkPublished}
                         />
                       ))}
                     </div>

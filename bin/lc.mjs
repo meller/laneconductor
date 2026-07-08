@@ -1585,11 +1585,36 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 } else if (command === 'new') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
-    const name = args[1];
-    const desc = args[2] || '';
+
+    // Collect all args after 'new' up to the first --flag.
+    // Supports both:
+    //   lc new "multi word title" "description"   (quoted, each is one arg)
+    //   lc new [multi word title] [description]   (bracket notation, each word is a separate arg)
+    const typeIdx = args.indexOf('--type');
+    const rawPositional = typeIdx !== -1 ? args.slice(1, typeIdx) : args.slice(1);
+    const rawStr = rawPositional.join(' ').trim();
+
+    let name, desc;
+    if (rawStr.startsWith('[')) {
+        // Bracket notation: [title words] [description words]
+        const bracketGroups = [];
+        let remaining = rawStr;
+        while (remaining.startsWith('[')) {
+            const closeIdx = remaining.indexOf(']');
+            if (closeIdx === -1) { bracketGroups.push(remaining.slice(1)); remaining = ''; break; }
+            bracketGroups.push(remaining.slice(1, closeIdx).trim());
+            remaining = remaining.slice(closeIdx + 1).trim();
+        }
+        name = bracketGroups[0] || '';
+        desc = bracketGroups[1] || '';
+    } else {
+        // Legacy: first arg = title, remaining = description
+        name = rawPositional[0] || '';
+        desc = rawPositional.slice(1).join(' ') || '';
+    }
+
     if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other]'); process.exit(1); }
 
-    const typeIdx = args.indexOf('--type');
     const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
     let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
     if (!VALID_TRACK_TYPES.includes(trackType)) {

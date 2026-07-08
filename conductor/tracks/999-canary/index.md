@@ -1,6 +1,16 @@
 # Canary
 
 **Lane**: done
+**Lane Status**: success
+
+# Canary
+
+**Lane**: done
+**Lane Status**: success
+
+# Canary
+
+**Lane**: done
 **Lane Status**: done
 
 # Canary
@@ -22,5 +32,4 @@ Perform a set of simple tasks as part of the canary run.
 
 ## Phases
 - [x] Phase 1: Test
-
-
+**Summary**: Need a simple task to verify the workflow.
