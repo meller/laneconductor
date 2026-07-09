@@ -389,7 +389,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
     const result = await pool.query(
       `SELECT t.id, t.track_number, t.title, t.lane_status, t.progress_percent,
               t.current_phase, t.phase_step, t.content_summary, t.last_heartbeat, t.created_at,
-              t.last_heartbeat AS last_updated,
+              t.content_updated_at AS last_updated,
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,

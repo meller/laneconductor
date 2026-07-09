@@ -144,6 +144,14 @@ model tracks {
   sync_status             String?           @default("synced")
   last_updated_by         String?           @default("worker")
   last_heartbeat          DateTime?         @default(now()) @db.Timestamp(6)
+  // Bumped only when tracked content (lane_status, lane_action_status,
+  // progress_percent, current_phase, content_summary, or the *_content file
+  // bodies) actually changes — via a DB trigger, not application code. Unlike
+  // last_heartbeat (bumped by ANY worker activity, including pure liveness
+  // pings), this is what file<->DB sync conflict resolution should compare
+  // against, so a heartbeat ping moments after a fresh file edit doesn't make
+  // the DB look "newer" and overwrite the edit with stale content.
+  content_updated_at      DateTime?         @default(now()) @db.Timestamp(6)
   created_at              DateTime?         @default(now()) @db.Timestamp(6)
   last_updated_by_uid     String?
   claimed_by              String?

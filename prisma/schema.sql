@@ -131,6 +131,7 @@ CREATE TABLE "tracks" (
     "sync_status" TEXT DEFAULT 'synced',
     "last_updated_by" TEXT DEFAULT 'worker',
     "last_heartbeat" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "content_updated_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by_uid" TEXT,
     "claimed_by" TEXT,
