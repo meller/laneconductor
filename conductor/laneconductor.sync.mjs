@@ -1006,8 +1006,16 @@ function shouldPullFromDB(track, trackFolder) {
     affectedFiles.push('index.md');
   }
 
-  // Check if content_summary has changed (simple heuristic)
-  if (existsSync(indexPath)) {
+  // Check if content_summary has changed (simple heuristic) — only meaningful as a
+  // pull trigger when the file ISN'T already confirmed newer than the DB. Previously
+  // this fired on any mismatch regardless of recency, which meant a fresh local edit
+  // (file newer, so its Summary text legitimately differs from the DB's stale cached
+  // copy) would still mark the track as needing a DB→file pull — silently overwriting
+  // the just-made edit with stale DB data on the next sync tick. A mismatch only
+  // means "something out there is stale"; only recency (indexComparison) says which
+  // side that is. When the file is newer, a mismatch means the DB is the stale one —
+  // that's a push candidate (handled elsewhere via syncTrack), never a pull trigger.
+  if (indexComparison !== 'older' && existsSync(indexPath)) {
     try {
       const content = readFileSync(indexPath, 'utf8');
       const summaryMatch = content.match(/\*\*Summary\*\*:\s*(.+?)(?:\n|$)/);
@@ -1136,7 +1144,7 @@ async function pullTracksMetadataFromDB() {
       }
 
       // Pull metadata if DB is newer or equal
-      if (comparison === 'older' || comparison === 'equal') {
+      if (comparison === 'newer' || comparison === 'equal') {
         try {
           const success = updateIndexMDFromDB(fullTrackFolder, track);
           if (success) {
@@ -1211,7 +1219,7 @@ async function pullTrackContentFromDB(trackId, track, trackFolder) {
       const comparison = compareTimestamps(fileMtime, track.last_updated);
 
       // Only pull if DB is newer or equal
-      if (comparison === 'older' || comparison === 'equal') {
+      if (comparison === 'newer' || comparison === 'equal') {
         // Create backup before overwriting
         if (existsSync(filePath)) {
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

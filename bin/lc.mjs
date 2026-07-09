@@ -1607,10 +1607,23 @@ Please review this, answer any questions (some fields may contain questions rath
         }
         name = bracketGroups[0] || '';
         desc = bracketGroups[1] || '';
-    } else {
-        // Legacy: first arg = title, remaining = description
+    } else if (rawPositional.length <= 2) {
+        // Legacy, unambiguous: title and (optional) description as separate quoted args.
         name = rawPositional[0] || '';
-        desc = rawPositional.slice(1).join(' ') || '';
+        desc = rawPositional[1] || '';
+    } else {
+        // More than 2 raw args with no bracket notation almost always means the title
+        // was typed unquoted (each word became its own argv entry) — e.g.
+        // `lc new Goal page doesnt reflect fink score` instead of
+        // `lc new "Goal page doesnt reflect fink score"`. Silently taking just the
+        // first word as the title and dumping the rest into the description produces
+        // a garbled, hard-to-notice track (short slug, truncated summary). Treat the
+        // whole phrase as the title instead, and warn so the mistake is visible.
+        console.warn('⚠️  Multiple unquoted words detected — did you forget to quote the title?');
+        console.warn('    Treating the full phrase as the title (no description).');
+        console.warn('    For a title + description, use: lc new "Full Title" "Description"');
+        name = rawStr;
+        desc = '';
     }
 
     if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other]'); process.exit(1); }
@@ -1632,18 +1645,26 @@ Please review this, answer any questions (some fields may contain questions rath
     const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
 
     const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
-    const dirNums = existingDirs.map(d => parseInt(d.split('-')[0]));
+    const existingDirNumStrs = existingDirs.map(d => d.match(/^(\d+)/)[1]);
+    const dirNums = existingDirNumStrs.map(s => parseInt(s, 10));
 
     const allNums = [...queueNums, ...dirNums];
     const nextNum = allNums.length ? Math.max(...allNums) + 1 : 1000;
+    // Preserve whatever zero-padding width the project's existing tracks already use
+    // (e.g. 001-084 → width 3) instead of dropping it — a plain `${nextNum}` here
+    // silently broke the documented NNN-slug convention once padding was in play
+    // (produced "85-slug" instead of "085-slug"). Projects with no existing padded
+    // tracks (or starting fresh at 1000) are left unpadded, matching prior behavior.
+    const padWidth = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => s.length)) : 0;
+    const nextNumStr = String(nextNum).padStart(padWidth, '0');
 
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const trackFolderName = `${nextNum}-${slug}`;
+    const trackFolderName = `${nextNumStr}-${slug}`;
     const trackPath = join(tracksDir, trackFolderName);
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNum}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    const indexContent = `# Track ${nextNumStr}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types
@@ -1664,7 +1685,7 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     const now = new Date().toISOString();
-    const queueEntry = `\n### Track ${nextNum}: ${name}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${name}\n**Description**: ${desc || 'No description.'}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
+    const queueEntry = `\n### Track ${nextNumStr}: ${name}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${name}\n**Description**: ${desc || 'No description.'}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
     if (existsSync(queuePath)) {
         let existing = readFileSync(queuePath, 'utf8');
         existing = existing.replace(/^(## Config Sync Requests)/m, queueEntry + '$1');
@@ -1672,7 +1693,7 @@ Please review this, answer any questions (some fields may contain questions rath
     } else {
         writeFileSync(queuePath, `# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n${queueEntry}\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n`);
     }
-    console.log(`✅ Track ${nextNum} created in ${trackFolderName}`);
+    console.log(`✅ Track ${nextNumStr} created in ${trackFolderName}`);
     process.exit(0);
 } else if (command === 'measure') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
@@ -1875,19 +1896,23 @@ Please review this, answer any questions (some fields may contain questions rath
     const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
 
     const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
-    const dirNums = existingDirs.map(d => parseInt(d.split('-')[0]));
+    const existingDirNumStrs = existingDirs.map(d => d.match(/^(\d+)/)[1]);
+    const dirNums = existingDirNumStrs.map(s => parseInt(s, 10));
 
     const allNums = [...queueNums, ...dirNums];
     const nextNum = allNums.length ? Math.max(...allNums) + 1 : 1000;
+    // Preserve existing zero-padding width (see the `new` command's identical fix above).
+    const padWidth = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => s.length)) : 0;
+    const nextNumStr = String(nextNum).padStart(padWidth, '0');
 
     const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const trackFolderName = `${nextNum}-${isBug ? 'bug' : 'feat'}-${slug}`;
+    const trackFolderName = `${nextNumStr}-${isBug ? 'bug' : 'feat'}-${slug}`;
     const trackPath = join(tracksDir, trackFolderName);
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
 
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNum}: ${name}\n\n**Lane**: backlog\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    const indexContent = `# Track ${nextNumStr}: ${name}\n\n**Lane**: backlog\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     const specPath = join(trackPath, 'spec.md');
@@ -1895,15 +1920,15 @@ Please review this, answer any questions (some fields may contain questions rath
     writeFileSync(specPath, specContent);
 
     const planPath = join(trackPath, 'plan.md');
-    const planContent = `# Plan: Track ${nextNum} — ${name}\n\n## Phase 1: Execution\n- [ ] Implement and verify the ${typeLabel.toLowerCase()}.\n`;
+    const planContent = `# Plan: Track ${nextNumStr} — ${name}\n\n## Phase 1: Execution\n- [ ] Implement and verify the ${typeLabel.toLowerCase()}.\n`;
     writeFileSync(planPath, planContent);
 
     const testPath = join(trackPath, 'test.md');
-    const testContent = `# Tests: Track ${nextNum} — ${name}\n\n## Test Cases\n- [ ] Verify functionality works as expected.\n`;
+    const testContent = `# Tests: Track ${nextNumStr} — ${name}\n\n## Test Cases\n- [ ] Verify functionality works as expected.\n`;
     writeFileSync(testPath, testContent);
 
     const now = new Date().toISOString();
-    const queueEntry = `\n### Track ${nextNum}: ${name}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${name}\n**Description**: ${desc}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
+    const queueEntry = `\n### Track ${nextNumStr}: ${name}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${name}\n**Description**: ${desc}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
     
     if (existsSync(queuePath)) {
         let existing = readFileSync(queuePath, 'utf8');
@@ -1913,7 +1938,7 @@ Please review this, answer any questions (some fields may contain questions rath
         writeFileSync(queuePath, `# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n${queueEntry}\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n`);
     }
 
-    console.log(`✅ Created new ${typeLabel} Track ${nextNum} in ${trackFolderName}`);
+    console.log(`✅ Created new ${typeLabel} Track ${nextNumStr} in ${trackFolderName}`);
     process.exit(0);
 } else if (command === 'brainstorm') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
