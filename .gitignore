@@ -73,6 +73,9 @@ ui/.ui.pid
 ui/.api.pid
 .ui.pid
 .api.pid
+.logs.pid
+.logs.log
+.pinorama.msp
 
 # Guard against re-adding debug scripts
 tmp_*.mjs
