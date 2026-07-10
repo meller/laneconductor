@@ -66,6 +66,67 @@ function findProjectRoot(startDir = process.cwd()) {
 }
 
 /**
+ * Returns the PID recorded in pidFile if a live laneconductor.sync.mjs worker
+ * still owns it, else null (cleaning up a stale pidfile as a side effect).
+ * Guards against PID reuse: a dead worker's PID can be recycled by the OS for
+ * an unrelated process, so a bare `process.kill(pid, 0)` liveness check alone
+ * isn't enough — cross-check /proc/<pid>/cmdline on Linux where available.
+ */
+function getRunningWorkerPid(pidFile) {
+    if (!existsSync(pidFile)) return null;
+    const pid = parseInt(readFileSync(pidFile, 'utf8').trim(), 10);
+    if (!pid || Number.isNaN(pid)) {
+        try { unlinkSync(pidFile); } catch (e) { }
+        return null;
+    }
+    let alive = false;
+    try {
+        process.kill(pid, 0);
+        alive = true;
+    } catch (e) {
+        alive = false;
+    }
+    if (!alive) {
+        try { unlinkSync(pidFile); } catch (e) { }
+        return null;
+    }
+    const cmdlinePath = `/proc/${pid}/cmdline`;
+    if (existsSync(cmdlinePath)) {
+        try {
+            const cmdline = readFileSync(cmdlinePath, 'utf8');
+            if (!cmdline.includes('laneconductor.sync.mjs')) {
+                // PID was reused by an unrelated process; the real worker is gone.
+                try { unlinkSync(pidFile); } catch (e) { }
+                return null;
+            }
+        } catch (e) {
+            // /proc unreadable (permissions, race) — fall back to trusting the liveness check.
+        }
+    }
+    return pid;
+}
+
+/**
+ * Resolves the heartbeat worker's entry script: prefers a per-project copy at
+ * <projectRoot>/conductor/laneconductor.sync.mjs, falling back to the canonical
+ * copy in this LaneConductor installation. Returns { syncScript } on success, or
+ * { error } with the same message shape callers have historically printed.
+ * Shared by `start` and `restart` so the two can't silently drift apart again —
+ * `restart` previously skipped the canonical fallback entirely and crashed for
+ * any project relying on it (Track 1074).
+ */
+function resolveSyncScript(projectRoot) {
+    const local = join(projectRoot, 'conductor', 'laneconductor.sync.mjs');
+    if (existsSync(local)) return { syncScript: local };
+
+    const installPath = getInstallPath();
+    const canonical = join(installPath, 'conductor', 'laneconductor.sync.mjs');
+    if (existsSync(canonical)) return { syncScript: canonical };
+
+    return { error: `❌ Error: Heartbeat worker script not found at ${local} or ${canonical}` };
+}
+
+/**
  * Runs a conversational LLM call (not a slash command), streams output to terminal,
  * and returns the full response text. Used for brainstorm loops.
  * @param {object} cfg - Project config from .laneconductor.json
@@ -1262,17 +1323,18 @@ Please review this, answer any questions (some fields may contain questions rath
 
     const pidFile = join(projectRoot, 'conductor', '.sync.pid');
     const logFile = join(projectRoot, 'conductor', '.sync.log');
-    let syncScript = join(projectRoot, 'conductor', 'laneconductor.sync.mjs');
 
-    if (!existsSync(syncScript)) {
-        const installPath = getInstallPath();
-        const canonical = join(installPath, 'conductor', 'laneconductor.sync.mjs');
-        if (existsSync(canonical)) {
-            syncScript = canonical;
-        } else {
-            console.error(`❌ Error: Heartbeat worker script not found at ${syncScript} or ${canonical}`);
-            process.exit(1);
-        }
+    const existingPid = getRunningWorkerPid(pidFile);
+    if (existingPid) {
+        console.log(`⚠️  Worker already running for this project (PID: ${existingPid}).`);
+        console.log(`   Use "lc restart" to replace it, or "lc stop" then "lc start".`);
+        process.exit(0);
+    }
+
+    const { syncScript, error } = resolveSyncScript(projectRoot);
+    if (error) {
+        console.error(error);
+        process.exit(1);
     }
 
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
@@ -1321,8 +1383,20 @@ Please review this, answer any questions (some fields may contain questions rath
     }
     const pidFile = join(projectRoot, 'conductor', '.sync.pid');
     const logFile = join(projectRoot, 'conductor', '.sync.log');
-    const syncScript = join(projectRoot, 'conductor', 'laneconductor.sync.mjs');
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
+
+    // Resolve the entry script BEFORE touching the running worker — killing it
+    // and then failing to spawn a replacement leaves the project with no
+    // worker at all, which is strictly worse than refusing to restart
+    // (Track 1074: this used to hardcode the per-project path with no
+    // canonical fallback, so it always crashed here for projects without a
+    // local sync-script copy).
+    const { syncScript, error } = resolveSyncScript(projectRoot);
+    if (error) {
+        console.error(error);
+        process.exit(1);
+    }
+
     console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}...`);
 
     if (existsSync(pidFile)) {
