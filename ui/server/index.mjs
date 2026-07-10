@@ -63,6 +63,14 @@ async function queueFileSync(projectId, filePath, content, operation = 'overwrit
   }
 }
 
+// Track 1076: the `pg` default pool size (10) plus no connectionTimeoutMillis
+// (also defaults to 0 = wait forever for a free client) meant a burst of
+// concurrent requests — e.g. a worker's initial chokidar scan across many
+// tracks — queued silently until each request's *caller* timed out (15s+),
+// with nothing in this process's own logs indicating pool exhaustion was the
+// cause. Raising max is defense-in-depth (the real fix is capping concurrency
+// on the worker side); connectionTimeoutMillis turns a hung pool into a fast,
+// visible error instead of an indefinite silent wait.
 const pool = new pg.Pool({
   host: process.env.DB_HOST ?? 'localhost',
   port: Number(process.env.DB_PORT ?? 5432),
@@ -70,6 +78,8 @@ const pool = new pg.Pool({
   user: process.env.DB_USER ?? 'postgres',
   password: process.env.DB_PASSWORD ?? 'postgres',
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  max: 20,
+  connectionTimeoutMillis: 5000,
 });
 
 

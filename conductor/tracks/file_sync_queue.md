@@ -1,7 +1,6 @@
 ## Track Creation Requests
 
 
-
 ### Track 1068: Marketing & Sales (Biz Dev) Track Support
 **Status**: processed
 **Type**: track-create
@@ -11,6 +10,30 @@
 **Metadata**: { "priority": "high", "assignee": null }
 
 ## Completed Queue
+
+### Track 1076: Fix `/track` POST timeout + unverified queue "processed" marking
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-10T14:30:00.000Z
+**Title**: Fix `/track` POST timeout + unverified queue "processed" marking
+**Description**: Every POST /track times out at 15s during a full project reconcile (confirmed not a Postgres lock via pg_stat_activity — the slowness is in ui/server/index.mjs's handler). Separately, file_sync_queue.md marks track-create entries "processed" without verifying the POST actually succeeded, silently dropping them when the collector is down/slow — this is exactly what happened to Tracks 1074/1075 during this session. Also consider making the worker's reconcile pass incremental instead of touching every track on every restart.
+**Processed**: 2026-07-10T15:02:17.077Z
+
+### Track 1074: Fix `lc worker restart` missing canonical sync-script fallback
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-09T18:30:00.000Z
+**Title**: Fix `lc worker restart` missing canonical sync-script fallback
+**Description**: bin/lc.mjs's restart command hardcodes the per-project sync-script path with no fallback to the canonical installed copy (unlike start), so it kills the running worker and then crashes for any project without a local conductor/laneconductor.sync.mjs copy. Extract a shared resolveSyncScript() helper used by both start and restart, and reorder restart to validate the script exists before killing the old worker.
+**Processed**: 2026-07-10T14:27:17.405Z
+
+### Track 1075: Structured Pino logging for the worker + UI/API
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-09T18:30:00.000Z
+**Title**: Structured Pino logging for the worker + UI/API
+**Description**: Port coachai's Track 070 pattern (Pino + Pinorama) to LaneConductor's own worker (laneconductor.sync.mjs) and API (ui/server/index.mjs), via a standalone pinorama --server instance + pinorama-transport (not the pipe pattern, since both are detached background daemons) on its own port/storage path to avoid colliding with any managed project's own Pinorama.
+**Processed**: 2026-07-10T14:27:16.510Z
 
 ### Track 1073: Support Antigravity Extension
 **Status**: processed

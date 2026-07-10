@@ -589,6 +589,38 @@ function debounce(key, fn, ms = 250) {
   }, ms));
 }
 
+// Bounded concurrency gate — chokidar's `{ ignoreInitial: false }` fires one
+// 'add' event per pre-existing file when the worker starts, so a project with
+// N tracks × ~4 files each produces ~4N near-simultaneous syncTrack() calls
+// once their independent per-file debounce timers all elapse together (they
+// were all armed within milliseconds of each other at startup). Without a
+// cap, that thundering herd overwhelms the collector API's Postgres pool
+// (Track 1076: ~400 concurrent POST /track requests against a 10-connection
+// pool caused every request to queue behind the others, producing 15s+
+// timeouts on every worker start/restart for any project with many tracks).
+const MAX_CONCURRENT_SYNCS = 8;
+let activeSyncCount = 0;
+const syncWaitQueue = [];
+
+function withConcurrencyLimit(fn) {
+  return new Promise((resolveOuter, rejectOuter) => {
+    const run = async () => {
+      activeSyncCount++;
+      try {
+        resolveOuter(await fn());
+      } catch (err) {
+        rejectOuter(err);
+      } finally {
+        activeSyncCount--;
+        const next = syncWaitQueue.shift();
+        if (next) next();
+      }
+    };
+    if (activeSyncCount < MAX_CONCURRENT_SYNCS) run();
+    else syncWaitQueue.push(run);
+  });
+}
+
 if (!existsSync('conductor/logs')) mkdirSync('conductor/logs', { recursive: true });
 writeFileSync('conductor/.sync.pid', String(process.pid));
 
@@ -1369,8 +1401,16 @@ async function syncConductorFiles() {
 
 // ── Track sync ────────────────────────────────────────────────────────────────
 
+// Returns true if the track's collector POST succeeded (or nothing needed to
+// be sent), false if it failed. Track 1076: callers that need to know whether
+// the DB write actually landed (e.g. handleTrackCreate deciding whether to
+// mark a file_sync_queue entry "processed") previously had no way to tell —
+// this function caught and logged its own collector-POST failures without
+// ever rejecting, so a wrapping try/catch always saw success. The rest of the
+// function's behavior (Jira push, notifyApi, logging) is unchanged regardless
+// of this outcome — only the return value is new.
 async function syncTrack(filepath, laneActionStatus = undefined) {
-  if (getIsLocalFs()) return;
+  if (getIsLocalFs()) return true;
   try {
     const trackNumber = extractTrackNumber(filepath);
     const title = extractTitle(filepath);
@@ -1381,7 +1421,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     if (trackMeta && trackMeta.last_db_update) {
       const fileMtime = statSync(filepath).mtimeMs;
       const lastDbUpdateMs = new Date(trackMeta.last_db_update).getTime();
-      if (fileMtime < lastDbUpdateMs) return;
+      if (fileMtime < lastDbUpdateMs) return true; // already synced, nothing to do
     }
 
     const indexContent = readIfExists(join(trackDir, 'index.md'));
@@ -1460,14 +1500,16 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       }
     }
 
+    let collectorSynced = false;
     try {
       await postToCollectors('/track', payload);
-      
+
       updateTrackMetadata(trackNumber, {
         folder_path: trackDir,
         last_file_update: new Date().toISOString(),
         synced: true
       });
+      collectorSynced = true;
     } catch (e) {
       console.warn(`[sync warning] Failed to post to collector for ${trackNumber}: ${e.message}`);
     }
@@ -1536,8 +1578,10 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
 
     notifyApi('track:updated', { trackNumber, laneStatus, progress, projectId: getProject()?.id });
     console.log(`[sync] ${trackNumber} → ${laneStatus} (source: ${filename})`);
+    return collectorSynced;
   } catch (err) {
     console.error(`[sync error] ${filepath}:`, err.message);
+    return false;
   }
 }
 
@@ -1689,12 +1733,12 @@ const isConvFile = f => f.endsWith('conversation.md') && /[/\\]\d+[^/\\]*[/\\]co
 
 watch('conductor/tracks', { ignoreInitial: false, depth: 2 })
   .on('add', f => {
-    if (isConvFile(f)) debounce(`conv-${f}`, () => syncConversation(f));
-    else if (isTrackFile(f)) debounce(f, () => syncTrack(f));
+    if (isConvFile(f)) debounce(`conv-${f}`, () => withConcurrencyLimit(() => syncConversation(f)));
+    else if (isTrackFile(f)) debounce(f, () => withConcurrencyLimit(() => syncTrack(f)));
   })
   .on('change', f => {
-    if (isConvFile(f)) debounce(`conv-${f}`, () => syncConversation(f));
-    else if (isTrackFile(f)) debounce(f, () => syncTrack(f));
+    if (isConvFile(f)) debounce(`conv-${f}`, () => withConcurrencyLimit(() => syncConversation(f)));
+    else if (isTrackFile(f)) debounce(f, () => withConcurrencyLimit(() => syncTrack(f)));
   });
 
 watch(['conductor/code_styleguides'], { ignoreInitial: false })
@@ -2361,9 +2405,20 @@ async function handleTrackCreate(entry, queuePath) {
     // Still sync to DB — the normal chokidar/syncTrack path handles this
     const indexPath = join(tracksDir, existingDir, 'index.md');
     if (existsSync(indexPath)) {
-      await syncTrack(indexPath).catch(e =>
-        console.warn(`[file-queue] Failed to syncTrack for existing ${trackNumber}: ${e.message}`)
-      );
+      // Track 1076: only mark this entry "processed" once the DB write is
+      // actually confirmed — previously this checked syncTrack() via
+      // try/catch, but syncTrack() catches its own collector-POST failures
+      // internally and never rejects, so the catch here was dead code and
+      // the entry always got marked processed regardless of success. Now
+      // syncTrack() returns a boolean instead. Leaving it "pending" on
+      // failure lets the next heartbeat cycle retry (the exact failure mode
+      // that silently dropped Tracks 1074/1075 during this session).
+      const synced = await syncTrack(indexPath);
+      if (!synced) {
+        console.warn(`[file-queue] Failed to syncTrack for existing ${trackNumber} — leaving entry pending for retry`);
+        updateFileSyncQueueEntry(queuePath, entry.heading, 'pending');
+        return;
+      }
     }
     moveEntryToCompleted(queuePath, entry.heading, 'processed');
     return;
@@ -2384,6 +2439,15 @@ async function handleTrackCreate(entry, queuePath) {
 
   console.log(`[file-queue] Created track folder: ${trackDir}`);
 
+  // Track 1076: only mark this entry "processed" once at least one of the two
+  // DB-sync attempts below actually succeeds — folder creation is idempotent
+  // (the `existingDir` branch above handles re-runs), so it's safe to leave
+  // the entry "pending" and let the next heartbeat cycle retry rather than
+  // silently trusting an unverified "DB can sync later" assumption, which
+  // previously lost the track-create request whenever the collector was
+  // briefly down or overloaded (see Tracks 1074/1075 during this session).
+  let dbSynced = getIsLocalFs(); // no DB to sync in local-fs mode
+
   // Register in DB via API (if not local-fs mode)
   if (!getIsLocalFs()) {
     try {
@@ -2399,19 +2463,27 @@ async function handleTrackCreate(entry, queuePath) {
         last_updated_by: 'worker',
       });
       console.log(`[file-queue] Registered track ${trackNumber} in DB`);
+      dbSynced = true;
     } catch (err) {
       console.warn(`[file-queue] Failed to register track ${trackNumber} in DB: ${err.message}`);
-      // Don't fail — folder was created, DB can sync later via normal heartbeat
     }
   }
 
-  // Sync the new index.md to DB via normal syncTrack path
-  await syncTrack(join(trackPath, 'index.md')).catch(e =>
-    console.warn(`[file-queue] Failed to syncTrack for ${trackNumber}: ${e.message}`)
-  );
+  // Sync the new index.md to DB via normal syncTrack path — a second chance
+  // to confirm the row exists even if the direct POST above failed.
+  // syncTrack() returns a boolean rather than throwing (it catches its own
+  // collector-POST failures internally) — check the return value directly
+  // rather than try/catch, which would never have caught a real failure here.
+  const syncedViaSyncTrack = await syncTrack(join(trackPath, 'index.md'));
+  if (syncedViaSyncTrack) dbSynced = true;
 
-  moveEntryToCompleted(queuePath, entry.heading, 'processed');
-  console.log(`[file-queue] Processed track-create for track ${trackNumber}`);
+  if (dbSynced) {
+    moveEntryToCompleted(queuePath, entry.heading, 'processed');
+    console.log(`[file-queue] Processed track-create for track ${trackNumber}`);
+  } else {
+    console.warn(`[file-queue] Track ${trackNumber}'s folder was created but both DB sync attempts failed — leaving entry pending for retry`);
+    updateFileSyncQueueEntry(queuePath, entry.heading, 'pending');
+  }
 }
 
 async function handleConfigSync(entry, queuePath) {
