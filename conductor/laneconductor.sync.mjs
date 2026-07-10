@@ -25,6 +25,7 @@ import {
   mapLaneToLaneStatus,
   validateJiraStatuses,
 } from './jira-collector.mjs';
+import { logger } from './services/logger.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -954,7 +955,7 @@ async function pullWorkflow() {
     const { url, token } = primaryCollector();
     const proj = getProject();
     const r = await get(url, token, `/projects/${proj.id}/workflow`).catch(err => {
-      console.error('[sync error] pullWorkflow fetch:', err.message);
+      logger.error({ err }, '[sync error] pullWorkflow fetch');
       return null;
     });
     if (!r || !Object.keys(r).length) return;  // empty response → nothing to pull
@@ -969,7 +970,7 @@ async function pullWorkflow() {
       writeFileSync(workflowPath, jsonStr + '\n', 'utf8');
     }
   } catch (err) {
-    console.error('[sync error] pullWorkflow logic:', err.message);
+    logger.error({ err }, '[sync error] pullWorkflow logic');
   }
 }
 
@@ -1222,7 +1223,7 @@ async function pullTracksMetadataFromDB() {
       logSyncSummary(stats);
     }
   } catch (err) {
-    console.error('[sync error] pullTracksMetadataFromDB:', err.message);
+    logger.error({ err }, '[sync error] pullTracksMetadataFromDB');
     // Don't crash the worker on API errors - continue syncing
   }
 }
@@ -1366,8 +1367,7 @@ function logSyncDecision(trackNumber, file, decision, reason, dbTime, fsTime) {
  * Log heartbeat summary
  */
 function logSyncSummary(stats) {
-  const timestamp = new Date().toISOString();
-  console.log(`[SYNC-SUMMARY] ${timestamp} Heartbeat cycle: ${stats.checked} tracks checked, ${stats.pulled} pulled, ${stats.skipped} skipped, ${stats.conflicts} conflicts, ${stats.errors} errors`);
+  logger.info({ ...stats }, `[SYNC-SUMMARY] Heartbeat cycle: ${stats.checked} tracks checked, ${stats.pulled} pulled, ${stats.skipped} skipped, ${stats.conflicts} conflicts, ${stats.errors} errors`);
 }
 
 async function syncConductorFiles() {
@@ -1395,7 +1395,7 @@ async function syncConductorFiles() {
     lastConductorHash = hash;
     notifyApi('conductor:updated', { projectId: getProject().id });
   } catch (err) {
-    console.error('[sync error] conductor files:', err.message);
+    logger.error({ err }, '[sync error] conductor files');
   }
 }
 
@@ -1511,7 +1511,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       });
       collectorSynced = true;
     } catch (e) {
-      console.warn(`[sync warning] Failed to post to collector for ${trackNumber}: ${e.message}`);
+      logger.warn({ err: e, trackNumber }, '[sync warning] Failed to post to collector');
     }
 
     // Outbound: Push track changes to Jira if configured
@@ -1580,7 +1580,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     console.log(`[sync] ${trackNumber} → ${laneStatus} (source: ${filename})`);
     return collectorSynced;
   } catch (err) {
-    console.error(`[sync error] ${filepath}:`, err.message);
+    logger.error({ err, filepath }, '[sync error]');
     return false;
   }
 }
@@ -2240,12 +2240,12 @@ async function checkFileSyncQueue() {
 
           await patch(url, token, `/file-sync/${task.id}`, { status: 'done' });
         } catch (err) {
-          console.error(`[sync-queue] Failed task ${task.id} from ${url}:`, err.message);
+          logger.error({ err, taskId: task.id, url }, '[sync-queue] Failed task');
           await patch(url, token, `/file-sync/${task.id}`, { status: 'error', error_message: err.message });
         }
       }
     } catch (err) {
-      console.error(`[sync-queue error] ${url}:`, err.message);
+      logger.error({ err, url }, '[sync-queue error]');
     }
   }
 }

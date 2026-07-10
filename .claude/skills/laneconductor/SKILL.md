@@ -1569,6 +1569,48 @@ The system adds a "Moved to [lane]" or "Human comment" marker which **resets the
 
 ---
 
+## Dev Logging (Worker + API)
+
+Track 1075: the heartbeat worker (`conductor/laneconductor.sync.mjs`) and the Collector API
+(`ui/server/index.mjs`) each have a structured Pino logger (`conductor/services/logger.mjs` and
+`ui/server/logger.mjs` respectively) that fans out to two destinations:
+
+- **stdout** — unchanged from before; still captured into `conductor/.sync.log` / `ui/.api.log`
+  by `bin/lc.mjs`'s spawn redirect, so existing `tail -f` workflows keep working.
+- **A standalone Pinorama log viewer** — a live, searchable web UI showing both processes' logs
+  together, filterable by `component` (`"worker"` or `"api"`).
+
+**Why a standalone instance, not the documented `node app.js | pinorama` pipe**: both the worker
+and API are detached background daemons managed by PID file (`lc worker start/stop`, `lc api
+start/stop`), not a single foreground process — there's nothing to pipe. Instead, both loggers
+ship to a persistently-running `pinorama --server` instance via `pinorama-transport` (an HTTP
+transport target), started/stopped independently.
+
+**Managing the viewer**:
+```bash
+lc logs start   # starts the standalone Pinorama server (port 6201)
+lc logs stop
+lc logs status
+lc logs open    # starts it if needed, then opens http://localhost:6201 in a browser
+```
+`lc worker start`, `lc worker restart`, and `lc api start` all best-effort auto-start the log
+viewer already — you usually don't need to call `lc logs start` yourself.
+
+**Port/storage convention — do not reuse for anything else**: this runs on **port 6201** with its
+own storage file (`<install-path>/.pinorama.msp`), deliberately different from the default port
+(6200) and storage path a *managed project* might use for its own Pinorama instance (e.g.
+coachai's `make local-start` pipes its dev server into `pinorama --open` on the default port).
+The two must never collide — always use 6201 (or `LC_PINORAMA_PORT`) for LaneConductor's own
+logs, never the default.
+
+**Logging from worker/API code**: import the shared `logger` and call it like any Pino logger —
+`logger.info({ trackNumber }, 'message')`, `logger.warn({ err }, 'message')`,
+`logger.error({ err }, 'message')`. Only a handful of the noisiest existing `console.*` call
+sites have been migrated so far (proof of concept, not a full migration) — new code should use
+`logger` directly rather than `console.*`.
+
+---
+
 ## Best Practices
 
 1. **Keep index.md lean**: It is the "Status File" for the project. Always update it when status or progress changes.

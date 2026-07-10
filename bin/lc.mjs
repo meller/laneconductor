@@ -1353,6 +1353,12 @@ Please review this, answer any questions (some fields may contain questions rath
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
     console.log(`✅ Worker started (PID: ${worker.pid})`);
+
+    // Track 1075: best-effort — a worker that can't ship logs to the viewer
+    // should still start. The log viewer is a LaneConductor-wide singleton
+    // (see `lc logs`), so this is safe to call from every project's worker.
+    try { spawnSync('node', [__filename, 'logs', 'start'], { stdio: 'ignore' }); } catch (e) { }
+
     process.exit(0);
 } else if (command === 'stop') {
     if (!projectRoot) {
@@ -1412,6 +1418,9 @@ Please review this, answer any questions (some fields may contain questions rath
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
     console.log(`✅ Worker restarted (PID: ${worker.pid})`);
+
+    try { spawnSync('node', [__filename, 'logs', 'start'], { stdio: 'ignore' }); } catch (e) { }
+
     process.exit(0);
 } else if (command === 'worker') {
     const sub = args[1] || 'status';
@@ -1458,6 +1467,9 @@ Please review this, answer any questions (some fields may contain questions rath
         writeFileSync(apiPidFile, api.pid.toString());
         api.unref();
         console.log(`✅ API started (PID: ${api.pid}) → http://localhost:8091`);
+
+        try { spawnSync('node', [__filename, 'logs', 'start'], { stdio: 'ignore' }); } catch (e) { }
+
         process.exit(0);
     } else if (subCommand === 'stop') {
         if (existsSync(apiPidFile)) {
@@ -1517,6 +1529,86 @@ Please review this, answer any questions (some fields may contain questions rath
         // Stop API too
         spawnSync('node', [__filename, 'api', 'stop'], { stdio: 'inherit' });
         process.exit(0);
+    }
+} else if (command === 'logs') {
+    // Track 1075: standalone Pinorama log viewer for the worker + API's own
+    // structured logs. Runs as a persistent `pinorama --server` instance
+    // (not the documented pipe pattern) because both log sources are
+    // detached background daemons, not a single foreground process — see
+    // conductor/tracks/1075-pino-logging-worker-and-ui/spec.md. Deliberately
+    // on a different port (6201) and storage path than any managed
+    // project's own Pinorama (which defaults to port 6200 and a shared
+    // tmpdir file), so the two never collide.
+    const subCommand = args[1] || 'start';
+    const installPath = getInstallPath();
+    const LOGS_PORT = process.env.LC_PINORAMA_PORT || '6201';
+    const pidFile = join(installPath, '.logs.pid');
+    const logFile = join(installPath, '.logs.log');
+    const dbPath = join(installPath, '.pinorama.msp');
+
+    if (subCommand === 'start') {
+        if (existsSync(pidFile)) {
+            const pid = readFileSync(pidFile, 'utf8').trim();
+            try {
+                process.kill(pid, 0);
+                console.log(`✅ Log viewer already running (PID: ${pid}) → http://localhost:${LOGS_PORT}`);
+                process.exit(0);
+            } catch (e) { /* stale */ }
+        }
+        console.log('🚀 Starting LaneConductor log viewer...');
+        const logFd = openSync(logFile, 'a');
+        // Invoke the CLI's entry script directly with `node` rather than via
+        // `npx pinorama` — npx (or pinorama-studio's own internals) forks a
+        // wrapper whose PID doesn't match the actual listening process, so
+        // `stop`'s `process.kill(pid)` killed the wrapper and left the real
+        // server orphaned and still holding the port (found while verifying
+        // this command). Spawning the script directly makes `viewer.pid` the
+        // real, killable process.
+        const pinoramaEntry = join(installPath, 'node_modules', 'pinorama-studio', 'cli.mjs');
+        const viewer = spawn('node', [
+            pinoramaEntry, '--server', '--port', LOGS_PORT,
+            '--server-db-path', dbPath,
+        ], {
+            cwd: installPath,
+            detached: true,
+            stdio: ['ignore', logFd, logFd],
+        });
+        writeFileSync(pidFile, viewer.pid.toString());
+        viewer.unref();
+        console.log(`✅ Log viewer started (PID: ${viewer.pid}) → http://localhost:${LOGS_PORT}`);
+        process.exit(0);
+    } else if (subCommand === 'stop') {
+        if (existsSync(pidFile)) {
+            const pid = readFileSync(pidFile, 'utf8').trim();
+            try { process.kill(pid); console.log(`✅ Log viewer stopped (PID: ${pid})`); } catch (e) { }
+            unlinkSync(pidFile);
+        } else {
+            console.log('⚠️  No log viewer running (no .logs.pid found)');
+        }
+        process.exit(0);
+    } else if (subCommand === 'status') {
+        let running = false;
+        let pid = null;
+        if (existsSync(pidFile)) {
+            pid = readFileSync(pidFile, 'utf8').trim();
+            try { process.kill(pid, 0); running = true; } catch (e) { unlinkSync(pidFile); }
+        }
+        console.log(`\n📊 Log Viewer Status: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
+        if (pid && running) console.log(`   PID: ${pid}`);
+        console.log(`   URL: http://localhost:${LOGS_PORT}`);
+        console.log(`   Log: ${logFile}\n`);
+        process.exit(0);
+    } else if (subCommand === 'open') {
+        spawnSync('node', [__filename, 'logs', 'start'], { stdio: 'inherit' });
+        const url = `http://localhost:${LOGS_PORT}`;
+        const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+        try { spawnSync(opener, [url], { stdio: 'ignore' }); } catch (e) { }
+        console.log(`📊 Dashboard: ${url}`);
+        process.exit(0);
+    } else {
+        console.error(`❌ Unknown logs command: ${subCommand}`);
+        console.error('   Usage: lc logs [start|stop|status|open]');
+        process.exit(1);
     }
 } else if (command === 'status') {
     if (!projectRoot) {
