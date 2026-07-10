@@ -13,6 +13,7 @@ import { createServer } from 'http';
 import { initWebSocket, broadcast } from './wsBroadcast.mjs';
 import { slugify, trackTemplates, appendRegressionTest } from './utils.mjs';
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
+import { logger } from './logger.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -535,7 +536,7 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
       await client.query('COMMIT');
     } catch (dbErr) {
       await client.query('ROLLBACK');
-      console.error(`[track-create] DB failure: ${dbErr.message}`);
+      logger.error({ err: dbErr }, '[track-create] DB failure');
       return res.status(500).json({ error: 'Failed to reserve track in DB: ' + dbErr.message });
     } finally {
       client.release();
@@ -580,7 +581,7 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
           writeFileSync(queuePath, '# File Sync Queue\n\n## Track Creation Requests\n' + queueEntry + '\n## Completed Queue\n', 'utf8');
         }
       } catch (fsErr) {
-        console.warn(`[track-create] FS warning for project ${req.params.id}: ${fsErr.message}`);
+        logger.warn({ err: fsErr, projectId: req.params.id }, '[track-create] FS warning');
         // Non-fatal: the DB is updated, and the worker can still pick it up if it syncs from DB → FS later
       }
     }
@@ -770,7 +771,7 @@ app.post('/api/projects/:id/workflow', async (req, res) => {
       writeFileSync(diskPath, jsonStr + '\n', 'utf8');
     }
 
-    console.log(`[workflow] Updated workflow.json for project ${req.params.id}`);
+    logger.info({ projectId: req.params.id }, '[workflow] Updated workflow.json');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -913,7 +914,7 @@ app.patch('/api/projects/:id/config', async (req, res) => {
       writeFileSync(join(repo_path, '.laneconductor.json'), JSON.stringify(lcJson, null, 2) + '\n', 'utf8');
     }
 
-    console.log(`[config] Updated project config for project ${req.params.id}`);
+    logger.info({ projectId: req.params.id }, '[config] Updated project config');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1059,10 +1060,10 @@ async function syncTrackToFile(projectId, trackNum, updates) {
     // Write back to file
     writeFileSync(trackIndexPath, content, 'utf8');
 
-    console.log(`[sync-to-file] Track ${trackNum} synced: ${Object.keys(updates).join(', ')}`);
+    logger.info({ trackNum, updatedFields: Object.keys(updates) }, '[sync-to-file] Track synced');
     return true;
   } catch (err) {
-    console.error(`[sync-to-file] Error syncing track ${trackNum}:`, err.message);
+    logger.error({ err, trackNum }, '[sync-to-file] Error syncing track');
   }
 }
 
