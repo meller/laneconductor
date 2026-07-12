@@ -674,11 +674,15 @@ Choice [1]: `) || '1';
 Primary AI agent:
   [1] claude  (recommended)
   [2] antigravity (agy)
-  [3] gemini
+  [3] gemini (retired — use antigravity)
   [4] other
 Choice [1]: `) || '1';
         const agentMap = { '1': 'claude', '2': 'agy', '3': 'gemini', '4': 'other' };
         const primaryCli = agentMap[agentChoice] || 'claude';
+        if (primaryCli === 'gemini') {
+            console.warn('⚠️  Gemini CLI was retired by Google — antigravity (agy) is now recommended.');
+            console.warn('   Continuing with gemini; switch later with: lc config project.primary.cli agy');
+        }
         const primaryModel = await question(`Primary model [default]: `) || null;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
@@ -689,10 +693,14 @@ Choice [1]: `) || '1';
 Secondary AI agent:
   [1] claude
   [2] antigravity (agy)
-  [3] gemini
+  [3] gemini (retired — use antigravity)
   [4] other
 Choice [${secAgentChoice}]: `) || secAgentChoice;
             const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : (secAgentChoice === '2' ? 'agy' : 'gemini'));
+            if (secCli === 'gemini') {
+                console.warn('⚠️  Gemini CLI was retired by Google — antigravity (agy) is now recommended.');
+                console.warn('   Continuing with gemini; switch later with: lc config project.secondary.cli agy');
+            }
             const secModel = await question(`Secondary model [default]: `) || null;
             secondary = { cli: secCli, model: secModel || null };
         }

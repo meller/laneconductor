@@ -11,6 +11,14 @@
 
 ## Completed Queue
 
+### Track 1077: Migrate Gemini CLI support to Antigravity
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-12T09:45:00.000Z
+**Title**: Migrate Gemini CLI support to Antigravity
+**Description**: Google retired the standalone Gemini CLI in favor of Antigravity. Update LaneConductor's agent config (lc setup's CLI selection wizard, bin/lc.mjs's reachability/model-discovery checks, track 1013's multi-CLI agent support) to detect and drive Antigravity instead of `gemini`/`npx @google/gemini-cli`. Complements track 1073 (which made LaneConductor discoverable *by* Antigravity as a workspace skill) — this is LaneConductor driving Antigravity as an agent CLI.
+**Processed**: 2026-07-12T09:48:56.805Z
+
 ### Track 1076: Fix `/track` POST timeout + unverified queue "processed" marking
 **Status**: processed
 **Type**: track-create
