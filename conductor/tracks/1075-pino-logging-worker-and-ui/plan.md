@@ -83,4 +83,43 @@
       reused for a managed project's own Pinorama), and how to log from
       worker/API code going forward.
 
+## Phase 6: API crash resilience (found via Pinorama investigation)
+
+**Problem**: the new logging surfaced 4 crashes already sitting in `ui/.api.log`
+that pino hadn't caught since they predate the pool/listen code paths being
+migrated — all from the same root cause: an EventEmitter's `'error'` event
+with no listener, which Node treats as an uncaught exception and kills the
+whole process. No supervisor auto-restarts it, so each crash required a
+manual `make api-start` (this is why the dashboard needed restarting the
+morning of 2026-07-11).
+
+- [x] `pool.on('error', ...)` on the pg `Pool` in `ui/server/index.mjs` —
+      3x in the log, Postgres administratively terminating an idle pooled
+      client (`FATAL 57P01 terminating connection due to administrator
+      command`) crashed the entire API instead of just that connection.
+      Logged via `logger.error` (pino/Pinorama) rather than `console`.
+- [x] `server.on('error', ...)` on the http server, ahead of
+      `server.listen(PORT, ...)` — 1x in the log, `EADDRINUSE` (port already
+      held by another instance) crashed with a raw stack trace instead of
+      exiting cleanly. Now logs a clear message via `logger.error` and exits
+      with code 1.
+- [x] **Second unhandled-'error' source found during verification**:
+      `ws`'s `WebSocketServer` (constructed with `{ server }` in
+      `wsBroadcast.mjs`) re-emits the underlying http server's `'error'`
+      event onto itself. Since that re-emission has no listener, it throws
+      *before* the `server.on('error', ...)` handler above ever runs
+      (registered later = called later; the re-emit's own throw happens
+      inside the first, ws-internal listener). Confirmed by reproducing the
+      EADDRINUSE crash live — the `server.on('error')` handler alone did not
+      stop the crash. Fixed by adding `wss.on('error', ...)` directly in
+      `wsBroadcast.mjs`, at the actual source of the re-emission.
+- [x] Verified both fixes live against the running dev API (PID 1298660):
+      `pg_terminate_backend()` on one of the pool's idle connections —
+      process survived, pino line `[db] idle client error (connection
+      dropped, pool recovers)` landed correctly. Then started a second
+      `node server/index.mjs` against the already-bound port — logged
+      `[ws] WebSocketServer error` + `[LaneConductor API] Port 8091 already
+      in use`, exited 1 cleanly, original instance (PID 1298660) confirmed
+      still healthy via `/api/health` afterward.
+
 ## ✅ COMPLETE
