@@ -7,6 +7,16 @@ const clients = new Set();
 export function initWebSocket(server) {
   wss = new WebSocketServer({ server });
 
+  // `ws` re-emits the underlying http server's 'error' event onto `wss`
+  // (see lib/websocket-server.js's addListeners). With no listener here,
+  // that re-emission is itself an unhandled 'error' event and crashes the
+  // process — and since this listener is attached before index.mjs's own
+  // server.on('error', ...) handler, it throws before that handler ever
+  // runs. Must be handled here at the source.
+  wss.on('error', (err) => {
+    console.error('[ws] WebSocketServer error:', err);
+  });
+
   wss.on('connection', (ws) => {
     clients.add(ws);
     console.log(`[ws] Client connected. Total clients: ${clients.size}`);

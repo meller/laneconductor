@@ -83,6 +83,14 @@ const pool = new pg.Pool({
   connectionTimeoutMillis: 5000,
 });
 
+// Idle pooled clients emit 'error' when Postgres drops them (e.g. admin-killed
+// connection, restart, max_connections churn). Without this handler that event
+// is unhandled and Node crashes the *entire* process on the next idle-client
+// hiccup — happened 3x in production logs before this fix (track 1075 follow-up).
+pool.on('error', (err) => {
+  logger.error({ err }, '[db] idle client error (connection dropped, pool recovers)');
+});
+
 
 const app = express();
 const server = createServer(app);
@@ -2809,6 +2817,18 @@ async function ensureGitGlobalId() {
 }
 
 if (process.env.NODE_ENV !== 'test') {
+  // Without this handler, a failed listen() (e.g. EADDRINUSE from a stale/
+  // duplicate process still holding the port) is an unhandled 'error' event
+  // and crashes with a raw stack trace instead of a clear, logged exit.
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      logger.error({ err, port: PORT }, `[LaneConductor API] Port ${PORT} already in use — another instance is likely still running`);
+    } else {
+      logger.error({ err, port: PORT }, '[LaneConductor API] Failed to start listening');
+    }
+    process.exit(1);
+  });
+
   server.listen(PORT, async () => {
     console.log(`[LaneConductor API] Listening on:${PORT}`);
     // console.log('[LaneConductor API] Auth: configured via auth module');
