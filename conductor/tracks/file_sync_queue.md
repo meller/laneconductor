@@ -1,5 +1,12 @@
 ## Track Creation Requests
 
+### Track 1078: Add conductor/design-language.md to project scaffolding
+**Status**: processing
+**Type**: track-create
+**Created**: 2026-07-12T13:10:00.000Z
+**Title**: Add conductor/design-language.md to project scaffolding
+**Description**: Scaffolded projects have tech-stack.md, product.md, workflow.md, product-guidelines.md, etc. but no dedicated design-system/design-language doc (color tokens, typography scale, spacing, component conventions, light/dark variants) — today it's only a thin 4-bullet subsection buried in product-guidelines.md. Maintaining a standalone design-language doc is common industry practice now. Needs wiring into SKILL.md's setup scaffold generate file list, its progress-print block, setup scaffold Mode A's inference list, the "Both modes create" file tree, and /laneconductor review's Load Context step (which already reads product-guidelines.md). Also decide during planning whether /laneconductor implement should read it too (it currently reads neither guidelines file), so UI work is guided by it while being written, not just checked after in review.
+**Metadata**: { "priority": "medium", "assignee": null }
 
 ### Track 1068: Marketing & Sales (Biz Dev) Track Support
 **Status**: processed
