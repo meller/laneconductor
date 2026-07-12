@@ -237,10 +237,38 @@ Your job is **only to generate the context files**. Do not ask questions.
 - **`conductor/tech-stack.md`** — languages, frameworks, databases, infrastructure, key libraries
 - **`conductor/workflow.md`** — commit strategy, branching, testing approach, code review process
 - **`conductor/product-guidelines.md`** — brand/style/UX principles (stub with placeholders if unknown)
+- **`conductor/design-language.md`** — color tokens (light/dark), typography scale, spacing system, component conventions, iconography/motion (stub with placeholders if unknown; see template below)
 - **`conductor/deployment-stack.md`** — stub: "Not configured. Run `lc setup-deploy`."
 - **`conductor/kpis.md`** — project north-star metrics (see KPI template below)
 - **`conductor/tracks/`** and **`conductor/code_styleguides/`** — create dirs if missing
 - **`.claude/MEMORY.md`** — create if not present
+
+**`conductor/design-language.md` template** (infer from existing Tailwind/CSS-variable config,
+component library theme, or design-token files if present; otherwise leave placeholders):
+```markdown
+# Design Language
+
+## Color Tokens
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| <e.g. background> | <hex/var> | <hex/var> | <context> |
+
+## Typography Scale
+- Font family: <family>
+- Scale: <e.g. 12/14/16/20/24/32px, weight 400/500/600>
+
+## Spacing System
+- Base unit: <e.g. 4px>
+- Scale: <e.g. 4/8/12/16/24/32/48>
+
+## Component Conventions
+- <e.g. buttons: rounded-md, primary/secondary/ghost variants>
+- <e.g. cards: border + subtle shadow, no heavy elevation>
+
+## Iconography / Motion
+- <icon set / style>
+- <motion: none / subtle / expressive — note any animation conventions>
+```
 
 **`conductor/kpis.md` template** (populate from brainstorm_summary if it contains goal/metric statements; otherwise use stubs):
 ```markdown
@@ -263,6 +291,7 @@ Print progress as you write each file:
 📝 Writing conductor/tech-stack.md...         ✅
 📝 Writing conductor/workflow.md...           ✅
 📝 Writing conductor/product-guidelines.md... ✅
+📝 Writing conductor/design-language.md...    ✅
 📝 Writing conductor/deployment-stack.md...   ✅
 📝 Writing conductor/kpis.md...               ✅
 ```
@@ -302,6 +331,9 @@ Asks first:
    - `deployment-stack.md` — stub: "Not configured. Run `lc setup-deploy`."
    - `workflow.md` — inferred from `.git` log patterns, CI files, test setup
    - `product-guidelines.md` — minimal template (hard to infer; leave stubs for user)
+   - `design-language.md` — inferred from existing Tailwind/CSS-variable config, component
+     library theme (e.g. shadcn, MUI theme), or design-token files if present; otherwise
+     minimal template like `product-guidelines.md`
    - `code_styleguides/` — inferred from `.eslintrc`, `.prettierrc`, `tsconfig.json` if present
 3. Ask one KPI question: **"What does success look like? What are your 2–3 north-star metrics and rough targets?"** — use answer to populate `kpis.md`; if user skips, generate stub rows from README/product description inferences
 
@@ -322,6 +354,7 @@ conductor/
 ├── code_styleguides/
 ├── product.md
 ├── product-guidelines.md
+├── design-language.md
 ├── tech-stack.md
 ├── deployment-stack.md
 ├── workflow.md
@@ -1066,6 +1099,22 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Include a `### Publish Instructions` subsection with step-by-step numbered instructions.
     - Do NOT create a separate `draft.md` — everything stays in spec.md.
     - Moving the track to implement (drag or Run) IS the approval — no extra gate needed.
+5b. **Fundamentals-conflict guardrail**: if, while planning, the track's requirements appear
+    to conflict with or require a change to one of the project's fundamental docs
+    (`product-guidelines.md`, `design-language.md`, `tech-stack.md`, `workflow.md`) — e.g. the
+    requested UI contradicts the documented design tokens, or a dependency choice conflicts
+    with the documented stack — do NOT silently edit that fundamental doc as part of this
+    track's plan. Instead:
+    - Append a comment to `conductor/tracks/NNN-*/conversation.md`:
+      ```
+      > **system**: ⚠️ FUNDAMENTALS CONFLICT — this track's [requirement] appears to require
+      changing conductor/[doc].md ([specific conflict]). Continuing implementation as
+      specified; doc not modified — please review whether conductor/[doc].md should be
+      updated.
+      ```
+    - Note the same flag in `spec.md`'s Requirements section as an open item for human review.
+    - This is **non-blocking** by default — the track continues through planning; a human
+      reviews and decides whether to update the fundamental doc or adjust the track's approach.
 6.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
 7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`.
 
@@ -1113,6 +1162,9 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    - Read `conductor/tracks/NNN-*/plan.md` to understand phases
    - Read `conductor/tracks/NNN-*/spec.md` for technical details and `**Type**` 
    - Read `conductor/deployment-stack.md` (if present) for deployment context
+   - Read `conductor/product-guidelines.md` (if present) for brand/style/UX principles
+   - Read `conductor/design-language.md` (if present) for concrete design tokens/conventions
+   - Read `conductor/tech-stack.md` (if present) for the project's languages/frameworks/deps
    - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first, run the test and confirm it fails, then write minimal code to make it pass, then confirm green.
    - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. Treat human comments as overriding instructions.
    - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed.
@@ -1133,6 +1185,16 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    - Set `**Waiting for reply**: yes` in index.md.
    - The worker will detect "done" reply in conversation.md and automatically schedule the quality gate.
    - **Stop here** — do not transition the lane yourself. The worker handles the transition.
+
+3b. **Fundamentals-conflict guardrail** (dev tracks): checked against the
+   `product-guidelines.md`/`design-language.md`/`tech-stack.md` content loaded in step 2 — if
+   what this track needs to build conflicts with, or implies a needed change to, one of those
+   fundamental docs (or `workflow.md`), do NOT silently write code that contradicts them, and
+   do NOT silently rewrite the fundamental doc either. Append the same `⚠️ FUNDAMENTALS CONFLICT`
+   comment format used in `/laneconductor plan` to `conversation.md`, naming the specific doc
+   and conflict. Non-blocking by default — continue implementing as specified unless the
+   conflict is severe enough that proceeding would be actively wrong (in which case treat it
+   like any other blocker: stop and flag for human input instead of guessing).
 
 4. **Dev track: For each phase** (skip for non-dev tracks):
    - Implement tasks
@@ -1164,7 +1226,7 @@ Structured review of a track against its plan and product guidelines. Posts the 
 
 0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
 1. **Load Context**:
-   - Read `plan.md`, `spec.md`, `test.md`, `product-guidelines.md`, and `deployment-stack.md` (if present).
+   - Read `plan.md`, `spec.md`, `test.md`, `product-guidelines.md`, `design-language.md`, and `deployment-stack.md` (if present).
    - Read `conversation.md` to see if previous review gaps were addressed or if the user provided specific instructions.
 2. **Evaluate**: Check implementation against requirements and guidelines.
    - **Secrets Policy**: Ensure no secrets are hardcoded or leaked in logs. Verify use of ADC/Secret Manager as specified in `deployment-stack.md`.
