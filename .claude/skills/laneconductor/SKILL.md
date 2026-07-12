@@ -383,7 +383,7 @@ The heartbeat worker will then pick them up via `ignoreInitial: false` on next `
 After scaffolding files, you MUST verify the project environment:
 1.  **Check Dependencies**: Verify if `chokidar` is installed (`npm list chokidar` or checking `package.json`).
 2.  **Check Git**: Verify `git rev-parse --is-inside-work-tree` and detect current branch naming (e.g., `main` vs `master`).
-3.  **Check Binaries**: Verify that the agents configured in `.laneconductor.json` (e.g., `claude`, `gemini`) are accessible in the system `PATH`.
+3.  **Check Binaries**: Verify that the agents configured in `.laneconductor.json` (e.g., `claude`, `agy`, `gemini`) are accessible in the system `PATH`.
 
 **If issues are found:**
 - Report them clearly: `⚠️  Environment Issue: <detailed description>`.
@@ -494,18 +494,23 @@ Sets up the **collection destination** — configures the operating mode, AI age
    Write all configurations to `.laneconductor.json` and tokens to `.env` (if using token storage).
    Ensure `.gitignore` exists and contains `.env`.
 
-4. **Primary agent** — ask which CLI drives this project (`claude` / `gemini` / `other`).
+4. **Primary agent** — ask which CLI drives this project (`claude` / `antigravity (agy)` /
+   `gemini (retired)` / `other`).
    Then:
    a. **Verify reachability** by running the version check:
 
-   | Agent  | Check command                     | Passes if               |
-   |--------|-----------------------------------|-------------------------|
-   | claude | `claude --version`                | exits 0, prints version |
-   | gemini | `npx @google/gemini-cli --version`| exits 0, prints version |
-   | other  | ask for CLI command, then run it  | exits 0                 |
+   | Agent           | Check command                      | Passes if               |
+   |-----------------|-------------------------------------|-------------------------|
+   | claude          | `claude --version`                 | exits 0, prints version |
+   | antigravity/agy | `agy --version`                    | exits 0, prints version |
+   | gemini (retired)| `npx @google/gemini-cli --version` | exits 0, prints version |
+   | other           | ask for CLI command, then run it   | exits 0                 |
 
    **On success:** print `✅ <agent> reachable — <version>`
    **On failure:** warn, ask `Continue anyway? [y/N]:` — abort if N.
+   **If `gemini` is chosen:** additionally warn that Gemini CLI was retired by Google and
+   antigravity is now recommended (see `bin/lc.mjs`'s setup wizard for the exact wording) —
+   non-blocking, setup still proceeds if the user continues anyway.
 
    b. **Discover models dynamically** — do NOT present a hardcoded list (except for Claude).
    For Claude, the CLI uses aliases. Do not run a discovery command. Instead, recommend:
@@ -515,10 +520,11 @@ Sets up the **collection destination** — configures the operating mode, AI age
 
    For others, run a one-shot prompt to get current models:
 
-   | Agent  | Discovery command |
-   |--------|------------------|
-   | gemini | `npx @google/gemini-cli -p "List the available Gemini model IDs as a plain newline-separated list, no commentary"` |
-   | other  | ask user: `Model name (leave blank to set later):` |
+   | Agent           | Discovery command |
+   |-----------------|------------------|
+   | antigravity/agy | no known non-interactive model-listing command yet — ask user: `Model name (leave blank to set later):` |
+   | gemini (retired)| `npx @google/gemini-cli -p "List the available Gemini model IDs as a plain newline-separated list, no commentary"` |
+   | other           | ask user: `Model name (leave blank to set later):` |
 
    Parse the output and present the discovered model IDs as choices.
    If discovery fails or times out (>15s), fall back to asking the user to type a model name.
@@ -526,7 +532,7 @@ Sets up the **collection destination** — configures the operating mode, AI age
 
    c. Ask: `Primary model [default]:` (emphasize that blank = best default)
 
-4. **Secondary agent** (optional) — ask `Add a secondary AI CLI? (none / claude / gemini / other)`.
+4. **Secondary agent** (optional) — ask `Add a secondary AI CLI? (none / claude / antigravity / gemini (retired) / other)`.
    If not `none`: repeat reachability check + model discovery for that CLI.
    Ask: `Secondary model [default]:` (emphasize that blank = best default)
 
@@ -558,7 +564,7 @@ Sets up the **collection destination** — configures the operating mode, AI age
     "repo_path": "<absolute-path>",
     "git_remote": "<git-remote-or-null>",
     "primary": { "cli": "claude", "model": "<selected-model>" },
-    "secondary": { "cli": "gemini", "model": "<selected-model>" },
+    "secondary": { "cli": "agy", "model": "<selected-model>" },
     "dev": { "command": "npm run dev", "url": "http://localhost:3000" }
   },
   "collectors": [{ "url": "http://localhost:8091", "token": null }],
@@ -1489,7 +1495,7 @@ CREATE TABLE IF NOT EXISTS projects (
   repo_path       TEXT UNIQUE NOT NULL,
   git_remote      TEXT,
   git_global_id   UUID UNIQUE,            -- UUID v5 from git_remote (URL namespace); null if no remote
-  primary_cli     TEXT DEFAULT 'claude',  -- claude|gemini|other
+  primary_cli     TEXT DEFAULT 'claude',  -- claude|agy|gemini|other
   primary_model   TEXT,
   secondary_cli   TEXT,                   -- optional second agent
   secondary_model TEXT,
