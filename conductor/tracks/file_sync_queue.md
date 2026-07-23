@@ -11,6 +11,14 @@
 
 ## Completed Queue
 
+### Track 1081: Bug — **Summary** marker gets silently overwritten with wrong content
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-23T19:12:21.000Z
+**Title**: Bug — **Summary** marker gets silently overwritten with wrong content
+**Description**: Two distinct mechanisms clobber index.md's Summary field. Mechanism 1 (root-caused): laneconductor.sync.mjs's waitingForReply auto-answer prompt hardcodes the literal string "Answered user question" as the pulse summary argument instead of a real one — already damaged LAN-11 and KAN-861's tracks (committed), hit again today on track 1008. Mechanism 2 (reproduced, not yet traced): stale/partial Summary overwrites during active file editing, likely a sync-worker race — hit 3+ times today on tracks 1079/1080, also seen on track 1009.
+**Metadata**: { "priority": "high", "assignee": null }
+
 ### Track 1080: MCP server for the Collector API
 **Status**: processed
 **Type**: track-create
