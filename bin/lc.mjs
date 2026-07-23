@@ -8,6 +8,7 @@ import { spawn, spawnSync, execSync } from 'child_process';
 import { createInterface } from 'readline';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../conductor/constants.mjs';
+import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, getServicePid, enableLinger } from './systemd-user.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -1459,8 +1460,33 @@ Please review this, answer any questions (some fields may contain questions rath
     const uiDir = join(installPath, 'ui');
     const apiPidFile = join(uiDir, '.api.pid');
     const apiLogFile = join(uiDir, '.api.log');
+    // Track 1079: a bare detached spawn stays in whatever cgroup the launching
+    // shell is in (e.g. a terminal's vte-spawn-*.scope) — detached/setsid/unref
+    // only escapes the shell's process group, not the cgroup. If that cgroup is
+    // ever reaped, the child dies with an untraceable SIGKILL. Prefer a real
+    // systemd --user service when available; fall back to the old spawn path
+    // on macOS / non-systemd Linux.
+    const useSystemd = hasSystemdUser();
 
     if (subCommand === 'start') {
+        if (useSystemd) {
+            if (isServiceActive()) {
+                console.log(`✅ API already running (systemd, PID: ${getServicePid()}) → http://localhost:8091`);
+                process.exit(0);
+            }
+            console.log('🚀 Starting LaneConductor API (systemd --user)...');
+            writeUnit(installPath);
+            startService();
+            const pid = getServicePid();
+            if (pid) writeFileSync(apiPidFile, pid.toString());
+            if (!enableLinger()) {
+                console.log('⚠️  Could not enable linger (loginctl) — service will stop once you fully log out. Run `loginctl enable-linger $USER` manually to fix.');
+            }
+            console.log(`✅ API started (systemd, PID: ${pid}) → http://localhost:8091`);
+            try { spawnSync('node', [__filename, 'logs', 'start'], { stdio: 'ignore' }); } catch (e) { }
+            process.exit(0);
+        }
+
         if (existsSync(apiPidFile)) {
             const pid = readFileSync(apiPidFile, 'utf8').trim();
             try {
@@ -1480,6 +1506,12 @@ Please review this, answer any questions (some fields may contain questions rath
 
         process.exit(0);
     } else if (subCommand === 'stop') {
+        if (useSystemd && isServiceActive()) {
+            stopService();
+            console.log('✅ API stopped (systemd)');
+            if (existsSync(apiPidFile)) unlinkSync(apiPidFile);
+            process.exit(0);
+        }
         if (existsSync(apiPidFile)) {
             const pid = readFileSync(apiPidFile, 'utf8').trim();
             try { process.kill(pid); console.log(`✅ API stopped (PID: ${pid})`); } catch (e) { }

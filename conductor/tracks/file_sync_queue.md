@@ -1,12 +1,5 @@
 ## Track Creation Requests
 
-### Track 1078: Add conductor/design-language.md to project scaffolding
-**Status**: processing
-**Type**: track-create
-**Created**: 2026-07-12T13:10:00.000Z
-**Title**: Add conductor/design-language.md to project scaffolding
-**Description**: Scaffolded projects have tech-stack.md, product.md, workflow.md, product-guidelines.md, etc. but no dedicated design-system/design-language doc (color tokens, typography scale, spacing, component conventions, light/dark variants) — today it's only a thin 4-bullet subsection buried in product-guidelines.md. Maintaining a standalone design-language doc is common industry practice now. Needs wiring into SKILL.md's setup scaffold generate file list, its progress-print block, setup scaffold Mode A's inference list, the "Both modes create" file tree, and /laneconductor review's Load Context step (which already reads product-guidelines.md). Also decide during planning whether /laneconductor implement should read it too (it currently reads neither guidelines file), so UI work is guided by it while being written, not just checked after in review.
-**Metadata**: { "priority": "medium", "assignee": null }
 
 ### Track 1068: Marketing & Sales (Biz Dev) Track Support
 **Status**: processed
@@ -17,6 +10,23 @@
 **Metadata**: { "priority": "high", "assignee": null }
 
 ## Completed Queue
+
+### Track 1079: Run the Collector API as a systemd --user service
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-23T13:16:23.000Z
+**Title**: Run the Collector API as a systemd --user service
+**Description**: The Collector API dies silently roughly every hour — root-caused via live watcher forensics to living inside the launching terminal's vte-spawn-*.scope cgroup, which detached/setsid/unref cannot escape. Move it to a real systemd --user service (dynamically generated unit, Restart=on-failure, best-effort linger) with a non-systemd fallback for macOS/non-systemd Linux. Worker explicitly out of scope.
+**Metadata**: { "priority": "high", "assignee": null }
+
+### Track 1078: Add conductor/design-language.md to project scaffolding
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-12T13:10:00.000Z
+**Title**: Add conductor/design-language.md to project scaffolding
+**Description**: Scaffolded projects have tech-stack.md, product.md, workflow.md, product-guidelines.md, etc. but no dedicated design-system/design-language doc (color tokens, typography scale, spacing, component conventions, light/dark variants) — today it's only a thin 4-bullet subsection buried in product-guidelines.md. Maintaining a standalone design-language doc is common industry practice now. Needs wiring into SKILL.md's setup scaffold generate file list, its progress-print block, setup scaffold Mode A's inference list, the "Both modes create" file tree, and /laneconductor review's Load Context step (which already reads product-guidelines.md). Also decide during planning whether /laneconductor implement should read it too (it currently reads neither guidelines file), so UI work is guided by it while being written, not just checked after in review.
+**Processed**: 2026-07-14T09:08:32.597Z
+
 
 ### Track 1077: Migrate Gemini CLI support to Antigravity
 **Status**: processed
