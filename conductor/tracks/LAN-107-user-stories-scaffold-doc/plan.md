@@ -53,3 +53,7 @@
 - [x] spec.md's acceptance criteria met.
 - [x] coachai (and any other project whose worker has been restarted) can generate, edit, and see
       `user-stories.md`/`kpis.md`/`deployment-stack.md`/`design-language.md` in the dashboard.
+
+## ✅ REVIEWED
+
+## ✅ QUALITY PASSED
