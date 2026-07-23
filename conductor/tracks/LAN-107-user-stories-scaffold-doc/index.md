@@ -1,7 +1,7 @@
 # Track LAN-107: `user-stories.md` as a first-class scaffold artifact
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Implemented and live-verified against two real projects (laneconductor itself and
 coachai/aitutor). Found and fixed a second hardcoded file-list location (the chokidar watch
