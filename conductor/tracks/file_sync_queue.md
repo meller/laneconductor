@@ -11,6 +11,14 @@
 
 ## Completed Queue
 
+### Track 1080: MCP server for the Collector API
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-07-23T14:02:24.000Z
+**Title**: MCP server for the Collector API
+**Description**: Thin MCP (stdio transport) server wrapping the existing localhost:8091 REST API — list/get/move/comment/create on tracks, plus inbox — so MCP clients without repo/filesystem access (Claude Desktop, etc.) can drive LaneConductor. Local-api mode only for v1; remote-api/auth is v2. MCP SDK version pinned given known protocol/SDK churn. Complementary to, not a replacement for, the file-based skill.
+**Metadata**: { "priority": "medium", "assignee": null }
+
 ### Track 1079: Run the Collector API as a systemd --user service
 **Status**: processed
 **Type**: track-create
