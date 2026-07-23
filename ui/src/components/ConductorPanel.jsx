@@ -9,6 +9,10 @@ const TABS = [
   { key: 'tech_stack', label: 'Tech Stack' },
   { key: 'workflow', label: 'Workflow' },
   { key: 'product_guidelines', label: 'Guidelines' },
+  { key: 'design_language', label: 'Design' },
+  { key: 'deployment_stack', label: 'Deployment' },
+  { key: 'kpis', label: 'KPIs' },
+  { key: 'user_stories', label: 'User Stories' },
   { key: 'quality_gate', label: 'Quality Gate' },
 ];
 

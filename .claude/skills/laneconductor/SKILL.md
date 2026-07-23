@@ -240,6 +240,8 @@ Your job is **only to generate the context files**. Do not ask questions.
 - **`conductor/design-language.md`** — color tokens (light/dark), typography scale, spacing system, component conventions, iconography/motion (stub with placeholders if unknown; see template below)
 - **`conductor/deployment-stack.md`** — stub: "Not configured. Run `lc setup-deploy`."
 - **`conductor/kpis.md`** — project north-star metrics (see KPI template below)
+- **`conductor/user-stories.md`** — personas + their end-to-end journeys (see template below;
+  stub with a TODO if no journey/flow language is found in `brainstorm_summary`)
 - **`conductor/tracks/`** and **`conductor/code_styleguides/`** — create dirs if missing
 - **`.claude/MEMORY.md`** — create if not present
 
@@ -285,6 +287,21 @@ component library theme, or design-token files if present; otherwise leave place
 Tracks with `**Maps To**` referencing a metric above will appear here automatically.
 ```
 
+**`conductor/user-stories.md` template** (seed from `brainstorm_summary` if it describes concrete
+user journeys/flows; otherwise stub with a TODO — don't invent personas that weren't discussed):
+```markdown
+# User Stories
+
+## <Persona A> — <short journey name>
+**As a** <persona>, **I want to** <action>, **so that** <outcome>.
+
+Flow: <ordered list of concrete steps — screens, emails, links, endpoints touched>
+Related tracks: <[[track-name]] links, filled in as tracks implement/test pieces of this>
+
+## <Persona B> — <short journey name>
+...
+```
+
 Print progress as you write each file:
 ```
 📝 Writing conductor/product.md...            ✅
@@ -294,6 +311,7 @@ Print progress as you write each file:
 📝 Writing conductor/design-language.md...    ✅
 📝 Writing conductor/deployment-stack.md...   ✅
 📝 Writing conductor/kpis.md...               ✅
+📝 Writing conductor/user-stories.md...       ✅
 ```
 
 **Also symlink the skill and Antigravity workspace rule/skill** (if not already linked):
@@ -335,6 +353,9 @@ Asks first:
      library theme (e.g. shadcn, MUI theme), or design-token files if present; otherwise
      minimal template like `product-guidelines.md`
    - `code_styleguides/` — inferred from `.eslintrc`, `.prettierrc`, `tsconfig.json` if present
+   - `user-stories.md` — only if concrete user journeys surface in the README/scan (e.g. distinct
+     roles interacting with each other, invite/approval flows); otherwise stub with a TODO —
+     don't fabricate personas from a codebase scan alone
 3. Ask one KPI question: **"What does success look like? What are your 2–3 north-star metrics and rough targets?"** — use answer to populate `kpis.md`; if user skips, generate stub rows from README/product description inferences
 
 **Mode B — New project:**
@@ -344,6 +365,7 @@ Ask a short questionnaire:
 - TDD? Commit strategy? Branching model?
 - Any brand/style standards?
 - **What does success look like? What are your 2–3 north-star metrics and rough targets?** (e.g. "500 signups by Q2", "1000 DAUs", "HN front page")
+- **Any key user journeys worth tracking now?** (optional — e.g. "admin invites a manager, manager invites a rep"; skip is fine, `user-stories.md` stubs if so)
 
 Generate all conductor files with content from answers, including a stub for `deployment-stack.md`.
 
@@ -357,6 +379,7 @@ conductor/
 ├── design-language.md
 ├── tech-stack.md
 ├── deployment-stack.md
+├── user-stories.md
 ├── workflow.md
 ├── kpis.md
 ├── tracks.md
