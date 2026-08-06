@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { TrackCard } from './TrackCard.jsx';
 
-const LANES = [
+export const LANES = [
   { id: 'backlog', label: 'Backlog', color: 'text-gray-400 border-gray-700', drop: 'border-gray-500 bg-gray-800/30' },
   { id: 'plan', label: 'Plan', color: 'text-indigo-400 border-indigo-800', drop: 'border-indigo-500 bg-indigo-900/20' },
   { id: 'implement', label: 'Implement', color: 'text-blue-400 border-blue-800', drop: 'border-blue-500 bg-blue-900/20' },
@@ -10,7 +10,17 @@ const LANES = [
   { id: 'done', label: 'Done', color: 'text-green-400 border-green-800', drop: 'border-green-500 bg-green-900/20' },
 ];
 
-export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
+export const LANE_STATUS_CONFIG = {
+  waiting: { emoji: '⌛', label: 'Waiting', color: 'text-gray-500', show: true },
+  queue: { emoji: '⏳', label: 'Queued', color: 'text-yellow-500', show: true },
+  running: { emoji: '🔄', label: 'Running', color: 'text-blue-500', show: true },
+  success: { emoji: '✅', label: 'Success', color: 'text-green-500', show: true },
+  failure: { emoji: '❌', label: 'Failed', color: 'text-red-500', show: true },
+};
+
+const LANE_EXPAND_THRESHOLD = 5;
+
+export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane }) {
   const [dragOverLane, setDragOverLane] = useState(null);
 
   const byLane = Object.fromEntries(
@@ -45,23 +55,19 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
       {LANES.map(lane => {
         const isOver = dragOverLane === lane.id;
         const laneTracks = byLane[lane.id] || [];
+        const visibleTracks = laneTracks.slice(0, LANE_EXPAND_THRESHOLD);
+        const hiddenCount = laneTracks.length - visibleTracks.length;
 
-        // Group tracks by their lane_action_status
+        // Group the visible (truncated) tracks by their lane_action_status
         const groupedByStatus = {
-          waiting: laneTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
-          queue: laneTracks.filter(t => t.lane_action_status === 'queue'),
-          running: laneTracks.filter(t => t.lane_action_status === 'running'),
-          success: laneTracks.filter(t => t.lane_action_status === 'success'),
-          failure: laneTracks.filter(t => t.lane_action_status === 'failure'),
+          waiting: visibleTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
+          queue: visibleTracks.filter(t => t.lane_action_status === 'queue'),
+          running: visibleTracks.filter(t => t.lane_action_status === 'running'),
+          success: visibleTracks.filter(t => t.lane_action_status === 'success'),
+          failure: visibleTracks.filter(t => t.lane_action_status === 'failure'),
         };
 
-        const statusConfig = {
-          waiting: { emoji: '⌛', label: 'Waiting', color: 'text-gray-500', show: true },
-          queue: { emoji: '⏳', label: 'Queued', color: 'text-yellow-500', show: true },
-          running: { emoji: '🔄', label: 'Running', color: 'text-blue-500', show: true },
-          success: { emoji: '✅', label: 'Success', color: 'text-green-500', show: true },
-          failure: { emoji: '❌', label: 'Failed', color: 'text-red-500', show: true },
-        };
+        const statusConfig = LANE_STATUS_CONFIG;
 
         return (
           <div
@@ -114,6 +120,14 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
                   </div>
                 );
               })}
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => onExpandLane?.(lane.id)}
+                  className="text-xs text-gray-500 hover:text-gray-300 text-left px-1 py-1 transition-colors"
+                >
+                  +{hiddenCount} more →
+                </button>
+              )}
             </div>
           </div>
         );

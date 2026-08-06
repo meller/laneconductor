@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePolling } from './hooks/usePolling.js';
 import { useApi } from './hooks/useApi.js';
 import { ProjectSelector } from './components/ProjectSelector.jsx';
 import { KanbanBoard } from './components/KanbanBoard.jsx';
+import { LaneFocusView } from './components/LaneFocusView.jsx';
+import { BoardToolbar } from './components/BoardToolbar.jsx';
 import { ConductorPanel } from './components/ConductorPanel.jsx';
 import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
@@ -32,6 +34,25 @@ const LANE_LABELS = {
   'quality-gate': 'Quality Gate',
   done: 'Done',
 };
+
+function filterTracksByText(tracks, searchText) {
+  const query = searchText.trim().toLowerCase();
+  if (!query) return tracks;
+  return tracks.filter(t =>
+    (t.title || '').toLowerCase().includes(query) ||
+    (t.track_number || '').toLowerCase().includes(query)
+  );
+}
+
+function sortTracks(tracks, sortBy, sortDir) {
+  const sorted = [...tracks].sort((a, b) => {
+    if (sortBy === 'date') {
+      return new Date(a.created_at) - new Date(b.created_at);
+    }
+    return String(a.track_number).localeCompare(String(b.track_number), undefined, { numeric: true });
+  });
+  return sortDir === 'desc' ? sorted.reverse() : sorted;
+}
 
 export default function App() {
   return (
@@ -71,8 +92,18 @@ function AppContent({ user, logout }) {
   const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers'
   const [inboxOpen, setInboxOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [boardMode, setBoardMode] = useState('board'); // 'board' | 'lane'
+  const [focusedLane, setFocusedLane] = useState(null);
+  const [sortBy, setSortBy] = useState('track_number'); // 'track_number' | 'date'
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
+  const [searchText, setSearchText] = useState('');
 
   const { projects, tracks, workers, providers, waitingTracks, loading, error, lastUpdated, refetch, wsConnected } = usePolling(selectedProjectId);
+
+  const displayTracks = useMemo(
+    () => sortTracks(filterTracksByText(tracks, searchText), sortBy, sortDir),
+    [tracks, searchText, sortBy, sortDir]
+  );
 
   // N key shortcut — open New Track modal when no input is focused
   useEffect(() => {
@@ -104,6 +135,11 @@ function AppContent({ user, logout }) {
 
   function handleLaneChange(track, targetLane) {
     setPendingAction({ track, targetLane });
+  }
+
+  function handleExpandLane(laneId) {
+    setFocusedLane(laneId);
+    setBoardMode('lane');
   }
 
   async function handleRerunImplement(track) {
@@ -391,15 +427,43 @@ function AppContent({ user, logout }) {
         ) : (
           <>
             <KpiRollupPanel tracks={tracks} />
-            <KanbanBoard
-              tracks={tracks}
-              onTrackClick={handleTrackClick}
-              onLaneChange={handleLaneChange}
-              onFixReview={handleFixReview}
-              onRerunImplement={handleRerunImplement}
-              onDeleteTrack={handleDeleteTrack}
-              onMarkPublished={handleMarkPublished}
+            <BoardToolbar
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSortByChange={setSortBy}
+              onSortDirToggle={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))}
+              searchText={searchText}
+              onSearchTextChange={setSearchText}
             />
+            {searchText.trim() && displayTracks.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-gray-600 text-sm">
+                No tracks match "{searchText.trim()}".
+              </div>
+            ) : boardMode === 'lane' ? (
+              <LaneFocusView
+                tracks={displayTracks}
+                focusedLane={focusedLane}
+                onFocusLane={setFocusedLane}
+                onBackToBoard={() => setBoardMode('board')}
+                onTrackClick={handleTrackClick}
+                onLaneChange={handleLaneChange}
+                onFixReview={handleFixReview}
+                onRerunImplement={handleRerunImplement}
+                onDeleteTrack={handleDeleteTrack}
+                onMarkPublished={handleMarkPublished}
+              />
+            ) : (
+              <KanbanBoard
+                tracks={displayTracks}
+                onTrackClick={handleTrackClick}
+                onLaneChange={handleLaneChange}
+                onFixReview={handleFixReview}
+                onRerunImplement={handleRerunImplement}
+                onDeleteTrack={handleDeleteTrack}
+                onMarkPublished={handleMarkPublished}
+                onExpandLane={handleExpandLane}
+              />
+            )}
           </>
         )}
       </main>
