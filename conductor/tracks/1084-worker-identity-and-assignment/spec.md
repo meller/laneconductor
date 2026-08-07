@@ -9,27 +9,43 @@ a specific person's machine.
 
 ## Requirements
 
-**REQ-1: Worker pinning**
-- New table `worker_pins (project_id, user_uid, worker_id, PRIMARY KEY (project_id, user_uid))`.
-- A project member can pin exactly one worker per project at a time (upsert on repin).
-- Settable from the Workers list UI ("Pin as mine" action, scoped to the current project).
+**REQ-1: Worker pinning (many per developer)**
+- New table `worker_pins (project_id, user_uid, worker_id, created_at, PRIMARY KEY (project_id, user_uid, worker_id))`.
+- A developer can pin *multiple* workers to the same project (e.g. a laptop
+  and a cloud VM), not just one — this is what makes parallel plan/implement
+  across different tracks possible for a single developer.
+- Settable from the Workers list UI ("Pin as mine" action per worker, scoped
+  to the current project; a developer can have several active pins at once).
 
 **REQ-2: Track assignment**
-- New column `tracks.assignee_uid` (nullable).
+- New column `tracks.assignee_uid` (nullable) — identifies the *developer*
+  responsible for the track, not a specific machine.
 - If unset, the resolved assignee is the track's creator; if the creator is
   unknown, fall back to the project owner.
 - Reassignable from the track card/detail panel to any project member.
+- No separate "which worker" field — which of the assignee's pinned workers
+  actually runs the track is resolved dynamically per REQ-3, using session
+  continuity from [1086](../1086-persistent-track-sessions/index.md).
 
-**REQ-3: Claim-scoping**
+**REQ-3: Claim-scoping with continuity-first routing**
 - In `autoLaunchLocalFs` (and the equivalent API-mode claim path) in
   `conductor/laneconductor.sync.mjs`, before a worker claims a `queue`-status
   track:
   1. Resolve the track's assignee (REQ-2).
-  2. Look up `worker_pins` for that (project_id, assignee_uid).
-  3. If a pin exists and it is NOT this worker → skip the track.
-  4. If a pin exists and it IS this worker → claim normally.
-  5. If no pin exists for the resolved assignee → claim normally (today's
-     open behavior), so single-worker/unpinned projects need zero config.
+  2. Look up all `worker_pins` for that (project_id, assignee_uid) — the
+     assignee's candidate workers (may be zero, one, or several).
+  3. **Continuity check**: if `track_sessions` (1086) already has a row for
+     `(track_number, worker_id)` where `worker_id` is one of the candidates,
+     only that worker may claim the track — it already has the session/
+     context for this track.
+  4. **No prior session**: any idle candidate worker may claim it
+     (first-idle-wins among the assignee's pinned workers).
+  5. If no pin exists at all for the resolved assignee → claim normally
+     (today's open behavior), so single-worker/unpinned projects need zero
+     config.
+- This means a single developer's tracks can run in parallel across their
+  several pinned workers, while a given track always sticks to whichever
+  worker already has its session going.
 
 **REQ-4: UI**
 - Track card/detail panel: "Assignee" control, showing name + resolved
@@ -43,12 +59,19 @@ a specific person's machine.
 ## Acceptance Criteria
 
 - [ ] `worker_pins` and `tracks.assignee_uid` migrations applied
-- [ ] Pinning a worker in the UI persists and is visible on reload
-- [ ] A track with an explicit assignee is only claimed by that assignee's
-      pinned worker (verified with 2+ workers registered to one project)
+- [ ] A developer can pin more than one worker to the same project
+- [ ] A track with an explicit assignee is only claimed by one of that
+      assignee's pinned workers (verified with 2+ workers pinned by one
+      developer, and with 2+ workers registered to one project overall)
+- [ ] A track with an existing `track_sessions` row is only claimed by the
+      worker already holding that session, even if the assignee has other
+      idle pinned workers
+- [ ] Two tracks assigned to the same developer, with no prior sessions, can
+      be claimed by two different idle pinned workers simultaneously
 - [ ] A track with no assignee defaults to creator, then project owner
 - [ ] A track whose resolved assignee has no pin is claimable by any online
       worker (regression check against current behavior)
-- [ ] Reassigning a track in the UI changes which worker can claim it
+- [ ] Reassigning a track in the UI changes which developer's workers are
+      eligible to claim it
 - [ ] Existing single-worker projects behave identically to before this
       change with zero configuration

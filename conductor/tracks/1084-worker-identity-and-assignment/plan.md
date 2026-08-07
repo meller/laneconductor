@@ -6,7 +6,7 @@
 developer a track is assigned to.
 **Solution**: Migration adding `worker_pins` and `tracks.assignee_uid`.
 
-- [ ] Task 1: Migration — `worker_pins (project_id INTEGER REFERENCES projects(id), user_uid TEXT, worker_id INTEGER REFERENCES workers(id), created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (project_id, user_uid))`
+- [ ] Task 1: Migration — `worker_pins (project_id INTEGER REFERENCES projects(id), user_uid TEXT, worker_id INTEGER REFERENCES workers(id), created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (project_id, user_uid, worker_id))` — a developer can pin multiple workers per project
 - [ ] Task 2: Migration — `ALTER TABLE tracks ADD COLUMN assignee_uid TEXT`
 - [ ] Task 3: Apply via Atlas, verify against local + prod schema conventions used by prior worker-security migrations
 
@@ -17,18 +17,26 @@ developer a track is assigned to.
 **Solution**: Shared resolver used by both claim logic and UI.
 
 - [ ] Task 1: `resolveAssignee(track, project)` — `track.assignee_uid` ?? `track.created_by` ?? `project.owner_uid`
-- [ ] Task 2: `resolvePinnedWorker(project_id, user_uid)` — lookup in `worker_pins`, null if none
+- [ ] Task 2: `resolvePinnedWorkers(project_id, user_uid)` — lookup ALL pins in `worker_pins` for this (project, user), returns a list (possibly empty)
 - [ ] Task 3: API endpoint `PATCH /api/tracks/:id` (or extend existing track update endpoint) to accept `assignee_uid`
-- [ ] Task 4: API endpoints `POST /api/projects/:id/worker-pins` (upsert), `GET /api/projects/:id/worker-pins` (list current user's + team's pins per visibility rules)
+- [ ] Task 4: API endpoints `POST /api/projects/:id/worker-pins` (add a pin), `DELETE /api/projects/:id/worker-pins/:worker_id` (remove a pin), `GET /api/projects/:id/worker-pins` (list current user's + team's pins per visibility rules)
 
-## Phase 3: Claim Logic
+## Phase 3: Claim Logic — Continuity-First Routing
 
-**Problem**: Auto-launch claims any queued track regardless of who it's for.
-**Solution**: Gate claiming on assignee → pin resolution.
+**Problem**: Auto-launch claims any queued track regardless of who it's for;
+with a developer having multiple pinned workers, need to route consistently
+without serializing all their tracks onto one machine.
+**Solution**: Gate claiming on assignee's candidate workers, preferring
+whichever worker already has a session for this track (depends on
+[1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table
+— this specific task can't land until 1086's schema exists, even though the
+rest of this phase can).
 
-- [ ] Task 1: In `autoLaunchLocalFs`, before claiming a track: resolve assignee, resolve pin, skip if pinned to a different worker
-- [ ] Task 2: Apply the same gating to the API-mode claim path (`conductor/laneconductor.sync.mjs` claim-queue usage)
-- [ ] Task 3: Confirm unpinned-assignee fallback preserves current open-claim behavior exactly (no regression for existing single-worker projects)
+- [ ] Task 1: In `autoLaunchLocalFs`, before claiming a track: resolve assignee, resolve candidate pinned workers (Phase 2 Task 2)
+- [ ] Task 2: Continuity check — if `track_sessions` has a row for this track where `worker_id` is one of the candidates, only that worker may claim it
+- [ ] Task 3: No prior session — any idle candidate worker may claim it (first-idle-wins)
+- [ ] Task 4: Apply the same gating to the API-mode claim path (`conductor/laneconductor.sync.mjs` claim-queue usage)
+- [ ] Task 5: Confirm unpinned-assignee fallback preserves current open-claim behavior exactly (no regression for existing single-worker projects)
 
 ## Phase 4: UI
 
