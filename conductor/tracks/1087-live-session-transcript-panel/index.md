@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: Planning complete
 **Type**: dev
-**Summary**: Collapsible right-side panel rendering a track's session live, replacing the raw log tail.
+**Summary**: `claude -p` runs in default text mode — no structured events to
 
 ## Problem
 

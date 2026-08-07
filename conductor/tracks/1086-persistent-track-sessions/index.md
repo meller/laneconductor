@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: Planning complete
 **Type**: dev
-**Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
+**Summary**: No way to associate a Claude session with a (worker, track)
 
 ## Problem
 
@@ -45,4 +45,11 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [ ] Phase 5: Tests — session created on first call, resumed on subsequent calls, fallback on resume failure, reassignment cold-starts correctly
 
 ## Depends on
-[1084](../1084-worker-identity-and-assignment/index.md) — session is keyed by (worker, track), so worker resolution needs to exist first. Foundation for [1087](../1087-live-session-transcript-panel/index.md).
+None to start — `track_sessions` keys on `worker_id` against the existing
+`workers` table (from track 1033), so this can be built independently of
+[1084](../1084-worker-identity-and-assignment/index.md). The relationship
+actually runs the other way for one piece: 1084's continuity-first claim
+routing (its Phase 3) reads `track_sessions` to know which of a developer's
+several pinned workers already owns a track's session — so 1086 should land
+before or alongside that specific piece of 1084. Foundation for
+[1087](../1087-live-session-transcript-panel/index.md).

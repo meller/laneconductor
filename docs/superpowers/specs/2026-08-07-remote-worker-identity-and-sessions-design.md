@@ -74,20 +74,36 @@ Rejected alternatives considered and why:
 ## A. Worker Identity & Assignment
 
 **Schema:**
-- `worker_pins (project_id, user_uid, worker_id)` — a project member's chosen
-  worker for that project. One row per (project, user); settable/changeable
-  anytime.
-- `tracks.assignee_uid` — nullable. The project member responsible for this
-  track. Defaults to the track's creator when unset.
+- `worker_pins (project_id, user_uid, worker_id)` — a developer can pin
+  *multiple* workers to one project, not just one. This is what allows a
+  single developer to run plan and implement in parallel across different
+  machines instead of serializing everything through one pinned worker.
+- `tracks.assignee_uid` — nullable. The *developer* responsible for this
+  track (not a specific machine). Defaults to the track's creator when
+  unset. There is deliberately no separate "which worker" field on the
+  track — that's resolved dynamically (below), using session continuity
+  from Section C.
 
 **Claiming logic** (`autoLaunchLocalFs` and the API-mode claim path in
-`conductor/laneconductor.sync.mjs`):
-- A worker only auto-claims a `queue`-status track if the track's resolved
-  assignee (explicit `assignee_uid`, or creator if unset, or project owner if
-  creator unknown) is pinned to *that* worker via `worker_pins`.
-- If the resolved assignee has no pin at all, fall back to today's open-claim
-  behavior (any online worker for the project may claim it). This is the
+`conductor/laneconductor.sync.mjs`), continuity-first routing:
+- Resolve the track's assignee (explicit `assignee_uid`, or creator if
+  unset, or project owner if creator unknown), then resolve all of that
+  assignee's pinned workers via `worker_pins` — zero, one, or several.
+- **Continuity check:** if `track_sessions` (Section C) already has a row
+  for this track on one of those candidate workers, only that worker may
+  claim it — it already holds the session/context.
+- **No prior session:** any idle candidate worker may claim it
+  (first-idle-wins among the assignee's pinned workers). This is what
+  enables parallel work: two tracks assigned to the same developer, neither
+  with a session yet, can land on two different idle workers at once.
+- If the assignee has no pin at all, fall back to today's open-claim
+  behavior (any online worker for the project may claim it) — the
   zero-config path for single-worker projects.
+
+This creates a soft two-way dependency between Sections A and C: A's
+continuity check reads C's `track_sessions` table, so that specific piece of
+A's claim logic can't land until C's schema exists, even though the rest of
+A (pinning, assignment, UI) doesn't need C at all.
 
 **UI:** track card/detail panel gets an "Assignee" control (defaults to
 creator, reassignable to any project member), showing the resolved worker and
@@ -186,6 +202,14 @@ there is exactly one kind of event stream, not several.
 Given C and D together, the track's "conversation" and "live run log" stop
 being two separate UI concepts fed by two separate mechanisms — both are
 views onto the same per-(worker, track) session.
+
+**Cross-worker activity view:** because Section A lets one developer pin
+multiple workers, several can be running different tracks in parallel with
+no way today to monitor them at a glance. The Workers list gets a live,
+truncated current-activity snippet per worker (last tool call or assistant
+text fragment), sourced from the same event stream as the per-track drawer
+— not a full transcript, just enough situational awareness across parallel
+runs. Clicking a worker's snippet opens that track's full drawer.
 
 ## Out of scope for this design
 

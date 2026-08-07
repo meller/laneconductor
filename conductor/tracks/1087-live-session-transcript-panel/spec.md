@@ -49,6 +49,16 @@ is worth surfacing directly.
   for any non-JSON lines (keeps non-Claude CLIs working without extra
   branching in the renderer).
 
+**REQ-5: Cross-worker activity view**
+- With track 1084 allowing a developer to pin multiple workers, several
+  workers can be running different tracks in parallel. Add a live
+  current-activity snippet per worker to `WorkersList.jsx` (e.g. last tool
+  call or assistant text fragment, truncated), sourced from the same WS event
+  stream as REQ-2 — not a full transcript, just enough to monitor several
+  parallel runs at a glance without opening each track individually.
+- Clicking a worker's activity snippet navigates to that track's detail view
+  (REQ-4's drawer) for the full transcript.
+
 ## Acceptance Criteria
 
 - [ ] Claude spawns produce valid stream-json JSONL in the log file
@@ -61,3 +71,6 @@ is worth surfacing directly.
 - [ ] Reloading the track detail page reconstructs the transcript from the
       log file, then continues live via WS
 - [ ] Non-Claude CLI runs still render correctly (raw text, no regressions)
+- [ ] Workers list shows a live current-activity snippet per worker, updating
+      as multiple workers run different tracks in parallel
+- [ ] Clicking a worker's activity snippet opens that track's detail drawer

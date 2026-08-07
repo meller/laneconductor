@@ -42,9 +42,21 @@ detail view.
 - [ ] Task 3: Manual collapse control, persists collapsed/expanded state per session (not required to persist across reloads)
 - [ ] Task 4: On panel/page load, fetch + parse the full JSONL log to reconstruct history before subscribing to live WS events
 
-## Phase 5: Tests
+## Phase 5: UI — Cross-Worker Activity View
+
+**Problem**: With track 1084 allowing a developer multiple pinned workers,
+several can run different tracks in parallel — nothing surfaces that at a
+glance without opening each track individually.
+**Solution**: Live current-activity snippet per worker in `WorkersList.jsx`.
+
+- [ ] Task 1: Subscribe `WorkersList.jsx` to the same per-track WS event stream for all tracks currently running on this project's workers
+- [ ] Task 2: Show a truncated current-activity snippet per worker (last tool call or assistant text fragment)
+- [ ] Task 3: Clicking a worker's snippet navigates to that track's detail view (Phase 4's drawer)
+
+## Phase 6: Tests
 
 - [ ] Task 1: Stream-json output parses correctly into expected event types (unit test against sample JSONL fixtures)
 - [ ] Task 2: WS relay delivers pushed events to a subscribed client
 - [ ] Task 3: Drawer auto-expands on run start, collapses on manual action
 - [ ] Task 4: Non-Claude CLI run still renders via raw-text fallback with no regressions
+- [ ] Task 5: Two workers running different tracks in parallel both show live activity snippets in the Workers list simultaneously
