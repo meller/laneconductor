@@ -11,7 +11,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -127,5 +127,91 @@ describe('Track 1084 Phase 0: stable worker identity', () => {
     } finally {
       worker.kill();
     }
+  });
+});
+
+// ── CLI: per-instance pidfile (bin/lc.mjs `worker start --worker-number N`) ──
+
+const LC = join(ROOT, 'bin/lc.mjs');
+const TMP_CLI = join(ROOT, '.test-tmp-track-1084-cli');
+
+function sh(cmd, args, opts = {}) {
+  return new Promise((resolve) => {
+    const proc = spawn(cmd, args, { cwd: TMP_CLI, stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+    let out = '';
+    proc.stdout.on('data', d => { out += d; });
+    proc.stderr.on('data', d => { out += d; });
+    proc.on('exit', code => resolve({ code, out }));
+  });
+}
+
+function setupCliProject() {
+  rmSync(TMP_CLI, { recursive: true, force: true });
+  mkdirSync(join(TMP_CLI, 'conductor/tracks'), { recursive: true });
+  writeFileSync(join(TMP_CLI, '.laneconductor.json'), JSON.stringify({
+    mode: 'local-fs',
+    project: { name: 'test-cli', repo_path: TMP_CLI, primary: { cli: 'mock', model: 'mock' } },
+    collectors: [],
+    ui: { port: 8090 },
+  }, null, 2));
+  writeFileSync(join(TMP_CLI, 'conductor/workflow.json'), JSON.stringify({
+    global: { total_parallel_limit: 1 },
+    defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
+    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+  }, null, 2));
+}
+
+function killIfRunning(pidFilePath) {
+  try {
+    const pid = readFileSync(pidFilePath, 'utf8').trim();
+    process.kill(pid);
+  } catch (e) { /* already dead or file missing */ }
+}
+
+describe('Track 1084 Phase 0: CLI --worker-number pidfile', () => {
+  after(() => {
+    killIfRunning(join(TMP_CLI, 'conductor/.sync.pid'));
+    killIfRunning(join(TMP_CLI, 'conductor/.sync-2.pid'));
+    rmSync(TMP_CLI, { recursive: true, force: true });
+  });
+
+  it('worker start --worker-number 2 writes conductor/.sync-2.pid, not .sync.pid', async () => {
+    setupCliProject();
+    const { code } = await sh('node', [LC, 'worker', 'start', '--worker-number', '2']);
+    assert.equal(code, 0, 'lc worker start should exit 0');
+
+    const pidFile2 = join(TMP_CLI, 'conductor/.sync-2.pid');
+    const pidFile1 = join(TMP_CLI, 'conductor/.sync.pid');
+    await poll(async () => existsSync(pidFile2) || null, { timeout: 3000, label: '.sync-2.pid created' });
+
+    assert.ok(existsSync(pidFile2), '.sync-2.pid should exist');
+    assert.ok(!existsSync(pidFile1), '.sync.pid (worker #1) should NOT exist — only #2 was started');
+
+    killIfRunning(pidFile2);
+  });
+
+  it('two workers (default + --worker-number 2) can run concurrently without pidfile collision', async () => {
+    setupCliProject();
+    const r1 = await sh('node', [LC, 'worker', 'start']);
+    assert.equal(r1.code, 0, 'starting worker #1 should succeed');
+
+    const r2 = await sh('node', [LC, 'worker', 'start', '--worker-number', '2']);
+    assert.equal(r2.code, 0, 'starting worker #2 should succeed');
+    assert.doesNotMatch(r2.out, /already running/i, 'worker #2 should not be blocked by worker #1\'s pidfile');
+
+    const pidFile1 = join(TMP_CLI, 'conductor/.sync.pid');
+    const pidFile2 = join(TMP_CLI, 'conductor/.sync-2.pid');
+    await poll(async () => (existsSync(pidFile1) && existsSync(pidFile2)) || null, { timeout: 3000, label: 'both pidfiles created' });
+
+    assert.ok(existsSync(pidFile1), 'worker #1 pidfile should exist');
+    assert.ok(existsSync(pidFile2), 'worker #2 pidfile should exist');
+    assert.notEqual(
+      readFileSync(pidFile1, 'utf8').trim(),
+      readFileSync(pidFile2, 'utf8').trim(),
+      'the two workers should be different processes'
+    );
+
+    killIfRunning(pidFile1);
+    killIfRunning(pidFile2);
   });
 });
