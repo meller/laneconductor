@@ -145,7 +145,7 @@ end-to-end via curl+psql against the real API+DB.
 
 - [x] Task 1: Assignee control on track detail panel — dropdown of project members, shows resolved worker + live status (falls back to a read-only span with an explanatory tooltip when there are no project members to choose from, i.e. no auth/no team in local-api mode)
 - ~~Task 2: "Pin as mine" action on `WorkersList.jsx`~~ — removed 2026-08-08, see Design Simplification above; ownership is implicit via `workers.user_uid` now, no UI action needed
-- [ ] Task 3: Track card shows assignee's worker status badge (idle/busy/offline) alongside existing lane/status badges
+- [x] Task 3: Track card shows assignee's worker status badge (idle/busy/offline) alongside existing lane/status badges — `resolveAssigneeWorkerStatus(workers)` in `ui/server/index.mjs` collapses the assignee's own workers (busy if any is fresh+busy, idle if any is fresh, offline if all stale, null if none) into one badge on `GET /api/projects/:id/tracks`; rendered by `AssigneeWorkerStatusBadge` in `TrackCard.jsx`. Null (no badge shown) in local-fs/local-api deployments with no auth, same as Task 1 — verified live: `assignee_worker_status: null` across all 97 tracks in this deployment, board renders with no console errors.
 
 ## Phase 5: Tests
 
@@ -153,9 +153,19 @@ end-to-end via curl+psql against the real API+DB.
 verification, not just unit tests.
 **Solution**: Extend existing worker/queue test suites.
 
-- [ ] Task 1: Unit tests for `resolveAssignee`/`resolvePinnedWorkers` (now `user_uid`-based, no separate pin table)
-- [ ] Task 2: Integration test with 2 mock workers (different `user_uid`) registered to one project — verify only the assignee's own worker claims an assigned track
-- [ ] Task 3: Regression test — no-assignee track claimable by either mock worker (today's behavior preserved)
-- [ ] Task 4: Reassignment test — moving assignee mid-`queue` changes which worker is eligible to claim
-- [ ] Task 5: Restart test — stop and restart a worker with the same `--worker-number`, confirm `workers.id` (and thus its pins/sessions) is unchanged
-- [ ] Task 6: Two-instance test — `--worker-number 1` and `--worker-number 2` run concurrently for the same project on one machine without pidfile collision
+- [x] Task 1: Unit tests for `resolveAssignee`/`resolvePinnedWorkers`/`resolveAssigneeWorkerStatus` — `ui/server/tests/track-1084-assignee.test.mjs` (Vitest + supertest against the real `app`, mocked `pool`); 16 tests, added retroactively for Phase 2/3/4 logic that had only been curl/psql-verified until now — see "Discovered while implementing" note below
+- [x] Task 2: Integration test with 2 mock workers (different `user_uid`) registered to one project — verify only the assignee's own worker claims an assigned track — same test file, `GET /api/projects/:id/claimable-tracks` suite
+- [x] Task 3: Regression test — no-assignee track claimable by either mock worker (today's behavior preserved) — same suite, asserts track `003` (no assignee) is always claimable alongside the gated ones
+- [x] Task 4: Reassignment test — moving assignee mid-`queue` changes which worker is eligible to claim — same test file, `PATCH .../assignee` suite: asserts the update SQL, then proves via two `claimable-tracks` calls that reassigning `001` from dev-a to dev-b flips which worker can claim it
+- [x] Task 5: Restart test — covered by the pre-existing `ON CONFLICT preserves visibility` test in `ui/server/tests/track-1033-worker-auth.test.mjs`, which exercises the same `ON CONFLICT(project_id, hostname, worker_number) DO UPDATE ... RETURNING id` path that makes a restart reuse `workers.id` rather than insert a new row — no new test needed, the conflict target itself is what Phase 0 already changed from `pid` to `worker_number`
+- [x] Task 6: Two-instance test — already covered by Phase 0's `two workers (default + --worker-number 2) can run concurrently without pidfile collision` in `conductor/tests/track-1084-worker-identity.test.mjs`
+
+**Discovered while implementing**: Phase 2 and Phase 3 shipped without unit/integration
+coverage for `resolveAssignee`/`resolvePinnedWorkers`/the `claimable-tracks` endpoint —
+plan.md's Phase 2/3 completion notes say they were verified via curl+psql only, with
+tests deferred to this phase. Adding coverage now doesn't follow strict red-green TDD
+(the implementation predates the tests by two phases) — noted honestly rather than
+rewriting history; the `mock-collector`-based test in
+`conductor/tests/track-1084-worker-identity.test.mjs` covers the sync-worker's
+*consumption* of `claimable-tracks`, not the endpoint's own SQL/resolution logic, which
+is what Task 1/2/3 above close.

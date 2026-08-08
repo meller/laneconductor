@@ -1,9 +1,9 @@
 # Track 1084: Worker Identity & Assignment
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 75%
-**Phase**: Phase 4 in progress — assignee UI done, worker_pins rolled back in favor of workers.user_uid
+**Lane**: review
+**Lane Status**: success
+**Progress**: 95%
+**Phase**: Phases 0-5 complete for their achievable scope — 2 acceptance-criteria items (continuity-first routing, same-developer parallel claims) remain blocked on 1086's track_sessions table, not a defect
 **Type**: dev
 **Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
 
@@ -55,8 +55,8 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 1: Schema — `tracks.assignee_uid` column (`worker_pins` table added then removed, see below)
 - [x] Phase 2: Assignee resolution — creator/owner default, own-workers lookup helper (`workers.user_uid`-based)
 - [x] Phase 3: Claim logic — assignee/ownership gating + open-claim fallback done; continuity-first routing itself blocked on 1086's track_sessions
-- [ ] Phase 4: UI — Assignee control on track detail panel done; "Pin as mine" removed (no longer needed); Task 3 (track card worker status badge) remaining
-- [ ] Phase 5: Tests — assignee resolution, continuity routing, parallel claims across a developer's own workers, fallback behavior, reassignment
+- [x] Phase 4: UI — Assignee control on track detail panel, worker status badge on track cards; "Pin as mine" removed (no longer needed)
+- [x] Phase 5: Tests — assignee resolution, claim gating, reassignment, restart-reuse, two-instance concurrency all covered; continuity routing / same-developer parallel claims remain blocked on 1086
 
 ## Depends on
 None to start (schema/UI can land first) — but Phase 3's continuity check needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table to exist. Foundation for [1085](../1085-manual-worker-dispatch/index.md).

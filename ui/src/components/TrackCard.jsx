@@ -96,6 +96,31 @@ const LANE_ACTION_STATUSES = {
   failure: { emoji: '❌', label: 'Failed', color: 'bg-red-900/30 border border-red-800/50 text-red-400' },
 };
 
+// ── Assignee worker status badge ─────────────────────────────────────────────
+// Track 1084 Phase 4: null in local-fs/local-api (no-auth) deployments, since
+// there's no resolvable assignee identity there — same graceful-degradation
+// pattern as the Assignee control in TrackDetailPanel.
+
+const ASSIGNEE_WORKER_STATUSES = {
+  busy: { label: 'Assignee’s worker busy', dot: 'bg-amber-400 animate-pulse', color: 'bg-amber-900/30 border border-amber-800/50 text-amber-400' },
+  idle: { label: 'Assignee’s worker idle', dot: 'bg-green-400', color: 'bg-green-900/20 border border-green-800/40 text-green-400' },
+  offline: { label: 'Assignee’s worker offline', dot: 'bg-gray-500', color: 'bg-gray-800/40 border border-gray-700 text-gray-400' },
+};
+
+function AssigneeWorkerStatusBadge({ status }) {
+  const style = ASSIGNEE_WORKER_STATUSES[status];
+  if (!style) return null;
+  return (
+    <span
+      className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${style.color}`}
+      title={style.label}
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${style.dot}`} />
+      {status}
+    </span>
+  );
+}
+
 // ── Agent badge ───────────────────────────────────────────────────────────────
 
 const AGENT_LABELS = {
@@ -255,6 +280,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}>
             {track.lane_status}
           </span>
+          <AssigneeWorkerStatusBadge status={track.assignee_worker_status} />
           {track.retry_count > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 bg-red-950/40 text-red-500 border border-red-900/40 rounded leading-none" title="Automated retries since last human message">
               {track.retry_count} {track.retry_count === 1 ? 'retry' : 'retries'}

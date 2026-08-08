@@ -412,6 +412,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
+              t.assignee_uid, t.created_by_uid, p.owner_uid,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -458,7 +459,29 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
        ORDER BY t.track_number`,
       req.query.track ? [req.params.id, req.query.track] : [req.params.id]
     );
-    res.json(result.rows);
+
+    // Track 1084 Phase 4: resolve each track's assignee_worker_status —
+    // batched into a single workers query per request rather than per
+    // track. Assignees are almost always null in no-auth deployments
+    // (local-fs/local-api), in which case this is a no-op.
+    const assignees = [...new Set(result.rows.map(t => resolveAssignee(t, { owner_uid: t.owner_uid })).filter(Boolean))];
+    let workersByUid = new Map();
+    if (assignees.length > 0) {
+      const { rows: workers } = await pool.query(
+        'SELECT user_uid, status, last_heartbeat FROM workers WHERE project_id = $1 AND user_uid = ANY($2)',
+        [req.params.id, assignees]
+      );
+      workersByUid = workers.reduce((map, w) => {
+        if (!map.has(w.user_uid)) map.set(w.user_uid, []);
+        map.get(w.user_uid).push(w);
+        return map;
+      }, new Map());
+    }
+
+    res.json(result.rows.map(t => ({
+      ...t,
+      assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
+    })));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1599,7 +1622,7 @@ function gitGlobalId(gitRemote) {
 
 // ── Exports (for testing) ───────────────────────────────────────────────────
 
-export { app, pool, runMigration, uuidV5, gitGlobalId };
+export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus };
 
 // Load Firebase Admin config (verifies tokens in remote mode)
 import { TEST_MODE as AUTH_TEST_MODE } from './auth.mjs';
@@ -2659,6 +2682,20 @@ async function resolvePinnedWorkers(pool, projectId, userUid) {
     [projectId, userUid]
   );
   return rows;
+}
+
+// Track 1084 Phase 4: collapse an assignee's own workers into a single
+// status for the track card badge — 'busy' if any is actively working,
+// 'idle' if any is alive but idle, 'offline' if all of them have gone
+// stale, or null if the assignee has no workers at all (nothing to show).
+const ASSIGNEE_WORKER_STALE_MS = 120_000;
+function resolveAssigneeWorkerStatus(workers, now = new Date()) {
+  if (!workers || workers.length === 0) return null;
+  const nowMs = now.getTime();
+  const fresh = workers.filter(w => nowMs - new Date(w.last_heartbeat).getTime() < ASSIGNEE_WORKER_STALE_MS);
+  if (fresh.some(w => w.status === 'busy')) return 'busy';
+  if (fresh.length > 0) return 'idle';
+  return 'offline';
 }
 
 // Generate a new API key for the authenticated user (remote-api mode)
