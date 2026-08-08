@@ -42,6 +42,16 @@ function getInstallPath() {
 const cliSyncOnly = process.argv.includes('--sync-only');
 let workerMode = cliSyncOnly ? 'sync-only' : null; // Will be resolved after config load
 
+// Track 1084 Phase 0: stable worker identity. pid is ephemeral (a restart
+// gets a new OS pid, which under the old (project_id, hostname, pid)
+// uniqueness minted a brand-new DB row and orphaned anything FK'd to it) —
+// worker_number is a stable, user-assigned identity that survives restarts.
+// Defaults to 1, preserving today's single-worker-per-host behavior.
+const workerNumberArgIdx = process.argv.indexOf('--worker-number');
+const workerNumber = workerNumberArgIdx !== -1
+  ? parseInt(process.argv[workerNumberArgIdx + 1], 10)
+  : (parseInt(process.env.LC_WORKER_NUMBER, 10) || 1);
+
 if (existsSync('.env')) {
   for (const line of readFileSync('.env', 'utf8').split('\n')) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
@@ -511,7 +521,7 @@ async function upsertWorker() {
       }
 
       const visibility = proj.worker?.visibility || config.worker?.visibility || 'private';
-      const res = await post(url, token, '/worker/register', { hostname, pid, project_id, visibility, mode: workerMode });
+      const res = await post(url, token, '/worker/register', { hostname, pid, project_id, visibility, mode: workerMode, worker_number: workerNumber });
 
 
       // Store the returned machine token on disk for next beats
@@ -541,7 +551,7 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
     if (!c.url) continue;
     try {
       const token = resolveCollectorToken(i);
-      const body = { hostname, pid, project_id: proj.id, mode: workerMode };
+      const body = { hostname, pid, project_id: proj.id, mode: workerMode, worker_number: workerNumber };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
       await patch(c.url, token, '/worker/heartbeat', body);
@@ -565,7 +575,7 @@ async function removeWorker() {
     if (!c.url) continue;
     try {
       const token = resolveCollectorToken(i);
-      await del(c.url, token, '/worker', { hostname, pid });
+      await del(c.url, token, '/worker', { hostname, pid, worker_number: workerNumber });
       console.log(`[LaneConductor] Worker de-registered from ${c.url}: ${hostname} (PID: ${pid})`);
     } catch (err) {
       console.error(`[worker error] de-registration failed for ${c.url}:`, err.message);
