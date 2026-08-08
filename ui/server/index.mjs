@@ -2628,6 +2628,23 @@ function resolveUid(req) {
   return req.user?.uid ?? null;
 }
 
+// Track 1084: resolve which developer is responsible for a track —
+// explicit assignee, falling back to the track's creator, falling back to
+// the project owner. Pure function; track/project are plain row objects.
+function resolveAssignee(track, project) {
+  return track.assignee_uid ?? track.created_by_uid ?? project.owner_uid ?? null;
+}
+
+// Track 1084: all workers a developer has pinned to a project (may be empty).
+async function resolvePinnedWorkers(pool, projectId, userUid) {
+  if (!userUid) return [];
+  const { rows } = await pool.query(
+    'SELECT w.* FROM worker_pins wp JOIN workers w ON w.id = wp.worker_id WHERE wp.project_id = $1 AND wp.user_uid = $2',
+    [projectId, userUid]
+  );
+  return rows;
+}
+
 // Generate a new API key for the authenticated user (remote-api mode)
 app.post('/api/keys', requireAuth, async (req, res) => {
   try {
@@ -2744,6 +2761,71 @@ app.delete('/api/workers/:id/permissions/:uid', requireAuth, async (req, res) =>
     await pool.query(
       'DELETE FROM worker_permissions WHERE worker_id = $1 AND user_uid = $2',
       [req.params.id, req.params.uid]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Track 1084: Assignee & Worker Pins ──────────────────────────────────────────
+
+// Set (or clear, with assignee_uid: null) a track's explicit assignee
+app.patch('/api/projects/:id/tracks/:num/assignee', async (req, res) => {
+  try {
+    const { assignee_uid } = req.body;
+    if (assignee_uid !== null && typeof assignee_uid !== 'string') {
+      return res.status(400).json({ error: 'assignee_uid must be a string or null' });
+    }
+    const { rowCount } = await pool.query(
+      'UPDATE tracks SET assignee_uid = $1 WHERE project_id = $2 AND track_number = $3',
+      [assignee_uid, req.params.id, req.params.num]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List the calling user's pinned workers for a project
+app.get('/api/projects/:id/worker-pins', requireAuth, async (req, res) => {
+  try {
+    const userUid = resolveUid(req);
+    if (!userUid) return res.status(400).json({ error: 'user_uid required (worker pins need an authenticated user)' });
+    const rows = await resolvePinnedWorkers(pool, req.params.id, userUid);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pin a worker to a project for the calling user
+app.post('/api/projects/:id/worker-pins', requireAuth, async (req, res) => {
+  try {
+    const userUid = resolveUid(req);
+    if (!userUid) return res.status(400).json({ error: 'user_uid required (worker pins need an authenticated user)' });
+    const { worker_id } = req.body;
+    if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
+    await pool.query(
+      'INSERT INTO worker_pins(project_id, user_uid, worker_id) VALUES($1, $2, $3) ON CONFLICT DO NOTHING',
+      [req.params.id, userUid, worker_id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.code === '23503' ? 400 : 500).json({ error: err.message }); // 23503 = FK violation (bad worker_id)
+  }
+});
+
+// Un-pin a worker for the calling user
+app.delete('/api/projects/:id/worker-pins/:worker_id', requireAuth, async (req, res) => {
+  try {
+    const userUid = resolveUid(req);
+    if (!userUid) return res.status(400).json({ error: 'user_uid required (worker pins need an authenticated user)' });
+    await pool.query(
+      'DELETE FROM worker_pins WHERE project_id = $1 AND user_uid = $2 AND worker_id = $3',
+      [req.params.id, userUid, req.params.worker_id]
     );
     res.json({ ok: true });
   } catch (err) {
