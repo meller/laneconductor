@@ -801,9 +801,26 @@ function parseStatus(content, createQualityGate = false) {
   return bestMatch;
 }
 
+// Marker-only readers — return null when the field's own explicit marker is
+// absent, WITHOUT falling back to deriving a value from other content. Used
+// to let index.md's own markers win over anything derived from plan.md; see
+// parseProgress/parseCurrentPhase/parseSummary below and their call site
+// (index.md is documented there as "the absolute authority for the track's
+// state", but Progress/Phase/Summary used to silently bypass that authority
+// whenever a plan.md existed — this is what actually enforces it).
+function parseProgressMarker(content) {
+  const m = content.match(/\*\*Progress\*\*:\s*(\d+)%/i);
+  return m ? parseInt(m[1]) : null;
+}
+
+function parseCurrentPhaseMarker(content) {
+  const m = content.match(/\*\*Phase\*\*:\s*([^\n]+)/i);
+  return m ? m[1].replace(/⏳|✅/g, '').trim() : null;
+}
+
 function parseProgress(content) {
-  const markerMatch = content.match(/\*\*Progress\*\*:\s*(\d+)%/i);
-  if (markerMatch) return parseInt(markerMatch[1]);
+  const marker = parseProgressMarker(content);
+  if (marker !== null) return marker;
 
   const total = (content.match(/- \[[ x]\]/g) || []).length;
   if (total === 0) return 0;
@@ -811,8 +828,8 @@ function parseProgress(content) {
 }
 
 function parseCurrentPhase(content) {
-  const markerMatch = content.match(/\*\*Phase\*\*:\s*([^\n]+)/i);
-  if (markerMatch) return markerMatch[1].replace(/⏳|✅/g, '').trim();
+  const marker = parseCurrentPhaseMarker(content);
+  if (marker !== null) return marker;
 
   const match = content.match(/## Phase \d+: ([^\n⏳]+)⏳/);
   return match ? match[1].trim() : null;
@@ -827,9 +844,14 @@ function truncateSummary(text, maxLen = 200) {
   return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
 }
 
+function parseSummaryMarker(content) {
+  const m = content.match(/\*\*Summary\*\*:\s*([^\n]+)/i);
+  return m ? truncateSummary(m[1].trim()) : null;
+}
+
 function parseSummary(content) {
-  const markerMatch = content.match(/\*\*Summary\*\*:\s*([^\n]+)/i);
-  if (markerMatch) return truncateSummary(markerMatch[1].trim());
+  const marker = parseSummaryMarker(content);
+  if (marker !== null) return marker;
 
   // Fallback: no explicit Summary marker — derive one from a **Problem**: line.
   // Problem text is often a wrapped, multi-line paragraph (e.g. under a phase
@@ -1468,15 +1490,16 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       laneStatus = trackMeta?.lane || Lanes.PLAN;
     }
 
-    // Metadata/Info (Progress, Phase) can come from plan.md if available.
-    // Summary is index.md's own field (the "absolute authority" per above) — always
-    // prefer its explicit **Summary** marker over deriving one from plan.md's
-    // incidental first **Problem** line; only fall back to plan.md if index.md has
-    // no Summary of its own yet (e.g. a freshly-scaffolded track).
+    // Progress/Phase/Summary are index.md's own fields (it's "the absolute
+    // authority" per above) — always prefer their explicit markers there over
+    // deriving a value from plan.md (checkbox counts, **Problem** text, etc.).
+    // Only fall back to plan.md when index.md has no marker of its own yet
+    // (e.g. a freshly-scaffolded track, or a dev track genuinely tracking
+    // phase-by-phase progress via plan.md checkboxes with no override).
     const primaryInfo = planContent || stateContent;
-    const progress = parseProgress(primaryInfo);
-    const currentPhase = parseCurrentPhase(primaryInfo);
-    const summary = parseSummary(stateContent) || parseSummary(primaryInfo);
+    const progress = parseProgressMarker(stateContent) ?? parseProgress(primaryInfo);
+    const currentPhase = parseCurrentPhaseMarker(stateContent) ?? parseCurrentPhase(primaryInfo);
+    const summary = parseSummaryMarker(stateContent) ?? parseSummary(primaryInfo);
     const phaseStep = parsePhaseStep(primaryInfo, laneStatus);
 
     // Helper to update or append a header
