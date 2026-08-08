@@ -33,11 +33,12 @@ able to show that session happening live, not just a raw stdout tail.
 
 ## Approach
 
-Four connected pieces, in dependency order — each builds on the one before it:
+Six connected pieces, in dependency order — each builds on the one before it:
 
 - **A. Worker identity & assignment** — the foundation. Introduces per-user
-  worker pinning and per-track assignment, so "which worker" becomes a concrete,
-  resolvable answer instead of "whichever one polls first."
+  worker pinning (many workers per developer) and per-track assignment, so
+  "which worker" becomes a concrete, resolvable answer instead of "whichever
+  one polls first," with continuity-first routing enabling real parallelism.
 - **B. Manual dispatch** — a per-worker command inbox, so a specific worker can
   be told to run a specific action on a specific track regardless of its
   sync-only/sync+poll mode.
@@ -47,6 +48,12 @@ Four connected pieces, in dependency order — each builds on the one before it:
 - **D. Live run transcript** — a collapsible right-side panel that renders that
   session's event stream live, unifying "watching a run happen" and "the track's
   conversation" into one view, since after C they're the same underlying stream.
+- **E. Deploy as a dispatchable action** — extends B so the full cycle actually
+  ends in a deploy, triggerable from the app via a worker that already has the
+  repo, not just from a human's terminal.
+- **F. Remote worker provisioning** — extends B again: activating a worker on a
+  machine you already control, from the app, delegated through an existing
+  worker rather than the API server holding SSH credentials itself.
 
 Rejected alternatives considered and why:
 
@@ -210,6 +217,78 @@ truncated current-activity snippet per worker (last tool call or assistant
 text fragment), sourced from the same event stream as the per-track drawer
 — not a full transcript, just enough situational awareness across parallel
 runs. Clicking a worker's snippet opens that track's full drawer.
+
+## E. Deploy as a Dispatchable Action (extends Section B)
+
+Closing the loop on the full `plan → implement → review → quality-gate →
+done` cycle means it should actually end in a deploy, not just a `done`
+status. Today `lc deploy <env>` only runs from whoever's terminal has the
+repo checked out — there's no app-level UX for it at all.
+
+Rather than a separate deploy-triggering mechanism, this reuses Section B's
+dispatch inbox directly: `action: 'deploy'` with `track_number: null`
+(deploy is project-level, not tied to one track's lane) and a `payload`
+field (`{"environment": "prod"}`). This is also the reason Section B's
+`worker_dispatch` schema uses a generic `payload JSONB` column rather than a
+dedicated `environment` column — it's the first of at least two action
+types (deploy, and Section F's worker provisioning) that need their own
+parameters, and a generic payload avoids a schema migration per action type.
+
+The worker-side handler extracts the existing `lc deploy` execution logic
+from `bin/lc.mjs` into a shared function both the CLI and the worker call,
+so the two paths run identical deploy.json execution rather than duplicate
+implementations. UI: a project-level `Deploy: [worker ▾] [environment ▾]
+[Deploy Now]` control (Workers list or a project actions panel), not on a
+track detail panel, since deploy isn't scoped to any one track.
+
+## F. Remote Worker Provisioning (also extends Section B)
+
+**Problem:** every worker today has to be started manually via `lc worker
+start` on whatever machine it runs on. There's no way to say "start a new
+worker on that other machine" from the app itself — the closest analog to
+how Claude Code/Antigravity let you open a new agent session with one
+click.
+
+**Scoped-down approach:** not actual cloud compute provisioning (spinning up
+new VMs/containers) — that's a materially bigger, different feature
+(cloud account, billing, image/container build, security hardening) and
+explicitly out of scope here. This is about activating a worker on a
+machine the user already controls and already has LaneConductor installed
+on, remotely, via a machine they can already control.
+
+**Data model:** new table `provision_targets (id, project_id, user_uid,
+host, label, created_at)` — a lightweight registry of "machines I could
+start a worker on," distinct from `workers` (which only exist once a
+worker has actually registered by running). This is separate from Section
+A's `worker_pins`, which pins *existing* workers.
+
+**Mechanism — delegated, not direct:** the Collector API can't SSH anywhere
+itself (that would mean it holding its own SSH credentials, a new and more
+sensitive responsibility for what's otherwise just a REST API + DB layer).
+Instead, this reuses Section B/E's dispatch inbox again: a `provision-worker`
+action, sent to an already-running *launcher* worker that has SSH access
+configured to reach the target host (via that worker's own `~/.ssh`
+config/agent — no new credential storage anywhere in this design). This
+means bootstrapping requires at least one worker already running to launch
+the rest from — acceptable, since that's already the state of any project
+using this feature.
+
+**UI:** Workers list gets `+ New Worker` → pick a target host (from
+`provision_targets`, or add a new one) + pick a launcher worker (one of the
+user's already-pinned, online workers) → `Provision`. Creates a
+`worker_dispatch` row: `action: 'provision-worker'`, `worker_id: <launcher>`,
+`payload: {"target_host": ..., "worker_number": <next available>}`
+(depends on Section A's `--worker-number` stable identity — provisioning
+needs to assign the new worker a distinct slot).
+
+**Explicitly deferred (FFU) in this pass:** the actual SSH execution. The
+launcher worker's handler for `provision-worker` is a stub: it logs
+`"[provision-worker] SSH execution not yet implemented — target: <host>,
+would run: lc worker start --worker-number <n>"` and marks the dispatch
+`failed` with that message, visible in the UI. Everything else —
+the registry, the UI flow, the dispatch entry shape — is built for real in
+this pass; only the last step (actually SSHing and running the remote
+command) is deferred to a follow-up.
 
 ## Out of scope for this design
 

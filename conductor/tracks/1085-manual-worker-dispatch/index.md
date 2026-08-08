@@ -19,10 +19,12 @@ review → quality-gate → done cycle should end in an actual deploy.
 
 ## Solution
 
-- `worker_dispatch (id, worker_id, track_number NULL, action, environment
-  NULL, status, created_at)` — a per-worker command inbox, separate from the
-  general auto-launch queue. `track_number` is null for project-level
-  actions (deploy); `environment` is only used by deploy.
+- `worker_dispatch (id, worker_id, track_number NULL, action, payload
+  JSONB NULL, status, created_at)` — a per-worker command inbox, separate
+  from the general auto-launch queue. `track_number` is null for
+  project-level actions (deploy); `payload` carries per-action parameters
+  (e.g. `{"environment": "prod"}` for deploy) so future action types don't
+  need their own dedicated column.
 - On every sync tick (same interval as heartbeat), regardless of worker mode,
   a worker checks its own pending dispatch entries and runs them immediately:
   lane actions through the existing `spawnCli` path (same mechanism
@@ -44,7 +46,7 @@ review → quality-gate → done cycle should end in an actual deploy.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md)
 
 ## Phases
-- [ ] Phase 1: Schema — `worker_dispatch` table (nullable track_number/environment)
+- [ ] Phase 1: Schema — `worker_dispatch` table (nullable track_number, generic payload JSONB)
 - [ ] Phase 2: Worker loop — check own inbox every sync tick, run lane actions via `spawnCli` and deploy via the shared deploy-runner, mark claimed/done
 - [ ] Phase 3: API — endpoints to enqueue a track-scoped dispatch (lane action) and a project-scoped dispatch (deploy)
 - [ ] Phase 4: UI — "Run on worker" control on track detail panel, "Deploy" control on Workers list/project panel
