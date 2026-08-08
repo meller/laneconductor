@@ -1,5 +1,22 @@
 # Plan: Worker Identity & Assignment (Track 1084)
 
+## Phase 0: Stable Worker Identity
+
+**Problem**: Worker identity today is `(project_id, hostname, pid)` — `pid`
+is ephemeral, so a restart mints a new `workers` row and orphans anything
+FK'd to it (pins, sessions). The local pidfile is also singular per project
+directory, so a second worker process can't run for the same project on the
+same host today.
+**Solution**: Introduce a stable, user-assigned `worker_number` that
+survives restarts, and move the DB uniqueness constraint onto it instead of
+`pid`.
+
+- [ ] Task 1: Add `--worker-number <n>` flag to `lc worker start` (`bin/lc.mjs`), default `1`
+- [ ] Task 2: Migration — add `worker_number INTEGER NOT NULL DEFAULT 1` to `workers`, change constraint to `UNIQUE(project_id, hostname, worker_number)` (drop the `pid`-based one)
+- [ ] Task 3: `upsertWorker` (`conductor/laneconductor.sync.mjs`) sends `worker_number` in `POST /worker/register`; keep sending `pid` as informational/liveness data only
+- [ ] Task 4: Local pidfile becomes per-instance — `conductor/.sync-<worker_number>.pid` — so `lc worker start --worker-number 2` can run alongside `--worker-number 1` on the same machine
+- [ ] Task 5: `lc worker stop`/`lc worker status` accept `--worker-number` to target a specific instance (default `1` preserves today's single-command UX)
+
 ## Phase 1: Schema
 
 **Problem**: No way to record which developer a worker belongs to, or which
@@ -54,7 +71,9 @@ rest of this phase can).
 verification, not just unit tests.
 **Solution**: Extend existing worker/queue test suites.
 
-- [ ] Task 1: Unit tests for `resolveAssignee`/`resolvePinnedWorker`
+- [ ] Task 1: Unit tests for `resolveAssignee`/`resolvePinnedWorkers`
 - [ ] Task 2: Integration test with 2 mock workers registered to one project — verify only the pinned worker claims an assigned track
 - [ ] Task 3: Regression test — unpinned/no-assignee track claimable by either mock worker (today's behavior preserved)
 - [ ] Task 4: Reassignment test — moving assignee mid-`queue` changes which worker is eligible to claim
+- [ ] Task 5: Restart test — stop and restart a worker with the same `--worker-number`, confirm `workers.id` (and thus its pins/sessions) is unchanged
+- [ ] Task 6: Two-instance test — `--worker-number 1` and `--worker-number 2` run concurrently for the same project on one machine without pidfile collision

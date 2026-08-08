@@ -9,6 +9,33 @@ a specific person's machine.
 
 ## Requirements
 
+**REQ-0: Stable worker identity (prerequisite for pinning to mean anything)**
+- Today a worker's identity in the DB is `(project_id, hostname, pid)`
+  (`conductor/workers_schema.sql`, `UNIQUE(project_id, hostname, pid)`) and
+  the local pidfile is singular per project directory (`conductor/.sync.pid`
+  in `bin/lc.mjs`). Two problems this causes for REQ-1/REQ-3:
+  1. `pid` is ephemeral — every worker restart gets a new OS pid, which
+     under the current uniqueness constraint mints a *new* `workers` row.
+     Since `worker_pins.worker_id` and `track_sessions.worker_id` both FK to
+     `workers.id`, a restart would silently orphan every pin and session
+     tied to that worker.
+  2. The singular pidfile means a second `lc worker start` on the same
+     machine for the same project can't run today — no way to have two
+     concurrent worker processes for one project on one host.
+- Add a `--worker-number <n>` flag to `lc worker start` (default `1`,
+  preserving today's single-worker-per-host behavior with zero config for
+  existing setups). Registration (`POST /worker/register`,
+  `conductor/laneconductor.sync.mjs`'s `upsertWorker`) sends
+  `worker_number` alongside `hostname`; `pid` becomes purely informational
+  (liveness/current-process tracking), not part of the identity key.
+- Change the DB uniqueness constraint to
+  `UNIQUE(project_id, hostname, worker_number)` — a worker's identity (and
+  therefore its `workers.id`, and everything pinned/sessioned against it)
+  survives process restarts.
+- Local pidfile becomes per-instance: `conductor/.sync-<worker_number>.pid`
+  instead of the single `conductor/.sync.pid`, so multiple worker processes
+  can run concurrently for the same project on the same machine.
+
 **REQ-1: Worker pinning (many per developer)**
 - New table `worker_pins (project_id, user_uid, worker_id, created_at, PRIMARY KEY (project_id, user_uid, worker_id))`.
 - A developer can pin *multiple* workers to the same project (e.g. a laptop
@@ -58,6 +85,12 @@ a specific person's machine.
 
 ## Acceptance Criteria
 
+- [ ] `lc worker start --worker-number <n>` runs a second concurrent worker
+      process for the same project on the same machine
+- [ ] Restarting a worker (same hostname + worker_number) reuses the same
+      `workers.id` row rather than creating a new one
+- [ ] Existing single-worker setups (no `--worker-number` passed) behave
+      identically to today with zero config
 - [ ] `worker_pins` and `tracks.assignee_uid` migrations applied
 - [ ] A developer can pin more than one worker to the same project
 - [ ] A track with an explicit assignee is only claimed by one of that

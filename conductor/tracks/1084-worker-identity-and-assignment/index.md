@@ -5,17 +5,25 @@
 **Progress**: 0%
 **Phase**: Planning complete
 **Type**: dev
-**Summary**: No way to record which developer a worker belongs to, or which
+**Summary**: Per-user worker pinning + explicit track assignment to end random pickup.
 
 ## Problem
 
 In remote mode (app + API connected), every worker registered to a project polls
 the same shared queue and races to claim any track in `queue` status. There's no
 way for a developer to say "this track is mine" — any online worker for the
-project might grab it first.
+project might grab it first. Separately, a worker's DB identity today is
+`(project_id, hostname, pid)` — since `pid` is ephemeral, a restart mints a
+new `workers` row, and the local pidfile is singular per project directory
+so only one worker process can run per project per machine. Both of these
+need fixing before "pin a worker" can mean anything durable.
 
 ## Solution
 
+- **Stable identity first**: a `--worker-number` flag + DB uniqueness on
+  `(project_id, hostname, worker_number)` instead of `pid`, so a worker's
+  identity (and everything pinned/sessioned against it) survives restarts,
+  and multiple worker processes can run for one project on one machine.
 - `worker_pins (project_id, user_uid, worker_id)` — a developer can pin
   *multiple* workers to one project ("Pin as mine" per worker in the Workers
   list), not just one — this is what lets one developer plan and implement
@@ -36,6 +44,7 @@ project might grab it first.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md)
 
 ## Phases
+- [ ] Phase 0: Stable worker identity — `--worker-number` flag, DB uniqueness moves off `pid`, per-instance pidfile
 - [ ] Phase 1: Schema — `worker_pins` table (many pins per developer), `tracks.assignee_uid` column
 - [ ] Phase 2: Assignee resolution — creator/owner default, candidate-pins lookup helper
 - [ ] Phase 3: Claim logic — continuity-first routing among assignee's candidate workers, with open-claim fallback

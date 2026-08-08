@@ -818,12 +818,26 @@ function parseCurrentPhase(content) {
   return match ? match[1].trim() : null;
 }
 
+// Truncate at a word boundary and mark truncation with an ellipsis, instead of
+// a hard mid-word `.slice(n)` cut that reads as corrupted/cut-off text.
+function truncateSummary(text, maxLen = 200) {
+  if (text.length <= maxLen) return text;
+  const cut = text.slice(0, maxLen - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
+}
+
 function parseSummary(content) {
   const markerMatch = content.match(/\*\*Summary\*\*:\s*([^\n]+)/i);
-  if (markerMatch) return markerMatch[1].trim().slice(0, 200);
+  if (markerMatch) return truncateSummary(markerMatch[1].trim());
 
-  const match = content.match(/\*\*Problem\*\*:\s*([^\n]+)/);
-  return match ? match[1].trim().slice(0, 200) : null;
+  // Fallback: no explicit Summary marker — derive one from a **Problem**: line.
+  // Problem text is often a wrapped, multi-line paragraph (e.g. under a phase
+  // heading in plan.md), so capture until a blank line, the next **marker**,
+  // a heading, or end of string — not just up to the first '\n' — and collapse
+  // the captured whitespace/newlines before truncating.
+  const match = content.match(/\*\*Problem\*\*:\s*([\s\S]+?)(?=\n\s*\n|\n\*\*|\n#|$)/i);
+  return match ? truncateSummary(match[1].replace(/\s+/g, ' ').trim()) : null;
 }
 
 function parseWaitingForReply(content) {
@@ -1454,11 +1468,15 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       laneStatus = trackMeta?.lane || Lanes.PLAN;
     }
 
-    // Metadata/Info (Progress, Phase, Summary) can come from plan.md if available
+    // Metadata/Info (Progress, Phase) can come from plan.md if available.
+    // Summary is index.md's own field (the "absolute authority" per above) — always
+    // prefer its explicit **Summary** marker over deriving one from plan.md's
+    // incidental first **Problem** line; only fall back to plan.md if index.md has
+    // no Summary of its own yet (e.g. a freshly-scaffolded track).
     const primaryInfo = planContent || stateContent;
     const progress = parseProgress(primaryInfo);
     const currentPhase = parseCurrentPhase(primaryInfo);
-    const summary = parseSummary(primaryInfo);
+    const summary = parseSummary(stateContent) || parseSummary(primaryInfo);
     const phaseStep = parsePhaseStep(primaryInfo, laneStatus);
 
     // Helper to update or append a header
