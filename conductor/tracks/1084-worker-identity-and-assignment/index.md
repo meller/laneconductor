@@ -1,9 +1,9 @@
 # Track 1084: Worker Identity & Assignment
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Planning complete
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 17%
+**Phase**: Phase 0 complete — stable worker identity (--worker-number)
 **Type**: dev
 **Summary**: Per-user worker pinning + explicit track assignment to end random pickup.
 
@@ -44,7 +44,7 @@ need fixing before "pin a worker" can mean anything durable.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md)
 
 ## Phases
-- [ ] Phase 0: Stable worker identity — `--worker-number` flag, DB uniqueness moves off `pid`, per-instance pidfile
+- [x] Phase 0: Stable worker identity — `--worker-number` flag, DB uniqueness moves off `pid`, per-instance pidfile
 - [ ] Phase 1: Schema — `worker_pins` table (many pins per developer), `tracks.assignee_uid` column
 - [ ] Phase 2: Assignee resolution — creator/owner default, candidate-pins lookup helper
 - [ ] Phase 3: Claim logic — continuity-first routing among assignee's candidate workers, with open-claim fallback

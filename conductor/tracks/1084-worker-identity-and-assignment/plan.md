@@ -11,11 +11,21 @@ same host today.
 survives restarts, and move the DB uniqueness constraint onto it instead of
 `pid`.
 
-- [ ] Task 1: Add `--worker-number <n>` flag to `lc worker start` (`bin/lc.mjs`), default `1`
-- [ ] Task 2: Migration — add `worker_number INTEGER NOT NULL DEFAULT 1` to `workers`, change constraint to `UNIQUE(project_id, hostname, worker_number)` (drop the `pid`-based one)
-- [ ] Task 3: `upsertWorker` (`conductor/laneconductor.sync.mjs`) sends `worker_number` in `POST /worker/register`; keep sending `pid` as informational/liveness data only
-- [ ] Task 4: Local pidfile becomes per-instance — `conductor/.sync-<worker_number>.pid` — so `lc worker start --worker-number 2` can run alongside `--worker-number 1` on the same machine
-- [ ] Task 5: `lc worker stop`/`lc worker status` accept `--worker-number` to target a specific instance (default `1` preserves today's single-command UX)
+- [x] Task 1: Add `--worker-number <n>` flag to `lc worker start` (`bin/lc.mjs`), default `1`
+- [x] Task 2: Migration — add `worker_number INTEGER NOT NULL DEFAULT 1` to `workers`, change constraint to `UNIQUE(project_id, hostname, worker_number)` (drop the `pid`-based one)
+- [x] Task 3: `upsertWorker` (`conductor/laneconductor.sync.mjs`) sends `worker_number` in `POST /worker/register`; keep sending `pid` as informational/liveness data only
+- [x] Task 4: Local pidfile becomes per-instance — `conductor/.sync-<worker_number>.pid` — so `lc worker start --worker-number 2` can run alongside `--worker-number 1` on the same machine
+- [x] Task 5: `lc worker stop`/`lc worker status` accept `--worker-number` to target a specific instance (default `1` preserves today's single-command UX)
+
+**✅ Phase 0 complete (2026-08-08).** Migration applied to local DB
+(bypassing `atlas migrate apply` — the migration chain is separately
+stuck on an unrelated pre-existing bug in `20260306103650`, see commit
+`ad7d0ae`). 92 stale duplicate worker rows cleaned up as part of
+applying the new constraint. All new tests pass
+(`conductor/tests/track-1084-worker-identity.test.mjs`); full existing
+suite run with no regressions (5 pre-existing failures confirmed
+unrelated — a Vitest/node:test runner mismatch and a `.gitignore`
+issue blocking git-lock commits, neither touching workers).
 
 ## Phase 1: Schema
 
