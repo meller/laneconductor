@@ -809,13 +809,18 @@ function parseStatus(content, createQualityGate = false) {
 // state", but Progress/Phase/Summary used to silently bypass that authority
 // whenever a plan.md existed — this is what actually enforces it).
 function parseProgressMarker(content) {
-  const m = content.match(/\*\*Progress\*\*:\s*(\d+)%/i);
+  // [ \t]* (not \s*) after the colon — \s matches '\n' too, which would let
+  // this cross a blank line into unrelated later content when the value is
+  // missing. Same fix applied to parseCurrentPhaseMarker/parseSummaryMarker.
+  const m = content.match(/\*\*Progress\*\*:[ \t]*(\d+)%/i);
   return m ? parseInt(m[1]) : null;
 }
 
 function parseCurrentPhaseMarker(content) {
-  const m = content.match(/\*\*Phase\*\*:\s*([^\n]+)/i);
-  return m ? m[1].replace(/⏳|✅/g, '').trim() : null;
+  const m = content.match(/\*\*Phase\*\*:[ \t]*([^\n]*)/i);
+  if (!m) return null;
+  const value = m[1].replace(/⏳|✅/g, '').trim();
+  return value || null; // an empty marker isn't a real value — let the caller fall back
 }
 
 function parseProgress(content) {
@@ -845,8 +850,10 @@ function truncateSummary(text, maxLen = 200) {
 }
 
 function parseSummaryMarker(content) {
-  const m = content.match(/\*\*Summary\*\*:\s*([^\n]+)/i);
-  return m ? truncateSummary(m[1].trim()) : null;
+  const m = content.match(/\*\*Summary\*\*:[ \t]*([^\n]*)/i);
+  if (!m) return null;
+  const value = m[1].trim();
+  return value ? truncateSummary(value) : null; // an empty marker isn't a real value — let the caller fall back
 }
 
 function parseSummary(content) {
