@@ -30,7 +30,13 @@ LaneConductor installed on.
   dispatch inbox again — a `provision-worker` action sent to an
   already-running *launcher* worker that has SSH access configured to reach
   the target host (via that worker's own `~/.ssh` config/agent). Bootstrapping
-  needs at least one worker already running to launch the rest from.
+  needs at least one worker already running to launch the rest from. Any
+  pinned worker can be the launcher — unlike
+  [1091](../1091-manager-worker-and-new-project-flow/index.md)'s
+  `create-project`, provisioning stays within an *existing* project (adding
+  another worker to it), so it doesn't need 1091's stricter `type: 'manager'`
+  gate, which exists specifically because `create-project` has no project to
+  scope permission to yet.
 - UI: Workers list gets `+ New Worker` → pick a target host (or add a new
   one) + pick a launcher worker → `Provision`. Creates a `worker_dispatch`
   row: `action: 'provision-worker'`, `payload: {"target_host": ...,

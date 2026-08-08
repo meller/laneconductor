@@ -57,7 +57,22 @@ is worth surfacing directly.
   stream as REQ-2 — not a full transcript, just enough to monitor several
   parallel runs at a glance without opening each track individually.
 - Clicking a worker's activity snippet navigates to that track's detail view
-  (REQ-4's drawer) for the full transcript.
+  (REQ-4's drawer) for the full transcript — **for track-scoped runs**. See
+  REQ-6 for runs with no associated track.
+
+**REQ-6: Non-track dispatch transcripts (deploy, create-project, ...)**
+- Not every run is track-scoped: 1085's `deploy` and 1091's `create-project`
+  dispatches (`worker_dispatch.track_number IS NULL`) have no track detail
+  panel to show a drawer on. REQ-1-3's stream-json/log/WS mechanism is
+  unaffected — the source of truth is still the JSONL log file, still
+  pushed the same way — this just generalizes *what the transcript is keyed
+  by*: `track_number` for track-scoped runs, `worker_dispatch.id` for
+  everything else.
+- Clicking a non-track-scoped worker's activity snippet (REQ-5) opens the
+  same transcript-rendering component (REQ-4's renderer, reused) in a
+  standalone view keyed on the dispatch id, rather than a track's drawer —
+  natural home: a modal, or a route like `/dispatch/:id`, not inside any
+  track's UI.
 
 ## Acceptance Criteria
 
@@ -74,3 +89,5 @@ is worth surfacing directly.
 - [ ] Workers list shows a live current-activity snippet per worker, updating
       as multiple workers run different tracks in parallel
 - [ ] Clicking a worker's activity snippet opens that track's detail drawer
+- [ ] A `deploy` or `create-project` dispatch (no track) still produces a
+      viewable live transcript, keyed on the dispatch id instead of a track

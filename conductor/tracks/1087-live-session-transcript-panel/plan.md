@@ -53,10 +53,23 @@ glance without opening each track individually.
 - [ ] Task 2: Show a truncated current-activity snippet per worker (last tool call or assistant text fragment)
 - [ ] Task 3: Clicking a worker's snippet navigates to that track's detail view (Phase 4's drawer)
 
-## Phase 6: Tests
+## Phase 6: Non-Track Dispatch Transcripts
+
+**Problem**: `deploy` (1085) and `create-project` (1091) dispatches have no
+associated track — no drawer to show a transcript on.
+**Solution**: Generalize the transcript key from `track_number` to
+`worker_dispatch.id` when there's no track; reuse Phase 3's renderer in a
+standalone view instead of the track drawer.
+
+- [ ] Task 1: Worker/API event-push path (Phase 2) keys events by `worker_dispatch.id` when `track_number` is null, in addition to the existing track-keyed path
+- [ ] Task 2: Standalone transcript view (modal or `/dispatch/:id` route) reusing Phase 3's rendering component
+- [ ] Task 3: Non-track activity snippets (Phase 5) link to this standalone view instead of a track drawer
+
+## Phase 7: Tests
 
 - [ ] Task 1: Stream-json output parses correctly into expected event types (unit test against sample JSONL fixtures)
 - [ ] Task 2: WS relay delivers pushed events to a subscribed client
 - [ ] Task 3: Drawer auto-expands on run start, collapses on manual action
 - [ ] Task 4: Non-Claude CLI run still renders via raw-text fallback with no regressions
 - [ ] Task 5: Two workers running different tracks in parallel both show live activity snippets in the Workers list simultaneously
+- [ ] Task 6: A `deploy`/`create-project` dispatch produces a viewable transcript keyed on the dispatch id
