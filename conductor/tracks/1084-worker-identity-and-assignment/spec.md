@@ -95,26 +95,30 @@ a specific person's machine.
 
 ## Acceptance Criteria
 
-- [ ] `lc worker start --worker-number <n>` runs a second concurrent worker
+- [x] `lc worker start --worker-number <n>` runs a second concurrent worker
       process for the same project on the same machine
-- [ ] Restarting a worker (same hostname + worker_number) reuses the same
+- [x] Restarting a worker (same hostname + worker_number) reuses the same
       `workers.id` row rather than creating a new one
-- [ ] Existing single-worker setups (no `--worker-number` passed) behave
+- [x] Existing single-worker setups (no `--worker-number` passed) behave
       identically to today with zero config
-- [ ] `worker_pins` and `tracks.assignee_uid` migrations applied
-- [ ] A developer can pin more than one worker to the same project
-- [ ] A track with an explicit assignee is only claimed by one of that
-      assignee's pinned workers (verified with 2+ workers pinned by one
-      developer, and with 2+ workers registered to one project overall)
+- [x] `tracks.assignee_uid`/`created_by_uid` migrations applied (`worker_pins`
+      was added then removed 2026-08-08 — see Design Simplification in
+      plan.md; ownership resolves from `workers.user_uid` instead)
+- ~~A developer can pin more than one worker to the same project~~ — n/a,
+  `worker_pins` removed; a developer's workers are just every `workers` row
+  under their `user_uid`, no cap
+- [x] A track with an explicit assignee is only claimed by one of that
+      assignee's own workers (verified with 2+ workers registered under
+      different `user_uid`s to one project)
 - [ ] A track with an existing `track_sessions` row is only claimed by the
       worker already holding that session, even if the assignee has other
-      idle pinned workers
+      idle workers — blocked on [1086](../1086-persistent-track-sessions/index.md)
 - [ ] Two tracks assigned to the same developer, with no prior sessions, can
-      be claimed by two different idle pinned workers simultaneously
-- [ ] A track with no assignee defaults to creator, then project owner
-- [ ] A track whose resolved assignee has no pin is claimable by any online
-      worker (regression check against current behavior)
-- [ ] Reassigning a track in the UI changes which developer's workers are
+      be claimed by two different idle workers simultaneously
+- [x] A track with no assignee defaults to creator, then project owner
+- [x] A track whose resolved assignee has no workers registered is claimable
+      by any online worker (regression check against current behavior)
+- [x] Reassigning a track in the UI changes which developer's workers are
       eligible to claim it
-- [ ] Existing single-worker projects behave identically to before this
+- [x] Existing single-worker projects behave identically to before this
       change with zero configuration
