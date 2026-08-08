@@ -633,7 +633,7 @@ function withConcurrencyLimit(fn) {
 }
 
 if (!existsSync('conductor/logs')) mkdirSync('conductor/logs', { recursive: true });
-writeFileSync('conductor/.sync.pid', String(process.pid));
+writeFileSync(workerNumber === 1 ? 'conductor/.sync.pid' : `conductor/.sync-${workerNumber}.pid`, String(process.pid));
 
 function readIfExists(filepath) {
   try { return existsSync(filepath) ? readFileSync(filepath, 'utf8') : null; }

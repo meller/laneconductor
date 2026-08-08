@@ -107,6 +107,23 @@ function getRunningWorkerPid(pidFile) {
     return pid;
 }
 
+// Track 1084 Phase 0: --worker-number lets multiple worker processes run
+// for the same project on the same machine (each with a stable identity
+// that survives restarts — see conductor/laneconductor.sync.mjs). Defaults
+// to 1, which keeps today's single-worker pidfile name (.sync.pid) for
+// backward compatibility; only worker_number > 1 gets a distinct filename.
+function resolveWorkerNumber(args) {
+    const idx = args.indexOf('--worker-number');
+    if (idx === -1) return 1;
+    const n = parseInt(args[idx + 1], 10);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+function getPidFilePath(projectRoot, workerNumber) {
+    const filename = workerNumber === 1 ? '.sync.pid' : `.sync-${workerNumber}.pid`;
+    return join(projectRoot, 'conductor', filename);
+}
+
 /**
  * Resolves the heartbeat worker's entry script: prefers a per-project copy at
  * <projectRoot>/conductor/laneconductor.sync.mjs, falling back to the canonical
@@ -1330,13 +1347,14 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    const pidFile = join(projectRoot, 'conductor', '.sync.pid');
-    const logFile = join(projectRoot, 'conductor', '.sync.log');
+    const workerNumber = resolveWorkerNumber(args);
+    const pidFile = getPidFilePath(projectRoot, workerNumber);
+    const logFile = join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
 
     const existingPid = getRunningWorkerPid(pidFile);
     if (existingPid) {
-        console.log(`⚠️  Worker already running for this project (PID: ${existingPid}).`);
-        console.log(`   Use "lc restart" to replace it, or "lc stop" then "lc start".`);
+        console.log(`⚠️  Worker #${workerNumber} already running for this project (PID: ${existingPid}).`);
+        console.log(`   Use "lc restart${workerNumber === 1 ? '' : ' --worker-number ' + workerNumber}" to replace it, or "lc stop" then "lc start".`);
         process.exit(0);
     }
 
@@ -1347,11 +1365,12 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
-    console.log(`🚀 Starting LaneConductor heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}...`);
+    console.log(`🚀 Starting LaneConductor heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
     if (!isSyncAndWork) syncArgs.push('--sync-only');
+    if (workerNumber !== 1) syncArgs.push('--worker-number', String(workerNumber));
 
     const worker = spawn('node', syncArgs, {
         cwd: projectRoot,
@@ -1375,9 +1394,10 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    const pidFile = join(projectRoot, 'conductor', '.sync.pid');
+    const workerNumber = resolveWorkerNumber(args);
+    const pidFile = getPidFilePath(projectRoot, workerNumber);
     if (!existsSync(pidFile)) {
-        console.log('⚠️  No heartbeat running (no .sync.pid found)');
+        console.log(`⚠️  No heartbeat running (no ${pidFile.split('/').pop()} found)`);
         process.exit(0);
     }
 
@@ -1396,8 +1416,9 @@ Please review this, answer any questions (some fields may contain questions rath
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
         process.exit(1);
     }
-    const pidFile = join(projectRoot, 'conductor', '.sync.pid');
-    const logFile = join(projectRoot, 'conductor', '.sync.log');
+    const workerNumber = resolveWorkerNumber(args);
+    const pidFile = getPidFilePath(projectRoot, workerNumber);
+    const logFile = join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
 
     // Resolve the entry script BEFORE touching the running worker — killing it
@@ -1412,7 +1433,7 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}...`);
+    console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     if (existsSync(pidFile)) {
         const pid = readFileSync(pidFile, 'utf8').trim();
@@ -1423,6 +1444,7 @@ Please review this, answer any questions (some fields may contain questions rath
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
     if (!isSyncAndWork) syncArgs.push('--sync-only');
+    if (workerNumber !== 1) syncArgs.push('--worker-number', String(workerNumber));
     const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
@@ -1433,23 +1455,27 @@ Please review this, answer any questions (some fields may contain questions rath
     process.exit(0);
 } else if (command === 'worker') {
     const sub = args[1] || 'status';
-    if (sub === 'start') { spawnSync('node', [__filename, 'start'], { stdio: 'inherit' }); process.exit(0); }
-    if (sub === 'stop') { spawnSync('node', [__filename, 'stop'], { stdio: 'inherit' }); process.exit(0); }
-    if (sub === 'restart') { spawnSync('node', [__filename, 'restart'], { stdio: 'inherit' }); process.exit(0); }
+    // Forward any flags after the subcommand (e.g. --worker-number, --sync-and-work)
+    // through to the underlying legacy command — this used to silently drop them.
+    const subArgs = args.slice(2);
+    if (sub === 'start') { spawnSync('node', [__filename, 'start', ...subArgs], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'stop') { spawnSync('node', [__filename, 'stop', ...subArgs], { stdio: 'inherit' }); process.exit(0); }
+    if (sub === 'restart') { spawnSync('node', [__filename, 'restart', ...subArgs], { stdio: 'inherit' }); process.exit(0); }
     if (sub === 'logs') { spawnSync('node', [__filename, 'logs', 'worker'], { stdio: 'inherit' }); process.exit(0); }
     if (sub === 'sync') { spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(0); }
     if (sub === 'status') {
         if (!projectRoot) { process.exit(1); }
-        const pidFile = join(projectRoot, 'conductor', '.sync.pid');
+        const workerNumber = resolveWorkerNumber(subArgs);
+        const pidFile = getPidFilePath(projectRoot, workerNumber);
         let running = false;
         let pid = null;
         if (existsSync(pidFile)) {
             pid = readFileSync(pidFile, 'utf8').trim();
             try { process.kill(pid, 0); running = true; } catch (e) { unlinkSync(pidFile); }
         }
-        console.log(`\n👷 Worker Status: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
+        console.log(`\n👷 Worker Status${workerNumber !== 1 ? ` (#${workerNumber})` : ''}: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
         if (pid && running) console.log(`   PID: ${pid}`);
-        console.log(`   Log: conductor/.sync.log\n`);
+        console.log(`   Log: conductor/${workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`}\n`);
         process.exit(0);
     }
     console.error(`❌ Unknown worker command: ${sub}`);
