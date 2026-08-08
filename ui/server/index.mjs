@@ -2541,6 +2541,12 @@ app.post('/worker/register', async (req, res, next) => {
 }, async (req, res) => {
   try {
     const { hostname, pid, mode } = req.body;
+    // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
+    // pid changes on every restart, which under the old (project_id,
+    // hostname, pid) key minted a brand-new row per restart and orphaned
+    // anything FK'd to it. Defaults to 1 for workers that haven't upgraded
+    // to send it yet (backward compatible with today's single-worker-per-host).
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     // Resolve user_uid: Firebase auth > API key auth > request body (legacy)
     let user_uid = (AUTH_ENABLED && req.user?.uid) || req.user_uid || req.body.user_uid || null;
 
@@ -2550,8 +2556,8 @@ app.post('/worker/register', async (req, res, next) => {
     // Resolve visibility from request body (worker sends its configured visibility)
     const visibility = req.body.visibility || 'private';
 
-    // First check if this specific worker process already has a machine token
-    let r = await pool.query('SELECT machine_token FROM workers WHERE project_id = $1 AND hostname = $2 AND pid = $3', [projectId, hostname, pid]);
+    // First check if this specific worker (by stable identity) already has a machine token
+    let r = await pool.query('SELECT machine_token FROM workers WHERE project_id = $1 AND hostname = $2 AND worker_number = $3', [projectId, hostname, worker_number]);
     let machine_token = r.rows[0]?.machine_token;
 
     if (!machine_token) {
@@ -2559,13 +2565,13 @@ app.post('/worker/register', async (req, res, next) => {
     }
 
     await pool.query(`
-    INSERT INTO workers(project_id, hostname, pid, status, machine_token, user_uid, visibility, mode, last_heartbeat)
-    VALUES($1, $2, $3, 'idle', $4, $5, $6, $7, NOW())
-    ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
-    status = 'idle', machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
+    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, last_heartbeat)
+    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, NOW())
+    ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
+    status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
     last_heartbeat = NOW()
-  `, [projectId, hostname, pid, machine_token, user_uid, visibility, mode || 'polling']);
+  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
 
 
     broadcast('worker:updated', { projectId });
@@ -2579,16 +2585,19 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
     const { hostname, pid, status, current_task, mode } = req.body;
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
-    const sets = ['last_heartbeat = NOW()'];
-    const params = [projectId, hostname, pid];
-    let i = 4;
+    // pid is kept updated for liveness/informational purposes even though
+    // worker_number (not pid) is the identity key — see /worker/register.
+    const sets = ['last_heartbeat = NOW()', 'pid = $4'];
+    const params = [projectId, hostname, worker_number, pid];
+    let i = 5;
     if (status) { sets.push(`status = $${i++} `); params.push(status); }
     if (current_task !== undefined) { sets.push(`current_task = $${i++} `); params.push(current_task); }
     if (mode) { sets.push(`mode = $${i++} `); params.push(mode); }
     await pool.query(
       `UPDATE workers SET ${sets.join(', ')}
-      WHERE project_id = $1 AND hostname = $2 AND pid = $3`,
+      WHERE project_id = $1 AND hostname = $2 AND worker_number = $3`,
       params
     );
     broadcast('worker:updated', { projectId });
@@ -2599,11 +2608,12 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
 });
 app.delete('/worker', collectorAuth, async (req, res) => {
   try {
-    const { hostname, pid } = req.body;
+    const { hostname } = req.body;
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
     await pool.query(
-      'DELETE FROM workers WHERE project_id = $1 AND hostname = $2 AND pid = $3',
-      [projectId, hostname, pid]
+      'DELETE FROM workers WHERE project_id = $1 AND hostname = $2 AND worker_number = $3',
+      [projectId, hostname, worker_number]
     );
     res.json({ ok: true });
   } catch (err) {

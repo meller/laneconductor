@@ -15,6 +15,7 @@ import { createServer } from 'node:http';
 
 const state = {
   tracks: {},  // { [track_number]: { track_number, lane_status, lane_action_status, fail_count, ... } }
+  workers: [], // [{ hostname, pid, worker_number, project_id, ... }] — every /worker/register call, in order
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -54,8 +55,10 @@ const server = createServer(async (req, res) => {
   if ((params = route('POST', '/project/ensure', req)) !== null)
     return reply(res, 200, { project_id: 1 });
 
-  if ((params = route('POST', '/worker/register', req)) !== null)
+  if ((params = route('POST', '/worker/register', req)) !== null) {
+    state.workers.push(body);
     return reply(res, 200, { machine_token: 'mock-token' });
+  }
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null)
     return reply(res, 200, { ok: true });
@@ -180,6 +183,7 @@ const server = createServer(async (req, res) => {
   // Reset all track state between tests
   if ((params = route('POST', '/_reset', req)) !== null) {
     state.tracks = {};
+    state.workers = [];
     return reply(res, 200, { ok: true });
   }
 
