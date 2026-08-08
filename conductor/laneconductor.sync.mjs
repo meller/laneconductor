@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, mkdirSync, statSync, rmSync, copyFileSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
@@ -711,6 +711,53 @@ function updateTrackMetadata(trackNumber, updates) {
   saveTracksMetadata(tracksMetadata);
 }
 
+// Resolve which single folder represents a track number, guarding against the
+// silent ambiguity that let 1052-show-hn/1052-show-hn-post and
+// 9999-hook-test/9999-prod-sync-test collide onto one DB row (see track
+// 1088) — the DB key is (project_id, track_number) with no folder-path
+// component, so two folders sharing a numeric prefix within one project's
+// own conductor/tracks/ silently fight over the same row.
+//
+// On ambiguity: prefer tracks-metadata.json's registered folder_path if it's
+// one of the matches; otherwise fall back to the lexicographically-first
+// match (deterministic, unlike readdir's OS-dependent order). Auto-fixes it
+// going forward by renaming every non-canonical match with a `_duplicate-`
+// prefix, which structurally can no longer match `${trackNumber}-` — so the
+// ambiguity is resolved once, not silently re-risked on every future call.
+// Nothing is deleted; renamed folders keep their full content and history.
+function resolveTrackFolder(tracksDir, trackNumber) {
+  if (!existsSync(tracksDir)) return null;
+  const matches = readdirSync(tracksDir, { withFileTypes: true })
+    .filter(d => d.isDirectory() && d.name.startsWith(`${trackNumber}-`))
+    .map(d => d.name)
+    .sort();
+
+  if (matches.length <= 1) return matches[0] || null;
+
+  const meta = getTrackMetadata(trackNumber);
+  const registered = meta?.folder_path ? basename(meta.folder_path) : null;
+  const canonical = (registered && matches.includes(registered)) ? registered : matches[0];
+
+  console.warn(`[ambiguous-track] Track ${trackNumber} matched ${matches.length} folders (${matches.join(', ')}) — using "${canonical}", quarantining the rest.`);
+
+  for (const dupName of matches) {
+    if (dupName === canonical) continue;
+    const from = join(tracksDir, dupName);
+    const to = join(tracksDir, `_duplicate-${dupName}`);
+    try {
+      if (!existsSync(to)) {
+        renameSync(from, to);
+        console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
+      }
+    } catch (err) {
+      console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
+    }
+  }
+
+  updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, canonical) });
+  return canonical;
+}
+
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
 function extractLaneFromIndex(content) {
@@ -1185,9 +1232,7 @@ async function pullTracksMetadataFromDB() {
       stats.checked++;
 
       // Locate track folder
-      const trackPath = readdirSync('conductor/tracks', { withFileTypes: true })
-        .filter(d => d.isDirectory() && d.name.startsWith(track.track_number + '-'))
-        .map(d => d.name)[0];
+      const trackPath = resolveTrackFolder('conductor/tracks', track.track_number);
 
       if (!trackPath) continue;
       const fullTrackFolder = join('conductor/tracks', trackPath);
@@ -1907,7 +1952,7 @@ async function replayStaleTracks() {
     const { tracks } = await get(url, token, '/tracks/stale');
     for (const row of tracks) {
       const tracksDir = 'conductor/tracks';
-      const trackDir = readdirSync(tracksDir).find(d => d.startsWith(row.track_number + '-'));
+      const trackDir = resolveTrackFolder(tracksDir, row.track_number);
       if (trackDir) {
         console.log(`[sync] replaying stale track ${row.track_number}...`);
         await syncTrack(join(tracksDir, trackDir, 'plan.md'));
@@ -2030,16 +2075,12 @@ async function runJiraSync() {
         let trackFolder = null;
         
         if (existingTrackId) {
-          const matchedDirs = readdirSync(tracksDir).filter(
-            (d) => d.startsWith(`${existingTrackId}-`) && statSync(join(tracksDir, d)).isDirectory()
-          );
-          if (matchedDirs.length > 0) trackFolder = join(tracksDir, matchedDirs[0]);
+          const matched = resolveTrackFolder(tracksDir, existingTrackId);
+          if (matched) trackFolder = join(tracksDir, matched);
         } else {
           // Fallback check for KAN- folder
-          const matchedDirs = readdirSync(tracksDir).filter(
-            (d) => d.startsWith(`${trackKey}-`) && statSync(join(tracksDir, d)).isDirectory()
-          );
-          if (matchedDirs.length > 0) trackFolder = join(tracksDir, matchedDirs[0]);
+          const matched = resolveTrackFolder(tracksDir, trackKey);
+          if (matched) trackFolder = join(tracksDir, matched);
         }
 
         if (!trackFolder) {
@@ -2124,7 +2165,7 @@ async function runJiraSync() {
         }
 
         // Sync Comments from Jira
-        trackFolder = trackFolder || join(tracksDir, readdirSync(tracksDir).find(d => d.startsWith(`${issue.key}-`)));
+        trackFolder = trackFolder || join(tracksDir, resolveTrackFolder(tracksDir, issue.key));
         if (trackFolder && existsSync(trackFolder)) {
           const convFile = join(trackFolder, 'conversation.md');
           const lastSynced = (metadata.tracks && metadata.tracks[issue.key]?.jira_last_comment_synced) || metadata._jira_last_poll || since;
@@ -2456,7 +2497,7 @@ async function handleTrackCreate(entry, queuePath) {
   const trackNumber = numMatch[1];
 
   // Check if track folder already exists (may have been manually created or created by lc cli)
-  const existingDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+  const existingDir = resolveTrackFolder(tracksDir, trackNumber);
   if (existingDir) {
     console.log(`[file-queue] Track ${trackNumber} folder already exists (${existingDir}), skipping folder creation`);
     // Still sync to DB — the normal chokidar/syncTrack path handles this
@@ -2827,7 +2868,7 @@ async function checkAndClaimGitLock(trackNumber) {
     // (lock file itself is gitignored — only track files need committing)
     try {
       const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-      const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+      const trackDir = resolveTrackFolder(tracksDir, trackNumber);
       if (trackDir) {
         gitExec(`git add "${join(tracksDir, trackDir)}"`, process.cwd());
         gitExec(`git commit -m "chore(track-${trackNumber}): sync files before worktree" --quiet`, process.cwd());
@@ -3082,7 +3123,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // Track context
     const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-    const trackDirName = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
     if (trackDirName) {
       const trackPath = join(tracksDir, trackDirName);
       const trackDocs = {
@@ -3121,7 +3162,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   try {
     const tracksDir = join(process.cwd(), 'conductor', 'tracks');
     if (existsSync(tracksDir)) {
-      const existing = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+      const existing = resolveTrackFolder(tracksDir, trackNumber);
       if (!existing) {
         // Try to get title from API
         let title = trackNumber;
@@ -3217,7 +3258,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     if (getIsLocalFs()) {
       const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-      const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+      const trackDir = resolveTrackFolder(tracksDir, trackNumber);
       if (trackDir) {
         const retryPath = join(tracksDir, trackDir, '.retry-count');
         const retryLanePath = join(tracksDir, trackDir, '.retry-lane');
@@ -3272,7 +3313,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // Phase 5: Update Lane Status in files and commit (always execute)
     try {
       const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-      const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNumber}-`));
+      const trackDir = resolveTrackFolder(tracksDir, trackNumber);
       if (trackDir) {
         const indexPath = join(tracksDir, trackDir, 'index.md');
         if (existsSync(indexPath)) {
@@ -3387,13 +3428,13 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           const mainTracksDir = join(process.cwd(), 'conductor', 'tracks');
           const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
           const wtTrackDir = existsSync(wtTracksDir)
-            ? readdirSync(wtTracksDir).find(d => d.startsWith(`${trackNumber}-`))
+            ? resolveTrackFolder(wtTracksDir, trackNumber)
             : null;
           if (wtTrackDir) {
             mkdirSync(mainTracksDir, { recursive: true });
             // Use the worktree dir name (preserves the slug created by the agent)
             let mainTrackDir = existsSync(mainTracksDir)
-              ? readdirSync(mainTracksDir).find(d => d.startsWith(`${trackNumber}-`))
+              ? resolveTrackFolder(mainTracksDir, trackNumber)
               : null;
             if (!mainTrackDir) {
               // Planning agent created the dir inside the worktree — copy whole dir to main
