@@ -16,6 +16,8 @@ import { createServer } from 'node:http';
 const state = {
   tracks: {},  // { [track_number]: { track_number, lane_status, lane_action_status, fail_count, ... } }
   workers: [], // [{ hostname, pid, worker_number, project_id, ... }] — every /worker/register call, in order
+  claimable: null, // Track 1084 Phase 3: null = "not configured" (endpoint 500s, matching a real misconfigured server); an array = the claimable set /api/projects/:id/claimable-tracks returns
+  nextWorkerId: 900, // arbitrary base so test worker ids don't collide with anything real
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -56,8 +58,23 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { project_id: 1 });
 
   if ((params = route('POST', '/worker/register', req)) !== null) {
-    state.workers.push(body);
-    return reply(res, 200, { machine_token: 'mock-token' });
+    const id = state.nextWorkerId++;
+    state.workers.push({ ...body, id });
+    return reply(res, 200, { machine_token: 'mock-token', id });
+  }
+
+  // Track 1084 Phase 3: claimable-tracks. Defaults to null (endpoint 500s,
+  // matching how the real server would fail if misconfigured) so tests that
+  // don't care about this feature see the sync worker fall back to
+  // unrestricted claiming, same as today's behavior. Set via /_set-claimable.
+  if ((params = route('GET', '/api/projects/:id/claimable-tracks', req)) !== null) {
+    if (state.claimable === null) return reply(res, 500, { error: 'claimable-tracks not configured for this test' });
+    return reply(res, 200, { claimable: state.claimable });
+  }
+
+  if ((params = route('POST', '/_set-claimable', req)) !== null) {
+    state.claimable = body.claimable ?? [];
+    return reply(res, 200, { ok: true });
   }
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null)
@@ -184,6 +201,7 @@ const server = createServer(async (req, res) => {
   if ((params = route('POST', '/_reset', req)) !== null) {
     state.tracks = {};
     state.workers = [];
+    state.claimable = null;
     return reply(res, 200, { ok: true });
   }
 
