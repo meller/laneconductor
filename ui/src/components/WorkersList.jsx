@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
 import { useApi } from '../hooks/useApi.js';
 
+// Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
+// machine the API server is running on (see ui/server/index.mjs's
+// worker/start,stop handlers) — there's no SSH-backed remote start yet
+// (that's track 1089), so on a real deployment these buttons would run on
+// the API's own container, not the user's machine. Only safe to offer on
+// localhost, where the API and the worker's target machine are the same.
+const IS_LOCAL_HOST = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 const VISIBILITY_BADGE = {
   private: { label: 'Private', icon: '🔒', className: 'text-gray-500 border-gray-800' },
   team: { label: 'Team', icon: '👥', className: 'text-blue-400 border-blue-900/50' },
@@ -153,12 +162,14 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
               </code>
             </div>
 
-            <button
-              onClick={() => handleWorkerAction('start')}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
-            >
-              Start Sync Worker
-            </button>
+            {IS_LOCAL_HOST && (
+              <button
+                onClick={() => handleWorkerAction('start')}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
+              >
+                Start Sync Worker
+              </button>
+            )}
           </div>
         </div>
       );
@@ -241,12 +252,14 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between pl-1">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Heartbeat Workers</h3>
-              <button
-                onClick={() => handleWorkerAction('stop')}
-                className="text-[10px] px-2 py-1 border border-red-900/50 text-red-400 hover:bg-red-900/20 rounded font-bold uppercase tracking-wider transition-colors"
-              >
-                Stop All Workers
-              </button>
+              {IS_LOCAL_HOST && (
+                <button
+                  onClick={() => handleWorkerAction('stop')}
+                  className="text-[10px] px-2 py-1 border border-red-900/50 text-red-400 hover:bg-red-900/20 rounded font-bold uppercase tracking-wider transition-colors"
+                >
+                  Stop All Workers
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {workers.map(worker => {
