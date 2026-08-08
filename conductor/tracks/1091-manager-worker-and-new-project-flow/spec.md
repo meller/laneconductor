@@ -12,17 +12,31 @@ a project that doesn't exist yet.
 ## Requirements
 
 **REQ-1: Worker type**
-- `ALTER TABLE workers ADD COLUMN type TEXT DEFAULT 'project'`. Valid
-  values: `'project'` (default, unchanged behavior), `'manager'`.
-- A `'manager'` worker is otherwise a completely normal worker (still has a
-  `project_id`, still syncs/polls/dispatches like any other) — the *only*
-  difference is it additionally polls for and can claim system-wide dispatch
-  actions that a `'project'`-type worker ignores.
+- `ALTER TABLE workers ADD COLUMN type TEXT DEFAULT 'project'`; make
+  `project_id` nullable (it's currently required). Valid `type` values:
+  `'project'` (default, unchanged behavior, `project_id` still required for
+  this type) or `'manager'` (`project_id` is null — a manager isn't "for"
+  any one project, which is the whole point of it being able to create new
+  ones).
+- **Multiplicity differs by type**: `'project'` workers keep 1084's existing
+  model — multiple per project/folder, uniqueness on
+  `(project_id, hostname, worker_number)`. `'manager'` workers are a
+  **machine-level singleton**: at most one per hostname, full stop, via a
+  partial unique index: `CREATE UNIQUE INDEX workers_one_manager_per_host ON workers (hostname) WHERE type = 'manager'`.
+- A `'manager'` worker is otherwise a completely normal worker (still
+  syncs/heartbeats like any other) — the *only* functional difference is it
+  additionally polls for and can claim system-wide dispatch actions that a
+  `'project'`-type worker ignores.
 
 **REQ-2: CLI flag**
-- `lc worker start --manager` — registers with `type: 'manager'` in
-  `POST /worker/register`. Omitting the flag registers `type: 'project'`
-  (default, backward compatible — existing workers/scripts unaffected).
+- `lc worker start --manager` — registers with `type: 'manager'`,
+  `project_id: null` in `POST /worker/register`. Omitting the flag registers
+  `type: 'project'` (default, backward compatible — existing
+  workers/scripts unaffected).
+- If a manager worker is already registered for this hostname, `lc worker
+  start --manager` fails clearly (`"Manager worker already running on this
+  machine (PID <pid>)"`) rather than silently creating a second one or
+  silently reusing the existing registration.
 - Combinable with existing flags (`--sync-only`, `--worker-number` from
   1084).
 
@@ -71,7 +85,8 @@ a project that doesn't exist yet.
 ## Acceptance Criteria
 
 - [ ] `workers.type` migration applied; existing workers default to `'project'`
-- [ ] `lc worker start --manager` registers a worker with `type: 'manager'`
+- [ ] `lc worker start --manager` registers a worker with `type: 'manager'`, `project_id: null`
+- [ ] A second `lc worker start --manager` on the same hostname fails clearly instead of registering a second manager for that machine
 - [ ] A `create-project` dispatch is rejected by the API if the target
       worker isn't `type: 'manager'`
 - [ ] A `type: 'project'` worker never claims a `create-project` entry even
