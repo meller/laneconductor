@@ -47,6 +47,39 @@ backed) so `atlas migrate diff` can replay it against a fresh dev DB.
 Verified: multi-pin per user works, duplicate pin correctly rejected
 by the primary key.
 
+## Design Simplification: worker_pins removed (2026-08-08)
+
+**Change**: after Phase 1 shipped, we realized `worker_pins` (project_id,
+user_uid, worker_id) duplicated what `workers.user_uid` already captures —
+that column is set automatically at registration time (via API
+key/Firebase auth, see [1033](../1033-worker-identity-and-remote-api-keys/index.md))
+and already means "who this worker belongs to." A separate pin table only
+earns its keep if pinning needs to mean something *other* than ownership —
+e.g. routing work to a worker registered under a different developer's
+identity. Discussing that case surfaced a real security question: routing
+to another person's machine is machine access, and should require that
+machine owner's explicit consent — not something to fall out of a query
+change casually. That consent/authorization design is deliberately
+**deferred**, not built here.
+
+**Decision**: drop `worker_pins` entirely. "A developer's workers for a
+project" is now just `SELECT * FROM workers WHERE project_id = $1 AND
+user_uid = $2` (`resolvePinnedWorkers` in `ui/server/index.mjs`, kept its
+name for now since callers didn't change). Default and only behavior:
+**my workers only**. A developer with workers on multiple machines under
+the same identity (e.g. laptop + cloud VM) already gets all of them.
+Cross-user dispatch is out of scope until the consent mechanism above is
+designed as its own track.
+
+- `migrations/20260808133947_drop_worker_pins.sql` — drops the table
+- `prisma/schema.sql` — `worker_pins` table definition removed
+- `ui/server/index.mjs` — `GET/POST/DELETE /api/projects/:id/worker-pins`
+  endpoints removed; `resolvePinnedWorkers` simplified to the query above
+- `ui/src/components/WorkersList.jsx` — "Pin as mine" button, state, and
+  fetch effect removed
+- Phase 2 Task 4 and Phase 4 Task 2 below are superseded by this — struck
+  through rather than rewritten, to keep the phase history honest
+
 ## Phase 2: Assignee Resolution
 
 **Problem**: Need a single source of truth for "who owns this track" and
@@ -54,9 +87,9 @@ by the primary key.
 **Solution**: Shared resolver used by both claim logic and UI.
 
 - [x] Task 1: `resolveAssignee(track, project)` — `track.assignee_uid` ?? `track.created_by_uid` ?? `project.owner_uid`
-- [x] Task 2: `resolvePinnedWorkers(pool, project_id, user_uid)` — lookup ALL pins in `worker_pins` for this (project, user), returns a list (possibly empty)
+- [x] Task 2: `resolvePinnedWorkers(pool, project_id, user_uid)` — lookup ALL pins in `worker_pins` for this (project, user), returns a list (possibly empty) — ~~superseded 2026-08-08: now just queries `workers WHERE project_id = $1 AND user_uid = $2`, no separate table~~
 - [x] Task 3: API endpoint `PATCH /api/projects/:id/tracks/:num/assignee` (dedicated endpoint, not routed through the lane/action collector-write path — assignee is a plain UI/DB field, not a filesystem-synced worker signal like Progress/Phase/Summary)
-- [x] Task 4: API endpoints `POST /api/projects/:id/worker-pins` (add a pin), `DELETE /api/projects/:id/worker-pins/:worker_id` (remove a pin), `GET /api/projects/:id/worker-pins` (list current user's pins) — team/visibility-scoped listing deferred, not needed yet (matches track 1033's existing visibility scope)
+- ~~Task 4: API endpoints `POST /api/projects/:id/worker-pins`, `DELETE .../worker-pins/:worker_id`, `GET .../worker-pins`~~ — removed 2026-08-08, see Design Simplification above
 
 **✅ Phase 2 complete (2026-08-08).** Verified: `PATCH .../assignee`
 end-to-end via curl+psql (set and clear both work). Worker-pins
@@ -110,8 +143,8 @@ end-to-end via curl+psql against the real API+DB.
 "mine."
 **Solution**: Additions to `TrackCard`/`TrackDetailPanel` and `WorkersList`.
 
-- [ ] Task 1: Assignee control on track detail panel — dropdown of project members, shows resolved worker + live status
-- [ ] Task 2: "Pin as mine" action on `WorkersList.jsx`, scoped to current project, shows current pin state
+- [x] Task 1: Assignee control on track detail panel — dropdown of project members, shows resolved worker + live status (falls back to a read-only span with an explanatory tooltip when there are no project members to choose from, i.e. no auth/no team in local-api mode)
+- ~~Task 2: "Pin as mine" action on `WorkersList.jsx`~~ — removed 2026-08-08, see Design Simplification above; ownership is implicit via `workers.user_uid` now, no UI action needed
 - [ ] Task 3: Track card shows assignee's worker status badge (idle/busy/offline) alongside existing lane/status badges
 
 ## Phase 5: Tests
@@ -120,9 +153,9 @@ end-to-end via curl+psql against the real API+DB.
 verification, not just unit tests.
 **Solution**: Extend existing worker/queue test suites.
 
-- [ ] Task 1: Unit tests for `resolveAssignee`/`resolvePinnedWorkers`
-- [ ] Task 2: Integration test with 2 mock workers registered to one project — verify only the pinned worker claims an assigned track
-- [ ] Task 3: Regression test — unpinned/no-assignee track claimable by either mock worker (today's behavior preserved)
+- [ ] Task 1: Unit tests for `resolveAssignee`/`resolvePinnedWorkers` (now `user_uid`-based, no separate pin table)
+- [ ] Task 2: Integration test with 2 mock workers (different `user_uid`) registered to one project — verify only the assignee's own worker claims an assigned track
+- [ ] Task 3: Regression test — no-assignee track claimable by either mock worker (today's behavior preserved)
 - [ ] Task 4: Reassignment test — moving assignee mid-`queue` changes which worker is eligible to claim
 - [ ] Task 5: Restart test — stop and restart a worker with the same `--worker-number`, confirm `workers.id` (and thus its pins/sessions) is unchanged
 - [ ] Task 6: Two-instance test — `--worker-number 1` and `--worker-number 2` run concurrently for the same project on one machine without pidfile collision

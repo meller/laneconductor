@@ -1,5 +1,15 @@
 # Spec: Worker Identity & Assignment (Track 1084)
 
+> **2026-08-08 update**: REQ-1's `worker_pins` table was implemented, then
+> removed — see plan.md's "Design Simplification" section. "A developer's
+> workers for a project" resolves directly from `workers.user_uid` (set at
+> registration, see [1033](../1033-worker-identity-and-remote-api-keys/index.md)),
+> not a separate pin table. Everywhere below that says "pinned worker(s)",
+> read "the assignee's own worker(s), by `user_uid`." Cross-user dispatch
+> (routing to a worker registered under someone *else's* identity) remains
+> explicitly out of scope — it's a machine-access security question needing
+> its own consent design, not something this simplification attempts.
+
 ## Problem Statement
 
 Remote-mode track claiming is a race: every worker registered to a project
