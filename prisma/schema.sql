@@ -134,6 +134,8 @@ CREATE TABLE "tracks" (
     "content_updated_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by_uid" TEXT,
+    "created_by_uid" TEXT,
+    "assignee_uid" TEXT,
     "claimed_by" TEXT,
     "active_cli" TEXT,
     "worktree_path" TEXT,
@@ -195,6 +197,20 @@ CREATE TABLE "worker_permissions" (
     "added_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "worker_permissions_pkey" PRIMARY KEY ("worker_id","user_uid")
+);
+
+-- CreateTable
+-- Track 1084: a developer's chosen worker(s) for a project. A developer can
+-- pin multiple workers to the same project (e.g. a laptop and a cloud VM),
+-- enabling parallel plan/implement across machines instead of serializing
+-- everything through one pinned worker.
+CREATE TABLE "worker_pins" (
+    "project_id" INTEGER NOT NULL,
+    "user_uid" TEXT NOT NULL,
+    "worker_id" INTEGER NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "worker_pins_pkey" PRIMARY KEY ("project_id","user_uid","worker_id")
 );
 
 -- CreateTable
@@ -284,6 +300,12 @@ ALTER TABLE "workers" ADD CONSTRAINT "workers_project_id_fkey" FOREIGN KEY ("pro
 
 -- AddForeignKey
 ALTER TABLE "worker_permissions" ADD CONSTRAINT "worker_permissions_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "worker_pins" ADD CONSTRAINT "worker_pins_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "worker_pins" ADD CONSTRAINT "worker_pins_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
