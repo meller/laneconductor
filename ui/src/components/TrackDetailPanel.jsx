@@ -64,6 +64,9 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const detailPollRef = useRef(null);
   const [showNewTrack, setShowNewTrack] = useState(false);
   const initialTabSet = useRef(!!initialTab);
+  // Track 1084 Phase 4: assignee control
+  const [members, setMembers] = useState([]);
+  const [assigneeSaving, setAssigneeSaving] = useState(false);
 
   // Fetch track detail
   const fetchDetail = () => {
@@ -80,6 +83,29 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     detailPollRef.current = setInterval(fetchDetail, 3000);
     return () => clearInterval(detailPollRef.current);
   }, [projectId, trackNumber]);
+
+  // Track 1084 Phase 4: project members for the assignee dropdown. Empty in
+  // local-api mode (no auth, no multi-user concept) — the control degrades
+  // gracefully to a read-only note in that case, same as worker-pins/
+  // worker_permissions already do elsewhere in this app.
+  useEffect(() => {
+    apiFetch(`/api/projects/${projectId}/members`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [projectId]);
+
+  async function setAssignee(uid) {
+    setAssigneeSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/assignee`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assignee_uid: uid || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setAssigneeSaving(false);
+  }
 
   // Poll comments every 2s; auto-switch to Conversation on first load if comments exist
   useEffect(() => {
@@ -205,6 +231,29 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 {detail.current_phase && (
                   <p className="text-xs text-gray-500 mt-0.5">{detail.current_phase}</p>
                 )}
+                {/* Track 1084: Assignee control */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Assignee:</span>
+                  {members.length > 0 ? (
+                    <select
+                      value={detail.assignee_uid ?? ''}
+                      disabled={assigneeSaving}
+                      onChange={e => setAssignee(e.target.value)}
+                      className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    >
+                      <option value="">
+                        {detail.created_by_uid ? `(default) ${detail.created_by_uid}` : '(unassigned)'}
+                      </option>
+                      {members.map(m => (
+                        <option key={m.user_uid} value={m.user_uid}>{m.user_uid}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-gray-500" title="Assignment is a multi-user (remote-api) feature — no project members to choose from here">
+                      {detail.assignee_uid ?? detail.created_by_uid ?? 'unassigned'}
+                    </span>
+                  )}
+                </div>
                 {/* Dev Server Status */}
                 {(detail.lane_status === 'review' || detail.lane_status === 'implement') && (
                   <div className="mt-2 pt-2 border-t border-gray-700 flex items-center gap-2">

@@ -2,10 +2,10 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 67%
-**Phase**: Phase 3 complete (minus continuity check, blocked on 1086) — claim gating
+**Progress**: 75%
+**Phase**: Phase 4 in progress — assignee UI done, worker_pins rolled back in favor of workers.user_uid
 **Type**: dev
-**Summary**: Per-user worker pinning + explicit track assignment to end random pickup.
+**Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
 
 ## Problem
 
@@ -24,20 +24,27 @@ need fixing before "pin a worker" can mean anything durable.
   `(project_id, hostname, worker_number)` instead of `pid`, so a worker's
   identity (and everything pinned/sessioned against it) survives restarts,
   and multiple worker processes can run for one project on one machine.
-- `worker_pins (project_id, user_uid, worker_id)` — a developer can pin
-  *multiple* workers to one project ("Pin as mine" per worker in the Workers
-  list), not just one — this is what lets one developer plan and implement
-  in parallel across different machines.
+- A developer's workers for a project are resolved directly from
+  `workers.user_uid` (set automatically at registration via API
+  key/Firebase auth — see [1033](../1033-worker-identity-and-remote-api-keys/index.md)),
+  not a separate pin table — a developer running workers on several
+  machines under the same identity already gets all of them. (An earlier
+  version of this design added a dedicated `worker_pins` table; removed
+  2026-08-08 as redundant — see plan.md's "Design Simplification" note.
+  Routing to a worker registered under a *different* developer's identity
+  is a deliberate non-goal here — it's a machine-access security question
+  that needs its own consent design, not something to fall out of a query
+  change.)
 - `tracks.assignee_uid` — nullable, identifies the responsible *developer*
   (not a specific machine); defaults to the track's creator (or project
   owner if creator unknown) when unset.
 - Claim logic in `autoLaunchLocalFs` / the API-mode claim path resolves the
-  assignee's candidate pinned workers, then routes with continuity-first:
-  if [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions`
-  already has a row for this track on one of those candidates, only that
-  worker may claim it; otherwise any idle candidate may. If the assignee has
-  no pin at all, fall back to today's open-claim behavior — zero config
-  needed for single-worker projects.
+  assignee's own workers, then routes with continuity-first: if
+  [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions`
+  already has a row for this track on one of those workers, only that
+  worker may claim it; otherwise any idle one may. If the assignee has no
+  workers registered at all, fall back to today's open-claim behavior —
+  zero config needed for single-worker projects.
 - UI: "Assignee" control on the track card/detail panel, reassignable to any
   project member, showing the resolved worker's live status.
 
@@ -45,11 +52,11 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 
 ## Phases
 - [x] Phase 0: Stable worker identity — `--worker-number` flag, DB uniqueness moves off `pid`, per-instance pidfile
-- [x] Phase 1: Schema — `worker_pins` table (many pins per developer), `tracks.assignee_uid` column
-- [x] Phase 2: Assignee resolution — creator/owner default, candidate-pins lookup helper
-- [x] Phase 3: Claim logic — assignee/pin gating + open-claim fallback done; continuity-first routing itself blocked on 1086's track_sessions
-- [ ] Phase 4: UI — Assignee control on track card/detail panel, "Pin as mine" on Workers list (supports multiple pins)
-- [ ] Phase 5: Tests — pin resolution, continuity routing, parallel claims across a developer's workers, fallback behavior, reassignment
+- [x] Phase 1: Schema — `tracks.assignee_uid` column (`worker_pins` table added then removed, see below)
+- [x] Phase 2: Assignee resolution — creator/owner default, own-workers lookup helper (`workers.user_uid`-based)
+- [x] Phase 3: Claim logic — assignee/ownership gating + open-claim fallback done; continuity-first routing itself blocked on 1086's track_sessions
+- [ ] Phase 4: UI — Assignee control on track detail panel done; "Pin as mine" removed (no longer needed); Task 3 (track card worker status badge) remaining
+- [ ] Phase 5: Tests — assignee resolution, continuity routing, parallel claims across a developer's own workers, fallback behavior, reassignment
 
 ## Depends on
 None to start (schema/UI can land first) — but Phase 3's continuity check needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table to exist. Foundation for [1085](../1085-manual-worker-dispatch/index.md).

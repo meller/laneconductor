@@ -85,10 +85,19 @@ Rejected alternatives considered and why:
 ## A. Worker Identity & Assignment
 
 **Schema:**
-- `worker_pins (project_id, user_uid, worker_id)` — a developer can pin
-  *multiple* workers to one project, not just one. This is what allows a
-  single developer to run plan and implement in parallel across different
-  machines instead of serializing everything through one pinned worker.
+- A developer's workers for a project are resolved directly from
+  `workers.user_uid` — set automatically at registration via API
+  key/Firebase auth (Track 1033), not via a separate pin table. A developer
+  running workers on multiple machines under the same identity (e.g. a
+  laptop and a cloud VM) already gets all of them from this, which is what
+  allows plan and implement to run in parallel across machines instead of
+  serializing through one worker. *(An earlier version of this design added
+  a dedicated `worker_pins (project_id, user_uid, worker_id)` table;
+  removed 2026-08-08 as redundant with `user_uid` — see Track 1084's
+  plan.md. Routing work to a worker registered under a **different**
+  developer's identity is a deliberate non-goal: it's machine access across
+  a security boundary and needs its own explicit owner-consent design, not
+  something that should fall out of a query change.)*
 - `tracks.assignee_uid` — nullable. The *developer* responsible for this
   track (not a specific machine). Defaults to the track's creator when
   unset. There is deliberately no separate "which worker" field on the
@@ -98,18 +107,18 @@ Rejected alternatives considered and why:
 **Claiming logic** (`autoLaunchLocalFs` and the API-mode claim path in
 `conductor/laneconductor.sync.mjs`), continuity-first routing:
 - Resolve the track's assignee (explicit `assignee_uid`, or creator if
-  unset, or project owner if creator unknown), then resolve all of that
-  assignee's pinned workers via `worker_pins` — zero, one, or several.
+  unset, or project owner if creator unknown), then resolve all workers
+  registered under that assignee's `user_uid` — zero, one, or several.
 - **Continuity check:** if `track_sessions` (Section C) already has a row
   for this track on one of those candidate workers, only that worker may
   claim it — it already holds the session/context.
 - **No prior session:** any idle candidate worker may claim it
-  (first-idle-wins among the assignee's pinned workers). This is what
+  (first-idle-wins among the assignee's own workers). This is what
   enables parallel work: two tracks assigned to the same developer, neither
   with a session yet, can land on two different idle workers at once.
-- If the assignee has no pin at all, fall back to today's open-claim
-  behavior (any online worker for the project may claim it) — the
-  zero-config path for single-worker projects.
+- If the assignee has no workers registered at all, fall back to today's
+  open-claim behavior (any online worker for the project may claim it) —
+  the zero-config path for single-worker projects.
 
 This creates a soft two-way dependency between Sections A and C: A's
 continuity check reads C's `track_sessions` table, so that specific piece of
@@ -264,7 +273,8 @@ on, remotely, via a machine they can already control.
 host, label, created_at)` — a lightweight registry of "machines I could
 start a worker on," distinct from `workers` (which only exist once a
 worker has actually registered by running). This is separate from Section
-A's `worker_pins`, which pins *existing* workers.
+A's `user_uid`-based ownership, which only covers *existing*, already-
+registered workers.
 
 **Mechanism — delegated, not direct:** the Collector API can't SSH anywhere
 itself (that would mean it holding its own SSH credentials, a new and more

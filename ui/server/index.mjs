@@ -952,7 +952,8 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
     const result = await pool.query(
       `SELECT id, track_number, title, lane_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
-              index_content, plan_content, spec_content, test_content, last_log_tail
+              index_content, plan_content, spec_content, test_content, last_log_tail,
+              assignee_uid, created_by_uid
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -972,6 +973,8 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       spec: t.spec_content,
       test: t.test_content,
       last_log_tail: t.last_log_tail,
+      assignee_uid: t.assignee_uid, // Track 1084
+      created_by_uid: t.created_by_uid, // Track 1084
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2639,11 +2642,20 @@ function resolveAssignee(track, project) {
   return track.assignee_uid ?? track.created_by_uid ?? project.owner_uid ?? null;
 }
 
-// Track 1084: all workers a developer has pinned to a project (may be empty).
+// Track 1084: all of a developer's own workers for a project (may be
+// empty). "Own" = registered under their identity (workers.user_uid, set
+// automatically at registration via API key/Firebase auth — see
+// /worker/register) — not a separate pin/grant mechanism. A developer
+// running workers on several machines under the same identity (e.g. a
+// laptop and a cloud VM) already gets all of them here; routing to a
+// worker registered under someone *else's* identity is deliberately not
+// supported — that would mean dispatching work to another person's
+// machine, a real security boundary that needs its own explicit
+// consent/permission design, not just a query.
 async function resolvePinnedWorkers(pool, projectId, userUid) {
   if (!userUid) return [];
   const { rows } = await pool.query(
-    'SELECT w.* FROM worker_pins wp JOIN workers w ON w.id = wp.worker_id WHERE wp.project_id = $1 AND wp.user_uid = $2',
+    'SELECT * FROM workers WHERE project_id = $1 AND user_uid = $2',
     [projectId, userUid]
   );
   return rows;
@@ -2793,63 +2805,20 @@ app.patch('/api/projects/:id/tracks/:num/assignee', async (req, res) => {
   }
 });
 
-// List the calling user's pinned workers for a project
-app.get('/api/projects/:id/worker-pins', requireAuth, async (req, res) => {
-  try {
-    const userUid = resolveUid(req);
-    if (!userUid) return res.status(400).json({ error: 'user_uid required (worker pins need an authenticated user)' });
-    const rows = await resolvePinnedWorkers(pool, req.params.id, userUid);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Pin a worker to a project for the calling user
-app.post('/api/projects/:id/worker-pins', requireAuth, async (req, res) => {
-  try {
-    const userUid = resolveUid(req);
-    if (!userUid) return res.status(400).json({ error: 'user_uid required (worker pins need an authenticated user)' });
-    const { worker_id } = req.body;
-    if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
-    await pool.query(
-      'INSERT INTO worker_pins(project_id, user_uid, worker_id) VALUES($1, $2, $3) ON CONFLICT DO NOTHING',
-      [req.params.id, userUid, worker_id]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(err.code === '23503' ? 400 : 500).json({ error: err.message }); // 23503 = FK violation (bad worker_id)
-  }
-});
-
-// Un-pin a worker for the calling user
-app.delete('/api/projects/:id/worker-pins/:worker_id', requireAuth, async (req, res) => {
-  try {
-    const userUid = resolveUid(req);
-    if (!userUid) return res.status(400).json({ error: 'user_uid required (worker pins need an authenticated user)' });
-    await pool.query(
-      'DELETE FROM worker_pins WHERE project_id = $1 AND user_uid = $2 AND worker_id = $3',
-      [req.params.id, userUid, req.params.worker_id]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Track 1084 Phase 3: which of this project's queue-status tracks a given
 // worker is currently allowed to claim. Fetched once per auto-launch cycle
 // (not per track) — the worker has "zero DB knowledge" per its own design,
-// so authorization stays server-side, reusing the same resolveAssignee/
-// resolvePinnedWorkers this file already uses for the assignee/pins UI.
+// so authorization stays server-side, reusing resolveAssignee/
+// resolvePinnedWorkers.
 //
 // Rule (matches track 1084's design): resolve the track's assignee
 // (assignee_uid ?? created_by_uid ?? project.owner_uid); if that assignee has
-// no pinned workers at all, the track is open to any worker (today's
-// zero-config behavior, unchanged). If they do have pins, only a worker in
-// that pin set may claim it. (Continuity-first routing via track_sessions —
-// track 1086 — is a follow-up once that table exists; this is the
-// assignee/pin gate alone.)
+// no workers of their own registered at all, the track is open to any
+// worker (today's zero-config behavior, unchanged). If they do, only one of
+// their own workers (workers.user_uid — set at registration, not a separate
+// grant) may claim it. (Continuity-first routing via track_sessions — track
+// 1086 — is a follow-up once that table exists; this is the assignee gate
+// alone.)
 app.get('/api/projects/:id/claimable-tracks', async (req, res) => {
   try {
     const workerId = req.query.worker_id ? parseInt(req.query.worker_id) : null;
@@ -2863,17 +2832,17 @@ app.get('/api/projects/:id/claimable-tracks', async (req, res) => {
       [req.params.id]
     );
 
-    const pinCache = new Map(); // user_uid -> Set(worker_id) — avoid re-querying per track
+    const ownWorkersCache = new Map(); // user_uid -> Set(worker_id) — avoid re-querying per track
     const claimable = [];
     for (const track of tracks) {
       const assignee = resolveAssignee(track, project);
       if (!assignee) { claimable.push(track.track_number); continue; } // no owner info at all — open claim
 
-      if (!pinCache.has(assignee)) {
-        const pinned = await resolvePinnedWorkers(pool, req.params.id, assignee);
-        pinCache.set(assignee, new Set(pinned.map(w => w.id)));
+      if (!ownWorkersCache.has(assignee)) {
+        const own = await resolvePinnedWorkers(pool, req.params.id, assignee);
+        ownWorkersCache.set(assignee, new Set(own.map(w => w.id)));
       }
-      const candidates = pinCache.get(assignee);
+      const candidates = ownWorkersCache.get(assignee);
       if (candidates.size === 0 || candidates.has(workerId)) claimable.push(track.track_number);
     }
 
