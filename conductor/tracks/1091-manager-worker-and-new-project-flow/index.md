@@ -26,9 +26,17 @@ one-worker-belongs-to-one-project model at all.
   `provision-worker` (which stays open to any pinned worker, since it's
   still scoped to an *existing* project) — `create-project` has no project
   to scope to yet, which is exactly why it needs its own tier.
-- CLI: `lc worker start --manager` registers with `type: 'manager'` instead
-  of the default `'project'` (alongside the existing `--sync-only`/
-  `--worker-number` flags from [1084](../1084-worker-identity-and-assignment/index.md)).
+- **Multiplicity differs by type**: `'project'` workers keep 1084's model —
+  multiple per project/folder. `'manager'` workers are a machine-level
+  singleton — at most one per hostname, globally, enforced by a partial
+  unique index — and `project_id` is nullable for them (a manager isn't
+  "for" any one project). `lc worker start --manager` fails clearly if one's
+  already running on that machine, rather than silently registering a
+  second.
+- CLI: `lc worker start --manager` registers with `type: 'manager'`,
+  `project_id: null` (alongside the existing `--sync-only`/`--worker-number`
+  flags from [1084](../1084-worker-identity-and-assignment/index.md), though
+  `--worker-number` doesn't apply to managers — there's only ever one).
 - `create-project` dispatch action — reuses
   [1085](../1085-manual-worker-dispatch/index.md)'s `worker_dispatch` table
   and generic `payload` column (repo path/git URL + scaffold answers), only
