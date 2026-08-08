@@ -175,6 +175,7 @@ CREATE TABLE "workers" (
     "project_id" INTEGER,
     "hostname" TEXT NOT NULL,
     "pid" INTEGER NOT NULL,
+    "worker_number" INTEGER NOT NULL DEFAULT 1,
     "status" TEXT DEFAULT 'idle',
     "mode" TEXT DEFAULT 'polling',
     "current_task" TEXT,
@@ -249,7 +250,7 @@ CREATE UNIQUE INDEX "tracks_project_id_track_number_key" ON "tracks"("project_id
 CREATE UNIQUE INDEX "workers_machine_token_key" ON "workers"("machine_token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "workers_project_id_hostname_pid_key" ON "workers"("project_id", "hostname", "pid");
+CREATE UNIQUE INDEX "workers_project_id_hostname_worker_number_key" ON "workers"("project_id", "hostname", "worker_number");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workspaces_github_org_key" ON "workspaces"("github_org");
