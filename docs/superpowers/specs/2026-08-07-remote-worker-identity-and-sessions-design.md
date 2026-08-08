@@ -33,7 +33,7 @@ able to show that session happening live, not just a raw stdout tail.
 
 ## Approach
 
-Six connected pieces, in dependency order — each builds on the one before it:
+Seven connected pieces, in dependency order — each builds on the one before it:
 
 - **A. Worker identity & assignment** — the foundation. Introduces per-user
   worker pinning (many workers per developer) and per-track assignment, so
@@ -54,6 +54,10 @@ Six connected pieces, in dependency order — each builds on the one before it:
 - **F. Remote worker provisioning** — extends B again: activating a worker on a
   machine you already control, from the app, delegated through an existing
   worker rather than the API server holding SSH credentials itself.
+- **G. Manager worker type & new-project flow** — extends B once more: a
+  narrow worker trust tier (`type: 'manager'`) for system-wide actions that
+  have no project to scope to yet, starting with creating new projects from
+  the app instead of a human running `lc setup` in a terminal.
 
 Rejected alternatives considered and why:
 
@@ -289,6 +293,44 @@ would run: lc worker start --worker-number <n>"` and marks the dispatch
 the registry, the UI flow, the dispatch entry shape — is built for real in
 this pass; only the last step (actually SSHing and running the remote
 command) is deferred to a follow-up.
+
+## G. Manager Worker Type & New-Project Flow (also extends Section B)
+
+**Problem:** every worker so far (Sections A-F) belongs to exactly one
+project. There's no way to create a *new* project from the app — onboarding
+one today means a human running `lc setup` → `setup scaffold` → `setup
+collection` manually in a terminal. Nothing in the design so far can act
+"before a project exists," because the whole worker model assumes one
+already does.
+
+**Worker type, not a special worker kind:** `workers.type` (`'project'`
+default, `'manager'`). A manager worker is otherwise completely normal —
+still has a `project_id`, still syncs/dispatches like any other — the only
+difference is it additionally polls for and can claim system-wide dispatch
+actions a project-type worker ignores. `lc worker start --manager` sets it.
+This is a narrower trust tier than Section F's `provision-worker` (open to
+any pinned worker, since it still acts within an *existing* project) —
+`create-project` has no project to scope permission to yet, which is
+exactly why it needs its own tier.
+
+**`create-project` dispatch, reusing Section B again:** `worker_dispatch`
+with `action: 'create-project'`, `track_number: null`,
+`payload: {repo_source, scaffold_context}`, claimable only by a manager
+worker (API-enforced, plus defense-in-depth at the worker's own dispatch
+loop). The scaffold generation itself is **not new work** —
+`/laneconductor setup scaffold generate` already writes `product.md`/
+`tech-stack.md`/etc. from a context blob; this just triggers it via
+dispatch instead of a human running it in a terminal, fed by a UI wizard
+instead of the CLI's interactive brainstorm. The manager worker then
+registers the new project and its first worker row (`type: 'project'`,
+default — the *creating* worker stays `'manager'`, the *created* project's
+worker is a normal one).
+
+**Ripple effect on Section D:** `deploy` (Section E) and `create-project`
+both dispatch with no associated track, so Section D's transcript panel
+(originally track-only) generalizes to key its live transcript on
+`worker_dispatch.id` instead of `track_number` for these, reusing the same
+renderer in a standalone view rather than a track's drawer.
 
 ## Out of scope for this design
 

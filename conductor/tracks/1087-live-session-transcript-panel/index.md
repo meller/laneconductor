@@ -31,6 +31,10 @@ stream per track worth watching live, not several.
 - Applies uniformly to auto-launched runs, manually-dispatched runs (1085),
   and any conversation turn — since after 1086 they're all the same
   underlying session, this is one live view, not several mechanisms.
+- Also covers non-track dispatches — `deploy` (1085) and `create-project`
+  (1091) have no associated track, so the same transcript mechanism is keyed
+  on `worker_dispatch.id` instead of `track_number` and shown in a
+  standalone view rather than a track's drawer.
 - `conversation.md` remains a derived, human-readable audit log (see 1086);
   this panel is the live/structured counterpart, not a replacement for it.
 
@@ -41,7 +45,9 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [ ] Phase 2: Transport — push structured events to the collector API, relay over existing WebSocket
 - [ ] Phase 3: UI — collapsible right-side drawer, transcript rendering (text blocks + collapsible tool-call entries)
 - [ ] Phase 4: UI — auto-expand on run start for the currently-viewed track, manual collapse
-- [ ] Phase 5: Tests — stream-json parsing, WS relay, fallback to raw-text rendering for non-Claude CLIs
+- [ ] Phase 5: UI — cross-worker activity view (Workers list live-activity snippets)
+- [ ] Phase 6: Non-track dispatch transcripts — deploy/create-project, keyed on dispatch id, standalone view
+- [ ] Phase 7: Tests — stream-json parsing, WS relay, fallback to raw-text rendering for non-Claude CLIs, non-track dispatch transcripts
 
 ## Depends on
-[1086](../1086-persistent-track-sessions/index.md) — this panel renders that track's persistent session stream; without 1086 there's no single continuous stream to show, only disconnected per-call logs.
+[1086](../1086-persistent-track-sessions/index.md) — this panel renders that track's persistent session stream; without 1086 there's no single continuous stream to show, only disconnected per-call logs. Phase 6 also depends on [1085](../1085-manual-worker-dispatch/index.md) (deploy) and [1091](../1091-manager-worker-and-new-project-flow/index.md) (create-project) existing as dispatch actions to have anything non-track-scoped to render.
