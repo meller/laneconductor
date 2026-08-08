@@ -5,7 +5,7 @@
 **Problem**: No way to address a command at a specific worker.
 **Solution**: `worker_dispatch` table, separate from the general track queue.
 
-- [ ] Task 1: Migration — `worker_dispatch` table, `track_number`/`environment` nullable (see spec REQ-1)
+- [ ] Task 1: Migration — `worker_dispatch` table, `track_number` nullable, generic `payload JSONB` column (see spec REQ-1)
 - [ ] Task 2: Index on `(worker_id, status)` for the polling query
 
 ## Phase 2: Worker Loop
@@ -29,7 +29,7 @@ actions), one project-scoped (deploy).
 
 - [ ] Task 1: `POST /api/tracks/:id/dispatch { worker_id, action }` — validates action against track's current lane, inserts `pending` row
 - [ ] Task 2: `GET /api/tracks/:id/dispatch` — list dispatch history for the track (for the UI's activity view)
-- [ ] Task 3: `POST /api/projects/:id/dispatch { worker_id, action: 'deploy', environment }` — validates `environment` exists in that project's `deploy.json`, inserts `pending` row with `track_number: null`
+- [ ] Task 3: `POST /api/projects/:id/dispatch { worker_id, action: 'deploy', payload: { environment } }` — validates `payload.environment` exists in that project's `deploy.json`, inserts `pending` row with `track_number: null`
 
 ## Phase 4: UI
 
