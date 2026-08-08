@@ -33,9 +33,19 @@ issue blocking git-lock commits, neither touching workers).
 developer a track is assigned to.
 **Solution**: Migration adding `worker_pins` and `tracks.assignee_uid`.
 
-- [ ] Task 1: Migration — `worker_pins (project_id INTEGER REFERENCES projects(id), user_uid TEXT, worker_id INTEGER REFERENCES workers(id), created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (project_id, user_uid, worker_id))` — a developer can pin multiple workers per project
-- [ ] Task 2: Migration — `ALTER TABLE tracks ADD COLUMN assignee_uid TEXT`
-- [ ] Task 3: Apply via Atlas, verify against local + prod schema conventions used by prior worker-security migrations
+- [x] Task 1: Migration — `worker_pins (project_id INTEGER REFERENCES projects(id), user_uid TEXT, worker_id INTEGER REFERENCES workers(id), created_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (project_id, user_uid, worker_id))` — a developer can pin multiple workers per project
+- [x] Task 2: Migration — `ALTER TABLE tracks ADD COLUMN assignee_uid TEXT`
+- [x] Task 2b: Migration — `ALTER TABLE tracks ADD COLUMN created_by_uid TEXT` (discovered while implementing: Phase 2's `resolveAssignee` fallback chain needs a stable "who created this track" field, and none existed — `last_updated_by_uid` changes over time, it's not a creator marker)
+- [x] Task 3: Apply via Atlas, verify against local + prod schema conventions used by prior worker-security migrations
+
+**✅ Phase 1 complete (2026-08-08).** Implemented via `/laneconductor
+lock 1084` → isolated worktree at `.worktrees/1084` → merged back into
+main (`0bfd964`) → `/laneconductor unlock 1084`. Also hardened the
+Phase 0 migration to handle both forms of the old
+`workers_project_id_hostname_pid_key` index (plain vs. constraint-
+backed) so `atlas migrate diff` can replay it against a fresh dev DB.
+Verified: multi-pin per user works, duplicate pin correctly rejected
+by the primary key.
 
 ## Phase 2: Assignee Resolution
 
