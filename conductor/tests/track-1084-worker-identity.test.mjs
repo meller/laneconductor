@@ -215,3 +215,95 @@ describe('Track 1084 Phase 0: CLI --worker-number pidfile', () => {
     killIfRunning(pidFile2);
   });
 });
+
+// ── Phase 3: assignee/pin gating via claimable-tracks ─────────────────────
+
+const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
+const TMP_P3 = join(ROOT, '.test-tmp-track-1084-phase3');
+
+function setupPhase3Project(collectorPort) {
+  rmSync(TMP_P3, { recursive: true, force: true });
+  mkdirSync(TMP_P3, { recursive: true });
+  const collectorUrl = `http://127.0.0.1:${collectorPort}`;
+
+  writeFileSync(join(TMP_P3, '.laneconductor.json'), JSON.stringify({
+    mode: 'local-api',
+    project: { name: 'test-project', id: 1, repo_path: TMP_P3, primary: { cli: 'mock', model: 'mock' } },
+    collectors: [{ url: collectorUrl, token: null }],
+    ui: { port: 8090 },
+  }, null, 2));
+
+  mkdirSync(join(TMP_P3, 'conductor/tracks'), { recursive: true });
+  writeFileSync(join(TMP_P3, 'conductor/workflow.json'), JSON.stringify({
+    global: { total_parallel_limit: 3 },
+    defaults: { parallel_limit: 3, max_retries: 1, primary_model: 'mock' },
+    lanes: { implement: { parallel_limit: 3, max_retries: 1 } },
+  }, null, 2));
+
+  for (const num of ['1001', '1002']) {
+    const dir = join(TMP_P3, 'conductor/tracks', `${num}-test-track`);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.md'), [
+      `# Track ${num}: Test Track`,
+      '',
+      '**Lane**: implement',
+      '**Lane Status**: queue',
+      '**Progress**: 0%',
+    ].join('\n'));
+  }
+}
+
+function startPhase3Worker() {
+  const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')], {
+    cwd: TMP_P3,
+    env: {
+      ...process.env,
+      LC_MOCK_CLI: `node ${MOCK_CLI}`,
+      MOCK_CLI_DELAY_MS: '200',
+      LC_SKIP_GIT_LOCK: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  worker.stdout.on('data', d => process.stdout.write(`[p3-worker] ${d}`));
+  worker.stderr.on('data', d => process.stderr.write(`[p3-worker] ${d}`));
+  return worker;
+}
+
+function laneStatusOf(num) {
+  const path = join(TMP_P3, 'conductor/tracks', `${num}-test-track`, 'index.md');
+  const content = readFileSync(path, 'utf8');
+  return content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim();
+}
+
+describe('Track 1084 Phase 3: claimable-tracks gating', () => {
+  let collectorProc, collectorPort;
+
+  before(async () => {
+    const c = await startMockCollector();
+    collectorProc = c.proc;
+    collectorPort = c.port;
+  });
+
+  after(() => {
+    collectorProc?.kill();
+    rmSync(TMP_P3, { recursive: true, force: true });
+  });
+
+  it('only claims tracks present in claimable-tracks, leaves others in queue', async () => {
+    await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' }).catch(() => {});
+    // Worker is only allowed to claim 1001, not 1002.
+    await fetch(`http://127.0.0.1:${collectorPort}/_set-claimable`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claimable: ['1001'] }),
+    });
+    setupPhase3Project(collectorPort);
+    const worker = startPhase3Worker();
+    try {
+      await poll(async () => (laneStatusOf('1001') !== 'queue') || null, { timeout: 8000, label: 'track 1001 claimed' });
+      assert.notEqual(laneStatusOf('1001'), 'queue', 'track 1001 (claimable) should have been claimed');
+      assert.equal(laneStatusOf('1002'), 'queue', 'track 1002 (not claimable) should NOT have been claimed');
+    } finally {
+      worker.kill();
+    }
+  });
+});

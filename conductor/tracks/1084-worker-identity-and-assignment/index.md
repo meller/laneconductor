@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 50%
-**Phase**: Phase 2 complete — assignee resolution + worker-pin API
+**Progress**: 67%
+**Phase**: Phase 3 complete (minus continuity check, blocked on 1086) — claim gating
 **Type**: dev
 **Summary**: Per-user worker pinning + explicit track assignment to end random pickup.
 
@@ -47,7 +47,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 0: Stable worker identity — `--worker-number` flag, DB uniqueness moves off `pid`, per-instance pidfile
 - [x] Phase 1: Schema — `worker_pins` table (many pins per developer), `tracks.assignee_uid` column
 - [x] Phase 2: Assignee resolution — creator/owner default, candidate-pins lookup helper
-- [ ] Phase 3: Claim logic — continuity-first routing among assignee's candidate workers, with open-claim fallback
+- [x] Phase 3: Claim logic — assignee/pin gating + open-claim fallback done; continuity-first routing itself blocked on 1086's track_sessions
 - [ ] Phase 4: UI — Assignee control on track card/detail panel, "Pin as mine" on Workers list (supports multiple pins)
 - [ ] Phase 5: Tests — pin resolution, continuity routing, parallel claims across a developer's workers, fallback behavior, reassignment
 

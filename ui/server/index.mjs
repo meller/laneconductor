@@ -2564,18 +2564,22 @@ app.post('/worker/register', async (req, res, next) => {
       machine_token = randomUUID();
     }
 
-    await pool.query(`
+    const { rows: [{ id: workerId }] } = await pool.query(`
     INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, last_heartbeat)
     VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, NOW())
     ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
     status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
     last_heartbeat = NOW()
+    RETURNING id
   `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
 
 
     broadcast('worker:updated', { projectId });
-    res.json({ ok: true, machine_token });
+    // Track 1084 Phase 3: the worker needs its own DB id to ask
+    // /claimable-tracks "which queued tracks may I claim" — it previously had
+    // no way to know its own identity beyond hostname/worker_number.
+    res.json({ ok: true, machine_token, id: workerId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2828,6 +2832,52 @@ app.delete('/api/projects/:id/worker-pins/:worker_id', requireAuth, async (req, 
       [req.params.id, userUid, req.params.worker_id]
     );
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1084 Phase 3: which of this project's queue-status tracks a given
+// worker is currently allowed to claim. Fetched once per auto-launch cycle
+// (not per track) — the worker has "zero DB knowledge" per its own design,
+// so authorization stays server-side, reusing the same resolveAssignee/
+// resolvePinnedWorkers this file already uses for the assignee/pins UI.
+//
+// Rule (matches track 1084's design): resolve the track's assignee
+// (assignee_uid ?? created_by_uid ?? project.owner_uid); if that assignee has
+// no pinned workers at all, the track is open to any worker (today's
+// zero-config behavior, unchanged). If they do have pins, only a worker in
+// that pin set may claim it. (Continuity-first routing via track_sessions —
+// track 1086 — is a follow-up once that table exists; this is the
+// assignee/pin gate alone.)
+app.get('/api/projects/:id/claimable-tracks', async (req, res) => {
+  try {
+    const workerId = req.query.worker_id ? parseInt(req.query.worker_id) : null;
+    if (!workerId) return res.status(400).json({ error: 'worker_id is required' });
+
+    const { rows: [project] } = await pool.query('SELECT owner_uid FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+
+    const { rows: tracks } = await pool.query(
+      "SELECT track_number, assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND lane_action_status = 'queue'",
+      [req.params.id]
+    );
+
+    const pinCache = new Map(); // user_uid -> Set(worker_id) — avoid re-querying per track
+    const claimable = [];
+    for (const track of tracks) {
+      const assignee = resolveAssignee(track, project);
+      if (!assignee) { claimable.push(track.track_number); continue; } // no owner info at all — open claim
+
+      if (!pinCache.has(assignee)) {
+        const pinned = await resolvePinnedWorkers(pool, req.params.id, assignee);
+        pinCache.set(assignee, new Set(pinned.map(w => w.id)));
+      }
+      const candidates = pinCache.get(assignee);
+      if (candidates.size === 0 || candidates.has(workerId)) claimable.push(track.track_number);
+    }
+
+    res.json({ claimable });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

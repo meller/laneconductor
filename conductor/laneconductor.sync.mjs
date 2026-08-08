@@ -52,6 +52,12 @@ const workerNumber = workerNumberArgIdx !== -1
   ? parseInt(process.argv[workerNumberArgIdx + 1], 10)
   : (parseInt(process.env.LC_WORKER_NUMBER, 10) || 1);
 
+// Track 1084 Phase 3: this worker's own DB id, learned from the
+// /worker/register response — needed to ask /claimable-tracks "which queued
+// tracks may I claim" during auto-launch. Null until the first successful
+// registration (e.g. local-fs mode, where there's no DB/registration at all).
+let myWorkerId = null;
+
 if (existsSync('.env')) {
   for (const line of readFileSync('.env', 'utf8').split('\n')) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
@@ -523,6 +529,7 @@ async function upsertWorker() {
       const visibility = proj.worker?.visibility || config.worker?.visibility || 'private';
       const res = await post(url, token, '/worker/register', { hostname, pid, project_id, visibility, mode: workerMode, worker_number: workerNumber });
 
+      if (res.id) myWorkerId = res.id;
 
       // Store the returned machine token on disk for next beats
       if (res.machine_token && res.machine_token !== c.machine_token) {
@@ -3635,7 +3642,10 @@ setInterval(() => processFileSyncQueue().catch(e => console.error('[file-queue e
 
 // ── Local-fs auto-launch (Mode 1: no API) ─────────────────────────────────────
 // Scans conductor/tracks/*/index.md for queued tracks, respects workflow.json limits.
-async function autoLaunchLocalFs(globalLimit) {
+// claimableSet (Track 1084 Phase 3): in API mode, the set of track_numbers this
+// worker is currently allowed to claim (from /claimable-tracks — see caller).
+// null means no restriction (local-fs mode, or a fetch failure — see caller).
+async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
 
@@ -3743,6 +3753,13 @@ async function autoLaunchLocalFs(globalLimit) {
     // Normally only process 'queue' status
     // EXCEPTION: if we are answering a human, bypass 'queue' check
     if (lane_action_status !== 'queue' && !waitingForReply) continue;
+
+    // Track 1084 Phase 3: assignee/pin gating (API mode only — claimableSet is
+    // null in local-fs mode). Bypassed for waitingForReply the same way the
+    // concurrency/retry checks below are — a track already mid-conversation
+    // should get answered regardless of who's currently "assigned" to claim
+    // new queue work, and claimableSet only covers queue-status tracks anyway.
+    if (claimableSet && !waitingForReply && !claimableSet.has(track_number)) continue;
 
     // Passive lanes should not trigger auto-automation actions
     if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;
@@ -3890,7 +3907,22 @@ setInterval(async () => {
 
       // Launch decisions are always filesystem-based (same as local-fs mode).
       // DB is used only for heartbeats and UI sync, not for concurrency control.
-      await autoLaunchLocalFs(globalLimit);
+      // Track 1084 Phase 3: fetch which queued tracks this worker may claim
+      // (assignee/pin gating) once per cycle — not per track — to avoid a
+      // request storm on projects with many tracks. myWorkerId is null if
+      // registration hasn't completed yet; null claimableSet means "no
+      // restriction" so a not-yet-registered worker doesn't just idle forever.
+      let claimableSet = null;
+      if (myWorkerId) {
+        try {
+          const { claimable } = await get(url, token, `/api/projects/${proj.id}/claimable-tracks?worker_id=${myWorkerId}`);
+          claimableSet = new Set(claimable);
+        } catch (err) {
+          console.warn(`[auto-launch] Failed to fetch claimable-tracks (proceeding unrestricted this cycle): ${err.message}`);
+        }
+      }
+
+      await autoLaunchLocalFs(globalLimit, claimableSet);
     } catch (err) {
       console.error('[auto-launch error]:', err.message);
     }

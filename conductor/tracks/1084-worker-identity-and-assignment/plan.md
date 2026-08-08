@@ -80,11 +80,29 @@ whichever worker already has a session for this track (depends on
 — this specific task can't land until 1086's schema exists, even though the
 rest of this phase can).
 
-- [ ] Task 1: In `autoLaunchLocalFs`, before claiming a track: resolve assignee, resolve candidate pinned workers (Phase 2 Task 2)
-- [ ] Task 2: Continuity check — if `track_sessions` has a row for this track where `worker_id` is one of the candidates, only that worker may claim it
-- [ ] Task 3: No prior session — any idle candidate worker may claim it (first-idle-wins)
-- [ ] Task 4: Apply the same gating to the API-mode claim path (`conductor/laneconductor.sync.mjs` claim-queue usage)
-- [ ] Task 5: Confirm unpinned-assignee fallback preserves current open-claim behavior exactly (no regression for existing single-worker projects)
+- [x] Task 1: In `autoLaunchLocalFs`, before claiming a track: resolve assignee, resolve candidate pinned workers (Phase 2 Task 2) — implemented server-side as a new `GET /api/projects/:id/claimable-tracks?worker_id=X` endpoint (reuses `resolveAssignee`/`resolvePinnedWorkers`), fetched once per auto-launch cycle rather than per track, since the worker has "zero DB knowledge" by design and can't run this resolution itself
+- [ ] Task 2: Continuity check — deferred, as planned: needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table, which doesn't exist yet
+- [x] Task 3: No prior session — any idle candidate worker may claim it (first-idle-wins) — this is the actual behavior right now, since there's no continuity check yet to prefer a specific one
+- [x] Task 4: Apply the same gating to the API-mode claim path — there is only one claim path (`autoLaunchLocalFs`, shared by local-fs and API mode; the "claim-queue endpoint" comment nearby was stale/vestigial, no such endpoint is actually used for concurrency decisions), so this was gated once at the source
+- [x] Task 5: Confirm unpinned-assignee fallback preserves current open-claim behavior exactly — verified via curl: a track whose assignee has no pins is claimable by any worker
+
+**Discovered while implementing**: `projects.owner_uid` (needed by
+`resolveAssignee`'s fallback chain) was declared in `prisma/schema.sql`
+but had never actually been migrated onto the real DB — same class of
+schema/reality drift as Phase 0's constraint issue. Applied directly;
+`atlas migrate diff` confirmed the migration chain already accounted
+for it, so no new migration file was needed, just catching the real DB
+up.
+
+**✅ Phase 3 complete for its current, achievable scope (2026-08-08)**
+— everything except the continuity check, which is correctly blocked
+on 1086. New test:
+`conductor/tests/track-1084-worker-identity.test.mjs`'s Phase 3 suite
+(extends `mock-collector.mjs` with `/claimable-tracks` +
+`/_set-claimable`) — verified it actually catches a regression by
+temporarily disabling the gating line and confirming the test fails,
+then restoring. Manually verified open-claim and pin-gated scenarios
+end-to-end via curl+psql against the real API+DB.
 
 ## Phase 4: UI
 
