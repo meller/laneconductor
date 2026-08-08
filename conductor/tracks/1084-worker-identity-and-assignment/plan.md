@@ -53,10 +53,21 @@ by the primary key.
 "which worker does that resolve to."
 **Solution**: Shared resolver used by both claim logic and UI.
 
-- [ ] Task 1: `resolveAssignee(track, project)` — `track.assignee_uid` ?? `track.created_by` ?? `project.owner_uid`
-- [ ] Task 2: `resolvePinnedWorkers(project_id, user_uid)` — lookup ALL pins in `worker_pins` for this (project, user), returns a list (possibly empty)
-- [ ] Task 3: API endpoint `PATCH /api/tracks/:id` (or extend existing track update endpoint) to accept `assignee_uid`
-- [ ] Task 4: API endpoints `POST /api/projects/:id/worker-pins` (add a pin), `DELETE /api/projects/:id/worker-pins/:worker_id` (remove a pin), `GET /api/projects/:id/worker-pins` (list current user's + team's pins per visibility rules)
+- [x] Task 1: `resolveAssignee(track, project)` — `track.assignee_uid` ?? `track.created_by_uid` ?? `project.owner_uid`
+- [x] Task 2: `resolvePinnedWorkers(pool, project_id, user_uid)` — lookup ALL pins in `worker_pins` for this (project, user), returns a list (possibly empty)
+- [x] Task 3: API endpoint `PATCH /api/projects/:id/tracks/:num/assignee` (dedicated endpoint, not routed through the lane/action collector-write path — assignee is a plain UI/DB field, not a filesystem-synced worker signal like Progress/Phase/Summary)
+- [x] Task 4: API endpoints `POST /api/projects/:id/worker-pins` (add a pin), `DELETE /api/projects/:id/worker-pins/:worker_id` (remove a pin), `GET /api/projects/:id/worker-pins` (list current user's pins) — team/visibility-scoped listing deferred, not needed yet (matches track 1033's existing visibility scope)
+
+**✅ Phase 2 complete (2026-08-08).** Verified: `PATCH .../assignee`
+end-to-end via curl+psql (set and clear both work). Worker-pins
+endpoints correctly reject unauthenticated requests in this local-api
+deployment (`AUTH_ENABLED=false` means `resolveUid` always returns
+null, matching worker_permissions' existing remote-api-only scope) —
+their POST/GET/DELETE logic wasn't round-tripped through live auth
+(inappropriate to flip test-mode auth on a real deployment for
+verification) but mirrors the already-proven `worker_permissions`
+pattern exactly, and the underlying `worker_pins` table behavior was
+already verified directly in Phase 1.
 
 ## Phase 3: Claim Logic — Continuity-First Routing
 
