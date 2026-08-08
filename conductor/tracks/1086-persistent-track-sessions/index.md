@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: Planning complete
 **Type**: dev
-**Summary**: No way to associate a Claude session with a (worker, track)
+**Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
 
 ## Problem
 
