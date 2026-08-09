@@ -23,8 +23,9 @@ one-worker-belongs-to-one-project model at all.
   (today's normal worker, unchanged) or `'manager'`. Only `'manager'`-type
   workers poll/accept system-wide dispatch actions. This is a narrower trust
   tier than [1089](../1089-remote-worker-provisioning/index.md)'s
-  `provision-worker` (which stays open to any pinned worker, since it's
-  still scoped to an *existing* project) — `create-project` has no project
+  `provision-worker` (which stays open to any of the developer's own
+  workers, `workers.user_uid`, since it's still scoped to an *existing*
+  project) — `create-project` has no project
   to scope to yet, which is exactly why it needs its own tier.
 - **Multiplicity differs by type**: `'project'` workers keep 1084's model —
   multiple per project/folder. `'manager'` workers are a machine-level
