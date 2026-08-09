@@ -82,8 +82,16 @@ tmp_*.mjs
 check_*.mjs
 fix_*.mjs
 reset_*.mjs
-.test-tmp-local-api
-.test-tmp-local-fs
+# Test fixture directories live inside the repo (no isolated .git of their
+# own) - a wildcard here, not per-test literal entries, is what actually
+# matters: spawnCli's exit handler unconditionally `git add`/`git commit`s
+# a completed track's index.md against whatever repo contains its cwd, and
+# `git add` on a gitignored path is the only thing stopping that from
+# landing test artifacts on this repo's real history (see commits
+# 4b94333/b621b9d - a test that let a track run to success without this
+# wildcard in place did exactly that).
+.test-tmp-*
+.test-worker-mode-*
 .conv-cursor
 # Scratch files with potential secrets
 scratch/*.cjs
