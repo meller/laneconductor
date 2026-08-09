@@ -984,6 +984,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Track not found' });
     const t = result.rows[0];
     res.json({
+      id: t.id, // needed by the client for /api/tracks/:id/dispatch (track 1085)
       track_number: t.track_number,
       title: t.title,
       lane_status: t.lane_status,
@@ -2292,6 +2293,42 @@ app.get('/track/:num', collectorAuth, async (req, res) => {
       [trackId]
     );
     res.json({ ...trackResult.rows[0], comments: commentsResult.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Track 1086: Persistent Sessions ────────────────────────────────────────────
+// One resumable claude session per (track_number, worker_id) — keyed off the
+// calling worker's own identity (collectorAuth's req.worker_id, resolved
+// from its machine_token), never a client-supplied worker_id.
+
+app.get('/track/:num/session', collectorAuth, async (req, res) => {
+  try {
+    if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
+    const { rows } = await pool.query(
+      'SELECT claude_session_id FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+      [req.params.num, req.worker_id]
+    );
+    res.json({ claude_session_id: rows[0]?.claude_session_id ?? null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/track/:num/session', collectorAuth, async (req, res) => {
+  try {
+    if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
+    const { claude_session_id } = req.body;
+    if (!claude_session_id) return res.status(400).json({ error: 'claude_session_id is required' });
+    await pool.query(
+      `INSERT INTO track_sessions(track_number, worker_id, claude_session_id, last_used_at)
+       VALUES($1, $2, $3, NOW())
+       ON CONFLICT (track_number, worker_id) DO UPDATE SET
+       claude_session_id = EXCLUDED.claude_session_id, last_used_at = NOW()`,
+      [req.params.num, req.worker_id, claude_session_id]
+    );
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
