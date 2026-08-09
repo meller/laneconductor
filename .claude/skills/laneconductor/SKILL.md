@@ -212,6 +212,39 @@ Do NOT drop the `> **author**:` prefix partway through just because the
 content is long or reads more naturally as a standalone document — that is
 exactly what silently breaks sync.
 
+## Protocol: Session Continuity (skip re-reading context on resume)
+
+Every prompt you receive starts with a line the worker adds:
+
+```
+FRESH_SESSION: true
+```
+or
+```
+FRESH_SESSION: false
+```
+
+`true` means this is the first call in a new session for this (worker,
+track) pair — proceed normally, including every "Load context" /
+"Read existing context" step below. `false` means the worker resumed your
+*same Claude session* from an earlier call on this same track (track
+1086) — you already have `product.md`, `tech-stack.md`,
+`product-guidelines.md`, `design-language.md`, `spec.md`, `plan.md`,
+`test.md`, and `conversation.md` loaded from that earlier call in this
+conversation. **On `FRESH_SESSION: false`, skip re-reading any file you
+already read earlier in this session** — jump straight to the actual
+instruction that follows. Re-reading them wastes the exact time/token cost
+this mechanism exists to remove.
+
+This does **not** mean skip reading everything unconditionally: if the
+prompt is pointing you at something you genuinely haven't seen yet in this
+session (a new human comment appended to `conversation.md` since your last
+turn, a file that didn't exist before, output from a command you just
+ran), still read it — "resumed" means "don't redo work you already did,"
+not "ignore new information." Every "Load context" / "Read existing
+context" step in the commands below is annotated with which files this
+applies to.
+
 ## Protocol: Locating Tracks
 
 To find a track by number (e.g., "Track 017"):
@@ -1136,8 +1169,8 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Create `test.md` (Test Commands, Test Cases per phase, Acceptance Criteria checklist)
     - In `file_sync_queue.md`: update the entry's `**Status**: pending` → `**Status**: processed`.
 3.  **Refine (if exists)**:
-    - Read existing `spec.md`, `plan.md`, and `test.md`.
-    - Check for human comments in `conversation.md`. **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
+    - Read existing `spec.md`, `plan.md`, and `test.md` (**skip if `FRESH_SESSION: false`** and you already read them earlier this session — see **Protocol: Session Continuity** — e.g. a replan immediately following a brainstorm on the same session).
+    - Check for human comments in `conversation.md` (always re-read this one). **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
     - Flesh out missing requirements or phase details based on current codebase context.
     - Update `test.md` with test cases for any new phases or requirements.
     - **Check for `## ❌ KPI MISS` in plan.md**: if present, this is a replanning cycle after a KPI failure. Read the failure data (target, actual, delta, snapshot) and use it as context. Generate a *different* hypothesis — new content angle, different channel, different CTA. Print: `♻️ Replanning with KPI data: target=X, actual=Y, delta=Z`. Append a new `## ❌ KPI MISS` entry (don't overwrite old ones).
@@ -1191,7 +1224,11 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
 Optional deepening step. Call this before `/laneconductor implement` when you want to explore requirements further via dialogue. Not a lane — can be run at any time.
 
 **Flow:**
-1. **Load all context**: read `conductor/product.md`, `conductor/tech-stack.md`, `conductor/deployment-stack.md` (if present), `conductor/tracks/NNN-*/spec.md`, `plan.md`, `test.md`, and `conversation.md`
+1. **Load all context** (**if `FRESH_SESSION: false`** — see **Protocol:
+   Session Continuity** — **skip everything except `conversation.md`**;
+   brainstorm is a repeated back-and-forth, so every question-answer round
+   after the first is almost always a resumed session, but you still need
+   the latest human reply): read `conductor/product.md`, `conductor/tech-stack.md`, `conductor/deployment-stack.md` (if present), `conductor/tracks/NNN-*/spec.md`, `plan.md`, `test.md`, and `conversation.md`
 2. **Ask one clarifying question** — appended to `conductor/tracks/NNN-*/conversation.md` in this format:
    ```
    > **system**: Brainstorm requested. [Your question here]
@@ -1222,7 +1259,10 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    cd {worktree_path}
    ```
 
-2. **Read existing context:**
+2. **Read existing context** (**skip entirely if `FRESH_SESSION: false`** —
+   see **Protocol: Session Continuity** — except `conversation.md` and
+   `last_run.log`, which you should always check for anything new since
+   your last turn):
    - Read `conductor/tracks/NNN-*/plan.md` to understand phases
    - Read `conductor/tracks/NNN-*/spec.md` for technical details and `**Type**` 
    - Read `conductor/deployment-stack.md` (if present) for deployment context
@@ -1230,8 +1270,8 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    - Read `conductor/design-language.md` (if present) for concrete design tokens/conventions
    - Read `conductor/tech-stack.md` (if present) for the project's languages/frameworks/deps
    - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first, run the test and confirm it fails, then write minimal code to make it pass, then confirm green.
-   - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. Treat human comments as overriding instructions.
-   - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed.
+   - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. Treat human comments as overriding instructions. (Always — even when resumed.)
+   - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed. (Always — even when resumed.)
    - Update `index.md` to `**Status**: implement`
 
 2b. **Skill check for non-dev tracks** (type = marketing or sales):
@@ -1289,9 +1329,12 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 Structured review of a track against its plan and product guidelines. Posts the result as a comment by writing to the track's conversation file.
 
 0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
-1. **Load Context**:
+1. **Load Context** (**skip the first bullet if `FRESH_SESSION: false`** —
+   see **Protocol: Session Continuity**; review often resumes the same
+   session `implement` used, so this is worth checking — the second bullet
+   always applies):
    - Read `plan.md`, `spec.md`, `test.md`, `product-guidelines.md`, `design-language.md`, and `deployment-stack.md` (if present).
-   - Read `conversation.md` to see if previous review gaps were addressed or if the user provided specific instructions.
+   - Read `conversation.md` to see if previous review gaps were addressed or if the user provided specific instructions. (Always — even when resumed.)
 2. **Evaluate**: Check implementation against requirements and guidelines.
    - **Secrets Policy**: Ensure no secrets are hardcoded or leaked in logs. Verify use of ADC/Secret Manager as specified in `deployment-stack.md`.
    - If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.

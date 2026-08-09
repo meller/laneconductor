@@ -57,8 +57,10 @@ call.
 **Solution**: Make the load-context steps conditional on session freshness.
 
 - [x] Task 1: Pass a fresh-vs-resumed signal into the prompt (e.g. `FRESH_SESSION: true/false`) — done in Phase 2 (`buildCliArgs`'s `freshnessMarker`, prepended to the claude prompt), since it's constructed right alongside `sessionArgs` from the same `session` value
-- [ ] Task 2: Update `/laneconductor plan`, `implement`, `review`, `quality-gate`, and the conversation-reply prompt path in `.claude/skills/laneconductor/SKILL.md` to skip "load all context" steps when resuming — still open; this is Claude's own step-by-step instructions, separate from what the worker pre-injects
+- [x] Task 2: Update `/laneconductor plan`, `implement`, `review`, `brainstorm`, and the conversation-reply prompt path in `.claude/skills/laneconductor/SKILL.md` to skip "load all context" steps when resuming. New "Protocol: Session Continuity" section explains `FRESH_SESSION: true/false` once; each command's context-loading step gets a short pointer back to it plus an explicit carve-out for files that must always be re-read (`conversation.md`, `last_run.log` — anything that could have new content since the last turn, not just static docs). `quality-gate` and the conversation-reply custom prompt weren't touched: quality-gate doesn't have a big context-reload step to begin with (it mostly runs commands), and the conversation-reply prompt (`autoLaunchLocalFs`'s `customPrompt`) was already minimal/delta-style by design (just "read conversation.md, reply") — nothing more to condition there.
 - [x] Task 3: Update `conductor/laneconductor.sync.mjs`'s own context-injection block (`spawnCli`, `contextPrompt` construction) to skip re-injecting `product.md`/`tech-stack.md`/track docs when resuming — done in Phase 2 (same code location as Task 4's spawn-confirmation logic, gated on `session?.isFresh !== false`)
+
+**✅ Phase 3 complete (2026-08-09).**
 
 ## Phase 4: Resilience & conversation.md Derivation
 
