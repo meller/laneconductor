@@ -1,9 +1,9 @@
 # Track 1093: Sync Worker — Concurrent-Edit Grace Period Never Expires
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 80%
-**Phase**: Root cause fixed, code committed; live worker restarts + log cleanup pending user confirmation
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Fixed, verified live — all 5 affected workers restarted and confirmed clearing their stuck tracks
 **Type**: dev
 **Summary**: DB→FS sync permanently wedges for any track whose file/DB timestamps happened to land within 10s of each other — fixed the grace-period check to actually expire with wall-clock time.
 
@@ -50,19 +50,26 @@ an infinite skip loop generating unbounded log growth as a side effect.
   3+ hours old) as the primary bug case, plus the genuine-fresh-race case
   that must still correctly skip.
 
-## Remaining (not yet done — needs confirmation, these touch live processes)
+## Resolution (user-authorized, 2026-08-09)
 
-- [ ] Restart the 5 currently-running project workers (`tokentalos`,
-      `otralingo`, `chesstrainer`, `5elements`, `coachai`/aitutor) so they
-      pick up the fix — they're all still running the old buggy code in
-      memory; the fix alone doesn't help until they restart.
-- [ ] Decide what to do with the existing multi-hundred-MB/GB
-      `conductor/.sync.log` files in each affected project — truncate,
-      rotate, or leave as-is.
+- [x] Restarted all 5 affected project workers (`tokentalos`, `otralingo`,
+      `chesstrainer`, `5elements`, `coachai`/aitutor) via `lc worker stop` +
+      `lc worker start --sync-only`, matching each one's prior mode.
+- [x] Truncated each project's oversized `conductor/.sync.log` before
+      restart (coachai 3.5G, chesstrainer 343M, 5elements 315M, tokentalos
+      234M, otralingo 203M).
+- [x] **Verified live**, not just assumed: the first heartbeat cycle after
+      each restart shows `conflicts` dropping from a nonzero steady-state to
+      `0`, with exactly that many tracks pulling through in the same cycle —
+      coachai (42 pulled, incl. track 180: `[PULLED] db_newer`), otralingo
+      (11), tokentalos (6), chesstrainer (1), 5elements (1, already clean on
+      its first post-restart cycle).
+
+## Follow-up (not blocking, separate/smaller)
+
 - [ ] Consider a log-rotation/size-cap safeguard in the sync worker itself,
       so a *future* stuck-loop bug (of any kind) can't silently grow a log
-      file unbounded again — separate, smaller follow-up, not blocking this
-      fix.
+      file to multiple GB unbounded again.
 
 ## Verification
 
