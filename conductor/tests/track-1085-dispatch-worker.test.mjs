@@ -8,6 +8,8 @@
 //      without touching an unrelated queued track (the general queue).
 //   2. A sync+poll worker also honors dispatch entries.
 //   3. A dispatched deploy action runs via the shared deploy-runner and logs.
+//   4. Two real workers for one project — dispatch targeted at worker A
+//      never runs on worker B (Phase 6 Task 4).
 //
 // Run: node --test conductor/tests/track-1085-dispatch.test.mjs
 
@@ -118,6 +120,27 @@ function startWorker(extraArgs = []) {
   return worker;
 }
 
+// Like startWorker, but captures its combined stdout/stderr into a buffer
+// so a test can assert on which specific worker's log a dispatch actually
+// ran in — startWorker alone only proves *a* worker ran it, not that it was
+// the *targeted* one.
+function startWorkerCapturing(label, extraArgs = []) {
+  const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), ...extraArgs], {
+    cwd: TMP,
+    env: {
+      ...process.env,
+      LC_MOCK_CLI: `node ${MOCK_CLI}`,
+      MOCK_CLI_DELAY_MS: '150',
+      LC_SKIP_GIT_LOCK: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let log = '';
+  worker.stdout.on('data', d => { log += d.toString(); process.stdout.write(`[${label}] ${d}`); });
+  worker.stderr.on('data', d => { log += d.toString(); process.stderr.write(`[${label}] ${d}`); });
+  return { proc: worker, getLog: () => log };
+}
+
 describe('Track 1085 Phase 2: worker dispatch inbox', () => {
   let collectorProc, collectorPort;
 
@@ -220,6 +243,54 @@ describe('Track 1085 Phase 2: worker dispatch inbox', () => {
       assert.match(logContent, /dispatch-deploy-marker/);
     } finally {
       worker.kill();
+    }
+  });
+
+  it('a dispatch targeted at worker A never runs on worker B (Phase 6 Task 4)', async () => {
+    await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
+    setupProject(collectorPort);
+    writeTrack('2004', 'implement', 'idle');
+
+    // Two real worker processes, same project, same machine — the exact
+    // scenario Phase 0's --worker-number identity work exists to support.
+    const workerA = startWorkerCapturing('worker-A', ['--sync-only']);
+    const workerB = startWorkerCapturing('worker-B', ['--sync-only', '--worker-number', '2']);
+    try {
+      const state = await poll(async () => {
+        const s = await getState(collectorPort);
+        return s.workers.length >= 2 ? s : null;
+      }, { label: 'both workers registered' });
+
+      const workerARow = state.workers.find(w => (w.worker_number ?? 1) === 1);
+      const workerBRow = state.workers.find(w => w.worker_number === 2);
+      assert.ok(workerARow && workerBRow, 'both workers should be registered with distinct worker_number');
+      assert.notEqual(workerARow.id, workerBRow.id);
+
+      await enqueueDispatch(collectorPort, { worker_id: workerARow.id, track_number: '2004', action: 'implement' });
+
+      await poll(async () => (laneStatusOf('2004') === 'success') || null, { label: 'track 2004 dispatched run completes' });
+
+      // reconcileActiveDispatch runs on its own 5s interval, independent of
+      // the file reaching 'success' — poll for it rather than a fixed sleep,
+      // same as tests 1/3 do, to avoid racing its cycle.
+      const finalState = await poll(async () => {
+        const s = await getState(collectorPort);
+        const entry = s.dispatch.find(d => d.track_number === '2004');
+        return (entry && entry.status !== 'pending' && entry.status !== 'claimed') ? s : null;
+      }, { label: 'dispatch entry reported done' });
+
+      // By now worker B has had the same 10s+ inbox-check window worker A
+      // had — every opportunity to wrongly pick this up if the
+      // worker-scoping were ever broken.
+      assert.match(workerA.getLog(), /\[dispatch\] Track 2004 → implement/, 'worker A (the targeted worker) should have run the dispatched action');
+      assert.doesNotMatch(workerB.getLog(), /\[dispatch\][^\n]*2004/, 'worker B must never see or run a dispatch entry targeted at worker A');
+
+      const entry = finalState.dispatch.find(d => d.track_number === '2004');
+      assert.equal(entry.worker_id, workerARow.id, 'dispatch entry should remain attributed to worker A throughout');
+      assert.equal(entry.status, 'done');
+    } finally {
+      workerA.proc.kill();
+      workerB.proc.kill();
     }
   });
 });

@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: success
-**Progress**: 95%
-**Phase**: Phases 1-6 complete, verified live end-to-end against the real DB/API (real dispatch, real deploy run, real bug found+fixed); Phase 6 Task 4 (two-real-workers isolation test) is the only known gap
+**Progress**: 100%
+**Phase**: Phases 1-6 complete, verified live end-to-end against the real DB/API (real dispatch, real deploy run, real bug found+fixed) and via a real two-worker isolation test
 **Type**: dev
 **Summary**: Per-worker dispatch inbox to manually trigger a lane action or a deploy in sync-only mode.
 
@@ -52,7 +52,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 3: API — enqueue + worker-facing dispatch endpoints (pulled forward into Phase 2, see plan.md); `GET .../dispatch` history endpoint deferred to Phase 4
 - [x] Phase 4: UI — "Run on worker" control on track detail panel, "Deploy" control on Workers list; verified live end-to-end (real worker, real dispatch, real deploy run — found and fixed a real stdin-hang bug in the process, see plan.md)
 - [x] Phase 5: Deploy runner — extract `bin/lc.mjs`'s `lc deploy` logic into a shared function the CLI and worker both call (pulled forward, Phase 2's deploy dispatch needs it)
-- [x] Phase 6: Tests — dispatch in sync-only mode, dispatch in sync+poll mode, invalid action for current lane rejected, deploy dispatch runs the correct command and logs correctly (Task 4, two-real-workers isolation, still open)
+- [x] Phase 6: Tests — dispatch in sync-only mode, dispatch in sync+poll mode, invalid action for current lane rejected, deploy dispatch runs the correct command and logs correctly, two-real-workers isolation (dispatch to A never runs on B)
 
 ## Depends on
 [1084](../1084-worker-identity-and-assignment/index.md) — needs assignee resolution (`resolveAssignee` + `workers.user_uid` ownership) to know which worker's inbox to target by default.
