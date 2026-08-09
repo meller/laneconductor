@@ -2697,18 +2697,47 @@ app.post('/api/tracks/:id/dispatch', async (req, res) => {
     const { worker_id, action } = req.body;
     if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
 
-    const { rows: [track] } = await pool.query('SELECT id, track_number, lane_status FROM tracks WHERE id = $1', [req.params.id]);
+    const { rows: [track] } = await pool.query('SELECT id, project_id, track_number, lane_status FROM tracks WHERE id = $1', [req.params.id]);
     if (!track) return res.status(404).json({ error: 'track not found' });
 
     if (action !== track.lane_status) {
       return res.status(400).json({ error: `action "${action}" does not match track's current lane "${track.lane_status}"` });
     }
 
-    const { rows: [{ id }] } = await pool.query(
-      'INSERT INTO worker_dispatch(worker_id, track_number, action) VALUES($1, $2, $3) RETURNING id',
-      [worker_id, track.track_number, action]
+    // worker_dispatch has no project_id of its own — the WHERE EXISTS guards
+    // against dispatching to a worker registered on a different project than
+    // the track (worker_dispatch.track_number alone isn't unique across
+    // projects, so this also protects GET .../dispatch's history query below).
+    const { rows: [inserted], rowCount } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action)
+       SELECT $1, $2, $3
+       WHERE EXISTS (SELECT 1 FROM workers WHERE id = $1 AND project_id = $4)
+       RETURNING id`,
+      [worker_id, track.track_number, action, track.project_id]
     );
-    res.json({ ok: true, id });
+    if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this track\'s project' });
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: dispatch history for a track (both lane-action and, in theory,
+// any project-level entries that happen to share this track_number — in
+// practice only lane-action entries have a track_number at all).
+app.get('/api/tracks/:id/dispatch', async (req, res) => {
+  try {
+    const { rows: [track] } = await pool.query('SELECT id, project_id, track_number FROM tracks WHERE id = $1', [req.params.id]);
+    if (!track) return res.status(404).json({ error: 'track not found' });
+
+    const { rows } = await pool.query(
+      `SELECT wd.* FROM worker_dispatch wd
+       JOIN workers w ON w.id = wd.worker_id
+       WHERE wd.track_number = $1 AND w.project_id = $2
+       ORDER BY wd.created_at DESC`,
+      [track.track_number, track.project_id]
+    );
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2724,11 +2753,51 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
       return res.status(400).json({ error: 'payload.environment is required for deploy' });
     }
 
-    const { rows: [{ id }] } = await pool.query(
-      'INSERT INTO worker_dispatch(worker_id, track_number, action, payload) VALUES($1, $2, $3, $4) RETURNING id',
-      [worker_id, null, action, payload ? JSON.stringify(payload) : null]
+    const { rows: [inserted], rowCount } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       SELECT $1, $2, $3, $4
+       WHERE EXISTS (SELECT 1 FROM workers WHERE id = $1 AND project_id = $5)
+       RETURNING id`,
+      [worker_id, null, action, payload ? JSON.stringify(payload) : null, req.params.id]
     );
-    res.json({ ok: true, id });
+    if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this project' });
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: deploy dispatch history for a project (track_number IS NULL
+// entries only — lane-action history is per-track, see GET .../tracks/:id/dispatch).
+app.get('/api/projects/:id/dispatch', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT wd.* FROM worker_dispatch wd
+       JOIN workers w ON w.id = wd.worker_id
+       WHERE w.project_id = $1 AND wd.track_number IS NULL
+       ORDER BY wd.created_at DESC
+       LIMIT 20`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: which deploy environments this project has configured, for the
+// "Deploy Now" dropdown. Reads conductor/deploy.json directly off disk (it
+// isn't synced into conductor_files like workflow.json/product.md are).
+app.get('/api/projects/:id/deploy-environments', async (req, res) => {
+  try {
+    const { rows: [project] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+
+    const deployJsonPath = project.repo_path ? join(project.repo_path, 'conductor', 'deploy.json') : null;
+    if (!deployJsonPath || !existsSync(deployJsonPath)) return res.json({ environments: [] });
+
+    const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf8'));
+    res.json({ environments: Object.keys(deployConfig.environments || {}) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
