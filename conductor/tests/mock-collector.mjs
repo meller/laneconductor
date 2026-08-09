@@ -20,6 +20,7 @@ const state = {
   nextWorkerId: 900, // arbitrary base so test worker ids don't collide with anything real
   dispatch: [], // Track 1085: [{ id, worker_id, track_number, action, payload, status, result }] — seeded via /_enqueue-dispatch
   nextDispatchId: 1,
+  sessions: {}, // Track 1086: { [track_number]: claude_session_id } — simplified, no per-worker scoping (every worker in this mock shares the same machine_token, so there's no way to distinguish callers without real auth; the real server's per-(track_number, worker_id) scoping is covered by ui/server/tests/track-1086-sessions.test.mjs instead)
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -100,6 +101,16 @@ const server = createServer(async (req, res) => {
     const id = state.nextDispatchId++;
     state.dispatch.push({ id, status: 'pending', payload: null, result: null, ...body });
     return reply(res, 200, { id });
+  }
+
+  // Track 1086: session lookup/upsert. See state.sessions comment above for
+  // why this is track_number-only rather than (track_number, worker_id).
+  if ((params = route('GET', '/track/:num/session', req)) !== null)
+    return reply(res, 200, { claude_session_id: state.sessions[params.num] ?? null });
+
+  if ((params = route('POST', '/track/:num/session', req)) !== null) {
+    state.sessions[params.num] = body.claude_session_id;
+    return reply(res, 200, { ok: true });
   }
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null)
@@ -228,6 +239,7 @@ const server = createServer(async (req, res) => {
     state.workers = [];
     state.claimable = null;
     state.dispatch = [];
+    state.sessions = {};
     return reply(res, 200, { ok: true });
   }
 

@@ -8,7 +8,7 @@ import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, o
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
@@ -3047,7 +3047,7 @@ async function mergeAndRemoveWorktree(trackNumber) {
   }
 }
 
-async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null) {
+async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null) {
   let lockFile = null;
   let worktreePath = null;
 
@@ -3108,8 +3108,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     console.warn(`[context] Failed to gather rich context: ${ctxErr.message}`);
   }
 
-  // Inject context into the prompt (usually follows -p)
-  if (contextPrompt) {
+  // Inject context into the prompt (usually follows -p) — skipped on a
+  // resumed session (track 1086): Claude already has this loaded from
+  // earlier in the same session, re-injecting it every call is exactly the
+  // redundant-context-reload cost this track exists to remove.
+  if (contextPrompt && session?.isFresh !== false) {
     const pIndex = args.indexOf('-p');
     if (pIndex !== -1 && pIndex + 1 < args.length) {
       const originalPrompt = args[pIndex + 1];
@@ -3187,6 +3190,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   runningPids.add(proc.pid);
   runningLaneMap.set(proc.pid, laneStatus);
   runningTrackMap.set(proc.pid, trackNumber);
+  // Track 1086: persist the session id only now that we know the process
+  // actually spawned — resolving it earlier (buildCliArgs) and persisting
+  // there would orphan a session row on any bail-out (no provider
+  // available, CLI blocked) that never reaches spawn.
+  if (session) persistTrackSession(trackNumber, session.claude_session_id);
   proc.on('exit', async (code) => {
     console.log(`[${label}] EXIT EVENT TRIGGERED: PID ${proc.pid}, Code: ${code}`);
     clearTimeout(killer);
@@ -3514,11 +3522,61 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   return proc.pid;
 }
 
+// Track 1086: resolve (or mint) this worker's session for a track, so
+// buildCliArgs can pass --resume instead of cold-starting. Returns
+// { claude_session_id, isFresh } or null if session persistence isn't
+// available (local-fs mode, or not yet registered) — null means "cold-start,
+// same as before this track" everywhere it's checked.
+async function resolveTrackSession(trackNumber) {
+  if (getIsLocalFs() || !myWorkerId) return null;
+  const { url, token } = primaryCollector();
+  if (!url) return null;
+  try {
+    const { claude_session_id } = await get(url, token, `/track/${trackNumber}/session`);
+    if (claude_session_id) return { claude_session_id, isFresh: false };
+  } catch (err) {
+    console.warn(`[session] Failed to look up session for track ${trackNumber} (cold-starting): ${err.message}`);
+    return null;
+  }
+  return { claude_session_id: randomUUID(), isFresh: true };
+}
+
+// Persists a session id after a spawn actually happens — not at resolution
+// time, so a track/CLI-unavailable bail-out (buildCliArgs returning null)
+// never orphans a session row for a process that never ran.
+async function persistTrackSession(trackNumber, claudeSessionId) {
+  if (getIsLocalFs() || !myWorkerId) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+  await post(url, token, `/track/${trackNumber}/session`, { claude_session_id: claudeSessionId })
+    .catch(err => console.warn(`[session] Failed to persist session for track ${trackNumber}: ${err.message}`));
+}
+
 async function buildCliArgs(skill, command, trackNumber, customPrompt = null, laneConfig = {}) {
+  // Track 1086: resolve session before building args, so both the mock-CLI
+  // test path and the real claude path can reflect --session-id vs
+  // --resume consistently. Scoped to claude only, matching track_sessions'
+  // claude_session_id-specific design — gemini/antigravity/generic CLI
+  // paths are untouched, still cold-start every call.
+  const session = await resolveTrackSession(trackNumber);
+  const sessionArgs = session ? [session.isFresh ? '--session-id' : '--resume', session.claude_session_id] : [];
+  const freshnessMarker = session ? `FRESH_SESSION: ${session.isFresh}\n\n` : '';
+
   // LC_MOCK_CLI overrides the CLI for testing (e.g. node conductor/tests/mock-cli.mjs)
   if (process.env.LC_MOCK_CLI) {
     const [cmd, ...rest] = process.env.LC_MOCK_CLI.split(' ');
-    return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary'];
+    // sessionArgs deliberately NOT appended to the mock CLI's own argv:
+    // mock-cli.mjs has no -p flag, so spawnCli's context-injection fallback
+    // (which replaces args[args.length-1], assuming it's the prompt-like
+    // last arg — the correct behavior for genuinely custom CLIs) would
+    // clobber a trailing session id instead. Session selection is still
+    // fully exercised and verifiable here via `session` (the 6th tuple
+    // element, threaded to spawnCli) and the collector's own
+    // GET/POST /track/:num/session calls — see
+    // track-1086-session-worker.test.mjs, which asserts on mock-collector's
+    // session state and on context-injection (PRODUCT_MD_MARKER) presence,
+    // not on argv content.
+    return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
   }
   const proj = getProject();
   const primary = laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude';
@@ -3575,9 +3633,9 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   if (chosenCli === 'claude') {
     // Inject skill context even for Claude to ensure it uses the right skill definition
     const fullPrompt = customPrompt ? `${contextMsg}\n\n${prompt}` : prompt;
-    const args = ['--dangerously-skip-permissions', '-p', fullPrompt];
+    const args = ['--dangerously-skip-permissions', ...sessionArgs, '-p', `${freshnessMarker}${fullPrompt}`];
     if (chosenModel) args.push('--model', chosenModel);
-    return ['claude', args, chosenCli, chosenModel || 'default', chosenTier];
+    return ['claude', args, chosenCli, chosenModel || 'default', chosenTier, session];
   }
   const args = ['-p', `${contextMsg}${prompt}`];
   if (chosenModel) args.push('--model', chosenModel);
@@ -3785,8 +3843,8 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
     }
 
     try {
-      const [cmd, args, cli, model, tier] = cliArgs;
-      
+      const [cmd, args, cli, model, tier, session] = cliArgs;
+
       // Update file to running status so UI/tests can see it
       const updateHeader = (content, header, value) => {
         const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
@@ -3796,7 +3854,7 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       const runningContent = updateHeader(content, 'Lane Status', 'running');
       writeFileSync(indexPath, runningContent, 'utf8');
 
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId);
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session);
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
@@ -3878,7 +3936,7 @@ async function checkDispatchInbox() {
       continue;
     }
 
-    const [cmd, args, cli, model, tier] = cliArgs;
+    const [cmd, args, cli, model, tier, session] = cliArgs;
     const updateHeader = (c, h, v) => {
       const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
       return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
@@ -3886,7 +3944,7 @@ async function checkDispatchInbox() {
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
 
     const proj = getProject();
-    const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id);
+    const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
     console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
     activeDispatch.set(trackNumber, entry.id);
   }

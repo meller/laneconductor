@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 15%
-**Phase**: Phase 1 complete — track_sessions schema
+**Progress**: 55%
+**Phase**: Phase 2 complete — session-id/resume selection, context-skip on resume, verified live via a real dispatched worker running the same track twice
 **Type**: dev
 **Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
 
@@ -39,8 +39,8 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 
 ## Phases
 - [x] Phase 1: Schema — `track_sessions` table
-- [ ] Phase 2: `buildCliArgs`/`spawnCli` — session-id/resume selection logic
-- [ ] Phase 3: SKILL.md — conditional context-loading (skip on resumed sessions)
+- [x] Phase 2: `buildCliArgs`/`spawnCli` — session-id/resume selection logic, plus context-skip-on-resume (Phase 3 Tasks 1+3, pulled forward — same code location)
+- [ ] Phase 3: SKILL.md — remaining: Task 2, the skill's own step-by-step context-loading instructions
 - [ ] Phase 4: Resilience — resume-failure fallback, conversation.md derivation from session turns
 - [ ] Phase 5: Tests — session created on first call, resumed on subsequent calls, fallback on resume failure, reassignment cold-starts correctly
 
