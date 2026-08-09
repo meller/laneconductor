@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 15%
-**Phase**: Phase 1 complete — worker_dispatch schema
+**Progress**: 70%
+**Phase**: Phases 1-3, 5, 6 complete (worker loop + deploy runner + tests); Phase 4 (UI) remaining
 **Type**: dev
 **Summary**: Per-worker dispatch inbox to manually trigger a lane action or a deploy in sync-only mode.
 
@@ -48,11 +48,11 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 
 ## Phases
 - [x] Phase 1: Schema — `worker_dispatch` table (nullable track_number, generic payload JSONB)
-- [ ] Phase 2: Worker loop — check own inbox every sync tick, run lane actions via `spawnCli` and deploy via the shared deploy-runner, mark claimed/done
-- [ ] Phase 3: API — endpoints to enqueue a track-scoped dispatch (lane action) and a project-scoped dispatch (deploy)
+- [x] Phase 2: Worker loop — check own inbox every sync tick, run lane actions via `spawnCli` and deploy via the shared deploy-runner, mark claimed/done
+- [x] Phase 3: API — enqueue + worker-facing dispatch endpoints (pulled forward into Phase 2, see plan.md); `GET .../dispatch` history endpoint deferred to Phase 4
 - [ ] Phase 4: UI — "Run on worker" control on track detail panel, "Deploy" control on Workers list/project panel
-- [ ] Phase 5: Deploy runner — extract `bin/lc.mjs`'s `lc deploy` logic into a shared function the CLI and worker both call
-- [ ] Phase 6: Tests — dispatch in sync-only mode, dispatch in sync+poll mode, invalid action for current lane rejected, deploy dispatch runs the correct command and logs correctly
+- [x] Phase 5: Deploy runner — extract `bin/lc.mjs`'s `lc deploy` logic into a shared function the CLI and worker both call (pulled forward, Phase 2's deploy dispatch needs it)
+- [x] Phase 6: Tests — dispatch in sync-only mode, dispatch in sync+poll mode, invalid action for current lane rejected, deploy dispatch runs the correct command and logs correctly (Task 4, two-real-workers isolation, still open)
 
 ## Depends on
 [1084](../1084-worker-identity-and-assignment/index.md) — needs assignee resolution (`resolveAssignee` + `workers.user_uid` ownership) to know which worker's inbox to target by default.

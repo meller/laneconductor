@@ -26,6 +26,7 @@ import {
   validateJiraStatuses,
 } from './jira-collector.mjs';
 import { logger } from './services/logger.mjs';
+import { runDeploy } from './deploy-runner.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -3857,6 +3858,138 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
     }
   }
 }
+
+// ── Track 1085: Manual Worker Dispatch ───────────────────────────────────────
+// Per-worker command inbox, checked every sync tick regardless of
+// sync-only/sync+poll mode — this is the only way a sync-only worker (which
+// never polls the general queue) does anything at all. Requires the
+// Collector API (myWorkerId/primaryCollector are both null in local-fs
+// mode), so this is a no-op there — dispatch inherently needs a place to
+// store "which worker" outside the filesystem.
+//
+// track_number -> dispatch id, for lane-action entries that have been
+// claimed and spawned but haven't finished yet. spawnCli itself is
+// fire-and-forget (see autoLaunchLocalFs), so completion is detected by
+// polling the same Lane Status field spawnCli's own exit handler
+// already writes to index.md, rather than adding a second completion path
+// into spawnCli's already-complex internals.
+const activeDispatch = new Map();
+
+async function checkDispatchInbox() {
+  if (getIsLocalFs() || !myWorkerId) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+
+  let entries;
+  try {
+    ({ entries } = await get(url, token, `/worker/${myWorkerId}/dispatch`));
+  } catch (err) {
+    console.warn(`[dispatch] Failed to fetch inbox (skipping this cycle): ${err.message}`);
+    return;
+  }
+  if (!entries || entries.length === 0) return;
+
+  for (const entry of entries) {
+    try {
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'claimed' });
+    } catch (err) {
+      console.warn(`[dispatch] Failed to claim dispatch ${entry.id}: ${err.message}`);
+      continue;
+    }
+
+    if (entry.action === 'deploy') {
+      const env = entry.payload?.environment || 'prod';
+      console.log(`[dispatch] Running deploy to ${env} (dispatch ${entry.id})`);
+      const result = await runDeploy(process.cwd(), env);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.ok ? 'done' : 'failed',
+        result: result.ok ? null : (result.error || `exit ${result.exitCode} at step: ${result.failedStep}`),
+      }).catch(err => console.warn(`[dispatch] Failed to report deploy result for ${entry.id}: ${err.message}`));
+      continue;
+    }
+
+    // Lane action dispatch
+    const trackNumber = entry.track_number;
+    const tracksDir = 'conductor/tracks';
+    const trackDirName = trackNumber ? resolveTrackFolder(tracksDir, trackNumber) : null;
+    if (!trackDirName) {
+      const reason = trackNumber ? 'track not found locally' : 'missing track_number';
+      console.warn(`[dispatch] Dispatch ${entry.id}: ${reason}, skipping`);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: reason }).catch(() => { });
+      continue;
+    }
+
+    const indexPath = join(tracksDir, trackDirName, 'index.md');
+    const content = readFileSync(indexPath, 'utf8');
+    const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+    const lane_status = laneMatch?.[1]?.trim();
+    const laneConfig = workflowConfig?.lanes?.[lane_status] ?? {};
+
+    const cliArgs = await buildCliArgs('laneconductor', entry.action, trackNumber, null, laneConfig);
+    if (!cliArgs) {
+      console.warn(`[dispatch] Dispatch ${entry.id}: no available provider for track ${trackNumber}`);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'no provider available' }).catch(() => { });
+      continue;
+    }
+
+    const [cmd, args, cli, model, tier] = cliArgs;
+    const updateHeader = (c, h, v) => {
+      const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+      return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+    };
+    writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
+
+    const proj = getProject();
+    const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id);
+    console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
+    activeDispatch.set(trackNumber, entry.id);
+  }
+}
+
+// Poll in-flight lane-action dispatches for completion (see activeDispatch
+// comment above for why this is poll-based rather than an exit callback).
+async function reconcileActiveDispatch() {
+  if (activeDispatch.size === 0) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+  const tracksDir = 'conductor/tracks';
+
+  for (const [trackNumber, dispatchId] of activeDispatch) {
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+    const indexPath = trackDirName ? join(tracksDir, trackDirName, 'index.md') : null;
+    if (!indexPath || !existsSync(indexPath)) {
+      activeDispatch.delete(trackNumber);
+      continue;
+    }
+
+    const content = readFileSync(indexPath, 'utf8');
+    const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+    const status = statusMatch?.[1]?.trim();
+    if (status === 'running') continue; // still going
+
+    // resolveTransition() means the value here isn't always a clean
+    // success/failure literal: a lane with a configured on_success/
+    // on_failure transition can land on 'queue' either because the action
+    // succeeded and moved to the next lane, OR because it failed but hasn't
+    // hit max_retries yet (same 'queue' value, no way to tell apart from
+    // this field alone — that ambiguity is inherent to the existing
+    // lane-transition system, not something dispatch tracking can resolve).
+    // Only the literal 'failure' status is unambiguous; everything else that
+    // isn't 'running' means the run finished, reported as 'done'.
+    activeDispatch.delete(trackNumber);
+    const dispatchStatus = status === 'failure' ? 'failed' : 'done';
+    const result = status === 'failure' ? null : (status === 'success' ? null : `lane status: ${status} (see track for outcome)`);
+    await patch(url, token, `/worker-dispatch/${dispatchId}`, { status: dispatchStatus, result })
+      .catch(err => console.warn(`[dispatch] Failed to report result for dispatch ${dispatchId}: ${err.message}`));
+  }
+}
+
+setInterval(() => {
+  checkDispatchInbox().catch(err => console.error('[dispatch error]:', err.message));
+}, 10000);
+setInterval(() => {
+  reconcileActiveDispatch().catch(err => console.error('[dispatch-reconcile error]:', err.message));
+}, 5000);
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;

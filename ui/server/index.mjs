@@ -2651,6 +2651,89 @@ app.delete('/worker', collectorAuth, async (req, res) => {
   }
 });
 
+// ── Track 1085: Worker Dispatch Inbox ─────────────────────────────────────────
+
+const DISPATCH_STATUSES = ['pending', 'claimed', 'done', 'failed'];
+
+// Worker-side: check this worker's own inbox. Checked every sync tick
+// regardless of sync-only/sync+poll mode — this is the only way a sync-only
+// worker (which never polls the general queue) does anything at all.
+app.get('/worker/:id/dispatch', collectorAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM worker_dispatch WHERE worker_id = $1 AND status = 'pending' ORDER BY created_at ASC",
+      [req.params.id]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Worker-side: report a dispatch entry's outcome (claimed when it starts
+// running, done/failed once it finishes).
+app.patch('/worker-dispatch/:id', collectorAuth, async (req, res) => {
+  try {
+    const { status, result } = req.body;
+    if (!DISPATCH_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${DISPATCH_STATUSES.join(', ')}` });
+    }
+    const claimedAtSet = status === 'claimed' ? ', claimed_at = NOW()' : '';
+    const { rowCount } = result !== undefined
+      ? await pool.query(`UPDATE worker_dispatch SET status = $1, result = $2${claimedAtSet} WHERE id = $3`, [status, result, req.params.id])
+      : await pool.query(`UPDATE worker_dispatch SET status = $1${claimedAtSet} WHERE id = $2`, [status, req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'dispatch entry not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: enqueue a track-scoped (lane action) dispatch entry, validated
+// against the track's current lane — mirrors the set of actions auto-launch
+// already knows how to run (plan/implement/review/quality-gate).
+app.post('/api/tracks/:id/dispatch', async (req, res) => {
+  try {
+    const { worker_id, action } = req.body;
+    if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
+
+    const { rows: [track] } = await pool.query('SELECT id, track_number, lane_status FROM tracks WHERE id = $1', [req.params.id]);
+    if (!track) return res.status(404).json({ error: 'track not found' });
+
+    if (action !== track.lane_status) {
+      return res.status(400).json({ error: `action "${action}" does not match track's current lane "${track.lane_status}"` });
+    }
+
+    const { rows: [{ id }] } = await pool.query(
+      'INSERT INTO worker_dispatch(worker_id, track_number, action) VALUES($1, $2, $3) RETURNING id',
+      [worker_id, track.track_number, action]
+    );
+    res.json({ ok: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: enqueue a project-scoped (deploy) dispatch entry — no track_number,
+// since deploy isn't tied to any one track's lane.
+app.post('/api/projects/:id/dispatch', async (req, res) => {
+  try {
+    const { worker_id, action, payload } = req.body;
+    if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
+    if (action === 'deploy' && !payload?.environment) {
+      return res.status(400).json({ error: 'payload.environment is required for deploy' });
+    }
+
+    const { rows: [{ id }] } = await pool.query(
+      'INSERT INTO worker_dispatch(worker_id, track_number, action, payload) VALUES($1, $2, $3, $4) RETURNING id',
+      [worker_id, null, action, payload ? JSON.stringify(payload) : null]
+    );
+    res.json({ ok: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── API Key Management ────────────────────────────────────────────────────────
 
 // Resolve the calling user's uid — returns null when auth is disabled (local-api mode)
