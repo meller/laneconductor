@@ -1,9 +1,9 @@
 # Track 1086: Persistent Track Sessions
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Planning complete
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 15%
+**Phase**: Phase 1 complete — track_sessions schema
 **Type**: dev
 **Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
 
@@ -38,7 +38,7 @@ spawns as a new process.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md)
 
 ## Phases
-- [ ] Phase 1: Schema — `track_sessions` table
+- [x] Phase 1: Schema — `track_sessions` table
 - [ ] Phase 2: `buildCliArgs`/`spawnCli` — session-id/resume selection logic
 - [ ] Phase 3: SKILL.md — conditional context-loading (skip on resumed sessions)
 - [ ] Phase 4: Resilience — resume-failure fallback, conversation.md derivation from session turns

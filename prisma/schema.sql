@@ -106,6 +106,20 @@ CREATE TABLE "track_comments" (
 );
 
 -- CreateTable
+-- Track 1086: one resumable Claude session per (worker, track) pair, so a
+-- lane action and a later conversation reply for the same track on the same
+-- worker can --resume instead of cold-starting and re-reading all context.
+CREATE TABLE "track_sessions" (
+    "track_number" TEXT NOT NULL,
+    "worker_id" INTEGER NOT NULL,
+    "claude_session_id" UUID NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "last_used_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "track_sessions_pkey" PRIMARY KEY ("track_number","worker_id")
+);
+
+-- CreateTable
 CREATE TABLE "tracks" (
     "id" SERIAL NOT NULL,
     "project_id" INTEGER,
@@ -299,6 +313,9 @@ ALTER TABLE "track_locks" ADD CONSTRAINT "track_locks_track_id_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "track_comments" ADD CONSTRAINT "track_comments_track_id_fkey" FOREIGN KEY ("track_id") REFERENCES "tracks"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "track_sessions" ADD CONSTRAINT "track_sessions_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "tracks" ADD CONSTRAINT "tracks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;

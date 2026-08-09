@@ -6,8 +6,14 @@
 pair.
 **Solution**: Migration adding `track_sessions`.
 
-- [ ] Task 1: Migration — `track_sessions (track_number TEXT, worker_id INTEGER REFERENCES workers(id), claude_session_id UUID, created_at TIMESTAMPTZ DEFAULT NOW(), last_used_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (track_number, worker_id))`
-- [ ] Task 2: Apply via Atlas, consistent with prior worker-security/mode migrations
+- [x] Task 1: Migration — `track_sessions (track_number TEXT, worker_id INTEGER REFERENCES workers(id), claude_session_id UUID, created_at TIMESTAMPTZ DEFAULT NOW(), last_used_at TIMESTAMPTZ DEFAULT NOW(), PRIMARY KEY (track_number, worker_id))`
+- [x] Task 2: Apply via Atlas, consistent with prior worker-security/mode migrations
+
+**✅ Phase 1 complete (2026-08-09).** `migrations/20260809103807_add_track_sessions.sql`,
+applied directly to the real `laneconductor` DB (same `atlas migrate apply`-chain
+workaround as prior tracks — `atlas migrate diff` confirms zero drift afterward).
+No separate index needed beyond the PK itself — the only lookup pattern (REQ-2)
+is by the exact `(track_number, worker_id)` pair, which the PK already covers.
 
 ## Phase 2: Session Selection in buildCliArgs/spawnCli
 
