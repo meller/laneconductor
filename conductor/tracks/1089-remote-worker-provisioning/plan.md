@@ -33,7 +33,7 @@ not silence.
 
 - [ ] Task 1: `+ New Worker` button on Workers list
 - [ ] Task 2: Target host picker — existing `provision_targets` entries + inline "add new" (host + label)
-- [ ] Task 3: Launcher worker picker — online, pinned workers only
+- [ ] Task 3: Launcher worker picker — the developer's own online workers only (`workers.user_uid`)
 - [ ] Task 4: `Provision` button — creates the dispatch entry, shows resulting status inline (including the expected "not yet implemented" failure)
 
 ## Phase 5: Tests

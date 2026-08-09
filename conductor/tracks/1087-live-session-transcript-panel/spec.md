@@ -50,8 +50,10 @@ is worth surfacing directly.
   branching in the renderer).
 
 **REQ-5: Cross-worker activity view**
-- With track 1084 allowing a developer to pin multiple workers, several
-  workers can be running different tracks in parallel. Add a live
+- A developer can have several of their own workers registered to a project
+  (`workers.user_uid`, track 1084 — no pin/grant step needed, e.g. a laptop
+  and a cloud VM under the same identity), and several workers can be
+  running different tracks in parallel. Add a live
   current-activity snippet per worker to `WorkersList.jsx` (e.g. last tool
   call or assistant text fragment, truncated), sourced from the same WS event
   stream as REQ-2 — not a full transcript, just enough to monitor several

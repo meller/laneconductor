@@ -44,9 +44,10 @@ detail view.
 
 ## Phase 5: UI — Cross-Worker Activity View
 
-**Problem**: With track 1084 allowing a developer multiple pinned workers,
-several can run different tracks in parallel — nothing surfaces that at a
-glance without opening each track individually.
+**Problem**: A developer can have several of their own workers registered to
+a project (`workers.user_uid`, track 1084), and several can run different
+tracks in parallel — nothing surfaces that at a glance without opening each
+track individually.
 **Solution**: Live current-activity snippet per worker in `WorkersList.jsx`.
 
 - [ ] Task 1: Subscribe `WorkersList.jsx` to the same per-track WS event stream for all tracks currently running on this project's workers

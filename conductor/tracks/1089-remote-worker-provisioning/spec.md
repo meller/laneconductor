@@ -43,8 +43,8 @@ machine that already has it installed.
 - `POST /api/projects/:id/dispatch { worker_id, action: 'provision-worker', payload }`
   — reuses 1085's project-level dispatch endpoint.
 - UI: Workers list gets `+ New Worker` → target host picker (existing
-  targets + "add new" inline) → launcher worker picker (online, pinned
-  workers only) → `Provision`. Shows the resulting dispatch's status
+  targets + "add new" inline) → launcher worker picker (the developer's own
+  online workers only, `workers.user_uid`) → `Provision`. Shows the resulting dispatch's status
   (including the expected `failed` / "not yet implemented" outcome) inline.
 
 ## Acceptance Criteria

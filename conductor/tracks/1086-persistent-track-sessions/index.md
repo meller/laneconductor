@@ -50,6 +50,7 @@ None to start — `track_sessions` keys on `worker_id` against the existing
 [1084](../1084-worker-identity-and-assignment/index.md). The relationship
 actually runs the other way for one piece: 1084's continuity-first claim
 routing (its Phase 3) reads `track_sessions` to know which of a developer's
-several pinned workers already owns a track's session — so 1086 should land
-before or alongside that specific piece of 1084. Foundation for
-[1087](../1087-live-session-transcript-panel/index.md).
+own workers (`workers.user_uid` — 1084's `worker_pins` table was designed,
+then removed as redundant with that column, see 1084's plan.md) already owns
+a track's session — so 1086 should land before or alongside that specific
+piece of 1084. Foundation for [1087](../1087-live-session-transcript-panel/index.md).
