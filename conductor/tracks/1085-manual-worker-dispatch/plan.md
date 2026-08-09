@@ -77,11 +77,48 @@ suite).
 **Solution**: New controls on the track detail panel (lane actions) and a
 project-level surface (deploy).
 
-- [ ] Task 1: `Run on worker: [worker ▾] [action ▾] [Run Now]` control — worker dropdown defaults to one of the resolved assignee's own workers (`workers.user_uid`, 1084), action dropdown limited to current-lane-valid actions
-- [ ] Task 2: Disable/hide when resolved worker is offline or no valid action exists
-- [ ] Task 3: Show dispatch status/history somewhere on the track (activity or logs area)
-- [ ] Task 4: `Deploy: [worker ▾] [environment ▾] [Deploy Now]` control on the Workers list (or a project actions panel) — worker dropdown limited to the calling developer's own workers for the project (`workers.user_uid`)
-- [ ] Task 5: Show deploy dispatch history/status (reuse the same activity view pattern as Task 3)
+- [x] Task 1: `Run on worker: [worker ▾] [Run <lane> now]` control on `TrackDetailPanel.jsx` — worker dropdown defaults to one of the resolved assignee's own workers (`workers.user_uid`, 1084) or the first idle worker; "action" isn't actually a separate dropdown — the API only ever accepts `action === track.lane_status` (see Phase 3's validation), so there is exactly one valid action per track at any time, shown as the button's own label
+- [x] Task 2: Disable/hide when resolved worker is offline (`last_heartbeat` >60s stale) or no valid action exists (track's lane isn't one of plan/implement/review/quality-gate — the control doesn't render at all for backlog/done)
+- [x] Task 3: Dispatch history — last 3 entries (action, status, time, result) inline under the control, polled every 4s
+- [x] Task 4: `Deploy: [env ▾] on [worker ▾] [Deploy Now]` control on `WorkersList.jsx`'s grid layout, gated on `projectId` set (project-scoped, hidden in "All Projects" view) and `deploy-environments` returning at least one — doesn't need the `IS_LOCAL_HOST` gate the Start/Stop Sync Worker buttons need, since it runs through `worker_dispatch` and executes on the *worker's* machine, not via `execAsync` on the API server
+- [x] Task 5: Deploy dispatch history — same inline pattern as Task 3, project-scoped (`track_number IS NULL`)
+
+**✅ Phase 4 complete (2026-08-09).** Verified live end-to-end against the real
+`laneconductor` DB/API — not just mocked: registered a real `--sync-only`
+worker for this project, clicked "Deploy Now" for real in the browser (user
+explicitly authorized testing against the real prod deploy since no one
+else is using it), and it correctly enqueued, got claimed, and ran the
+actual `bash scripts/deploy.sh prod`.
+
+**Discovered while verifying (real bug, not a mock artifact)**: the first
+live attempt *hung forever*. `scripts/deploy.sh` has an interactive
+`read -p "Continue? (y/N)"` confirmation gate; `deploy-runner.mjs` spawned
+it with default stdio (`'pipe'` for stdin, connected to nothing), so `read`
+blocked indefinitely with no one able to answer — silently consuming a
+worker slot forever, exactly the kind of failure the "fails clearly, not
+silently" acceptance criterion (spec.md) exists to prevent. Fixed two ways:
+1. `scripts/deploy.sh`'s confirmation now also checks `[ -t 0 ]` (only
+   prompts when actually attached to a terminal) — the idiomatic fix, and
+   it turned out this same gap silently broke `lc deploy`'s own CLI-path
+   confirmation too, from when Phase 5 switched off `stdio: 'inherit'` to
+   capture output for logging. Not caught by the CLI smoke test earlier in
+   Phase 5, since that test's `deploy.json` had no confirmation step.
+2. `deploy-runner.mjs` now spawns with `stdio: [echo ? 'inherit' : 'ignore', 'pipe', 'pipe']`
+   — `'inherit'` preserves the CLI's ability to answer prompts interactively;
+   `'ignore'` (the worker's dispatch path) closes stdin so *any* script that
+   doesn't adopt the `[ -t 0 ]` pattern fails fast on EOF instead of hanging
+   — defense in depth, not dependent on every project's deploy script being
+   written correctly. New regression test in `deploy-runner.test.mjs`
+   (a `read`-based command against closed stdin, asserting it resolves in
+   under 4s rather than hanging).
+
+A second live dispatch after the fix completed the full pipeline correctly —
+version bump, npm install, build — and failed only on a genuine
+pre-existing infrastructure issue (Neon Postgres credential rejection
+during migration), unrelated to dispatch. Confirms the mechanism itself
+works correctly under real conditions, not just mocks. (The version-bump
+side effects from both attempts were reverted — no real release was
+intended.)
 
 ## Phase 5: Deploy Runner (shared)
 

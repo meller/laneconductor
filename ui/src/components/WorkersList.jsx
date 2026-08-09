@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
 import { useApi } from '../hooks/useApi.js';
 
@@ -116,6 +116,69 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
   const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
   const [visibilityWorker, setVisibilityWorker] = useState(null);
+
+  // Track 1085 Phase 4: "Deploy Now" — unlike Start/Stop Sync Worker above,
+  // this doesn't need the IS_LOCAL_HOST gate: it goes through the
+  // worker_dispatch inbox and runs on the target worker's own machine, not
+  // via execAsync on the API server.
+  const [deployEnvironments, setDeployEnvironments] = useState([]);
+  const [deployWorkerId, setDeployWorkerId] = useState('');
+  const [deployEnv, setDeployEnv] = useState('');
+  const [deploying, setDeploying] = useState(false);
+  const [deployHistory, setDeployHistory] = useState([]);
+
+  useEffect(() => {
+    if (!projectId) { setDeployEnvironments([]); return; }
+    apiFetch(`/api/projects/${projectId}/deploy-environments`)
+      .then(r => r.ok ? r.json() : { environments: [] })
+      .then(d => setDeployEnvironments(d.environments || []))
+      .catch(() => setDeployEnvironments([]));
+  }, [projectId]);
+
+  const fetchDeployHistory = () => {
+    if (!projectId) return;
+    apiFetch(`/api/projects/${projectId}/dispatch`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setDeployHistory)
+      .catch(() => setDeployHistory([]));
+  };
+
+  useEffect(() => {
+    if (!projectId) return;
+    fetchDeployHistory();
+    const id = setInterval(fetchDeployHistory, 5000);
+    return () => clearInterval(id);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!deployWorkerId && workers && workers.length > 0) {
+      const idle = workers.find(w => w.status !== 'busy');
+      setDeployWorkerId(String((idle ?? workers[0]).id));
+    }
+  }, [workers]);
+
+  useEffect(() => {
+    if (!deployEnv && deployEnvironments.length > 0) setDeployEnv(deployEnvironments[0]);
+  }, [deployEnvironments]);
+
+  async function deployNow() {
+    if (!projectId || !deployWorkerId || !deployEnv) return;
+    setDeploying(true);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ worker_id: parseInt(deployWorkerId), action: 'deploy', payload: { environment: deployEnv } }),
+      });
+      if (res.ok) fetchDeployHistory();
+      else {
+        const { error } = await res.json().catch(() => ({}));
+        alert(`Deploy dispatch failed: ${error || res.statusText}`);
+      }
+    } catch (err) {
+      alert(`Deploy dispatch failed: ${err.message}`);
+    }
+    setDeploying(false);
+  }
 
   async function handleWorkerAction(action) {
     if (!projectId) return;
@@ -261,6 +324,58 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                 </button>
               )}
             </div>
+            {/* Track 1085 Phase 4: Deploy Now — dispatched to a worker's own machine */}
+            {projectId && deployEnvironments.length > 0 && (
+              <div className="flex flex-col gap-1.5 p-3 bg-gray-900/50 border border-gray-800 rounded-lg">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Deploy</span>
+                  <select
+                    value={deployEnv}
+                    disabled={deploying}
+                    onChange={e => setDeployEnv(e.target.value)}
+                    className="text-xs bg-gray-950 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                  >
+                    {deployEnvironments.map(env => <option key={env} value={env}>{env}</option>)}
+                  </select>
+                  <span className="text-xs text-gray-600">on</span>
+                  <select
+                    value={deployWorkerId}
+                    disabled={deploying}
+                    onChange={e => setDeployWorkerId(e.target.value)}
+                    className="text-xs bg-gray-950 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                  >
+                    {workers.map(w => (
+                      <option key={w.id} value={w.id}>{w.hostname}#{w.worker_number ?? 1}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={deployNow}
+                    disabled={deploying || !deployWorkerId || !deployEnv}
+                    className="text-xs px-2 py-0.5 rounded border border-blue-800/70 text-blue-400 hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {deploying ? 'Dispatching…' : 'Deploy Now'}
+                  </button>
+                </div>
+                {deployHistory.length > 0 && (
+                  <div className="flex flex-col gap-0.5 pl-0.5">
+                    {deployHistory.slice(0, 3).map(d => (
+                      <div key={d.id} className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                        <span className={
+                          d.status === 'done' ? 'text-green-500' :
+                            d.status === 'failed' ? 'text-red-500' :
+                              d.status === 'claimed' ? 'text-blue-400' : 'text-yellow-500'
+                        }>
+                          {d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : '•'}
+                        </span>
+                        <span>{d.payload?.environment ?? 'deploy'}</span>
+                        <span className="text-gray-600">{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {d.result && <span className="text-gray-600 truncate" title={d.result}>— {d.result}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {workers.map(worker => {
                 const vis = VISIBILITY_BADGE[worker.visibility || 'private'];
