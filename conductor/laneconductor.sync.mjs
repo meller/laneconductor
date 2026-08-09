@@ -28,6 +28,7 @@ import {
 import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
+import { parseConversationComments } from './sync-conversation-utils.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -1680,35 +1681,18 @@ async function syncConversation(filepath) {
     const newContent = content.slice(cursor);
     if (!newContent.trim()) return;
 
-    // Parse > **author** (optional-options): body blocks from new content
-    const lines = newContent.split('\n');
-    const comments = [];
-    let current = null;
-    for (const line of lines) {
-      // Matches: > **human**: Hello
-      // Matches: > **human** (no-wake): Hello
-      const m = line.match(/^> \*\*(\w+)\*\*(?:\s*\(([^)]+)\))?: (.*)$/);
-      if (m) {
-        if (current) comments.push(current);
-        const options = m[2] ? m[2].toLowerCase() : '';
-        current = {
-          author: m[1],
-          body: m[3],
-          no_wake: options.includes('no-wake') || options.includes('no-reply') || options.includes('note'),
-          is_brainstorm: options.includes('brainstorm'),
-          is_replan: options.includes('replan') || options.includes('plan'),
-          is_bug: options.includes('bug')
-        };
-      } else if (current && line.startsWith('>') && !line.match(/^> \*\*/)) {
-        current.body += '\n' + line.slice(2).trimStart();
-      } else if (current && line.trim() !== '') {
-        comments.push(current);
-        current = null;
-      }
-    }
-    if (current) comments.push(current);
+    const comments = parseConversationComments(newContent);
 
     if (comments.length === 0) {
+      // There WAS new content (checked above) but none of it matched the
+      // `> **author**: body` turn format — e.g. a narrative document with
+      // section headers and plain blockquotes instead of turn markers.
+      // Previously this was swallowed with no trace: the cursor still
+      // advances past it (avoids reprocessing the same bytes forever), but
+      // that content never reaches track_comments/the UI, and nothing said
+      // so.
+      const preview = newContent.trim().slice(0, 150).replace(/\s+/g, ' ');
+      console.warn(`[conv-sync] Track ${trackNumber}: ${newContent.length} bytes of new conversation.md content matched no known comment format — not synced to track_comments. Preview: "${preview}${newContent.trim().length > 150 ? '…' : ''}"`);
       writeFileSync(cursorPath, String(content.length), 'utf8');
       return;
     }
