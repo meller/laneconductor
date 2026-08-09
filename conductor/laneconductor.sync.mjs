@@ -27,6 +27,7 @@ import {
 } from './jira-collector.mjs';
 import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
+import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -1101,33 +1102,9 @@ function getFileModTime(filePath) {
   }
 }
 
-/**
- * Compare file and database timestamps to determine which version is newer
- * @param {number|null} fileMtime - File modification time in ms
- * @param {number|string|null} dbLastUpdated - DB last_updated timestamp (ms, ISO string, or null)
- * @returns {string} - 'newer' (DB wins), 'older' (FS wins), 'equal' (no sync needed)
- */
-function compareTimestamps(fileMtime, dbLastUpdated) {
-  // Handle null/missing cases
-  if (fileMtime === null && dbLastUpdated === null) return 'equal';
-  if (fileMtime === null) return 'newer'; // File missing → DB is newer
-  if (dbLastUpdated === null) return 'older'; // DB missing → FS is newer
-
-  // Parse DB timestamp if it's a string (ISO format)
-  let dbTime = dbLastUpdated;
-  if (typeof dbLastUpdated === 'string') {
-    dbTime = new Date(dbLastUpdated).getTime();
-    if (isNaN(dbTime)) {
-      console.warn('[sync] compareTimestamps: invalid DB timestamp:', dbLastUpdated);
-      return 'equal';
-    }
-  }
-
-  // Compare timestamps with 1ms tolerance for floating point
-  const diff = dbTime - fileMtime;
-  if (Math.abs(diff) <= 1) return 'equal';
-  return diff > 0 ? 'newer' : 'older';
-}
+// compareTimestamps/isConcurrentEdit live in ./sync-timestamp-utils.mjs —
+// pure functions, extracted so they're unit-testable without importing this
+// file's side effects (chokidar watchers, setIntervals, run at module load).
 
 /**
  * Check if DB version should be pulled to filesystem
@@ -1419,21 +1396,6 @@ function ensureTrackFileExists(trackFolder, filename, stub) {
     return true;
   }
   return false;
-}
-
-/**
- * Detect concurrent modifications (within grace period)
- * Returns true if file was modified within 10s of DB update
- */
-function isConcurrentEdit(fileMtime, dbLastUpdated) {
-  if (!fileMtime || !dbLastUpdated) return false;
-
-  const dbTime = typeof dbLastUpdated === 'string'
-    ? new Date(dbLastUpdated).getTime()
-    : dbLastUpdated;
-
-  const gracePeriodMs = 10 * 1000; // 10 second grace period
-  return Math.abs(fileMtime - dbTime) < gracePeriodMs;
 }
 
 /**
