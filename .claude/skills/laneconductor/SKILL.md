@@ -171,6 +171,47 @@ Shared local Postgres (`laneconductor` db) stores all project/track state. One p
 └── Vite + React → localhost:8090  (Kanban board, polls every 2s)
 ```
 
+## Protocol: conversation.md Format (required for sync)
+
+Every entry appended to `conductor/tracks/NNN-*/conversation.md` — by an
+agent or a human — MUST use this exact format, including continuation
+lines:
+
+```
+> **author**: First line of the message
+> second line, also prefixed with >
+> third line
+```
+
+`author` is `human`, `claude`, `gemini`, or `system`. This is not just a
+style convention: the sync worker's parser only recognizes lines matching
+`> **author**: ...` (plus `>`-prefixed continuation lines) as comments to
+push into the database. **Anything else — markdown section headers, plain
+blockquotes without an author marker, freeform prose — is silently not
+synced.** It stays in the file, but never reaches `track_comments`, so it
+never shows up in the UI's Conversation tab, with no error or warning
+anywhere (the sync worker does log a warning now when this happens, but
+don't rely on that — get the format right the first time).
+
+**If you need to include long reference material** as part of a turn — a
+pasted email, contract text, a redline, negotiation history — wrap the
+*entire* block under one `> **author**:` opening line, with every
+subsequent line (including blank ones you want preserved, and any markdown
+headers within the pasted content) still prefixed with `>`, so the parser
+treats it all as one continuous comment body:
+
+```
+> **claude**: Liran replied with a full counter-redraft. Summary below.
+>
+> ## Liran's reply (received 2026-08-09)
+>
+> [full pasted text here, every line prefixed with >]
+```
+
+Do NOT drop the `> **author**:` prefix partway through just because the
+content is long or reads more naturally as a standalone document — that is
+exactly what silently breaks sync.
+
 ## Protocol: Locating Tracks
 
 To find a track by number (e.g., "Track 017"):
