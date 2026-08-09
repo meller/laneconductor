@@ -18,6 +18,8 @@ const state = {
   workers: [], // [{ hostname, pid, worker_number, project_id, ... }] — every /worker/register call, in order
   claimable: null, // Track 1084 Phase 3: null = "not configured" (endpoint 500s, matching a real misconfigured server); an array = the claimable set /api/projects/:id/claimable-tracks returns
   nextWorkerId: 900, // arbitrary base so test worker ids don't collide with anything real
+  dispatch: [], // Track 1085: [{ id, worker_id, track_number, action, payload, status, result }] — seeded via /_enqueue-dispatch
+  nextDispatchId: 1,
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -75,6 +77,29 @@ const server = createServer(async (req, res) => {
   if ((params = route('POST', '/_set-claimable', req)) !== null) {
     state.claimable = body.claimable ?? [];
     return reply(res, 200, { ok: true });
+  }
+
+  // Track 1085: dispatch inbox — worker-facing endpoints only (the
+  // enqueue-side /api/tracks/:id/dispatch and /api/projects/:id/dispatch
+  // endpoints live on the real Collector API/ui-server, not the sync
+  // worker's collector connection, so they're not mocked here).
+  if ((params = route('GET', '/worker/:id/dispatch', req)) !== null) {
+    const entries = state.dispatch.filter(d => String(d.worker_id) === params.id && d.status === 'pending');
+    return reply(res, 200, { entries });
+  }
+
+  if ((params = route('PATCH', '/worker-dispatch/:id', req)) !== null) {
+    const entry = state.dispatch.find(d => String(d.id) === params.id);
+    if (!entry) return reply(res, 404, { error: 'dispatch entry not found' });
+    entry.status = body.status;
+    if (body.result !== undefined) entry.result = body.result;
+    return reply(res, 200, { ok: true });
+  }
+
+  if ((params = route('POST', '/_enqueue-dispatch', req)) !== null) {
+    const id = state.nextDispatchId++;
+    state.dispatch.push({ id, status: 'pending', payload: null, result: null, ...body });
+    return reply(res, 200, { id });
   }
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null)
@@ -202,6 +227,7 @@ const server = createServer(async (req, res) => {
     state.tracks = {};
     state.workers = [];
     state.claimable = null;
+    state.dispatch = [];
     return reply(res, 200, { ok: true });
   }
 

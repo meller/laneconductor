@@ -183,6 +183,7 @@ CREATE TABLE "worker_dispatch" (
     "action" TEXT NOT NULL,
     "payload" JSONB,
     "status" TEXT NOT NULL DEFAULT 'pending',
+    "result" TEXT,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "claimed_at" TIMESTAMPTZ(6),
 

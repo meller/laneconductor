@@ -9,6 +9,7 @@ import { createInterface } from 'readline';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../conductor/constants.mjs';
 import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, getServicePid, enableLinger } from './systemd-user.mjs';
+import { runDeploy } from '../conductor/deploy-runner.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -1276,68 +1277,16 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    const deployJsonPath = join(projectRoot, 'conductor', 'deploy.json');
-    if (!existsSync(deployJsonPath)) {
-        console.error('❌ Error: No deploy.json found. Run "lc setup-deploy" first.');
-        process.exit(1);
-    }
-
-    const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf8'));
     const env = args[1] || 'prod';
 
-    const envConfig = deployConfig.environments?.[env];
-    if (!envConfig) {
-        console.error(`❌ Error: No deployment config for environment "${env}".`);
-        console.log(`   Available environments: ${Object.keys(deployConfig.environments || {}).join(', ') || 'none'}`);
-        process.exit(1);
-    }
-
-    // Support both a single `command` string and a `commands` array
-    const commands = envConfig.commands
-        ? envConfig.commands
-        : envConfig.command
-            ? [{ label: env, command: envConfig.command }]
-            : [];
-
-    if (commands.length === 0) {
-        console.error(`❌ Error: No deploy command(s) configured for environment "${env}".`);
-        process.exit(1);
-    }
-
-    const logsDir = join(projectRoot, 'conductor', 'logs');
-    if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
-    const logFile = join(logsDir, `deploy-${env}-${Date.now()}.log`);
-
-    const totalStart = Date.now();
-    console.log(`🚀 Deploying to ${env} (${commands.length} step${commands.length > 1 ? 's' : ''})...\n`);
-
-    const runCommand = (cmdStr, label) => new Promise((resolve) => {
-        console.log(`▶ ${label}: ${cmdStr}\n`);
-        const proc = spawn(cmdStr, { shell: true, stdio: 'inherit', cwd: projectRoot });
-        const stepStart = Date.now();
-        proc.on('close', (code) => {
-            const elapsed = ((Date.now() - stepStart) / 1000).toFixed(1);
-            if (code === 0) {
-                console.log(`\n✅ ${label} done (${elapsed}s)\n`);
-            } else {
-                console.error(`\n❌ ${label} failed (exit ${code}, ${elapsed}s)`);
-            }
-            resolve(code);
-        });
-    });
-
     (async () => {
-        for (const step of commands) {
-            const label = step.label || step.command;
-            const code = await runCommand(step.command, label);
-            if (code !== 0) {
-                console.error(`\nDeployment stopped at step: ${label}`);
-                console.log(`   Logs: ${logFile}`);
-                process.exit(code);
-            }
+        const result = await runDeploy(projectRoot, env, { echo: true });
+        if (!result.ok) {
+            console.error(`❌ Error: ${result.error || `Deployment stopped at step: ${result.failedStep}`}`);
+            if (result.logFile) console.log(`   Logs: ${result.logFile}`);
+            process.exit(result.exitCode ?? 1);
         }
-        const elapsed = ((Date.now() - totalStart) / 1000).toFixed(1);
-        console.log(`✅ Deployment to ${env} complete! (${elapsed}s)`);
+        console.log(`   Logs: ${result.logFile}`);
         process.exit(0);
     })();
 } else if (command === 'start') {
