@@ -1,4 +1,4 @@
-h1:yirqHlDM4PAerQdmiAos3BjCDfeciLdoGE/qfAt599Q=
+h1:qUAb6bJPHTc+vZnektZnjpHtU8BnwopDCk5oKMwithg=
 20260227074203_initial.sql h1:wXIpAxVr+EZUQ3lfP0PB2z3gOw/42gGaDiw4SekgYnE=
 20260227092504_lane_status_enum.sql h1:5jNuIA00cHg0RXgYAJ44sSdDIihdUKUmpO9Tt0MuhLU=
 20260227101500_add_running_status.sql h1:LPEYAICfmX9TNrwBmfuAScSQ+5wyZ3Ptm/NiO4Bc834=
@@ -18,3 +18,4 @@ h1:yirqHlDM4PAerQdmiAos3BjCDfeciLdoGE/qfAt599Q=
 20260808082602_add_worker_number.sql h1:evrl7o5z28mh5Bs3WIHzxXNHA2rSxAo/kLGVDGE5018=
 20260808085033_add_worker_pins_and_assignee.sql h1:DcdGJzP7y5YUVf3ZDRa1hBbyuetU5uzU31OG6xV5En4=
 20260808133947_drop_worker_pins.sql h1:uf0dYfbL+EcN6JWjdaHA95K2ZSVlamAiq8tW4jvEsWQ=
+20260809090728_add_worker_dispatch.sql h1:y8y6aaKpX7HdetE5j6iziB+NZkqUndZS5m++0hP+ado=

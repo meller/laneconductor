@@ -172,6 +172,24 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
+-- Track 1085: per-worker command inbox, separate from the general
+-- auto-launch queue. track_number is null for project-level actions
+-- (e.g. deploy); payload is a generic per-action parameter bag so future
+-- action types don't need their own dedicated column.
+CREATE TABLE "worker_dispatch" (
+    "id" SERIAL NOT NULL,
+    "worker_id" INTEGER NOT NULL,
+    "track_number" TEXT,
+    "action" TEXT NOT NULL,
+    "payload" JSONB,
+    "status" TEXT NOT NULL DEFAULT 'pending',
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "claimed_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "worker_dispatch_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "workers" (
     "id" SERIAL NOT NULL,
     "project_id" INTEGER,
@@ -249,6 +267,9 @@ CREATE INDEX "idx_tracks_priority_queue" ON "tracks"("priority", "created_at");
 CREATE UNIQUE INDEX "tracks_project_id_track_number_key" ON "tracks"("project_id", "track_number");
 
 -- CreateIndex
+CREATE INDEX "idx_worker_dispatch_worker_status" ON "worker_dispatch"("worker_id", "status");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "workers_machine_token_key" ON "workers"("machine_token");
 
 -- CreateIndex
@@ -280,6 +301,9 @@ ALTER TABLE "track_comments" ADD CONSTRAINT "track_comments_track_id_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "tracks" ADD CONSTRAINT "tracks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "worker_dispatch" ADD CONSTRAINT "worker_dispatch_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "workers" ADD CONSTRAINT "workers_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;

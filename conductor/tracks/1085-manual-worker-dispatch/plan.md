@@ -5,8 +5,14 @@
 **Problem**: No way to address a command at a specific worker.
 **Solution**: `worker_dispatch` table, separate from the general track queue.
 
-- [ ] Task 1: Migration — `worker_dispatch` table, `track_number` nullable, generic `payload JSONB` column (see spec REQ-1)
-- [ ] Task 2: Index on `(worker_id, status)` for the polling query
+- [x] Task 1: Migration — `worker_dispatch` table, `track_number` nullable, generic `payload JSONB` column (see spec REQ-1)
+- [x] Task 2: Index on `(worker_id, status)` for the polling query
+
+**✅ Phase 1 complete (2026-08-09).** `migrations/20260809090728_add_worker_dispatch.sql`,
+applied directly to the real `laneconductor` DB (same `atlas migrate apply`-chain
+workaround as 1084's migrations — `atlas migrate diff` against `laneconductor_dev`
+confirms zero drift afterward). Verified via `\d worker_dispatch`: table, PK,
+`idx_worker_dispatch_worker_status`, and the `workers(id)` FK all present as specified.
 
 ## Phase 2: Worker Loop
 
@@ -37,10 +43,10 @@ actions), one project-scoped (deploy).
 **Solution**: New controls on the track detail panel (lane actions) and a
 project-level surface (deploy).
 
-- [ ] Task 1: `Run on worker: [worker ▾] [action ▾] [Run Now]` control — worker dropdown defaults to resolved assignee's pin (1084), action dropdown limited to current-lane-valid actions
+- [ ] Task 1: `Run on worker: [worker ▾] [action ▾] [Run Now]` control — worker dropdown defaults to one of the resolved assignee's own workers (`workers.user_uid`, 1084), action dropdown limited to current-lane-valid actions
 - [ ] Task 2: Disable/hide when resolved worker is offline or no valid action exists
 - [ ] Task 3: Show dispatch status/history somewhere on the track (activity or logs area)
-- [ ] Task 4: `Deploy: [worker ▾] [environment ▾] [Deploy Now]` control on the Workers list (or a project actions panel) — worker dropdown limited to workers pinned to the project
+- [ ] Task 4: `Deploy: [worker ▾] [environment ▾] [Deploy Now]` control on the Workers list (or a project actions panel) — worker dropdown limited to the calling developer's own workers for the project (`workers.user_uid`)
 - [ ] Task 5: Show deploy dispatch history/status (reuse the same activity view pattern as Task 3)
 
 ## Phase 5: Deploy Runner (shared)
