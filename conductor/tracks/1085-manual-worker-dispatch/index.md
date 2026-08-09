@@ -1,9 +1,9 @@
 # Track 1085: Manual Worker Dispatch
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Planning complete
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 15%
+**Phase**: Phase 1 complete — worker_dispatch schema
 **Type**: dev
 **Summary**: Per-worker dispatch inbox to manually trigger a lane action or a deploy in sync-only mode.
 
@@ -37,8 +37,9 @@ review → quality-gate → done cycle should end in an actual deploy.
   [Run Now]`, scoped to actions valid for the track's current lane. A
   separate, project-level `Deploy: [worker ▾] [environment ▾] [Deploy Now]`
   control (Workers list or a project actions panel) covers deploy, since
-  it's not tied to any one track's lane — worker dropdown limited to workers
-  pinned to the project (needs the repo checkout).
+  it's not tied to any one track's lane — worker dropdown limited to the
+  calling developer's own workers for the project (`workers.user_uid`, per
+  1084 — needs the repo checkout).
 - Scope: standard lane actions (plan/implement/review/quality-gate) plus
   deploy — no freeform custom prompts. This is manual triggering of existing
   automation, not a general remote-command feature.
@@ -46,7 +47,7 @@ review → quality-gate → done cycle should end in an actual deploy.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md)
 
 ## Phases
-- [ ] Phase 1: Schema — `worker_dispatch` table (nullable track_number, generic payload JSONB)
+- [x] Phase 1: Schema — `worker_dispatch` table (nullable track_number, generic payload JSONB)
 - [ ] Phase 2: Worker loop — check own inbox every sync tick, run lane actions via `spawnCli` and deploy via the shared deploy-runner, mark claimed/done
 - [ ] Phase 3: API — endpoints to enqueue a track-scoped dispatch (lane action) and a project-scoped dispatch (deploy)
 - [ ] Phase 4: UI — "Run on worker" control on track detail panel, "Deploy" control on Workers list/project panel
@@ -54,4 +55,4 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [ ] Phase 6: Tests — dispatch in sync-only mode, dispatch in sync+poll mode, invalid action for current lane rejected, deploy dispatch runs the correct command and logs correctly
 
 ## Depends on
-[1084](../1084-worker-identity-and-assignment/index.md) — needs assignee/pinned-worker resolution to know which worker's inbox to target by default.
+[1084](../1084-worker-identity-and-assignment/index.md) — needs assignee resolution (`resolveAssignee` + `workers.user_uid` ownership) to know which worker's inbox to target by default.

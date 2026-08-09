@@ -39,8 +39,9 @@ who picks up the work.
 - `POST /api/tracks/:id/dispatch { worker_id, action }` — enqueues an entry,
   validates the action is legal for the track's current lane.
 - Track detail panel: `Run on worker: [worker ▾] [action ▾] [Run Now]`,
-  worker dropdown defaults to the track's resolved assignee's pinned worker
-  (track 1084), action dropdown limited per REQ-3.
+  worker dropdown defaults to one of the track's resolved assignee's own
+  workers (`workers.user_uid`, track 1084), action dropdown limited per
+  REQ-3.
 - Button disabled/hidden if the resolved worker has no valid action for the
   current lane, or is offline.
 
@@ -62,8 +63,9 @@ who picks up the work.
   in `deploy.json`.
 - UI: a project-level "Deploy" control (not on a track detail panel, since
   deploy isn't tied to one track's lane) — `Deploy: [worker ▾] [environment ▾]
-  [Deploy Now]`, worker dropdown limited to workers pinned to this project
-  (track 1084), since deploying needs the repo checkout a worker already has.
+  [Deploy Now]`, worker dropdown limited to the calling developer's own
+  workers for this project (`workers.user_uid`, track 1084), since deploying
+  needs the repo checkout a worker already has.
   Natural home: the Workers list, or a project-level settings/actions panel.
 
 ## Acceptance Criteria
@@ -78,7 +80,7 @@ who picks up the work.
 - [ ] UI shows Run Now only for actions valid in the current lane
 - [ ] Dispatch entry status reflects actual run outcome (done/failed) and is
       visible somewhere in the UI (e.g. track's log/activity view)
-- [ ] `Deploy Now` on a project dispatches to a pinned worker, which runs the
+- [ ] `Deploy Now` on a project dispatches to one of the developer's own workers, which runs the
       configured `deploy.json` command(s) for the chosen environment and
       logs output to `conductor/logs/deploy-<env>-<timestamp>.log`
 - [ ] Deploy dispatch to a worker with no `deploy.json` (or an unconfigured
