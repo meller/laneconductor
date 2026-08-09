@@ -50,7 +50,15 @@ export async function runDeploy(projectRoot, env, { echo = false } = {}) {
 
   const runCommand = (cmdStr, label) => new Promise((resolve) => {
     log(`▶ ${label}: ${cmdStr}\n`);
-    const proc = spawn(cmdStr, { shell: true, cwd: projectRoot });
+    // stdin: 'inherit' only for the interactive CLI path (echo) — a human
+    // at a terminal can answer a deploy script's own confirmation prompts.
+    // Everywhere else (a dispatched worker run, track 1085) stdin is
+    // 'ignore': closed immediately, so a script that reads from it hits EOF
+    // and fails/cancels fast instead of hanging forever with no one able to
+    // answer. A well-behaved script should also check `[ -t 0 ]` before
+    // prompting at all (this project's own scripts/deploy.sh does) — this
+    // is the fallback for scripts that don't.
+    const proc = spawn(cmdStr, { shell: true, cwd: projectRoot, stdio: [echo ? 'inherit' : 'ignore', 'pipe', 'pipe'] });
     const stepStart = Date.now();
     proc.stdout.on('data', d => log(d.toString()));
     proc.stderr.on('data', d => log(d.toString()));

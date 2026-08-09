@@ -49,7 +49,10 @@ fi
 echo "✅ UI built (v$NEW_VERSION)"
 
 # ── Deployment confirmation ───────────────────────────────────────────────
-if [ -z "$NO_CONFIRM" ]; then
+# Only prompt when actually attached to a terminal — an unattended run (CI,
+# or a worker running a dispatched deploy, track 1085) has no one to answer
+# `read`, and would otherwise hang indefinitely.
+if [ -z "$NO_CONFIRM" ] && [ -t 0 ]; then
   echo ""
   echo "⚠️  Ready to deploy to $ENV"
   echo "   Version: $NEW_VERSION"
@@ -89,8 +92,9 @@ if [ "$ENV" = "prod" ]; then
     echo "      ⚠️  'atlas' CLI not found. Skipping migrations. Please ensure Atlas is installed for automated schema updates."
   fi
 
-  echo "   [2/4] Deploying Cloud Functions (API)..."
-  firebase deploy --project "$GCP_PROJECT" --only functions --non-interactive
+  echo "   [2/4] Skipping Cloud Functions (API) deployment (decommissioned to prevent bot compute costs)..."
+  # To deploy functions, run manually: firebase deploy --project "$GCP_PROJECT" --only functions --non-interactive
+
   
   echo "   [3/4] Deploying Dashboard App..."
   firebase deploy --project "$GCP_PROJECT" --only hosting:app --non-interactive

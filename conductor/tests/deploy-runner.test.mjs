@@ -92,4 +92,19 @@ describe('runDeploy', () => {
     const result = await runDeploy(TMP, 'staging');
     assert.match(result.logFile, /deploy-staging-\d+\.log$/);
   });
+
+  it('closes stdin so a command reading from it (e.g. an interactive confirmation prompt) fails fast instead of hanging', async () => {
+    // Mirrors scripts/deploy.sh's `read -p "Continue? (y/N)"` pattern for a
+    // script that doesn't check `[ -t 0 ]` first — with stdin closed, `read`
+    // hits EOF immediately (exit 1) rather than blocking. -t 5 is a generous
+    // ceiling; a genuinely closed stdin resolves in milliseconds, a hang
+    // would still be blocking after 5s and this test would time out instead
+    // of completing, which is the actual regression this guards against.
+    writeDeployJson({ environments: { prod: { command: 'read -t 5 -n 1 x; exit $?' } } });
+    const start = Date.now();
+    const result = await runDeploy(TMP, 'prod');
+    const elapsed = Date.now() - start;
+    assert.equal(result.ok, false, 'read on closed stdin should fail (EOF), not succeed');
+    assert.ok(elapsed < 4000, `expected fast EOF failure, took ${elapsed}ms (stdin may not be closed)`);
+  });
 });

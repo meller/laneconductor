@@ -19,6 +19,17 @@ const LANE_BADGE = {
   done: 'bg-green-900 text-green-300',
 };
 
+// Track 1085: the only actions the API will accept a dispatch for — it
+// validates action === track.lane_status, so a track sitting in 'backlog'
+// or 'done' has no valid action to dispatch at all.
+const DISPATCHABLE_LANES = ['plan', 'implement', 'review', 'quality-gate'];
+const WORKER_OFFLINE_MS = 60_000;
+
+function isWorkerOffline(worker) {
+  if (!worker?.last_heartbeat) return true;
+  return Date.now() - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
+}
+
 const AUTHOR_STYLES = {
   human: { label: 'You', dot: 'bg-gray-400', body: 'bg-gray-800 text-gray-200' },
   claude: { label: 'Claude', dot: 'bg-orange-400', body: 'bg-orange-950/40 text-gray-200 border border-orange-900/50' },
@@ -67,6 +78,11 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // Track 1084 Phase 4: assignee control
   const [members, setMembers] = useState([]);
   const [assigneeSaving, setAssigneeSaving] = useState(false);
+  // Track 1085 Phase 4: manual dispatch — "Run on worker" control + history
+  const [projectWorkers, setProjectWorkers] = useState([]);
+  const [selectedWorkerId, setSelectedWorkerId] = useState('');
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatchHistory, setDispatchHistory] = useState([]);
 
   // Fetch track detail
   const fetchDetail = () => {
@@ -105,6 +121,62 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       if (r.ok) fetchDetail();
     } catch { }
     setAssigneeSaving(false);
+  }
+
+  // Track 1085 Phase 4: workers registered to this project, for the "Run on
+  // worker" dropdown. Unlike the assignee list, this isn't auth-gated — a
+  // worker is visible regardless of who (if anyone) owns it, since in a
+  // no-auth (local-api) deployment every worker's user_uid is null anyway.
+  useEffect(() => {
+    apiFetch(`/api/projects/${projectId}/workers`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setProjectWorkers)
+      .catch(() => setProjectWorkers([]));
+  }, [projectId]);
+
+  const fetchDispatchHistory = () => {
+    if (!detail?.id) return;
+    apiFetch(`/api/tracks/${detail.id}/dispatch`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setDispatchHistory)
+      .catch(() => setDispatchHistory([]));
+  };
+
+  useEffect(() => {
+    if (!detail?.id) return;
+    fetchDispatchHistory();
+    const id = setInterval(fetchDispatchHistory, 4000);
+    return () => clearInterval(id);
+  }, [detail?.id]);
+
+  // Default the worker dropdown to one of the resolved assignee's own
+  // workers (workers.user_uid, track 1084) when possible, falling back to
+  // the first idle worker, then just the first worker in the list.
+  useEffect(() => {
+    if (!detail || projectWorkers.length === 0 || selectedWorkerId) return;
+    const assignee = detail.assignee_uid ?? detail.created_by_uid;
+    const ownWorker = assignee ? projectWorkers.find(w => w.user_uid === assignee) : null;
+    const idleWorker = projectWorkers.find(w => w.status !== 'busy' && !isWorkerOffline(w));
+    setSelectedWorkerId(String((ownWorker ?? idleWorker ?? projectWorkers[0]).id));
+  }, [detail, projectWorkers]);
+
+  async function dispatchRunNow(action) {
+    if (!detail?.id || !selectedWorkerId) return;
+    setDispatching(true);
+    try {
+      const r = await apiFetch(`/api/tracks/${detail.id}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ worker_id: parseInt(selectedWorkerId), action }),
+      });
+      if (r.ok) fetchDispatchHistory();
+      else {
+        const { error } = await r.json().catch(() => ({}));
+        alert(`Dispatch failed: ${error || r.statusText}`);
+      }
+    } catch (err) {
+      alert(`Dispatch failed: ${err.message}`);
+    }
+    setDispatching(false);
   }
 
   // Poll comments every 2s; auto-switch to Conversation on first load if comments exist
@@ -254,6 +326,50 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                     </span>
                   )}
                 </div>
+                {/* Track 1085 Phase 4: manual dispatch — "Run on worker" */}
+                {DISPATCHABLE_LANES.includes(detail.lane_status) && projectWorkers.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-gray-600">Run on worker:</span>
+                    <select
+                      value={selectedWorkerId}
+                      disabled={dispatching}
+                      onChange={e => setSelectedWorkerId(e.target.value)}
+                      className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    >
+                      {projectWorkers.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.hostname}#{w.worker_number ?? 1}{isWorkerOffline(w) ? ' (offline)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => dispatchRunNow(detail.lane_status)}
+                      disabled={dispatching || !selectedWorkerId || isWorkerOffline(projectWorkers.find(w => String(w.id) === selectedWorkerId))}
+                      title={`Run ${detail.lane_status} now on this worker, outside the normal queue`}
+                      className="text-xs px-2 py-0.5 rounded border border-blue-800/70 text-blue-400 hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {dispatching ? 'Dispatching…' : `Run ${detail.lane_status} now`}
+                    </button>
+                  </div>
+                )}
+                {dispatchHistory.length > 0 && (
+                  <div className="mt-1.5 flex flex-col gap-0.5">
+                    {dispatchHistory.slice(0, 3).map(d => (
+                      <div key={d.id} className="text-[10px] text-gray-500 flex items-center gap-1.5">
+                        <span className={
+                          d.status === 'done' ? 'text-green-500' :
+                            d.status === 'failed' ? 'text-red-500' :
+                              d.status === 'claimed' ? 'text-blue-400' : 'text-yellow-500'
+                        }>
+                          {d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : '•'}
+                        </span>
+                        <span>{d.action}</span>
+                        <span className="text-gray-600">{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {d.result && <span className="text-gray-600 truncate" title={d.result}>— {d.result}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* Dev Server Status */}
                 {(detail.lane_status === 'review' || detail.lane_status === 'implement') && (
                   <div className="mt-2 pt-2 border-t border-gray-700 flex items-center gap-2">
