@@ -320,3 +320,52 @@ All work happens inside the worktree (isolated from main branch). Commits go to 
 ✅ **Audit trail**: All locks committed to git, fully traceable
 ✅ **Pattern agnostic**: Both CLI and daemon patterns use same coordination
 ✅ **Optional DB**: Database enhances UI visibility but isn't required
+
+## Worker Identity, Assignment & Manual Dispatch (Tracks 1084/1085)
+
+Beyond the git-lock coordination above (which prevents two workers from
+double-claiming a track), a developer can also explicitly say who a track is
+for and manually trigger a specific worker to act — needed once a project
+has multiple workers/developers instead of one.
+
+**Stable worker identity**: a worker's DB identity is
+`(project_id, hostname, worker_number)`, not `pid` — `pid` changes on every
+restart, `worker_number` doesn't. `lc worker start --worker-number <n>`
+(default `1`) lets multiple worker processes run for the same project on
+the same machine. A worker registers under the calling developer's identity
+(`workers.user_uid`, from remote-api auth) automatically — there's no
+separate "pin a worker to yourself" step.
+
+**Track assignment**: `tracks.assignee_uid` (nullable) names the developer
+responsible for a track, defaulting to its creator, then the project owner,
+when unset. Auto-launch claim gating resolves the assignee's own workers
+(`workers.user_uid`, not a separate grant/pin table) and, if they have any
+registered, only those may claim the track's queued actions; if the
+assignee has none, claiming stays open to any worker (today's zero-config
+behavior). Routing work to a worker registered under a *different*
+developer's identity is deliberately unsupported — that's dispatching to
+someone else's machine, a security boundary needing its own consent design,
+not something this resolves.
+
+**Manual dispatch**: workers can run in `sync-only` mode (heartbeat + file
+sync, no auto-claim from the general queue — see `lc start --sync-only` /
+`worker.mode` in `.laneconductor.json`) for a developer who wants to control
+exactly what runs, rather than racing the open queue. Every worker — in
+either mode — also checks its own per-worker inbox (`worker_dispatch` table)
+on each sync tick, entirely separate from the general queue: `POST
+/api/tracks/:id/dispatch` enqueues a specific lane action (plan/implement/
+review/quality-gate — validated against the track's current lane) for a
+specific worker; `POST /api/projects/:id/dispatch` enqueues a `deploy`
+action (project-scoped, no track). This is how a `sync-only` worker does
+anything at all — it's the only work-launching path that ignores worker
+mode.
+
+**Deploy as dispatch**: `lc deploy <env>` and a worker's dispatched deploy
+action both run through one shared function
+(`conductor/deploy-runner.mjs`), reading `conductor/deploy.json` and logging
+to `conductor/logs/deploy-<env>-<timestamp>.log` — so deploying from the app
+(via a worker) and deploying from a human's terminal are guaranteed to
+behave identically.
+
+Full design context:
+[docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md).
