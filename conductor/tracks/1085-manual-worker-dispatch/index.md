@@ -56,3 +56,6 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 
 ## Depends on
 [1084](../1084-worker-identity-and-assignment/index.md) — needs assignee resolution (`resolveAssignee` + `workers.user_uid` ownership) to know which worker's inbox to target by default.
+
+## Follow-up
+[1092](../1092-deploy-config-ui/index.md) — the "Deploy Now" control here can only dispatch environments that already exist in `conductor/deploy.json`; nothing in this track lets you create/edit that file from the app (CLI-only via `lc setup-deploy`, or hand-editing). 1092 adds that.
