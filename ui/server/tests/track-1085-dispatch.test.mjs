@@ -99,7 +99,7 @@ describe('POST /api/tracks/:id/dispatch — enqueue a lane-action dispatch', () 
     it('validates the action against the track\'s current lane and enqueues a pending entry', async () => {
         vi.mocked(pool.query)
             .mockResolvedValueOnce({ rows: [{ id: 42, project_id: 1, track_number: '001', lane_status: 'implement' }] }) // track lookup
-            .mockResolvedValueOnce({ rows: [{ id: 7 }] }); // INSERT worker_dispatch
+            .mockResolvedValueOnce({ rows: [{ id: 7 }], rowCount: 1 }); // INSERT ... WHERE EXISTS(worker in project)
 
         const res = await request(app)
             .post('/api/tracks/42/dispatch')
@@ -134,13 +134,26 @@ describe('POST /api/tracks/:id/dispatch — enqueue a lane-action dispatch', () 
         const res = await request(app).post('/api/tracks/42/dispatch').send({}).expect(400);
         expect(res.body.error).toBeTruthy();
     });
+
+    it('rejects a worker_id that does not belong to the track\'s project', async () => {
+        vi.mocked(pool.query)
+            .mockResolvedValueOnce({ rows: [{ id: 42, project_id: 1, track_number: '001', lane_status: 'implement' }] }) // track lookup
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // INSERT ... WHERE EXISTS(...) matched nothing
+
+        const res = await request(app)
+            .post('/api/tracks/42/dispatch')
+            .send({ worker_id: 999, action: 'implement' })
+            .expect(400);
+
+        expect(res.body.error).toMatch(/worker/i);
+    });
 });
 
 describe('POST /api/projects/:id/dispatch — enqueue a deploy dispatch', () => {
     beforeEach(() => vi.resetAllMocks());
 
     it('enqueues a project-scoped (track_number: null) deploy dispatch', async () => {
-        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 8 }] }); // INSERT worker_dispatch
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 8 }], rowCount: 1 });
 
         const res = await request(app)
             .post('/api/projects/1/dispatch')
@@ -150,7 +163,7 @@ describe('POST /api/projects/:id/dispatch — enqueue a deploy dispatch', () => 
         expect(res.body.ok).toBe(true);
         expect(pool.query).toHaveBeenCalledWith(
             expect.stringContaining('INSERT INTO worker_dispatch'),
-            [10, null, 'deploy', JSON.stringify({ environment: 'prod' })]
+            [10, null, 'deploy', JSON.stringify({ environment: 'prod' }), '1']
         );
     });
 
@@ -160,5 +173,75 @@ describe('POST /api/projects/:id/dispatch — enqueue a deploy dispatch', () => 
             .send({ worker_id: 10, action: 'deploy', payload: {} })
             .expect(400);
         expect(res.body.error).toMatch(/environment/i);
+    });
+
+    it('rejects a worker_id that does not belong to this project', async () => {
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+        const res = await request(app)
+            .post('/api/projects/1/dispatch')
+            .send({ worker_id: 999, action: 'deploy', payload: { environment: 'prod' } })
+            .expect(400);
+
+        expect(res.body.error).toMatch(/worker/i);
+    });
+});
+
+describe('GET /api/tracks/:id/dispatch — dispatch history for a track', () => {
+    beforeEach(() => vi.resetAllMocks());
+
+    it('returns dispatch history scoped to the track\'s own project, newest first', async () => {
+        vi.mocked(pool.query)
+            .mockResolvedValueOnce({ rows: [{ id: 42, project_id: 1, track_number: '001' }] }) // track lookup
+            .mockResolvedValueOnce({ rows: [{ id: 5, action: 'implement', status: 'done' }] }); // history
+
+        const res = await request(app).get('/api/tracks/42/dispatch').expect(200);
+
+        expect(res.body).toEqual([{ id: 5, action: 'implement', status: 'done' }]);
+        expect(pool.query).toHaveBeenLastCalledWith(
+            expect.stringContaining('ORDER BY wd.created_at DESC'),
+            ['001', 1]
+        );
+    });
+
+    it('404s when the track does not exist', async () => {
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] });
+        const res = await request(app).get('/api/tracks/999/dispatch').expect(404);
+        expect(res.body.error).toMatch(/not found/i);
+    });
+});
+
+describe('GET /api/projects/:id/dispatch — deploy dispatch history for a project', () => {
+    beforeEach(() => vi.resetAllMocks());
+
+    it('returns project-scoped (track_number IS NULL) dispatch entries, newest first', async () => {
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 9, action: 'deploy', status: 'done' }] });
+
+        const res = await request(app).get('/api/projects/1/dispatch').expect(200);
+
+        expect(res.body).toEqual([{ id: 9, action: 'deploy', status: 'done' }]);
+        expect(pool.query).toHaveBeenCalledWith(
+            expect.stringContaining('track_number IS NULL'),
+            ['1']
+        );
+    });
+});
+
+describe('GET /api/projects/:id/deploy-environments', () => {
+    beforeEach(() => vi.resetAllMocks());
+
+    it('lists environment names from the project\'s conductor/deploy.json', async () => {
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: '/tmp/does-not-exist-for-mocked-fs-test' }] });
+
+        const res = await request(app).get('/api/projects/1/deploy-environments').expect(200);
+
+        // No real deploy.json on disk at this fake path — empty list, not an error.
+        expect(res.body.environments).toEqual([]);
+    });
+
+    it('404s when the project does not exist', async () => {
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] });
+        const res = await request(app).get('/api/projects/999/deploy-environments').expect(404);
+        expect(res.body.error).toMatch(/not found/i);
     });
 });
