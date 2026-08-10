@@ -1159,7 +1159,7 @@ try {
 
 Scaffold or refine the planning phase of a track (Spec + Plan).
 
-0. **Claim the track immediately** — before any other work, write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. This prevents the worker from double-launching and shows activity in the UI.
+0. **Claim the track immediately** — before any other work, write `**Lane**: plan` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. Setting `**Lane**` explicitly (not just `**Lane Status**`) matters whenever this command is invoked directly rather than via the normal queued-worker path — e.g. a KPI-miss replan or a manual re-run — where the track may not already be sitting in the `plan` lane; without it the Kanban board shows the track running in the wrong column for the whole duration of the work. This prevents the worker from double-launching and shows activity in the UI.
 1.  **Locate the Track**: Use the **Protocol: Locating Tracks**. If it has `**Status**: pending` in `file_sync_queue.md` and no folder exists yet, proceed to **Scaffold**.
 2.  **Scaffold (if missing)**:
     - Create directory `conductor/tracks/NNN-slug/`
@@ -1250,7 +1250,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 **Updated flow (uses lock/unlock):**
 
-0. **Claim the track immediately** — before acquiring the lock, write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. This prevents the worker from double-launching and shows activity in the UI.
+0. **Claim the track immediately** — before acquiring the lock, write `**Lane**: implement` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. Setting `**Lane**` explicitly matters whenever this command is invoked directly on a track still sitting in an earlier lane (e.g. a human runs `/laneconductor implement NNN` right after planning, without an intervening move-to-implement step — this project's `workflow.json` keeps `plan.on_success: plan:success`, so a track does NOT land in the `implement` lane automatically) — without it, the Kanban board shows the track "running" in the wrong column for the whole duration of the work. This prevents the worker from double-launching and shows activity in the UI.
 1.  **Locate the Track**: Use the **Protocol: Locating Tracks** (check `tracks-metadata.json` first) to find the track folder `conductor/tracks/NNN-*/`.
 2.  **Acquire lock and worktree:**
    ```bash
@@ -1328,7 +1328,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 Structured review of a track against its plan and product guidelines. Posts the result as a comment by writing to the track's conversation file.
 
-0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
+0. **Claim the track immediately** — write `**Lane**: review` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`).
 1. **Load Context** (**skip the first bullet if `FRESH_SESSION: false`** —
    see **Protocol: Session Continuity**; review often resumes the same
    session `implement` used, so this is worth checking — the second bullet
@@ -1350,7 +1350,7 @@ Structured review of a track against its plan and product guidelines. Posts the 
 
 Runs automated checks and updates status files based on results.
 
-0. **Claim the track immediately** — write `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else.
+0. **Claim the track immediately** — write `**Lane**: quality-gate` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`).
 0b. **KPI window check** (early trigger warning):
    - Read `**KPI Check After**` from index.md. If it exists and is in the future:
      > "KPI window not reached — Xh remaining. Measuring now may give unreliable results. Run anyway? (y/n)"
