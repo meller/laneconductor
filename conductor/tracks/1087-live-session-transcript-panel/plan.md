@@ -6,9 +6,31 @@
 render live.
 **Solution**: Switch claude spawns to stream-json output.
 
-- [ ] Task 1: In `spawnCli`, add `--output-format stream-json --include-partial-messages` when `cli === 'claude'`
-- [ ] Task 2: Confirm non-claude CLIs (`gemini`, `antigravity`) are untouched by this branch
-- [ ] Task 3: Verify JSONL still lands correctly in the existing `logPath` file
+- [x] Task 1: In `buildCliArgs`'s claude branch, add `--output-format stream-json --include-partial-messages` when `cli === 'claude'`
+- [x] Task 2: Confirm non-claude CLIs (`gemini`, `antigravity`) are untouched by this branch
+- [x] Task 3: Verify JSONL still lands correctly in the existing `logPath` file
+
+**✅ Phase 1 complete (2026-08-10).** Extracted the claude-specific arg
+construction into `conductor/claude-cli-args.mjs` (`buildClaudeArgs`) — same
+"pure module, unit-testable without spawning a process" pattern this track's
+sibling (1086) used throughout, since `laneconductor.sync.mjs` runs side
+effects (chokidar, `setInterval`) at import time. 6 unit tests in
+`conductor/tests/claude-cli-args.test.mjs`.
+
+**Found something the plan didn't mention, verified against the real CLI
+before writing any code**: `--output-format stream-json` requires
+`--verbose` when combined with `--print` — omitting it fails immediately
+with `Error: When using --print, --output-format=stream-json requires
+--verbose`. Added it. Also manually verified (real `claude` invocations,
+not the mock): the output is valid one-JSON-object-per-line JSONL (Task 3),
+and — important for not silently breaking Phase 4 of track 1086 — a
+`--resume` failure's error text (`No conversation found with session ID:
+...`) still appears verbatim as a raw line *and* inside the final
+`{"type":"result",...,"errors":[...]}` object, so the existing
+`isResumeFailure` regex match against full log content keeps working
+unchanged. `buildCliArgs`'s other CLI branches (`gemini`, `antigravity`,
+generic) are untouched — this only lives inside the `chosenCli === 'claude'`
+branch.
 
 ## Phase 2: Event Parsing & Transport
 

@@ -1,9 +1,9 @@
 # Track 1087: Live Session Transcript Panel
 
 **Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Planning complete
+**Lane Status**: running
+**Progress**: 14%
+**Phase**: Phase 1 complete — claude spawns now request stream-json output (--verbose required, confirmed against the real CLI; not in the original plan). Phase 2 (event parsing/transport) next.
 **Type**: dev
 **Summary**: Collapsible right-side panel rendering a track's session live, replacing the raw log tail.
 
@@ -41,7 +41,7 @@ stream per track worth watching live, not several.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md)
 
 ## Phases
-- [ ] Phase 1: Worker — switch claude spawns to `stream-json` output, parse JSONL as it's written
+- [x] Phase 1: Worker — switch claude spawns to `stream-json` output, parse JSONL as it's written
 - [ ] Phase 2: Transport — push structured events to the collector API, relay over existing WebSocket
 - [ ] Phase 3: UI — collapsible right-side drawer, transcript rendering (text blocks + collapsible tool-call entries)
 - [ ] Phase 4: UI — auto-expand on run start for the currently-viewed track, manual collapse
