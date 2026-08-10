@@ -30,6 +30,7 @@ import { runDeploy } from './deploy-runner.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
 import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
+import { buildClaudeArgs } from './claude-cli-args.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -3680,8 +3681,10 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   if (chosenCli === 'claude') {
     // Inject skill context even for Claude to ensure it uses the right skill definition
     const fullPrompt = customPrompt ? `${contextMsg}\n\n${prompt}` : prompt;
-    const args = ['--dangerously-skip-permissions', ...sessionArgs, '-p', `${freshnessMarker}${fullPrompt}`];
-    if (chosenModel) args.push('--model', chosenModel);
+    // Track 1087 Phase 1: stream-json output so the worker can parse
+    // structured events as they're written, instead of tailing plain text
+    // every 5s (see claude-cli-args.mjs for the --verbose requirement).
+    const args = buildClaudeArgs({ sessionArgs, freshnessMarker, prompt: fullPrompt, model: chosenModel });
     return ['claude', args, chosenCli, chosenModel || 'default', chosenTier, session];
   }
   const args = ['-p', `${contextMsg}${prompt}`];
