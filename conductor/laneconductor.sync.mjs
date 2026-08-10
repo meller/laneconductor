@@ -1287,7 +1287,8 @@ async function pullTracksMetadataFromDB() {
               console.log(`[sync] Track ${track.track_number}: created missing spec.md`);
             }
             if (!existsSync(testPath)) {
-              ensureTrackFileExists(fullTrackFolder, 'test.md', '# Tests\n\n(Test cases to be added)\n');
+              const fallbackTestContent = `# Tests: Track ${track.track_number} — ${track.title}\n\n## Test Commands\n\`\`\`bash\n# Run all tests\nnpm test\n\`\`\`\n\n## Test Cases\n\n(Test cases to be added)\n\n## Acceptance Criteria\n- [ ] All unit tests pass\n- [ ] No regressions in related features\n`;
+              ensureTrackFileExists(fullTrackFolder, 'test.md', fallbackTestContent);
               console.log(`[sync] Track ${track.track_number}: created missing test.md`);
             }
 
@@ -2325,7 +2326,7 @@ function parseFileSyncQueue(queuePath) {
   const entries = [];
 
   // Match each ### heading block (entry starts at ### and ends at next ### or ##)
-  const entryRegex = /^### (.+?)$([\s\S]*?)(?=^###|^##|\Z)/gm;
+  const entryRegex = /### ([^\n]+)\n([\s\S]*?)(?=\n###|\n##|$)/g;
   let match;
   while ((match = entryRegex.exec(content)) !== null) {
     const heading = match[1].trim();
@@ -2501,6 +2502,8 @@ async function handleTrackCreate(entry, queuePath) {
   writeFileSync(join(trackPath, 'index.md'), indexContent, 'utf8');
   writeFileSync(join(trackPath, 'spec.md'), `# Spec: ${title}\n\n## Problem Statement\n${description}\n\n## Requirements\n- REQ-1: ...\n\n## Acceptance Criteria\n- [ ] Criterion 1\n`, 'utf8');
   writeFileSync(join(trackPath, 'plan.md'), `# Track ${trackNumber}: ${title}\n\n## Phase 1: Planning\n\n- [ ] Task 1: Define requirements\n`, 'utf8');
+  const testContent = `# Tests: Track ${trackNumber} — ${title}\n\n## Test Commands\n\`\`\`bash\n# Run all tests\nnpm test\n\`\`\`\n\n## Test Cases\n\n### Feature: ${title}\n- [ ] TC-1: Define requirements verification — expected: Spec is fully formulated\n\n## Acceptance Criteria\n- [ ] All unit tests pass\n- [ ] No regressions in related features\n`;
+  writeFileSync(join(trackPath, 'test.md'), testContent, 'utf8');
 
   console.log(`[file-queue] Created track folder: ${trackDir}`);
 
