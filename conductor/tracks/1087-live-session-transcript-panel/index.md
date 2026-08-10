@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 57%
-**Phase**: Phase 4 complete — drawer mounted in TrackDetailPanel, verified live in the browser (toggle, empty state, Logs tab fallback unaffected). Full-log reconstruction endpoint built + tested. Not yet verified against a real live claude dispatch populating the drawer end-to-end (deferred to Phase 7). Phase 5 (cross-worker activity view) next.
+**Progress**: 71%
+**Phase**: Phase 5 complete — a global worker-activity latch (design changed from spec.md during implementation, per direction: reachable from anywhere, not a snippet-into-track-drawer). Both the reconstruction endpoint and the live WebSocket push path are now confirmed against real claude dispatches, not just unit tests (495 real events reconstructed correctly; 67 live session:event WS frames captured by a raw client during a real run). Phase 6 (non-track dispatch transcripts) next.
 **Type**: dev
 **Summary**: Collapsible right-side panel rendering a track's session live, replacing the raw log tail.
 
@@ -45,7 +45,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 2: Transport — push structured events to the collector API, relay over existing WebSocket
 - [x] Phase 3: UI — transcript rendering (text blocks + collapsible tool-call entries) — reducer + component built, mounted in Phase 4
 - [x] Phase 4: UI — auto-expand on run start for the currently-viewed track, manual collapse
-- [ ] Phase 5: UI — cross-worker activity view (Workers list live-activity snippets)
+- [x] Phase 5: UI — cross-worker activity view (global worker activity latch, design revised from spec.md's snippet-in-WorkersList to a persistent reachable-from-anywhere panel)
 - [ ] Phase 6: Non-track dispatch transcripts — deploy/create-project, keyed on dispatch id, standalone view
 - [ ] Phase 7: Tests — stream-json parsing, WS relay, fallback to raw-text rendering for non-Claude CLIs, non-track dispatch transcripts
 
