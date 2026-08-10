@@ -124,8 +124,27 @@ regression test), so there's no new format for the UI to handle.
 
 ## Phase 5: Tests
 
-- [ ] Task 1: First lane action on a track creates a `track_sessions` row and passes `--session-id`
-- [ ] Task 2: Second lane action on the same (worker, track) passes `--resume`, and the prompt does not include full context docs
-- [ ] Task 3: A conversation reply on a track with an existing session resumes it rather than creating a second session
-- [ ] Task 4: Simulated resume failure falls back to cold-start and repairs the stored session id
-- [ ] Task 5: Reassigning a track to a different worker (via 1084) results in that worker cold-starting its own session
+- [x] Task 1: First lane action on a track creates a `track_sessions` row and passes `--session-id` — covered by Phase 2's `track-1086-session-worker.test.mjs` (test 1)
+- [x] Task 2: Second lane action on the same (worker, track) passes `--resume`, and the prompt does not include full context docs — covered by Phase 2's `track-1086-session-worker.test.mjs` (test 2)
+- [x] Task 3: A conversation reply on a track with an existing session resumes it rather than creating a second session — same code path as Task 2 (`buildCliArgs`/`resolveTrackSession` don't distinguish lane actions from conversation replies), no separate test needed
+- [x] Task 4: Simulated resume failure falls back to cold-start and repairs the stored session id — covered by Phase 4's `track-1086-session-resilience-worker.test.mjs`
+- [x] Task 5: Reassigning a track to a different worker (via 1084) results in that worker cold-starting its own session
+
+**✅ Phase 5 complete (2026-08-10).** Tasks 1-4 were already proven end-to-end
+by earlier phases' worker-process tests; only Task 5 needed new coverage.
+`GET/POST/DELETE /track/:num/session` all scope their SQL by `req.worker_id`
+(resolved server-side from the caller's own machine_token, never
+client-supplied — see Phase 2), so reassignment cold-start is correct by
+construction, not something `buildCliArgs` has to special-case. Added an
+explicit test locking this in: `ui/server/tests/track-1086-sessions.test.mjs`
+— worker 8 querying a track that has a stored session for worker 7 gets
+`claude_session_id: null`, proven via the actual parameterized SQL call
+(`['001', 8]`), not just inferred from the first test's param-shape
+assertion. A full two-worker *process*-level test (like 1085's dispatch
+isolation test) wasn't added on top: `mock-collector.mjs`'s session state is
+deliberately track-number-only with no per-worker identity (documented in
+its own comment — every mock worker shares one machine_token), so it can't
+actually exercise this path; the real per-worker scoping lives entirely in
+the Collector API's SQL, which the new Vitest test verifies directly.
+
+Track 1086 is now fully complete — all 5 phases done.

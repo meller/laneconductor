@@ -1,9 +1,9 @@
 # Track 1086: Persistent Track Sessions
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 90%
-**Phase**: Phase 4 complete — resume-failure fallback (verified against the real claude CLI's actual error text) + auto-derived conversation.md audit trail, both verified end-to-end. Only Phase 5's remaining test tasks (reassignment cold-start) are left.
+**Lane**: review
+**Lane Status**: idle
+**Progress**: 100%
+**Phase**: All 5 phases complete. Reassignment cold-start (Phase 5 Task 5) is correct by construction — session lookups are scoped server-side by the caller's own worker_id, never client-supplied — and now has an explicit regression test.
 **Type**: dev
 **Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
 
@@ -42,7 +42,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 2: `buildCliArgs`/`spawnCli` — session-id/resume selection logic, plus context-skip-on-resume (Phase 3 Tasks 1+3, pulled forward — same code location)
 - [x] Phase 3: SKILL.md — new "Protocol: Session Continuity" section + pointers in plan/brainstorm/implement/review's context-loading steps
 - [x] Phase 4: Resilience — resume-failure fallback (verified against the real claude CLI), conversation.md derivation from session turns, both verified end-to-end
-- [ ] Phase 5: Tests — mostly already covered by Phases 2/4's end-to-end tests (session created on first call, resumed on subsequent, fallback on resume failure); reassignment cold-starts correctly (against 1084) remains
+- [x] Phase 5: Tests — Tasks 1-4 covered by Phases 2/4's end-to-end worker tests; Task 5 (reassignment cold-start) proven correct by construction (server-side worker_id scoping) with a new explicit regression test
 
 ## Depends on
 None to start — `track_sessions` keys on `worker_id` against the existing
