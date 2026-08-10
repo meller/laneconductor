@@ -2,8 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: running
-**Progress**: 14%
-**Phase**: Phase 1 complete — claude spawns now request stream-json output (--verbose required, confirmed against the real CLI; not in the original plan). Phase 2 (event parsing/transport) next.
+**Progress**: 29%
+**Phase**: Phase 2 complete — incremental JSONL tailing (500ms poll) pushes structured events over the existing WebSocket relay (reused `notifyApi`/`/internal/sync-event`, no new endpoint needed). Phase 3 (UI transcript rendering) next.
 **Type**: dev
 **Summary**: Collapsible right-side panel rendering a track's session live, replacing the raw log tail.
 
@@ -42,7 +42,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 
 ## Phases
 - [x] Phase 1: Worker — switch claude spawns to `stream-json` output, parse JSONL as it's written
-- [ ] Phase 2: Transport — push structured events to the collector API, relay over existing WebSocket
+- [x] Phase 2: Transport — push structured events to the collector API, relay over existing WebSocket
 - [ ] Phase 3: UI — collapsible right-side drawer, transcript rendering (text blocks + collapsible tool-call entries)
 - [ ] Phase 4: UI — auto-expand on run start for the currently-viewed track, manual collapse
 - [ ] Phase 5: UI — cross-worker activity view (Workers list live-activity snippets)

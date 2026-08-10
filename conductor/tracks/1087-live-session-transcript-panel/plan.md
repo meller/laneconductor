@@ -38,10 +38,48 @@ branch.
 forwards them incrementally.
 **Solution**: Incremental JSONL tailing + push to collector API + WS relay.
 
-- [ ] Task 1: Replace/extend the `tailInterval` logic to watch for file growth and parse new JSONL lines as they appear (not just every 5s)
-- [ ] Task 2: New lightweight push (API endpoint or extend existing `last_log_tail` PATCH) to send structured events per track run
-- [ ] Task 3: Collector API relays each event over the existing WebSocket channel (`ui/src/hooks/useWebSocket.js` server side) to clients watching that track
-- [ ] Task 4: Fallback path — non-Claude CLIs continue using the current raw-tail PATCH mechanism unchanged
+- [x] Task 1: Replace/extend the `tailInterval` logic to watch for file growth and parse new JSONL lines as they appear (not just every 5s)
+- [x] Task 2: New lightweight push (API endpoint or extend existing `last_log_tail` PATCH) to send structured events per track run
+- [x] Task 3: Collector API relays each event over the existing WebSocket channel (`ui/src/hooks/useWebSocket.js` server side) to clients watching that track
+- [x] Task 4: Fallback path — non-Claude CLIs continue using the current raw-tail PATCH mechanism unchanged
+
+**✅ Phase 2 complete (2026-08-10).**
+
+**Task 1**: `parseNewJsonlLines(content, previousOffset)`
+(`conductor/stream-json-tail.mjs`) — reads only bytes appended since the
+last check, parses each complete line as JSON, and holds back any trailing
+line still being written (picked up whole on the next call once it has a
+newline). 8 unit tests including a two-call simulation of a line growing
+across ticks. Wired into `spawnCli` as a 500ms poll (`streamTailInterval`,
+`cli === 'claude'` only) — genuine `fs.watch` was considered but a fast
+poll avoids platform/filesystem inotify quirks and is simple enough to
+reason about; 500ms vs the old 5000ms tail is a 10x latency improvement,
+satisfying the spec's "materially better than the old 5s tail" acceptance
+criterion.
+
+**Tasks 2 & 3 turned out to already exist** — `notifyApi(event, data)`
+(`laneconductor.sync.mjs:1049`, already used for `worker:updated` /
+`track:updated` / `conductor:updated`) POSTs to the Collector API's
+`POST /internal/sync-event`, which calls the existing generic `broadcast()`
+over the WebSocket (`ui/server/wsBroadcast.mjs`) — no event-name allowlist,
+so a new `'session:event'` name needs zero server-side changes. Each parsed
+JSONL event is pushed as `notifyApi('session:event', { trackNumber,
+projectId, event })`. Scope reduced substantially from the plan's estimate
+(no new endpoint, no new WS code) by reusing what was already there.
+
+**Task 4**: the *old* 5s `tailInterval` (raw-tail `last_log_tail` PATCH) is
+now `cli === 'claude' ? null : setInterval(...)` — non-claude CLIs get the
+exact unmodified original interval; claude gets `streamTailInterval`
+instead, never both. `clearInterval(null)` is a documented no-op in Node,
+so no null-guard needed at either interval's clear site.
+
+**Scoping note carried into Phase 3/4**: for claude runs, the *old* Logs
+tab's `last_log_tail` field stops updating live (by design — REQ-2 says
+"replacing", and the new drawer is what Phase 3/4 deliver). The one-off
+`last_log_tail` snapshots at spawn-timeout-kill and at final process exit
+were deliberately left untouched (out of Task 1's scope, harmless as a
+last-known-state fallback) — not part of the periodic tail mechanism this
+task targets.
 
 ## Phase 3: UI — Transcript Rendering
 
