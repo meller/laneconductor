@@ -113,6 +113,11 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { ok: true });
   }
 
+  if ((params = route('DELETE', '/track/:num/session', req)) !== null) {
+    delete state.sessions[params.num];
+    return reply(res, 200, { ok: true });
+  }
+
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null)
     return reply(res, 200, { ok: true });
 
