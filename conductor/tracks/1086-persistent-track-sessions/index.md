@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 70%
-**Phase**: Phase 3 complete — SKILL.md now tells Claude itself to skip re-reading context on a resumed session, not just the worker's own pre-injection
+**Progress**: 90%
+**Phase**: Phase 4 complete — resume-failure fallback (verified against the real claude CLI's actual error text) + auto-derived conversation.md audit trail, both verified end-to-end. Only Phase 5's remaining test tasks (reassignment cold-start) are left.
 **Type**: dev
 **Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
 
@@ -41,8 +41,8 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 1: Schema — `track_sessions` table
 - [x] Phase 2: `buildCliArgs`/`spawnCli` — session-id/resume selection logic, plus context-skip-on-resume (Phase 3 Tasks 1+3, pulled forward — same code location)
 - [x] Phase 3: SKILL.md — new "Protocol: Session Continuity" section + pointers in plan/brainstorm/implement/review's context-loading steps
-- [ ] Phase 4: Resilience — resume-failure fallback, conversation.md derivation from session turns
-- [ ] Phase 5: Tests — session created on first call, resumed on subsequent calls, fallback on resume failure, reassignment cold-starts correctly
+- [x] Phase 4: Resilience — resume-failure fallback (verified against the real claude CLI), conversation.md derivation from session turns, both verified end-to-end
+- [ ] Phase 5: Tests — mostly already covered by Phases 2/4's end-to-end tests (session created on first call, resumed on subsequent, fallback on resume failure); reassignment cold-starts correctly (against 1084) remains
 
 ## Depends on
 None to start — `track_sessions` keys on `worker_id` against the existing

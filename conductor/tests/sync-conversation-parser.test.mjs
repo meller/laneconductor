@@ -96,4 +96,14 @@ describe('parseConversationComments', () => {
     const comments = parseConversationComments(narrative);
     assert.equal(comments.length, 0, 'narrative content should not silently parse as zero comments without the caller knowing');
   });
+
+  it('parses the Track 1086 Phase 4 auto-derived session-turn entry format', () => {
+    // Exact format spawnCli's exit handler appends — locks in the contract
+    // so a future format tweak there doesn't silently stop syncing.
+    const entry = '\n> **system**: Session turn — dispatch-implement (resumed session): PASS (exit 0).\n';
+    const comments = parseConversationComments(entry);
+    assert.equal(comments.length, 1);
+    assert.equal(comments[0].author, 'system');
+    assert.match(comments[0].body, /Session turn — dispatch-implement \(resumed session\): PASS/);
+  });
 });

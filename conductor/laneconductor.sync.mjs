@@ -3402,6 +3402,31 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       console.warn(`[${label}] Error updating filesystem for track ${trackNumber}: ${err.message}`);
     }
 
+    // Track 1086 Phase 4 Task 2: append a lightweight, auto-derived
+    // audit-trail entry to conversation.md for every session-tracked turn —
+    // regardless of whether the command itself explicitly posts a comment
+    // (e.g. a plain successful `implement` phase doesn't). Gated on
+    // `session` (claude-only, session-tracked calls) — local-fs and
+    // non-claude CLI paths are untouched, matching this track's scope
+    // throughout. Appended via the normal file-write path, so it flows
+    // through the existing conversation.md FS→DB sync (syncConversation)
+    // like any other entry — no separate plumbing to the DB needed.
+    if (session) {
+      try {
+        const tracksDirForConv = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForConv = resolveTrackFolder(tracksDirForConv, trackNumber);
+        if (trackDirForConv) {
+          const convPath = join(tracksDirForConv, trackDirForConv, 'conversation.md');
+          const sessionState = session.isFresh ? 'started' : 'resumed';
+          const outcome = isSuccess ? 'PASS' : 'FAIL';
+          const entry = `\n> **system**: Session turn — ${label} (${sessionState} session): ${outcome} (exit ${code}).\n`;
+          appendFileSync(convPath, entry, 'utf8');
+        }
+      } catch (err) {
+        console.warn(`[${label}] Failed to append session-turn entry to conversation.md: ${err.message}`);
+      }
+    }
+
     if (!getIsLocalFs()) await patch(url, token, `/track/${trackNumber}/action`, patchData).catch(() => { });
 
     // Cleanup git lock and worktree (API modes only — local-fs skips; LC_SKIP_GIT_LOCK skips in tests)

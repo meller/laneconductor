@@ -21,6 +21,7 @@ const state = {
   dispatch: [], // Track 1085: [{ id, worker_id, track_number, action, payload, status, result }] — seeded via /_enqueue-dispatch
   nextDispatchId: 1,
   sessions: {}, // Track 1086: { [track_number]: claude_session_id } — simplified, no per-worker scoping (every worker in this mock shares the same machine_token, so there's no way to distinguish callers without real auth; the real server's per-(track_number, worker_id) scoping is covered by ui/server/tests/track-1086-sessions.test.mjs instead)
+  comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -178,7 +179,8 @@ const server = createServer(async (req, res) => {
 
   // ── Comments (increment fail_count on automation-failure bodies) ───────────
   if ((params = route('POST', '/track/:num/comment', req)) !== null) {
-    const { body: commentBody } = body;
+    const { body: commentBody, author } = body;
+    state.comments.push({ track_number: params.num, author, body: commentBody });
     if (typeof commentBody === 'string' && commentBody.includes('Automation failed')) {
       if (!state.tracks[params.num]) state.tracks[params.num] = { track_number: params.num, fail_count: 0 };
       state.tracks[params.num].fail_count = (state.tracks[params.num].fail_count || 0) + 1;
@@ -245,6 +247,7 @@ const server = createServer(async (req, res) => {
     state.claimable = null;
     state.dispatch = [];
     state.sessions = {};
+    state.comments = [];
     return reply(res, 200, { ok: true });
   }
 

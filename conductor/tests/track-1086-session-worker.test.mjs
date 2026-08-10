@@ -184,4 +184,31 @@ describe('Track 1086 Phase 2: session-id/resume selection', () => {
     const contextMarkerCountAfter = log.split('PRODUCT_MD_MARKER').length - 1;
     assert.equal(contextMarkerCountAfter, contextMarkerCountBefore, 'second (resumed) call should not re-inject full context');
   });
+
+  it('Phase 4 Task 2: appends a derived audit-trail entry to conversation.md for both turns, and it syncs to track_comments', async () => {
+    const convPath = join(TMP, 'conductor/tracks', '3001-test-track', 'conversation.md');
+    const convContent = await poll(async () => {
+      const c = readIfExists(convPath);
+      return (c && c.includes('started session') && c.includes('resumed session')) ? c : null;
+    }, { label: 'conversation.md has both derived entries' });
+
+    assert.match(convContent, /> \*\*system\*\*: Session turn — dispatch-implement \(started session\): PASS \(exit 0\)\./);
+    assert.match(convContent, /> \*\*system\*\*: Session turn — dispatch-implement \(resumed session\): PASS \(exit 0\)\./);
+
+    // The whole point of appending via a normal file write is that it
+    // flows through the existing conversation.md FS→DB sync unmodified —
+    // confirm it actually reached track_comments, not just the file.
+    const finalState = await poll(async () => {
+      const s = await getState(collectorPort);
+      const turns = s.comments.filter(c => c.track_number === '3001' && c.body?.includes('Session turn'));
+      return turns.length >= 2 ? s : null;
+    }, { label: 'both derived entries synced to track_comments' });
+    const synced = finalState.comments.filter(c => c.track_number === '3001' && c.body?.includes('Session turn'));
+    assert.equal(synced.length, 2);
+    assert.ok(synced.every(c => c.author === 'system'));
+  });
 });
+
+function readIfExists(path) {
+  try { return readFileSync(path, 'utf8'); } catch { return null; }
+}

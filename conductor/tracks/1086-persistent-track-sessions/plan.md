@@ -68,9 +68,59 @@ call.
 must stay a readable audit log without being read cold as an input.
 **Solution**: Fallback path + post-turn derivation.
 
-- [ ] Task 1: Detect `--resume` failure (session-not-found exit/error signal), fall back to cold-start + fresh `--session-id`, overwrite the stored row
-- [ ] Task 2: After each session turn completes (lane action or conversation reply), append a derived human-readable entry to `conversation.md` — do not read it cold as a pre-call context source anymore
-- [ ] Task 3: Verify `conversation.md` format stays compatible with existing UI parsing (Inbox view, track detail conversation tab)
+- [x] Task 1: Detect `--resume` failure (session-not-found exit/error signal), fall back to cold-start + fresh `--session-id`, overwrite the stored row
+- [x] Task 2: After each session turn completes (lane action or conversation reply), append a derived human-readable entry to `conversation.md` — do not read it cold as a pre-call context source anymore
+- [x] Task 3: Verify `conversation.md` format stays compatible with existing UI parsing (Inbox view, track detail conversation tab)
+
+**✅ Phase 4 complete (2026-08-10).**
+
+**Task 1**: `isResumeFailure(logContent)` (`conductor/session-resilience-utils.mjs`)
+detects a `--resume` call failing because the session no longer exists.
+Signature confirmed against the **real** `claude` CLI, not guessed:
+`claude --resume <bad-uuid> -p "..."` exits 1 with `"No conversation found
+with session ID: <uuid>"`. New `DELETE /track/:num/session` (scoped to
+`req.worker_id`, same pattern as GET/POST) invalidates the stale row;
+`spawnCli`'s exit handler calls it when `session && !session.isFresh` and
+the failure matches, reusing the log content already read for the
+existing quota-exhaustion check (no extra I/O). Deliberately does **not**
+retry within the same attempt (would mean reconstructing the whole
+lock/worktree/context-injection/spawn cycle inside an already-complex exit
+handler) — instead it clears the stale session so whatever retries next
+(auto-launch's existing `max_retries` loop, or a manual re-dispatch) cold-
+starts instead of repeating the same doomed `--resume` forever.
+
+**Task 2**: `spawnCli`'s exit handler appends `> **system**: Session turn —
+{label} ({started|resumed} session): {PASS|FAIL} (exit {code}).` to
+`conversation.md` after every session-tracked turn (gated on `session`
+being set — claude-only, matching this track's scope throughout), via a
+normal file write — no separate DB plumbing, it flows through the existing
+`syncConversation` FS→DB pipeline exactly like any comment a human or
+Claude itself writes. This guarantees a baseline audit trail even for
+commands (like a plain successful `implement` phase) that don't
+explicitly post their own comment.
+
+**Task 3**: covered by Task 2's own verification, not separately — the
+derived entry uses the exact `> **author**: body` format `sync-
+conversation-utils.mjs` already parses (locked in with a dedicated
+regression test), so there's no new format for the UI to handle.
+
+**Verified end-to-end**, not just unit-level:
+- `conductor/tests/track-1086-session-resilience-worker.test.mjs` — seeds
+  a broken session, confirms detection + invalidation + a genuinely new
+  session on the next attempt (mock-cli simulates the real "No
+  conversation found" text via a sentinel-file toggle, since the
+  environment can't change mid-worker-lifetime). Caught a test-design bug
+  while writing it: the test's own `max_retries: 1` meant the first
+  failure correctly requeued (`Lane Status: queue`) rather than terminally
+  failing, which the *already-correct* dispatch-status logic (track 1085)
+  reports as `'done'`, not `'failed'` — fixed the test's `max_retries: 0`,
+  not the dispatch logic.
+- `conductor/tests/track-1086-session-worker.test.mjs`'s new third test —
+  dispatches the same track twice, confirms both a "started session" and
+  a "resumed session" entry land in `conversation.md` *and* actually reach
+  `track_comments` through the real sync pipeline (extended
+  `mock-collector.mjs` to record posted comments for this, not just infer
+  from file content).
 
 ## Phase 5: Tests
 
