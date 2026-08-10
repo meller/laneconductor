@@ -1,9 +1,9 @@
 # Track 1095: /laneconductor plan doesn't reliably populate test.md
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Implementation complete
+**Phase**: Done
 **Type**: dev
 **Summary**: Fixes the gap where test.md is created/left as a generic stub instead of being populated with test cases during the plan or implement phase.
 
