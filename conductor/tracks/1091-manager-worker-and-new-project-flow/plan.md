@@ -46,7 +46,25 @@ project).
 - [ ] Task 3: Manager worker picker (if more than one available)
 - [ ] Task 4: Dispatch on submit; show creation progress/result (reuses 1087's non-track dispatch transcript view once that exists)
 
-## Phase 5: Tests
+## Phase 5: Visual Distinction for Manager Workers
+
+**Problem**: Added 2026-08-10, during track 1087's Phase 5/6 work — every
+worker in the Workers list and the cross-worker activity latch
+(`WorkerActivityLatch.jsx`, 1087) renders identically today (a status dot
++ hostname/project). Once `workers.type` (Phase 1) exists, a manager
+worker (`project_id: null`, not scoped to any single project) needs its
+own visual treatment — showing it next to per-project workers with no
+distinction would be confusing (it doesn't belong to "a project" the way
+the others do, and it's the one worker type trusted for system-wide
+actions like `create-project`).
+**Solution**: A distinct badge/icon for `type: 'manager'` rows wherever
+workers are listed.
+
+- [ ] Task 1: `WorkersList.jsx` — manager rows get a distinct badge (e.g. "MANAGER", different color from the existing per-project worker styling) instead of a project name (they have none)
+- [ ] Task 2: `WorkerActivityLatch.jsx` (1087) — same badge treatment in the worker-list column; a manager worker's `current_task` while running `create-project` should route to 1087's non-track dispatch view (Phase 6 there), not the track-transcript path
+- [ ] Task 3: Confirm no regression for `type: 'project'` workers — they keep their existing unbadged rendering (this phase adds a case, doesn't restructure the existing one)
+
+## Phase 6: Tests
 
 - [ ] Task 1: `workers.type` defaults to `'project'`; existing workers/tests unaffected
 - [ ] Task 1b: A second `lc worker start --manager` on the same hostname fails clearly and does not register a second row
@@ -55,3 +73,4 @@ project).
 - [ ] Task 4: End-to-end — New Project UI flow produces a fully scaffolded project and registered `projects`/`workers` rows
 - [ ] Task 5: New project's own worker registers with `type: 'project'`, not `'manager'`
 - [ ] Task 6: Existing CLI-based (`lc setup`) onboarding path is completely unaffected
+- [ ] Task 7: Manager worker badge renders correctly in both `WorkersList.jsx` and `WorkerActivityLatch.jsx` (Phase 5)

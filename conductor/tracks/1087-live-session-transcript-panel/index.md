@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 71%
-**Phase**: Phase 5 complete — a global worker-activity latch (design changed from spec.md during implementation, per direction: reachable from anywhere, not a snippet-into-track-drawer). Both the reconstruction endpoint and the live WebSocket push path are now confirmed against real claude dispatches, not just unit tests (495 real events reconstructed correctly; 67 live session:event WS frames captured by a raw client during a real run). Phase 6 (non-track dispatch transcripts) next.
+**Progress**: 86%
+**Phase**: Phase 6 complete — deploy dispatches get a raw-text log viewer (redone from scratch after a first, autonomous-run attempt was reverted for being non-functional; spec.md's REQ-6 itself was corrected first — deploy has no claude session to key structured events by). Verified against a real dispatch via direct API call (not just unit tests). Phase 7 (formal test suite) next.
 **Type**: dev
 **Summary**: Collapsible right-side panel rendering a track's session live, replacing the raw log tail.
 
@@ -31,10 +31,13 @@ stream per track worth watching live, not several.
 - Applies uniformly to auto-launched runs, manually-dispatched runs (1085),
   and any conversation turn — since after 1086 they're all the same
   underlying session, this is one live view, not several mechanisms.
-- Also covers non-track dispatches — `deploy` (1085) and `create-project`
-  (1091) have no associated track, so the same transcript mechanism is keyed
-  on `worker_dispatch.id` instead of `track_number` and shown in a
-  standalone view rather than a track's drawer.
+- Also covers non-track dispatches — `deploy` (1085) has no associated
+  track, so it gets a standalone view keyed on `worker_dispatch.id`
+  instead of `track_number`. **Corrected 2026-08-10**: `deploy` doesn't
+  produce a claude session/JSONL (it runs a plain shell command via
+  `deploy-runner.mjs`), so this is a raw-text log viewer, not the
+  structured transcript mechanism above. `create-project` (1091) deferred
+  — doesn't exist yet.
 - `conversation.md` remains a derived, human-readable audit log (see 1086);
   this panel is the live/structured counterpart, not a replacement for it.
 
@@ -46,7 +49,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 3: UI — transcript rendering (text blocks + collapsible tool-call entries) — reducer + component built, mounted in Phase 4
 - [x] Phase 4: UI — auto-expand on run start for the currently-viewed track, manual collapse
 - [x] Phase 5: UI — cross-worker activity view (global worker activity latch, design revised from spec.md's snippet-in-WorkersList to a persistent reachable-from-anywhere panel)
-- [ ] Phase 6: Non-track dispatch transcripts — deploy/create-project, keyed on dispatch id, standalone view
+- [x] Phase 6: Non-track dispatch transcripts — deploy gets a raw-text log viewer keyed on dispatch id (revised scope, see spec.md REQ-6's correction); create-project deferred (1091 doesn't exist yet)
 - [ ] Phase 7: Tests — stream-json parsing, WS relay, fallback to raw-text rendering for non-Claude CLIs, non-track dispatch transcripts
 
 ## Depends on

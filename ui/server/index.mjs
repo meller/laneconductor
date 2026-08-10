@@ -1045,6 +1045,50 @@ app.get('/api/projects/:id/tracks/:num/transcript', async (req, res) => {
   }
 });
 
+// Track 1087 Phase 6 (revised — see spec.md REQ-6's 2026-08-10
+// correction): `deploy` dispatches have no claude session, no JSONL — they
+// run through the separate deploy-runner.mjs, which logs plain shell
+// output to conductor/logs/deploy-<env>-<timestamp>.log (confirmed by
+// reading that file directly). This is a raw-text log viewer keyed on
+// worker_dispatch.id, not the structured transcript mechanism above.
+app.get('/api/projects/:id/dispatch/:dispatchId/log', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT wd.id, wd.action, wd.payload, p.repo_path
+       FROM worker_dispatch wd
+       JOIN workers w ON w.id = wd.worker_id
+       JOIN projects p ON p.id = w.project_id
+       WHERE wd.id = $1 AND p.id = $2`,
+      [req.params.dispatchId, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Dispatch not found' });
+    const { action, payload, repo_path } = result.rows[0];
+    if (action !== 'deploy') {
+      return res.status(400).json({ error: `No log viewer defined for dispatch action "${action}"` });
+    }
+
+    const env = payload?.environment;
+    if (!env) return res.json({ log: null });
+    if (!repo_path || !existsSync(repo_path)) return res.json({ log: null });
+
+    const logsDir = join(repo_path, 'conductor', 'logs');
+    if (!existsSync(logsDir)) return res.json({ log: null });
+
+    const pattern = new RegExp(`^deploy-${env}-\\d+\\.log$`);
+    const candidates = readdirSync(logsDir)
+      .filter(f => pattern.test(f))
+      .map(f => ({ f, mtimeMs: statSync(join(logsDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    if (candidates.length === 0) return res.json({ log: null });
+
+    const log = readFileSync(join(logsDir, candidates[0].f), 'utf8');
+    res.json({ log });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Track comments ──────────────────────────────────────────────────────────
 
 async function getTrackId(projectId, trackNum) {

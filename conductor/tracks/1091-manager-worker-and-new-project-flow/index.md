@@ -60,10 +60,11 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [ ] Phase 2: CLI — `lc worker start --manager` flag
 - [ ] Phase 3: Worker-side handler — run `/laneconductor setup scaffold generate` non-interactively from dispatched context, register the new project + first worker row
 - [ ] Phase 4: UI — "New Project" wizard (repo path/git URL, scaffold Q&A as a form) dispatching to a manager worker
-- [ ] Phase 5: Tests — manager-only claim enforcement, end-to-end new-project creation, non-manager worker correctly ignores `create-project` entries
+- [ ] Phase 5: Visual distinction for manager workers — distinct badge in `WorkersList.jsx` and 1087's `WorkerActivityLatch.jsx` (added 2026-08-10, during 1087's Phase 5/6 work)
+- [ ] Phase 6: Tests — manager-only claim enforcement, end-to-end new-project creation, non-manager worker correctly ignores `create-project` entries, manager badge rendering
 
 ## Depends on
-[1085](../1085-manual-worker-dispatch/index.md) — reuses its dispatch inbox and generic `payload` column directly. [1084](../1084-worker-identity-and-assignment/index.md) — worker identity conventions (`--worker-number` pattern extends naturally to `--manager`).
+[1085](../1085-manual-worker-dispatch/index.md) — reuses its dispatch inbox and generic `payload` column directly. [1084](../1084-worker-identity-and-assignment/index.md) — worker identity conventions (`--worker-number` pattern extends naturally to `--manager`). [1087](../1087-live-session-transcript-panel/index.md) — Phase 5's badge work modifies `WorkerActivityLatch.jsx`, and Phase 4's UI dispatch view reuses 1087's non-track dispatch transcript (Phase 6 there) for `create-project` progress.
 
 ## Open question
 Whether the new-project UX should stay conversational (Q&A, mirroring the
