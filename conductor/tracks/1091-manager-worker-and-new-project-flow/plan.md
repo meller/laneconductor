@@ -170,10 +170,78 @@ that's inherently racy against a background process.
 **Solution**: "New Project" flow, top-level (not inside an existing
 project).
 
-- [ ] Task 1: "New Project" entry point in the app shell
-- [ ] Task 2: Collect project name, repo source (existing path or git URL), and scaffold answers (form vs. conversational — see index.md's open question)
-- [ ] Task 3: Manager worker picker (if more than one available)
-- [ ] Task 4: Dispatch on submit; show creation progress/result (reuses 1087's non-track dispatch transcript view once that exists)
+- [x] Task 1: "New Project" entry point in the app shell
+- [x] Task 2: Collect project name, repo source (existing path or git URL), and scaffold answers (form-style — resolved 2026-08-10, see index.md's "Open question" and spec.md REQ-5)
+- [x] Task 3: Manager worker picker (if more than one available)
+- [x] Task 4: Dispatch on submit; show creation progress/result (own lightweight status view — see note below on why not 1087's transcript view)
+
+**✅ Phase 4 complete (2026-08-10).** `ui/src/components/NewProjectModal.jsx`
+(new), wired into `App.jsx`'s header next to the existing "+ Track"/"⚠ Bug"
+buttons (`+ Project`). Backend: `GET /api/dispatch/:dispatchId` (new,
+global like its `POST` counterpart from Phase 1 — polled every 2s while a
+dispatch is pending/claimed).
+
+**Task 4 — not 1087's transcript view, by design**: 1087's dispatch log
+viewer (`GET /api/projects/:id/dispatch/:dispatchId/log`) is
+project-scoped and deploy-specific (reads `conductor/logs/deploy-*.log`
+from an *existing* project's `repo_path`). A `create-project` dispatch has
+neither — no project exists yet to scope the URL to, and its "log" is just
+the terse `result` string `runCreateProject()` returns (`worker_dispatch`
+Phase 3 wrote no separate structured log file for a plain scaffold run).
+The modal's own status view (`status` + `result` text) is the right size
+for what this dispatch actually produces; reusing 1087's view would have
+meant either bending it to accept `project_id: null` or building a second
+un-project-scoped log file it doesn't need.
+
+**Real bug found and fixed during live verification, not by inspection**:
+started a real manager worker registered against a real (scratch) API
+instance and clicked through the actual wizard in a browser rather than
+just unit-testing the pieces. The manager **vanished from `GET
+/api/workers` about 60 seconds after registering**, even though the
+process was alive and heartbeating the whole time. Root-caused (not
+guessed) by reading `updateWorkerHeartbeat()`'s request body live via the
+worker's own debug logs: it unconditionally sent `project_id: proj.id`
+(whatever project block happens to be in `.laneconductor.json`, garbage
+for a manager) — and independently, even after fixing that to send `null`
+for a manager, the server's `PATCH /worker/heartbeat` and `DELETE /worker`
+handlers both did `WHERE project_id = $1`, and SQL's `NULL = NULL` is
+never true, so a manager's heartbeat (and its graceful-shutdown
+de-registration — this is also what the "[worker error] de-registration
+failed" warning at the end of every Phase 3 test run actually was, not
+investigated at the time) silently matched and updated **zero rows**,
+every single time. Two-part fix, both required:
+1. `laneconductor.sync.mjs`'s `updateWorkerHeartbeat()`: `project_id:
+   isManager ? null : proj.id` (mirrors the existing `isManager` check
+   already in `upsertWorker()`'s registration body).
+2. `ui/server/index.mjs`: `WHERE project_id = $1` → `WHERE project_id IS
+   NOT DISTINCT FROM $1` in both `PATCH /worker/heartbeat` and `DELETE
+   /worker` — Postgres's NULL-safe equality operator, behaves identically
+   to `=` for non-null values.
+
+Verified live end-to-end after the fix: registered a real manager worker,
+confirmed its heartbeat's `last_heartbeat` kept advancing past the
+60-second window (previously froze at registration time), submitted the
+actual New Project form in a browser, watched the dispatch go
+pending → claimed → done via real polling, and confirmed the resulting
+`.laneconductor.json`/scaffold context/new worker process on disk matched
+what was submitted. Regression tests added
+(`ui/server/tests/track-1091-phase4-dispatch-status.test.mjs`) asserting
+both handlers' queries use `IS NOT DISTINCT FROM`.
+
+**REQ-5b (multi-machine empty state), added during this phase**: see
+spec.md. The "no manager worker" empty state now lists known hostnames
+(distinct hostnames across *all* registered workers, not just managers)
+so a user with multiple machines connected knows which one(s) to actually
+run `lc worker start --manager` on, instead of a context-free "none
+available." Known limitation: a machine with zero workers of any kind
+registered is invisible to this — there's no separate device-discovery
+mechanism in this codebase, and building one is out of scope here.
+
+**Also fixed in passing**: `GET /api/workers` used an inner `JOIN
+projects` — since a manager's `project_id` is NULL, this silently excluded
+every manager worker from the endpoint entirely, which both this phase's
+picker and Phase 5's badge work depend on. Changed to `LEFT JOIN`, added
+`w.type` to the SELECT list.
 
 ## Phase 5: Visual Distinction for Manager Workers
 

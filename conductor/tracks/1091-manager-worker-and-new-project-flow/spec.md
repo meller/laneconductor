@@ -98,12 +98,38 @@ found during Phase 2 implementation, not present in the original spec)
 - "New Project" entry point (top-level, not inside an existing project) —
   collects: project name, repo source (existing path or git URL to clone),
   and the same scaffold questions the CLI's interactive brainstorm asks
-  today (what it does, tech stack, KPIs, etc.) — form-style, exact
-  interaction pattern (form vs. conversational) still open (see track's
-  "Open question").
+  today (what it does, tech stack, KPIs, etc.) — **form-style** (resolved
+  2026-08-10: dispatch is fire-and-poll, not turn-by-turn, so a
+  conversational flow would need new plumbing a form doesn't).
 - Dispatches to a manager worker (picker, if more than one is available)
   and shows creation progress/result — reuses the dispatch-status UI
   pattern established in 1085/1089.
+
+**REQ-5b: Multi-machine awareness in the picker/empty state** (added
+2026-08-10, found during Phase 4 implementation)
+- A manager worker is a **machine-level singleton** (REQ-1) — a user with
+  multiple machines connected (this matters specifically in remote/
+  non-local mode; a single-machine local setup only ever has zero or one)
+  may have a manager on some machines and not others. "No manager worker
+  is available" with no further detail is misleading in that situation —
+  it reads as "you have none anywhere," when the real state might be "you
+  have 3 machines connected and none of them happen to have one yet," or
+  "machine A has one but you wanted machine B."
+- The empty state lists the **known hostnames** — distinct hostnames
+  across *all* registered workers (`GET /api/workers`, any `type`), not
+  just managers — so the user knows which of their machines to actually
+  run `lc worker start --manager` on, instead of guessing.
+- **Known limitation, not solved by this track**: "known hostnames" means
+  "hostnames with at least one worker of any kind already registered."
+  A machine the user has never run *any* LaneConductor worker on yet is
+  invisible here — there's no separate device-registration/discovery
+  mechanism in this codebase, and building one is out of scope. The
+  practical fix in that case is unchanged: run `lc worker start --manager`
+  on that machine directly.
+- When ≥2 manager workers exist, the existing picker (hostname-keyed
+  dropdown) already handles "choose which machine" — this requirement is
+  specifically about the *zero-managers* case, which had no machine
+  context at all before this fix.
 
 ## Acceptance Criteria
 
