@@ -31,6 +31,7 @@ import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs'
 import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
+import { parseNewJsonlLines } from './stream-json-tail.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -3177,7 +3178,12 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
   }, timeoutMs);
 
-  const tailInterval = setInterval(async () => {
+  // Track 1087 Phase 2: for claude spawns (stream-json output, Phase 1),
+  // the old 5s raw-text last_log_tail PATCH is replaced by incremental
+  // JSONL event pushes (REQ-2) — non-claude CLIs keep the original
+  // mechanism unchanged (REQ-1/Task 4), since they don't produce
+  // stream-json and have no structured events to push.
+  const tailInterval = cli === 'claude' ? null : setInterval(async () => {
     if (runningPids.has(proc.pid)) {
       await patch(url, token, `/track/${trackNumber}/action`, {
         project_id: projectId,
@@ -3187,6 +3193,18 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       clearInterval(tailInterval);
     }
   }, 5000);
+
+  let jsonTailOffset = 0;
+  const streamTailInterval = cli === 'claude' ? setInterval(async () => {
+    if (!runningPids.has(proc.pid)) { clearInterval(streamTailInterval); return; }
+    if (!existsSync(logPath)) return;
+    const content = readFileSync(logPath, 'utf8');
+    const { events, newOffset } = parseNewJsonlLines(content, jsonTailOffset);
+    jsonTailOffset = newOffset;
+    for (const event of events) {
+      await notifyApi('session:event', { trackNumber, projectId, event });
+    }
+  }, 500) : null;
 
   proc.unref();
   runningPids.add(proc.pid);
@@ -3201,6 +3219,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     console.log(`[${label}] EXIT EVENT TRIGGERED: PID ${proc.pid}, Code: ${code}`);
     clearTimeout(killer);
     clearInterval(tailInterval);
+    clearInterval(streamTailInterval);
     runningPids.delete(proc.pid);
     runningLaneMap.delete(proc.pid);
     runningTrackMap.delete(proc.pid);
