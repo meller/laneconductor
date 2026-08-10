@@ -29,6 +29,7 @@ import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
 import { parseConversationComments } from './sync-conversation-utils.mjs';
+import { isResumeFailure } from './session-resilience-utils.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -3221,6 +3222,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         console.log(`[${label}] Provider ${cli} quota exhausted — re-queuing track ${trackNumber} without consuming retry`);
         await checkExhaustion(logPath, cli);
       }
+
+      // Track 1086 Phase 4: a --resume attempt failing because the session
+      // was pruned/corrupted is not an ordinary task failure — invalidate
+      // the stored session so the next attempt (retry or manual dispatch)
+      // cold-starts instead of retrying the exact same broken --resume
+      // forever. Detected against the real claude CLI's actual error text,
+      // not guessed — see session-resilience-utils.mjs.
+      if (session && !session.isFresh && isResumeFailure(logContent)) {
+        console.log(`[${label}] Detected resume failure for track ${trackNumber} (session ${session.claude_session_id}) — invalidating stored session`);
+        await invalidateTrackSession(trackNumber);
+      }
     }
 
     // 1. Check retry count using latest config (in case workflow.json reloaded)
@@ -3550,6 +3562,16 @@ async function persistTrackSession(trackNumber, claudeSessionId) {
   if (!url) return;
   await post(url, token, `/track/${trackNumber}/session`, { claude_session_id: claudeSessionId })
     .catch(err => console.warn(`[session] Failed to persist session for track ${trackNumber}: ${err.message}`));
+}
+
+// Track 1086 Phase 4: called after detecting a resume-failure — clears the
+// stale session so the next attempt cold-starts.
+async function invalidateTrackSession(trackNumber) {
+  if (getIsLocalFs() || !myWorkerId) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+  await del(url, token, `/track/${trackNumber}/session`)
+    .catch(err => console.warn(`[session] Failed to invalidate session for track ${trackNumber}: ${err.message}`));
 }
 
 async function buildCliArgs(skill, command, trackNumber, customPrompt = null, laneConfig = {}) {
