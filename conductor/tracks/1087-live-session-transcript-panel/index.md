@@ -1,6 +1,6 @@
 # Track 1087: Live Session Transcript Panel
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
 **Progress**: 43%
 **Phase**: Phase 3 complete — transcript reducer + rendering component built and unit tested (found that one `assistant` event = one completed content block, not a cumulative snapshot — verified against the real CLI). Not yet mounted in the UI; Phase 4 (drawer placement) next.

@@ -1005,6 +1005,46 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
   }
 });
 
+// Track 1087 Phase 4 Task 4: full-log reconstruction on track detail panel
+// load. conductor/logs/<label>-<trackNumber>-<timestamp>.log files are
+// local to the worker's machine, not synced to the DB — same local-api
+// co-location assumption already used elsewhere for repo_path-relative
+// reads (e.g. GET /api/projects/:id/conductor's conductor/tracks/ read).
+// Returns raw parsed events; the client re-runs them through the same
+// streamTranscript.js reducer used for live WS events (Phase 3) rather
+// than duplicating reducer logic here.
+app.get('/api/projects/:id/tracks/:num/transcript', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path } = result.rows[0];
+    if (!repo_path || !existsSync(repo_path)) return res.json({ events: [] });
+
+    const logsDir = join(repo_path, 'conductor', 'logs');
+    if (!existsSync(logsDir)) return res.json({ events: [] });
+
+    const trackNum = req.params.num;
+    const pattern = new RegExp(`-${trackNum}-\\d+\\.log$`);
+    const candidates = readdirSync(logsDir)
+      .filter(f => pattern.test(f))
+      .map(f => ({ f, mtimeMs: statSync(join(logsDir, f)).mtimeMs }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    if (candidates.length === 0) return res.json({ events: [] });
+
+    const content = readFileSync(join(logsDir, candidates[0].f), 'utf8');
+    const events = [];
+    for (const line of content.split('\n')) {
+      if (!line.trim()) continue;
+      try { events.push(JSON.parse(line)); }
+      catch { /* non-JSON line — skip (non-Claude CLI log, or a truncated last line) */ }
+    }
+    res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Track comments ──────────────────────────────────────────────────────────
 
 async function getTrackId(projectId, trackNum) {
