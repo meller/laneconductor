@@ -10,6 +10,7 @@ import { createInterface } from 'readline';
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../conductor/constants.mjs';
 import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, getServicePid, enableLinger } from './systemd-user.mjs';
 import { runDeploy } from '../conductor/deploy-runner.mjs';
+import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -123,6 +124,40 @@ function resolveWorkerNumber(args) {
 function getPidFilePath(projectRoot, workerNumber) {
     const filename = workerNumber === 1 ? '.sync.pid' : `.sync-${workerNumber}.pid`;
     return join(projectRoot, 'conductor', filename);
+}
+
+// Track 1091 Phase 2: a manager worker is a machine-level singleton, not
+// scoped to any one project — its pidfile lives in a global location
+// (unlike getPidFilePath's per-project one) so "is one already running"
+// can be checked regardless of which project directory `lc worker start
+// --manager` happens to be invoked from.
+function getManagerPidFilePath() {
+    const dir = join(homedir(), '.laneconductor');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    return join(dir, 'manager.pid');
+}
+
+// Track 1091 Phase 2 Task 4 (spec.md REQ-2b): where a manager worker
+// creates brand-new projects (git clone target / from-scratch scaffold) —
+// laneconductor.sync.mjs reads this same file directly at manager-worker
+// startup, matching this codebase's existing pattern for global config
+// (~/.laneconductorrc, ~/.laneconductor-auth.json) rather than threading
+// it through as a spawn arg/env var.
+function getManagerConfigPath() {
+    const dir = join(homedir(), '.laneconductor');
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    return join(dir, 'manager-config.json');
+}
+
+function readManagerConfig() {
+    const path = getManagerConfigPath();
+    if (!existsSync(path)) return {};
+    try { return JSON.parse(readFileSync(path, 'utf8')); }
+    catch { return {}; }
+}
+
+function writeManagerConfig(config) {
+    writeFileSync(getManagerConfigPath(), JSON.stringify(config, null, 2) + '\n');
 }
 
 /**
@@ -540,6 +575,8 @@ Configuration  (per project)
   verify-isolation     Check if worker environment is correctly sandboxed
 
 Deployment  (per project)
+  build                Generate a new release build artifact with AI change summary
+  builds               List generated build artifacts in conductor/builds/
   deploy [env]         Execute deployment for a specific environment (prod/staging/preview)
   remote-sync          Bidirectional sync between API and local files (newer wins)
   init-summary         Regenerate conductor/tracks.md
@@ -1277,10 +1314,27 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    const env = args[1] || 'prod';
+    const env = args[1] && !args[1].startsWith('-') ? args[1] : 'prod';
+    const buildIdx = args.indexOf('--build') !== -1 ? args.indexOf('--build') : args.indexOf('-b');
+    const buildId = buildIdx !== -1 && args[buildIdx + 1] ? args[buildIdx + 1] : null;
+
+    let extraEnv = {};
+    if (buildId) {
+        const build = getBuildById(projectRoot, buildId);
+        if (!build) {
+            console.error(`❌ Error: Build artifact '${buildId}' not found in conductor/builds/`);
+            process.exit(1);
+        }
+        extraEnv = {
+            CONDUCTOR_BUILD_ID: build.id,
+            CONDUCTOR_BUILD_COMMIT: build.git?.commit || '',
+            CONDUCTOR_BUILD_TRACKS: (build.tracks || []).join(',')
+        };
+        console.log(`📦 Attached Build Artifact: ${build.id} (${build.git?.shortCommit || 'unknown'})`);
+    }
 
     (async () => {
-        const result = await runDeploy(projectRoot, env, { echo: true });
+        const result = await runDeploy(projectRoot, env, { echo: true, extraEnv });
         if (!result.ok) {
             console.error(`❌ Error: ${result.error || `Deployment stopped at step: ${result.failedStep}`}`);
             if (result.logFile) console.log(`   Logs: ${result.logFile}`);
@@ -1289,6 +1343,37 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log(`   Logs: ${result.logFile}`);
         process.exit(0);
     })();
+} else if (command === 'build') {
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+    try {
+        console.log('📦 Generating release build artifact...');
+        const build = createBuildArtifact(projectRoot, { createdBy: process.env.USER || 'cli' });
+        console.log(`\n✅ Build artifact created successfully: ${build.id}`);
+        console.log(`   Git Commit: ${build.git.shortCommit} (${build.git.branch})`);
+        console.log(`   Tracks included: ${build.tracks.length ? build.tracks.join(', ') : 'none'}`);
+        console.log(`   Location: conductor/builds/${build.id}.json\n`);
+    } catch (err) {
+        console.error(`❌ Error creating build: ${err.message}`);
+        process.exit(1);
+    }
+} else if (command === 'builds') {
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+    const builds = getBuilds(projectRoot);
+    if (builds.length === 0) {
+        console.log('No build artifacts found in conductor/builds/. Run "lc build" to create one.');
+    } else {
+        console.log(`\n📦 Build Artifacts (${builds.length}):\n`);
+        for (const b of builds) {
+            console.log(`  • ${b.id} — ${b.createdAt} [git: ${b.git.shortCommit} @ ${b.git.branch}] (${b.tracks.length} tracks)`);
+        }
+        console.log('');
+    }
 } else if (command === 'start') {
     if (!projectRoot) {
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
@@ -1296,15 +1381,47 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    const workerNumber = resolveWorkerNumber(args);
-    const pidFile = getPidFilePath(projectRoot, workerNumber);
-    const logFile = join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
+    // Track 1091 Phase 2: --manager is a machine-level singleton — checked
+    // against a global pidfile, not the per-project/per-worker-number one
+    // below, and --worker-number is meaningless for it (there's only ever
+    // one manager per machine), so it's deliberately not read in this branch.
+    const isManager = args.includes('--manager');
+
+    const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const logFile = isManager
+        ? join(projectRoot, 'conductor', '.manager.log')
+        : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
 
     const existingPid = getRunningWorkerPid(pidFile);
     if (existingPid) {
+        if (isManager) {
+            console.log(`❌ Manager worker already running on this machine (PID: ${existingPid}).`);
+            console.log(`   Use "lc worker stop --manager" first if you want to replace it.`);
+            process.exit(1);
+        }
         console.log(`⚠️  Worker #${workerNumber} already running for this project (PID: ${existingPid}).`);
         console.log(`   Use "lc restart${workerNumber === 1 ? '' : ' --worker-number ' + workerNumber}" to replace it, or "lc stop" then "lc start".`);
         process.exit(0);
+    }
+
+    // Track 1091 Phase 2 Task 4 (spec.md REQ-2b): --projects-dir persists
+    // across restarts so it only needs to be passed once; passing it again
+    // updates the stored value. laneconductor.sync.mjs reads this same file
+    // directly when it actually needs it (Phase 3, resolving a git-clone
+    // target for create-project).
+    if (isManager) {
+        const projectsDirIdx = args.indexOf('--projects-dir');
+        const managerConfig = readManagerConfig();
+        if (projectsDirIdx !== -1) {
+            managerConfig.projectsDir = args[projectsDirIdx + 1];
+            writeManagerConfig(managerConfig);
+            console.log(`📁 Manager projects directory set to: ${managerConfig.projectsDir}`);
+        } else if (managerConfig.projectsDir) {
+            console.log(`📁 Manager projects directory (from previous run): ${managerConfig.projectsDir}`);
+        } else {
+            console.log(`⚠️  No projects directory configured — a create-project dispatch cloning a git repo will fail until you run "lc worker start --manager --projects-dir <path>". Registering an existing local path (repo_source.type: 'path') is unaffected.`);
+        }
     }
 
     const { syncScript, error } = resolveSyncScript(projectRoot);
@@ -1314,12 +1431,16 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
-    console.log(`🚀 Starting LaneConductor heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
+    console.log(`🚀 Starting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
     if (!isSyncAndWork) syncArgs.push('--sync-only');
-    if (workerNumber !== 1) syncArgs.push('--worker-number', String(workerNumber));
+    if (isManager) {
+        syncArgs.push('--manager');
+    } else if (workerNumber !== 1) {
+        syncArgs.push('--worker-number', String(workerNumber));
+    }
 
     const worker = spawn('node', syncArgs, {
         cwd: projectRoot,
@@ -1343,8 +1464,9 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    const workerNumber = resolveWorkerNumber(args);
-    const pidFile = getPidFilePath(projectRoot, workerNumber);
+    const isManager = args.includes('--manager');
+    const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
     if (!existsSync(pidFile)) {
         console.log(`⚠️  No heartbeat running (no ${pidFile.split('/').pop()} found)`);
         process.exit(0);
@@ -1407,11 +1529,17 @@ Please review this, answer any questions (some fields may contain questions rath
     // Forward any flags after the subcommand (e.g. --worker-number, --sync-and-work)
     // through to the underlying legacy command — this used to silently drop them.
     const subArgs = args.slice(2);
-    if (sub === 'start') { spawnSync('node', [__filename, 'start', ...subArgs], { stdio: 'inherit' }); process.exit(0); }
-    if (sub === 'stop') { spawnSync('node', [__filename, 'stop', ...subArgs], { stdio: 'inherit' }); process.exit(0); }
-    if (sub === 'restart') { spawnSync('node', [__filename, 'restart', ...subArgs], { stdio: 'inherit' }); process.exit(0); }
-    if (sub === 'logs') { spawnSync('node', [__filename, 'logs', 'worker'], { stdio: 'inherit' }); process.exit(0); }
-    if (sub === 'sync') { spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(0); }
+    // Track 1091 Phase 2: these used to always process.exit(0) regardless of
+    // the forwarded child's actual result — a real, pre-existing bug (found
+    // while verifying --manager's "already running" rejection, Task 2:
+    // the child correctly exits 1, but the wrapper reported success anyway).
+    // Propagate the real exit code for every forwarded subcommand, not just
+    // the one this track happened to need.
+    if (sub === 'start') { const r = spawnSync('node', [__filename, 'start', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    if (sub === 'stop') { const r = spawnSync('node', [__filename, 'stop', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    if (sub === 'restart') { const r = spawnSync('node', [__filename, 'restart', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    if (sub === 'logs') { const r = spawnSync('node', [__filename, 'logs', 'worker'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    if (sub === 'sync') { const r = spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'status') {
         if (!projectRoot) { process.exit(1); }
         const workerNumber = resolveWorkerNumber(subArgs);

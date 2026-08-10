@@ -26,6 +26,8 @@ cd ui && npx vitest run server/tests/track-1091-*.test.mjs
 - [ ] TC-10: A second `lc worker start --manager` on a hostname that already has one registered fails clearly (`"Manager worker already running on this machine (PID <pid>)"`), does not register a second row, and does not silently reuse the existing one
 - [ ] TC-11: `--manager` combines with `--sync-only` without error
 - [ ] TC-12: `--worker-number` is a no-op (or explicitly rejected/warned) for `--manager` — there's only ever one per machine
+- [ ] TC-12b (added 2026-08-10, REQ-2b): `--projects-dir <path>` persists to `~/.laneconductor/manager-config.json`; a later `lc worker start --manager` without the flag reuses the stored value; passing it again updates the stored value
+- [ ] TC-12c: a `create-project` dispatch with `repo_source.type: 'git'` and no configured `projectsDir` fails that dispatch clearly instead of guessing a location
 
 ### Phase 3: Worker-side handler — `create-project` dispatch execution
 - [ ] TC-13: Dispatch loop only claims `create-project` entries when the worker's own `type === 'manager'` — a `type: 'project'` worker's dispatch loop never claims one even if addressed to it (defense in depth, mirrors REQ-3's API-level check)

@@ -50,9 +50,62 @@ against accidentally starting a second one on the same machine.
 **Solution**: `--manager` flag on `lc worker start`, with a clear failure
 if one's already running there.
 
-- [ ] Task 1: `lc worker start --manager` — `POST /worker/register` sends `type: 'manager'`, `project_id: null`
-- [ ] Task 2: Registration fails clearly (not silently) if the unique index rejects a second manager for this hostname — surface the existing manager's PID in the error
-- [ ] Task 3: Confirm combinability with existing `--sync-only`/`--worker-number` flags (1084) for `'project'`-type workers; `--worker-number` is meaningless for `--manager` (machine-level singleton, not multi-instance)
+- [x] Task 1: `lc worker start --manager` — `POST /worker/register` sends `type: 'manager'`, `project_id: null`
+- [x] Task 2: Registration fails clearly (not silently) if the unique index rejects a second manager for this hostname — surface the existing manager's PID in the error
+- [x] Task 3: Confirm combinability with existing `--sync-only`/`--worker-number` flags (1084) for `'project'`-type workers; `--worker-number` is meaningless for `--manager` (machine-level singleton, not multi-instance)
+- [x] Task 4 (added 2026-08-10, spec.md REQ-2b): `--projects-dir <path>` — required before any `create-project` dispatch involving a git clone can succeed; persisted to `~/.laneconductor/manager-config.json` on first start so restarts don't need to repeat it, updatable by passing the flag again
+
+**✅ Phase 2 complete (2026-08-10).**
+
+**Task 1**: `laneconductor.sync.mjs` parses `--manager` from `process.argv`
+(new `isManager` const, alongside the existing `--worker-number` parsing);
+`upsertWorker()` skips `/project/ensure` entirely when `isManager` (a
+manager isn't "for" any project — nothing to ensure) and sends
+`{project_id: null, type: 'manager'}`. `POST /worker/register` gained a
+dedicated manager branch — a genuinely separate `INSERT ... ON CONFLICT
+(hostname) WHERE type = 'manager'` query, not a variant of the existing
+`(project_id, hostname, worker_number)` path, since Postgres treats every
+`NULL` project_id as distinct and that constraint would never fire for a
+second manager. Verified against a real spawned worker process (not a
+mock): registers with the right shape, `/project/ensure` call count stays
+zero.
+
+**Task 2 — found and fixed a real, pre-existing bug while verifying
+this**: `lc worker start --manager`'s "already running" rejection printed
+the right message but **always exited 0** regardless. Root cause: `lc
+worker start` forwards to a child process (`spawnSync('node', [__filename,
+'start', ...])`) and the wrapper called `process.exit(0)` unconditionally
+right after, discarding the child's actual exit code — a bug that
+predates this track and affected `start`/`stop`/`restart`/`logs`/`sync`
+uniformly, not just `--manager`. Fixed by propagating `spawnSync`'s
+`.status` for all five forwarded subcommands, not just the one this task
+happened to need. Verified live: a second `lc worker start --manager`
+against a real running one now correctly prints the error **and** exits
+1; `lc worker stop --manager` then `lc worker start --manager` again
+correctly succeeds (exit 0) once the first is genuinely gone.
+
+**Task 3**: `--sync-only` combines cleanly (used throughout every manual
+verification here). `--worker-number` is a structural no-op for
+`--manager` — the manager branch in both `bin/lc.mjs` and
+`laneconductor.sync.mjs` never reads it, by construction, rather than
+needing an explicit rejection.
+
+**Task 4**: `getManagerConfigPath`/`readManagerConfig`/`writeManagerConfig`
+in `bin/lc.mjs`, backing `~/.laneconductor/manager-config.json` —
+`laneconductor.sync.mjs` will read this same file directly at Phase 3
+(matching this codebase's existing pattern for global config,
+`~/.laneconductorrc`/`~/.laneconductor-auth.json`, rather than threading
+it through as a spawn arg). Verified live: `--projects-dir /tmp/x` on
+first start persists it; a later start without the flag prints "(from
+previous run)" and reuses the stored value.
+
+**Environment note, not part of this track but found while verifying
+it**: hit a system-wide `fs.inotify.max_user_instances` (128) exhaustion
+that made every chokidar-based worker process — mine and several
+pre-existing tests — fail with `EMFILE`. Root-caused (not guessed): ~67 of
+128 instances traced to Antigravity editor/CLI/language-server processes
+accumulated over time, not this track's own code. Resolved by raising the
+limit to 256 (user's own machine, user ran the sysctl command).
 - [ ] Task 4: Omitting the flag registers `type: 'project'` (default, backward compatible)
 
 ## Phase 3: Worker-Side Handler

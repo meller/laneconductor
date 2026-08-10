@@ -22,6 +22,7 @@ const state = {
   nextDispatchId: 1,
   sessions: {}, // Track 1086: { [track_number]: claude_session_id } — simplified, no per-worker scoping (every worker in this mock shares the same machine_token, so there's no way to distinguish callers without real auth; the real server's per-(track_number, worker_id) scoping is covered by ui/server/tests/track-1086-sessions.test.mjs instead)
   comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
+  projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -58,8 +59,10 @@ const server = createServer(async (req, res) => {
   let params;
 
   // ── Startup ────────────────────────────────────────────────────────────────
-  if ((params = route('POST', '/project/ensure', req)) !== null)
+  if ((params = route('POST', '/project/ensure', req)) !== null) {
+    state.projectEnsureCalls++;
     return reply(res, 200, { project_id: 1 });
+  }
 
   if ((params = route('POST', '/worker/register', req)) !== null) {
     const id = state.nextWorkerId++;
@@ -253,6 +256,7 @@ const server = createServer(async (req, res) => {
     state.dispatch = [];
     state.sessions = {};
     state.comments = [];
+    state.projectEnsureCalls = 0;
     return reply(res, 200, { ok: true });
   }
 
