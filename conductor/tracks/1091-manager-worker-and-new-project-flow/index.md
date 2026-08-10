@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 50%
-**Phase**: Phase 3 complete — worker-side `create-project` dispatch handler (`runCreateProject`), wired into the dispatch loop behind a manager-only guard. Resolves the repo target (existing path or git clone), writes scaffold context, runs `/laneconductor setup scaffold generate` unmodified, writes a fresh `.laneconductor.json` for the new project (manager's own `machine_token` stripped), and spawns `lc worker start` there — which self-registers through the same pipeline every other project uses, rather than a direct SQL insert. Verified against a real spawned manager worker process; caught and fixed a racy assertion in the test itself during verification (see plan.md). Worktree-isolated from this phase on (`.worktrees/1091`, branch `track-1091`) after an earlier phase's commit accidentally swept in a concurrent session's uncommitted code from the shared main checkout. Phase 4 (UI wizard) next — note track 1092 also has concurrent UI changes in flight.
+**Progress**: 67%
+**Phase**: Phase 4 complete — "New Project" UI wizard (`NewProjectModal.jsx`), dispatching `create-project` and polling `GET /api/dispatch/:id` (new, global) for progress. Live browser verification (real manager worker, real API instance, actual form submission — not just unit tests) surfaced and fixed a genuine production bug along the way: a manager worker's heartbeat silently updated zero DB rows (SQL `NULL = NULL` is never true against a plain `project_id = $1`), so it vanished from `GET /api/workers` ~60s after registering even while alive — fixed with `IS NOT DISTINCT FROM` server-side plus sending `project_id: null` client-side for managers. Also fixed `GET /api/workers`'s inner `JOIN projects`, which silently excluded every manager worker (needed for both this phase's picker and Phase 5's badge). Added multi-machine awareness to the empty state (REQ-5b) per a mid-session note about remote/multi-machine setups. Phase 5 (manager badge) next.
 **Type**: dev
 **Summary**: A distinct 'manager' worker type that can act system-wide (create new projects) instead of being scoped to one project like every worker today.
 
@@ -59,7 +59,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 1: Schema — `workers.type` column, `create-project` dispatch validation (manager-only)
 - [x] Phase 2: CLI — `lc worker start --manager` flag, `--projects-dir` config (spec.md REQ-2b, added mid-implementation)
 - [x] Phase 3: Worker-side handler — run `/laneconductor setup scaffold generate` non-interactively from dispatched context, register the new project + first worker row
-- [ ] Phase 4: UI — "New Project" wizard (repo path/git URL, scaffold Q&A as a form) dispatching to a manager worker
+- [x] Phase 4: UI — "New Project" wizard (repo path/git URL, scaffold Q&A as a form) dispatching to a manager worker
 - [ ] Phase 5: Visual distinction for manager workers — distinct badge in `WorkersList.jsx` and 1087's `WorkerActivityLatch.jsx` (added 2026-08-10, during 1087's Phase 5/6 work)
 - [ ] Phase 6: Tests — manager-only claim enforcement, end-to-end new-project creation, non-manager worker correctly ignores `create-project` entries, manager badge rendering
 
@@ -67,6 +67,11 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 [1085](../1085-manual-worker-dispatch/index.md) — reuses its dispatch inbox and generic `payload` column directly. [1084](../1084-worker-identity-and-assignment/index.md) — worker identity conventions (`--worker-number` pattern extends naturally to `--manager`). [1087](../1087-live-session-transcript-panel/index.md) — Phase 5's badge work modifies `WorkerActivityLatch.jsx`, and Phase 4's UI dispatch view reuses 1087's non-track dispatch transcript (Phase 6 there) for `create-project` progress.
 
 ## Open question
-Whether the new-project UX should stay conversational (Q&A, mirroring the
+~~Whether the new-project UX should stay conversational (Q&A, mirroring the
 CLI's interactive brainstorm) or be a form-style wizard collecting the same
-answers upfront — not yet decided.
+answers upfront — not yet decided.~~ **Resolved 2026-08-10: form-style.**
+Dispatch is fire-and-poll (1085's model), not turn-by-turn — a
+conversational flow would need new plumbing for a live back-and-forth with
+the manager worker that doesn't exist today. A form collects the same
+answers upfront into one `scaffold_context` blob and dispatches once on
+submit, matching the existing pattern.

@@ -77,11 +77,22 @@ tested here, per this track's own hardened verification standard.
   before Phase 6, not deferred indefinitely.
 
 ### Phase 4: UI — "New Project" flow
-- [ ] TC-21: A "New Project" entry point is visible at the top level of the app (not nested inside an existing project's view)
-- [ ] TC-22: The form collects project name, repo source (path or git URL), and scaffold Q&A answers
-- [ ] TC-23: A manager-worker picker is shown when more than one manager worker is available; auto-selected (no picker shown) when exactly one exists
-- [ ] TC-24: No manager worker available — the flow shows a clear message rather than a broken/empty picker
-- [ ] TC-25: Submitting dispatches a `create-project` action and shows creation progress/result, reusing 1085/1089's existing dispatch-status UI pattern
+
+**✅ Phase 4 verified (2026-08-10)** — live browser verification against a
+real manager worker and a real (scratch) API instance, not just unit
+tests: filled out and submitted the actual form, watched the dispatch go
+pending → claimed → done via real polling, confirmed the resulting
+`.laneconductor.json`, scaffold context file, and new worker process on
+disk matched what was submitted. This run is what surfaced the heartbeat
+NULL-safety bug (see plan.md Phase 4) — it would not have been caught by
+mocked-DB unit tests alone.
+
+- [x] TC-21: Verified directly — "+ Project" button renders in the app header (`App.jsx`) regardless of `selectedProjectId`, alongside "+ Track"/"⚠ Bug".
+- [x] TC-22: Verified directly — screenshotted the filled form (name, repo source radio + path input, purpose/tech-stack/KPI fields) and confirmed the resulting `scaffold_context` matched.
+- [x] TC-23: Implemented, not exercised with 2+ managers — the picker code path (`managerWorkers.length > 1` → hostname-keyed `<select>`) was written and reviewed but the live verification only ever had one manager worker running. Should get real coverage (a second manager, different hostname) before Phase 6 closes.
+- [x] TC-24: Verified directly, and extended beyond its original wording (REQ-5b) — confirmed the empty state renders correctly with zero managers registered, then found it needed more than "a clear message": added known-hostnames context so a multi-machine user isn't left guessing which machine to act on.
+- [x] TC-25: Verified directly, with a scope correction — **not** 1085/1089's dispatch-status UI pattern as originally written (that pattern is project-scoped; `create-project` has no project to scope to). Built a dedicated, deliberately small status view instead (`status` + `result` text, polled via the new global `GET /api/dispatch/:dispatchId`). See plan.md Phase 4 for why.
+- [x] TC-25b (added 2026-08-10, not in the original list): manager worker heartbeats correctly advance past the 60-second `GET /api/workers` freshness window instead of silently freezing at registration time. Verified live (registered a manager, waited 75s past registration, confirmed `last_heartbeat` had advanced) and by regression test (`ui/server/tests/track-1091-phase4-dispatch-status.test.mjs`, asserts `IS NOT DISTINCT FROM` in both `PATCH /worker/heartbeat` and `DELETE /worker`).
 
 ### Phase 5: Visual distinction for manager workers
 - [ ] TC-26: A `type: 'manager'` row renders a distinct badge in `WorkersList.jsx` instead of a project name (it has none)

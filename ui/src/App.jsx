@@ -8,6 +8,7 @@ import { BoardToolbar } from './components/BoardToolbar.jsx';
 import { ConductorPanel } from './components/ConductorPanel.jsx';
 import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
+import { NewProjectModal } from './components/NewProjectModal.jsx';
 import { WorkersList } from './components/WorkersList.jsx';
 import { InboxPanel } from './components/InboxPanel.jsx';
 import { WorkerActivityLatch } from './components/WorkerActivityLatch.jsx';
@@ -90,6 +91,9 @@ function AppContent({ user, logout }) {
   const [pendingAction, setPendingAction] = useState(null); // { track, targetLane }
   const [newTrackOpen, setNewTrackOpen] = useState(false);
   const [newTrackType, setNewTrackType] = useState('feature');
+  const [newProjectOpen, setNewProjectOpen] = useState(false); // Track 1091 Phase 4
+  const [managerWorkers, setManagerWorkers] = useState([]);
+  const [knownHostnames, setKnownHostnames] = useState([]);
   const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers'
   const [inboxOpen, setInboxOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false); // Track 1087 Phase 5: worker activity latch
@@ -124,6 +128,31 @@ function AppContent({ user, logout }) {
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
   const inboxBadgeCount = tracks.reduce((sum, t) => sum + (t.unreplied_count ?? 0), 0);
+
+  // Track 1091 Phase 4: manager workers aren't scoped to any project, so
+  // they're fetched independently of usePolling's (project-scoped when a
+  // project is selected) workers state — needed for the New Project
+  // wizard's picker regardless of which project (if any) is selected.
+  async function openNewProject() {
+    try {
+      const r = await apiFetch('/api/workers');
+      const all = await r.json();
+      setManagerWorkers(all.filter(w => w.type === 'manager'));
+      // Distinct hostnames across ALL workers (not just managers) — lets the
+      // empty state name which of the user's connected machines don't have
+      // a manager yet, rather than a bare "start one" with no machine
+      // context. Relevant once a user has multiple machines connected
+      // (remote/non-local mode) — picking a machine and then discovering it
+      // has no manager is a materially different situation from having none
+      // registered anywhere at all.
+      setKnownHostnames([...new Set(all.map(w => w.hostname))]);
+    } catch (err) {
+      console.error('Failed to fetch manager workers:', err);
+      setManagerWorkers([]);
+      setKnownHostnames([]);
+    }
+    setNewProjectOpen(true);
+  }
 
   function handleTrackClick(track) {
     const pid = track.project_id ?? selectedProjectId;
@@ -336,6 +365,13 @@ function AppContent({ user, logout }) {
             >
               ⚠ Bug
             </button>
+            <button
+              onClick={openNewProject}
+              className="text-xs px-2.5 py-1 rounded border border-emerald-800 text-emerald-400 hover:bg-emerald-900/30 hover:text-emerald-300 transition-colors ml-2"
+              title="New Project"
+            >
+              + Project
+            </button>
           </div>
           <ProjectSelector
             projects={projects}
@@ -524,6 +560,16 @@ function AppContent({ user, logout }) {
           onClose={() => setNewTrackOpen(false)}
           onCreated={() => { setNewTrackOpen(false); refetch(); }}
           onResumed={() => { setNewTrackOpen(false); refetch(); }}
+        />
+      )}
+
+      {/* New Project modal (Track 1091 Phase 4) */}
+      {newProjectOpen && (
+        <NewProjectModal
+          managerWorkers={managerWorkers}
+          knownHostnames={knownHostnames}
+          onClose={() => setNewProjectOpen(false)}
+          onCreated={refetch}
         />
       )}
 

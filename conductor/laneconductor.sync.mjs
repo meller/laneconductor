@@ -581,7 +581,13 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
     if (!c.url) continue;
     try {
       const token = resolveCollectorToken(i);
-      const body = { hostname, pid, project_id: proj.id, mode: workerMode, worker_number: workerNumber };
+      // Track 1091: a manager's own project_id is always null (mirrors the
+      // same isManager check in upsertWorker's registration) — sending
+      // proj.id unconditionally here sent whatever stale/default project
+      // block happens to be in a manager's .laneconductor.json, which
+      // never matches the manager's actual (project_id IS NULL) row,
+      // silently updating zero rows every heartbeat.
+      const body = { hostname, pid, project_id: isManager ? null : proj.id, mode: workerMode, worker_number: workerNumber };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
       await patch(c.url, token, '/worker/heartbeat', body);
