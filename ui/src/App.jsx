@@ -10,6 +10,7 @@ import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
 import { WorkersList } from './components/WorkersList.jsx';
 import { InboxPanel } from './components/InboxPanel.jsx';
+import { WorkerActivityLatch } from './components/WorkerActivityLatch.jsx';
 import { CloudOnboarding } from './components/CloudOnboarding.jsx';
 import { WorkflowSettings } from './pages/WorkflowSettings.jsx';
 import { ProjectConfigSettings } from './pages/ProjectConfigSettings.jsx';
@@ -91,6 +92,7 @@ function AppContent({ user, logout }) {
   const [newTrackType, setNewTrackType] = useState('feature');
   const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers'
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false); // Track 1087 Phase 5: worker activity latch
   const [accountOpen, setAccountOpen] = useState(false);
   const [boardMode, setBoardMode] = useState('board'); // 'board' | 'lane'
   const [focusedLane, setFocusedLane] = useState(null);
@@ -295,6 +297,17 @@ function AppContent({ user, logout }) {
           )}
 
           <div className="flex items-center gap-1">
+            {/* Track 1087 Phase 5: worker activity latch — reachable from anywhere */}
+            <button
+              onClick={() => setActivityOpen(true)}
+              title="See any worker's live session transcript"
+              className={`text-xs px-2.5 py-1 rounded border transition-colors flex items-center gap-2 ${activityOpen
+                ? 'bg-orange-900 border-orange-700 text-orange-200'
+                : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
+                }`}
+            >
+              ⚡ Activity
+            </button>
             <button
               onClick={() => setInboxOpen(true)}
               className={`text-xs px-2.5 py-1 rounded border transition-colors flex items-center gap-2 ${inboxOpen
@@ -484,6 +497,15 @@ function AppContent({ user, logout }) {
           projectId={selectedProjectId}
           onSelectTrack={handleInboxSelect}
           onClose={() => setInboxOpen(false)}
+        />
+      )}
+
+      {/* Track 1087 Phase 5: worker activity latch */}
+      {activityOpen && (
+        <WorkerActivityLatch
+          workers={workers}
+          projectId={selectedProjectId}
+          onClose={() => setActivityOpen(false)}
         />
       )}
 

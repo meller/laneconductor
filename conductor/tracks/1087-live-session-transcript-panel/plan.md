@@ -174,12 +174,36 @@ detail panel, toggled the drawer open/closed, confirmed the empty state
 ("No transcript yet." — correct, no claude run has ever executed against
 this specific track), and confirmed the pre-existing Logs tab (Phase 3
 Task 4's fallback) still renders its own correct empty state, no
-regressions, no new console errors. **Not yet verified against a real live
-claude run actually populating the drawer** — the worker-side event shapes
-were verified independently (real CLI, Phase 1-2's own notes) and the
-reducer against those exact captured shapes (Phase 3's tests), but a true
-end-to-end live-dispatch check would cost a real claude invocation against
-a real track; deferred to Phase 7 (Tests) rather than done ad hoc here.
+regressions, no new console errors.
+
+**Fully verified end-to-end against real live claude dispatches**
+(2026-08-10, after Phase 5 was underway — see that section for the root
+cause that delayed this): a scratch track (9998, deleted after) was
+dispatched for real through the actual worker. Two things were confirmed
+independently, not just inferred:
+- **Reconstruction** (this Task 4's endpoint): 495 real parsed events,
+  rendered correctly in the browser — text blocks, tool-call entries with
+  name/input, and error/done badges (a genuine `Read` failure showed the
+  red "error" badge, not just the happy path).
+- **Live push** (Phase 2's mechanism): a raw WebSocket client (bypassing
+  the browser entirely, to remove all UI-timing race risk) captured **67
+  real `session:event` frames arriving live** during a dispatch, every one
+  correctly tagged `trackNumber: "9998"`, spanning exactly the event types
+  the real CLI produces (`system`, `stream_event`, `assistant`,
+  `rate_limit_event`, `result`).
+
+**Root cause of the initial two failed live-verification attempts**: both
+the project's own sync worker and its API server had been running since
+*before* any of this track's commits landed — long-lived Node processes
+don't pick up source changes without a restart. The first two dispatches
+silently ran the pre-Phase-1 code (plain-text output, 404 on the new
+endpoint) despite every commit being in place on disk. Restarting both
+(`lc stop && lc start`, `lc api stop && lc api start`) resolved it. Worth
+remembering for this project generally, not just this track — the earlier
+Lane-marker bug (see the standalone `fix(skill)` commit) was a different
+root cause with a similar-feeling symptom ("board doesn't reflect a file
+I just edited"), which is why this one got a *second* real investigation
+instead of being assumed to be the same issue.
 
 ## Phase 5: UI — Cross-Worker Activity View
 
@@ -187,11 +211,24 @@ a real track; deferred to Phase 7 (Tests) rather than done ad hoc here.
 a project (`workers.user_uid`, track 1084), and several can run different
 tracks in parallel — nothing surfaces that at a glance without opening each
 track individually.
-**Solution**: Live current-activity snippet per worker in `WorkersList.jsx`.
+**Solution**: A global, worker-centric side latch — **design changed from
+the original plan during implementation, per explicit direction**: rather
+than a snippet-per-worker in `WorkersList.jsx` that navigates into a
+track's own drawer (Phase 4) on click, build a persistent latch reachable
+from anywhere (a header toggle, not nested in the Workers tab) that lists
+every worker and renders the *selected* worker's live transcript inline,
+in the same latch — no navigation away from wherever you started.
 
-- [ ] Task 1: Subscribe `WorkersList.jsx` to the same per-track WS event stream for all tracks currently running on this project's workers
-- [ ] Task 2: Show a truncated current-activity snippet per worker (last tool call or assistant text fragment)
-- [ ] Task 3: Clicking a worker's snippet navigates to that track's detail view (Phase 4's drawer)
+- [x] Task 1 (revised): New `WorkerActivityLatch.jsx`, opened via a global "⚡ Activity" header button (`App.jsx`) — reuses the exact same `session:event` WS stream, `reduceStreamEvent` reducer, and `TranscriptView` renderer as Phase 4's per-track drawer, filtered by the *selected worker's* current track (parsed from `worker.current_task`, e.g. `"dispatch-implement track 1087"`) instead of a fixed `trackNumber` prop
+- [x] Task 2 (revised): Selecting a worker shows its live transcript directly in the latch's own content pane, not a truncated snippet + navigation
+- [x] Task 3 (revised): No navigation step — this *is* the destination. `workers.project_id` (present on the all-projects `/api/workers` response, used to build the transcript-fetch URL) falls back to the currently selected project for the per-project `/api/projects/:id/workers` response, which doesn't carry it
+
+**✅ Phase 5 complete (2026-08-10).** Same reducer/renderer/WS-filter
+pattern as Phase 4, just filtered by worker instead of by a fixed track —
+verified live via the same real dispatch used for Phase 4's final
+end-to-end check (see that section): opened the latch, selected the
+`laneconductor` project's worker, watched it show `#9998 —
+dispatch-plan track 9998` while running.
 
 ## Phase 6: Non-Track Dispatch Transcripts
 
