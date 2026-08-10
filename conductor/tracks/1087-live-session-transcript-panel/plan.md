@@ -130,10 +130,56 @@ before.
 detail view.
 **Solution**: Right-side drawer component.
 
-- [ ] Task 1: Add collapsible right-side drawer to `TrackDetailPanel.jsx`, usable alongside spec/plan/conversation content
-- [ ] Task 2: Auto-expand when a run starts on the currently-viewed track (subscribe to run-start signal over WS)
-- [ ] Task 3: Manual collapse control, persists collapsed/expanded state per session (not required to persist across reloads)
-- [ ] Task 4: On panel/page load, fetch + parse the full JSONL log to reconstruct history before subscribing to live WS events
+- [x] Task 1: Add collapsible right-side drawer to `TrackDetailPanel.jsx`, usable alongside spec/plan/conversation content
+- [x] Task 2: Auto-expand when a run starts on the currently-viewed track (subscribe to run-start signal over WS)
+- [x] Task 3: Manual collapse control, persists collapsed/expanded state per session (not required to persist across reloads)
+- [x] Task 4: On panel/page load, fetch + parse the full JSONL log to reconstruct history before subscribing to live WS events
+
+**✅ Phase 4 complete (2026-08-10).**
+
+**Task 1**: the drawer is a new sibling panel docked to the *left* of the
+existing slide-over (`w-96`, both wrapped in one `fixed top-0 right-0`
+flex row) rather than another tab — matches REQ-4 ("not a tab... usable
+alongside spec/plan/conversation content"). A "Transcript" toggle button
+sits next to the panel's existing ✕ close button.
+
+**Task 2**: no dedicated "run started" WS event exists (and building one
+felt like scope beyond this phase) — instead, the *first* `session:event`
+message received for the currently-viewed track auto-expands the drawer.
+An `autoExpandArmedRef`, re-armed whenever the viewed track changes, is
+disarmed after that first auto-expand so later events in the same viewing
+session don't keep fighting a user who manually collapsed it (REQ-4:
+"user can collapse manually at any time"). Documented as a deliberate
+simplification, not an oversight — a precise per-run signal would need
+either a new broadcast event type or reviving `active_cli` tracking that
+Phase 2 stopped updating live for claude runs (see that phase's own
+scoping note).
+
+**Task 3**: plain `useState`, scoped to the component's mount lifetime —
+satisfies "per session, not across reloads" with no extra persistence
+layer needed.
+
+**Task 4**: new `GET /api/projects/:id/tracks/:num/transcript`
+(`ui/server/index.mjs`) finds the most recently modified
+`conductor/logs/*-<track>-<ts>.log` matching this track (regex-anchored so
+e.g. track `108` can't match `1087`'s log file), parses its JSONL lines,
+and returns the raw events array — the client reduces them through the
+*same* `streamTranscript.js` reducer Phase 3 built for live events, so
+there's exactly one reducer implementation. 7 Vitest tests
+(`ui/server/tests/track-1087-transcript.test.mjs`), following this file's
+established `vi.mock('fs', ...)` pattern rather than touching real disk.
+
+**Verified in the browser**, not just unit tests: opened track 1087's own
+detail panel, toggled the drawer open/closed, confirmed the empty state
+("No transcript yet." — correct, no claude run has ever executed against
+this specific track), and confirmed the pre-existing Logs tab (Phase 3
+Task 4's fallback) still renders its own correct empty state, no
+regressions, no new console errors. **Not yet verified against a real live
+claude run actually populating the drawer** — the worker-side event shapes
+were verified independently (real CLI, Phase 1-2's own notes) and the
+reducer against those exact captured shapes (Phase 3's tests), but a true
+end-to-end live-dispatch check would cost a real claude invocation against
+a real track; deferred to Phase 7 (Tests) rather than done ad hoc here.
 
 ## Phase 5: UI — Cross-Worker Activity View
 
