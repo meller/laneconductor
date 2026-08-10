@@ -94,8 +94,8 @@ function AppContent({ user, logout }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [boardMode, setBoardMode] = useState('board'); // 'board' | 'lane'
   const [focusedLane, setFocusedLane] = useState(null);
-  const [sortBy, setSortBy] = useState('track_number'); // 'track_number' | 'date'
-  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
+  const [sortBy, setSortBy] = useState('date'); // 'track_number' | 'date'
+  const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
   const [searchText, setSearchText] = useState('');
 
   const { projects, tracks, workers, providers, waitingTracks, loading, error, lastUpdated, refetch, wsConnected } = usePolling(selectedProjectId);
