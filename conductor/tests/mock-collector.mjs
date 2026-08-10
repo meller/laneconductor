@@ -153,13 +153,18 @@ const server = createServer(async (req, res) => {
   // ── Action status update ───────────────────────────────────────────────────
   if ((params = route('PATCH', '/track/:num/action', req)) !== null) {
     const { num } = params;
-    const { lane_action_status, lane_action_result, lane_status, progress_percent } = body;
+    const { lane_action_status, lane_action_result, lane_status, progress_percent, last_log_tail, active_cli } = body;
     if (!state.tracks[num]) state.tracks[num] = { track_number: num, fail_count: 0 };
     const t = state.tracks[num];
     if (lane_action_status !== undefined) t.lane_action_status = lane_action_status;
     if (lane_action_result !== undefined) t.lane_action_result = lane_action_result;
     if (lane_status !== undefined) t.lane_status = lane_status;
     if (progress_percent !== undefined) t.progress_percent = progress_percent;
+    // Track 1087 Phase 7: capture the raw-tail PATCH fields so tests can
+    // confirm the old (pre-1087) mechanism still fires unmodified for
+    // non-claude CLIs (Phase 2 Task 4's "no regression" claim).
+    if (last_log_tail !== undefined) t.last_log_tail = last_log_tail;
+    if (active_cli !== undefined) t.active_cli = active_cli;
     return reply(res, 200, { ok: true });
   }
 
