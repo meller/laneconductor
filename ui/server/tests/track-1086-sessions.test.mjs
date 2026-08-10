@@ -66,6 +66,29 @@ describe('GET /track/:num/session', () => {
         expect(res.body.claude_session_id).toBeNull();
     });
 
+    it('Phase 5 Task 5: reassignment cold-start — a different worker sees no session even though this track has one for worker 7', async () => {
+        // Simulates 1084 reassigning a track to a different worker mid-
+        // lifecycle: the new worker's own GET, scoped by ITS OWN
+        // req.worker_id (8, not 7), must not see worker 7's row. The query
+        // itself is parameterized by worker_id on every call (see the first
+        // test in this file), so a genuinely different worker id naturally
+        // gets an empty result set — this test locks that guarantee in
+        // explicitly rather than leaving it implicit in a param-shape assertion.
+        mockMachineTokenAuth(8);
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] });
+
+        const res = await request(app)
+            .get('/track/001/session')
+            .set('Authorization', 'Bearer mtoken-worker-8')
+            .expect(200);
+
+        expect(res.body.claude_session_id).toBeNull();
+        expect(pool.query).toHaveBeenLastCalledWith(
+            'SELECT claude_session_id FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+            ['001', 8]
+        );
+    });
+
     it('requires worker identity — 400 without a resolvable worker', async () => {
         const res = await request(app).get('/track/001/session').expect(400);
         expect(res.body.error).toMatch(/worker/i);
