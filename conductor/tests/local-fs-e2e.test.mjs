@@ -200,4 +200,49 @@ describe('LaneConductor local-fs E2E', () => {
     }
   });
 
+  it('queue-based track creation: creates a structured test.md file', async () => {
+    setupProject();
+    const queuePath = join(TMP, 'conductor/tracks/file_sync_queue.md');
+    
+    // Write queue file
+    writeFileSync(queuePath, [
+      '# File Sync Queue',
+      '',
+      '## Track Creation Requests',
+      '',
+      '### Track 501: Queue Track 501',
+      '**Status**: pending',
+      '**Type**: track-create',
+      '**Created**: ' + new Date().toISOString(),
+      '**Title**: Queue Track 501',
+      '**Description**: This is a test track for queue creation.',
+      '**Metadata**: { "priority": "medium", "assignee": null }',
+    ].join('\n'));
+
+    const worker = startWorker({ MOCK_CLI_DELAY_MS: '100' });
+    try {
+      // Wait until the folder is created and queue entry is processed
+      const trackDirName = await poll(() => {
+        const dirs = readdirSync(join(TMP, 'conductor/tracks')).filter(d => d.startsWith('501-'));
+        return dirs.length ? dirs[0] : null;
+      }, { label: 'track 501 folder created', timeout: 15000 });
+
+      const testPath = join(TMP, 'conductor/tracks', trackDirName, 'test.md');
+      assert.ok(existsSync(testPath), 'test.md must exist in the created track folder');
+
+      const testContent = readFileSync(testPath, 'utf8');
+      assert.ok(testContent.includes('# Tests: Track 501 — Queue Track 501'), 'test.md should contain proper title');
+      assert.ok(testContent.includes('## Test Commands'), 'test.md should contain Test Commands section');
+      assert.ok(testContent.includes('## Test Cases'), 'test.md should contain Test Cases section');
+      assert.ok(testContent.includes('## Acceptance Criteria'), 'test.md should contain Acceptance Criteria section');
+
+      // Verify the queue file is updated
+      const queueContent = readFileSync(queuePath, 'utf8');
+      assert.ok(queueContent.includes('**Status**: processed') || queueContent.includes('**Status**: completed'), 'Queue entry status should be updated');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
 });

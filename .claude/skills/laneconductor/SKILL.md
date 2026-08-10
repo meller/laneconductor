@@ -1172,6 +1172,7 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Read existing `spec.md`, `plan.md`, and `test.md` (**skip if `FRESH_SESSION: false`** and you already read them earlier this session — see **Protocol: Session Continuity** — e.g. a replan immediately following a brainstorm on the same session).
     - Check for human comments in `conversation.md` (always re-read this one). **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
     - Flesh out missing requirements or phase details based on current codebase context.
+    - **Fulfill test.md**: If `test.md` is missing, empty, or contains the generic `(Test cases to be added)` stub, you MUST fully scaffold/rewrite it using the **Track File Templates** format at the bottom of this file. Populating `test.md` with specific, real test cases for each phase in `plan.md` is a MANDATORY requirement of the planning phase. Never leave the test file empty or at the generic stub.
     - Update `test.md` with test cases for any new phases or requirements.
     - **Check for `## ❌ KPI MISS` in plan.md**: if present, this is a replanning cycle after a KPI failure. Read the failure data (target, actual, delta, snapshot) and use it as context. Generate a *different* hypothesis — new content angle, different channel, different CTA. Print: `♻️ Replanning with KPI data: target=X, actual=Y, delta=Z`. Append a new `## ❌ KPI MISS` entry (don't overwrite old ones).
 4.  **KPI enforcement** (for `marketing` and `sales` tracks):
@@ -1269,7 +1270,8 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    - Read `conductor/product-guidelines.md` (if present) for brand/style/UX principles
    - Read `conductor/design-language.md` (if present) for concrete design tokens/conventions
    - Read `conductor/tech-stack.md` (if present) for the project's languages/frameworks/deps
-   - Read `conductor/tracks/NNN-*/test.md` if it exists — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first, run the test and confirm it fails, then write minimal code to make it pass, then confirm green.
+   - **TDD / test.md Self-Healing**: Check if `conductor/tracks/NNN-*/test.md` exists and contains real test cases. If it is missing, empty, or contains the generic `(Test cases to be added)` stub, you MUST generate and write a structured `test.md` with concrete test cases and commands for each phase in `plan.md` before writing any implementation code.
+   - Read `conductor/tracks/NNN-*/test.md` — it drives the implementation order. **TDD Protocol**: for each phase, find its test cases in `test.md`, write the test code first, run the test and confirm it fails, then write minimal code to make it pass, then confirm green.
    - **CRITICAL**: Read `conductor/tracks/NNN-*/conversation.md` if it exists. Treat human comments as overriding instructions. (Always — even when resumed.)
    - **IMPORTANT**: Read `conductor/tracks/NNN-*/last_run.log` if it exists. This contains why the previous run failed. (Always — even when resumed.)
    - Update `index.md` to `**Status**: implement`
