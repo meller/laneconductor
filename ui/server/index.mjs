@@ -2334,6 +2334,23 @@ app.post('/track/:num/session', collectorAuth, async (req, res) => {
   }
 });
 
+// Track 1086 Phase 4: invalidate a session after a detected resume-failure
+// (the stored claude_session_id was pruned/corrupted/never existed) — the
+// next attempt then finds no row and cold-starts, instead of retrying the
+// exact same broken --resume forever.
+app.delete('/track/:num/session', collectorAuth, async (req, res) => {
+  try {
+    if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
+    await pool.query(
+      'DELETE FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+      [req.params.num, req.worker_id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/track/:num/comment', collectorAuth, async (req, res) => {
   try {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);

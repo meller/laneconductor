@@ -8,8 +8,11 @@
 //     worker (via collectorAuth's req.worker_id), or null if none
 //   - POST /track/:num/session: upserts (insert on first call, update
 //     last_used_at on subsequent calls with the same session id)
-//   - Both require worker identity (req.worker_id) — no anonymous fallback,
-//     a session belongs to a specific worker
+//   - DELETE /track/:num/session (Track 1086 Phase 4): invalidates a
+//     session after a detected resume-failure, so the next attempt cold-
+//     starts instead of retrying the same broken --resume forever
+//   - All three require worker identity (req.worker_id) — no anonymous
+//     fallback, a session belongs to a specific worker
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -104,6 +107,43 @@ describe('POST /track/:num/session', () => {
             .post('/track/001/session')
             .send({ claude_session_id: 'x' })
             .expect(400);
+        expect(res.body.error).toMatch(/worker/i);
+    });
+});
+
+describe('DELETE /track/:num/session (Track 1086 Phase 4)', () => {
+    beforeEach(() => vi.resetAllMocks());
+
+    it('deletes the session for this worker', async () => {
+        mockMachineTokenAuth(7);
+        vi.mocked(pool.query).mockResolvedValueOnce({ rowCount: 1 });
+
+        const res = await request(app)
+            .delete('/track/001/session')
+            .set('Authorization', 'Bearer mtoken-abc')
+            .expect(200);
+
+        expect(res.body.ok).toBe(true);
+        expect(pool.query).toHaveBeenLastCalledWith(
+            'DELETE FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+            ['001', 7]
+        );
+    });
+
+    it('is a no-op (still 200) when there was nothing to delete', async () => {
+        mockMachineTokenAuth(7);
+        vi.mocked(pool.query).mockResolvedValueOnce({ rowCount: 0 });
+
+        const res = await request(app)
+            .delete('/track/001/session')
+            .set('Authorization', 'Bearer mtoken-abc')
+            .expect(200);
+
+        expect(res.body.ok).toBe(true);
+    });
+
+    it('requires worker identity', async () => {
+        const res = await request(app).delete('/track/001/session').expect(400);
         expect(res.body.error).toMatch(/worker/i);
     });
 });
