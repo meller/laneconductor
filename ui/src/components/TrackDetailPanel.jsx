@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer.jsx';
 import { DevServerButton } from './DevServerButton.jsx';
+import { TranscriptView } from './TranscriptView.jsx';
 import { useApi } from '../hooks/useApi';
+import { useWebSocket } from '../hooks/useWebSocket.js';
+import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 
 const CONTENT_TABS = [
   { key: 'index', label: 'Overview' },
@@ -83,6 +86,15 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState([]);
+  // Track 1087 Phase 4: live session transcript drawer
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [transcriptState, setTranscriptState] = useState(() => createTranscriptState());
+  const transcriptEndRef = useRef(null);
+  // Auto-expand once per viewing session (first live event after opening
+  // this track) — armed again whenever the track changes, but not re-armed
+  // after that so a manual collapse (REQ-4: "user can collapse manually at
+  // any time") isn't immediately fought by the next tool-call event.
+  const autoExpandArmedRef = useRef(true);
 
   // Fetch track detail
   const fetchDetail = () => {
@@ -99,6 +111,38 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     detailPollRef.current = setInterval(fetchDetail, 3000);
     return () => clearInterval(detailPollRef.current);
   }, [projectId, trackNumber]);
+
+  // Track 1087 Phase 4 Task 4: reconstruct transcript history from the full
+  // JSONL log on load, before subscribing to live WS events below.
+  useEffect(() => {
+    setTranscriptState(createTranscriptState());
+    autoExpandArmedRef.current = true;
+    apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/transcript`)
+      .then(r => r.ok ? r.json() : { events: [] })
+      .then(({ events }) => {
+        setTranscriptState((events || []).reduce(reduceStreamEvent, createTranscriptState()));
+      })
+      .catch(() => { });
+  }, [projectId, trackNumber]);
+
+  // Track 1087 Phase 4 Task 2: live continuation over the same WebSocket
+  // the rest of the app already uses (Phase 2's notifyApi -> broadcast
+  // relay) — filtered to events for the track currently being viewed.
+  const onTranscriptWsMessage = useCallback((msg) => {
+    if (msg.event !== 'session:event') return;
+    if (String(msg.data?.trackNumber) !== String(trackNumber)) return;
+    setTranscriptState(prev => reduceStreamEvent(prev, msg.data.event));
+    if (autoExpandArmedRef.current) {
+      autoExpandArmedRef.current = false;
+      setTranscriptOpen(true);
+    }
+  }, [trackNumber]);
+  useWebSocket(onTranscriptWsMessage);
+
+  // Scroll transcript drawer to bottom as new blocks arrive
+  useEffect(() => {
+    if (transcriptOpen) transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [transcriptState, transcriptOpen]);
 
   // Track 1084 Phase 4: project members for the assignee dropdown. Empty in
   // local-api mode (no auth, no multi-user concept) — the control degrades
@@ -285,8 +329,27 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
 
-      {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-gray-950 border-l border-gray-800 z-50 flex flex-col shadow-2xl">
+      {/* Panel (+ Track 1087 Phase 4: collapsible transcript drawer, docked to its left) */}
+      <div className="fixed top-0 right-0 h-full z-50 flex flex-row shadow-2xl">
+        {transcriptOpen && (
+          <div className="h-full w-96 bg-gray-950 border-l border-gray-800 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+              <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Live Transcript</span>
+              <button
+                onClick={() => setTranscriptOpen(false)}
+                title="Collapse transcript"
+                className="text-gray-500 hover:text-gray-200 text-sm leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 py-3">
+              <TranscriptView blocks={transcriptState.blocks} />
+              <div ref={transcriptEndRef} />
+            </div>
+          </div>
+        )}
+        <div className="h-full w-full max-w-2xl bg-gray-950 border-l border-gray-800 flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-800">
           <div>
@@ -382,12 +445,25 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
               <div className="text-gray-400 text-sm">Track #{trackNumber}</div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-200 text-xl leading-none mt-0.5 shrink-0"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Track 1087 Phase 4: live session transcript toggle */}
+            <button
+              onClick={() => setTranscriptOpen(o => !o)}
+              title={transcriptOpen ? 'Hide live session transcript' : 'Show live session transcript'}
+              className={`text-xs px-2 py-1 rounded border font-medium transition-colors ${transcriptOpen
+                  ? 'border-orange-800/70 bg-orange-950/40 text-orange-300'
+                  : 'border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-gray-200'
+                }`}
+            >
+              Transcript
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-200 text-xl leading-none mt-0.5 shrink-0"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -514,6 +590,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
             )}
           </div>
         )}
+        </div>
       </div>
 
       {showNewTrack && (
