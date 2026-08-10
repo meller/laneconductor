@@ -219,6 +219,10 @@ CREATE TABLE "workers" (
     "machine_token" TEXT,
     "user_uid" TEXT,
     "visibility" TEXT DEFAULT 'private',
+    -- Track 1091: 'project' (default, unchanged) or 'manager' — a manager
+    -- worker isn't scoped to any project (project_id stays null for it) and
+    -- is a machine-level singleton, see workers_one_manager_per_host below.
+    "type" TEXT NOT NULL DEFAULT 'project',
 
     CONSTRAINT "workers_pkey" PRIMARY KEY ("id")
 );
@@ -289,6 +293,14 @@ CREATE UNIQUE INDEX "workers_machine_token_key" ON "workers"("machine_token");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workers_project_id_hostname_worker_number_key" ON "workers"("project_id", "hostname", "worker_number");
+
+-- CreateIndex
+-- Track 1091: at most one 'manager'-type worker per hostname, machine-wide.
+-- A plain unique constraint on (project_id, hostname) wouldn't work here —
+-- Postgres treats each NULL project_id as distinct, so multiple manager
+-- rows (project_id always null) would NOT violate it; this partial index
+-- is what actually enforces the singleton.
+CREATE UNIQUE INDEX "workers_one_manager_per_host" ON "workers"("hostname") WHERE "type" = 'manager';
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workspaces_github_org_key" ON "workspaces"("github_org");

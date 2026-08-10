@@ -2905,6 +2905,34 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
   }
 });
 
+// Track 1091 Phase 1 Task 3: create-project dispatch, global (not
+// project-scoped) — a manager worker's own project_id is null, so unlike
+// deploy/lane-action dispatch this can't validate the worker against an
+// existing :id in the URL. Restricted to type: 'manager' workers only.
+app.post('/api/dispatch/create-project', async (req, res) => {
+  try {
+    const { worker_id, payload } = req.body;
+    if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
+    if (!payload?.repo_source) return res.status(400).json({ error: 'payload.repo_source is required' });
+
+    const workerResult = await pool.query('SELECT id, type FROM workers WHERE id = $1', [worker_id]);
+    if (workerResult.rows.length === 0) return res.status(404).json({ error: 'worker not found' });
+    if (workerResult.rows[0].type !== 'manager') {
+      return res.status(400).json({ error: 'create-project dispatch requires a manager-type worker' });
+    }
+
+    const { rows: [inserted] } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [worker_id, null, 'create-project', JSON.stringify(payload)]
+    );
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // UI-side: deploy dispatch history for a project (track_number IS NULL
 // entries only — lane-action history is per-track, see GET .../tracks/:id/dispatch).
 app.get('/api/projects/:id/dispatch', async (req, res) => {

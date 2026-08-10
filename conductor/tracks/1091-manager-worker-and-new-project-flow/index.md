@@ -1,9 +1,9 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Planning complete
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 17%
+**Phase**: Phase 1 complete — workers.type column + machine-level-singleton partial unique index migrated and verified against the real DB; new POST /api/dispatch/create-project endpoint (project-unscoped, since a manager worker has no project_id) restricts to type: 'manager'. Phase 2 (CLI --manager flag) next.
 **Type**: dev
 **Summary**: A distinct 'manager' worker type that can act system-wide (create new projects) instead of being scoped to one project like every worker today.
 
@@ -56,7 +56,7 @@ one-worker-belongs-to-one-project model at all.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md) — this track extends that design's dispatch mechanism (Section B) but was scoped and written up separately since it introduces a new worker trust tier, not just a new action type.
 
 ## Phases
-- [ ] Phase 1: Schema — `workers.type` column, `create-project` dispatch validation (manager-only)
+- [x] Phase 1: Schema — `workers.type` column, `create-project` dispatch validation (manager-only)
 - [ ] Phase 2: CLI — `lc worker start --manager` flag
 - [ ] Phase 3: Worker-side handler — run `/laneconductor setup scaffold generate` non-interactively from dispatched context, register the new project + first worker row
 - [ ] Phase 4: UI — "New Project" wizard (repo path/git URL, scaffold Q&A as a form) dispatching to a manager worker
