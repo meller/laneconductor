@@ -86,10 +86,43 @@ task targets.
 **Problem**: No component renders a structured event stream as a transcript.
 **Solution**: New rendering logic for the drawer content.
 
-- [ ] Task 1: Parse stream-json events into renderable blocks (assistant text, tool_use, tool_result)
-- [ ] Task 2: Render assistant text as chat-style blocks
-- [ ] Task 3: Render tool calls as collapsible entries (tool name + input summary)
-- [ ] Task 4: Fallback rendering for non-JSON lines (raw `<pre>` block) — covers non-Claude CLI runs
+- [x] Task 1: Parse stream-json events into renderable blocks (assistant text, tool_use, tool_result)
+- [x] Task 2: Render assistant text as chat-style blocks
+- [x] Task 3: Render tool calls as collapsible entries (tool name + input summary)
+- [x] Task 4: Fallback rendering for non-JSON lines (raw `<pre>` block) — covers non-Claude CLI runs
+
+**✅ Phase 3 complete (2026-08-10).**
+
+**Task 1 — real event shapes verified, not guessed**: ran the actual
+`claude` CLI with `--output-format stream-json --include-partial-messages
+--verbose` against a tool-calling prompt and inspected the raw output.
+Found something non-obvious: **one `assistant` JSONL line = one *completed*
+content block, not a cumulative full-message snapshot** — a message with a
+`thinking` block followed by a `tool_use` block arrives as two separate
+`assistant` events, each with a single-item `content` array (the second
+does NOT repeat the first block). `ui/src/lib/streamTranscript.js`'s
+`reduceStreamEvent(state, rawEvent)` reducer is built around this: append
+each new completed block (`text` or `tool_use`; `thinking` intentionally
+not rendered — Task 1's scope is text + tool calls only), and attach a
+later `{"type":"user",...,"tool_result"}` event to its matching `tool_use`
+block by `tool_use_id`. Pure, no React dependency — 8 unit tests in
+`streamTranscript.test.js`, added to `ui/vitest.config.mjs`'s `include`
+(this repo's frontend had zero test coverage before now; kept to plain
+pure-function tests, no new jsdom/testing-library dependency added).
+
+**Tasks 2 & 3**: `ui/src/components/TranscriptView.jsx` — assistant text
+renders as a chat bubble (same visual language as the existing
+`CommentBubble`'s `claude` style in `TrackDetailPanel.jsx`); tool calls
+render as a collapsible row (name + truncated first-input-value summary,
+a done/error badge once a result lands, full input/result JSON on
+expand). Not yet mounted anywhere — Phase 4 wires it into the track detail
+view.
+
+**Task 4**: the fallback for non-Claude CLI runs is the *existing* raw
+`<pre>{last_log_tail}</pre>` block already used by the Logs tab — left
+completely untouched rather than duplicated, since Phase 2 already
+guarantees non-claude CLIs keep populating `last_log_tail` exactly as
+before.
 
 ## Phase 4: UI — Drawer Placement & Behavior
 
