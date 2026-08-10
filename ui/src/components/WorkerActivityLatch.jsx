@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TranscriptView } from './TranscriptView.jsx';
+import { DeployLogView } from './DeployLogView.jsx';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
+import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { useApi } from '../hooks/useApi.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 
@@ -10,21 +12,17 @@ import { useWebSocket } from '../hooks/useWebSocket.js';
 // on the right, without navigating away. Distinct from Phase 4's per-track
 // drawer (which stays as the "open a specific track, see its transcript"
 // path) — this is "see what any of my workers is doing right now".
+//
+// Phase 6: a worker can also be running a non-track `deploy` dispatch —
+// parseWorkerTask distinguishes the two so this component can show the
+// right content pane (structured transcript vs. raw deploy log) instead
+// of just falling through to "idle".
 
 const WORKER_OFFLINE_MS = 60_000;
 
 function isWorkerOffline(worker) {
   if (!worker?.last_heartbeat) return true;
   return Date.now() - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
-}
-
-// worker.current_task is a free-text string set by updateWorkerHeartbeat
-// (laneconductor.sync.mjs), e.g. "dispatch-implement track 1087" or
-// "local-fs-answer track 9998" — always ending in "track <number>".
-function extractTrackNumber(currentTask) {
-  if (!currentTask) return null;
-  const m = currentTask.match(/track (\S+)$/);
-  return m ? m[1] : null;
 }
 
 export function WorkerActivityLatch({ workers, projectId, onClose }) {
@@ -34,7 +32,8 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
   const transcriptEndRef = useRef(null);
 
   const selectedWorker = workers.find(w => w.id === selectedWorkerId) ?? null;
-  const selectedTrackNumber = extractTrackNumber(selectedWorker?.current_task);
+  const selectedTask = parseWorkerTask(selectedWorker?.current_task);
+  const selectedTrackNumber = selectedTask?.kind === 'track' ? selectedTask.trackNumber : null;
   // /api/workers (all-projects) returns project_id per worker; the
   // per-project /api/projects/:id/workers doesn't need to (it's already
   // scoped) — fall back to the currently selected project in that case.
@@ -77,7 +76,7 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
               <p className="text-gray-600 text-xs italic px-4 py-3">No workers online.</p>
             ) : (
               workers.map(w => {
-                const trackNum = extractTrackNumber(w.current_task);
+                const task = parseWorkerTask(w.current_task);
                 const offline = isWorkerOffline(w);
                 return (
                   <button
@@ -96,7 +95,13 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
                       </span>
                     </div>
                     <div className="text-gray-500 truncate mt-0.5 pl-3">
-                      {offline ? 'offline' : trackNum ? `#${trackNum} — ${w.current_task}` : (w.current_task || 'idle')}
+                      {offline
+                        ? 'offline'
+                        : task?.kind === 'track'
+                          ? `#${task.trackNumber} — ${w.current_task}`
+                          : task?.kind === 'deploy'
+                            ? `🚀 ${w.current_task}`
+                            : (w.current_task || 'idle')}
                     </div>
                   </button>
                 );
@@ -105,18 +110,23 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
           </div>
         </div>
 
-        {/* Selected worker's live transcript */}
+        {/* Selected worker's live activity */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {!selectedWorker ? (
-            <p className="text-gray-600 text-sm italic pt-4">Select a worker to see its live transcript.</p>
-          ) : !selectedTrackNumber ? (
-            <p className="text-gray-600 text-sm italic pt-4">{selectedWorker.hostname} is idle.</p>
-          ) : (
+            <p className="text-gray-600 text-sm italic pt-4">Select a worker to see its live activity.</p>
+          ) : selectedTask?.kind === 'track' ? (
             <>
-              <div className="text-xs text-gray-500 mb-3">Track #{selectedTrackNumber}</div>
+              <div className="text-xs text-gray-500 mb-3">Track #{selectedTask.trackNumber}</div>
               <TranscriptView blocks={transcriptState.blocks} />
               <div ref={transcriptEndRef} />
             </>
+          ) : selectedTask?.kind === 'deploy' ? (
+            <>
+              <div className="text-xs text-gray-500 mb-3">Deploy — dispatch #{selectedTask.dispatchId}</div>
+              <DeployLogView projectId={selectedProjectId} dispatchId={selectedTask.dispatchId} />
+            </>
+          ) : (
+            <p className="text-gray-600 text-sm italic pt-4">{selectedWorker.hostname} is idle.</p>
           )}
         </div>
       </div>

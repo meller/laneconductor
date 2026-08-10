@@ -263,10 +263,62 @@ dispatch type with no real implementation to verify against.)
 component, not the structured `TranscriptView`/`reduceStreamEvent`
 mechanism (there are no structured events for a deploy run).
 
-- [ ] Task 1: New endpoint resolving a `worker_dispatch.id` to its deploy log file — the dispatch row doesn't carry `env` or the log's timestamp directly, so this needs `worker_dispatch.payload` (has `environment`, per `checkDispatchInbox`'s `entry.payload?.environment`) plus a most-recent-matching-file lookup in `conductor/logs/deploy-<env>-*.log`, same pattern as Phase 4 Task 4's track-transcript endpoint
-- [ ] Task 2: Standalone raw-text view (modal or `/dispatch/:id` route) — plain `<pre>`, not `TranscriptView`
-- [ ] Task 3: Non-track activity snippets (`WorkerActivityLatch`, Phase 5) link to this standalone view for `deploy` dispatches instead of showing "idle"
-- [ ] Task 4: Verify against a real `lc deploy` dispatch (or a dry-run/no-op deploy.json target if a real deploy is too costly/risky to trigger from this environment) — not just a unit test
+- [x] Task 1: New endpoint resolving a `worker_dispatch.id` to its deploy log file — the dispatch row doesn't carry `env` or the log's timestamp directly, so this needs `worker_dispatch.payload` (has `environment`, per `checkDispatchInbox`'s `entry.payload?.environment`) plus a most-recent-matching-file lookup in `conductor/logs/deploy-<env>-*.log`, same pattern as Phase 4 Task 4's track-transcript endpoint
+- [x] Task 2: Standalone raw-text view (modal or `/dispatch/:id` route) — plain `<pre>`, not `TranscriptView`
+- [x] Task 3: Non-track activity snippets (`WorkerActivityLatch`, Phase 5) link to this standalone view for `deploy` dispatches instead of showing "idle"
+- [x] Task 4: Verify against a real `lc deploy` dispatch (or a dry-run/no-op deploy.json target if a real deploy is too costly/risky to trigger from this environment) — not just a unit test
+
+**✅ Phase 6 complete (2026-08-10), redone from scratch per the corrected
+scope above, with TDD throughout.**
+
+**Task 1**: `GET /api/projects/:id/dispatch/:dispatchId/log`
+(`ui/server/index.mjs`) — joins `worker_dispatch` → `workers` → `projects`
+to resolve `repo_path`, rejects non-`deploy` actions with 400 (`No log
+viewer defined for dispatch action "X"`), returns `{ log: null }` for
+any not-yet-found case (missing env, no repo_path, no matching file) —
+same fail-open shape as Phase 4 Task 4's track-transcript endpoint. 8
+Vitest tests (`ui/server/tests/track-1087-deploy-log.test.mjs`), including
+a case confirming `prod` doesn't false-match a `production` log file
+(regex-anchored, same discipline as the track endpoint's `108` vs `1087`
+guard).
+
+**Task 2**: `ui/src/components/DeployLogView.jsx` — deliberately a plain
+`<pre>` block, not `TranscriptView`, since a deploy run has no structured
+events to feed the Phase 3 reducer.
+
+**Task 3**: required a real, separate fix first — `checkDispatchInbox`'s
+`deploy` branch never called `updateWorkerHeartbeat` at all (unlike the
+lane-action branch), so a worker never reported `busy` during a deploy;
+`WorkerActivityLatch` had nothing to detect. Added the same heartbeat
+call the lane-action path already makes, with `current_task` format
+`"deploy <env> (dispatch <id>)"`. New pure `ui/src/lib/workerTaskInfo.js`
+(`parseWorkerTask`, 4 unit tests) distinguishes this from a track task
+string and routes the latch's content pane accordingly.
+
+**Task 4 — verified against a real dispatch, not a unit test**:
+`deploy.json` points at a real deploy script touching live infrastructure
+(Firebase Hosting, Cloud Functions) — did **not** trigger a real prod/
+staging deploy just to test a UI feature. Instead, temporarily added a
+throwaway no-op environment (`echo` commands only) to `deploy.json`,
+dispatched a real `deploy` action against it through the actual worker,
+confirmed via direct API call that `GET .../dispatch/:id/log` returned
+the exact real shell output (`🚀 Deploying to track1087verify...` through
+`✅ Deployment ... complete!`), then reverted `deploy.json` to its
+original content (clean diff, confirmed via `git diff`). Live-in-browser
+confirmation of the worker showing "busy: deploying" in the latch was
+attempted three times (echo-only, +6s sleep, +20s sleep) but the dispatch
+consistently settled before the screenshot could catch it — the API-level
+proof (real log content returned for a real dispatch id) was judged
+sufficient given the mechanism is otherwise identical to the
+already-visually-proven track-transcript path, rather than continuing to
+chase an exact timing window with diminishing returns.
+
+**Follow-up spun out, not done here**: while building this, found the
+worker never reported busy for deploy specifically — fixed inline since
+Task 3 needed it. Separately found (not fixed — out of scope, flagged for
+the user): `conversation.md`'s derived session-turn entries (1086 Phase 4)
+are a bare pass/fail line, not the actual final assistant response text —
+real UX gap, belongs in a new 1086 phase, not bundled into this fix.
 
 ## Phase 7: Tests
 

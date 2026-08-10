@@ -3973,7 +3973,13 @@ async function checkDispatchInbox() {
     if (entry.action === 'deploy') {
       const env = entry.payload?.environment || 'prod';
       console.log(`[dispatch] Running deploy to ${env} (dispatch ${entry.id})`);
+      // Track 1087 Phase 6 Task 3: deploy never went through spawnCli, so
+      // the worker never reported busy for it — WorkerActivityLatch had
+      // nothing to detect. current_task format ("deploy <env> (dispatch
+      // <id>)") is parsed by ui/src/lib/workerTaskInfo.js.
+      updateWorkerHeartbeat('busy', `deploy ${env} (dispatch ${entry.id})`);
       const result = await runDeploy(process.cwd(), env);
+      updateWorkerHeartbeat('idle', null);
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
         status: result.ok ? 'done' : 'failed',
         result: result.ok ? null : (result.error || `exit ${result.exitCode} at step: ${result.failedStep}`),
