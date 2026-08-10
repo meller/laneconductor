@@ -27,6 +27,7 @@ import {
 } from './jira-collector.mjs';
 import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
+import { getBuildById, createBuildArtifact } from '../ui/server/build-manager.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
 import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
@@ -57,6 +58,13 @@ const workerNumberArgIdx = process.argv.indexOf('--worker-number');
 const workerNumber = workerNumberArgIdx !== -1
   ? parseInt(process.argv[workerNumberArgIdx + 1], 10)
   : (parseInt(process.env.LC_WORKER_NUMBER, 10) || 1);
+
+// Track 1091 Phase 2: a manager worker isn't scoped to any project — it
+// registers with project_id: null and additionally polls for system-wide
+// dispatch actions (create-project) a 'project'-type worker ignores.
+// --worker-number is meaningless here (machine-level singleton, not
+// multi-instance) and deliberately not read in this branch.
+const isManager = process.argv.includes('--manager');
 
 // Track 1084 Phase 3: this worker's own DB id, learned from the
 // /worker/register response — needed to ask /claimable-tracks "which queued
@@ -512,28 +520,36 @@ async function upsertWorker() {
     const token = resolveCollectorToken(i);
 
     try {
-      // Ensure project exists on collector and map to our user identity
-      const ensureRes = await post(url, token, '/project/ensure', {
-        git_remote: proj.git_remote,
-        name: proj.name,
-        repo_path: proj.repo_path,
-        primary_cli: proj.primary?.cli,
-        primary_model: proj.primary?.model,
-        dev_command: proj.dev?.command ?? null,
-        dev_url: proj.dev?.url ?? null,
-      }).catch(e => {
-        // console.warn(`[Warning] /project/ensure failed for ${url}:`, e.message);
-        return {};
-      });
+      // Track 1091 Phase 2: a manager worker isn't "for" this (or any)
+      // project — skip /project/ensure entirely (nothing to ensure) and
+      // register with project_id: null, type: 'manager'.
+      let project_id = null;
+      if (!isManager) {
+        // Ensure project exists on collector and map to our user identity
+        const ensureRes = await post(url, token, '/project/ensure', {
+          git_remote: proj.git_remote,
+          name: proj.name,
+          repo_path: proj.repo_path,
+          primary_cli: proj.primary?.cli,
+          primary_model: proj.primary?.model,
+          dev_command: proj.dev?.command ?? null,
+          dev_url: proj.dev?.url ?? null,
+        }).catch(e => {
+          // console.warn(`[Warning] /project/ensure failed for ${url}:`, e.message);
+          return {};
+        });
 
-      const project_id = ensureRes.project_id || proj.id;
-      if (project_id && proj.id !== project_id) {
-        proj.id = project_id;
-        writeFileSync('.laneconductor.json', JSON.stringify(config, null, 2) + '\n');
+        project_id = ensureRes.project_id || proj.id;
+        if (project_id && proj.id !== project_id) {
+          proj.id = project_id;
+          writeFileSync('.laneconductor.json', JSON.stringify(config, null, 2) + '\n');
+        }
       }
 
       const visibility = proj.worker?.visibility || config.worker?.visibility || 'private';
-      const res = await post(url, token, '/worker/register', { hostname, pid, project_id, visibility, mode: workerMode, worker_number: workerNumber });
+      const registerBody = { hostname, pid, project_id, visibility, mode: workerMode, worker_number: workerNumber };
+      if (isManager) registerBody.type = 'manager';
+      const res = await post(url, token, '/worker/register', registerBody);
 
       if (res.id) myWorkerId = res.id;
 
@@ -3973,15 +3989,85 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    if (entry.action === 'build' || entry.action === 'build_and_deploy') {
+      console.log(`[dispatch] Triggering worker build artifact creation (dispatch ${entry.id})`);
+      updateWorkerHeartbeat('busy', `building release artifact (dispatch ${entry.id})`);
+      
+      let buildArtifact = null;
+      let buildErr = null;
+      try {
+        buildArtifact = createBuildArtifact(process.cwd(), {
+          createdBy: entry.payload?.createdBy || 'Worker Dispatch',
+          trackIds: entry.payload?.trackIds
+        });
+        console.log(`[dispatch] Created build artifact: ${buildArtifact.id}`);
+      } catch (err) {
+        buildErr = err.message;
+        console.error(`[dispatch] Build artifact creation failed: ${err.message}`);
+      }
+
+      if (entry.action === 'build') {
+        updateWorkerHeartbeat('idle', null);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, {
+          status: buildArtifact ? 'done' : 'failed',
+          result: buildArtifact ? `Build ${buildArtifact.id} created` : `Build failed: ${buildErr}`
+        }).catch(err => console.warn(`[dispatch] Failed to report build result for ${entry.id}: ${err.message}`));
+        continue;
+      }
+
+      // If action is build_and_deploy
+      if (!buildArtifact) {
+        updateWorkerHeartbeat('idle', null);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, {
+          status: 'failed',
+          result: `Build step failed: ${buildErr}`
+        }).catch(err => console.warn(`[dispatch] Failed to report build_and_deploy result for ${entry.id}: ${err.message}`));
+        continue;
+      }
+
+      const env = entry.payload?.environment || 'prod';
+      const extraEnv = {
+        CONDUCTOR_BUILD_ID: buildArtifact.id,
+        CONDUCTOR_BUILD_COMMIT: buildArtifact.git?.commit || '',
+        CONDUCTOR_BUILD_TRACKS: (buildArtifact.tracks || []).join(',')
+      };
+
+      console.log(`[dispatch] Running deploy to ${env} with build ${buildArtifact.id} (dispatch ${entry.id})`);
+      updateWorkerHeartbeat('busy', `deploying ${buildArtifact.id} to ${env} (dispatch ${entry.id})`);
+      const result = await runDeploy(process.cwd(), env, { extraEnv });
+      updateWorkerHeartbeat('idle', null);
+
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.ok ? 'done' : 'failed',
+        result: result.ok ? `Built & deployed ${buildArtifact.id}` : (result.error || `exit ${result.exitCode} at step: ${result.failedStep}`),
+      }).catch(err => console.warn(`[dispatch] Failed to report deploy result for ${entry.id}: ${err.message}`));
+      continue;
+    }
+
     if (entry.action === 'deploy') {
       const env = entry.payload?.environment || 'prod';
-      console.log(`[dispatch] Running deploy to ${env} (dispatch ${entry.id})`);
+      const buildId = entry.payload?.buildId || entry.payload?.build_id;
+      let extraEnv = {};
+      if (buildId) {
+        const build = getBuildById(process.cwd(), buildId);
+        if (build) {
+          extraEnv = {
+            CONDUCTOR_BUILD_ID: build.id,
+            CONDUCTOR_BUILD_COMMIT: build.git?.commit || '',
+            CONDUCTOR_BUILD_TRACKS: (build.tracks || []).join(',')
+          };
+          console.log(`[dispatch] Build artifact ${buildId} attached (commit ${build.git?.shortCommit || 'unknown'})`);
+        } else {
+          console.warn(`[dispatch] Build artifact ${buildId} not found, proceeding with workspace HEAD`);
+        }
+      }
+      console.log(`[dispatch] Running deploy to ${env}${buildId ? ` (${buildId})` : ''} (dispatch ${entry.id})`);
       // Track 1087 Phase 6 Task 3: deploy never went through spawnCli, so
       // the worker never reported busy for it — WorkerActivityLatch had
       // nothing to detect. current_task format ("deploy <env> (dispatch
       // <id>)") is parsed by ui/src/lib/workerTaskInfo.js.
-      updateWorkerHeartbeat('busy', `deploy ${env} (dispatch ${entry.id})`);
-      const result = await runDeploy(process.cwd(), env);
+      updateWorkerHeartbeat('busy', `deploy ${env}${buildId ? ` (${buildId})` : ''} (dispatch ${entry.id})`);
+      const result = await runDeploy(process.cwd(), env, { extraEnv });
       updateWorkerHeartbeat('idle', null);
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
         status: result.ok ? 'done' : 'failed',

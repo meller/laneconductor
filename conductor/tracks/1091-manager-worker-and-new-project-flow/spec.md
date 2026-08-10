@@ -40,12 +40,35 @@ a project that doesn't exist yet.
 - Combinable with existing flags (`--sync-only`, `--worker-number` from
   1084).
 
+**REQ-2b: Manager projects directory** (added 2026-08-10 — genuine gap
+found during Phase 2 implementation, not present in the original spec)
+- A manager worker needs to know *where on disk* a brand-new project
+  should live when `repo_source.type === 'git'` (clone target) or when
+  scaffolding a project from scratch (no existing path at all) —
+  `repo_source.type === 'path'` doesn't need this, since its `value` is
+  already the full target path.
+- `lc worker start --manager --projects-dir <path>` sets it. Persisted to
+  `~/.laneconductor/manager-config.json` (`{ "projectsDir": "<path>" }`)
+  on first successful registration, so subsequent restarts don't need to
+  repeat the flag — passing `--projects-dir` again on a later start
+  updates the stored value.
+- If a `create-project` dispatch with `repo_source.type: 'git'` arrives
+  and no `projectsDir` is configured (flag never passed, no stored
+  config), the manager fails that specific dispatch clearly (`"No
+  projects directory configured — restart with lc worker start --manager
+  --projects-dir <path>"`) rather than guessing a location or crashing.
+- Clone target path is `<projectsDir>/<slug-of-project-name>` (slugified
+  from `scaffold_context.project.name`), unless the dispatch payload
+  includes an explicit `repo_source.target_path` override.
+
 **REQ-3: `create-project` dispatch action**
 - Reuses [1085](../1085-manual-worker-dispatch/index.md)'s `worker_dispatch`
   table: `action: 'create-project'`, `worker_id: <a manager worker>`,
-  `track_number: null`, `payload: { repo_source: {type: 'path'|'git', value: string}, scaffold_context: {...} }`.
+  `track_number: null`, `payload: { repo_source: {type: 'path'|'git', value: string, target_path?: string}, scaffold_context: {...} }`.
   `scaffold_context` mirrors `conductor/.setup-scaffold-context.json`'s
   existing shape (project name, scan signals, brainstorm_summary/answers).
+  `target_path` (git only) overrides REQ-2b's default `<projectsDir>/<slug>`
+  resolution when the caller wants a specific location.
 - API validates `worker_id` refers to a `type: 'manager'` worker before
   enqueueing; rejects otherwise with a clear error.
 - Worker-side dispatch loop: a `type: 'project'` worker never claims

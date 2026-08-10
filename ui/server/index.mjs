@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { initWebSocket, broadcast } from './wsBroadcast.mjs';
 import { slugify, trackTemplates, appendRegressionTest } from './utils.mjs';
+import { getBuilds, getBuildById, createBuildArtifact } from './build-manager.mjs';
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 import { logger } from './logger.mjs';
 
@@ -1054,7 +1055,7 @@ app.get('/api/projects/:id/tracks/:num/transcript', async (req, res) => {
 app.get('/api/projects/:id/dispatch/:dispatchId/log', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT wd.id, wd.action, wd.payload, p.repo_path
+      `SELECT wd.id, wd.action, wd.payload, wd.status, wd.result, wd.created_at, p.repo_path
        FROM worker_dispatch wd
        JOIN workers w ON w.id = wd.worker_id
        JOIN projects p ON p.id = w.project_id
@@ -1062,27 +1063,37 @@ app.get('/api/projects/:id/dispatch/:dispatchId/log', async (req, res) => {
       [req.params.dispatchId, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Dispatch not found' });
-    const { action, payload, repo_path } = result.rows[0];
-    if (action !== 'deploy') {
+    const { action, payload, status, result: dispatchResult, repo_path } = result.rows[0];
+    if (action !== 'deploy' && action !== 'build_and_deploy' && action !== 'build') {
       return res.status(400).json({ error: `No log viewer defined for dispatch action "${action}"` });
     }
 
     const env = payload?.environment;
-    if (!env) return res.json({ log: null });
-    if (!repo_path || !existsSync(repo_path)) return res.json({ log: null });
+    let log = null;
 
-    const logsDir = join(repo_path, 'conductor', 'logs');
-    if (!existsSync(logsDir)) return res.json({ log: null });
+    if (repo_path && existsSync(repo_path)) {
+      const logsDir = join(repo_path, 'conductor', 'logs');
+      if (existsSync(logsDir)) {
+        const pattern = env ? new RegExp(`^deploy-${env}-\\d+\\.log$`) : /^deploy-.*-\d+\\.log$/;
+        const candidates = readdirSync(logsDir)
+          .filter(f => pattern.test(f))
+          .map(f => ({ f, mtimeMs: statSync(join(logsDir, f)).mtimeMs }))
+          .sort((a, b) => b.mtimeMs - a.mtimeMs);
 
-    const pattern = new RegExp(`^deploy-${env}-\\d+\\.log$`);
-    const candidates = readdirSync(logsDir)
-      .filter(f => pattern.test(f))
-      .map(f => ({ f, mtimeMs: statSync(join(logsDir, f)).mtimeMs }))
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+        if (candidates.length > 0) {
+          log = readFileSync(join(logsDir, candidates[0].f), 'utf8');
+        }
+      }
+    }
 
-    if (candidates.length === 0) return res.json({ log: null });
+    if (!log) {
+      if (dispatchResult) {
+        log = `[Dispatch Action: ${action} | Status: ${status}]\n${dispatchResult}`;
+      } else if (status === 'claimed' || status === 'pending') {
+        log = `[Dispatch Action: ${action} | Status: ${status}]\nWorker processing dispatch ${req.params.dispatchId}…`;
+      }
+    }
 
-    const log = readFileSync(join(logsDir, candidates[0].f), 'utf8');
     res.json({ log });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2714,11 +2725,34 @@ app.post('/worker/register', async (req, res, next) => {
     // Resolve user_uid: Firebase auth > API key auth > request body (legacy)
     let user_uid = (AUTH_ENABLED && req.user?.uid) || req.user_uid || req.body.user_uid || null;
 
-    const projectId = req.body.project_id ? parseInt(req.body.project_id) : null;
-    if (!projectId) return res.status(400).json({ error: 'project_id is required' });
-
     // Resolve visibility from request body (worker sends its configured visibility)
     const visibility = req.body.visibility || 'private';
+    const type = req.body.type === 'manager' ? 'manager' : 'project';
+
+    // Track 1091: a manager worker isn't scoped to any project — project_id
+    // stays null for it, and it's a machine-level singleton (see the
+    // workers_one_manager_per_host partial unique index), so it needs its
+    // own INSERT...ON CONFLICT targeting that index rather than the
+    // (project_id, hostname, worker_number) constraint the 'project' path
+    // below uses (which would never match a second manager on the same
+    // hostname — Postgres treats every NULL project_id as distinct).
+    if (type === 'manager') {
+      const machine_token = randomUUID();
+      const { rows: [{ id: workerId }] } = await pool.query(`
+        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, last_heartbeat)
+        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', NOW())
+        ON CONFLICT (hostname) WHERE type = 'manager' DO UPDATE SET
+        status = 'idle', pid = EXCLUDED.pid, user_uid = EXCLUDED.user_uid,
+        mode = EXCLUDED.mode,
+        last_heartbeat = NOW()
+        RETURNING id
+      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
+      broadcast('worker:updated', { projectId: null });
+      return res.json({ ok: true, machine_token, id: workerId });
+    }
+
+    const projectId = req.body.project_id ? parseInt(req.body.project_id) : null;
+    if (!projectId) return res.status(400).json({ error: 'project_id is required' });
 
     // First check if this specific worker (by stable identity) already has a machine token
     let r = await pool.query('SELECT machine_token FROM workers WHERE project_id = $1 AND hostname = $2 AND worker_number = $3', [projectId, hostname, worker_number]);
@@ -2887,8 +2921,19 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
   try {
     const { worker_id, action, payload } = req.body;
     if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
-    if (action === 'deploy' && !payload?.environment) {
+    if ((action === 'deploy' || action === 'build_and_deploy') && !payload?.environment) {
       return res.status(400).json({ error: 'payload.environment is required for deploy' });
+    }
+
+    if (action === 'deploy' && (payload?.buildId || payload?.build_id)) {
+      const buildId = payload.buildId || payload.build_id;
+      const { rows: [proj] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+      if (proj?.repo_path) {
+        const build = getBuildById(proj.repo_path, buildId);
+        if (!build) {
+          return res.status(404).json({ error: `Build artifact '${buildId}' not found` });
+        }
+      }
     }
 
     const { rows: [inserted], rowCount } = await pool.query(
@@ -2897,6 +2942,38 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
        WHERE EXISTS (SELECT 1 FROM workers WHERE id = $1 AND project_id = $5)
        RETURNING id`,
       [worker_id, null, action, payload ? JSON.stringify(payload) : null, req.params.id]
+    );
+    if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this project' });
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/deploy', async (req, res) => {
+  try {
+    const { worker_id, environment, buildId } = req.body;
+    if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
+    if (!environment) return res.status(400).json({ error: 'environment is required' });
+
+    if (buildId) {
+      const { rows: [proj] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+      if (proj?.repo_path) {
+        const build = getBuildById(proj.repo_path, buildId);
+        if (!build) {
+          return res.status(404).json({ error: `Build artifact '${buildId}' not found` });
+        }
+      }
+    }
+
+    const payload = { environment, ...(buildId ? { buildId } : {}) };
+
+    const { rows: [inserted], rowCount } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       SELECT $1, $2, $3, $4
+       WHERE EXISTS (SELECT 1 FROM workers WHERE id = $1 AND project_id = $5)
+       RETURNING id`,
+      [worker_id, null, 'deploy', JSON.stringify(payload), req.params.id]
     );
     if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this project' });
     res.json({ ok: true, id: inserted.id });
@@ -2938,7 +3015,8 @@ app.post('/api/dispatch/create-project', async (req, res) => {
 app.get('/api/projects/:id/dispatch', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT wd.* FROM worker_dispatch wd
+      `SELECT wd.*, w.hostname as worker_hostname, w.worker_number
+       FROM worker_dispatch wd
        JOIN workers w ON w.id = wd.worker_id
        WHERE w.project_id = $1 AND wd.track_number IS NULL
        ORDER BY wd.created_at DESC
@@ -2960,14 +3038,133 @@ app.get('/api/projects/:id/deploy-environments', async (req, res) => {
     if (!project) return res.status(404).json({ error: 'project not found' });
 
     const deployJsonPath = project.repo_path ? join(project.repo_path, 'conductor', 'deploy.json') : null;
-    if (!deployJsonPath || !existsSync(deployJsonPath)) return res.json({ environments: [] });
+    if (!deployJsonPath || !existsSync(deployJsonPath)) return res.json({ environments: [], defaultEnvironment: null });
 
     const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf8'));
-    res.json({ environments: Object.keys(deployConfig.environments || {}) });
+    const envs = Object.keys(deployConfig.environments || {});
+    const defaultEnv = deployConfig.defaultEnvironment && envs.includes(deployConfig.defaultEnvironment)
+      ? deployConfig.defaultEnvironment
+      : (envs[0] || null);
+
+    res.json({ environments: envs, defaultEnvironment: defaultEnv });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// UI-side: full deployment configuration read/write (conductor/deploy.json)
+app.get('/api/projects/:id/deploy-config', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  try {
+    const { rows: [project] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+
+    const deployJsonPath = project.repo_path ? join(project.repo_path, 'conductor', 'deploy.json') : null;
+    if (!deployJsonPath || !existsSync(deployJsonPath)) {
+      return res.json({ environments: {} });
+    }
+
+    const deployConfig = JSON.parse(readFileSync(deployJsonPath, 'utf8'));
+    if (!deployConfig.environments || typeof deployConfig.environments !== 'object') {
+      deployConfig.environments = {};
+    }
+    res.json(deployConfig);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/deploy-config', async (req, res) => {
+  try {
+    const { rows: [project] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+
+    const { environments, defaultEnvironment } = req.body || {};
+    if (!environments || typeof environments !== 'object' || Array.isArray(environments)) {
+      return res.status(400).json({ error: 'environments object is required' });
+    }
+
+    for (const [envName, envConfig] of Object.entries(environments)) {
+      if (!envConfig || typeof envConfig !== 'object' || Array.isArray(envConfig)) {
+        return res.status(400).json({ error: `Environment "${envName}" must be an object` });
+      }
+      const hasCommand = typeof envConfig.command === 'string';
+      const hasCommands = Array.isArray(envConfig.commands) && envConfig.commands.every(c =>
+        typeof c === 'string' || (typeof c === 'object' && c !== null && typeof c.command === 'string')
+      );
+      if (!hasCommand && !hasCommands) {
+        return res.status(400).json({ error: `Environment "${envName}" must have a command string or commands array` });
+      }
+    }
+
+    if (defaultEnvironment !== undefined && defaultEnvironment !== null && defaultEnvironment !== '') {
+      if (typeof defaultEnvironment !== 'string' || !environments[defaultEnvironment]) {
+        return res.status(400).json({ error: `defaultEnvironment "${defaultEnvironment}" must match a configured environment` });
+      }
+    }
+
+    if (!project.repo_path) {
+      return res.status(400).json({ error: 'Project has no repo_path configured' });
+    }
+
+    const conductorDir = join(project.repo_path, 'conductor');
+    if (!existsSync(conductorDir)) {
+      mkdirSync(conductorDir, { recursive: true });
+    }
+
+    const deployJsonPath = join(conductorDir, 'deploy.json');
+    const fullConfig = {
+      ...req.body,
+      environments,
+      ...(defaultEnvironment ? { defaultEnvironment } : {}),
+    };
+    if (!defaultEnvironment) {
+      delete fullConfig.defaultEnvironment;
+    }
+    writeFileSync(deployJsonPath, JSON.stringify(fullConfig, null, 2) + '\n', 'utf8');
+
+    res.json({ ok: true, environments, defaultEnvironment: fullConfig.defaultEnvironment || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Build Artifact Management (Track 1097) ───────────────────────────────────
+app.get('/api/projects/:id/builds', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  try {
+    const { rows: [project] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+    if (!project.repo_path) return res.json({ builds: [] });
+
+    const builds = getBuilds(project.repo_path);
+    res.json({ builds });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/builds', async (req, res) => {
+  try {
+    const { rows: [project] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+    if (!project.repo_path) {
+      return res.status(400).json({ error: 'Project has no repo_path configured' });
+    }
+
+    const createdBy = req.user?.email || req.body?.createdBy || 'system';
+    const build = createBuildArtifact(project.repo_path, {
+      createdBy,
+      trackIds: req.body?.trackIds
+    });
+
+    res.json({ ok: true, build });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // ── API Key Management ────────────────────────────────────────────────────────
 
