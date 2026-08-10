@@ -33,6 +33,7 @@ import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseNewJsonlLines } from './stream-json-tail.mjs';
+import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -3967,6 +3968,125 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
 // into spawnCli's already-complex internals.
 const activeDispatch = new Map();
 
+// Track 1091 Phase 3: reads the manager's own projects-directory config
+// (written by `lc worker start --manager --projects-dir <path>`, see
+// bin/lc.mjs) directly — same pattern this file already uses for
+// ~/.laneconductorrc/~/.laneconductor-auth.json rather than threading the
+// value through as a spawn arg.
+function readManagerProjectsDir() {
+  const configPath = join(os.homedir(), '.laneconductor', 'manager-config.json');
+  if (!existsSync(configPath)) return null;
+  try {
+    return JSON.parse(readFileSync(configPath, 'utf8')).projectsDir || null;
+  } catch {
+    return null;
+  }
+}
+
+// Track 1091 Phase 3: manager-worker-only handler for a create-project
+// dispatch. Reuses the existing /laneconductor setup scaffold generate
+// skill command (unmodified, spec.md REQ-4) rather than rebuilding
+// scaffold generation. Deliberately does NOT register the new project via
+// direct SQL — this worker never touches Postgres directly, only through
+// the Collector API — instead it spawns a normal `lc worker start` at the
+// new location, which self-registers through the exact same
+// upsertWorker()/POST /project/ensure/POST /worker/register pipeline every
+// other project already uses.
+async function runCreateProject(entry) {
+  const repoSource = entry.payload?.repo_source;
+  const scaffoldContext = entry.payload?.scaffold_context;
+  if (!repoSource || !scaffoldContext) {
+    return { ok: false, error: 'payload.repo_source and payload.scaffold_context are required' };
+  }
+
+  // Task 6: only same-machine creation is supported today — 1089 (remote
+  // provisioning) doesn't exist yet to hand off to. target_machine is an
+  // optional hint the dispatch creator can set; absent means "here".
+  if (repoSource.target_machine && repoSource.target_machine !== hostname) {
+    return {
+      ok: false,
+      error: `create-project targeting a different machine (${repoSource.target_machine}) requires remote provisioning (track 1089), which doesn't exist yet — not supported`,
+    };
+  }
+
+  const projectsDir = readManagerProjectsDir();
+  const resolved = resolveRepoTarget({ repoSource, scaffoldContext, projectsDir });
+  if (!resolved.ok) return resolved;
+  const { targetPath, needsClone, gitUrl } = resolved;
+
+  if (needsClone) {
+    if (existsSync(targetPath)) return { ok: false, error: `Target path already exists: ${targetPath}` };
+    mkdirSync(dirname(targetPath), { recursive: true });
+    try {
+      execSync(`git clone "${gitUrl}" "${targetPath}"`, { stdio: 'pipe' });
+    } catch (err) {
+      return { ok: false, error: `git clone failed: ${err.message}` };
+    }
+  } else if (!existsSync(targetPath)) {
+    return { ok: false, error: `repo_source.type is "path" but ${targetPath} does not exist` };
+  }
+
+  mkdirSync(join(targetPath, 'conductor'), { recursive: true });
+  writeFileSync(join(targetPath, 'conductor', '.setup-scaffold-context.json'), JSON.stringify(scaffoldContext, null, 2));
+
+  // Points at the CANONICAL skill file, not a per-project symlink — the new
+  // project doesn't have its own .claude/skills/laneconductor yet, since
+  // creating that symlink is itself one of this command's own steps.
+  const installPath = getInstallPath();
+  const skillPath = installPath ? join(installPath, '.claude/skills/laneconductor/SKILL.md') : './.claude/skills/laneconductor/SKILL.md';
+  const prompt = `Use the /laneconductor skill. Skill definition is at: ${skillPath}. /laneconductor setup scaffold generate`;
+
+  const scaffoldResult = await new Promise((resolvePromise) => {
+    let cmd, args;
+    if (process.env.LC_MOCK_CLI) {
+      const [c, ...rest] = process.env.LC_MOCK_CLI.split(' ');
+      cmd = c; args = [...rest, 'setup-scaffold-generate', 'create-project'];
+    } else {
+      cmd = 'claude';
+      args = buildClaudeArgs({ prompt });
+    }
+    const logPath = join(process.cwd(), 'conductor', 'logs', `create-project-${Date.now()}.log`);
+    mkdirSync(dirname(logPath), { recursive: true });
+    const out = openSync(logPath, 'a');
+    const proc = spawn(cmd, args, { cwd: targetPath, stdio: ['ignore', out, out], env: { ...process.env } });
+    proc.on('exit', (code) => resolvePromise({ code, logPath }));
+    proc.on('error', (err) => resolvePromise({ code: 1, error: err.message, logPath }));
+  });
+
+  if (scaffoldResult.code !== 0) {
+    return { ok: false, error: `setup scaffold generate exited ${scaffoldResult.code} — see ${scaffoldResult.logPath}` };
+  }
+
+  // Sensible-default .laneconductor.json for the new project — same
+  // mode/collector URLs/UI port as this manager's own, so it joins the
+  // same LaneConductor instance rather than needing separate onboarding.
+  // Deliberately strips machine_token from each collector entry: that's
+  // this manager's own resolved auth credential (added to its config by
+  // its own upsertWorker() after registering) — the new project's worker
+  // must register fresh and get its own, not start out authenticating as
+  // the manager.
+  const proj = getProject();
+  const newConfig = {
+    mode: config.mode,
+    project: {
+      name: scaffoldContext.project?.name || basename(targetPath),
+      repo_path: targetPath,
+      primary: proj.primary || { cli: 'claude' },
+    },
+    collectors: (config.collectors || []).map(c => ({ url: c.url, token: c.token ?? null })),
+    ui: config.ui || { port: 8090 },
+  };
+  writeFileSync(join(targetPath, '.laneconductor.json'), JSON.stringify(newConfig, null, 2) + '\n');
+
+  // `lc worker start` there — reuses the full CLI wrapper (pidfile,
+  // logging, resolveSyncScript's canonical-vs-local fallback) rather than
+  // re-implementing any of that inline; it self-registers on startup via
+  // its own normal upsertWorker() call, same as every other project.
+  spawn('lc', ['worker', 'start'], { cwd: targetPath, detached: true, stdio: 'ignore' }).unref();
+
+  return { ok: true, targetPath };
+}
+
 async function checkDispatchInbox() {
   if (getIsLocalFs() || !myWorkerId) return;
   const { url, token } = primaryCollector();
@@ -4073,6 +4193,27 @@ async function checkDispatchInbox() {
         status: result.ok ? 'done' : 'failed',
         result: result.ok ? null : (result.error || `exit ${result.exitCode} at step: ${result.failedStep}`),
       }).catch(err => console.warn(`[dispatch] Failed to report deploy result for ${entry.id}: ${err.message}`));
+      continue;
+    }
+
+    if (entry.action === 'create-project') {
+      // Task 1: defense in depth — the API (Phase 1) already restricts
+      // create-project dispatch creation to manager-type workers, but a
+      // 'project'-type worker must never claim/execute one even if it
+      // somehow ends up addressed to it.
+      if (!isManager) {
+        console.warn(`[dispatch] Dispatch ${entry.id}: create-project requires a manager-type worker, this worker is type 'project' — refusing`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'worker is not type: manager' }).catch(() => { });
+        continue;
+      }
+      console.log(`[dispatch] Running create-project (dispatch ${entry.id})`);
+      updateWorkerHeartbeat('busy', `create-project (dispatch ${entry.id})`);
+      const result = await runCreateProject(entry);
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.ok ? 'done' : 'failed',
+        result: result.ok ? `Created at ${result.targetPath}` : result.error,
+      }).catch(err => console.warn(`[dispatch] Failed to report create-project result for ${entry.id}: ${err.message}`));
       continue;
     }
 
