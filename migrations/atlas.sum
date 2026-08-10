@@ -1,4 +1,4 @@
-h1:v2qiXGsu1wPmsCrR7zv7CGUtTWCChPV/PPU3Yv7Ic3E=
+h1:Biv+GKdFZ6I8wnDpZgQh1SPXMMiKZR2efZH2I2zuk0Q=
 20260227074203_initial.sql h1:wXIpAxVr+EZUQ3lfP0PB2z3gOw/42gGaDiw4SekgYnE=
 20260227092504_lane_status_enum.sql h1:5jNuIA00cHg0RXgYAJ44sSdDIihdUKUmpO9Tt0MuhLU=
 20260227101500_add_running_status.sql h1:LPEYAICfmX9TNrwBmfuAScSQ+5wyZ3Ptm/NiO4Bc834=
@@ -21,3 +21,4 @@ h1:v2qiXGsu1wPmsCrR7zv7CGUtTWCChPV/PPU3Yv7Ic3E=
 20260809090728_add_worker_dispatch.sql h1:y8y6aaKpX7HdetE5j6iziB+NZkqUndZS5m++0hP+ado=
 20260809091937_add_worker_dispatch_result.sql h1:+29IMYxnURypWq9DVr8kfa1wlxPvdh/OeEvoqxEg1jM=
 20260809103807_add_track_sessions.sql h1:Z8e3mLZNUaTK90l667PBTMNCXYaaJLVBF20H1F3j70I=
+20260810140302_add_workers_type.sql h1:OXcntdS+mtU44Iw83Xv4F/ZVZxLUb9FmuCtko2wBLNY=

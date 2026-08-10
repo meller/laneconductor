@@ -6,9 +6,42 @@
 from a normal per-project worker.
 **Solution**: `workers.type` column.
 
-- [ ] Task 1: Migration — `ALTER TABLE workers ADD COLUMN type TEXT DEFAULT 'project'`, make `project_id` nullable
-- [ ] Task 2: Migration — partial unique index `workers_one_manager_per_host ON workers (hostname) WHERE type = 'manager'`
-- [ ] Task 3: API validation — `create-project` dispatch creation rejects a `worker_id` whose `type != 'manager'`
+- [x] Task 1: Migration — `ALTER TABLE workers ADD COLUMN type TEXT DEFAULT 'project'`, make `project_id` nullable
+- [x] Task 2: Migration — partial unique index `workers_one_manager_per_host ON workers (hostname) WHERE type = 'manager'`
+- [x] Task 3: API validation — `create-project` dispatch creation rejects a `worker_id` whose `type != 'manager'`
+
+**✅ Phase 1 complete (2026-08-10).**
+
+**Task 1 — spec correction found before writing any migration**: checked
+the real DB first (`\d workers`) rather than trusting spec.md's premise —
+`project_id` was **already nullable** (no `NOT NULL` constraint exists on
+it), so "make it nullable" needed no migration work at all. Only the
+`type TEXT NOT NULL DEFAULT 'project'` column was actually needed.
+Generated via `atlas migrate diff add_workers_type --env local`
+(`migrations/20260810140302_add_workers_type.sql`), applied directly to
+the real DB, confirmed zero drift afterward.
+
+**Task 2 — manually verified the actual constraint, not just its SQL**:
+`workers_one_manager_per_host` on `(hostname) WHERE type = 'manager'`. A
+plain unique constraint on `(project_id, hostname)` would NOT work here —
+Postgres treats every `NULL` as distinct in uniqueness checks, and a
+manager's `project_id` is always null, so multiple manager rows would
+never collide under that. Confirmed the real behavior in a rolled-back
+transaction against the real DB: two `type: 'manager'` inserts on the same
+hostname → second one fails with the expected constraint violation; two on
+different hostnames → both succeed.
+
+**Task 3**: new `POST /api/dispatch/create-project` — deliberately a new,
+project-**un**scoped endpoint, not a reuse of
+`POST /api/projects/:id/dispatch` (deploy) or `POST /api/tracks/:id/dispatch`
+(lane actions): both of those validate the calling worker against an
+*existing* project's id, which doesn't fit here — a manager worker's own
+`project_id` is null, and `create-project`'s whole point is there's no
+project to scope to yet. Validates `worker_id` exists and is
+`type: 'manager'` before inserting into `worker_dispatch`
+(`track_number: null`, `action: 'create-project'`). 5 Vitest tests
+(`ui/server/tests/track-1091-manager-dispatch.test.mjs`), following this
+file's established test conventions (mocked `pg`, `supertest`).
 
 ## Phase 2: CLI
 
