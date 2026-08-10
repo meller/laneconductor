@@ -1,6 +1,6 @@
 # Track 9998: Transcript Live Check
 
-**Lane**: plan:success
+**Lane**: plan
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Planning complete
