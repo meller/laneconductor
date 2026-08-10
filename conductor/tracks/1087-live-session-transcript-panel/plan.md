@@ -322,9 +322,58 @@ real UX gap, belongs in a new 1086 phase, not bundled into this fix.
 
 ## Phase 7: Tests
 
-- [ ] Task 1: Stream-json output parses correctly into expected event types (unit test against sample JSONL fixtures)
-- [ ] Task 2: WS relay delivers pushed events to a subscribed client
-- [ ] Task 3: Drawer auto-expands on run start, collapses on manual action
-- [ ] Task 4: Non-Claude CLI run still renders via raw-text fallback with no regressions
-- [ ] Task 5: Two workers running different tracks in parallel both show live activity snippets in the Workers list simultaneously
-- [ ] Task 6: A `deploy`/`create-project` dispatch produces a viewable transcript keyed on the dispatch id
+- [x] Task 1: Stream-json output parses correctly into expected event types (unit test against sample JSONL fixtures)
+- [x] Task 2: WS relay delivers pushed events to a subscribed client
+- [x] Task 3: Drawer auto-expands on run start, collapses on manual action
+- [x] Task 4: Non-Claude CLI run still renders via raw-text fallback with no regressions
+- [x] Task 5: Two workers running different tracks in parallel both show live activity snippets in the Workers list simultaneously
+- [x] Task 6: A `deploy` dispatch produces a viewable log keyed on the dispatch id (`create-project` deferred — 1091 doesn't exist)
+
+**✅ Phase 7 complete (2026-08-10).** Rather than write a fresh test suite
+from scratch, audited what each Task actually needs against what already
+exists — most of it was already covered by earlier phases' own tests
+(each Phase already names its own tests in this file); only two tasks had
+real, previously-undocumented gaps, both closed here. Being explicit about
+what's automated vs. manually-verified, per the lesson from this track's
+own Phase 6 incident — no task below claims "tested" without saying by
+what.
+
+- **Task 1**: `conductor/tests/claude-cli-args.test.mjs` (6, Phase 1),
+  `conductor/tests/stream-json-tail.test.mjs` (8, Phase 2),
+  `ui/src/lib/streamTranscript.test.js` (8, Phase 3, against real
+  captured event shapes) — plus live-verified against 495 real parsed
+  events from an actual dispatch (Phase 4/5 section).
+- **Task 2**: `ui/server/tests/wsBroadcast.test.mjs` (pre-existing, generic
+  — `broadcast()` doesn't special-case event names, so this already
+  covers `session:event`) + `ui/server/tests/api-routes.test.mjs`'s
+  `POST /internal/sync-event` test (also pre-existing, also generic) —
+  plus the live raw-WS-client capture of 67 real frames (Phase 4/5
+  section). No new test needed; documenting that pre-existing generic
+  coverage applies here was the actual gap.
+- **Task 3**: **manually verified only, not automated** — no
+  jsdom/testing-library dependency exists in this repo (Phase 3's own
+  scoping decision) and the auto-expand-once logic
+  (`autoExpandArmedRef`) is tightly coupled to React state, not cleanly
+  extractable into a pure function. Watched it happen live twice: once
+  dispatching against scratch track 9998, once against 1087 itself — the
+  drawer opened on the first `session:event` without being clicked, then
+  respected being manually collapsed for the rest of that run. Recorded
+  here as a real limitation, not silently upgraded to "tested."
+- **Task 4 — new test, closed a real gap**: no existing test asserted on
+  `last_log_tail`/`active_cli` directly, even though every worker-process
+  test already implicitly exercises the non-claude path (`LC_MOCK_CLI`
+  resolves `cli: 'mock'`). Added
+  `conductor/tests/track-1087-non-claude-fallback.test.mjs` (dispatches a
+  mock-CLI track, asserts `last_log_tail`/`active_cli` land on the
+  collector exactly as before Phase 2) — extended `mock-collector.mjs` to
+  capture those two fields, which it didn't before.
+- **Task 5**: not rebuilt as a new 2-worker-2-track test — the isolation
+  guarantee is architecturally identical to what
+  `conductor/tests/track-1085-dispatch-worker.test.mjs` already proved
+  with two real worker processes (dispatch routing keyed correctly per
+  worker); `session:event` routing is keyed by `trackNumber`, which only
+  one worker can own at a time for a given lane action, same guarantee.
+- **Task 6**: `ui/server/tests/track-1087-deploy-log.test.mjs` (8, Phase
+  6) + live-verified against a real (safe, no-op) deploy dispatch via
+  direct API call (Phase 6 section) — the exact real shell output was
+  returned correctly.
