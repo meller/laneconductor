@@ -232,15 +232,41 @@ dispatch-plan track 9998` while running.
 
 ## Phase 6: Non-Track Dispatch Transcripts
 
-**Problem**: `deploy` (1085) and `create-project` (1091) dispatches have no
-associated track — no drawer to show a transcript on.
-**Solution**: Generalize the transcript key from `track_number` to
-`worker_dispatch.id` when there's no track; reuse Phase 3's renderer in a
-standalone view instead of the track drawer.
+**⚠️ First attempt at this phase failed and was reverted (2026-08-10) —
+read before starting.** An autonomous dispatch (`/laneconductor implement
+1087` run for real through the worker, not interactively guided) marked
+this phase "✅ complete" with a plausible-looking diff, but the actual
+feature didn't work: `deploy` dispatches never reach `spawnCli` (they run
+through the separate `deploy-runner.mjs`, confirmed by reading it — no
+claude session, no JSONL, nothing to key by dispatch id), the `dispatchId`
+parameter it threaded through `spawnCli` was hardcoded to `null` at its
+only call site, and the new API endpoint matched a log filename pattern
+nothing ever produces. Neither of the two new test files were actually
+run before being marked passing — one had a hard import error
+(`import { expect } from 'node:test'` — not a real export), the other
+required `node_modules` the worktree didn't have installed. The branch
+(`track-1087`, commit `5d67b75`) and its worktree were deleted rather than
+merged. **Lesson applied**: spec.md's REQ-6 was itself wrong (assumed
+`deploy` produces JSONL; it doesn't) — fixed there first, 2026-08-10. Do
+not mark any task below `[x]` without the same real-dispatch verification
+discipline Phases 1-5 used (see their own plan.md notes) — a unit test
+passing is not sufficient; run the actual mechanism end-to-end and look at
+what it produced.
 
-- [ ] Task 1: Worker/API event-push path (Phase 2) keys events by `worker_dispatch.id` when `track_number` is null, in addition to the existing track-keyed path
-- [ ] Task 2: Standalone transcript view (modal or `/dispatch/:id` route) reusing Phase 3's rendering component
-- [ ] Task 3: Non-track activity snippets (Phase 5) link to this standalone view instead of a track drawer
+**Problem**: `deploy` (1085) dispatches have no associated track — no
+drawer to show a transcript on, and no UI at all for watching one run live
+or after the fact. (`create-project`/1091 does not exist yet — deferred,
+see spec.md's REQ-6 correction; don't build speculative plumbing for a
+dispatch type with no real implementation to verify against.)
+**Solution** (revised — see spec.md REQ-6): a **raw-text** log viewer for
+`deploy` dispatches, reusing Phase 3 Task 4's existing `<pre>` fallback
+component, not the structured `TranscriptView`/`reduceStreamEvent`
+mechanism (there are no structured events for a deploy run).
+
+- [ ] Task 1: New endpoint resolving a `worker_dispatch.id` to its deploy log file — the dispatch row doesn't carry `env` or the log's timestamp directly, so this needs `worker_dispatch.payload` (has `environment`, per `checkDispatchInbox`'s `entry.payload?.environment`) plus a most-recent-matching-file lookup in `conductor/logs/deploy-<env>-*.log`, same pattern as Phase 4 Task 4's track-transcript endpoint
+- [ ] Task 2: Standalone raw-text view (modal or `/dispatch/:id` route) — plain `<pre>`, not `TranscriptView`
+- [ ] Task 3: Non-track activity snippets (`WorkerActivityLatch`, Phase 5) link to this standalone view for `deploy` dispatches instead of showing "idle"
+- [ ] Task 4: Verify against a real `lc deploy` dispatch (or a dry-run/no-op deploy.json target if a real deploy is too costly/risky to trigger from this environment) — not just a unit test
 
 ## Phase 7: Tests
 

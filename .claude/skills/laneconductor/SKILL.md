@@ -1302,11 +1302,24 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 4. **Dev track: For each phase** (skip for non-dev tracks):
    - Implement tasks
+   - **Before marking any task `[x]` or writing a "✅ Phase N complete" summary: actually
+     run whatever verifies it, and look at the real output — a written-but-unexecuted test
+     file, or a plausible-looking diff you reasoned about but never ran, is not verification.**
+     This applies even when `test.md` has no predefined cases for this phase (the TDD
+     Protocol above is not the only trigger for this rule) — if there's a real mechanism to
+     exercise (a CLI flag, an API endpoint, a UI flow, a dispatch), run it for real and
+     confirm the actual behavior, not just that the code compiles/parses. Found and
+     documented the hard way on track 1087's Phase 6: an autonomous `implement` run marked a
+     phase "✅ complete" with a plausible diff and two new test files, but the feature was
+     non-functional (a hardcoded `null` broke the one code path meant to matter) and neither
+     test file had actually been executed — one had a hard import error that any single run
+     would have caught immediately.
    - Update `plan.md` (⏳ → ✅ per task as completed)
    - Update `index.md` `**Progress**` marker
    - Commit: `feat(track-NNN): Phase X - description`
 
 5. **Dev track: On complete** (skip for non-dev tracks):
+   - Same verification bar as step 4, for the track as a whole, before writing `## ✅ COMPLETE`.
    - Update `index.md` `**Progress**` marker to 100%.
    - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
