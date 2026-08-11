@@ -1,9 +1,9 @@
 # Track 1098: CI/CD Tab — Centralized Deployment Management
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: complete
+**Lane Status**: idle
 **Progress**: 100%
-**Phase**: Review
+**Phase**: Completed
 **Type**: dev
 **Summary**: Unified the entire deployment lifecycle into the CI/CD tab: tabbed Setup/Config/Release layout, deploy.sh builder wizard (provider→DB→secrets→envs→preview), deployment stack summary card reading from synced conductor_files DB, and centralized dispatch + history. Removed deploy UI from WorkersList and ProjectConfigSettings.
 
