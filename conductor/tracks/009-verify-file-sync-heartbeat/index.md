@@ -21,4 +21,4 @@ A verification suite (script + manual checklist) that confirms the full heartbea
 - [x] Phase 3: UI polling verification
 - [x] Phase 4: Complete Verification Script
 - [x] Phase 5: Quality Gate Integration
-
+**Summary**: No way to confirm the heartbeat worker is alive without manual inspection.

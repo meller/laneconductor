@@ -58,3 +58,12 @@ they agree.
       not an error; first `POST` creates the file and directory
 - [ ] Task 4: Invalid shape rejected with 400 (missing command, wrong type
       for `environments`)
+
+## Phase 5: Smart Defaults & Default Environment Convention
+
+- [ ] Task 1: Update API (`POST /api/projects/:id/deploy-config`) to validate and store `defaultEnvironment`
+- [ ] Task 2: Update `GET /api/projects/:id/deploy-environments` to include `defaultEnvironment`
+- [ ] Task 3: Add UI in `ProjectConfigSettings.jsx` to select default environment and provide quick convention presets (e.g. `production`, `staging`)
+- [ ] Task 4: Update `WorkersList.jsx` to pre-select `defaultEnvironment` in "Deploy Now"
+- [ ] Task 5: Add tests for `defaultEnvironment` validation and default pre-selection
+

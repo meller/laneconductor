@@ -14,3 +14,4 @@ The heartbeat worker polls for tracks that have just transitioned to `in-progres
 - [ ] Phase 1: Transition detection in heartbeat worker
 - [ ] Phase 2: Auto-launch with duplicate prevention
 - [ ] Phase 3: UI indicator + manual re-run trigger
+**Summary**: Worker has no awareness of fresh in-progress transitions.

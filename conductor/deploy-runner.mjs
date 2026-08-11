@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 // <projectRoot>/conductor/deploy.json, logging to
 // conductor/logs/deploy-<env>-<timestamp>.log. Pass `{ echo: true }` to also
 // stream output to process.stdout (used by the interactive CLI path).
-export async function runDeploy(projectRoot, env, { echo = false } = {}) {
+export async function runDeploy(projectRoot, env, { echo = false, extraEnv = {} } = {}) {
   const deployJsonPath = join(projectRoot, 'conductor', 'deploy.json');
   if (!existsSync(deployJsonPath)) {
     return { ok: false, error: 'No deploy.json found. Run "lc setup-deploy" first.', logFile: null };
@@ -58,7 +58,12 @@ export async function runDeploy(projectRoot, env, { echo = false } = {}) {
     // answer. A well-behaved script should also check `[ -t 0 ]` before
     // prompting at all (this project's own scripts/deploy.sh does) — this
     // is the fallback for scripts that don't.
-    const proc = spawn(cmdStr, { shell: true, cwd: projectRoot, stdio: [echo ? 'inherit' : 'ignore', 'pipe', 'pipe'] });
+    const proc = spawn(cmdStr, {
+      shell: true,
+      cwd: projectRoot,
+      stdio: [echo ? 'inherit' : 'ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...extraEnv }
+    });
     const stepStart = Date.now();
     proc.stdout.on('data', d => log(d.toString()));
     proc.stderr.on('data', d => log(d.toString()));

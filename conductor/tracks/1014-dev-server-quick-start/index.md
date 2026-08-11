@@ -20,3 +20,4 @@ Add a one-click "Start Dev Server" action to each Kanban card in the UI, so revi
 ## ✅ COMPLETE
 
 All core phases (1-4) implemented. Phase 5 (per-track worktree support) deferred pending Track 1012 integration.
+**Summary**: No columns to store dev server config or running PID per project.

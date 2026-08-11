@@ -6,8 +6,8 @@
 export function parseWorkerTask(currentTask) {
   if (!currentTask) return null;
 
-  const deployMatch = currentTask.match(/^deploy \S+ \(dispatch (\d+)\)$/);
-  if (deployMatch) return { kind: 'deploy', dispatchId: deployMatch[1] };
+  const dispatchMatch = currentTask.match(/\(dispatch (\d+)\)/);
+  if (dispatchMatch) return { kind: 'deploy', dispatchId: dispatchMatch[1] };
 
   const trackMatch = currentTask.match(/track (\S+)$/);
   if (trackMatch) return { kind: 'track', trackNumber: trackMatch[1] };

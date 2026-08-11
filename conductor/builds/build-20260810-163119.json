@@ -1,0 +1,26 @@
+{
+  "id": "build-20260810-163119",
+  "createdAt": "2026-08-10T14:31:19.508Z",
+  "git": {
+    "commit": "81cb428aeddc73dd6a96f4b42ade73e00b4146d2",
+    "shortCommit": "81cb428",
+    "branch": "main"
+  },
+  "tracks": [
+    "1091",
+    "1098"
+  ],
+  "summary": {
+    "title": "Release build-20260810-163119",
+    "markdown": "### 🚀 Features & Enhancements\n- **Manager Worker Type & New-Project Flow** (Track 1091): A distinct 'manager' worker type that can act system-wide (create new projects) instead of being scoped to one project like every worker today.\n- **Targeted Build Deployment UI & Release Notes Preview** (Track 1098): Deploy Modal UI update to support selecting specific Build Artifacts, rendering AI release notes, and dispatching build-tagged deployment workers.",
+    "categories": {
+      "features": [
+        "Manager Worker Type & New-Project Flow (Track 1091)",
+        "Targeted Build Deployment UI & Release Notes Preview (Track 1098)"
+      ],
+      "fixes": [],
+      "improvements": []
+    }
+  },
+  "createdBy": "meller"
+}

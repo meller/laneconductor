@@ -54,18 +54,28 @@ there's no way to see or manage them from the app itself.
   deploy environments configured yet") with an "Add environment" action —
   not an error, not a prompt to go run a CLI wizard instead.
 
+**REQ-5: Default environment & convention presets**
+- `conductor/deploy.json` supports an optional `defaultEnvironment` property
+  (e.g., `"defaultEnvironment": "production"`).
+- `POST /api/projects/:id/deploy-config` validates `defaultEnvironment`: if set,
+  it must match one of the environment keys in `environments`.
+- `GET /api/projects/:id/deploy-environments` returns `{ environments, defaultEnvironment }`
+  so consumer components (like `WorkersList.jsx`) can pre-select the default environment.
+- The UI in `ProjectConfigSettings.jsx` allows marking an environment as default
+  and offers quick preset options (e.g. Production/Staging templates with standard commands).
+
 ## Acceptance Criteria
 
 - [ ] `GET /api/projects/:id/deploy-config` returns the full config, or
       `{ environments: {} }` when no `deploy.json` exists
 - [ ] `POST /api/projects/:id/deploy-config` writes `conductor/deploy.json`,
       creating `conductor/` if missing
-- [ ] Invalid shape (missing `command`/`commands`, non-object `environments`)
+- [ ] Invalid shape (missing `command`/`commands`, non-object `environments`, or invalid `defaultEnvironment`)
       is rejected with a 400 and a clear message
 - [ ] Adding an environment via the UI makes it appear in 1085's "Deploy Now"
       dropdown on next load (proves the two features are reading the same
       underlying file/data correctly)
-- [ ] Editing a command persists across a page reload
-- [ ] Removing an environment removes it from both this UI and 1085's
-      dropdown
+- [ ] Editing a command or setting a default environment persists across a page reload
+- [ ] Removing an environment removes it from both this UI and 1085's dropdown
 - [ ] A project with no `deploy.json` shows the empty state, not an error
+- [ ] Default environment is auto-selected in the "Deploy Now" dropdown when available

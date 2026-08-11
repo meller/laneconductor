@@ -9,6 +9,7 @@ import { ConductorPanel } from './components/ConductorPanel.jsx';
 import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
 import { WorkersList } from './components/WorkersList.jsx';
+import { CICDView } from './components/CICDView.jsx';
 import { InboxPanel } from './components/InboxPanel.jsx';
 import { WorkerActivityLatch } from './components/WorkerActivityLatch.jsx';
 import { CloudOnboarding } from './components/CloudOnboarding.jsx';
@@ -90,7 +91,7 @@ function AppContent({ user, logout }) {
   const [pendingAction, setPendingAction] = useState(null); // { track, targetLane }
   const [newTrackOpen, setNewTrackOpen] = useState(false);
   const [newTrackType, setNewTrackType] = useState('feature');
-  const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers'
+  const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers' | 'cicd'
   const [inboxOpen, setInboxOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false); // Track 1087 Phase 5: worker activity latch
   const [accountOpen, setAccountOpen] = useState(false);
@@ -255,6 +256,15 @@ function AppContent({ user, logout }) {
                   }`}
               >
                 Workers
+              </button>
+              <button
+                onClick={() => setViewMode('cicd')}
+                className={`text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-md transition-all ${viewMode === 'cicd'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
+                  }`}
+              >
+                CI/CD
               </button>
             </div>
           )}
@@ -435,6 +445,8 @@ function AppContent({ user, logout }) {
           </div>
         ) : viewMode === 'workers' ? (
           <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} />
+        ) : viewMode === 'cicd' ? (
+          <CICDView projectId={selectedProjectId} workers={workers} />
         ) : tracks.length === 0 && user && !user.local ? (
           <RemoteEmptyState onOpenAccount={() => setAccountOpen(true)} />
         ) : (

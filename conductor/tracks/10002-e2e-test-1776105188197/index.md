@@ -13,3 +13,4 @@ To be defined.
 - [ ] Phase 1: Implementation
 **Lane**: backlog
 **Lane Status**: queue
+**Summary**: Automated Playwright e2e — verifies new track flows to worker and back

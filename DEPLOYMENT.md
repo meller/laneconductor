@@ -5,8 +5,14 @@ LaneConductor consists of three primary components that must be built and deploy
 ## 1. Cloud API (Firebase Functions)
 The backend collector and integration proxy.
 
+> [!WARNING]
+> **Cloud Cost Notice:**
+> If you are operating LaneConductor in **Local-only mode** (`local-api` or `local-fs` using a local database), the cloud-hosted Functions API is **not required**.
+> Deploying the functions creates a public HTTP endpoint on Google Cloud that will attract bot scanners, triggering cold starts and generating GCP compute charges.
+> To prevent this, the cloud API has been decommissioned. You should skip functions deployment and only deploy the hosting targets.
+
 - **Source**: `cloud/functions`
-- **Deployment**:
+- **Deployment**: (Skip if in local-only mode)
   ```bash
   firebase deploy --only functions
   ```

@@ -15,4 +15,4 @@ A global "Inbox" view that aggregates all track conversations, highlighting unre
 - [x] Phase 2: UI - Inbox Sidebar/View implementation
 - [x] Phase 3: UI - Deep linking and navigation
 - [x] Phase 4: UI/API - Conversation Actions & Actionable Projections
-
+**Summary**: Track list endpoints have no way to surface per-track conversation state (how many AI messages the user hasn't responded to). No dedicated endpoint exists for aggregating inbox-style data.

@@ -5,7 +5,7 @@
 **Progress**: 100%
 **Phase**: Implementation complete
 **Type**: dev
-**Summary**: Fixed both bugs. Root cause of the timeout: chokidar's `ignoreInitial: false` fires an 'add' event per existing file on worker start — ~400 near-simultaneous syncTrack() calls for this project's ~100 tracks, overwhelming the API's 10-connection Postgres pool. Added a bounded-concurrency gate (max 8) in the worker; zero real timeouts across a full ~150-track reconcile afterward. Also found and fixed a second, deeper bug: syncTrack() swallowed its own collector-POST failures internally and never rejected, so the "processed" guard's try/catch around it was dead code — syncTrack() now returns a boolean. Verified live: a queue entry stays pending through repeated failures while the API is down, then gets processed and lands in the DB once it's back up.
+**Summary**: Fixed both bugs. Root cause of the timeout: chokidar's `ignoreInitial: false` fires an 'add' event per existing file on worker start — ~400 near-simultaneous syncTrack() calls for this project's…
 
 ## Problem
 

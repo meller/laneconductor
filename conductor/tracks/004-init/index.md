@@ -14,3 +14,4 @@ Walk through the full setup flow on a fresh test project, identify any gaps or f
 - [ ] Phase 1: End-to-end setup test on a new project
 - [ ] Phase 2: Fix any issues found
 - [ ] Phase 3: Verify heartbeat + UI show the project correctly
+**Summary**: Confirm the full setup flow works on a real project.

@@ -16,3 +16,4 @@ Implement a registration and heartbeat mechanism where workers upsert their stat
 - [x] Phase 3: Status and Task Reporting
 - [x] Phase 4: UI Implementation
 - [x] Phase 5: Verification and Hardening
+**Summary**: No storage or retrieval mechanism for worker status.

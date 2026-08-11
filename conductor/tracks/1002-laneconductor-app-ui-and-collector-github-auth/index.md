@@ -23,4 +23,4 @@ Add GitHub OAuth to the Express server (session cookies + `users` table), gate t
 - [x] Phase 3: Collector API Auth (per-project api_token + requireToken middleware + sync.mjs update)
 - [x] Phase 4: Supabase Dual-Sync Verification (background fire-and-forget + verify script + make target)
 - [x] Phase 5: E2E Flow Verification (all 10 ACs confirmed + full test suite green)
-
+**Summary**: No identity layer exists — the Express server (port 8091) accepts all requests anonymously.

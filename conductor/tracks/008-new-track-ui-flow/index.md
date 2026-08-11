@@ -19,4 +19,4 @@ A "+ New Track" button in the board header. Clicking opens a modal that first ch
 - [ ] Phase 1: `POST /api/projects/:id/tracks` endpoint + file creation on server
 - [ ] Phase 2: New Track modal in UI (resume existing or create new)
 - [ ] Phase 3: "+ New Track" button in board header, wired to modal
-
+**Summary**: No server endpoint to create tracks from the UI.
