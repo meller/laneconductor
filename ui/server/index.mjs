@@ -297,12 +297,15 @@ app.get('/api/workers', async (req, res) => {
   try {
     const userId = req.user?.uid || null;
 
+    // Track 1091: LEFT JOIN (not JOIN) — a manager worker's project_id is
+    // NULL by design (it isn't "for" any one project), so an inner join
+    // silently dropped every manager worker from this endpoint's results.
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.mode,
+              w.visibility, w.user_uid, w.mode, w.type,
               p.id AS project_id, p.name AS project_name, p.repo_path
        FROM workers w
-       JOIN projects p ON p.id = w.project_id
+       LEFT JOIN projects p ON p.id = w.project_id
        WHERE w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;
     const params = [];
@@ -2797,9 +2800,15 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     if (status) { sets.push(`status = $${i++} `); params.push(status); }
     if (current_task !== undefined) { sets.push(`current_task = $${i++} `); params.push(current_task); }
     if (mode) { sets.push(`mode = $${i++} `); params.push(mode); }
+    // Track 1091: IS NOT DISTINCT FROM, not `=` — a manager worker's
+    // project_id is always NULL, and SQL's `NULL = NULL` is never true, so
+    // a plain `=` silently matched zero rows for every manager heartbeat
+    // (last_heartbeat never advanced past registration, so it aged out of
+    // GET /api/workers' 60-second freshness window and the worker appeared
+    // to vanish, even though the process was alive and heartbeating).
     await pool.query(
       `UPDATE workers SET ${sets.join(', ')}
-      WHERE project_id = $1 AND hostname = $2 AND worker_number = $3`,
+      WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3`,
       params
     );
     broadcast('worker:updated', { projectId });
@@ -2813,8 +2822,9 @@ app.delete('/worker', collectorAuth, async (req, res) => {
     const { hostname } = req.body;
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
+    // Same NULL-safe comparison as the heartbeat handler above.
     await pool.query(
-      'DELETE FROM workers WHERE project_id = $1 AND hostname = $2 AND worker_number = $3',
+      'DELETE FROM workers WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3',
       [projectId, hostname, worker_number]
     );
     res.json({ ok: true });
@@ -3005,6 +3015,22 @@ app.post('/api/dispatch/create-project', async (req, res) => {
       [worker_id, null, 'create-project', JSON.stringify(payload)]
     );
     res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1091 Phase 4: poll a create-project dispatch's status/result. Global
+// like its POST counterpart above — a create-project dispatch has no
+// project to scope the URL to (that's the whole point of it).
+app.get('/api/dispatch/:dispatchId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, worker_id, action, status, result, created_at, claimed_at FROM worker_dispatch WHERE id = $1',
+      [req.params.dispatchId]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Dispatch not found' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

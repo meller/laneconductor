@@ -106,7 +106,6 @@ pre-existing tests — fail with `EMFILE`. Root-caused (not guessed): ~67 of
 128 instances traced to Antigravity editor/CLI/language-server processes
 accumulated over time, not this track's own code. Resolved by raising the
 limit to 256 (user's own machine, user ran the sysctl command).
-- [ ] Task 4: Omitting the flag registers `type: 'project'` (default, backward compatible)
 
 ## Phase 3: Worker-Side Handler
 
@@ -114,12 +113,56 @@ limit to 256 (user's own machine, user ran the sysctl command).
 **Solution**: Manager-worker-only handler in the dispatch loop, reusing
 existing scaffold-generation logic rather than rebuilding it.
 
-- [ ] Task 1: Dispatch loop only claims `create-project` entries when this worker's own `type === 'manager'`
-- [ ] Task 2: Resolve `payload.repo_source` — existing local path, or `git clone` from a URL
-- [ ] Task 3: Write `conductor/.setup-scaffold-context.json` from `payload.scaffold_context`
-- [ ] Task 4: Run `/laneconductor setup scaffold generate` against the resolved location (existing skill command, unmodified)
-- [ ] Task 5: Register the new project (`INSERT INTO projects`) and its first `workers` row (`type: 'project'`, default)
-- [ ] Task 6: If `repo_source` indicates a different machine than the manager worker's own, hand off to 1089-style provisioning instead of registering a local worker
+- [x] Task 1: Dispatch loop only claims `create-project` entries when this worker's own `type === 'manager'`
+- [x] Task 2: Resolve `payload.repo_source` — existing local path, or `git clone` from a URL
+- [x] Task 3: Write `conductor/.setup-scaffold-context.json` from `payload.scaffold_context`
+- [x] Task 4: Run `/laneconductor setup scaffold generate` against the resolved location (existing skill command, unmodified)
+- [x] Task 5: Spawn `lc worker start` at the new location, which self-registers (`type: 'project'`, default) via the existing `upsertWorker()`/`/project/ensure`/`/worker/register` pipeline — not a direct SQL insert (this worker never touches Postgres directly, only through the Collector API)
+- [x] Task 6: If `repo_source.target_machine` names a different machine than this manager worker's own hostname, reject with a clear error citing 1089 (remote provisioning), which doesn't exist yet, rather than silently registering a local worker
+
+**✅ Phase 3 complete (2026-08-10).** Worktree-isolated (`.worktrees/1091`,
+branch `track-1091`) — see the "Worktree isolation" note on index.md for
+why, starting this phase.
+
+`runCreateProject()`, wired into `checkDispatchInbox`'s existing loop
+behind an `isManager` guard (defense-in-depth alongside Task 1's own
+dispatch-loop check). Pure helper logic (`slugify`, `resolveRepoTarget`)
+extracted to `conductor/create-project-utils.mjs` for unit testing, since
+`laneconductor.sync.mjs` runs side effects at import time.
+
+**Task 5 — deliberately not a direct SQL insert**: spawns a normal `lc
+worker start` at the target instead, reusing the exact registration
+pipeline every other project already goes through, rather than
+duplicating it. The new project's `.laneconductor.json` is written with
+its collectors' `machine_token` stripped (it's the *manager's* own
+resolved auth credential, added to the manager's config by its own
+`upsertWorker()` — the new worker must register fresh and get its own,
+not start out authenticating as the manager).
+
+**Verification (real spawned worker, not a mock of the handler)**:
+`conductor/tests/track-1091-create-project-worker.test.mjs` spawns a real
+manager worker against a mock collector, enqueues a `create-project`
+dispatch (`repo_source.type: 'path'`), and asserts against the real
+filesystem/process outcome — scaffold context file written, new
+`.laneconductor.json` correct, a live worker process running at the
+target, dispatch reports `status: 'done'`.
+
+**Bug caught during verification, in the test itself, not the source**:
+first draft asserted the final `.laneconductor.json` had no
+`machine_token` at all. Failed — investigated with a temporary debug log
+rather than guessing, which showed `config.collectors` already carried
+`machine_token: 'mock-token'` by the time the assertion ran. Root cause:
+not the write in `runCreateProject` (confirmed correct — it strips
+`machine_token` and, per the log, writes before the new worker is even
+spawned) but a race with the *newly-spawned worker's own* `upsertWorker()`
+call, which legitimately re-registers itself moments later and persists
+its own resolved token back into its own config file — the exact same
+thing every worker does, including the manager. Fixed the test, not the
+source: it now asserts on the mock collector's registration log (2
+distinct `/worker/register` calls, second one `type !== 'manager'`) — the
+actual claim "registers fresh, doesn't inherit the manager's token" is
+about a registration happening, not about a snapshot of file content
+that's inherently racy against a background process.
 
 ## Phase 4: UI
 
@@ -127,10 +170,78 @@ existing scaffold-generation logic rather than rebuilding it.
 **Solution**: "New Project" flow, top-level (not inside an existing
 project).
 
-- [ ] Task 1: "New Project" entry point in the app shell
-- [ ] Task 2: Collect project name, repo source (existing path or git URL), and scaffold answers (form vs. conversational — see index.md's open question)
-- [ ] Task 3: Manager worker picker (if more than one available)
-- [ ] Task 4: Dispatch on submit; show creation progress/result (reuses 1087's non-track dispatch transcript view once that exists)
+- [x] Task 1: "New Project" entry point in the app shell
+- [x] Task 2: Collect project name, repo source (existing path or git URL), and scaffold answers (form-style — resolved 2026-08-10, see index.md's "Open question" and spec.md REQ-5)
+- [x] Task 3: Manager worker picker (if more than one available)
+- [x] Task 4: Dispatch on submit; show creation progress/result (own lightweight status view — see note below on why not 1087's transcript view)
+
+**✅ Phase 4 complete (2026-08-10).** `ui/src/components/NewProjectModal.jsx`
+(new), wired into `App.jsx`'s header next to the existing "+ Track"/"⚠ Bug"
+buttons (`+ Project`). Backend: `GET /api/dispatch/:dispatchId` (new,
+global like its `POST` counterpart from Phase 1 — polled every 2s while a
+dispatch is pending/claimed).
+
+**Task 4 — not 1087's transcript view, by design**: 1087's dispatch log
+viewer (`GET /api/projects/:id/dispatch/:dispatchId/log`) is
+project-scoped and deploy-specific (reads `conductor/logs/deploy-*.log`
+from an *existing* project's `repo_path`). A `create-project` dispatch has
+neither — no project exists yet to scope the URL to, and its "log" is just
+the terse `result` string `runCreateProject()` returns (`worker_dispatch`
+Phase 3 wrote no separate structured log file for a plain scaffold run).
+The modal's own status view (`status` + `result` text) is the right size
+for what this dispatch actually produces; reusing 1087's view would have
+meant either bending it to accept `project_id: null` or building a second
+un-project-scoped log file it doesn't need.
+
+**Real bug found and fixed during live verification, not by inspection**:
+started a real manager worker registered against a real (scratch) API
+instance and clicked through the actual wizard in a browser rather than
+just unit-testing the pieces. The manager **vanished from `GET
+/api/workers` about 60 seconds after registering**, even though the
+process was alive and heartbeating the whole time. Root-caused (not
+guessed) by reading `updateWorkerHeartbeat()`'s request body live via the
+worker's own debug logs: it unconditionally sent `project_id: proj.id`
+(whatever project block happens to be in `.laneconductor.json`, garbage
+for a manager) — and independently, even after fixing that to send `null`
+for a manager, the server's `PATCH /worker/heartbeat` and `DELETE /worker`
+handlers both did `WHERE project_id = $1`, and SQL's `NULL = NULL` is
+never true, so a manager's heartbeat (and its graceful-shutdown
+de-registration — this is also what the "[worker error] de-registration
+failed" warning at the end of every Phase 3 test run actually was, not
+investigated at the time) silently matched and updated **zero rows**,
+every single time. Two-part fix, both required:
+1. `laneconductor.sync.mjs`'s `updateWorkerHeartbeat()`: `project_id:
+   isManager ? null : proj.id` (mirrors the existing `isManager` check
+   already in `upsertWorker()`'s registration body).
+2. `ui/server/index.mjs`: `WHERE project_id = $1` → `WHERE project_id IS
+   NOT DISTINCT FROM $1` in both `PATCH /worker/heartbeat` and `DELETE
+   /worker` — Postgres's NULL-safe equality operator, behaves identically
+   to `=` for non-null values.
+
+Verified live end-to-end after the fix: registered a real manager worker,
+confirmed its heartbeat's `last_heartbeat` kept advancing past the
+60-second window (previously froze at registration time), submitted the
+actual New Project form in a browser, watched the dispatch go
+pending → claimed → done via real polling, and confirmed the resulting
+`.laneconductor.json`/scaffold context/new worker process on disk matched
+what was submitted. Regression tests added
+(`ui/server/tests/track-1091-phase4-dispatch-status.test.mjs`) asserting
+both handlers' queries use `IS NOT DISTINCT FROM`.
+
+**REQ-5b (multi-machine empty state), added during this phase**: see
+spec.md. The "no manager worker" empty state now lists known hostnames
+(distinct hostnames across *all* registered workers, not just managers)
+so a user with multiple machines connected knows which one(s) to actually
+run `lc worker start --manager` on, instead of a context-free "none
+available." Known limitation: a machine with zero workers of any kind
+registered is invisible to this — there's no separate device-discovery
+mechanism in this codebase, and building one is out of scope here.
+
+**Also fixed in passing**: `GET /api/workers` used an inner `JOIN
+projects` — since a manager's `project_id` is NULL, this silently excluded
+every manager worker from the endpoint entirely, which both this phase's
+picker and Phase 5's badge work depend on. Changed to `LEFT JOIN`, added
+`w.type` to the SELECT list.
 
 ## Phase 5: Visual Distinction for Manager Workers
 

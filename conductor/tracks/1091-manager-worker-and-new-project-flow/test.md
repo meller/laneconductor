@@ -30,21 +30,69 @@ cd ui && npx vitest run server/tests/track-1091-*.test.mjs
 - [ ] TC-12c: a `create-project` dispatch with `repo_source.type: 'git'` and no configured `projectsDir` fails that dispatch clearly instead of guessing a location
 
 ### Phase 3: Worker-side handler — `create-project` dispatch execution
-- [ ] TC-13: Dispatch loop only claims `create-project` entries when the worker's own `type === 'manager'` — a `type: 'project'` worker's dispatch loop never claims one even if addressed to it (defense in depth, mirrors REQ-3's API-level check)
-- [ ] TC-14: `payload.repo_source: {type: 'path', value: <existing local path>}` resolves directly, no clone
-- [ ] TC-15: `payload.repo_source: {type: 'git', value: <url>}` clones to a resolved local path before scaffolding
-- [ ] TC-16: `conductor/.setup-scaffold-context.json` is written at the resolved location from `payload.scaffold_context`, matching the shape the CLI's own interactive brainstorm produces
-- [ ] TC-17: `/laneconductor setup scaffold generate` runs against the resolved location and produces all standard files (`product.md`, `tech-stack.md`, `design-language.md`, `workflow.md`, `kpis.md`, `user-stories.md`, `tracks/`, `code_styleguides/`, skill symlink)
-- [ ] TC-18: A new `projects` row is inserted after successful scaffolding
-- [ ] TC-19: A first `workers` row for the new project is inserted with `type: 'project'` (default), not `'manager'` — the manager worker that did the creating keeps its own `type: 'manager'` row unchanged
-- [ ] TC-20: If `repo_source` indicates a different machine than the manager worker's own, hands off to 1089-style provisioning instead of registering a local worker (exact trigger condition TBD during implementation — 1089 may not be far enough along to fully wire this; note if deferred)
+
+**✅ Phase 3 verified (2026-08-10).** Coverage below is specific about what
+each test actually exercises vs. what's implemented-but-not-separately-
+tested here, per this track's own hardened verification standard.
+
+- [x] TC-13: Implemented (`checkDispatchInbox`'s `isManager` guard,
+  `laneconductor.sync.mjs:4199-4205`) — logs and skips a `create-project`
+  entry when the worker's own type isn't `'manager'`. Not separately
+  exercised by a `type: 'project'` worker in a test; mirrors REQ-3's
+  API-level check (TC-6, which is tested).
+- [x] TC-14: Verified directly — `track-1091-create-project-worker.test.mjs` uses
+  `repo_source.type: 'path'` and asserts scaffold context + config land at
+  that exact path, no clone attempted.
+- [x] TC-15: Verified at the unit level, not integration — `create-project-utils.test.mjs`
+  covers `resolveRepoTarget`'s git-URL resolution (explicit `target_path`,
+  `<projectsDir>/<slug>` fallback, missing-projectsDir failure) directly.
+  Deliberately not re-exercised against a real `git clone` in the worker
+  integration test (would require real network access); the `execSync('git
+  clone ...')` call site itself is straight-line code once the path is
+  resolved.
+- [x] TC-16: Verified directly — asserted file content matches the dispatch's
+  `payload.scaffold_context`.
+- [x] TC-17: Invocation path verified, not generated-file content —
+  the integration test uses `LC_MOCK_CLI` (never runs the real `claude`
+  CLI), so it confirms `runCreateProject` spawns the right command/args at
+  the right cwd, not what `/laneconductor setup scaffold generate` itself
+  produces — that's existing, unmodified skill behavior, already covered
+  by this project's own onboarding.
+- [x] TC-18: **Design changed from the original plan, not just untested** —
+  see plan.md Phase 3 Task 5: no direct `INSERT INTO projects` happens.
+  The manager spawns `lc worker start` at the new location, which
+  self-registers through the existing `/project/ensure` pipeline, same as
+  every other project. Verified indirectly: the mock collector's
+  `/project/ensure` handler is what actually creates the row on a real
+  Collector API.
+- [x] TC-19: Verified directly — mock collector's registration log shows a
+  second, distinct `/worker/register` call (not the manager's own) after
+  dispatch completion.
+- [x] TC-20: Implemented, not test-covered — `runCreateProject` rejects when
+  `repo_source.target_machine` names a hostname other than the worker's
+  own, citing track 1089 (which doesn't exist yet) rather than silently
+  registering a local worker. No test exercises this branch; the check
+  itself is a single straight-line comparison
+  (`laneconductor.sync.mjs:4002-4009`). Should get an explicit test case
+  before Phase 6, not deferred indefinitely.
 
 ### Phase 4: UI — "New Project" flow
-- [ ] TC-21: A "New Project" entry point is visible at the top level of the app (not nested inside an existing project's view)
-- [ ] TC-22: The form collects project name, repo source (path or git URL), and scaffold Q&A answers
-- [ ] TC-23: A manager-worker picker is shown when more than one manager worker is available; auto-selected (no picker shown) when exactly one exists
-- [ ] TC-24: No manager worker available — the flow shows a clear message rather than a broken/empty picker
-- [ ] TC-25: Submitting dispatches a `create-project` action and shows creation progress/result, reusing 1085/1089's existing dispatch-status UI pattern
+
+**✅ Phase 4 verified (2026-08-10)** — live browser verification against a
+real manager worker and a real (scratch) API instance, not just unit
+tests: filled out and submitted the actual form, watched the dispatch go
+pending → claimed → done via real polling, confirmed the resulting
+`.laneconductor.json`, scaffold context file, and new worker process on
+disk matched what was submitted. This run is what surfaced the heartbeat
+NULL-safety bug (see plan.md Phase 4) — it would not have been caught by
+mocked-DB unit tests alone.
+
+- [x] TC-21: Verified directly — "+ Project" button renders in the app header (`App.jsx`) regardless of `selectedProjectId`, alongside "+ Track"/"⚠ Bug".
+- [x] TC-22: Verified directly — screenshotted the filled form (name, repo source radio + path input, purpose/tech-stack/KPI fields) and confirmed the resulting `scaffold_context` matched.
+- [x] TC-23: Implemented, not exercised with 2+ managers — the picker code path (`managerWorkers.length > 1` → hostname-keyed `<select>`) was written and reviewed but the live verification only ever had one manager worker running. Should get real coverage (a second manager, different hostname) before Phase 6 closes.
+- [x] TC-24: Verified directly, and extended beyond its original wording (REQ-5b) — confirmed the empty state renders correctly with zero managers registered, then found it needed more than "a clear message": added known-hostnames context so a multi-machine user isn't left guessing which machine to act on.
+- [x] TC-25: Verified directly, with a scope correction — **not** 1085/1089's dispatch-status UI pattern as originally written (that pattern is project-scoped; `create-project` has no project to scope to). Built a dedicated, deliberately small status view instead (`status` + `result` text, polled via the new global `GET /api/dispatch/:dispatchId`). See plan.md Phase 4 for why.
+- [x] TC-25b (added 2026-08-10, not in the original list): manager worker heartbeats correctly advance past the 60-second `GET /api/workers` freshness window instead of silently freezing at registration time. Verified live (registered a manager, waited 75s past registration, confirmed `last_heartbeat` had advanced) and by regression test (`ui/server/tests/track-1091-phase4-dispatch-status.test.mjs`, asserts `IS NOT DISTINCT FROM` in both `PATCH /worker/heartbeat` and `DELETE /worker`).
 
 ### Phase 5: Visual distinction for manager workers
 - [ ] TC-26: A `type: 'manager'` row renders a distinct badge in `WorkersList.jsx` instead of a project name (it has none)
