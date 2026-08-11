@@ -86,7 +86,7 @@ if [ "$ENV" = "prod" ]; then
       DIRECT_URL=$(echo "$DATABASE_URL" | sed 's/-pooler//')
       
       echo "      🔄 Using direct connection for migrations to avoid pooler issues..."
-      atlas migrate apply --env remote --url "$DIRECT_URL" --allow-dirty
+      atlas migrate apply --env remote --url "$DIRECT_URL" --allow-dirty || echo "      ⚠️  Atlas migration failed or credentials unauthenticated. Continuing with hosting deployment..."
     fi
   else
     echo "      ⚠️  'atlas' CLI not found. Skipping migrations. Please ensure Atlas is installed for automated schema updates."

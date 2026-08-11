@@ -43,3 +43,4 @@ more reliable, observable, and responsive — without changing its core architec
 - **Impact**: Now properly respects `parallel_limit` in workflow config (e.g., max 1 planning track at a time).
 
 These issues prevented the worker from maintaining lane isolation after restart and caused fatal crashes during normal operation.
+**Summary**: chokidar fires on every write; VS Code saves 2-3x per save; conductor files always UPDATE Postgres even when unchanged.

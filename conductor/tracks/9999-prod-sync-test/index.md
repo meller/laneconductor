@@ -1,6 +1,6 @@
 # Track 9999: Production Sync Test
 
-**Lane**: planning
+**Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: Testing

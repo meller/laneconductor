@@ -5,7 +5,7 @@
 **Progress**: 100%
 **Phase**: Implementation complete
 **Type**: dev
-**Summary**: Fixed — extracted a shared `resolveSyncScript()` helper used by both `start` and `restart`; `restart` now resolves the script before touching the running worker, so a resolution failure no longer kills-then-crashes. Verified live against coachai (no local copy), the failure path (canonical temporarily missing), and local-copy precedence.
+**Summary**: Fixed — extracted a shared `resolveSyncScript()` helper used by both `start` and `restart`; `restart` now resolves the script before touching the running worker, so a resolution failure no longer…
 
 ## Original Problem (fixed — see plan.md for verification)
 

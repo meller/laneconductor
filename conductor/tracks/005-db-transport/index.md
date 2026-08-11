@@ -15,3 +15,4 @@ Use the DB as the transport layer for all conductor file content. The heartbeat 
 - [x] Phase 2: Heartbeat worker — push full file content on change
 - [x] Phase 3: Express API — new endpoints for conductor files + track detail
 - [x] Phase 4: UI — project context panel + per-track detail view
+**Summary**: No columns exist to store conductor file content or track markdown content.

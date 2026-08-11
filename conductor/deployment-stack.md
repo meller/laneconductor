@@ -11,8 +11,9 @@
 ## Services
 - **Public Website (`landing`)**: Firebase Hosting at [laneconductor-site.web.app](https://laneconductor-site.web.app)
 - **Dashboard App (`app`)**: Firebase Hosting at [laneconductor-app.web.app](https://laneconductor-app.web.app)
-- **Cloud API (`functions`)**: Firebase Cloud Functions (v2) at `/v1/*`
+- **Cloud API (`functions`)**: **Decommissioned** (Previously Firebase Cloud Functions (v2) at `/v1/*`. Removed to prevent crawler/bot-triggered cold starts and associated GCP compute costs. Not required in local-only operation modes).
 - **Database**: Supabase Postgres (Connection managed via Secret Manager)
+
 
 ## Secret Management
 - **Infrastructure Secrets**: `CLOUD_DB_HOST`, `CLOUD_DB_USER`, `CLOUD_DB_PASSWORD`. Managed via GCP Secret Manager and injected into Cloud Functions via `onRequest({ secrets: [...] })`.

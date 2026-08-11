@@ -4,7 +4,7 @@
 **Lane Status**: success
 **Step**: complete
 **Progress**: 100%
-**Summary**: Answered user question
+**Summary**: Identify where to inject the override logic in the heartbeat worker.
 
 ## Problem
 Currently, the LLM configuration is global for a project.

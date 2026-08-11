@@ -71,10 +71,9 @@ export function ProjectConfigSettings({ projectId, onClose }) {
   async function fetchConfig() {
     try {
       setLoading(true);
-      const r = await apiFetch(`/api/projects/${projectId}/config`);
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      setConfig(data);
+      const configRes = await apiFetch(`/api/projects/${projectId}/config`);
+      if (!configRes.ok) throw new Error(await configRes.text());
+      setConfig(await configRes.json());
     } catch (err) {
       setNotification({ type: 'error', message: 'Load failed: ' + err.message });
     } finally {
@@ -95,13 +94,14 @@ export function ProjectConfigSettings({ projectId, onClose }) {
         }),
       });
       if (!r.ok) throw new Error(await r.text());
-      setNotification({ type: 'success', message: 'Config saved! Worker will reload .laneconductor.json on next heartbeat.' });
+      setNotification({ type: 'success', message: 'Config saved!' });
     } catch (err) {
       setNotification({ type: 'error', message: 'Save failed: ' + err.message });
     } finally {
       setSaving(false);
     }
   }
+
 
   function set(path, value) {
     setConfig(prev => {

@@ -15,3 +15,4 @@ A two-step setup flow: `setup scaffold` (creates conductor/ structure + symlinks
 - [x] Phase 2: `setup scaffold` — folder structure, Makefile lc-* targets, skill symlink
 - [x] Phase 3: Fix sync.mjs template in SKILL.md (pg `$1` syntax bug)
 - [x] Phase 4: `setup collection` — DB config, agent config, schema creation, project registration
+**Summary**: New projects need conductor/ structure, Makefile targets, and skill symlink.

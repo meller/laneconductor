@@ -18,3 +18,4 @@ Currently, the workflow moves directly from Review to Done. Users want an interm
 - [ ] Phase 2: UI Updates
 - [ ] Phase 3: Skill & CLI Updates
 - [ ] Phase 4: Sync Worker & Template Updates
+**Summary**: The database and API do not recognize the `quality-gate` status or the new project setting.

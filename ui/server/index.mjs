@@ -3129,6 +3129,39 @@ app.post('/api/projects/:id/deploy-config', async (req, res) => {
   }
 });
 
+// ── Deploy Script Builder (Track 1098) ───────────────────────────────────────
+app.post('/api/projects/:id/deploy-script', async (req, res) => {
+  try {
+    const { rows: [project] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!project) return res.status(404).json({ error: 'project not found' });
+    if (!project.repo_path) return res.status(400).json({ error: 'Project has no repo_path configured' });
+
+    const { script, provider, db, secrets, environments } = req.body || {};
+    if (!script || typeof script !== 'string') {
+      return res.status(400).json({ error: 'script string is required' });
+    }
+
+    // Write to scripts/deploy.sh (create dir if missing)
+    const scriptsDir = join(project.repo_path, 'scripts');
+    if (!existsSync(scriptsDir)) mkdirSync(scriptsDir, { recursive: true });
+
+    const scriptPath = join(scriptsDir, 'deploy.sh');
+    writeFileSync(scriptPath, script, 'utf8');
+
+    // Make executable
+    try { chmodSync(scriptPath, 0o755); } catch (_) { /* non-fatal on Windows */ }
+
+    res.json({
+      ok: true,
+      path: 'scripts/deploy.sh',
+      provider, db, secrets,
+      environments,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Build Artifact Management (Track 1097) ───────────────────────────────────
 app.get('/api/projects/:id/builds', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

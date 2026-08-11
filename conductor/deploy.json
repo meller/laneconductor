@@ -1,21 +1,13 @@
 {
+  "defaultEnvironment": "production",
   "environments": {
-    "prod": { "command": "bash scripts/deploy.sh prod" },
-    "staging": { "command": "bash scripts/deploy.sh staging" }
-  },
-  "components": {
-    "frontend": "Firebase Hosting (landing)",
-    "app": "Firebase Hosting (app)",
-    "backend": "Firebase Cloud Functions (v2)",
-    "db": "Supabase Postgres (managed)"
-  },
-  "secrets": {
-    "strategy": "Google Cloud Secret Manager (DB credentials) + Database JSONB (Provider credentials)",
-    "keys": [
-      "CLOUD_DB_HOST",
-      "CLOUD_DB_USER",
-      "CLOUD_DB_PASSWORD"
-    ]
-  },
-  "ci": null
+    "production": {
+      "command": "bash scripts/deploy.sh production",
+      "description": "Production AWS/Cloud stack"
+    },
+    "staging": {
+      "command": "bash scripts/deploy.sh staging",
+      "description": "Staging preview environment"
+    }
+  }
 }

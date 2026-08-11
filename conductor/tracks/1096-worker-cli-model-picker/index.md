@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: New — reported, not yet investigated or planned
 **Type**: dev
-**Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config and lc worker start flags.
+**Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
 ## Problem
 

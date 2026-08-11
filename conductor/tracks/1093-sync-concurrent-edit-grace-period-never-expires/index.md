@@ -5,7 +5,7 @@
 **Progress**: 100%
 **Phase**: Both bugs fixed, verified live end-to-end (including a real content backfill)
 **Type**: dev
-**Summary**: Two independent sync bugs found investigating one live report ("track 180 not syncing") — a DB→FS timestamp bug and an FS→DB conversation.md parser bug, both permanent-silent-failure patterns, not transient ones.
+**Summary**: Two independent sync bugs found investigating one live report ("track 180 not syncing") — a DB→FS timestamp bug and an FS→DB conversation.md parser bug, both permanent-silent-failure patterns, not…
 
 ## Bug 1: Concurrent-Edit Grace Period Never Expires (DB→FS, index.md)
 

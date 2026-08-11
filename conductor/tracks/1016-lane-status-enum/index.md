@@ -32,3 +32,4 @@ Implemented a proper enum (`queue`, `running`, `success`, `failure`) with full t
 ✅ All tracks migrated and syncing properly
 ✅ Documentation updated with state machine diagrams
 ✅ Running state added for worker activity tracking
+**Summary**: Database uses String type for lane_action_status; no type safety.

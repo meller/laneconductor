@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: New — root cause traced for mechanism 1, mechanism 2 still open
 **Type**: dev
-**Summary**: `index.md`'s `**Summary**` marker gets clobbered with wrong/generic content by at least two distinct mechanisms — one traced to an exact line of code, one only reproduced live and not yet root-caused. Damaged tracks 1008, 1009, LAN-11, KAN-861 already sitting in committed history; personally reproduced 3+ times today on tracks 1079/1080 while actively editing.
+**Summary**: `index.md`'s `**Summary**` marker gets clobbered with wrong/generic content by at least two distinct mechanisms — one traced to an exact line of code, one only reproduced live and not yet…
 
 ## Mechanism 1 (root cause found): hardcoded placeholder text in the auto-answer prompt
 

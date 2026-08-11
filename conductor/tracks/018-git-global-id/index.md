@@ -29,5 +29,4 @@ This becomes the routing key for the Phase 3 LC Cloud Collector.
 - [x] Phase 2: Populate existing row for the laneconductor project
 - [x] Phase 3: Wire into `setup collection` (auto-populate on project UPSERT)
 - [x] Phase 4: Expose via collector API + update SKILL.md
-
-
+**Summary**: `projects` table has no cross-machine project identity column.
