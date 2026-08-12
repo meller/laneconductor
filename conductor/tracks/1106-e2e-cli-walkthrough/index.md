@@ -59,5 +59,20 @@ up to but not including a real deploy**, same rule as 1104.
 - [ ] Phase 4: Wiki guide for the CLI path (track 1103 Phase 5)
 - [ ] Phase 5: Regression protection — the CLI path is the most automatable of the three; script it against the mock-CLI/mock-collector harness as a node:test integration test
 
+## Meta: this track is itself driven through the CLI
+
+Dogfooding rule (added 2026-08-12): every lane action on THIS track —
+planning it, implementing it, commenting on it, checking its status — must
+be performed through lc commands in a terminal (lc plan --run, lc comment, lc logs), never through a side channel. If the CLI
+cannot perform one of those operations, that inability is itself a finding
+for this track (and likely for track 1103's design). LaneConductor builds
+itself with itself here: the walkthrough's own execution is the first run
+of the walkthrough.
+
+The wiki guide (Phase 4) is then written **from the recording of that
+run** — real commands, real screens, real outputs, including the rough
+edges that survived. A guide transcribed from an actual session cannot
+describe steps that don't work; one written from memory can and will.
+
 ## Depends on
 [1103](../1103-e2e-onboarding-experience/index.md), [1102](../1102-e2e-session-findings/index.md). Sibling: [1104](../1104-e2e-ui-walkthrough/index.md), [1105](../1105-e2e-skill-walkthrough/index.md).

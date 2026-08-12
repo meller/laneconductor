@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
-**Summary**: Run the complete "nothing → a track planned" path purely through the /laneconductor skill commands, as an AI-editor user would (including Skill-Only mode with no lc CLI and no DB). Sibling of 1104 (UI) and 1106 (CLI); all three must reach the same end state.
+**Summary**: Run the complete "nothing → a track planned" path purely through the /laneconductor skill commands, as an AI-editor user would (including Skill-Only mode with no lc CLI and no DB). Sibling of 1104…
 
 ## Problem
 
@@ -61,6 +61,21 @@ reach that item.
 - [ ] Phase 3: File/fix findings (link to 1102 where overlapping); explicitly reconcile any SKILL.md text that promised something the walkthrough disproved
 - [ ] Phase 4: Wiki guide for the skill path, both variants (track 1103 Phase 5)
 - [ ] Phase 5: Regression protection — extend the existing worker/mock-CLI test suites to cover the skill-driven sequence where automatable; document which parts remain manual-only and why
+
+## Meta: this track is itself driven through the skill
+
+Dogfooding rule (added 2026-08-12): every lane action on THIS track —
+planning it, implementing it, commenting on it, checking its status — must
+be performed through /laneconductor commands in an AI editor session, never through a side channel. If the skill
+cannot perform one of those operations, that inability is itself a finding
+for this track (and likely for track 1103's design). LaneConductor builds
+itself with itself here: the walkthrough's own execution is the first run
+of the walkthrough.
+
+The wiki guide (Phase 4) is then written **from the recording of that
+run** — real commands, real screens, real outputs, including the rough
+edges that survived. A guide transcribed from an actual session cannot
+describe steps that don't work; one written from memory can and will.
 
 ## Depends on
 [1103](../1103-e2e-onboarding-experience/index.md), [1102](../1102-e2e-session-findings/index.md). Sibling: [1104](../1104-e2e-ui-walkthrough/index.md), [1106](../1106-e2e-cli-walkthrough/index.md).

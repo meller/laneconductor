@@ -1,8 +1,9 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: claude/sonnet (primary)
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
 **Summary**: Run the complete "nothing → a track planned" path entirely through the web UI, record every point where it breaks or is unclear, and leave behind a repeatable walkthrough. One of three sibling…

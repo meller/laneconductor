@@ -1,11 +1,11 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: implement
-**Lane Status**: running
+**Lane**: plan
+**Lane Status**: queue
 **Progress**: 20%
 **Phase**: Walking the full new-user path in the real UI, fixing what breaks
 **Type**: bug
-**Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created project's worker is sync-only, so nothing it queues ever runs.
+**Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
 ## Problem
 
@@ -169,6 +169,35 @@ failure-reporting contract as the others — mark the dispatch `failed` with
 the error text, reset `lane_action_status`, and clear the busy heartbeat.
 This is also why the three states disagreed, which is its own debugging
 tax.
+
+### F9 — Post-run merge/sync gutted index.md, losing the whole track body 🔴 CONFIRMED
+Caught in the act during the first dogfooded UI-triggered plan run (track
+1104, dispatch 29):
+
+- The plan agent, in worktree `.worktrees/1104`, did everything right: its
+  copy of `index.md` ended at 4,264 bytes, body fully intact, with
+  `Lane Status: success`, `Progress: 100%`, `Last Run: claude/sonnet`.
+- After the run, the **main repo's** copy was 263 bytes — four marker
+  lines plus a `**Summary**` whose text was lifted from `plan.md`'s
+  Phase 1 Problem paragraph. Title, Problem, reference outcome, Meta
+  section, Depends-on: all gone. The DB's `index_content` held the same
+  263-byte version, and the sync log shows `Track 1104 index.md [PULLED]
+  db_newer` twice in the seconds after the run — i.e. the regenerated
+  stub won the newer-wins race and was pulled back over the file.
+- Control: tracks 1105/1106, which had no run, kept their full bodies. So
+  it is the post-run path (worktree merge-back and/or the worker's
+  post-run index/DB update), not general sync.
+- Markers were also regressed: the agent's `success/100%` became
+  `queue/0%` in the gutted version.
+
+This is the same corruption family as track 1081 (Summary marker
+overwrites), now with a precise reproduction: **run any lane action via
+dispatch on a worktree-enabled project and diff `index.md` before/after.**
+Recovered by copying the worktree's good copy back; the DB then re-synced
+from the file (fs newer). Whoever fixes this should start from the
+worker's post-dispatch index.md/DB update code and the worktree merge-back
+— one of them is regenerating index.md from row fields instead of
+preserving file content.
 
 ## What worked (verified live, not assumed)
 
