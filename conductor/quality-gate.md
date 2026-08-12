@@ -1,26 +1,64 @@
 # Quality Gate
 
+> **Checklist, not a report.** Every box starts unchecked and is ticked only
+> by whoever ran the command **this time** and saw it pass. Do not trust
+> marks or a verdict left by a previous run.
+>
+> This file previously shipped with every box pre-ticked and
+> `Status: PASS` already filled in. That invited rubber-stamping, and it is
+> a direct cause of several tracks reaching `done` with features that did
+> not work (2026-08-12 review). Reset to unchecked deliberately.
+
 ## Automated Checks
 
-- [x] Syntax: `find conductor ui -name "*.mjs" -exec node --check {} +` (Expected: no errors)
-- [x] Critical files: `ls -1 .laneconductor.json conductor/laneconductor.sync.mjs conductor/workflow.json conductor/quality-gate.md ui/server/index.mjs Makefile` (Expected: all files exist)
-- [x] Config validation: `node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('./.laneconductor.json')); if(!c.project.id) throw new Error('missing project.id')"` (Expected: valid JSON and fields)
-- [x] Command Reachability: `make help && lc --version` (Expected: commands exit with 0)
-- [x] Worker E2E (local-fs): `node --test conductor/tests/local-fs-e2e.test.mjs` (Expected: all tests pass, zero git errors)
-- [x] Server unit+integration: `cd ui && npm test` (Expected: all Vitest tests pass)
-- [x] UI E2E: If UI changes exist, create/run Playwright tests: `npx playwright test` (Expected: all tests pass)
-- [x] Coverage: `cd ui && npm run test:coverage` (Expected: 50% line coverage)
-- [x] Security: `cd ui && npm audit --audit-level=high` (Expected: 0 high/critical)
+- [ ] Syntax: `find conductor ui bin -name "*.mjs" -not -path "*/node_modules/*" -exec node --check {} +` (Expected: no errors)
+- [ ] Critical files: `ls -1 .laneconductor.json conductor/laneconductor.sync.mjs conductor/workflow.json conductor/quality-gate.md ui/server/index.mjs Makefile` (Expected: all exist)
+- [ ] Config validation: `node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('./.laneconductor.json')); if(!c.project.id) throw new Error('missing project.id')"` (Expected: valid)
+- [ ] Command reachability: `make help && lc --version` (Expected: exit 0)
+- [ ] Worker tests: `node --test conductor/tests/*.test.mjs` (Expected: no NEW failures vs. the known pre-existing set — record the count)
+- [ ] Server unit+integration: `cd ui && npx vitest run server/tests/` (Expected: no NEW failures vs. the known pre-existing set — record the count)
+- [ ] Frontend unit: `cd ui && npx vitest run src/` (Expected: all pass)
+- [ ] Build: `cd ui && npx vite build` (Expected: succeeds; then `rm -rf ui/dist`)
+- [ ] Security: `cd ui && npm audit --audit-level=high` (Expected: 0 high/critical)
+
+## End-to-End / Real-Product Checks
+
+> Required for any track touching UI or a user-facing flow. Unit tests
+> cannot detect a feature that was never wired up — every UI bug found in
+> the 2026-08-12 review had green unit tests.
+
+- [ ] **Restarted the API server and any relevant workers first.** They do
+      not hot-reload; verifying against a process older than your change
+      tests the old code. Use `make api-stop && make api-start`, and check
+      `lsof -i :8091 -sTCP:LISTEN` — a stale listener not tracked by the
+      pidfile has repeatedly survived `make api-stop`.
+- [ ] E2E suite: `npx playwright test` (19 specs across 6 files in
+      `conductor/tests/playwright/`). Run the EXISTING specs — adding one
+      trivial passing test does NOT satisfy this.
+      **Known state as of 2026-08-12** (measured, not assumed): the full
+      suite hangs past 3 minutes and needs `--timeout`/per-file runs;
+      `worker-identity.spec.js` alone finishes in ~45s with **3 passed, 3
+      failed**. The failures are pre-existing and unrelated to any current
+      track — they assert on worker-card visibility badges. So: run
+      per-file, and compare against this recorded baseline rather than
+      expecting all-green. **Fixing the suite (and the hang) is its own
+      track** — until then, an untriaged failure here is not automatically
+      a blocker, but a *new* failure is.
+- [ ] Drove the actual flow in a browser and recorded the observed
+      user-visible result (screenshot, or the real API/DB response).
 
 ## Manual Quality Review
 
-- [x] Architecture Alignment: Implementation follows project patterns (ESM modules, no TypeScript).
-- [x] Code Readability: Clean code, meaningful naming, helpful comments.
-- [x] Performance: No obvious regressions or bottlenecks.
-- [x] User Experience: UI is polished and intuitive.
+- [ ] Architecture alignment: ESM modules, no TypeScript, follows existing patterns
+- [ ] Readability: clear naming, comments explain *why* not *what*
+- [ ] No stubs in completed work:
+      `grep -rniE "not yet implemented|not implemented|TODO|FIXME|FFU|placeholder" --include="*.mjs" --include="*.jsx" conductor ui bin | grep -v node_modules`
+      (Expected: nothing in code paths this track's plan.md marks `[x]`)
+- [ ] Acceptance criteria in `spec.md` describe user-facing outcomes, not
+      scaffolding. A criterion satisfied by a stub is a spec defect.
 
 ## Verdict
 
-- Status: PASS
-- Reviewer: gemini
-- Date: 2026-02-25
+- Status: PENDING — set to PASS/FAIL only after running the above
+- Reviewer: —
+- Date: —

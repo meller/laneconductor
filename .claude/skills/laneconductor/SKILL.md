@@ -316,6 +316,12 @@ Your job is **only to generate the context files**. Do not ask questions.
 - **`conductor/kpis.md`** — project north-star metrics (see KPI template below)
 - **`conductor/user-stories.md`** — personas + their end-to-end journeys (see template below;
   stub with a TODO if no journey/flow language is found in `brainstorm_summary`)
+- **`conductor/quality-gate.md`** — the project's own verification commands
+  (see template below). **Must be tailored to THIS project's real stack** —
+  derive every command from what you actually found in the scan
+  (`package.json` scripts, test runner, lint config, e2e framework), not
+  from a generic list. A quality gate that names commands this project
+  doesn't have is worse than none: it gets skipped or faked.
 - **`conductor/tracks/`** and **`conductor/code_styleguides/`** — create dirs if missing
 - **`.claude/MEMORY.md`** — create if not present
 
@@ -361,6 +367,57 @@ component library theme, or design-token files if present; otherwise leave place
 Tracks with `**Maps To**` referencing a metric above will appear here automatically.
 ```
 
+**`conductor/quality-gate.md` template.** Replace every `<...>` with a real
+command discovered in the scan; **delete any line whose command this project
+doesn't actually have** rather than leaving an aspirational one. Note the
+boxes are left **unchecked** and there is **no pre-filled verdict** — this
+file is a checklist to run, not a report. (An earlier version of this
+template shipped every box pre-ticked with `Status: PASS` already filled in,
+which invited agents to rubber-stamp it; that is why this warning exists.)
+```markdown
+# Quality Gate
+
+> Checklist, not a report. Every box starts unchecked and is ticked only by
+> whoever ran the command **this time** and saw it pass. Do not trust marks
+> left by a previous run.
+
+## Automated Checks
+
+- [ ] Syntax/typecheck: `<e.g. npm run typecheck | node --check>` (Expected: no errors)
+- [ ] Lint: `<e.g. npm run lint>` (Expected: clean)
+- [ ] Unit + integration tests: `<e.g. npm test>` (Expected: all pass)
+- [ ] Build: `<e.g. npm run build>` (Expected: succeeds)
+- [ ] Coverage: `<e.g. npm run test:coverage>` (Expected: >= <N>% lines)
+- [ ] Security: `<e.g. npm audit --audit-level=high>` (Expected: 0 high/critical)
+
+## End-to-End / Real-Product Checks
+
+> Required for any track touching UI or a user-facing flow. Unit tests
+> cannot detect a feature that was never wired up.
+
+- [ ] E2E suite: `<e.g. npx playwright test>` (Expected: all specs pass —
+      run the EXISTING specs; writing one trivial new passing test does not
+      satisfy this)
+- [ ] Restarted long-running processes (workers, API server) before
+      verifying — they do not hot-reload, and testing against a stale
+      process is a false pass
+- [ ] If no E2E suite exists: drove the flow manually and recorded the
+      observed user-visible result (screenshot, or real API/DB response)
+
+## Manual Quality Review
+
+- [ ] Architecture alignment: follows this project's established patterns
+- [ ] Readability: clear naming, comments explain *why*
+- [ ] No stubs in completed work: `grep -rniE "not yet implemented|TODO|FIXME|FFU" <src dirs>`
+      returns nothing in code paths marked `[x]`
+
+## Verdict
+
+- Status: <PENDING — set to PASS/FAIL only after running the above>
+- Reviewer: <who/what ran it>
+- Date: <ISO date of this run>
+```
+
 **`conductor/user-stories.md` template** (seed from `brainstorm_summary` if it describes concrete
 user journeys/flows; otherwise stub with a TODO — don't invent personas that weren't discussed):
 ```markdown
@@ -386,6 +443,7 @@ Print progress as you write each file:
 📝 Writing conductor/deployment-stack.md...   ✅
 📝 Writing conductor/kpis.md...               ✅
 📝 Writing conductor/user-stories.md...       ✅
+📝 Writing conductor/quality-gate.md...       ✅
 ```
 
 **Also symlink the skill and Antigravity workspace rule/skill** (if not already linked):
@@ -1173,6 +1231,20 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Check for human comments in `conversation.md` (always re-read this one). **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
     - Flesh out missing requirements or phase details based on current codebase context.
     - **Fulfill test.md**: If `test.md` is missing, empty, or contains the generic `(Test cases to be added)` stub, you MUST fully scaffold/rewrite it using the **Track File Templates** format at the bottom of this file. Populating `test.md` with specific, real test cases for each phase in `plan.md` is a MANDATORY requirement of the planning phase. Never leave the test file empty or at the generic stub.
+    - **Acceptance criteria must describe the user-facing outcome, never
+      the scaffolding.** Every criterion has to be something a user could
+      observe. Criteria that lock in a placeholder are forbidden — e.g.
+      *"the worker logs the expected 'not yet implemented' message"*,
+      *"no real code path is exercised"*, *"the dispatch is marked failed
+      with that message"*. Those are satisfied by a stub, so the track can
+      pass its own gate while the feature does not exist (this happened —
+      see the quality-gate command's done-gate). Write *"a worker actually
+      starts on the target machine"* instead.
+    - **Deferring scope is fine; calling the track complete is not.** If a
+      capability is intentionally out of this pass (FFU), it must NOT
+      appear as a satisfiable acceptance criterion, and the plan must
+      carry an explicit unchecked phase for it. A track with deferred
+      Solution-level capability cannot later be marked `done` at 100%.
     - Update `test.md` with test cases for any new phases or requirements.
     - **Check for `## ❌ KPI MISS` in plan.md**: if present, this is a replanning cycle after a KPI failure. Read the failure data (target, actual, delta, snapshot) and use it as context. Generate a *different* hypothesis — new content angle, different channel, different CTA. Print: `♻️ Replanning with KPI data: target=X, actual=Y, delta=Z`. Append a new `## ❌ KPI MISS` entry (don't overwrite old ones).
 4.  **KPI enforcement** (for `marketing` and `sales` tracks):
@@ -1388,12 +1460,57 @@ Runs automated checks and updates status files based on results.
    - **If KPI passed**: continue to code checks below.
    - Dev tracks without a `## KPI` block: skip measurement entirely.
 2. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
+   - **The checkboxes in `quality-gate.md` are NOT a report — they are a
+     checklist you must run.** That file ships with every box pre-ticked
+     `[x]` and often a stale `Status: PASS` verdict from an earlier run.
+     Those marks say nothing about *your* track. Re-run every command and
+     judge only by output you personally saw. If you catch yourself
+     reasoning "it's already checked" — stop; that is exactly the failure
+     mode this warning exists for.
    - `test.md` test commands are the primary automated check for this specific track.
    - `quality-gate.md` commands apply project-wide quality standards.
    - **Deployment Safety**: Scan modified files for hardcoded secrets (API keys, tokens). Verify that `.gitignore` contains the patterns defined in the Zero-Secrets Policy.
    - If a command is missing from your system (e.g., `playwright` not installed), you MUST install it or report a failure.
    - Do NOT just mark them as checked; you must actually run the code and verify the output.
    - For non-dev tracks that passed KPI: skip code checks (there's no code to check).
+
+   **2a. Run the product, not just the code.** Unit tests only prove code
+   does what its author believed; they cannot tell you a feature is
+   missing. If this track touched UI or any user-facing flow:
+   - Run the project's browser/E2E suite if `quality-gate.md` names one
+     (e.g. `npx playwright test`). A line reading "if UI changes exist,
+     create/run tests" does **not** license writing one trivial passing
+     test — if specs already exist, run those.
+   - If there's no E2E suite, **drive the flow by hand once**: start the
+     app, use the thing this track added, confirm the user-visible result,
+     and record what you observed. A screenshot, or the real API/DB
+     response, is evidence. "The code looks correct" is not.
+   - **Restart long-running processes first.** Workers and the API server
+     do not hot-reload; verifying against a process started before your
+     change tests the *old* code and yields a false pass. This has caused
+     several false verdicts in this repo.
+
+   **2b. Stub / deferred-work scan.** Cheap, and catches the most damaging
+   class of false pass:
+   ```bash
+   grep -rniE "not yet implemented|not implemented|TODO|FIXME|FFU|placeholder|stub" \
+     --include="*.mjs" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" \
+     conductor ui bin 2>/dev/null | grep -v node_modules
+   ```
+   - A hit inside a code path this track's `plan.md` marks `[x]` is a
+     **FAIL**, not a note. A task is not done if the thing it claims to do
+     prints "not yet implemented".
+   - Also grep `index.md`/`plan.md`/`spec.md` for `FFU`, "deferred",
+     "future", "stub". If any capability named in `spec.md`'s Solution is
+     deferred, the track cannot reach `done` — see step 5.
+
+   **2c. Judge against the user-facing promise, not the implementation.**
+   Read `spec.md`'s Problem Statement and Solution and ask: *if a user did
+   the thing this track promises, would it work?* Acceptance criteria that
+   assert a placeholder ("logs the expected 'not yet implemented' message",
+   "no real code path is exercised") are **not** met criteria — they
+   describe scaffolding. Record them as a spec defect in `conversation.md`
+   instead of passing the track on them.
 3. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However, before writing any fix:
    - **Write a failing test that reproduces the bug first.** The test must fail before you fix anything.
    - Then implement the fix.
@@ -1403,6 +1520,20 @@ Runs automated checks and updates status files based on results.
 4. **Post Results**: Append results to `conversation.md`.
 5. **Transition**:
    - Read `conductor/workflow.json`.
+   - **Done-gate — a track may only reach `done` at 100% if the feature
+     actually works end to end.** Before setting a `done` lane, confirm
+     all of:
+     1. Step 2b's stub scan found nothing in `[x]` code paths.
+     2. No capability named in `spec.md`'s Solution is marked FFU /
+        deferred / future.
+     3. Step 2a's real-product check was actually performed, with a
+        recorded observation.
+     If any fails, you MUST NOT mark the track `done`. Set the lane to
+     `review` (or `on_failure`), keep `**Progress**` below 100%, and write
+     what remains in `conversation.md`. Honestly documenting a deferral
+     does **not** make a track complete — a track that shipped a stub and
+     was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
+     the exact incident these rules were written for.
    - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
    - Update `**Lane Status**` to `queue`.

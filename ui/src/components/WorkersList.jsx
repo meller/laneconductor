@@ -124,9 +124,28 @@ function WaitingQueue({ tracks, onPriorityChange }) {
 export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh }) {
   const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
+  // Track 1084 Phase 6: "does this project have a worker of its own?" is a
+  // different question from "what workers are visible here". A manager is
+  // deliberately included in a project's worker list (the provisioning and
+  // New Project flows need to find it), but it belongs to no project — so
+  // counting it made a project with zero real workers look staffed, and
+  // the empty-state "Start Sync Worker" button never rendered for ANY
+  // project as long as a manager was running anywhere.
+  const hasOwnWorkers = (workers || []).some(w => w.type !== 'manager');
   const [visibilityWorker, setVisibilityWorker] = useState(null);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [configWorker, setConfigWorker] = useState(null);
+
+  async function handleStopWorker(worker) {
+    try {
+      const res = await apiFetch(`/api/workers/${worker.id}/stop`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      onRefresh?.();
+    } catch (err) {
+      console.error('Failed to stop worker:', err);
+      alert(`Failed to stop worker: ${err.message}`);
+    }
+  }
 
   async function handleWorkerAction(action) {
     if (!projectId) return;
@@ -155,7 +174,9 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
 
   if (layout === 'grid') {
     // For now we don't show providers in grid layout as it's less common, or we could add them at the top
-    if (!hasWorkers) {
+    // hasOwnWorkers, not hasWorkers — a manager visible here doesn't mean
+    // this project is staffed. See the note at its definition.
+    if (!hasOwnWorkers) {
       return (
         <>
           <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
@@ -175,7 +196,9 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
               </div>
 
               <div className="flex items-center gap-3">
-                {IS_LOCAL_HOST && (
+                {/* Project-scoped (`make lc-start` in this project's dir), so
+                    it silently did nothing in the All Projects view. */}
+                {IS_LOCAL_HOST && projectId && (
                   <button
                     onClick={() => handleWorkerAction('start')}
                     className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
@@ -289,9 +312,15 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                 >
                   <span>+ New Worker</span>
                 </button>
-                {IS_LOCAL_HOST && (
+                {/* Project-scoped: shells out to `make lc-stop` in this
+                    project's directory, so it can't reach a manager (which
+                    lives elsewhere) — and it does nothing at all without a
+                    project, which it used to do silently in the
+                    All Projects view. Hidden there instead. */}
+                {IS_LOCAL_HOST && projectId && (
                   <button
                     onClick={() => handleWorkerAction('stop')}
+                    title="Stops this project's own workers. Managers are unaffected."
                     className="text-[10px] px-2 py-1 border border-red-900/50 text-red-400 hover:bg-red-900/20 rounded font-bold uppercase tracking-wider transition-colors"
                   >
                     Stop All Workers
@@ -356,6 +385,18 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                         <span className="text-[10px] font-mono text-gray-600 bg-black/30 px-1.5 py-0.5 rounded border border-gray-800">
                           PID: {worker.pid}
                         </span>
+                        {/* Track 1084 Phase 6: stop THIS worker. Previously the
+                            only control was the project-wide "Stop All Workers". */}
+                        {IS_LOCAL_HOST && (
+                          <button
+                            onClick={() => handleStopWorker(worker)}
+                            data-testid="worker-stop-btn"
+                            title={worker.type === 'manager' ? 'Stop this manager worker' : `Stop worker #${worker.worker_number ?? 1}`}
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-red-900/50 text-red-400 hover:bg-red-900/20 font-bold uppercase tracking-wider transition-colors"
+                          >
+                            Stop
+                          </button>
+                        )}
                       </div>
                     </div>
 
