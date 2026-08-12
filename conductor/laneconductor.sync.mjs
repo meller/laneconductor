@@ -115,7 +115,11 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
   const lockPath = isManager
     ? join(lockDir, 'manager.lock-target')
     : join(lockDir, workerNumber === 1 ? '.sync.lock-target' : `.sync-${workerNumber}.lock-target`);
-  const release = await acquireWorkerLock(lockPath);
+  // LC_WORKER_LOCK_STALE_MS: test-only override (default stays
+  // worker-lock.mjs's own DEFAULT_STALE_MS) so a SIGKILL-recovery test
+  // doesn't have to wait out the full production staleness window.
+  const staleMsOverride = process.env.LC_WORKER_LOCK_STALE_MS ? parseInt(process.env.LC_WORKER_LOCK_STALE_MS, 10) : undefined;
+  const release = await acquireWorkerLock(lockPath, staleMsOverride ? { staleMs: staleMsOverride } : {});
   if (!release) {
     console.error(`[LaneConductor] Another live worker already holds this identity's lock (${lockPath}) — refusing to start a duplicate.`);
     process.exit(1);
