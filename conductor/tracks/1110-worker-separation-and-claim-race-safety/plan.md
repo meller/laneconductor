@@ -59,34 +59,82 @@ bar the fix must clear.
 the race exists, committed before any fix — the baseline Phase 2-4 must
 turn reliably green (0/8, repeatedly).
 
-## Phase 2: Problem A — flock-based single-instance guard
+## Phase 2: Problem A — stop must confirm death; flock as defense-in-depth
 
-**Problem**: `getRunningWorkerPid()` trusts a pidfile that can be stale.
-**Solution**: Acquire an OS-level advisory lock (`flock(2)` via a small
-wrapper, or the `proper-lockfile` npm package if a dependency is
-acceptable — decide based on what's already in `package.json`) on a lock
-file per identity (`conductor/.worker-<N>.lock` for project workers,
-`~/.laneconductor/manager.lock` for the manager), held for the entire
-process lifetime. `lc worker start` attempts a non-blocking acquire;
-failure means "already running" regardless of pidfile state. The OS
-releases the lock automatically if the holding process dies by any
-means, including `SIGKILL` — this is what makes it strictly better than
-the pidfile check for REQ-2.
+**Corrected root cause (2026-08-13, before implementing)**: tracing
+`bin/lc.mjs`'s actual `stop` handler (not assumed — read directly) shows
+`getRunningWorkerPid()`'s liveness+cmdline check is already solid; the
+real bug is in `stop`, not `start`'s guard:
 
-- [ ] Task 1: Small lock helper in `bin/lc.mjs` (or a new
-      `conductor/services/worker-lock.mjs` if it needs to be shared with
-      the sync script) — `acquireLock(path): boolean`, non-blocking
-- [ ] Task 2: Wire into `lc worker start`'s existing guard alongside (not
-      necessarily replacing outright — keep the pidfile for
-      status/logs/stop, but make the lock the source of truth for
-      "already running")
-- [ ] Task 3: Wire the same lock into `lc worker start --manager`
-- [ ] Task 4: Test — two rapid `lc worker start` invocations for the same
-      identity → exactly one live process; `SIGKILL` the holder → an
-      immediate subsequent `lc worker start` succeeds (REQ-1, REQ-2)
+```js
+process.kill(pid);                          // sends SIGTERM, returns immediately
+if (existsSync(pidFile)) unlinkSync(pidFile);  // deletes pidfile RIGHT AWAY
+console.log(`✅ Worker stopped (PID: ${pid})`); // reports success — process may still be alive
+```
 
-**Impact**: A stale/missing pidfile can no longer cause a duplicate
-worker process.
+`process.kill()` only delivers the signal; it does not wait for the
+process to exit. `laneconductor.sync.mjs`'s own `SIGTERM` handler
+(`conductor/laneconductor.sync.mjs:4970`) is `async () => { await
+removeWorker(); process.exit(0); }`, and `removeWorker()` makes a network
+call (`DELETE /worker`) with a **10-second timeout**
+(`conductor/laneconductor.sync.mjs:502`'s `del()`). So a worker can
+legitimately take up to ~10s to actually exit after receiving SIGTERM —
+during which `stop` has already lied that it's stopped and removed the
+one piece of state (`lc start`'s guard) that would have prevented a
+second process. This precisely matches the live incident: `make lc-stop
+&& sleep 1 && make lc-start` — 1 second is far inside that ~10s window.
+`restart`'s handler has the identical bug (`process.kill(pid)` then
+immediate `unlinkSync`, no wait).
+
+**Solution — two layers, not one:**
+1. **Primary fix**: `stop` (and `restart`) must poll for actual death
+   (`process.kill(pid, 0)` throwing `ESRCH`) after sending SIGTERM, up to
+   a bounded timeout slightly longer than `removeWorker`'s 10s budget
+   (e.g. 12s), before deleting the pidfile or reporting success. If the
+   process still hasn't exited by the deadline, escalate to `SIGKILL`
+   (uncatchable — bounds worst-case wait deterministically) and only then
+   clean up.
+2. **Defense-in-depth**: an OS-level advisory lock (`flock(2)` via a
+   small wrapper, or `proper-lockfile` if a dependency is acceptable —
+   none currently in `package.json`) held for the process's entire
+   lifetime, checked non-blocking by `start`. This catches everything
+   layer 1 doesn't: a worker killed by something other than `lc stop`
+   (manual `kill -9`, OOM killer, a crash), where no pidfile-deletion
+   race is even involved — the pidfile is just stale and nothing ever
+   told `start` that. The OS releases an flock automatically on process
+   death by any means, so this has no staleness-window problem the way
+   pidfiles/lockfiles-with-mtime-checks do.
+
+Both layers matter: layer 1 fixes the specific incident that was
+observed; layer 2 is what makes REQ-2 ("must not depend on the pidfile
+being accurate... a process that dies without cleanup") actually hold in
+general, not just for the one path that was caught.
+
+- [ ] Task 1: Reproduction test — a fake worker process with a
+      deliberately slow (~2s) `SIGTERM` handler; confirm `lc stop`
+      currently reports success and deletes the pidfile while the fake
+      process is still alive (RED, proves the bug)
+- [ ] Task 2: Fix `stop` to poll for real death (bounded, SIGKILL
+      escalation on timeout) before declaring success
+- [ ] Task 3: Apply the identical fix to `restart`'s kill-then-unlink step
+- [ ] Task 4: Task 1's test passes post-fix (GREEN) — `lc stop` now
+      blocks until the fake process is actually gone
+- [ ] Task 5: Small lock helper (`acquireLock(path): boolean`,
+      non-blocking) — `bin/lc.mjs` or a new shared
+      `conductor/services/worker-lock.mjs` if the sync script also needs
+      it later
+- [ ] Task 6: Wire into `lc worker start` (project) and `lc worker start
+      --manager` — failure to acquire means "already running" regardless
+      of pidfile state
+- [ ] Task 7: Test — two rapid `lc worker start` invocations for the same
+      identity → exactly one live process; `SIGKILL` the holder (bypassing
+      `stop` entirely, unlike Task 1's test) → an immediate subsequent
+      `lc worker start` still succeeds (REQ-1, REQ-2)
+
+**Impact**: `lc stop`/`restart` can no longer report success while the
+old process is still alive (the actual observed incident), and a stale
+pidfile from any other cause can no longer fool `start` into spawning a
+duplicate.
 
 ## Phase 3: Problem B, API mode — wire to the existing atomic endpoint
 
