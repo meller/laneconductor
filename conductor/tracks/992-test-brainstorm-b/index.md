@@ -1,5 +1,5 @@
 # Brainstorm B
 
 **Lane**: plan
-**Lane Status**: running
-**Waiting for reply**: yes
+**Lane Status**: success
+**Waiting for reply**: no
