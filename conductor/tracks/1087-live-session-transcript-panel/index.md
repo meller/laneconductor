@@ -1,6 +1,6 @@
 # Track 1087: Live Session Transcript Panel
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: All 7 phases complete. Every claimed-complete task is backed by a real test or a documented live verification — Phase 7 audited coverage rather than writing tests for their own sake, closing two genuine gaps (a direct assertion for the non-Claude fallback, and documenting that pre-existing generic WS-relay tests already cover session:event) and being explicit that the auto-expand/collapse UI behavior is manually-verified only (no component-test infra in this repo).
