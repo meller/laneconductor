@@ -1,7 +1,7 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/sonnet (primary)
 **Phase**: Phase 1 — walking the path in a real browser against a clean project
