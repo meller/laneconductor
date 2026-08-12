@@ -27,3 +27,31 @@ export function parseNewJsonlLines(content, previousOffset = 0) {
   }
   return { events, newOffset };
 }
+
+// Track 1086 (conversation-gap fix, 2026-08-12): pull the run's closing
+// assistant message out of a full stream-json log, so conversation.md can
+// carry the actual response instead of only "PASS (exit 0)". The LAST
+// non-empty assistant text block is the one that matters — it's the
+// closing summary; earlier blocks are working narration. Returns null for
+// logs with no assistant text at all (non-claude CLIs, empty/killed runs),
+// letting the caller fall back to the terse line alone.
+export function extractFinalAssistantText(logContent, maxChars = 2000) {
+  if (!logContent) return null;
+  let final = null;
+  for (const line of logContent.split('\n')) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e?.type !== 'assistant') continue;
+    for (const c of e.message?.content ?? []) {
+      if (c?.type === 'text' && typeof c.text === 'string' && c.text.trim()) {
+        final = c.text.trim();
+      }
+    }
+  }
+  if (final === null) return null;
+  if (final.length > maxChars) {
+    final = final.slice(0, maxChars) + `\n[truncated — full transcript in the track's log]`;
+  }
+  return final;
+}

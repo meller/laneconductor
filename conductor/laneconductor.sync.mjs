@@ -33,7 +33,7 @@ import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs'
 import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
-import { parseNewJsonlLines } from './stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -3417,8 +3417,14 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   const { url, token } = primaryCollector();
 
   const timeoutMs = Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker?.spawn_timeout_ms || 300000;
+  // Track 1086/1102: flag read by the exit handler so conversation.md can
+  // say WHY a run died — "FAIL (exit 143)" alone hides that it was our own
+  // timeout killer, which reads like a real failure (bitten live on the
+  // 1104 walkthrough: 90 turns of work, SIGTERM at 15min, terse FAIL line).
+  let killedByTimeout = false;
   const killer = setTimeout(async () => {
     if (runningPids.has(proc.pid)) {
+      killedByTimeout = true;
       console.log(`[timeout] killing PID ${proc.pid} after ${timeoutMs}ms`);
       process.kill(-proc.pid, 'SIGTERM');
       await patch(url, token, `/track/${trackNumber}/action`, {
@@ -3691,7 +3697,25 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           const convPath = join(tracksDirForConv, trackDirForConv, 'conversation.md');
           const sessionState = session.isFresh ? 'started' : 'resumed';
           const outcome = isSuccess ? 'PASS' : 'FAIL';
-          const entry = `\n> **system**: Session turn — ${label} (${sessionState} session): ${outcome} (exit ${code}).\n`;
+          // Track 1086 conversation-gap fix (2026-08-12): the terse
+          // PASS/FAIL line alone made the Conversation tab useless as a
+          // record of what actually happened — the transcript had rich
+          // content, conversation.md got one line. Now: name the kill
+          // reason when it was our own timeout (an exit-143 FAIL that's
+          // really "we cut it off at 15min" must not read like a real
+          // failure), and append the run's closing assistant message as a
+          // proper claude-authored entry, every line `>`-prefixed so the
+          // sync parser treats it as one comment (see the conversation.md
+          // format protocol — unprefixed lines silently don't sync).
+          const reason = killedByTimeout ? ` — killed by spawn timeout after ${Math.round(timeoutMs / 1000)}s, not an agent failure` : '';
+          let entry = `\n> **system**: Session turn — ${label} (${sessionState} session): ${outcome} (exit ${code}${reason}).\n`;
+          try {
+            const finalText = extractFinalAssistantText(readFileSync(logPath, 'utf8'));
+            if (finalText) {
+              const quoted = finalText.split('\n').map(l => `> ${l}`).join('\n');
+              entry += `\n> **claude**: ${label} — closing response:\n${quoted}\n`;
+            }
+          } catch { /* log unreadable — keep the terse line alone */ }
           appendFileSync(convPath, entry, 'utf8');
         }
       } catch (err) {
