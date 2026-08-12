@@ -1,6 +1,6 @@
 # Track 1068: Marketing & Sales (Biz Dev) Track Support
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Waiting for reply**: no
 **Progress**: 100%
