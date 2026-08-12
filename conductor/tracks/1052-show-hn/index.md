@@ -1,7 +1,7 @@
 # Track 1052: Show HN Post
 
 **Lane**: quality-gate
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: KPI Window — waiting 48h
 **Type**: marketing
