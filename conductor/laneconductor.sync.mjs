@@ -33,8 +33,10 @@ import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs'
 import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
+import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
+import { acquireWorkerLock } from './services/worker-lock.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -50,6 +52,34 @@ function getInstallPath() {
 
 const cliSyncOnly = process.argv.includes('--sync-only');
 let workerMode = cliSyncOnly ? 'sync-only' : null; // Will be resolved after config load
+
+// Track 1109: operator-supplied claim allowlist. Independent of the
+// identity-derived server-side gate (which admits everything in a no-auth
+// local deployment), so it also works in local-fs mode. null = unscoped,
+// i.e. today's behaviour.
+let onlyTracks = null;
+try {
+  onlyTracks = parseOnlyTracks(process.argv);
+} catch (err) {
+  console.error(`[LaneConductor] ${err.message}`);
+  process.exit(2);
+}
+
+// --only-tracks is meaningless under sync-only (which never polls the
+// queue), so the pair is a user error rather than a silent no-op.
+if (onlyTracks && cliSyncOnly) {
+  console.error('[LaneConductor] --only-tracks cannot be combined with --sync-only: a sync-only worker never polls the queue, so the allowlist would have no effect.');
+  process.exit(2);
+}
+
+// Track 1109: exit once the scoped work is done — opt-in, and deliberately
+// NOT implied by --only-tracks. Scoping and lifecycle are orthogonal: a
+// long-lived worker scoped to a couple of tracks is a legitimate setup.
+const exitWhenDone = process.argv.includes('--once');
+if (exitWhenDone && !onlyTracks) {
+  console.error('[LaneConductor] --once requires --only-tracks: an unscoped worker has no bounded set of work to finish.');
+  process.exit(2);
+}
 
 // Track 1084 Phase 0: stable worker identity. pid is ephemeral (a restart
 // gets a new OS pid, which under the old (project_id, hostname, pid)
@@ -67,6 +97,30 @@ const workerNumber = workerNumberArgIdx !== -1
 // --worker-number is meaningless here (machine-level singleton, not
 // multi-instance) and deliberately not read in this branch.
 const isManager = process.argv.includes('--manager');
+
+// Track 1110 Phase 2, Task 6: exclusivity independent of the pidfile
+// bin/lc.mjs's start/stop read and write — confirmed live, twice, that a
+// pidfile alone isn't enough (see conductor/tracks/1110-*/plan.md). The
+// lock must be acquired and held HERE, by the long-running process
+// itself, not by `lc worker start` (which spawns detached and exits
+// almost immediately, so it can't hold anything for "the process's
+// entire lifetime"). Skippable via LC_SKIP_WORKER_LOCK for tests that
+// deliberately run multiple instances under the same identity to
+// reproduce OTHER bugs (e.g. track 1110's own claim-race repro) — none of
+// those tests are exercising this lock itself.
+if (!process.env.LC_SKIP_WORKER_LOCK) {
+  const lockDir = isManager
+    ? join(os.homedir(), '.laneconductor')
+    : join(process.cwd(), 'conductor');
+  const lockPath = isManager
+    ? join(lockDir, 'manager.lock-target')
+    : join(lockDir, workerNumber === 1 ? '.sync.lock-target' : `.sync-${workerNumber}.lock-target`);
+  const release = await acquireWorkerLock(lockPath);
+  if (!release) {
+    console.error(`[LaneConductor] Another live worker already holds this identity's lock (${lockPath}) — refusing to start a duplicate.`);
+    process.exit(1);
+  }
+}
 
 // Track 1084 Phase 3: this worker's own DB id, learned from the
 // /worker/register response — needed to ask /claimable-tracks "which queued
@@ -138,6 +192,16 @@ const getWorkerModeConfig = () => config.worker?.mode ?? 'sync+poll';
 if (!workerMode) {
   const configMode = getWorkerModeConfig();
   workerMode = configMode === 'sync-only' ? 'sync-only' : 'sync+poll';
+}
+// Track 1109: a scoped run implies polling. Without this, a project whose
+// .laneconductor.json sets worker.mode: 'sync-only' (track 1042) would
+// accept --only-tracks and then never claim anything — the worst outcome,
+// since it looks like the allowlist is broken rather than like the mode is
+// wrong. Explicit --sync-only alongside it is rejected above; this only
+// overrides the *config* default.
+if (onlyTracks && workerMode === 'sync-only') {
+  console.log('[LaneConductor] --only-tracks given: overriding configured sync-only mode to sync+poll for this run (a sync-only worker never polls the queue).');
+  workerMode = 'sync+poll';
 }
 const syncOnly = workerMode === 'sync-only';
 
@@ -2145,6 +2209,14 @@ tracksMetadata = loadTracksMetadata();
 console.log(`[LaneConductor] Heartbeat worker started (PID: ${process.pid})`);
 console.log(`[LaneConductor] Collector mode: ${getMode()}`);
 console.log(`[LaneConductor] Worker mode: ${workerMode}`);
+// Track 1109 Phase 5: make the claim scope visible at startup. A scoped
+// worker that correctly ignores everything looks identical to a broken one
+// unless it says what it is scoped to.
+console.log(
+  onlyTracks
+    ? `[LaneConductor] Claim scope: ONLY tracks [${[...onlyTracks].join(', ')}]${exitWhenDone ? ' (will exit when done)' : ''}`
+    : '[LaneConductor] Claim scope: unscoped — may claim any queued track'
+);
 if (!getIsLocalFs()) console.log(`[LaneConductor] Collectors: ${getCollectors().map(c => c.url).join(', ')}`);
 if (!getIsLocalFs()) console.log(`[LaneConductor] Dashboard: http://localhost:${getUi()?.port ?? 8090}`);
 
@@ -4110,7 +4182,12 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // concurrency/retry checks below are — a track already mid-conversation
     // should get answered regardless of who's currently "assigned" to claim
     // new queue work, and claimableSet only covers queue-status tracks anyway.
-    if (claimableSet && !waitingForReply && !claimableSet.has(track_number)) continue;
+    //
+    // Track 1109: the operator allowlist (--only-tracks) is applied in the
+    // same predicate, but it NARROWS ONLY and is NOT bypassed for
+    // waitingForReply — see claim-scope.mjs for why that asymmetry is
+    // deliberate.
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply })) continue;
 
     // Passive lanes should not trigger auto-automation actions
     if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;
@@ -4797,6 +4874,51 @@ setInterval(() => {
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;
 
+// ── Track 1109: --once termination ───────────────────────────────────────────
+// Which of the scoped tracks still have work outstanding, read from the
+// filesystem (the same source auto-launch makes its decisions from — the DB
+// is only heartbeats/UI sync, so asking it here could disagree with what the
+// worker will actually do next cycle).
+function remainingScopedWork() {
+  const tracksDir = 'conductor/tracks';
+  if (!existsSync(tracksDir)) return new Set();
+  const remaining = new Set();
+  for (const dir of readdirSync(tracksDir)) {
+    const m = dir.match(/^(\d+)/);
+    if (!m) continue;
+    const num = String(parseInt(m[1], 10));
+    if (!onlyTracks.has(num)) continue;
+    const indexPath = join(tracksDir, dir, 'index.md');
+    if (!existsSync(indexPath)) continue;
+    const status = readFileSync(indexPath, 'utf8')
+      .match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim().toLowerCase();
+    if (status === 'queue' || status === 'running') remaining.add(num);
+  }
+  return remaining;
+}
+
+// Guards the "typo exits instantly with success" case: if the very first
+// cycle finds nothing matching, that is almost always a wrong track number,
+// not completed work. Say so rather than exiting 0 and looking like success.
+let sawScopedWork = false;
+
+async function maybeExitWhenScopedWorkDone() {
+  const remaining = remainingScopedWork();
+  if (remaining.size > 0 || runningPids.size > 0) { sawScopedWork = true; return; }
+
+  if (!isScopedWorkFinished({ onlyTracks, runningCount: runningPids.size, remainingClaimable: remaining })) return;
+
+  if (!sawScopedWork) {
+    console.error(`[LaneConductor] --once: no queued or running track matched [${[...onlyTracks].join(', ')}] — nothing to do. Check the track number(s).`);
+    await removeWorker();
+    process.exit(1);
+  }
+
+  console.log(`[LaneConductor] --once: scoped work complete for [${[...onlyTracks].join(', ')}] — exiting.`);
+  await removeWorker();  // same deregistration the SIGTERM path uses; no phantom worker left in the UI
+  process.exit(0);
+}
+
 // Auto-launch: Pick up one queued track per lane (respects lane limits)
 setInterval(async () => {
   if (syncOnly) return; // SKIP auto-launch in sync-only mode
@@ -4864,6 +4986,7 @@ setInterval(async () => {
     }
   } finally {
     autoLaunchRunning = false;
+    if (exitWhenDone) await maybeExitWhenScopedWorkDone();
   }
 }, 5000);
 
