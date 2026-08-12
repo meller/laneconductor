@@ -4311,6 +4311,59 @@ async function runCreateProject(entry) {
   };
   writeFileSync(join(targetPath, '.laneconductor.json'), JSON.stringify(newConfig, null, 2) + '\n');
 
+  // Track 1102 F7: the project must be a git repo with at least one commit
+  // before any lane action can run — spawnCli takes a git lock and runs
+  // `git worktree add -B <branch> <path> HEAD` for every action. Without
+  // this, the very first plan dies with "not a git repository" and the
+  // project is one where nothing can ever run (found live 2026-08-12).
+  //
+  // The initial commit is NOT optional: on a repo with no commits,
+  // `git worktree add ... HEAD` fails with "fatal: invalid reference:
+  // HEAD" (verified directly, not assumed). A `git init` alone would move
+  // the failure rather than fix it.
+  //
+  // Skipped when the target is already a repo — `repo_source.type: 'git'`
+  // clones arrive with history, and an existing local path may be a repo
+  // the user cares about. Never re-initialises or commits over one.
+  // DELIBERATELY NARROW: only auto-init when this directory contains
+  // nothing but the scaffold we just wrote. `git add -A` on a directory
+  // the user pointed at could commit node_modules, .env files, build
+  // artifacts and secrets into a brand-new history — with no .gitignore
+  // yet to stop it. That's not ours to decide silently, and committing a
+  // secret is not cheaply undone. If there's pre-existing content, say so
+  // and let the user run git init themselves.
+  const SCAFFOLD_ENTRIES = new Set(['.laneconductor.json', 'conductor', '.claude', '.agents', '.git']);
+  try {
+    const isRepo = existsSync(join(targetPath, '.git'));
+    if (!isRepo) {
+      const preExisting = readdirSync(targetPath).filter(e => !SCAFFOLD_ENTRIES.has(e));
+      if (preExisting.length > 0) {
+        return {
+          ok: false,
+          error: `Scaffolded ${targetPath}, but it is not a git repository and already contains other files `
+            + `(${preExisting.slice(0, 5).join(', ')}${preExisting.length > 5 ? ', …' : ''}). `
+            + `Lane actions need a git repo with at least one commit. Refusing to \`git add -A\` here — `
+            + `that could commit secrets or build output. Run \`git init && git add … && git commit\` in that `
+            + `directory yourself (with a .gitignore), then retry.`,
+        };
+      }
+      execSync('git init -q', { cwd: targetPath, stdio: 'pipe' });
+      execSync('git add -A', { cwd: targetPath, stdio: 'pipe' });
+      // -c user.* so this works on machines with no global git identity;
+      // this is a setup step, not an authored change.
+      execSync(
+        'git -c user.email=laneconductor@localhost -c user.name=LaneConductor ' +
+        'commit -q -m "chore: initial LaneConductor project scaffold"',
+        { cwd: targetPath, stdio: 'pipe' }
+      );
+      logger.info({ targetPath }, '[create-project] Initialised git repo with initial commit');
+    }
+  } catch (err) {
+    // Report rather than silently producing a project that can't run
+    // anything — that silence is exactly what made F7 hard to spot.
+    return { ok: false, error: `Scaffolded ${targetPath} but git init failed: ${err.stderr?.toString().trim() || err.message}. Lane actions require a git repo with a commit.` };
+  }
+
   // `lc worker start` there — reuses the full CLI wrapper (pidfile,
   // logging, resolveSyncScript's canonical-vs-local fallback) rather than
   // re-implementing any of that inline; it self-registers on startup via

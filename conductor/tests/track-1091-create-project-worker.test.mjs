@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -172,6 +172,17 @@ describe('Track 1091 Phase 3: create-project dispatch handler', () => {
     // so a future change to `lc worker start`'s default is a deliberate
     // decision rather than a silent one.
     assert.equal(state.workers[1].mode, 'sync-only');
+
+    // Track 1102 F7: the new project must be a git repo WITH a commit.
+    // spawnCli takes a git lock and runs `git worktree add ... HEAD`
+    // before every lane action, so without this the first plan dies with
+    // "not a git repository" and the project is one where no lane action
+    // can ever run. `git init` alone is insufficient — worktree add fails
+    // with "invalid reference: HEAD" until something is committed.
+    const gitDir = join(TARGET_DIR, '.git');
+    assert.ok(existsSync(gitDir), 'created project should be a git repository');
+    const head = execSync('git rev-parse HEAD', { cwd: TARGET_DIR, encoding: 'utf8' }).trim();
+    assert.match(head, /^[0-9a-f]{7,40}$/, 'created project should have an initial commit');
 
     process.kill(newPid); // cleanup — this test's own spawned process tree
 
