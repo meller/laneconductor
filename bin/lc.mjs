@@ -1552,9 +1552,25 @@ Please review this, answer any questions (some fields may contain questions rath
         detached: true,
         stdio: ['ignore', logFd, logFd]
     });
+    worker.unref();
+
+    // Track 1110 Phase 2 Task 7: `lc start` spawns detached and can't hold
+    // a lock itself (see worker-lock.mjs's own comment for why the lock
+    // lives in the long-running child, not here) — but it CAN give fast,
+    // honest feedback by briefly checking whether the child actually took
+    // hold. If another live instance already has this identity's lock, the
+    // child exits almost immediately (worker-lock.mjs's own check, near
+    // the top of laneconductor.sync.mjs's startup) rather than running —
+    // without this check, `lc start` would report success and write a
+    // pidfile for a process that's already dead.
+    await sleep(750);
+    const stillAlive = (() => { try { process.kill(worker.pid, 0); return true; } catch (e) { return false; } })();
+    if (!stillAlive) {
+        console.log(`❌ Worker failed to start — another live instance already holds this identity's lock (see conductor/${isManager ? '.manager.log' : (workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`)} for details).`);
+        process.exit(1);
+    }
 
     writeFileSync(pidFile, worker.pid.toString());
-    worker.unref();
     console.log(`✅ Worker started (PID: ${worker.pid})`);
 
     // Track 1075: best-effort — a worker that can't ship logs to the viewer
