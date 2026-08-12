@@ -3,7 +3,7 @@
 **Lane**: implement
 **Lane Status**: queue
 **Progress**: 85%
-**Phase**: Review FAILED — fixture visibility not reset; slow tier not green
+**Phase**: Gap 1 fixed; blocked on slow-tier worker decision
 **Type**: dev
 **Summary**: 19 Playwright specs exist but are effectively never run: the suite is sequential with multi-minute per-test budgets (worst case ~40min), and 3 of 6 worker-identity specs fail. The quality gate now…
 
