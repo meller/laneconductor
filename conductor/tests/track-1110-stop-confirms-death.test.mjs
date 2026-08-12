@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -60,14 +60,24 @@ describe('Track 1110 Phase 2: lc stop must confirm death before reporting succes
       const fakePid = fakeWorker.pid;
       assert.ok(isAlive(fakePid), 'fake worker should be alive right after starting');
 
+      // Async spawn, not spawnSync: a blocking spawnSync call here would
+      // stall THIS process's event loop, which would prevent it from
+      // reaping the fake worker (spawned async, above) the instant it
+      // exits — leaving a zombie that kill(pid,0) reports as "alive" to
+      // any process, including lc.mjs's own subprocess, regardless of
+      // the real bug this test targets. Confirmed by hand: spawnSync here
+      // produced a false "still alive" even against a fixed lc stop.
       const stopStart = Date.now();
-      const result = spawnSync('node', [LC, 'stop'], { cwd: TMP, encoding: 'utf8' });
+      let stdout = '';
+      const stopProc = spawn('node', [LC, 'stop'], { cwd: TMP });
+      stopProc.stdout.on('data', d => { stdout += d; });
+      await new Promise(resolvePromise => stopProc.on('close', resolvePromise));
       const stopElapsedMs = Date.now() - stopStart;
 
       // The bug: `lc stop` returns almost immediately (well under the
       // fake worker's 2s shutdown delay) because it never waits for the
       // signal to actually take effect.
-      console.log(`[track-1110] lc stop returned after ${stopElapsedMs}ms (fake worker's shutdown takes ${SLOW_SHUTDOWN_MS}ms), stdout: ${result.stdout.trim()}`);
+      console.log(`[track-1110] lc stop returned after ${stopElapsedMs}ms (fake worker's shutdown takes ${SLOW_SHUTDOWN_MS}ms), stdout: ${stdout.trim()}`);
 
       // Desired behavior (post-fix): `lc stop` must not return claiming
       // success until the process is actually confirmed dead. Asserting

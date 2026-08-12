@@ -57,6 +57,73 @@ function getInstallPath() {
     return resolve(__dirname, '..');
 }
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/**
+ * Track 1110 Phase 2: waits for `pid` to actually exit (process.kill(pid, 0)
+ * throwing ESRCH), polling every `intervalMs` up to `timeoutMs`. Returns
+ * true if the process is confirmed gone within the deadline, false if it's
+ * still alive when the deadline passes.
+ *
+ * Exists because `process.kill(pid)` only delivers a signal — it returns
+ * immediately regardless of whether or when the target actually exits.
+ * `stop`/`restart` used to call it and then immediately delete the pidfile
+ * and report success, which lied whenever the target's own shutdown
+ * handling took any real time (laneconductor.sync.mjs's SIGTERM handler
+ * awaits a network call with up to a 10s timeout) — the exact mechanism
+ * behind a live duplicate-worker incident, see
+ * conductor/tracks/1110-worker-separation-and-claim-race-safety/plan.md.
+ */
+async function waitForProcessExit(pid, timeoutMs, intervalMs = 100) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        try {
+            process.kill(pid, 0);
+        } catch (e) {
+            return true; // ESRCH — process is gone
+        }
+        await sleep(intervalMs);
+    }
+    try {
+        process.kill(pid, 0);
+        return false; // still alive after the deadline
+    } catch (e) {
+        return true;
+    }
+}
+
+/**
+ * Track 1110 Phase 2: SIGTERM, then wait up to `gracefulTimeoutMs` for a
+ * real exit; if the process is still alive after that, escalate to
+ * SIGKILL (uncatchable — bounds the worst case deterministically) and
+ * wait briefly for that to take effect too. Returns once the process is
+ * confirmed dead, or throws if even SIGKILL didn't work (should not
+ * happen on any POSIX system barring a zombie/kernel-level oddity).
+ *
+ * gracefulTimeoutMs defaults to 12000 — slightly above
+ * laneconductor.sync.mjs's own removeWorker() network-call timeout
+ * (10000ms), so a normally-shutting-down worker is never killed out from
+ * under its own graceful cleanup.
+ */
+async function stopAndConfirmDeath(pid, { gracefulTimeoutMs = 12000, killTimeoutMs = 3000 } = {}) {
+    try {
+        process.kill(pid, 'SIGTERM');
+    } catch (e) {
+        return; // already gone
+    }
+    if (await waitForProcessExit(pid, gracefulTimeoutMs)) return;
+
+    console.log(`⚠️  Worker (PID: ${pid}) did not exit within ${gracefulTimeoutMs}ms of SIGTERM — sending SIGKILL`);
+    try {
+        process.kill(pid, 'SIGKILL');
+    } catch (e) {
+        return; // exited in the gap between the check and this call
+    }
+    if (await waitForProcessExit(pid, killTimeoutMs)) return;
+
+    throw new Error(`PID ${pid} still alive ${killTimeoutMs}ms after SIGKILL — cannot confirm it stopped`);
+}
+
 function findProjectRoot(startDir = process.cwd()) {
     let curr = startDir;
     while (curr !== dirname(curr)) {
@@ -119,6 +186,17 @@ function resolveWorkerNumber(args) {
     if (idx === -1) return 1;
     const n = parseInt(args[idx + 1], 10);
     return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+// Track 1109: forward --only-tracks / --once to the spawned sync worker.
+// Deliberately does NOT validate — the worker owns that, so `lc worker start`
+// and a directly invoked laneconductor.sync.mjs can never disagree about what
+// counts as a legal scope.
+function forwardClaimScopeFlags(args, syncArgs) {
+    const idx = args.indexOf('--only-tracks');
+    if (idx !== -1) syncArgs.push('--only-tracks', args[idx + 1] ?? '');
+    if (args.includes('--once')) syncArgs.push('--once');
+    return syncArgs;
 }
 
 function getPidFilePath(projectRoot, workerNumber) {
@@ -529,12 +607,20 @@ Project Setup  (run once per project — from project root)
   setup-deploy         Guided deployment setup (writes deployment-stack.md + deploy.json)
 
 Worker  (per session — run from project root)
+  worker run <track>   Run a worker scoped to one track, in the foreground, and exit
+                       when it's done. This is normally what you want — unlike
+                       "start", it cannot claim any other queued track.
+                       Example: lc worker run 1100
   start                Start the heartbeat sync worker
                        Options:
                          --manager                      Start as machine-level global manager worker
                          --projects-dir <path>          (With --manager) Directory where projects are cloned
                          --sync-and-work                Also poll database queue (default is sync-only)
                          --worker-number <N>            Start multiple workers for a project (default: 1)
+                         --only-tracks <n,n>            Claim ONLY these tracks. Without it a
+                                                        sync-and-work worker claims anything queued.
+                         --once                         Exit when the --only-tracks work is done
+                                                        (requires --only-tracks)
   stop                 Stop the heartbeat sync worker
                        Options:
                          --manager                      Stop the global manager worker
@@ -544,7 +630,7 @@ Worker  (per session — run from project root)
                          --manager                      Restart the global manager worker
                          --sync-and-work                Also poll database queue
                          --worker-number <N>            Restart specific project worker
-  worker [start|stop|restart|status|logs|sync]
+  worker [run|start|stop|restart|status|logs|sync]
                        Manage the sync worker (supports options above)
   status               Show track status for the current project
                        Options:
@@ -1456,6 +1542,10 @@ Please review this, answer any questions (some fields may contain questions rath
     } else if (workerNumber !== 1) {
         syncArgs.push('--worker-number', String(workerNumber));
     }
+    // Track 1109: forward the claim scope. Validation (empty list, missing
+    // value, --sync-only conflict) lives in the worker so `lc` and a directly
+    // invoked sync.mjs can't disagree about what is legal.
+    forwardClaimScopeFlags(args, syncArgs);
 
     const worker = spawn('node', syncArgs, {
         cwd: projectRoot,
@@ -1489,11 +1579,16 @@ Please review this, answer any questions (some fields may contain questions rath
 
     const pid = readFileSync(pidFile, 'utf8').trim();
     try {
-        process.kill(pid);
+        // Track 1110 Phase 2: must not report success (or delete the
+        // pidfile) until the process is actually confirmed dead — the old
+        // fire-and-forget `process.kill(pid)` + immediate unlink let a
+        // worker still mid-shutdown look "stopped" to a subsequent
+        // `lc start`, which then spawned a duplicate.
+        await stopAndConfirmDeath(pid);
         if (existsSync(pidFile)) unlinkSync(pidFile);
         console.log(`✅ Worker stopped (PID: ${pid})`);
     } catch (e) {
-        console.log(`⚠️  Worker (PID: ${pid}) was not running or could not be stopped.`);
+        console.log(`⚠️  Worker (PID: ${pid}) was not running or could not be stopped: ${e.message}`);
         if (existsSync(pidFile)) unlinkSync(pidFile);
     }
     process.exit(0);
@@ -1538,7 +1633,10 @@ Please review this, answer any questions (some fields may contain questions rath
 
     if (existsSync(pidFile)) {
         const pid = readFileSync(pidFile, 'utf8').trim();
-        try { process.kill(pid); } catch (e) { }
+        // Track 1110 Phase 2: same fix as `stop` — must confirm the old
+        // process actually died before spawning its replacement, or the
+        // two can briefly coexist sharing one identity.
+        try { await stopAndConfirmDeath(pid); } catch (e) { console.log(`⚠️  ${e.message}`); }
         unlinkSync(pidFile);
     }
     // Same as 'start' logic
@@ -1550,6 +1648,10 @@ Please review this, answer any questions (some fields may contain questions rath
     } else if (workerNumber !== 1) {
         syncArgs.push('--worker-number', String(workerNumber));
     }
+    // Track 1109: forward the claim scope. Validation (empty list, missing
+    // value, --sync-only conflict) lives in the worker so `lc` and a directly
+    // invoked sync.mjs can't disagree about what is legal.
+    forwardClaimScopeFlags(args, syncArgs);
     const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
@@ -1574,6 +1676,30 @@ Please review this, answer any questions (some fields may contain questions rath
     if (sub === 'restart') { const r = spawnSync('node', [__filename, 'restart', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'logs') { const r = spawnSync('node', [__filename, 'logs', 'worker', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'sync') { const r = spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    // Track 1109 Phase 4: `lc worker run <track>` — the normal way to run a
+    // worker. Deliberately a thin wrapper over the scoped path rather than a
+    // second implementation, so there is one execution path to reason about.
+    // Runs in the FOREGROUND (unlike `start`, which detaches): the point is
+    // to watch one track run and get its exit code.
+    if (sub === 'run') {
+        if (!projectRoot) { console.error('❌ Not inside a LaneConductor project.'); process.exit(1); }
+        const tracks = subArgs.filter(a => !a.startsWith('--'));
+        if (tracks.length === 0) {
+            console.error('Usage: lc worker run <track> [<track> ...]\n\nRuns a worker scoped to those tracks in the foreground and exits when they are done.');
+            process.exit(2);
+        }
+        const { syncScript, error } = resolveSyncScript(projectRoot);
+        if (error) { console.error(error); process.exit(1); }
+        const runArgs = [syncScript, '--only-tracks', tracks.join(','), '--once'];
+        const workerNumber = resolveWorkerNumber(subArgs);
+        // Reuse a stable identity — a fresh worker_number each run would mint
+        // a new workers row, miss its track_sessions row, and silently
+        // cold-start the agent context every time (track 1086 / 1084 Phase 0).
+        if (workerNumber !== 1) runArgs.push('--worker-number', String(workerNumber));
+        console.log(`🚀 Running worker scoped to track(s) ${tracks.join(', ')} — will exit when done.`);
+        const r = spawnSync('node', runArgs, { cwd: projectRoot, stdio: 'inherit' });
+        process.exit(r.status ?? 0);
+    }
     if (sub === 'status') {
         if (!projectRoot) { process.exit(1); }
         const isManager = subArgs.includes('--manager');
