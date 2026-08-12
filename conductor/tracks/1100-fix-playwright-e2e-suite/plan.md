@@ -270,3 +270,48 @@ never noticed as dead. That file has since been reset to unchecked with a
 "checklist, not a report" warning, and `SKILL.md` now requires a real
 product check — making this track a prerequisite for the gate to be
 honest rather than merely stricter.
+
+## ⚠️ Gaps — review 2026-08-12 (FAIL)
+
+Review verdict: **FAIL**. Lane returned to `implement:queue` per
+`workflow.json` `lanes.review.on_failure`.
+
+### Gap 1 (blocking) — `seedWorker()` does not guarantee a clean starting visibility
+
+Introduced by this track's own Phase 2 fix. `POST /worker/register`'s
+`ON CONFLICT ... DO UPDATE SET` does **not** include `visibility`, so
+re-registering the fixture with `visibility: 'private'` leaves a previously
+Public fixture Public. Combined with the `toContainText('Private')`
+precondition added in Phase 2, a mid-test failure wedges the fast tier red
+until someone manually resets the row.
+
+Observed, not inferred:
+
+```
+1) after seed:         1013 private
+2) after PATCH public: 1013 public
+3) after RE-seed:      1013 public    ← not reset
+→ npx playwright test worker-identity.spec.js
+  1 failed, 5 passed — Received string: "🌐Public" (line 226)
+```
+
+This is the same failure mode the track was opened to eliminate: a spec
+failing permanently against unbroken code. Ambient-state dependence was
+relocated, not removed.
+
+**Fix**: have `seedWorker()` explicitly `PATCH
+/api/workers/:id/visibility` to the requested value after registering, so
+the precondition is enforced rather than assumed. Reproduce first by
+seeding a Public fixture and watching the tier fail.
+
+### Gap 2 (blocking as written) — slow tier still never observed green
+
+`npx playwright test --project=slow` → **exit 1 after 308.7s**. Unchanged
+prerequisite: needs `lc worker start --sync-and-work`. Needs a human
+decision — the queue currently holds tracks 10003–10007 and others in
+`plan queue` that a sync+poll worker would immediately begin executing.
+
+### Gap 3 (minor) — `quality-gate.md` doesn't name the server start command
+
+It requires the UI and API to be up but never says `make start-all`.
+`product-guidelines.md` requires instructions to state the exact command.
