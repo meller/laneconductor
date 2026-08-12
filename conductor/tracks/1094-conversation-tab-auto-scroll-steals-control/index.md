@@ -1,7 +1,7 @@
 # Track 1094: Conversation Tab Auto-Scroll Steals User Control
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Reported, not yet investigated
 **Type**: dev
