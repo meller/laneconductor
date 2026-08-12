@@ -7,11 +7,11 @@
 ```
 Filesystem (source of truth)
        ↕ chokidar + setInterval "latest version wins"
-Worker (laneconductor.sync.mjs) — local-fs mode
-  └── ↕ Jira Collector (asafmeller.atlassian.net)  [API-free, direct sync]
+Worker (laneconductor.sync.mjs)
+  ├── ↕ Local Collector (localhost:8091) + Local UI
+  ├── ↕ Remote Collector (app.laneconductor.com) + Remote UI  [optional]
+  └── ↕ Jira Collector (asafmeller.atlassian.net)              [optional, new]
 ```
-
-**Why No API Server**: In `local-fs` mode, the worker reads filesystem directly (`conductor/tracks/`, `tracks-metadata.json`). No localhost:8091 dependency. Cleaner, faster, fewer moving parts.
 
 ## Why Polling Instead of Webhooks
 
@@ -103,82 +103,30 @@ Multiple workers: same logic as today; second worker sees no diff, skips.
 - Update `lc list-targets` to display Jira collectors
 - Update `SKILL.md` quick reference
 
-### Phase 6: Enhanced Sync, 1:1 Mapping & Label-Based Lane Tracking ✓ (2026-04-14)
-- **1:1 Lane Mapping**: Implemented 1:1 mapping between LC lanes and Jira statuses (backlog↔Backlog, plan↔To Do, implement↔In Progress, review↔In Review, quality-gate↔Testing, done↔Done)
-- **Status Validation**: ✅ Worker validates required statuses exist; provides clear guidance if missing
-- **Labels as Source of Truth**: ✅ All issues labeled with `lconductor-<lane>` for reliable lane tracking
-- **Graceful Status Transitions**: Status transitions are best-effort; if status doesn't exist, labels carry the lane info
-- **Multi-file Formatting**: Updated `buildTrackAdf` to include `Log` section.
-- **Bidirectional Comments**: Ensured Jira comments flow back to `conversation.md`.
+### Phase 6: Enhanced Sync & Mapping ✓
+- **1:1 Lane Mapping**: Ensure `add-target-mapping` prevents duplicate source/target lanes.
+- **Multi-file Formatting**: Update `buildTrackAdf` to include `Log` section.
+- **Bidirectional Comments**: Ensure Jira comments flow back to `conversation.md`.
+- **Bug Fixes**: Resolve metadata access bugs in sync worker.
 - **GCP Secrets**: Standardized and added support for GCP Secret Manager for Jira tokens.
 - **ADF Parsing**: Improved ADF parser for comment synchronization.
 - **Loop Prevention**: Added `recentlyPulled` check to prevent sync echoes.
-- **Project Creation**: CLI validates JIRA projects (creation via API returns 404 — users create manually)
-- **Disabled Collector Filtering**: Fixed bug where disabled collectors were still being used
 
-**Architecture Simplification (2026-04-14):**
-- ✅ Removed API dependency: changed from `multi-api` mode to `local-fs` mode
-- ✅ Disabled localhost:8091 collector (not needed for filesystem-only sync)
-- ✅ Worker now reads `conductor/tracks/` and `tracks-metadata.json` directly
-- ✅ Direct FS → Jira sync, no intermediate API server
-- ✅ Faster, fewer moving parts, cleaner flow
-- ✅ Fixed label format: use `lane_status` (queue, running, success) not `lane` (plan, implement)
-
-**Test Results (2026-04-14):**
-- ✅ `lc add-target --type jira --domain ... --email ... --project-key LAN` executed successfully
-- ✅ Status validation ran and detected missing statuses: "Backlog", "Testing"
-- ✅ Clear guidance message displayed with exact URL and step-by-step instructions
-- ✅ Worker actively polling Jira and syncing issues with `lconductor-<lane>` labels
-- ✅ CLI configuration properly saved to `.laneconductor.json`
-- ✅ Tracks syncing without API server dependency (local-fs mode confirmed)
-
-**Important Discovery**: 
-Jira Cloud does NOT allow creating statuses/workflows via REST API. Statuses must be created manually:
-1. User runs `lc add-target --type jira ...`
-2. CLI validates project exists, creates if needed
-3. **CLI checks for required statuses and shows clear guidance if missing** ← **VALIDATED**
-4. User manually creates missing statuses in Jira workflow settings
-5. Worker syncs with proper status transitions once statuses exist
-6. Labels provide fallback tracking if statuses don't match expected names
-
-### Phase 7: Optional - Jira Workflow Status Creation ⏳ (Planned)
-*Only implement if teams want automatic Jira status/workflow creation instead of label-based lane tracking*
-
-- **Detect Missing Statuses**: Compare local lanes with Jira project workflow
-- **Create Statuses**: Use Jira Admin API to create missing workflow statuses
-- **Setup Transitions**: Auto-create transitions between statuses (plan → implement → review → quality-gate → done)
-- **Teams Config**: Add `create_missing_statuses` flag to JIRA collector config
-- **Auth Scope**: Require higher OAuth scope for workflow admin permissions
-- **Testing**: E2E test with fresh Jira project
-
-**Note**: Current Phase 1-6 implementation uses **labels** for lane tracking (lconductor-<lane>), which requires no admin access. This phase adds optional workflow status automation for teams that prefer explicit Jira status transitions.
-
-### Phase 8: Workspace/Folder Mapping ⏳ (Planned)
-*Allow different source folders to sync to different Jira projects*
-
-- **CLI Extension**: `lc add-target --type jira ... --workspace conductor` saves folder mapping
-- **Config Storage**: Store workspace path in .laneconductor.json per JIRA collector
-- **Worker Logic**: When syncing track, match track folder path to collector workspace
-  - Track in `conductor/tracks/` → check for `workspace: conductor` collector
-  - If no match → use default collector (no workspace specified, fallback)
-  - Supports multiple JIRA collectors, one per workspace
-- **Testing**: Test with 3+ folders each syncing to different Jira projects
-
-**Use Case**: Organization with multiple repos/folders (conductor, ui, infra) each with their own Jira project (KAN, UI, INFRA)
-
-## Files Modified
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `.laneconductor.json` | ✅ Changed mode from `multi-api` to `local-fs`, disabled localhost:8091 collector |
-| `conductor/jira-collector.mjs` | ✅ Created (polling + push functions) |
-| `conductor/laneconductor.sync.mjs` | ✅ Added Jira sync interval + push hooks + API fix for `last_updated` field |
-| `ui/server/index.mjs` | ✅ Added `last_updated` alias to `/api/projects/:id/tracks` query |
-| `conductor/tracks-metadata.json` | ✅ Populated at runtime per-track with `jira_key` and `jira_last_synced` |
-| `bin/lc.mjs` | ✅ Extended `add-target` for `--type jira` params + status validation |
-| `landing/docs/jira-integration.md` | ✅ Updated with Kanban board setup + status validation guidance |
-| `conductor/tracks/1067-jira-integration/plan.md` | ✅ Updated (this file) with architecture simplification |
-| `conductor/tracks/1067-jira-integration/index.md` | ✅ Updated progress to 100% (all phases complete) |
+| `conductor/jira-collector.mjs` | **Create new** (polling + push functions) |
+| `conductor/jira-polling.mjs` | Delete (old, broken webhook approach) |
+| `conductor/laneconductor.sync.mjs` | Add Jira sync interval + push hooks |
+| `conductor/tracks-metadata.json` | Populated at runtime per-track |
+| `bin/lc.mjs` | Extend `add-target` for `--type jira` params |
+| `.claude/skills/laneconductor/SKILL.md` | Update `add-target` docs |
+| `ui/src/pages/ProjectConfigSettings.jsx` | **Remove** Jira integration UI section |
+| `conductor/tracks/1067-jira-integration/plan.md` | **Update** (this file) |
+| `conductor/tracks/1067-jira-integration/spec.md` | **Update** with polling spec |
+| `conductor/tracks/1067-jira-integration/test.md` | **Update** with test scenarios |
+| `landing/docs/jira-integration.md` | Simplify to CLI-only setup |
 
 ## Verification
 
