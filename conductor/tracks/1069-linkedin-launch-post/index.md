@@ -2,7 +2,7 @@
 
 **Lane**: quality-gate
 **Last Run**: 2026-05-07
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 66%
 **Phase**: KPI Window — waiting 72h
 **Type**: marketing
