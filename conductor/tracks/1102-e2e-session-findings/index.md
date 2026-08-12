@@ -267,6 +267,19 @@ keepalive that extends the deadline while the transcript is still
 advancing (the log was growing the whole time — the run wasn't hung,
 which is exactly what a timeout is supposed to catch).
 
+**F10's "still open" risk confirmed live, same day (2026-08-13)**: a
+plain `make lc-stop && make lc-start` (to pick up the timeout config
+change below) failed to kill the running process — `lc-stop` missed it,
+`lc-start` spawned a second one, and for ~1 minute **two full worker
+processes shared one identity** (project 1, `meller-X1-AI`,
+worker_number 1), both writing the same log file, only one able to hold
+the DB row at a time. Caught before it raced a real claim (the surviving
+one was mid-implement-run on 1104) by manually diffing `ps` against the
+single registered row and SIGTERM'ing the redundant one. `lc-stop`'s
+inability to reliably find/kill "its" process is the mechanism behind
+this entire finding, not a one-off — worth its own investigation
+independent of the identity-model question.
+
 **Operational unblock 2026-08-13**: bumped this project's own
 `.laneconductor.json` `worker.spawn_timeout_ms` 900000→1800000 (15min→30min)
 so the dogfooded 1104 implement run — the one this finding is about —
