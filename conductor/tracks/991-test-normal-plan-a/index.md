@@ -1,5 +1,5 @@
 # Normal Plan A
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Waiting for reply**: no
