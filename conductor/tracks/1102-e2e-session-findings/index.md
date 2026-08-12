@@ -115,6 +115,61 @@ them). Also relevant to `workers.type`, which today is
 `project` | `manager` — a separate axis that shouldn't be conflated with
 mode.
 
+### F7 — A wizard-created project is not a git repo, so every lane action fails 🔴 CONFIRMED
+`create-project` scaffolds `conductor/`, `.laneconductor.json`, `.claude/`,
+`.agents/` — but never runs `git init`. `spawnCli` takes a git lock and
+creates a worktree before every lane action, so the very first plan
+attempt died with:
+
+```
+[dispatch-plan] Failed to setup lock/worktree for track 001:
+Command failed: git worktree add -B "track-001" ".../target/.worktrees/001" HEAD
+```
+
+Confirmed: `git rev-parse --is-inside-work-tree` in the new project →
+*"fatal: not a git repository"*.
+
+So the New Project wizard produces a project in which **no lane action can
+ever run**. Combined with F5, the create→track→plan path is broken at two
+independent points.
+
+Fix direction: `runCreateProject` should `git init` when the target isn't
+already a repo — **and make an initial commit**. Verified in a scratch
+repo, because the distinction matters and is easy to get wrong:
+
+```
+$ git init -q && git worktree add -B track-001 .worktrees/001 HEAD
+fatal: invalid reference: HEAD          # git init alone is NOT enough
+$ git add . && git commit -qm init && git worktree add -B track-001 ...
+Preparing worktree (new branch 'track-001')   # works
+```
+
+So the scaffolded files must be committed as part of project creation.
+For `repo_source.type: 'git'` this is moot (a clone already has history);
+it's the `path` / brand-new-project case that's exposed.
+
+### F8 — A failed lane action leaves the dispatch and track stuck forever 🔴 CONFIRMED
+When the worktree setup above threw, the worker logged
+`[dispatch error]` and moved on — but never reported the failure:
+
+- `worker_dispatch` id 28 stayed **`claimed`** (never `failed`), so nothing
+  will retry it and the UI has no error to show.
+- `tracks.lane_action_status` stayed **`running`** indefinitely.
+- The worker reported **`status: idle`, `current_task: null`** the whole
+  time — so the Activity panel shows an idle worker while the board shows
+  a running track.
+
+Every other dispatch handler (chat, deploy, create-project,
+provision-worker) wraps its work in try/catch and PATCHes
+`status: 'failed'` with a real message. The **lane-action path doesn't**,
+which is the one users hit most.
+
+Fix direction: the lane-action dispatch branch needs the same
+failure-reporting contract as the others — mark the dispatch `failed` with
+the error text, reset `lane_action_status`, and clear the busy heartbeat.
+This is also why the three states disagreed, which is its own debugging
+tax.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
