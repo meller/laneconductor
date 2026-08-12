@@ -21,6 +21,62 @@ import { test, expect } from '@playwright/test';
 const BASE = 'http://localhost:8090';
 const API  = 'http://localhost:8091';
 
+// Track 1100 Phase 2: the three visibility tests below used to guard on
+// `GET /api/workers` being non-empty and otherwise skip. That guard was wrong
+// in both directions:
+//
+//   - `/api/workers` is the global list and includes *manager* workers, whose
+//     project_id is NULL by design (track 1091). The Workers grid, however,
+//     deliberately renders its "No Active Workers" empty state unless a
+//     non-manager worker exists (`hasOwnWorkers` in WorkersList.jsx). So on a
+//     machine running only a manager — the normal state of this repo — the
+//     guard saw 1 worker, declined to skip, and the assertions then failed
+//     against an empty state. That is what the 3 known failures were: a stale
+//     precondition, NOT an app regression. Verified 2026-08-12 by seeding a
+//     project worker and re-running: all 3 pass unchanged.
+//   - Even when correct, "skip unless a worker happens to be running" makes
+//     these tests ambient-dependent, so they prove nothing on a clean machine.
+//
+// Fix: seed a dedicated project-scoped worker over the same registration
+// endpoint a real worker uses. Deterministic, no skips, no dependence on
+// whatever happens to be running locally.
+const FIXTURE_HOSTNAME = 'pw-e2e-worker';
+const FIXTURE_WORKER_NUMBER = 99;
+
+/** Resolve a project id by name (don't hardcode — ids differ per machine). */
+async function resolveProjectId(request, name = 'laneconductor') {
+  const r = await request.get(`${API}/api/projects`);
+  expect(r.ok(), 'GET /api/projects should succeed').toBeTruthy();
+  const projects = await r.json();
+  const p = projects.find(x => x.name === name);
+  expect(p, `project "${name}" should exist in the collector`).toBeTruthy();
+  return p.id;
+}
+
+/**
+ * Register a project-scoped worker so the Workers grid has a card to render.
+ * Upserts on (project_id, hostname, worker_number), so repeat runs reuse the
+ * same row rather than accumulating. It ages out of GET /api/workers' 60s
+ * heartbeat-freshness window on its own once the run finishes.
+ */
+async function seedWorker(request, projectId, visibility = 'private') {
+  const r = await request.post(`${API}/worker/register`, {
+    data: {
+      hostname: FIXTURE_HOSTNAME,
+      pid: 999999,
+      worker_number: FIXTURE_WORKER_NUMBER,
+      project_id: projectId,
+      type: 'project',
+      mode: 'sync-only',
+      visibility,
+      cli: 'claude',
+      model: 'sonnet',
+    },
+  });
+  expect(r.ok(), 'POST /worker/register should succeed').toBeTruthy();
+  return (await r.json()).id;
+}
+
 /** Select a specific project so the Config button becomes visible */
 async function selectProject(page, name = 'laneconductor') {
   await page.goto(BASE);
@@ -30,6 +86,22 @@ async function selectProject(page, name = 'laneconductor') {
     await sel.selectOption({ label: name });
     await page.waitForTimeout(300);
   }
+}
+
+/**
+ * Switch to the Workers view and return the seeded worker's card.
+ * Scoped to FIXTURE_HOSTNAME rather than `.first()` — a manager worker sorts
+ * ahead of it alphabetically, and mutating the manager's visibility is both
+ * the wrong target and a side effect on real local state.
+ */
+async function openFixtureWorkerCard(page) {
+  const workersTab = page.getByRole('button', { name: /^Workers$/i }).first();
+  await expect(workersTab, 'Workers view toggle should be present').toBeVisible({ timeout: 10000 });
+  await workersTab.click();
+
+  const card = page.getByTestId('worker-card').filter({ hasText: FIXTURE_HOSTNAME });
+  await expect(card, 'seeded worker card should render in the Workers grid').toBeVisible({ timeout: 10000 });
+  return card;
 }
 
 test.describe('Track 1033: Worker Identity UI', () => {
@@ -107,21 +179,13 @@ test.describe('Track 1033: Worker Identity UI', () => {
   });
 
   test('Worker card shows visibility badge', async ({ page }) => {
-    // Only run if a worker is active
-    const r = await page.request.get(`${API}/api/workers`);
-    const workers = await r.json();
-    if (!workers || workers.length === 0) {
-      test.skip(true, 'No active workers — skipping visibility badge test');
-      return;
-    }
+    const projectId = await resolveProjectId(page.request);
+    await seedWorker(page.request, projectId, 'private');
 
     await selectProject(page);
+    const card = await openFixtureWorkerCard(page);
 
-    // Navigate to the Workers tab (ConductorPanel or sidebar)
-    const workersTab = page.getByRole('button', { name: /Workers/i }).first();
-    if (await workersTab.isVisible()) await workersTab.click();
-
-    const badge = page.getByTestId('worker-sharing-btn').first();
+    const badge = card.getByTestId('worker-sharing-btn');
     await expect(badge).toBeVisible({ timeout: 10000 });
     const badgeText = await badge.textContent();
     expect(['Private', 'Team', 'Public'].some(v => badgeText.includes(v))).toBeTruthy();
@@ -129,19 +193,13 @@ test.describe('Track 1033: Worker Identity UI', () => {
   });
 
   test('Clicking visibility badge opens sharing dialog', async ({ page }) => {
-    const r = await page.request.get(`${API}/api/workers`);
-    const workers = await r.json();
-    if (!workers || workers.length === 0) {
-      test.skip(true, 'No active workers — skipping dialog test');
-      return;
-    }
+    const projectId = await resolveProjectId(page.request);
+    await seedWorker(page.request, projectId, 'private');
 
     await selectProject(page);
+    const card = await openFixtureWorkerCard(page);
 
-    const workersTab = page.getByRole('button', { name: /Workers/i }).first();
-    if (await workersTab.isVisible()) await workersTab.click();
-
-    const badge = page.getByTestId('worker-sharing-btn').first();
+    const badge = card.getByTestId('worker-sharing-btn');
     await expect(badge).toBeVisible({ timeout: 10000 });
     await badge.click();
 
@@ -157,35 +215,28 @@ test.describe('Track 1033: Worker Identity UI', () => {
   });
 
   test('Changing visibility to public updates badge', async ({ page }) => {
-    const r = await page.request.get(`${API}/api/workers`);
-    const workers = await r.json();
-    if (!workers || workers.length === 0) {
-      test.skip(true, 'No active workers — skipping visibility change test');
-      return;
-    }
+    const projectId = await resolveProjectId(page.request);
+    await seedWorker(page.request, projectId, 'private');
 
     await selectProject(page);
+    const card = await openFixtureWorkerCard(page);
 
-    const workersTab = page.getByRole('button', { name: /Workers/i }).first();
-    if (await workersTab.isVisible()) await workersTab.click();
-
-    const badge = page.getByTestId('worker-sharing-btn').first();
+    const badge = card.getByTestId('worker-sharing-btn');
     await expect(badge).toBeVisible({ timeout: 10000 });
+    await expect(badge).toContainText('Private');
     await badge.click();
 
     // Set to public
     await page.getByTestId('visibility-option-public').click();
-    await page.waitForTimeout(500);
 
     // Check badge now says Public (dialog auto-closes on onUpdated)
-    const updatedBadge = page.getByTestId('worker-sharing-btn').first();
-    await expect(updatedBadge).toContainText('Public', { timeout: 5000 });
+    await expect(badge).toContainText('Public', { timeout: 5000 });
     console.log('✅ Visibility badge updated to Public');
 
     // Reset to private for clean state
-    await updatedBadge.click();
+    await badge.click();
     await page.getByTestId('visibility-option-private').click();
-    await page.waitForTimeout(300);
+    await expect(badge).toContainText('Private', { timeout: 5000 });
     console.log('✅ Reset visibility to Private');
   });
 

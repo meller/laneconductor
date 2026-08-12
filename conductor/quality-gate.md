@@ -32,21 +32,40 @@
       tests the old code. Use `make api-stop && make api-start`, and check
       `lsof -i :8091 -sTCP:LISTEN` — a stale listener not tracked by the
       pidfile has repeatedly survived `make api-stop`.
-- [ ] E2E suite: `npx playwright test` (19 specs across 6 files in
-      `conductor/tests/playwright/`). Run the EXISTING specs — adding one
-      trivial passing test does NOT satisfy this.
-      **Known state as of 2026-08-12** (measured, not assumed):
-      `worker-identity.spec.js` alone finishes in ~45s with **3 passed, 3
-      failed** — pre-existing failures asserting on worker-card visibility
-      badges, unrelated to any current track. The full suite did not finish
-      inside a 3-minute budget: it is **not hanging**, it is sequential by
-      config (`workers: 1`) with a 180s default per-test timeout, and two
-      specs raise their own to 300s while polling real agent runs — so
-      worst case is tens of minutes.
-      **Until [track 1100](tracks/1100-fix-playwright-e2e-suite/index.md)
-      lands**: run per-file rather than the whole suite, compare against
-      this baseline instead of expecting all-green, and treat a *new*
-      failure as a blocker while the 3 known ones are not.
+- [ ] **E2E fast tier — REQUIRED: `npx playwright test --project=fast`**
+
+      Run from the repo root, with the UI (`:8090`) and API (`:8091`) up.
+      Deterministic: UI + collector API only, no LLM calls, no dependence on
+      a live worker claiming a lane action. Run the EXISTING specs — adding
+      one trivial passing test does NOT satisfy this.
+
+      **Measured baseline, 2026-08-12** (timed, not estimated):
+      **10 passed, 6 skipped, 0 failed in ~15s wall.** 16 tests across 3
+      files (`worker-identity`, `track-1033-e2e`, `track-1033-sharing`).
+      Any failure is a blocker — unlike the old baseline, there are no
+      known-failing specs left in this tier.
+
+      ⚠️ **The 6 skips are real, not noise.** All of
+      `track-1033-sharing.spec.js` skips unless the API server is restarted
+      with `PW_TEST_MODE=true` (it then accepts mock bearer tokens, so it is
+      deliberately not the default). Effective gating coverage is therefore
+      the **10 tests that actually run**. Don't read "0 failed" as "16 tests
+      passed". Enabling that file in the gate is open work — see track 1100
+      `plan.md`, Phase 5.
+
+- [ ] E2E slow tier — **opt-in, not required per track**:
+      `npx playwright test --project=slow`
+
+      3 specs (`brainstorm-concurrency`, `brainstorm-concurrency-v2`,
+      `new-track-plan`) that drive real agent/worker runs end to end. Minutes
+      long by construction, and they **require a running sync+poll worker**
+      (`lc worker start --sync-and-work`) — without one they fail by design,
+      waiting for a claim that never comes. Run these when touching the
+      worker claim/brainstorm/planning path.
+
+      **Measured 2026-08-12** with only a sync-only *manager* worker running:
+      `new-track-plan` fails at ~71s at "Worker should pick up track within
+      60s" — an unmet environment prerequisite, not a broken spec.
 - [ ] Drove the actual flow in a browser and recorded the observed
       user-visible result (screenshot, or the real API/DB response).
 
