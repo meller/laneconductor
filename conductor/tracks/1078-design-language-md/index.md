@@ -1,6 +1,6 @@
 # Track 1078: Add conductor/design-language.md to project scaffolding
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete
