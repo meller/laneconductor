@@ -214,6 +214,39 @@ worker's post-dispatch index.md/DB update code and the worktree merge-back
 — one of them is regenerating index.md from row fields instead of
 preserving file content.
 
+### F10 — Worker de-registration destroyed the row, cascading away all chat/dispatch history 🔴 CONFIRMED & FIXED
+Observed live during the dogfooded implement run: the worker vanished from
+Activity **with its entire chat history**, and dispatches 29/30 disappeared
+from the DB mid-run. Full chain, established from evidence:
+
+1. `DELETE /worker` (graceful shutdown) hard-DELETEd the workers row.
+2. `worker_dispatch.worker_id` is `ON DELETE CASCADE` → every dispatch —
+   including all `worker_adhoc_chat` history the Activity panel shows —
+   was erased with it.
+3. The row deleted wasn't even the exiting process's own: a short-lived
+   second worker had shared the same identity (project 1, meller-X1-AI,
+   worker_number 1 — started directly via node, bypassing `lc`'s pidfile
+   guard), and its shutdown deleted the row out from under the survivor.
+4. The survivor then heartbeated into the void forever:
+   `PATCH /worker/heartbeat` returned `ok: true` even at rowCount 0, so
+   the "re-register on 404" path never fired — busy and running, but
+   invisible in every workers list.
+
+A stable identity (track 1084's whole point) that a routine stop destroys
+isn't stable. **Fixed** (TDD, 3 tests):
+- `DELETE /worker` → soft de-registration (`status='offline'`, heartbeat
+  aged out) — row, id, and all cascaded history survive; re-registration
+  reuses the identity via the existing upsert.
+- Heartbeat now 404s on rowCount 0 → the worker's existing error handler
+  re-registers. Verified live: the orphaned worker (pid 420522)
+  re-registered itself within one heartbeat cycle of the API restart.
+
+Still open from this finding: (a) the pre-fix history is unrecoverable;
+(b) two processes sharing one identity remains possible when bypassing
+`lc` (the pidfile guard) — worth a server-side duplicate-liveness check;
+(c) whether `worker_dispatch`'s CASCADE should become SET NULL as
+belt-and-braces for manual row deletions.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
