@@ -1,11 +1,11 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
-**Lane**: review
+**Lane**: implement
 **Lane Status**: queue
 **Progress**: 85%
-**Phase**: Phases 1–5 implemented; slow tier not yet observed green
+**Phase**: Review FAILED — fixture visibility not reset; slow tier not green
 **Type**: dev
-**Summary**: 19 Playwright specs exist but are effectively never run: the suite is sequential with multi-minute per-test budgets (worst case ~40min), and 3 of 6 worker-identity specs fail. The quality gate now requires E2E, so the suite has to become fast and trustworthy enough to actually gate on.
+**Summary**: 19 Playwright specs exist but are effectively never run: the suite is sequential with multi-minute per-test budgets (worst case ~40min), and 3 of 6 worker-identity specs fail. The quality gate now…
 
 ## Problem
 
