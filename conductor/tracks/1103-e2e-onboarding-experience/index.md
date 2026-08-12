@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
-**Summary**: Define and make coherent the whole "I have nothing → I have a project doing work" experience, for both the UI path and the skill/CLI path. Track 1102 collects the individual bugs; this track owns the design questions underneath them and the eventual user-facing walkthroughs.
+**Summary**: Define and make coherent the whole "I have nothing → I have a project doing work" experience, for both the UI path and the skill/CLI path. Track 1102 collects the individual bugs; this track owns…
 
 ## Problem
 
@@ -69,6 +69,7 @@ an intended difference (recorded here) or a bug:
 - [1104](../1104-e2e-ui-walkthrough/index.md) — UI (browser)
 - [1105](../1105-e2e-skill-walkthrough/index.md) — skill (`/laneconductor`), including Skill-Only mode
 - [1106](../1106-e2e-cli-walkthrough/index.md) — CLI (`lc`)
+- [1107](../1107-e2e-remote-api-walkthrough/index.md) — remote app + API (different machine than the worker, real auth)
 
 ## Depends on
 [1102](../1102-e2e-session-findings/index.md) — the concrete bugs; this track is the design behind them. [1100](../1100-fix-playwright-e2e-suite/index.md) — Phase 6 needs a working E2E tier to live in. [1091](../1091-manager-worker-and-new-project-flow/index.md), [1084](../1084-worker-identity-and-assignment/index.md) — the create-project and worker-mode mechanisms being described.

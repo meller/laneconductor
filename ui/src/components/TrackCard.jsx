@@ -437,7 +437,14 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                 Fix
               </button>
             )}
-            {['plan', 'implement', 'review', 'quality-gate'].includes(track.lane_status) && track.lane_action_status === 'success' && (
+            {/* Track 1102 F2/F5: the run control used to render ONLY on
+                lane_action_status === 'success' — so a fresh track
+                (queue) or a failed one had no way to be started from the
+                UI at all, while a pulsing "Plan" indicator claimed work
+                was happening. Now: runnable when queued/failed/succeeded;
+                only an actually-running action hides it. */}
+            {['plan', 'implement', 'review', 'quality-gate'].includes(track.lane_status)
+              && ['success', 'queue', 'failure', 'failed'].includes(track.lane_action_status) && (
               <button
                 disabled={launching}
                 onClick={async e => {
@@ -448,14 +455,18 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                 }}
                 className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${launching
                   ? 'border-blue-800 text-blue-400 bg-blue-900/30 cursor-default'
-                  : 'border-gray-700 text-gray-400 hover:bg-gray-800'
+                  : track.lane_action_status === 'success'
+                    ? 'border-gray-700 text-gray-400 hover:bg-gray-800'
+                    : 'border-blue-800/70 text-blue-400 hover:bg-blue-900/30'
                   }`}
-                title={`Re-run ${track.lane_status} action for this track`}
+                title={track.lane_action_status === 'success'
+                  ? `Re-run ${track.lane_status} action for this track`
+                  : `Run ${track.lane_status} action for this track`}
               >
-                {launching ? '⏳' : '↺'}
+                {launching ? '⏳' : track.lane_action_status === 'success' ? '↺' : '▶'}
               </button>
             )}
-            {track.lane_status === 'plan' && track.lane_action_status !== 'success' && (
+            {track.lane_status === 'plan' && track.lane_action_status === 'running' && (
               <span className="flex items-center gap-1 text-[10px] text-indigo-400 animate-pulse whitespace-nowrap">
                 <span>⚡</span><span>Plan</span>
               </span>

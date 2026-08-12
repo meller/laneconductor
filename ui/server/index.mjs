@@ -1396,8 +1396,51 @@ app.post('/api/projects/:id/tracks/:num/implement', async (req, res) => {
       is_replied: true
     }, req.params.id);
 
+    // Track 1102 F5: queueing alone only works if a sync+poll worker will
+    // come along and claim it. A sync-only worker — the default for every
+    // wizard-created project, meaning "sync + manual UI operations" —
+    // never polls the queue; it only serves the dispatch inbox. So when
+    // this project's live workers are ALL sync-only, bridge the UI action
+    // into a dispatch addressed to one of them, or no UI action can ever
+    // run a lane action there (proven live 2026-08-12: the identical
+    // dispatch sent by hand was claimed in seconds).
+    //
+    // When a sync+poll worker exists we deliberately do NOT dispatch —
+    // its queue poller will claim the track as today, and dispatching too
+    // would race the same action into running twice. Managers are never
+    // candidates: lane actions are project work.
+    let dispatched = false;
+    try {
+      const { rows: liveWorkers } = await pool.query(
+        `SELECT w.id, w.mode, w.type FROM workers w
+          WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'`,
+        [parseInt(req.params.id)]
+      );
+      const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
+      const hasPoller = projectWorkers.some(w => w.mode === 'sync+poll');
+      if (!hasPoller && projectWorkers.length > 0) {
+        const { rows: [track] } = await pool.query(
+          'SELECT id, lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+          [parseInt(req.params.id), req.params.num]
+        );
+        if (track?.lane_status) {
+          await pool.query(
+            `INSERT INTO worker_dispatch(worker_id, track_number, action)
+             VALUES ($1, $2, $3)`,
+            [projectWorkers[0].id, req.params.num, track.lane_status]
+          );
+          dispatched = true;
+        }
+      }
+    } catch (dispatchErr) {
+      // The queue flag is already set; a dispatch failure shouldn't turn a
+      // partially-successful request into a 500 — but it must not be
+      // silent either (silent halfway states are track 1102 F8's lesson).
+      console.warn(`[implement] dispatch bridging failed for track ${req.params.num}:`, dispatchErr.message);
+    }
+
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
-    res.json({ ok: true, message: 'Track moved to waiting state' });
+    res.json({ ok: true, dispatched, message: dispatched ? 'Dispatched to this project\'s worker' : 'Track moved to waiting state' });
   } catch (err) {
     res.status(err.status ?? 500).json({ error: err.message });
   }
