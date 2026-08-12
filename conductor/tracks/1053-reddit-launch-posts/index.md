@@ -1,7 +1,7 @@
 # Track 1053: Reddit Launch Posts
 
 **Lane**: quality-gate
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: KPI Window — waiting 72h
 **Type**: marketing
