@@ -190,6 +190,21 @@ Caught in the act during the first dogfooded UI-triggered plan run (track
 - Markers were also regressed: the agent's `success/100%` became
   `queue/0%` in the gutted version.
 
+**FIXED (guard) 2026-08-12**: `POST /track` now refuses to replace a
+substantial `index_content` (>1KB, titled) with one that is both <40% of
+its size AND title-less — it keeps the existing body, logs loudly, and
+returns `index_guard: 'kept_existing'`. Chosen boundary deliberately: the
+forensics showed multiple concurrent pushers (two workers in the main
+checkout at different times, plus a phantom test worker heartbeating
+pid 999999 from the sibling agent's Playwright fixtures), so guarding the
+single endpoint every writer goes through protects against all of them,
+including ones not yet written. Deliberate rewrites remain possible —
+keep the `# Track` title, or start from no substantial existing version.
+4 tests. The *producer* of the stub was not conclusively identified (all
+in-repo writers examined — copy-back, Phase 5 marker update, DB pull —
+are marker-preserving; suspicion rests on cross-checkout interaction),
+so the underlying producer remains open; the guard makes it harmless.
+
 This is the same corruption family as track 1081 (Summary marker
 overwrites), now with a precise reproduction: **run any lane action via
 dispatch on a worktree-enabled project and diff `index.md` before/after.**

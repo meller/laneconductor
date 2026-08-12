@@ -2009,12 +2009,38 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
 
-    // Fetch old state to detect transitions
+    // Fetch old state to detect transitions (index_content included for the
+    // F9 gutted-index guard below).
     const oldRes = await pool.query(
-      'SELECT id, lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      'SELECT id, lane_status, lane_action_status, index_content FROM tracks WHERE project_id = $1 AND track_number = $2',
       [projectId, track_number]
     );
     const oldTrack = oldRes.rows[0];
+
+    // Track 1102 F9: refuse to replace a substantial index_content with a
+    // gutted, title-less stub. Observed live: a 263-byte marker-only
+    // index (title and body gone, Summary lifted from plan.md) was pushed
+    // over a full 4KB version after a lane-action run, and the DB→FS pull
+    // then propagated the stub back over the good file — newer-wins
+    // ping-pong erasing the track body everywhere. With multiple workers/
+    // checkouts pushing concurrently, this boundary — which every pusher
+    // goes through — is the one place a guard actually protects the data.
+    // Deliberate rewrites stay possible: keeping the `# Track` title (or
+    // there being no substantial existing version) is all it takes.
+    let effectiveIndexContent = index_content;
+    let indexGuardTripped = false;
+    if (
+      typeof index_content === 'string' &&
+      typeof oldTrack?.index_content === 'string' &&
+      oldTrack.index_content.length > 1000 &&
+      index_content.length < oldTrack.index_content.length * 0.4 &&
+      /^#\s/m.test(oldTrack.index_content) &&
+      !/^#\s/m.test(index_content)
+    ) {
+      console.warn(`[API] POST /track #${track_number}: REFUSING gutted index_content (${index_content.length}b, title-less) over existing ${oldTrack.index_content.length}b — keeping existing body. See track 1102 F9.`);
+      effectiveIndexContent = oldTrack.index_content;
+      indexGuardTripped = true;
+    }
 
     // Build UPDATE clause — avoid duplicate lane_action_status assignments
     let laneStatusClause = '';
@@ -2035,7 +2061,7 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     const params = [projectId, track_number, title, insertLaneStatus, progress,
       current_phase, content_summary, phase_step,
-      index_content, plan_content, spec_content, test_content, insertActionStatus,
+      effectiveIndexContent, plan_content, spec_content, test_content, insertActionStatus,
       // KPI params $14-$26
       track_type ?? 'dev', kpi_target ?? null, kpi_actual ?? null,
       kpi_metric ?? null, kpi_source ?? null, kpi_source_config ?? null,
@@ -2110,7 +2136,7 @@ app.post('/track', collectorAuth, async (req, res) => {
     );
 
     broadcast('track:updated', { projectId, trackNumber: track_number });
-    res.json({ ok: true });
+    res.json(indexGuardTripped ? { ok: true, index_guard: 'kept_existing' } : { ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
