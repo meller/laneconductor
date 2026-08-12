@@ -33,6 +33,7 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [rawLog, setRawLog] = useState(null);
+  const [chatTurns, setChatTurns] = useState([]);
   const transcriptEndRef = useRef(null);
 
   const selectedWorker = workers.find(w => w.id === selectedWorkerId) ?? null;
@@ -47,7 +48,30 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
     setSelectedWorkerId(workerId);
     setChatInput('');
     setSendError(null);
+    setChatTurns([]);
   };
+
+  // Chat turns live in worker_dispatch, not just in this component's state —
+  // so they survive a page refresh. Re-read them whenever a worker is
+  // selected, otherwise the conversation only appears to exist until the
+  // next reload.
+  useEffect(() => {
+    if (!selectedWorkerId) return;
+    let cancelled = false;
+    apiFetch(`/api/workers/${selectedWorkerId}/chat-history`)
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => {
+        if (cancelled || !Array.isArray(rows)) return;
+        setChatTurns(rows.map(r => ({
+          id: r.id,
+          prompt: r.payload?.prompt ?? '(prompt unavailable)',
+          status: r.status,
+          reply: r.result,
+        })));
+      })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [selectedWorkerId]);
 
   useEffect(() => {
     setTranscriptState(createTranscriptState());
@@ -97,17 +121,50 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
         body: JSON.stringify(body)
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to dispatch chat prompt');
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch chat prompt');
 
+      // Track 1087 Phase 8: show the turn locally and poll for the reply.
+      // The worker reports the CLI's answer as the dispatch `result`; without
+      // this the message just vanished into the void — the panel had no way
+      // to surface an answer at all, which is what made the chat bar look
+      // broken even after the worker-side handler existed.
+      const sent = chatInput.trim();
       setChatInput('');
+      setChatTurns(prev => [...prev, { id: data.id, prompt: sent, status: 'pending', reply: null }]);
+      pollChatReply(data.id);
     } catch (err) {
       setSendError(err.message);
     } finally {
       setIsSending(false);
     }
+  };
+
+  const pollChatReply = (dispatchId) => {
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const r = await apiFetch(`/api/dispatch/${dispatchId}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.status !== 'pending' && d.status !== 'claimed') {
+            clearInterval(interval);
+            setChatTurns(prev => prev.map(t =>
+              t.id === dispatchId ? { ...t, status: d.status, reply: d.result } : t
+            ));
+            return;
+          }
+        }
+      } catch { /* transient — retry next tick */ }
+
+      if (attempts >= 120) { // chat turns can legitimately run for minutes
+        clearInterval(interval);
+        setChatTurns(prev => prev.map(t =>
+          t.id === dispatchId ? { ...t, status: 'timeout', reply: 'Still running — check the worker\'s transcript.' } : t
+        ));
+      }
+    }, 1000);
   };
 
   const formatWorkerName = (w) => {
@@ -210,6 +267,29 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
               </>
             ) : (
               <p className="text-gray-600 text-sm italic pt-4">{workerDisplayName} is idle.</p>
+            )}
+
+            {/* Track 1087 Phase 8: chat turns sent from the bar below. */}
+            {chatTurns.length > 0 && (
+              <div className="mt-4 space-y-3 border-t border-gray-800 pt-4">
+                {chatTurns.map(turn => (
+                  <div key={turn.id} className="space-y-1.5">
+                    <div className="text-xs text-blue-300 bg-blue-950/30 border border-blue-900/40 rounded-lg px-3 py-2">
+                      {turn.prompt}
+                    </div>
+                    {turn.status === 'pending' ? (
+                      <p className="text-[11px] text-gray-500 italic pl-1">thinking…</p>
+                    ) : (
+                      <pre className={`text-[11px] font-mono whitespace-pre-wrap leading-relaxed border rounded-lg px-3 py-2 ${turn.status === 'done'
+                        ? 'text-gray-300 bg-gray-900 border-gray-800'
+                        : 'text-red-300 bg-red-950/30 border-red-900/50'
+                        }`}>
+                        {turn.reply || '(no reply)'}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

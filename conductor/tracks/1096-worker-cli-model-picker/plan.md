@@ -37,3 +37,33 @@
 - [x] Fix: `ProvisionWorkerModal` had no model list per provider — replaced free-text input with per-CLI preset dropdown (shared from `WorkerModelModal`).
 - [x] Fix: Added **Project selector** to `ProvisionWorkerModal` — fetches all projects from `/api/projects`, lets user pick which project the new remote worker will be assigned to. `target_project_id` included in dispatch payload.
 - [x] Fix: Launcher worker list now shows manager workers first (preferred as SSH delegators) and includes project name for clarity.
+
+## Phase 6 (2026-08-12): Provider vs. model — session continuity constraint
+
+**Problem** (raised during live e2e review): the "Change Model" dialog lets
+you change both the **CLI/provider** and the **model** on an existing
+worker, but those aren't equivalent operations. A Claude session is resumed
+via `claude --resume <claude_session_id>` (track 1086's `track_sessions`) —
+that id is Claude-specific. Changing the *model* within Claude keeps
+`--resume` working, so the worker keeps its conversation history. Changing
+the *provider* (Claude → Gemini/Antigravity/Copilot) makes every stored
+session id meaningless: there is nothing to resume, and the worker starts
+cold on its next turn, silently losing continuity the user believed they
+had.
+
+Today the UI presents both dropdowns identically, with no indication that
+one is lossy.
+
+- [ ] Task 6.1: Decide the rule — most likely: model is freely changeable
+      on an existing worker; provider is either disabled outright for a
+      worker with existing sessions, or requires an explicit confirm that
+      names the consequence ("this worker's conversation history can't be
+      resumed under a different provider — it will start fresh").
+- [ ] Task 6.2: Implement in `WorkerModelModal.jsx`, and make the same
+      distinction wherever else provider is selectable for an *existing*
+      worker.
+- [ ] Task 6.3: Confirm the actual behavior first rather than assuming —
+      check whether `resolveTrackSession`/`spawnCli` already handle a
+      provider switch gracefully (e.g. by discarding the stale session id
+      and starting fresh) or whether it errors. The UI wording depends on
+      which it is.
