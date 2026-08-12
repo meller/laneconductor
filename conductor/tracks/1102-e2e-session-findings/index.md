@@ -267,6 +267,14 @@ keepalive that extends the deadline while the transcript is still
 advancing (the log was growing the whole time — the run wasn't hung,
 which is exactly what a timeout is supposed to catch).
 
+**Operational unblock 2026-08-13**: bumped this project's own
+`.laneconductor.json` `worker.spawn_timeout_ms` 900000→1800000 (15min→30min)
+so the dogfooded 1104 implement run — the one this finding is about —
+could be retried and actually complete. This is a config value, not the
+structural fix; the per-lane-override / keepalive design question above
+is still open for whoever picks it up.
+
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
