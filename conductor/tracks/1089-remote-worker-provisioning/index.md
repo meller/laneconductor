@@ -1,6 +1,6 @@
 # Track 1089: Remote Worker Provisioning
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Complete
