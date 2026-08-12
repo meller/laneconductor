@@ -359,6 +359,43 @@ app.post('/api/projects/:id/worker/stop', async (req, res) => {
   }
 });
 
+// Track 1084 Phase 6: stop ONE worker. The project-scoped stop above shells
+// out to `make lc-stop`, which is all-or-nothing — there was no way to stop
+// worker #2 while leaving #1 running, even though Phase 0 made multiple
+// workers per project a first-class case. Uses `lc worker stop
+// --worker-number N` (or --manager), which already supports exactly this
+// via per-instance pidfiles.
+app.post('/api/workers/:id/stop', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT w.id, w.worker_number, w.type, p.repo_path
+         FROM workers w
+         LEFT JOIN projects p ON p.id = w.project_id
+        WHERE w.id = $1`,
+      [parseInt(req.params.id)]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'worker not found' });
+    const { worker_number, type, repo_path } = rows[0];
+
+    // A manager isn't scoped to a project and has no repo_path of its own;
+    // its pidfile is global, so `lc worker stop --manager` finds it from
+    // anywhere. A project worker's pidfile lives in its project directory.
+    const cmd = type === 'manager'
+      ? 'lc worker stop --manager'
+      : `lc worker stop --worker-number ${parseInt(worker_number) || 1}`;
+    const cwd = type === 'manager' ? process.cwd() : repo_path;
+    if (type !== 'manager' && !cwd) {
+      return res.status(400).json({ error: 'worker has no project directory to stop it in' });
+    }
+
+    const { stdout, stderr } = await execAsync(cmd, { cwd });
+    broadcast('worker:updated', { projectId: null });
+    res.json({ ok: true, stdout, stderr });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/projects/:id/providers', async (req, res) => {
   try {
     const data = await collectorWrite('GET', '/provider-status', undefined, req.params.id);

@@ -218,3 +218,37 @@ Not yet planned in detail — needs its own design pass (in particular Task
 "has this project's own worker" check that's separate from any global
 "is a manager visible" check) before implementation, per this project's
 own brainstorming-before-code convention.
+
+### Phase 6 implementation (2026-08-12)
+
+- [x] Task 1: `Start Sync Worker` reappears — gate changed from `hasWorkers`
+      to `hasOwnWorkers` (see Task 4).
+- [x] Task 2: Per-worker **Stop** button on every worker card, plus
+      `POST /api/workers/:id/stop` (requireAuth). Uses the existing
+      `lc worker stop --worker-number N` / `--manager`, which already
+      supported this via per-instance pidfiles — only the endpoint and
+      button were missing. Verified live: stopped worker #1 while the
+      manager kept running. 3 tests.
+- [x] Task 3: `Stop All Workers` / `Start Sync Worker` are now hidden
+      unless a project is selected. Both shell out to `make lc-stop` /
+      `make lc-start` in a project directory, so in the All Projects view
+      they silently did nothing (`handleWorkerAction` returns early on
+      `!projectId`) with no feedback. Also confirmed the original concern:
+      Stop All *cannot* reach a manager — it runs in the project's own
+      directory and a manager lives elsewhere — and the button now says so
+      in its tooltip rather than leaving it to be inferred.
+- [x] Task 4: `hasOwnWorkers` separates "does this project have a worker of
+      its own" from "what workers are visible here". A manager is
+      deliberately included in a project's worker list (the New Project and
+      provisioning flows need to find it) but belongs to no project, so it
+      was making every project look staffed and suppressing the empty state
+      everywhere.
+
+- [ ] **Weakness found while verifying, not fixed**: the stop endpoint
+      trusts `lc worker stop`'s exit code, and that command exits 0 with a
+      warning when there's no pidfile ("⚠️ No heartbeat running"). So a
+      worker started outside `lc` (or one whose pidfile was lost) reports
+      `{ok: true}` and a cheerful "stopped" while the process keeps
+      running. `workers.pid` is right there in the row the endpoint
+      already fetches — it should verify the process is actually gone
+      (`process.kill(pid, 0)`) and report honestly if it isn't.
