@@ -1,7 +1,7 @@
 # Track 1071: CLI Help — Scoped Sections
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Complete
 **Type**: dev
