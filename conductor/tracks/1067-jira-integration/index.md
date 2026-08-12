@@ -1,7 +1,7 @@
 # Track 1067: Jira Integration — Polling-Based Bidirectional Sync
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 
 # Track 1067: Jira Integration — Polling-Based Bidirectional Sync
 
