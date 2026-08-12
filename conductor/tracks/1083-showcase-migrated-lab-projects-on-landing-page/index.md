@@ -1,7 +1,7 @@
 # Track 1083: Showcase Migrated Lab Projects on LaneConductor Landing Page
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 30%
 **Phase**: First card (Chess AI Mentor) live — 3 more to add as their migrations complete
 **Type**: dev
