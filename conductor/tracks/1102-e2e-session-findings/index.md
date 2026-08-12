@@ -278,7 +278,14 @@ one was mid-implement-run on 1104) by manually diffing `ps` against the
 single registered row and SIGTERM'ing the redundant one. `lc-stop`'s
 inability to reliably find/kill "its" process is the mechanism behind
 this entire finding, not a one-off — worth its own investigation
-independent of the identity-model question.
+independent of the identity-model question. **Now that investigation: opened
+[1110](../1110-worker-separation-and-claim-race-safety/index.md)**, which
+also found the more serious sibling bug — the auto-claim path that
+decides which track a sync+poll worker runs has NO locking at all
+(confirmed from the worker's own code comment: "DB is used only for
+heartbeats... not for concurrency control"), so two worker processes
+(exactly what this addendum describes) could double-claim and double-run
+the same track, not just collide on identity.
 
 **Operational unblock 2026-08-13**: bumped this project's own
 `.laneconductor.json` `worker.spawn_timeout_ms` 900000→1800000 (15min→30min)
