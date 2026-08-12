@@ -69,8 +69,20 @@ function createTrack(num) {
   ].join('\n'));
 }
 
-function startWorker(claimMarkerPath) {
-  const proc = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')], {
+function startWorker(claimMarkerPath, workerNumber) {
+  // Track 1110 Phase 2 correction: two DISTINCT, legitimately-running
+  // worker identities (worker_number 1 and 2 — both allowed to exist for
+  // one project per track 1084 Phase 0), not two processes accidentally
+  // sharing ONE identity. Once Phase 2's worker-lock.mjs landed, the
+  // latter can no longer happen at all (the second process refuses to
+  // start) — which would make this test pass for the wrong reason (no
+  // double-claim because only one worker ever ran) rather than proving
+  // the claim itself is atomic. Distinct worker numbers keep this test
+  // honest: both processes legitimately run, and the race is purely
+  // about which one claims the shared queued track.
+  const args = [join(ROOT, 'conductor/laneconductor.sync.mjs')];
+  if (workerNumber !== 1) args.push('--worker-number', String(workerNumber));
+  const proc = spawn('node', args, {
     cwd: TMP,
     env: {
       ...process.env,
@@ -105,8 +117,8 @@ describe('Track 1110 Phase 1: claim-race reproduction', () => {
       createTrack('501');
       rmSync(markerPath, { force: true });
 
-      const workerA = startWorker(markerPath);
-      const workerB = startWorker(markerPath);
+      const workerA = startWorker(markerPath, 1);
+      const workerB = startWorker(markerPath, 2);
 
       try {
         // Give both workers time to complete at least one auto-launch tick
