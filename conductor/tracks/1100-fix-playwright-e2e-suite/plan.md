@@ -29,7 +29,7 @@ Wall clock via `/usr/bin/time`.
 | `worker-identity.spec.js` | 6 | 3 passed / **3 failed** | **47.2s** | broken (fixed in Phase 2) |
 | `new-track-plan.spec.js` | 1 | **1 failed** | **70.7s** | slow by design; needs a live sync+poll worker |
 | `brainstorm-concurrency.spec.js` | 1 | **1 failed** | **136.8s** | slow by design; needs a live sync+poll worker |
-| `brainstorm-concurrency-v2.spec.js` | 1 | see Phase 3 note | ~120s cap | slow by design; needs a live sync+poll worker |
+| `brainstorm-concurrency-v2.spec.js` | 1 | **1 failed** | **102.8s** | slow by design; needs a live sync+poll worker |
 
 **The "hang" was never a hang** — confirmed. `npx playwright test --list`
 enumerates all 19 in under a second. The suite is simply sequential
@@ -120,19 +120,52 @@ with 5-minute specs that poll real agent runs. Gating on all of it is
 impractical; gating on none of it is what caused the 1084 review.
 **Solution**: Two tiers, with the fast one wired into the gate.
 
-- [ ] Task 1: Choose the mechanism — Playwright `projects` in
+- [x] Task 1: Choose the mechanism — Playwright `projects` in
       `playwright.config.js`, or a tag convention (`@slow`) with
       `--grep-invert`. Prefer whichever keeps a *single* command in
       `quality-gate.md`.
-- [ ] Task 2: Assign specs to tiers using Phase 1's classification.
+- [x] Task 2: Assign specs to tiers using Phase 1's classification.
       Expected slow tier: `brainstorm-concurrency.spec.js`,
       `brainstorm-concurrency-v2.spec.js`, `new-track-plan.spec.js`, and
       likely `track-1033-e2e.spec.js` — confirm against measurements
       rather than assuming.
-- [ ] Task 3: Verify the fast tier meets REQ-3's ~2 minute target. If it
+- [x] Task 3: Verify the fast tier meets REQ-3's ~2 minute target. If it
       doesn't, move specs rather than raising the target.
-- [ ] Task 4: Verify the slow tier still passes when invoked explicitly —
+- [x] Task 4: Verify the slow tier still passes when invoked explicitly —
       tiering must not become a quiet way to stop running them.
+
+### Mechanism: Playwright `projects` (chosen over `@slow` tags)
+
+Both keep a single command, but `projects` also lets each tier carry its
+own `timeout` — 60s for `fast` (a real ceiling; anything slower has picked
+up a live-agent dependency and belongs in `slow`) vs 300s for `slow`. A
+grep convention can't express that.
+
+    npx playwright test --project=fast    # required, every track
+    npx playwright test --project=slow    # opt-in
+
+Assignment is by filename in `SLOW_SPECS`, so a new spec matching neither
+list defaults to `fast` — it gets run rather than silently dropped.
+
+**Task 2 correction:** the plan guessed `track-1033-e2e.spec.js` would be
+slow. Measurement says otherwise — 4 passed in **2.0s**. It is named "e2e"
+but never opens a browser; it's a pure collector-API test. It's in the fast
+tier. This is exactly why Phase 1 required numbers rather than estimates.
+
+**Tier counts verified with `--list`: 16 fast + 3 slow = 19.** Every spec
+belongs to exactly one tier; none dropped (TC-10).
+
+**Task 3:** fast tier measured at **~15s** against REQ-3's ~2 min target.
+
+**Task 4 — honest result:** the slow tier does **not** currently pass, and
+tiering is not the reason. All 3 specs need a `sync+poll` worker to claim a
+queued track; this machine runs only a `sync-only` manager, so they fail
+waiting for a claim that never arrives (`new-track-plan` ~71s,
+`brainstorm-concurrency` ~137s). Same failures pre-date this track — they
+are an unmet environment prerequisite, not a regression introduced by the
+split. Now documented in `quality-gate.md` so the next person doesn't
+rediscover it. Verifying them green under a real sync+poll worker is left
+open (see Phase 5 open work).
 
 ## Phase 4: Shared state / parallelism
 
@@ -141,24 +174,92 @@ number)". If true, the suite can never parallelise; if it's stale, the
 suite is needlessly ~6x slower than it needs to be.
 **Solution**: Establish which it is.
 
-- [ ] Task 1: Identify the actual shared state (grep the specs for the
+- [x] Task 1: Identify the actual shared state (grep the specs for the
       track number/fixture they share).
-- [ ] Task 2: If it can be made per-spec (unique track number per test,
+- [x] Task 2: If it can be made per-spec (unique track number per test,
       cleaned up after), do it and raise `workers`.
-- [ ] Task 3: If it genuinely can't, leave `workers: 1` and replace the
+- [x] Task 3: If it genuinely can't, leave `workers: 1` and replace the
       comment with a concrete statement of what breaks — so the next
       person doesn't re-litigate this.
 
+### Outcome: `workers: 1` kept — the constraint is real, and now named
+
+The old comment ("tests share state (track number)") was true but too vague
+to act on. The four concrete conflicts, verified by reading the specs:
+
+1. `brainstorm-concurrency-v2.spec.js` hardcodes track numbers **991** and
+   **992**, and creates/`rmSync`-deletes those directories under
+   `conductor/tracks/` on the real filesystem.
+2. `track-1033-e2e.spec.js` hardcodes track number **999** (the canary
+   track) and creates then `DELETE`s it in the live DB.
+3. `worker-identity.spec.js` and `track-1033-e2e.spec.js` both generate and
+   revoke API keys **on the same project**, and worker-identity asserts on a
+   before/after *row count* of `api-key-row`. Concurrent key mutation from
+   the other file corrupts that count directly — this one would be a genuine
+   flake, not a theoretical one.
+4. The brainstorm/new-track specs drive the single real heartbeat worker and
+   assert on its **concurrency limit**. Running them in parallel races the
+   exact thing under test.
+
+(1)–(3) are fixable per-spec; (4) is not, short of a second isolated worker.
+But the payoff doesn't justify it: the fast tier is 3 files and ~15s total,
+so parallelising would buy a couple of seconds in exchange for real
+flakiness risk. Decision: keep `workers: 1`, write the reasons into the
+config so this doesn't get re-litigated. That is now a 20-line comment in
+`playwright.config.js` (TC-12).
+
+**Determinism checked anyway** (TC-11's spirit, even though `workers` wasn't
+raised): 3 consecutive fast-tier runs — 10 passed / 0 failed each, 16.6s /
+15.7s / 15.3s. No order-dependence surfaced.
+
 ## Phase 5: Wire into the quality gate
 
-- [ ] Task 1: Update `conductor/quality-gate.md`'s E2E line to the
+- [x] Task 1: Update `conductor/quality-gate.md`'s E2E line to the
       fast-tier command, with measured runtime and expected result.
-- [ ] Task 2: Note the slow-tier command alongside it as opt-in, so it's
+- [x] Task 2: Note the slow-tier command alongside it as opt-in, so it's
       discoverable rather than forgotten again.
-- [ ] Task 3: **Prove the gate can fail** — temporarily break a UI element
+- [x] Task 3: **Prove the gate can fail** — temporarily break a UI element
       a fast-tier spec asserts on, confirm the tier fails, restore. Record
       what was broken and that it was restored. (A suite that passes but
       cannot fail is exactly the hazard this whole track exists to remove.)
+
+### TC-14 negative test — performed 2026-08-12
+
+**Break**: renamed `data-testid="worker-sharing-btn"` →
+`worker-sharing-btn-TEMPORARILY-BROKEN` at
+`ui/src/components/WorkersList.jsx:378` (the real attribute the visibility
+tests locate, not a synthetic one).
+
+**Observed**: fast tier **failed — 3 failed, 6 skipped**, and the message
+identified the break precisely rather than failing vaguely:
+
+```
+Locator: getByTestId('worker-card')
+           .filter({ hasText: 'pw-e2e-worker' })
+           .getByTestId('worker-sharing-btn')
+Error: element(s) not found
+```
+
+**Restore**: reverted; `git diff ui/src/components/WorkersList.jsx` is
+empty, confirming byte-identical restoration. Re-ran: **10 passed, 15.0s**.
+
+The tier can fail, fails for the right reason, and returns to green. Before
+this track the same three tests failed *permanently* against unbroken code,
+which is indistinguishable from noise and is why they were ignored.
+
+### Open work — deliberately not claimed as done
+
+1. **`track-1033-sharing.spec.js` skips all 6 of its tests** unless the API
+   server runs with `PW_TEST_MODE=true` (which makes it accept
+   `MOCK_TOKEN_FOR_*` bearer tokens — reasonably not the default). It exits
+   0, so it reads green while proving nothing. Flagged prominently in
+   `quality-gate.md` so "10 passed, 6 skipped" isn't misread as 16 passing.
+   Wiring a `PW_TEST_MODE` server into the gate is its own track.
+2. **The slow tier has not been observed green.** All 3 specs need
+   `lc worker start --sync-and-work`; this machine runs a `sync-only`
+   manager, so they fail on an unmet prerequisite (pre-existing, not caused
+   by the split). Confirming them green under a real sync+poll worker
+   remains outstanding — hence this track is **not** at 100%.
 
 ## Context
 

@@ -11,9 +11,38 @@ npx playwright test track-1033-e2e.spec.js --reporter=line
 npx playwright test track-1033-sharing.spec.js --reporter=line
 npx playwright test worker-identity.spec.js --reporter=line
 
-# Fast tier (Phase 3 — exact command TBD by Phase 3 Task 1)
-# Slow tier, opt-in (Phase 3)
+# Fast tier — REQUIRED by the quality gate. Measured ~15s, 10 passed/6 skipped.
+npx playwright test --project=fast
+
+# Slow tier — opt-in. REQUIRES a sync+poll worker: lc worker start --sync-and-work
+npx playwright test --project=slow
 ```
+
+## Results — 2026-08-12
+
+| Case | Verdict | Evidence |
+|---|---|---|
+| TC-1 | ✅ | all 6 files ran; no runner-level errors |
+| TC-2 | ✅ | table in `plan.md` Phase 1 |
+| TC-3 | ✅ | `quality-gate.md` baseline replaced with measured numbers |
+| TC-4 | ✅ | `worker-identity.spec.js` → 6 passed, 0 failed (13.6s) |
+| TC-5 | ✅ | all 3 fixed (not removed); cause written up in `plan.md` Phase 2 |
+| TC-6 | ✅ n/a | not an app regression — stale precondition; no assertion loosened |
+| TC-7 | ✅ | fast tier 15.3s / 15.7s / 15.3s, exit 0, 0 failures |
+| TC-8 | ✅ | no `setTimeout(300000)` or agent-run polling in the fast tier |
+| TC-9 | ❌ **not met** | slow tier fails on an unmet prerequisite — see below |
+| TC-10 | ✅ | `--list`: 16 fast + 3 slow = 19 |
+| TC-11 | ✅ | 3 consecutive fast-tier runs, 10 passed each |
+| TC-12 | ✅ | `playwright.config.js` names 4 concrete conflicts |
+| TC-13 | ✅ | `quality-gate.md` gives the command, prerequisites, and baseline |
+| TC-14 | ✅ | negative test performed and restored — `plan.md` Phase 5 |
+
+**TC-9 is the one unmet case.** All 3 slow specs need a running `sync+poll`
+worker to claim a queued track; this machine runs only a `sync-only`
+manager, so they fail waiting for a claim that never comes (71s / 137s /
+103s). These are the *same* failures as before the tiering — the split did
+not break them. Not forced green: starting a sync+poll worker would begin
+autonomously executing other queued tracks on this machine.
 
 Note: this track's "tests" are largely *measurements of other tests*. The
 deliverable is a suite that runs and can fail honestly, so most cases below

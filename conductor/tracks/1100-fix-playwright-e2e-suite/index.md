@@ -1,9 +1,9 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Phase 1 — triage
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 85%
+**Phase**: Phases 1–5 implemented; slow tier not yet observed green
 **Type**: dev
 **Summary**: 19 Playwright specs exist but are effectively never run: the suite is sequential with multi-minute per-test budgets (worst case ~40min), and 3 of 6 worker-identity specs fail. The quality gate now requires E2E, so the suite has to become fast and trustworthy enough to actually gate on.
 
@@ -58,11 +58,35 @@ are simply broken** (the 3 visibility-badge failures).
   command and record a real, current baseline.
 
 ## Phases
-- [ ] Phase 1: Triage — run each spec file individually, record pass/fail and wall-clock time per file. Replace the placeholder baseline in `quality-gate.md` with measured numbers.
-- [ ] Phase 2: Fix or retire the 3 failing `worker-identity.spec.js` visibility-badge tests (decide which, with evidence — the UI they assert on may have legitimately changed since track 1033).
-- [ ] Phase 3: Tier the suite — a fast/deterministic tier for the quality gate vs. an opt-in slow tier for the agent-driven specs (`brainstorm-concurrency*`, `new-track-plan`, `track-1033-e2e`). Likely Playwright projects or a grep/tag convention.
-- [ ] Phase 4: Investigate `workers: 1` — can the shared track-number state be removed so specs run in parallel? If not, document the constraint in the config comment.
-- [ ] Phase 5: Wire the fast tier into `conductor/quality-gate.md` as the required E2E command, with the measured runtime and expected result recorded.
+- [x] Phase 1: Triage — run each spec file individually, record pass/fail and wall-clock time per file. Replace the placeholder baseline in `quality-gate.md` with measured numbers.
+- [x] Phase 2: Fix or retire the 3 failing `worker-identity.spec.js` visibility-badge tests (decide which, with evidence — the UI they assert on may have legitimately changed since track 1033).
+- [x] Phase 3: Tier the suite — a fast/deterministic tier for the quality gate vs. an opt-in slow tier for the agent-driven specs (`brainstorm-concurrency*`, `new-track-plan`, `track-1033-e2e`). Likely Playwright projects or a grep/tag convention.
+- [x] Phase 4: Investigate `workers: 1` — can the shared track-number state be removed so specs run in parallel? If not, document the constraint in the config comment.
+- [x] Phase 5: Wire the fast tier into `conductor/quality-gate.md` as the required E2E command, with the measured runtime and expected result recorded.
+- [ ] Phase 6 (open): observe the slow tier green under a real `sync+poll` worker, and decide how/whether to bring `track-1033-sharing.spec.js`'s 6 always-skipped tests into the gate.
+
+## Result
+
+`npx playwright test --project=fast` — **10 passed, 6 skipped, 0 failed in
+~15s**, stable across 3 consecutive runs. Wired into `quality-gate.md` as
+the required E2E check.
+
+The 3 `worker-identity` failures were a **stale test precondition, not an
+app regression**: they guarded on `GET /api/workers` (which includes
+manager workers, `project_id NULL` by design) while the Workers grid
+renders an empty state unless a *non-manager* worker exists. They now seed
+their own worker and are deterministic. No app code changed.
+
+Negative test performed (TC-14): breaking `worker-sharing-btn` in
+`WorkersList.jsx` made the tier fail with a message naming the break;
+restoring returned it to green with an empty `git diff`.
+
+**Not at 100% on purpose.** Two things remain open — the slow tier has
+never been *observed* passing (all 3 specs need
+`lc worker start --sync-and-work`; this machine runs a sync-only manager),
+and all 6 `track-1033-sharing` tests skip silently without a
+`PW_TEST_MODE` server. Both are documented in `plan.md` and
+`quality-gate.md` rather than papered over.
 
 ## Depends on
 [1084](../1084-worker-identity-and-assignment/index.md) — its Phase 6 review added the real-product/E2E requirement to the quality gate, which is what makes this suite load-bearing. Specs under test originate from [1033](../1033-track-1033-worker-use-connection/index.md).
