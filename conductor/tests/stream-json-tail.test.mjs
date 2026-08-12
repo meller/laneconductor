@@ -9,7 +9,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseNewJsonlLines } from '../stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText } from '../stream-json-tail.mjs';
 
 describe('parseNewJsonlLines', () => {
   it('returns no events and the same offset when there is no new content', () => {
@@ -73,5 +73,41 @@ describe('parseNewJsonlLines', () => {
     const r2 = parseNewJsonlLines(step2, r1.newOffset);
     assert.deepEqual(r2.events.map(e => e.type), ['b', 'c']);
     assert.equal(r2.newOffset, step2.length);
+  });
+});
+
+describe('extractFinalAssistantText (track 1086 conversation-gap fix)', () => {
+  const ev = (o) => JSON.stringify(o);
+  const assistantText = (text) => ev({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
+
+  it('returns the LAST assistant text block — the closing summary, not the first narration', () => {
+    const log = [
+      assistantText('Let me look at the files first.'),
+      ev({ type: 'system', subtype: 'hook_started' }),
+      assistantText('All phases complete. Summary: added the endpoint and 3 tests.'),
+      ev({ type: 'result', subtype: 'success' }),
+    ].join('\n');
+    assert.equal(
+      extractFinalAssistantText(log),
+      'All phases complete. Summary: added the endpoint and 3 tests.'
+    );
+  });
+
+  it('returns null when there is no assistant text at all (non-claude / empty logs)', () => {
+    assert.equal(extractFinalAssistantText(''), null);
+    assert.equal(extractFinalAssistantText(ev({ type: 'system', subtype: 'init' })), null);
+    assert.equal(extractFinalAssistantText('plain text log, not jsonl at all'), null);
+  });
+
+  it('truncates long finals with a marker, never mid-line silently', () => {
+    const long = 'x'.repeat(5000);
+    const out = extractFinalAssistantText(assistantText(long), 2000);
+    assert.ok(out.length <= 2100);
+    assert.match(out, /\[truncated/);
+  });
+
+  it('skips whitespace-only text blocks when picking the final', () => {
+    const log = [assistantText('Real summary.'), assistantText('   \n  ')].join('\n');
+    assert.equal(extractFinalAssistantText(log), 'Real summary.');
   });
 });

@@ -247,6 +247,26 @@ Still open from this finding: (a) the pre-fix history is unrecoverable;
 (c) whether `worker_dispatch`'s CASCADE should become SET NULL as
 belt-and-braces for manual row deletions.
 
+### F11 — Spawn timeout killed the dogfooded walkthrough; the FAIL line hid why 🟠 PARTIALLY FIXED
+The 1104 implement run (the walkthrough executing itself) was SIGTERM'd by
+the worker's own `spawn_timeout_ms` (15min for this project) mid-Phase-1,
+after 90 productive turns — and conversation.md recorded only
+`FAIL (exit 143)`, indistinguishable from a real agent failure.
+
+Fixed now (with the 1086 conversation-gap work): the killer sets a flag
+and the conversation line reads `exit 143 — killed by spawn timeout after
+900s, not an agent failure`, plus the run's closing assistant message is
+appended as a proper `> **claude**:` entry (every line `>`-prefixed so the
+sync parser accepts it), so the Conversation tab finally carries what the
+run actually said.
+
+Still open: 15 minutes is simply too short for walkthrough-class tracks
+that drive real browsers and spawn nested runs. Options for whoever picks
+this up: per-track or per-lane timeout override in workflow.json, or a
+keepalive that extends the deadline while the transcript is still
+advancing (the log was growing the whole time — the run wasn't hung,
+which is exactly what a timeout is supposed to catch).
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
