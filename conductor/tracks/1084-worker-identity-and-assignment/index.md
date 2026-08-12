@@ -1,9 +1,9 @@
 # Track 1084: Worker Identity & Assignment
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 83%
-**Phase**: Phases 0-5 complete for their achievable scope — 2 acceptance-criteria items (continuity-first routing, same-developer parallel claims) remain blocked on 1086's track_sessions table, not a defect. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12, needs planning.
+**Lane Status**: queue
+**Progress**: 71%
+**Phase**: Phases 0-5 complete for their achievable scope. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12. **Phase 7 added 2026-08-12: continuity-first routing is UNBLOCKED** — 1086 shipped `track_sessions`, so the deferred REQ-3 step can finally land. (Progress recut 83%→71%: 5 of 7 phases, not 5 of 6.)
 **Type**: dev
 **Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
 
@@ -58,6 +58,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 4: UI — Assignee control on track detail panel, worker status badge on track cards; "Pin as mine" removed (no longer needed)
 - [x] Phase 5: Tests — assignee resolution, claim gating, reassignment, restart-reuse, two-instance concurrency all covered; continuity routing / same-developer parallel claims remain blocked on 1086
 - [ ] Phase 6 (reopened 2026-08-12): UI gaps for the multi-worker-per-project model this track already built — found live while testing tracks 1089/1091/1096. `WorkersList.jsx`'s worker lifecycle controls only really work for the "zero or one worker" case; `--worker-number` support (Phase 0) has no matching way to reach it from the UI.
+- [ ] Phase 7 (added 2026-08-12): **Continuity-first routing — the deferred Phase 3 Task 2, now unblocked.** [1086](../1086-persistent-track-sessions/index.md) shipped `track_sessions` (done, 100%), so `claimable-tracks` can finally prefer the worker that already holds a track's session instead of first-idle-wins. This is REQ-3 step 3, the last functional gap in this track's core promise — and it is the main token-cost lever in a multi-worker setup, since routing a track to a worker without its session forces a full context rebuild.
 
 ## Depends on
-None to start (schema/UI can land first) — but Phase 3's continuity check needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table to exist. Foundation for [1085](../1085-manual-worker-dispatch/index.md).
+None to start (schema/UI can land first) — but Phase 3's continuity check needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table to exist. **Resolved 2026-08-12**: 1086 is complete, so that dependency is satisfied and the work is now Phase 7. Foundation for [1085](../1085-manual-worker-dispatch/index.md). Sequencing note: [1109](../1109-worker-claim-allowlist/index.md) edits the same `claimable-tracks` function — land one before the other rather than in parallel.
