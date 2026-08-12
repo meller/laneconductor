@@ -35,15 +35,18 @@
 - [ ] E2E suite: `npx playwright test` (19 specs across 6 files in
       `conductor/tests/playwright/`). Run the EXISTING specs — adding one
       trivial passing test does NOT satisfy this.
-      **Known state as of 2026-08-12** (measured, not assumed): the full
-      suite hangs past 3 minutes and needs `--timeout`/per-file runs;
+      **Known state as of 2026-08-12** (measured, not assumed):
       `worker-identity.spec.js` alone finishes in ~45s with **3 passed, 3
-      failed**. The failures are pre-existing and unrelated to any current
-      track — they assert on worker-card visibility badges. So: run
-      per-file, and compare against this recorded baseline rather than
-      expecting all-green. **Fixing the suite (and the hang) is its own
-      track** — until then, an untriaged failure here is not automatically
-      a blocker, but a *new* failure is.
+      failed** — pre-existing failures asserting on worker-card visibility
+      badges, unrelated to any current track. The full suite did not finish
+      inside a 3-minute budget: it is **not hanging**, it is sequential by
+      config (`workers: 1`) with a 180s default per-test timeout, and two
+      specs raise their own to 300s while polling real agent runs — so
+      worst case is tens of minutes.
+      **Until [track 1100](tracks/1100-fix-playwright-e2e-suite/index.md)
+      lands**: run per-file rather than the whole suite, compare against
+      this baseline instead of expecting all-green, and treat a *new*
+      failure as a blocker while the 3 known ones are not.
 - [ ] Drove the actual flow in a browser and recorded the observed
       user-visible result (screenshot, or the real API/DB response).
 
