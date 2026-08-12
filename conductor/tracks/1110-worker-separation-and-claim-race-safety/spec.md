@@ -80,6 +80,24 @@ makes a duplicate process dangerous rather than merely redundant.
   or claim authorization/scoping (that's [1109](../1109-worker-claim-allowlist/index.md)).
   This track is purely about **exclusivity**: at most one process per
   identity, at most one claimant per track.
-- Cross-machine locking. Both problems here are single-machine
-  (one project directory, one Postgres instance) — a genuinely
-  distributed lock is out of scope.
+- **Cross-machine locking — deliberately not needed, not just deferred.**
+  In remote-api mode, two different machines can legitimately run a
+  worker for the same project (raised and confirmed 2026-08-13). This
+  does NOT reopen problem A: `workers`' own uniqueness constraint is
+  `(project_id, hostname, worker_number)` — hostname is part of the
+  identity, so "worker #1 on machine A" and "worker #1 on machine B" are
+  two distinct identities that happen to share a number, not a collision.
+  Phase 2's FS lock only ever needs to prevent duplication *within* one
+  machine, because that's the only place a collision on one identity can
+  occur — there is no filesystem shared between the two machines' locks
+  to race over.
+  Where the cross-machine case DOES bite is problem B (claim race): two
+  distinct workers — same machine with different numbers, or different
+  machines entirely — can still both try to claim the same queued track.
+  That's exactly what Phase 3's fix already covers, and it's inherently
+  cross-machine-safe *because* it wires into Postgres (`POST
+  /tracks/claim-queue`, `FOR UPDATE SKIP LOCKED`) rather than anything
+  local-filesystem-based — the DB is the one piece of state actually
+  shared between machines in API mode. So Phase 3 isn't just "the
+  API-mode fix," it's specifically what makes the cross-machine case
+  safe; no separate distributed-lock work is needed on top of it.
