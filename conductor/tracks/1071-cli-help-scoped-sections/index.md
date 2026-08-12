@@ -1,6 +1,6 @@
 # Track 1071: CLI Help — Scoped Sections
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Complete
