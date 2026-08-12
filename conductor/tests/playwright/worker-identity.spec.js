@@ -54,10 +54,23 @@ async function resolveProjectId(request, name = 'laneconductor') {
 }
 
 /**
- * Register a project-scoped worker so the Workers grid has a card to render.
+ * Register a project-scoped worker so the Workers grid has a card to render,
+ * and force it to a known visibility.
+ *
  * Upserts on (project_id, hostname, worker_number), so repeat runs reuse the
  * same row rather than accumulating. It ages out of GET /api/workers' 60s
  * heartbeat-freshness window on its own once the run finishes.
+ *
+ * The explicit PATCH is NOT redundant with the `visibility` sent below.
+ * `POST /worker/register`'s `ON CONFLICT ... DO UPDATE SET` updates status,
+ * pid, machine_token, user_uid, mode, cli, model, available_models and
+ * last_heartbeat — but *not* `visibility`. So re-registering an existing
+ * fixture row silently keeps whatever visibility the previous run left
+ * behind. Without this, a run that died between "set Public" and "reset to
+ * Private" below wedged the whole fast tier red on every subsequent run,
+ * because the first assertion expects Private. That is precisely the
+ * failure mode track 1100 exists to remove — a spec failing permanently
+ * against unbroken code — so the precondition is enforced, not assumed.
  */
 async function seedWorker(request, projectId, visibility = 'private') {
   const r = await request.post(`${API}/worker/register`, {
@@ -74,7 +87,13 @@ async function seedWorker(request, projectId, visibility = 'private') {
     },
   });
   expect(r.ok(), 'POST /worker/register should succeed').toBeTruthy();
-  return (await r.json()).id;
+  const { id } = await r.json();
+
+  const v = await request.patch(`${API}/api/workers/${id}/visibility`, {
+    data: { visibility },
+  });
+  expect(v.ok(), `PATCH /api/workers/${id}/visibility should succeed`).toBeTruthy();
+  return id;
 }
 
 /** Select a specific project so the Config button becomes visible */

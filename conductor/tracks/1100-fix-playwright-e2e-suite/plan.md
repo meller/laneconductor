@@ -315,3 +315,24 @@ decision — the queue currently holds tracks 10003–10007 and others in
 
 It requires the UI and API to be up but never says `make start-all`.
 `product-guidelines.md` requires instructions to state the exact command.
+
+## ✅ Gap 1 resolved — 2026-08-12 (implement pass 2)
+
+`seedWorker()` now **enforces** the fixture's starting visibility instead of
+assuming registration reset it: after `POST /worker/register` it issues
+`PATCH /api/workers/:id/visibility` with the requested value. The comment in
+the spec explains why this is not redundant with the `visibility` field sent
+to `/worker/register` (that endpoint's `ON CONFLICT ... DO UPDATE SET` omits
+the column), so the next reader doesn't "simplify" it back out.
+
+Fixed test-first, against a deliberately dirty starting state:
+
+| Step | State before run | Code | Result |
+|---|---|---|---|
+| Reproduce | fixture forced `public` | before fix | ❌ `1 failed, 5 passed` — `Received string: "🌐Public"` |
+| Verify fix | fixture forced `public` | after fix | ✅ `6 passed (13.3s)` |
+| Fast tier ×3 | fixture forced `public` each time | after fix | ✅ `10 passed` / `10 passed` / `10 passed` (14.5s / 13.8s / 14.1s) |
+
+The tier now recovers from dirty state on its own, which is the property
+that was missing. Gap 2 (slow tier) and Gap 3 (`make start-all` not named in
+`quality-gate.md`) remain open.
