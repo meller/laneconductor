@@ -42,9 +42,22 @@ own guard logic, not the sync script's internals.
       this number also tells us how aggressive the fix's own test
       threshold needs to be to avoid flaking in the other direction
 
-**Impact**: A failing (intermittently red) test that proves the race
-exists, committed before any fix — the baseline Phase 2-4 must turn
-reliably green.
+**Observed 2026-08-13** (Task 5): double-claim reproduced in 4/8 and 2/8
+across two independent 8-run passes — non-zero and repeatable, confirming
+this is a genuine timing race rather than a one-off fluke. Root cause
+independently confirmed while building the repro: `spawnCli`'s
+context-injection fallback overwrites the trailing argv slot (normally
+`trackNumber`) with the injected prompt text for any CLI whose last arg
+looks like a prompt, `mock-cli.mjs` included — worth knowing for whoever
+extends this test to multiple simultaneous tracks later, since
+`MOCK_CLI_CLAIM_MARKER` had to be scoped to "distinct pid" rather than
+"distinct pid per track" for that reason (see the marker's own comment in
+`mock-cli.mjs`). Phase 5's regression threshold: 0/8 clean, twice, is the
+bar the fix must clear.
+
+**Impact**: A failing (intermittently red, 2-4/8 runs) test that proves
+the race exists, committed before any fix — the baseline Phase 2-4 must
+turn reliably green (0/8, repeatedly).
 
 ## Phase 2: Problem A — flock-based single-instance guard
 

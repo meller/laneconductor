@@ -19,14 +19,39 @@
 //                               dispatch to fail and a later one to
 //                               succeed — the test creates/deletes the file
 //                               between dispatches instead.
+//   MOCK_CLI_CLAIM_MARKER=<path>   Track 1110 Phase 1: if set, append
+//                               "<pid>\n" to the file at <path> on every
+//                               invocation. Lets a test with TWO worker
+//                               processes sharing one project directory
+//                               observe how many distinct pids spawned a
+//                               CLI run — the signal a claim-race
+//                               reproduction needs — without parsing
+//                               interleaved stdout from two child
+//                               processes, which is fragile. Deliberately
+//                               NOT keyed by trackNumber: spawnCli's
+//                               context-injection fallback overwrites the
+//                               trailing argv slot (normally trackNumber)
+//                               with the injected prompt text for any CLI
+//                               whose last arg looks like a prompt —
+//                               mock-cli.mjs included — so trackNumber
+//                               cannot be trusted to survive in argv here.
+//                               Fine for a single-track reproduction; a
+//                               future multi-track version would need a
+//                               different signal (e.g. reading it back
+//                               out of the per-track log file spawnCli
+//                               already writes).
 
-import { existsSync } from 'node:fs';
+import { existsSync, appendFileSync } from 'node:fs';
 
 const [,, command, trackNumber] = process.argv;
 const sentinelPath = process.env.MOCK_CLI_RESUME_FAILURE_SENTINEL;
 const resumeFailure = !!sentinelPath && existsSync(sentinelPath);
 const exitCode = resumeFailure ? 1 : parseInt(process.env.MOCK_CLI_EXIT_CODE ?? '0');
 const delay = parseInt(process.env.MOCK_CLI_DELAY_MS ?? '100');
+
+if (process.env.MOCK_CLI_CLAIM_MARKER) {
+  appendFileSync(process.env.MOCK_CLI_CLAIM_MARKER, `${process.pid}\n`);
+}
 
 if (resumeFailure) {
   console.log('No conversation found with session ID: (mock)');
