@@ -1,6 +1,6 @@
 # Track 1075: Structured Pino logging for the worker + UI/API, with a live Pinorama viewer
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete
