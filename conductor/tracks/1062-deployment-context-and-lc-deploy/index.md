@@ -1,6 +1,6 @@
 # Track 1062: Deployment Context & lc deploy Command
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 
 # Track 1062: Deployment Context & lc deploy Command
