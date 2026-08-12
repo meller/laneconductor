@@ -1,7 +1,7 @@
 # Devto Blog Post
 
 **Lane**: plan
-**Lane Status**: plan
+**Lane Status**: running
 
 # Devto Blog Post
 
