@@ -2933,11 +2933,19 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     // (last_heartbeat never advanced past registration, so it aged out of
     // GET /api/workers' 60-second freshness window and the worker appeared
     // to vanish, even though the process was alive and heartbeating).
-    await pool.query(
+    const hb = await pool.query(
       `UPDATE workers SET ${sets.join(', ')}
       WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3`,
       params
     );
+    // Track 1102 F10: a heartbeat that matched no row must say so — the
+    // worker's error handler re-registers on 404. Returning ok:true here
+    // left a worker whose row had been deleted out from under it (see
+    // DELETE /worker's F10 note) heartbeating into the void forever:
+    // busy and running, but invisible in every workers list.
+    if (hb.rowCount === 0) {
+      return res.status(404).json({ error: 'worker not registered (no matching row) — re-register' });
+    }
     broadcast('worker:updated', { projectId });
     res.json({ ok: true });
   } catch (err) {
@@ -2995,9 +3003,19 @@ app.delete('/worker', collectorAuth, async (req, res) => {
     const { hostname } = req.body;
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
-    // Same NULL-safe comparison as the heartbeat handler above.
+    // Track 1102 F10: SOFT de-registration — never DELETE the row.
+    // worker_dispatch.worker_id is ON DELETE CASCADE, so a hard delete
+    // erased the worker's entire dispatch history (the Activity panel's
+    // chat included). Observed live: two processes briefly shared one
+    // (project, hostname, worker_number) identity; the short-lived one's
+    // graceful shutdown deleted the shared row and cascaded away the
+    // survivor's in-flight dispatches and all chat history. A stable
+    // identity (track 1084) that a routine stop can destroy isn't stable.
+    // Marking offline preserves the row, its id, and everything attached;
+    // re-registration reuses it via the existing ON CONFLICT upsert.
     await pool.query(
-      'DELETE FROM workers WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3',
+      `UPDATE workers SET status = 'offline', last_heartbeat = NOW() - INTERVAL '10 minutes'
+        WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3`,
       [projectId, hostname, worker_number]
     );
     res.json({ ok: true });
