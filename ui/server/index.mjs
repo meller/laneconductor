@@ -262,11 +262,11 @@ app.get('/api/projects/:id/workers', async (req, res) => {
     // 4. Local mode (no AUTH_ENABLED): show all
 
     let queryStr = `
-      SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.mode, p.name AS project_name
+      SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
+              w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name
        FROM workers w
-       JOIN projects p ON p.id = w.project_id
-       WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+       LEFT JOIN projects p ON p.id = w.project_id
+       WHERE (w.project_id = $1 OR w.type = 'manager') AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;
     const params = [projectId];
 
@@ -301,8 +301,8 @@ app.get('/api/workers', async (req, res) => {
     // NULL by design (it isn't "for" any one project), so an inner join
     // silently dropped every manager worker from this endpoint's results.
     let queryStr = `
-      SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.mode, w.type,
+      SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
+              w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
               p.id AS project_id, p.name AS project_name, p.repo_path
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
@@ -593,7 +593,7 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
         if (!existsSync(trackPath)) {
           mkdirSync(trackPath, { recursive: true });
           const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
-          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType);
+          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType, 'plan');
           writeFileSync(join(trackPath, 'index.md'), index, 'utf8');
           writeFileSync(join(trackPath, 'plan.md'), plan, 'utf8');
           writeFileSync(join(trackPath, 'spec.md'), spec, 'utf8');
@@ -1043,7 +1043,7 @@ app.get('/api/projects/:id/tracks/:num/transcript', async (req, res) => {
       try { events.push(JSON.parse(line)); }
       catch { /* non-JSON line — skip (non-Claude CLI log, or a truncated last line) */ }
     }
-    res.json({ events });
+    res.json({ events, rawLog: content });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1746,10 +1746,17 @@ function hashApiKey(key) {
 async function collectorAuth(req, res, next) {
   const bearer = req.headers.authorization?.replace('Bearer ', '');
 
+  const bodyProj = req.body?.project_id ? parseInt(req.body.project_id) : null;
+  const queryProj = req.query.project_id ? parseInt(req.query.project_id) : null;
+  const resolvedProjectId = isNaN(queryProj) ? (isNaN(bodyProj) ? null : bodyProj) : (queryProj || (isNaN(bodyProj) ? null : bodyProj));
+
   // 1. If global token configured, enforce it.
   if (COLLECTOR_TOKEN_ENV) {
     if (!bearer) return res.status(401).json({ error: 'unauthorized' });
-    if (bearer === COLLECTOR_TOKEN_ENV) return next();
+    if (bearer === COLLECTOR_TOKEN_ENV) {
+      req.worker_project_id = resolvedProjectId;
+      return next();
+    }
   }
 
   // 2. Identify worker via machine_token
@@ -1757,7 +1764,7 @@ async function collectorAuth(req, res, next) {
     try {
       let queryArgs = [bearer];
       let queryStr = 'SELECT id, project_id, user_uid, visibility FROM workers WHERE machine_token = $1';
-      const requestedProject = req.query.project_id || req.body.project_id;
+      const requestedProject = queryProj || bodyProj;
       if (requestedProject) {
         queryStr += ' AND project_id = $2';
         queryArgs.push(requestedProject);
@@ -1765,7 +1772,7 @@ async function collectorAuth(req, res, next) {
       const { rows } = await pool.query(queryStr, queryArgs);
       if (rows.length > 0) {
         req.worker_id = rows[0].id;
-        req.worker_project_id = rows[0].project_id;
+        req.worker_project_id = rows[0].project_id || resolvedProjectId;
         req.worker_user_uid = rows[0].user_uid;
         req.worker_visibility = rows[0].visibility;
         req.machine_token = bearer;
@@ -1784,6 +1791,7 @@ async function collectorAuth(req, res, next) {
       );
       if (rows.length > 0) {
         req.user_uid = rows[0].user_uid;
+        req.worker_project_id = resolvedProjectId;
         // Update last_used_at asynchronously — don't block the request
         pool.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
         return next();
@@ -1795,6 +1803,7 @@ async function collectorAuth(req, res, next) {
 
   // 4. If no global token, allow anonymous (for local usage)
   if (!COLLECTOR_TOKEN_ENV) {
+    req.worker_project_id = resolvedProjectId;
     return next();
   }
 
@@ -2719,6 +2728,9 @@ app.post('/worker/register', async (req, res, next) => {
 }, async (req, res) => {
   try {
     const { hostname, pid, mode } = req.body;
+    const cli = req.body.cli || null;
+    const model = req.body.model || null;
+    const available_models = req.body.available_models ? JSON.stringify(req.body.available_models) : null;
     // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
     // pid changes on every restart, which under the old (project_id,
     // hostname, pid) key minted a brand-new row per restart and orphaned
@@ -2742,14 +2754,17 @@ app.post('/worker/register', async (req, res, next) => {
     if (type === 'manager') {
       const machine_token = randomUUID();
       const { rows: [{ id: workerId }] } = await pool.query(`
-        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, last_heartbeat)
-        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', NOW())
+        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, last_heartbeat)
+        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, NOW())
         ON CONFLICT (hostname) WHERE type = 'manager' DO UPDATE SET
         status = 'idle', pid = EXCLUDED.pid, user_uid = EXCLUDED.user_uid,
         mode = EXCLUDED.mode,
+        cli = COALESCE(EXCLUDED.cli, workers.cli),
+        model = COALESCE(EXCLUDED.model, workers.model),
+        available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
         last_heartbeat = NOW()
         RETURNING id
-      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
+      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
       broadcast('worker:updated', { projectId: null });
       return res.json({ ok: true, machine_token, id: workerId });
     }
@@ -2766,14 +2781,17 @@ app.post('/worker/register', async (req, res, next) => {
     }
 
     const { rows: [{ id: workerId }] } = await pool.query(`
-    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, last_heartbeat)
-    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, NOW())
+    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, last_heartbeat)
+    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, NOW())
     ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
     status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
+    cli = COALESCE(EXCLUDED.cli, workers.cli),
+    model = COALESCE(EXCLUDED.model, workers.model),
+    available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
     last_heartbeat = NOW()
     RETURNING id
-  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
+  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
 
 
     broadcast('worker:updated', { projectId });
@@ -2789,7 +2807,7 @@ app.post('/worker/register', async (req, res, next) => {
 app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
-    const { hostname, pid, status, current_task, mode } = req.body;
+    const { hostname, pid, status, current_task, mode, cli, model, available_models } = req.body;
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
     // pid is kept updated for liveness/informational purposes even though
@@ -2800,6 +2818,9 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     if (status) { sets.push(`status = $${i++} `); params.push(status); }
     if (current_task !== undefined) { sets.push(`current_task = $${i++} `); params.push(current_task); }
     if (mode) { sets.push(`mode = $${i++} `); params.push(mode); }
+    if (cli !== undefined) { sets.push(`cli = $${i++} `); params.push(cli); }
+    if (model !== undefined) { sets.push(`model = $${i++} `); params.push(model); }
+    if (available_models !== undefined) { sets.push(`available_models = $${i++}`); params.push(JSON.stringify(available_models)); }
     // Track 1091: IS NOT DISTINCT FROM, not `=` — a manager worker's
     // project_id is always NULL, and SQL's `NULL = NULL` is never true, so
     // a plain `=` silently matched zero rows for every manager heartbeat
@@ -2813,6 +2834,52 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     );
     broadcast('worker:updated', { projectId });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1096: Worker CLI and Model selection endpoint
+app.patch('/api/workers/:id/config', requireAuth, async (req, res) => {
+  try {
+    const workerId = req.params.id;
+    const { cli, model } = req.body;
+
+    const VALID_CLIS = ['claude', 'gemini', 'copilot', 'antigravity'];
+    if (cli !== undefined && cli !== null && !VALID_CLIS.includes(cli)) {
+      return res.status(400).json({ error: 'Invalid CLI engine' });
+    }
+
+    const workerRes = await pool.query('SELECT id, project_id, type FROM workers WHERE id = $1', [workerId]);
+    if (workerRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Worker not found' });
+    }
+    const worker = workerRes.rows[0];
+
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (cli !== undefined) { sets.push(`cli = $${i++}`); params.push(cli); }
+    if (model !== undefined) { sets.push(`model = $${i++}`); params.push(model); }
+
+    if (sets.length > 0) {
+      params.push(workerId);
+      await pool.query(
+        `UPDATE workers SET ${sets.join(', ')} WHERE id = $${i}`,
+        params
+      );
+    }
+
+    // Queue worker_dispatch action 'set_model' for worker heartbeat pickup
+    const payload = JSON.stringify({ cli, model });
+    await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, NULL, 'set_model', $2)`,
+      [workerId, payload]
+    );
+
+    broadcast('worker:updated', { projectId: worker.project_id });
+    res.json({ ok: true, worker_id: workerId, cli, model });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2925,33 +2992,112 @@ app.get('/api/tracks/:id/dispatch', async (req, res) => {
   }
 });
 
-// UI-side: enqueue a project-scoped (deploy) dispatch entry — no track_number,
-// since deploy isn't tied to any one track's lane.
+// Track 1089: Provisioning targets CRUD
+app.get('/api/projects/:id/provision-targets', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM provision_targets WHERE project_id = $1 ORDER BY created_at ASC',
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    logger.error?.({ err }, '[api] Failed to list provision targets') || console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/provision-targets', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { host, label } = req.body;
+    if (!host || typeof host !== 'string' || !host.trim()) {
+      return res.status(400).json({ error: 'host is required' });
+    }
+    const userUid = req.user?.uid || null;
+    const result = await pool.query(
+      `INSERT INTO provision_targets (project_id, user_uid, host, label)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (project_id, host) DO UPDATE SET label = EXCLUDED.label
+       RETURNING *`,
+      [id, userUid, host.trim(), label?.trim() || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    logger.error?.({ err }, '[api] Failed to create provision target') || console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id/provision-targets/:targetId', async (req, res) => {
+  try {
+    const { id, targetId } = req.params;
+    const result = await pool.query(
+      'DELETE FROM provision_targets WHERE id = $1 AND project_id = $2 RETURNING id',
+      [targetId, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Target not found' });
+    }
+    res.json({ success: true, id: Number(targetId) });
+  } catch (err) {
+    logger.error?.({ err }, '[api] Failed to delete provision target') || console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: enqueue a project-scoped (deploy / provision) dispatch entry — no track_number,
+// since project-level actions aren't tied to any one track's lane.
 app.post('/api/projects/:id/dispatch', async (req, res) => {
   try {
-    const { worker_id, action, payload } = req.body;
+    const { worker_id, action, payload, track_number } = req.body;
     if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
     if ((action === 'deploy' || action === 'build_and_deploy') && !payload?.environment) {
       return res.status(400).json({ error: 'payload.environment is required for deploy' });
     }
 
-    if (action === 'deploy' && (payload?.buildId || payload?.build_id)) {
-      const buildId = payload.buildId || payload.build_id;
-      const { rows: [proj] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
-      if (proj?.repo_path) {
-        const build = getBuildById(proj.repo_path, buildId);
-        if (!build) {
-          return res.status(404).json({ error: `Build artifact '${buildId}' not found` });
+    if (action === 'provision-worker') {
+      if (!payload?.target_host) {
+        return res.status(400).json({ error: 'payload.target_host is required for provision-worker' });
+      }
+      if (req.params.id && req.params.id !== 'null') {
+        const targetProjId = payload.target_project_id || req.params.id;
+        const { rows: targets } = await pool.query(
+          'SELECT id FROM provision_targets WHERE project_id = $1 AND host = $2',
+          [targetProjId, payload.target_host]
+        );
+        if (targets.length === 0) {
+          return res.status(400).json({ error: `target_host '${payload.target_host}' is not a registered provision target for project` });
         }
       }
     }
 
+    if (action === 'deploy' && (payload?.buildId || payload?.build_id)) {
+      const buildId = payload.buildId || payload.build_id;
+      if (req.params.id !== 'null') {
+        const { rows: [proj] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+        if (proj?.repo_path) {
+          const build = getBuildById(proj.repo_path, buildId);
+          if (!build) {
+            return res.status(404).json({ error: `Build artifact '${buildId}' not found` });
+          }
+        }
+      }
+    }
+
+    const trackNum = track_number || payload?.track_number || null;
+    const projId = req.params.id === 'null' || !req.params.id ? null : req.params.id;
+
     const { rows: [inserted], rowCount } = await pool.query(
       `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
        SELECT $1, $2, $3, $4
-       WHERE EXISTS (SELECT 1 FROM workers WHERE id = $1 AND project_id = $5)
+       WHERE EXISTS (
+         SELECT 1 FROM workers
+         WHERE id = $1
+           AND (project_id IS NOT DISTINCT FROM $5 OR (type = 'manager' AND $5 IS NULL) OR $3 = 'provision-worker')
+       )
        RETURNING id`,
-      [worker_id, null, action, payload ? JSON.stringify(payload) : null, req.params.id]
+      [worker_id, trackNum, action, payload ? JSON.stringify(payload) : null, projId]
     );
     if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this project' });
     res.json({ ok: true, id: inserted.id });
@@ -3013,6 +3159,40 @@ app.post('/api/dispatch/create-project', async (req, res) => {
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
       [worker_id, null, 'create-project', JSON.stringify(payload)]
+    );
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1089 Phase 6: provision-worker dispatch, restricted to type:
+// 'manager' workers — same reasoning as create-project just above. A
+// manager's project_id is always null, so the existing project-scoped
+// POST /api/projects/:id/dispatch can never validate it (that endpoint
+// requires the dispatched-to worker to belong to the given project).
+//
+// The chosen manager IS the machine choice: a manager is a machine-level
+// singleton, and it starts the worker locally on its own machine (no SSH
+// — see track 1089 index.md). It resolves the project folder itself from
+// its own --projects-dir, so no path is passed here.
+app.post('/api/dispatch/provision-worker', async (req, res) => {
+  try {
+    const { worker_id, payload } = req.body;
+    if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
+    if (!payload?.project_name) return res.status(400).json({ error: 'payload.project_name is required' });
+
+    const workerResult = await pool.query('SELECT id, type FROM workers WHERE id = $1', [worker_id]);
+    if (workerResult.rows.length === 0) return res.status(404).json({ error: 'worker not found' });
+    if (workerResult.rows[0].type !== 'manager') {
+      return res.status(400).json({ error: 'provision-worker dispatch requires a manager-type worker' });
+    }
+
+    const { rows: [inserted] } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [worker_id, null, 'provision-worker', JSON.stringify(payload)]
     );
     res.json({ ok: true, id: inserted.id });
   } catch (err) {

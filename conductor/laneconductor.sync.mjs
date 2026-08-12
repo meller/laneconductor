@@ -7,7 +7,8 @@ import { watch } from 'chokidar';
 import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { spawn, execSync } from 'child_process';
+import { spawn, execSync, exec } from 'child_process';
+import { promisify } from 'util';
 import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
@@ -183,6 +184,200 @@ function isQualityGateEnabled() {
   } catch {
     return false;
   }
+}
+
+// ── Track 1099: Dynamic model discovery ─────────────────────────────────────
+// Workers probe their installed CLI to discover available models at startup and
+// every 30 minutes. The result is included in every heartbeat so the UI can
+// show worker-specific model lists instead of global hardcoded presets.
+
+let cachedModels = null; // null = not yet discovered or CLI doesn't support listing
+
+const execAsync = promisify(exec);
+
+// Guards the plain-text CLI-output fallbacks below. There is no real
+// `claude models list` subcommand (confirmed live 2026-08-12: it exits 0
+// and returns a conversational reply from Claude itself, since the CLI
+// interprets the unrecognized subcommand as a prompt) — without this,
+// each line of that prose gets treated as a "model id", and garbage like
+// full sentences ends up stored in available_models and offered as
+// selectable options in the model picker. A real model id is a short,
+// single token: letters/digits/dots/hyphens only, no spaces or
+// punctuation.
+function looksLikeModelId(s) {
+  return typeof s === 'string' && s.length > 0 && s.length <= 60 && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(s);
+}
+
+/**
+ * Run a CLI-specific command to list available models.
+ * Returns [{id, label}] on success, null on any failure.
+ * Times out after 10 seconds. Uses the async child_process.exec (not
+ * execSync) deliberately — execSync blocks the entire Node event loop for
+ * its whole duration, which stalled every other in-flight worker
+ * operation (heartbeats, dispatch polling) for as long as each CLI probe
+ * took, regardless of whether the *caller* awaited discoverAvailableModels
+ * or not (calling an async function still runs its body synchronously up
+ * to the first await — with execSync there was no such point). Bug found
+ * and fixed 2026-08-12, track 1091 Phase 5 verification: worker startup
+ * was blocked 15-20s by this, and it re-blocked the event loop by the
+ * same amount every 30-minute refresh after that.
+ */
+async function discoverAvailableModels(cli) {
+  const TIMEOUT_MS = 10_000;
+  try {
+    let stdout = '';
+    if (cli === 'claude') {
+      // Try JSON format first, fall back to plain text
+      try {
+        ({ stdout } = await execAsync('claude models list --json 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        const parsed = JSON.parse(stdout);
+        // Claude JSON: array of strings or [{id}] objects
+        if (Array.isArray(parsed)) {
+          return parsed.map(m => {
+            const id = typeof m === 'string' ? m : (m.id || m.name || String(m));
+            return { id, label: id };
+          }).filter(m => m.id);
+        }
+      } catch {
+        // Try plain text listing
+        try {
+          ({ stdout } = await execAsync('claude models list 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+          const lines = stdout.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#') && looksLikeModelId(l));
+          if (lines.length > 0) return lines.map(id => ({ id, label: id }));
+        } catch { /* not available */ }
+      }
+
+      // Also support fetching Claude models from agy models if claude CLI command fails
+      try {
+        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length > 0) {
+          const claudeFromAgy = lines.map(l => {
+            const tokens = l.split(/\s+/);
+            const id = tokens[0];
+            const label = tokens.slice(1).join(' ') || id;
+            return { id, label };
+          }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('claude-'));
+          if (claudeFromAgy.length > 0) return claudeFromAgy;
+        }
+      } catch { /* ignore */ }
+    } else if (cli === 'gemini') {
+      try {
+        // Prefer agy models since we use agy/antigravity for gemini on this system
+        try {
+          ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+          const lines = stdout.split('\n')
+            .map(l => l.trim())
+            .filter(Boolean);
+          if (lines.length > 0) {
+            return lines.map(l => {
+              const tokens = l.split(/\s+/);
+              const id = tokens[0];
+              const label = tokens.slice(1).join(' ') || id;
+              return { id, label };
+            }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('gemini-'));
+          }
+        } catch { /* fall back to gemini command */ }
+
+        ({ stdout } = await execAsync('gemini models list 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        // Try to parse as JSON; otherwise extract model IDs from text lines
+        try {
+          const parsed = JSON.parse(stdout);
+          const models = Array.isArray(parsed) ? parsed : (parsed.models || []);
+          return models.map(m => {
+            const id = typeof m === 'string' ? m : (m.name || m.id || String(m));
+            // Strip 'models/' prefix if present
+            const cleanId = id.replace(/^models\//, '');
+            return { id: cleanId, label: cleanId };
+          }).filter(m => m.id);
+        } catch {
+          // Plain text: look for lines that are themselves a bare model id
+          // (not `.includes('gemini-')` — a conversational reply could
+          // easily contain that substring without being a model list).
+          const lines = stdout.split('\n')
+            .map(l => l.trim().split(/\s+/)[0])
+            .filter(id => looksLikeModelId(id) && id.startsWith('gemini-'));
+          if (lines.length > 0) return lines.map(id => ({ id, label: id }));
+        }
+      } catch { /* not available */ }
+    } else if (cli === 'antigravity' || cli === 'agy') {
+      try {
+        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        try {
+          const parsed = JSON.parse(stdout);
+          const models = Array.isArray(parsed) ? parsed : (parsed.models || []);
+          return models.map(m => {
+            const id = typeof m === 'string' ? m : (m.id || m.name || String(m));
+            return { id, label: id };
+          }).filter(m => m.id);
+        } catch {
+          const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+          const parsed = lines.map(l => {
+            const tokens = l.split(/\s+/);
+            const id = tokens[0];
+            const label = tokens.slice(1).join(' ') || id;
+            return { id, label };
+          }).filter(m => looksLikeModelId(m.id));
+          if (parsed.length > 0) return parsed;
+        }
+      } catch { /* not available */ }
+    }
+    // copilot: no standard listing command — return null
+    return null;
+  } catch (err) {
+    // Any unexpected error: silently return null (fall back to UI presets)
+    return null;
+  }
+}
+
+async function refreshModels() {
+  const clis = ['claude', 'gemini', 'antigravity'];
+  const newCached = {};
+  for (const cli of clis) {
+    const discovered = (await discoverAvailableModels(cli)) || [];
+    const presets = {
+      claude: [
+        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 ✨' },
+        { id: 'claude-opus-5', label: 'Claude Opus 5' },
+        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+        { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+        { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
+        { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
+        { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
+      ],
+      gemini: [
+        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro ✨' },
+        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+        { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
+        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+        { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
+      ],
+      antigravity: [
+        { id: 'auto', label: 'Auto (recommended)' },
+        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' }
+      ]
+    }[cli] || [];
+
+    const combined = [...discovered];
+    for (const preset of presets) {
+      if (!combined.some(m => m.id === preset.id)) {
+        combined.push(preset);
+      }
+    }
+
+    if (combined.length > 0) {
+      newCached[cli] = combined;
+      logger.info({ cli, count: combined.length }, `[models] Loaded model list for ${cli}`);
+    }
+  }
+  if (Object.keys(newCached).length > 0) {
+    cachedModels = newCached;
+  }
+  // Schedule next refresh in 30 minutes
+  setTimeout(refreshModels, 30 * 60 * 1000);
 }
 
 // ── Collector HTTP client ─────────────────────────────────────────────────────
@@ -547,8 +742,19 @@ async function upsertWorker() {
         }
       }
 
+      const primary = proj.primary || { cli: 'claude', model: null };
       const visibility = proj.worker?.visibility || config.worker?.visibility || 'private';
-      const registerBody = { hostname, pid, project_id, visibility, mode: workerMode, worker_number: workerNumber };
+      const registerBody = {
+        hostname,
+        pid,
+        project_id,
+        visibility,
+        mode: workerMode,
+        worker_number: workerNumber,
+        cli: primary.cli || 'claude',
+        model: primary.model || null,
+        available_models: cachedModels || undefined
+      };
       if (isManager) registerBody.type = 'manager';
       const res = await post(url, token, '/worker/register', registerBody);
 
@@ -587,7 +793,17 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
       // block happens to be in a manager's .laneconductor.json, which
       // never matches the manager's actual (project_id IS NULL) row,
       // silently updating zero rows every heartbeat.
-      const body = { hostname, pid, project_id: isManager ? null : proj.id, mode: workerMode, worker_number: workerNumber };
+      const primary = proj.primary || { cli: 'claude', model: null };
+      const body = {
+        hostname,
+        pid,
+        project_id: isManager ? null : proj.id,
+        mode: workerMode,
+        worker_number: workerNumber,
+        cli: primary.cli || 'claude',
+        model: primary.model || null,
+        available_models: cachedModels || undefined
+      };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
       await patch(c.url, token, '/worker/heartbeat', body);
@@ -1527,7 +1743,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       if (fileMtime < lastDbUpdateMs) return true; // already synced, nothing to do
     }
 
-    const indexContent = readIfExists(join(trackDir, 'index.md'));
+    let indexContent = readIfExists(join(trackDir, 'index.md'));
     const planContent = readIfExists(join(trackDir, 'plan.md'));
     const specContent = readIfExists(join(trackDir, 'spec.md'));
     const testContent = readIfExists(join(trackDir, 'test.md'));
@@ -1913,7 +2129,17 @@ watch('.laneconductor.json')
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 
+// Track 1099: discover available models after registering, not before.
+// discoverAvailableModels now uses async exec (not execSync — see its own
+// comment for why that mattered), so this no longer blocks the event
+// loop either way, but still runs after registration on principle: the
+// model list simply arrives one heartbeat cycle later instead of the
+// first — registerWorker/updateWorkerHeartbeat already read the shared
+// `cachedModels` variable
+// each time they're called, so nothing else needs to change.
 await upsertWorker();
+setTimeout(() => { refreshModels().catch(err => logger.warn({ err }, '[models] initial discovery failed')); }, 0);
+
 workflowConfig = loadWorkflowConfig();
 tracksMetadata = loadTracksMetadata();
 console.log(`[LaneConductor] Heartbeat worker started (PID: ${process.pid})`);
@@ -3517,6 +3743,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
                   { re: /\*\*Progress\*\*:\s*[^\n]+/i, key: 'Progress' },
                   { re: /\*\*Phase\*\*:\s*[^\n]+/i, key: 'Phase' },
                   { re: /\*\*Summary\*\*:\s*[^\n]+/i, key: 'Summary' },
+                  { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i, key: 'Waiting for reply' },
                 ];
                 for (const { re, key } of markerPatterns) {
                   const m = artifact.match(re);
@@ -3879,7 +4106,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const alreadyClaimed = lanesClaimedThisRound.get(lane_status) || 0;
 
     // BYPASS concurrency limits if we are just answering a question
-    if (alreadyRunning + alreadyClaimed >= laneLimit && !waitingForReply) {
+    if (alreadyRunning + alreadyClaimed >= laneLimit) {
       console.log(`[local-fs] Lane "${lane_status}" at limit ${laneLimit} (Running: ${alreadyRunning}, Claimed: ${alreadyClaimed}). Skipping ${dir}.`);
       continue;
     }
@@ -4182,12 +4409,12 @@ async function checkDispatchInbox() {
             CONDUCTOR_BUILD_COMMIT: build.git?.commit || '',
             CONDUCTOR_BUILD_TRACKS: (build.tracks || []).join(',')
           };
-          console.log(`[dispatch] Build artifact ${buildId} attached (commit ${build.git?.shortCommit || 'unknown'})`);
+          logger.info({ dispatchId: entry.id, buildId }, `[dispatch] Build artifact ${buildId} attached (commit ${build.git?.shortCommit || 'unknown'})`);
         } else {
-          console.warn(`[dispatch] Build artifact ${buildId} not found, proceeding with workspace HEAD`);
+          logger.warn({ dispatchId: entry.id, buildId }, `[dispatch] Build artifact ${buildId} not found, proceeding with workspace HEAD`);
         }
       }
-      console.log(`[dispatch] Running deploy to ${env}${buildId ? ` (${buildId})` : ''} (dispatch ${entry.id})`);
+      logger.info({ dispatchId: entry.id, env, buildId }, `[dispatch] Running deploy to ${env}${buildId ? ` (${buildId})` : ''}`);
       // Track 1087 Phase 6 Task 3: deploy never went through spawnCli, so
       // the worker never reported busy for it — WorkerActivityLatch had
       // nothing to detect. current_task format ("deploy <env> (dispatch
@@ -4198,7 +4425,7 @@ async function checkDispatchInbox() {
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
         status: result.ok ? 'done' : 'failed',
         result: result.ok ? null : (result.error || `exit ${result.exitCode} at step: ${result.failedStep}`),
-      }).catch(err => console.warn(`[dispatch] Failed to report deploy result for ${entry.id}: ${err.message}`));
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report deploy result'));
       continue;
     }
 
@@ -4208,18 +4435,116 @@ async function checkDispatchInbox() {
       // 'project'-type worker must never claim/execute one even if it
       // somehow ends up addressed to it.
       if (!isManager) {
-        console.warn(`[dispatch] Dispatch ${entry.id}: create-project requires a manager-type worker, this worker is type 'project' — refusing`);
+        logger.warn({ dispatchId: entry.id }, `[dispatch] create-project requires a manager-type worker, this worker is type 'project' — refusing`);
         await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'worker is not type: manager' }).catch(() => { });
         continue;
       }
-      console.log(`[dispatch] Running create-project (dispatch ${entry.id})`);
+      logger.info({ dispatchId: entry.id }, `[dispatch] Running create-project`);
       updateWorkerHeartbeat('busy', `create-project (dispatch ${entry.id})`);
       const result = await runCreateProject(entry);
       updateWorkerHeartbeat('idle', null);
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
         status: result.ok ? 'done' : 'failed',
         result: result.ok ? `Created at ${result.targetPath}` : result.error,
-      }).catch(err => console.warn(`[dispatch] Failed to report create-project result for ${entry.id}: ${err.message}`));
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report create-project result'));
+      continue;
+    }
+
+    if (entry.action === 'set_model') {
+      const { cli, model } = entry.payload || {};
+      logger.info({ dispatchId: entry.id, cli, model }, `[dispatch] set_model cli=${cli}, model=${model}`);
+      if (cli || model !== undefined) {
+        if (!config.project) config.project = {};
+        if (!config.project.primary) config.project.primary = { cli: 'claude', model: null };
+        if (cli) config.project.primary.cli = cli;
+        if (model !== undefined) config.project.primary.model = model;
+        if (existsSync('.laneconductor.json')) {
+          try {
+            const current = JSON.parse(readFileSync('.laneconductor.json', 'utf8'));
+            if (!current.project) current.project = {};
+            if (!current.project.primary) current.project.primary = {};
+            if (cli) current.project.primary.cli = cli;
+            if (model !== undefined) current.project.primary.model = model;
+            writeFileSync('.laneconductor.json', JSON.stringify(current, null, 2) + '\n');
+          } catch (e) {
+            logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] set_model failed to write .laneconductor.json');
+          }
+        }
+      }
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: 'done',
+        result: `Model updated to cli=${cli}, model=${model}`,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report set_model result'));
+      updateWorkerHeartbeat();
+      continue;
+    }
+
+    if (entry.action === 'provision-worker') {
+      // Track 1089 Phase 6 (2026-08-12, redesigned — SSH dropped entirely):
+      // start a worker for an existing project on THIS manager's own
+      // machine. No SSH: the dispatch inbox is outbound-polling, so a
+      // machine that should run workers already has a manager polling from
+      // it, and that manager can just start the worker locally. Provisioning
+      // "somewhere else" is then simply dispatching to that machine's own
+      // manager instead — no inbound network path, no credentials, works
+      // through NAT/firewalls. See index.md for the full reasoning.
+      const projectName = entry.payload?.project_name;
+      const repoPath = entry.payload?.repo_path;
+      const workerNumber = parseInt(entry.payload?.worker_number) || 1;
+
+      if (!projectName) {
+        const reason = 'provision-worker requires project_name in payload';
+        logger.warn({ dispatchId: entry.id }, `[dispatch] ${reason}`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: reason }).catch(() => { });
+        continue;
+      }
+
+      const projectsDir = readManagerProjectsDir();
+
+      // Resolution order matters. The project's own repo_path is the only
+      // *authoritative* answer, so try it first — it's correct whenever
+      // the project is on this machine at the path the DB already knows,
+      // which is the common case. Only fall back to guessing under this
+      // manager's projectsDir when that path doesn't exist here (a
+      // different machine, or a different layout). slugify(name) is the
+      // weakest guess and comes last: real folder names often don't match
+      // a slugified display name ("FiveElements" lives in 5elements/).
+      const candidates = [];
+      if (repoPath) candidates.push(repoPath);
+      if (projectsDir && repoPath) candidates.push(join(projectsDir, basename(repoPath)));
+      if (projectsDir) candidates.push(join(projectsDir, slugify(projectName)));
+      const projectPath = candidates.find(p => existsSync(p));
+
+      logger.info({ dispatchId: entry.id, projectName, projectPath }, '[dispatch] Running provision-worker');
+      updateWorkerHeartbeat('busy', `provision-worker ${projectName} (dispatch ${entry.id})`);
+
+      let status, result;
+      if (!projectPath) {
+        status = 'failed';
+        result = candidates.length
+          ? `Project "${projectName}" not found on ${hostname}. Looked in:\n${candidates.map(p => `  • ${p}`).join('\n')}\nEither the project isn't on this machine, or it lives outside this manager's projects directory${projectsDir ? ` (${projectsDir})` : ''}.`
+          : `Project "${projectName}" has no known path, and this manager has no projects directory configured — restart it with \`lc worker start --manager --projects-dir <path>\`.`;
+      } else {
+        try {
+          const { stdout } = await execAsync(`lc worker start --worker-number ${workerNumber}`, {
+            cwd: projectPath,
+            timeout: 60_000,
+            encoding: 'utf8',
+          });
+          status = 'done';
+          result = `Started worker #${workerNumber} for "${projectName}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
+        } catch (err) {
+          status = 'failed';
+          const stderr = (err.stderr || '').trim();
+          const detail = err.killed ? 'timed out after 60s' : (stderr || err.message);
+          result = `Failed to start worker #${workerNumber} for "${projectName}" at ${projectPath} — ${detail}`;
+          logger.warn({ dispatchId: entry.id, projectName, err: err.message }, '[dispatch] provision-worker failed');
+        }
+      }
+
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status, result })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report provision-worker result'));
       continue;
     }
 
@@ -4229,7 +4554,7 @@ async function checkDispatchInbox() {
     const trackDirName = trackNumber ? resolveTrackFolder(tracksDir, trackNumber) : null;
     if (!trackDirName) {
       const reason = trackNumber ? 'track not found locally' : 'missing track_number';
-      console.warn(`[dispatch] Dispatch ${entry.id}: ${reason}, skipping`);
+      logger.warn({ dispatchId: entry.id, trackNumber, reason }, `[dispatch] ${reason}, skipping`);
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: reason }).catch(() => { });
       continue;
     }
@@ -4242,7 +4567,7 @@ async function checkDispatchInbox() {
 
     const cliArgs = await buildCliArgs('laneconductor', entry.action, trackNumber, null, laneConfig);
     if (!cliArgs) {
-      console.warn(`[dispatch] Dispatch ${entry.id}: no available provider for track ${trackNumber}`);
+      logger.warn({ dispatchId: entry.id, trackNumber }, `[dispatch] no available provider for track`);
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'no provider available' }).catch(() => { });
       continue;
     }

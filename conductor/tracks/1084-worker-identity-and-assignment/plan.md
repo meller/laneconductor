@@ -169,3 +169,52 @@ rewriting history; the `mock-collector`-based test in
 `conductor/tests/track-1084-worker-identity.test.mjs` covers the sync-worker's
 *consumption* of `claimable-tracks`, not the endpoint's own SQL/resolution logic, which
 is what Task 1/2/3 above close.
+
+## Phase 6 (reopened 2026-08-12): Worker lifecycle UI gaps
+
+**Problem**: Found live while browser-testing tracks 1089/1091/1096 —
+`WorkersList.jsx`'s worker start/stop controls were built around a "zero or
+one worker per project" mental model, even though Phase 0 of this track
+already made multiple workers per project a first-class, fully-supported
+case (`--worker-number`, per-instance pidfiles, stable identity). Three
+specific gaps, all in the same file:
+
+- [ ] Task 1: **No way to add a worker once a project already has one.**
+  `WorkersList.jsx`'s only "start a worker" affordance (`Start Sync Worker`)
+  is gated behind `!hasWorkers` (grid layout, ~line 158) — it disappears
+  the moment a project has even one worker running. There is currently no
+  UI path to start worker #2, #3, etc. for a project, even though the
+  backend has fully supported this since Phase 0. (Track 1089's `+ New
+  Worker` — SSH provisioning to a *different* machine — is a different
+  concern and was hidden 2026-08-12 since its backend is a stub; this task
+  is about adding another *local* worker to a project that already has
+  one, which needs its own affordance regardless of 1089's fate.)
+- [ ] Task 2: **No per-worker stop button.** Only a single global "Stop All
+  Workers" button exists per project (grid layout, ~line 288); there's no
+  way to stop just worker #2 while leaving #1 running. `handleWorkerAction`
+  only knows `start`/`stop` at the project level (`POST
+  /api/projects/:id/worker/:action`, which shells out to `make
+  lc-start`/`lc-stop` — both project-wide, not worker-number-aware).
+  Needs either a new worker-number-aware backend action, or a
+  `lc worker stop --worker-number <n>` invocation per button.
+- [ ] Task 3: **"Stop All Workers" scope, verified safe but worth
+  confirming explicitly.** Raised as a concern ("shouldn't stop the
+  manager") — traced live: the button is project-scoped
+  (`POST /api/projects/:id/worker/:action` → `make lc-stop` in that
+  project's own `repo_path`), and a manager worker (track 1091) lives in
+  its own separate directory/config entirely, so it's structurally
+  unreachable from this button today. Confirmed, not a bug — but also
+  found the button silently no-ops in the global "All Projects" Workers
+  view specifically: `handleWorkerAction` does `if (!projectId) return;`,
+  and that view has no single project in context, so the button does
+  nothing there with no error shown. Worth either disabling/hiding the
+  button in that view, or making it a genuine no-op-with-explanation
+  rather than a silent one.
+
+- [ ] Task 4 (found live while testing Task 1): **`GET /api/projects/:id/workers` folds every manager worker into every project's view**, via a `WHERE (w.project_id = $1 OR w.type = 'manager')` clause added for track 1096's own reasons. Side effect confirmed live: a project (macrodash) with zero of its own workers still has `hasWorkers === true` because a manager running in a completely unrelated directory counts — so the empty-state `Start Sync Worker` button never renders for *any* project as long as any manager is registered anywhere, even though that project genuinely has no worker of its own. A manager showing up in a *global* workers view (Task 1091's own concern) is reasonable; folding it into every individual *project's* view is not — those are different questions ("what workers exist" vs. "what workers does this project have").
+
+Not yet planned in detail — needs its own design pass (in particular Task
+2's backend shape and Task 4's fix, which likely means a project-scoped
+"has this project's own worker" check that's separate from any global
+"is a manager visible" check) before implementation, per this project's
+own brainstorming-before-code convention.

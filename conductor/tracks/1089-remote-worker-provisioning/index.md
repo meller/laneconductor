@@ -1,11 +1,11 @@
 # Track 1089: Remote Worker Provisioning
 
-**Lane**: quality-gate
-**Lane Status**: running
-**Progress**: 100%
-**Phase**: Complete
+**Lane**: review
+**Lane Status**: success
+**Progress**: 95%
+**Phase**: Phase 6 implemented and verified live 2026-08-12 — and SSH was dropped entirely along the way (see Solution). Starting a worker on another machine is now just a dispatch to that machine's own manager, which starts it locally. Two known gaps remain open in plan.md (the modal's CLI/model pickers don't affect the provisioned worker; `sync.mjs --projects-dir` is silently ignored).
 **Type**: dev
-**Summary**: Activate a worker on an already-known remote machine from the app, delegated through an existing worker — SSH execution itself deferred (FFU).
+**Summary**: Start a worker for a project on whichever machine should run it, dispatched to that machine's manager worker. No SSH: the dispatch inbox is outbound-polling, so the machine already has a manager that can start the worker locally.
 
 ## Problem
 
@@ -25,44 +25,47 @@ LaneConductor installed on.
 - `provision_targets (id, project_id, user_uid, host, label, created_at)` —
   a lightweight registry of "machines I could start a worker on," distinct
   from `workers` (which only exist once a worker has actually registered).
-- No new credential storage anywhere: the Collector API never holds SSH
-  access itself. Instead this reuses [1085](../1085-manual-worker-dispatch/index.md)'s
-  dispatch inbox again — a `provision-worker` action sent to an
-  already-running *launcher* worker that has SSH access configured to reach
-  the target host (via that worker's own `~/.ssh` config/agent). Bootstrapping
-  needs at least one worker already running to launch the rest from. Any of
-  the developer's own workers (`workers.user_uid`, track 1084) can be the
-  launcher — unlike
-  [1091](../1091-manager-worker-and-new-project-flow/index.md)'s
-  `create-project`, provisioning stays within an *existing* project (adding
-  another worker to it), so it doesn't need 1091's stricter `type: 'manager'`
-  gate, which exists specifically because `create-project` has no project to
-  scope permission to yet.
-- UI: Workers list gets `+ New Worker` → pick a target host (or add a new
-  one) + pick a launcher worker → `Provision`. Creates a `worker_dispatch`
-  row: `action: 'provision-worker'`, `payload: {"target_host": ...,
-  "worker_number": <next available>}` (depends on
-  [1084](../1084-worker-identity-and-assignment/index.md)'s
-  `--worker-number` stable identity).
-- **Explicitly deferred (FFU) in this pass: the actual SSH execution.** The
-  launcher worker's handler for `provision-worker` is a stub — logs
-  `"[provision-worker] SSH execution not yet implemented — target: <host>,
-  would run: lc worker start --worker-number <n>"` and marks the dispatch
-  `failed` with that message, visible in the UI. Everything else (registry,
-  UI flow, dispatch entry shape) is built for real; only the last step is a
-  placeholder.
+- **No SSH at all — redesigned twice, 2026-08-12.** Originally "any of the
+  developer's own workers can be the launcher, over SSH"; then "the
+  **manager** worker ([1091](../1091-manager-worker-and-new-project-flow/index.md))
+  does the SSH"; finally: no SSH whatsoever. The dispatch inbox
+  ([1085](../1085-manual-worker-dispatch/index.md)) is **outbound-polling** —
+  so any machine that should run workers *already has a manager polling
+  from it*, and that manager can simply start the worker locally.
+  "Provision on machine X" is therefore just "dispatch to X's manager."
+  No inbound network path, no credentials, no reachability/timeout
+  handling, and it works through NAT and firewalls. The only thing SSH
+  bought was provisioning a machine with no manager yet — but this track
+  already assumes LaneConductor is installed there, and if you can install
+  it you can run `lc worker start --manager` once. That one-time bootstrap
+  is no more work than setting up SSH keys, and it avoids maintaining a
+  second parallel mechanism.
+- Manager-only, for the same reason `create-project` is: a manager is the
+  machine-level singleton the user explicitly started as "the thing that
+  does system-wide actions." A regular project worker has no business
+  starting workers for other projects. Since there's at most one manager
+  per machine, **picking the manager *is* picking the machine**.
+- UI: Workers list `+ New Worker` → pick a project + pick a machine →
+  `Start Worker`. Creates a `worker_dispatch` row:
+  `action: 'provision-worker'`, `worker_id: <a manager worker>`,
+  `payload: {project_name, project_id, repo_path, cli, model}` — no host,
+  no path input. The manager resolves the project folder itself:
+  `repo_path` first (authoritative whenever the project is where the DB
+  says on that machine), then `<projectsDir>/<basename(repo_path)>`, then
+  `<projectsDir>/<slug(project_name)>`. Failure lists every path tried.
+- Bootstrapping needs a manager already running on each machine that
+  should run workers — the same bootstrap requirement `create-project`
+  already has.
 
-Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md) (Section F)
+Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md) (Section F) — note the redesign above supersedes that doc's "any worker can launch" framing.
 
 ## Phases
 - [x] Phase 1: Schema — `provision_targets` table
-- [x] Phase 2: API — CRUD for provision targets, dispatch endpoint for `provision-worker`
-- [x] Phase 3: Worker-side stub handler — logs "not yet implemented", marks dispatch failed with a clear message
-- [x] Phase 4: UI — `+ New Worker` flow (target host picker/add, launcher worker picker, Provision button)
+- [x] Phase 2: API — CRUD for provision targets, dispatch endpoint for `provision-worker` (superseded in Phase 6 by the global, manager-only `POST /api/dispatch/provision-worker`)
+- [x] Phase 3: Worker-side stub handler — replaced by Phase 6's real implementation
+- [x] Phase 4: UI — `+ New Worker` flow (rebuilt in Phase 6: project + machine only, no SSH host/path)
 - [x] Phase 5: Tests — target CRUD, dispatch entry creation, stub handler produces the expected failed status + message
+- [x] Phase 6 (2026-08-12): Provisioning via the target machine's own manager, no SSH — implemented and verified live in the browser. Two known gaps remain open, see plan.md.
 
 ## Depends on
-[1084](../1084-worker-identity-and-assignment/index.md) — needs `--worker-number` stable identity to assign the new worker a slot. [1085](../1085-manual-worker-dispatch/index.md) — reuses its dispatch inbox and generic `payload` column directly.
-
-## Follow-up (not in this track)
-Actually implementing the SSH execution step once this structure is in place and validated.
+[1084](../1084-worker-identity-and-assignment/index.md) — needs `--worker-number` stable identity to assign the new worker a slot. [1085](../1085-manual-worker-dispatch/index.md) — reuses its dispatch inbox and generic `payload` column directly. [1091](../1091-manager-worker-and-new-project-flow/index.md) — Phase 6 now runs through the manager worker it introduced, not a generic "any worker" launcher.
