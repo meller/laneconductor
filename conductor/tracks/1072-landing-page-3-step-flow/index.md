@@ -1,7 +1,7 @@
 # Track 1072: Landing Page — Updated 3-Step Setup Flow
 
 **Lane**: plan
-**Lane Status**: success
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Planned
 **Type**: dev
