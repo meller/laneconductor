@@ -165,6 +165,13 @@ describe('Track 1091 Phase 3: create-project dispatch handler', () => {
     assert.equal(state.workers.length, 2);
     assert.equal(state.workers[0].type, 'manager');
     assert.notEqual(state.workers[1].type, 'manager');
+    // sync-only is the intended default for a newly created project: it
+    // syncs and serves manual UI actions (via the dispatch inbox, which
+    // checkDispatchInbox polls regardless of mode) without opting the
+    // project into the fully automatic queue-claiming workflow. Asserted
+    // so a future change to `lc worker start`'s default is a deliberate
+    // decision rather than a silent one.
+    assert.equal(state.workers[1].mode, 'sync-only');
 
     process.kill(newPid); // cleanup — this test's own spawned process tree
 
