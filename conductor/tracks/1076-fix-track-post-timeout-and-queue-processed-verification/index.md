@@ -1,6 +1,6 @@
 # Track 1076: Fix `/track` POST timeouts + unverified "processed" marking in file_sync_queue
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete
