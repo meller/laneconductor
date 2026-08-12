@@ -223,8 +223,28 @@ CREATE TABLE "workers" (
     -- worker isn't scoped to any project (project_id stays null for it) and
     -- is a machine-level singleton, see workers_one_manager_per_host below.
     "type" TEXT NOT NULL DEFAULT 'project',
+    -- Track 1096: the CLI/model this worker's primary session runs, and the
+    -- model list it discovered on its own machine (null = use UI presets;
+    -- see conductor/laneconductor.sync.mjs's discoverAvailableModels).
+    "cli" TEXT,
+    "model" TEXT,
+    "available_models" JSONB,
 
     CONSTRAINT "workers_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+-- Track 1089: remote hosts a project's workers can be provisioned onto.
+CREATE TABLE "provision_targets" (
+    "id" SERIAL NOT NULL,
+    "project_id" INTEGER REFERENCES "projects"("id") ON DELETE CASCADE,
+    "user_uid" TEXT,
+    "host" TEXT NOT NULL,
+    "label" TEXT,
+    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "provision_targets_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "unique_project_host" UNIQUE ("project_id", "host")
 );
 
 -- CreateTable

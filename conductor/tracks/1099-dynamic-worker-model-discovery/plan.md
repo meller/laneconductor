@@ -35,3 +35,20 @@
 ## Phase 5: Tests
 - [ ] Task 5.1: Unit test `discoverAvailableModels` — mock `child_process.execSync`; confirm it handles: valid JSON output, valid text lines, command-not-found, timeout, and empty output.
 - [ ] Task 5.2: Server test — heartbeat with `available_models` array stores it and is returned by `GET /api/workers`.
+
+## Phase 6: Two real bugs found and fixed during live e2e verification (2026-08-12)
+
+Found while testing a *different* track (1091) live in the browser — "the New Project flow and Activity panel don't work" turned out to trace back to this track's Phase 2 code, not either of those features.
+
+**Bug 1 — `refreshModels()` blocked every worker's startup by 15-20+ seconds.**
+`await refreshModels(); await upsertWorker();` ran discovery *before* registration, and `discoverAvailableModels` used `execSync` — which blocks the entire Node event loop for its whole duration, not just the calling async function. Measured live: worker registration took 16.47s before the fix, 0.088s after. This single-handedly broke a `node --test` run across 5+ unrelated track suites (1084, 1085, 1086, 1087, 1091 among them) whose poll windows assumed near-instant worker startup — the failures had nothing to do with those tracks' own code.
+
+Two things were required, not one — worth recording since the first fix looked sufficient but wasn't:
+1. Moved the call to *after* `upsertWorker()` (registration happens first).
+2. Converting `discoverAvailableModels` from `execSync` to promisified `exec` (`child_process.exec` + `util.promisify`) — dropping the `await` on the caller alone does NOT help, since calling an async function still runs its body synchronously up to its first await/yield point, and there was no such point inside the old `execSync`-based version. The event loop was blocked either way until this was fixed.
+
+Fixed in `conductor/laneconductor.sync.mjs`: `execSync` → `execAsync` (promisified `exec`) throughout `discoverAvailableModels`; call site now `await upsertWorker(); setTimeout(() => refreshModels()..., 0);`.
+
+**Bug 2 — plain-text `claude models list` fallback returns garbage, not model IDs, and the code treats it as a valid result.**
+There is no real `claude models list` (nor `--json`) subcommand — confirmed live: `claude models list --json` errors with "unknown option", and plain `claude models list` falls through to Claude's own conversational interpreter, which replies with clarifying prose (exit code 0, so the "not available" catch branch never fires). The code's fallback parser (`stdout.split('\n')...`) took each line of that prose and returned it as a `{id, label}` "model" — confirmed live in the real `available_models` column: entries like `"Could you clarify what you'd like to know about \"models\"? A few possibilities:"` sitting alongside real model IDs. This would show up as bogus selectable options in `WorkerModelModal`/`ProvisionWorkerModal` for any worker whose `claude` CLI doesn't support a real listing command — i.e. every real-world worker today, since no such command exists.
+- [ ] Not yet fixed — needs a decision: either validate discovered "model IDs" against an expected shape (e.g. `/^claude-/` or a max line length, given legitimate model IDs are short single tokens, not full sentences) before accepting them, or drop the plain-text `claude models list` fallback entirely and rely on the `agy models` fallback / static presets for `claude`, since the plain-text path has no real signal to parse without a genuine listing command.

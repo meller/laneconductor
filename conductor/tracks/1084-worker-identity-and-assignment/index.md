@@ -1,9 +1,9 @@
 # Track 1084: Worker Identity & Assignment
 
-**Lane**: quality-gate
+**Lane**: plan
 **Lane Status**: running
-**Progress**: 100%
-**Phase**: Phases 0-5 complete for their achievable scope — 2 acceptance-criteria items (continuity-first routing, same-developer parallel claims) remain blocked on 1086's track_sessions table, not a defect
+**Progress**: 83%
+**Phase**: Phases 0-5 complete for their achievable scope — 2 acceptance-criteria items (continuity-first routing, same-developer parallel claims) remain blocked on 1086's track_sessions table, not a defect. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12, needs planning.
 **Type**: dev
 **Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
 
@@ -57,6 +57,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 3: Claim logic — assignee/ownership gating + open-claim fallback done; continuity-first routing itself blocked on 1086's track_sessions
 - [x] Phase 4: UI — Assignee control on track detail panel, worker status badge on track cards; "Pin as mine" removed (no longer needed)
 - [x] Phase 5: Tests — assignee resolution, claim gating, reassignment, restart-reuse, two-instance concurrency all covered; continuity routing / same-developer parallel claims remain blocked on 1086
+- [ ] Phase 6 (reopened 2026-08-12): UI gaps for the multi-worker-per-project model this track already built — found live while testing tracks 1089/1091/1096. `WorkersList.jsx`'s worker lifecycle controls only really work for the "zero or one worker" case; `--worker-number` support (Phase 0) has no matching way to reach it from the UI.
 
 ## Depends on
 None to start (schema/UI can land first) — but Phase 3's continuity check needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table to exist. Foundation for [1085](../1085-manual-worker-dispatch/index.md).

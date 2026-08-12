@@ -530,11 +530,26 @@ Project Setup  (run once per project — from project root)
 
 Worker  (per session — run from project root)
   start                Start the heartbeat sync worker
+                       Options:
+                         --manager                      Start as machine-level global manager worker
+                         --projects-dir <path>          (With --manager) Directory where projects are cloned
+                         --sync-and-work                Also poll database queue (default is sync-only)
+                         --worker-number <N>            Start multiple workers for a project (default: 1)
   stop                 Stop the heartbeat sync worker
+                       Options:
+                         --manager                      Stop the global manager worker
+                         --worker-number <N>            Stop specific project worker
   restart              Restart the heartbeat sync worker
+                       Options:
+                         --manager                      Restart the global manager worker
+                         --sync-and-work                Also poll database queue
+                         --worker-number <N>            Restart specific project worker
   worker [start|stop|restart|status|logs|sync]
-                       Manage the sync worker and force sync all targets
+                       Manage the sync worker (supports options above)
   status               Show track status for the current project
+                       Options:
+                         --manager                      Check global manager worker status
+                         --worker-number <N>            Check status of a specific worker
 
 Track Management  (per project)
   new [name] [desc]    Create a new track
@@ -1487,9 +1502,12 @@ Please review this, answer any questions (some fields may contain questions rath
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
         process.exit(1);
     }
-    const workerNumber = resolveWorkerNumber(args);
-    const pidFile = getPidFilePath(projectRoot, workerNumber);
-    const logFile = join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
+    const isManager = args.includes('--manager');
+    const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const logFile = isManager
+        ? join(projectRoot, 'conductor', '.manager.log')
+        : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
 
     // Resolve the entry script BEFORE touching the running worker — killing it
@@ -1504,7 +1522,19 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
-    console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
+    if (isManager) {
+        const projectsDirIdx = args.indexOf('--projects-dir');
+        const managerConfig = readManagerConfig();
+        if (projectsDirIdx !== -1) {
+            managerConfig.projectsDir = args[projectsDirIdx + 1];
+            writeManagerConfig(managerConfig);
+            console.log(`📁 Manager projects directory set to: ${managerConfig.projectsDir}`);
+        } else if (managerConfig.projectsDir) {
+            console.log(`📁 Manager projects directory (from previous run): ${managerConfig.projectsDir}`);
+        }
+    }
+
+    console.log(`🚀 Restarting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     if (existsSync(pidFile)) {
         const pid = readFileSync(pidFile, 'utf8').trim();
@@ -1515,7 +1545,11 @@ Please review this, answer any questions (some fields may contain questions rath
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
     if (!isSyncAndWork) syncArgs.push('--sync-only');
-    if (workerNumber !== 1) syncArgs.push('--worker-number', String(workerNumber));
+    if (isManager) {
+        syncArgs.push('--manager');
+    } else if (workerNumber !== 1) {
+        syncArgs.push('--worker-number', String(workerNumber));
+    }
     const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
@@ -1538,21 +1572,25 @@ Please review this, answer any questions (some fields may contain questions rath
     if (sub === 'start') { const r = spawnSync('node', [__filename, 'start', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'stop') { const r = spawnSync('node', [__filename, 'stop', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'restart') { const r = spawnSync('node', [__filename, 'restart', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
-    if (sub === 'logs') { const r = spawnSync('node', [__filename, 'logs', 'worker'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    if (sub === 'logs') { const r = spawnSync('node', [__filename, 'logs', 'worker', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'sync') { const r = spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'status') {
         if (!projectRoot) { process.exit(1); }
-        const workerNumber = resolveWorkerNumber(subArgs);
-        const pidFile = getPidFilePath(projectRoot, workerNumber);
+        const isManager = subArgs.includes('--manager');
+        const workerNumber = isManager ? 1 : resolveWorkerNumber(subArgs);
+        const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
         let running = false;
         let pid = null;
         if (existsSync(pidFile)) {
             pid = readFileSync(pidFile, 'utf8').trim();
             try { process.kill(pid, 0); running = true; } catch (e) { unlinkSync(pidFile); }
         }
-        console.log(`\n👷 Worker Status${workerNumber !== 1 ? ` (#${workerNumber})` : ''}: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
+        console.log(`\n👷 Worker Status${isManager ? ' [MANAGER]' : (workerNumber !== 1 ? ` (#${workerNumber})` : '')}: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
         if (pid && running) console.log(`   PID: ${pid}`);
-        console.log(`   Log: conductor/${workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`}\n`);
+        const relativeLog = isManager
+            ? 'conductor/.manager.log'
+            : (workerNumber === 1 ? 'conductor/.sync.log' : `conductor/.sync-${workerNumber}.log`);
+        console.log(`   Log: ${relativeLog}\n`);
         process.exit(0);
     }
     console.error(`❌ Unknown worker command: ${sub}`);
@@ -3030,7 +3068,11 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(0);
     }
     if (command === 'logs' && trackNum === 'worker') {
-        const syncLog = join(projectRoot, 'conductor', '.sync.log');
+        const isManager = args.includes('--manager');
+        const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
+        const syncLog = isManager
+            ? join(projectRoot, 'conductor', '.manager.log')
+            : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
         if (existsSync(syncLog)) {
             console.log(readFileSync(syncLog, 'utf8').split('\n').slice(-50).join('\n'));
         } else {
