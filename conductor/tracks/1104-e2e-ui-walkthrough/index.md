@@ -1,11 +1,11 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
-**Summary**: Run the complete "nothing → a track planned" path entirely through the web UI, record every point where it breaks or is unclear, and leave behind a repeatable walkthrough. One of three sibling tracks (UI / skill / CLI) that must all reach the same end state.
+**Summary**: Run the complete "nothing → a track planned" path entirely through the web UI, record every point where it breaks or is unclear, and leave behind a repeatable walkthrough. One of three sibling…
 
 ## Problem
 
@@ -60,6 +60,21 @@ quietly skip.
 - [ ] Phase 3: Note every state the UI fails to represent (no worker, no git, action failed, which machine) → feeds track 1103's design
 - [ ] Phase 4: Write the walkthrough up as the wiki's UI guide (track 1103 Phase 5)
 - [ ] Phase 5: Encode it as a Playwright spec in track 1100's **fast tier** so it can't rot
+
+## Meta: this track is itself driven through the UI
+
+Dogfooding rule (added 2026-08-12): every lane action on THIS track —
+planning it, implementing it, commenting on it, checking its status — must
+be performed through the LaneConductor web UI (trigger lane actions from the board, answer via the Conversation tab, watch via Activity), never through a side channel. If the UI
+cannot perform one of those operations, that inability is itself a finding
+for this track (and likely for track 1103's design). LaneConductor builds
+itself with itself here: the walkthrough's own execution is the first run
+of the walkthrough.
+
+The wiki guide (Phase 4) is then written **from the recording of that
+run** — real commands, real screens, real outputs, including the rough
+edges that survived. A guide transcribed from an actual session cannot
+describe steps that don't work; one written from memory can and will.
 
 ## Depends on
 [1103](../1103-e2e-onboarding-experience/index.md) (the design this validates), [1102](../1102-e2e-session-findings/index.md) (known bugs on this path), [1100](../1100-fix-playwright-e2e-suite/index.md) (Phase 5 needs the fast tier).
