@@ -1,8 +1,8 @@
 # Track 1084: Worker Identity & Assignment
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
-**Progress**: 95%
+**Progress**: 100%
 **Phase**: Phases 0-5 complete for their achievable scope — 2 acceptance-criteria items (continuity-first routing, same-developer parallel claims) remain blocked on 1086's track_sessions table, not a defect
 **Type**: dev
 **Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
