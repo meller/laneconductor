@@ -377,3 +377,14 @@ what.
   6) + live-verified against a real (safe, no-op) deploy dispatch via
   direct API call (Phase 6 section) — the exact real shell output was
   returned correctly.
+
+## Phase 8: Direct Worker Interactive Chat Bar
+
+**Problem**: While a worker's live output stream is visible in `WorkerActivityLatch`, the user cannot send chat messages or commands directly to the worker from that panel.
+**Solution**: Add an interactive chat input bar to `WorkerActivityLatch.jsx` allowing the user to post ad-hoc messages or track-specific chat prompts directly to the selected worker.
+
+- [x] Task 1: Update `POST /api/projects/:id/dispatch` to handle optional `track_number` in request body for project-scoped dispatches.
+- [x] Task 2: Implement direct chat input bar in `WorkerActivityLatch.jsx` (input field, Send button, sending state, Enter-to-submit).
+- [x] Task 3: Support sending prompts: when a worker is selected, dispatch chat action (`track_chat` or `worker_adhoc_chat`) directly to `POST /api/projects/:id/dispatch`.
+- [x] Task 4: Verify dispatching directly from `WorkerActivityLatch` in UI and server API tests.
+
