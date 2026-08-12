@@ -3142,7 +3142,7 @@ app.post('/api/projects/:id/deploy', async (req, res) => {
 // project-scoped) — a manager worker's own project_id is null, so unlike
 // deploy/lane-action dispatch this can't validate the worker against an
 // existing :id in the URL. Restricted to type: 'manager' workers only.
-app.post('/api/dispatch/create-project', async (req, res) => {
+app.post('/api/dispatch/create-project', requireAuth, async (req, res) => {
   try {
     const { worker_id, payload } = req.body;
     if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
@@ -3176,7 +3176,7 @@ app.post('/api/dispatch/create-project', async (req, res) => {
 // singleton, and it starts the worker locally on its own machine (no SSH
 // — see track 1089 index.md). It resolves the project folder itself from
 // its own --projects-dir, so no path is passed here.
-app.post('/api/dispatch/provision-worker', async (req, res) => {
+app.post('/api/dispatch/provision-worker', requireAuth, async (req, res) => {
   try {
     const { worker_id, payload } = req.body;
     if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
@@ -3203,7 +3203,7 @@ app.post('/api/dispatch/provision-worker', async (req, res) => {
 // Track 1091 Phase 4: poll a create-project dispatch's status/result. Global
 // like its POST counterpart above — a create-project dispatch has no
 // project to scope the URL to (that's the whole point of it).
-app.get('/api/dispatch/:dispatchId', async (req, res) => {
+app.get('/api/dispatch/:dispatchId', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT id, worker_id, action, status, result, created_at, claimed_at FROM worker_dispatch WHERE id = $1',
@@ -3228,6 +3228,57 @@ app.get('/api/projects/:id/dispatch', async (req, res) => {
        ORDER BY wd.created_at DESC
        LIMIT 20`,
       [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1087 Phase 8: a worker's own chat turns, so the Activity panel can
+// restore the conversation after a page refresh. The turns were always
+// persisted (prompt in payload.prompt, reply in result) — the panel just
+// had no way to read them back. Worker-scoped rather than project-scoped
+// like GET /api/projects/:id/dispatch above, which mixes in deploys and
+// can't address a manager worker at all (its project_id is null).
+// Returned oldest-first so the client can render them straight down as a
+// conversation.
+app.get('/api/workers/:id/chat-history', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const workerId = parseInt(req.params.id);
+
+    // Remote mode: a chat transcript is private content, so scope it the
+    // same way GET /api/workers scopes the worker list — own workers, or
+    // ones explicitly shared with this user. Without this, any signed-in
+    // user could read any other user's worker conversations by id.
+    // AUTH_ENABLED is false in local single-user mode, where this is moot.
+    if (AUTH_ENABLED) {
+      const uid = req.user?.uid || null;
+      const { rows: allowed } = await pool.query(
+        `SELECT 1 FROM workers w
+          WHERE w.id = $1 AND (
+            w.visibility = 'public'
+            OR w.user_uid = $2
+            OR w.user_uid IS NULL
+            OR (w.visibility = 'team' AND EXISTS (
+                  SELECT 1 FROM worker_permissions wp
+                   WHERE wp.worker_id = w.id AND wp.user_uid = $2))
+          )`,
+        [workerId, uid]
+      );
+      if (allowed.length === 0) return res.status(404).json({ error: 'worker not found' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT * FROM (
+         SELECT id, worker_id, track_number, action, payload, status, result, created_at
+         FROM worker_dispatch
+         WHERE worker_id = $1 AND action IN ('worker_adhoc_chat', 'track_chat')
+         ORDER BY created_at DESC
+         LIMIT $2
+       ) recent ORDER BY created_at ASC`,
+      [workerId, limit]
     );
     res.json(rows);
   } catch (err) {

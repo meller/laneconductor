@@ -1,8 +1,8 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 100%
 **Phase**: Planning in progress
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…

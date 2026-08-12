@@ -4479,6 +4479,92 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    // Track 1087 Phase 8: the Activity panel's chat bar. `worker_adhoc_chat`
+    // has no track at all; `track_chat` is scoped to one. Both were being
+    // created by the UI with no handler here at all, so they fell through
+    // to the lane-action path below and died with "missing track_number" —
+    // the chat bar could send, but never got a reply.
+    //
+    // Deliberately NOT routed through spawnCli: that path takes a git lock,
+    // creates a worktree, and injects full track context, all of which are
+    // meant for a lane action that will *edit the repo*. A chat turn is a
+    // question, not a mutation — it shouldn't block the git lock or leave
+    // worktrees behind.
+    if (entry.action === 'worker_adhoc_chat' || entry.action === 'track_chat') {
+      const prompt = entry.payload?.prompt;
+      const chatTrack = entry.payload?.track_number ?? entry.track_number ?? null;
+      const label = entry.action === 'track_chat' && chatTrack ? `chat track ${chatTrack}` : 'chat';
+
+      if (!prompt || !String(prompt).trim()) {
+        const reason = `${entry.action} requires a non-empty payload.prompt`;
+        logger.warn({ dispatchId: entry.id }, `[dispatch] ${reason}`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: reason }).catch(() => { });
+        continue;
+      }
+
+      logger.info({ dispatchId: entry.id, action: entry.action, chatTrack }, '[dispatch] Running chat turn');
+      updateWorkerHeartbeat('busy', `${label} (dispatch ${entry.id})`);
+
+      // For a track chat, give the model that track's own docs as context —
+      // otherwise the question has nothing to ground itself in.
+      let fullPrompt = String(prompt);
+      if (chatTrack) {
+        const trackDirName = resolveTrackFolder('conductor/tracks', chatTrack);
+        if (trackDirName) {
+          const trackPath = join('conductor/tracks', trackDirName);
+          let ctx = '';
+          for (const name of ['index.md', 'spec.md', 'plan.md', 'conversation.md']) {
+            const content = readIfExists(join(trackPath, name));
+            if (content) ctx += `\n<track_context file="${name}">\n${content}\n</track_context>\n`;
+          }
+          if (ctx) fullPrompt = `${ctx}\nThe user asks about track ${chatTrack}:\n${prompt}`;
+        }
+      }
+
+      let status, result;
+      try {
+        let cmd, cliArgs;
+        if (process.env.LC_MOCK_CLI) {
+          const [c, ...rest] = process.env.LC_MOCK_CLI.split(' ');
+          cmd = c;
+          cliArgs = [...rest, 'chat', chatTrack ?? 'adhoc'];
+        } else {
+          const proj = getProject();
+          cmd = proj.primary?.cli || 'claude';
+          // Plain `--print` text, deliberately NOT buildClaudeArgs — that
+          // builds a stream-json invocation for the transcript pipeline,
+          // and its raw JSONL is unreadable as a chat reply (verified
+          // live: the first working version returned hook/system events as
+          // the "answer"). A chat turn just needs the text back.
+          cliArgs = ['--dangerously-skip-permissions', '-p', fullPrompt];
+          if (cmd === 'claude' && proj.primary?.model) cliArgs.push('--model', proj.primary.model);
+        }
+
+        const { stdout, code } = await new Promise((resolvePromise) => {
+          const proc = spawn(cmd, cliArgs, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
+          let out = '', err = '';
+          proc.stdout.on('data', d => { out += d.toString(); });
+          proc.stderr.on('data', d => { err += d.toString(); });
+          proc.on('exit', c => resolvePromise({ stdout: out || err, code: c }));
+          proc.on('error', e => resolvePromise({ stdout: e.message, code: 1 }));
+        });
+
+        status = code === 0 ? 'done' : 'failed';
+        // The reply itself IS the result — a chat bar with an empty "done"
+        // is useless, which is the whole point of this handler.
+        result = (stdout || '').trim() || (code === 0 ? '(no output)' : `chat turn exited ${code}`);
+      } catch (err) {
+        status = 'failed';
+        result = `chat turn failed: ${err.message}`;
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] chat turn failed');
+      }
+
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status, result })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report chat result'));
+      continue;
+    }
+
     if (entry.action === 'provision-worker') {
       // Track 1089 Phase 6 (2026-08-12, redesigned — SSH dropped entirely):
       // start a worker for an existing project on THIS manager's own
