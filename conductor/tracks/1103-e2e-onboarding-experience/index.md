@@ -60,6 +60,16 @@ unanswered design questions:
 - [ ] Phase 5: Wiki walkthroughs for both paths, derived from Phases 1-2, with the real commands/screens
 - [ ] Phase 6: An E2E spec (track 1100's fast tier) that walks the documented UI path, so the walkthrough can't silently rot
 
+## Validated by
+
+Three sibling walkthrough tracks execute this design from each interface —
+all must reach the same reference end state, and any divergence is either
+an intended difference (recorded here) or a bug:
+
+- [1104](../1104-e2e-ui-walkthrough/index.md) — UI (browser)
+- [1105](../1105-e2e-skill-walkthrough/index.md) — skill (`/laneconductor`), including Skill-Only mode
+- [1106](../1106-e2e-cli-walkthrough/index.md) — CLI (`lc`)
+
 ## Depends on
 [1102](../1102-e2e-session-findings/index.md) — the concrete bugs; this track is the design behind them. [1100](../1100-fix-playwright-e2e-suite/index.md) — Phase 6 needs a working E2E tier to live in. [1091](../1091-manager-worker-and-new-project-flow/index.md), [1084](../1084-worker-identity-and-assignment/index.md) — the create-project and worker-mode mechanisms being described.
 

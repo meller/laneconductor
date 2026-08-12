@@ -1,0 +1,65 @@
+# Track 1104: End-to-end walkthrough — UI (browser)
+
+**Lane**: plan
+**Lane Status**: queue
+**Progress**: 0%
+**Phase**: Not started — opened 2026-08-12
+**Type**: dev
+**Summary**: Run the complete "nothing → a track planned" path entirely through the web UI, record every point where it breaks or is unclear, and leave behind a repeatable walkthrough. One of three sibling tracks (UI / skill / CLI) that must all reach the same end state.
+
+## Problem
+
+A partial version of this walkthrough (2026-08-12, track 1102) broke at
+several independent points — a project that wasn't a git repo, a plan
+button that never dispatched, failures that surfaced nowhere. Those were
+found by accident while verifying something else. This track makes the
+walkthrough a deliberate, repeatable exercise for the **UI specifically**.
+
+The UI is the interface most likely to hide problems: it can show a
+plausible-looking board while nothing behind it works, which is exactly
+what happened.
+
+## The reference outcome (identical for all three interfaces)
+
+Every interface must be able to reach this same end state from nothing.
+Where an interface *cannot*, that is a finding to record, not a step to
+quietly skip.
+
+1. A project exists and is registered (`projects` row, `repo_path` set).
+2. It is a git repo with at least one commit (lane actions need
+   `git worktree add … HEAD` — see track 1102 F7).
+3. Its context files exist: `product.md`, `tech-stack.md`, `workflow.md`,
+   `product-guidelines.md`, `design-language.md`, `deployment-stack.md`,
+   `kpis.md`, `user-stories.md`, `quality-gate.md`.
+4. A worker is running for it, and the interface makes clear *which
+   machine* it is on and whether it is manual or automatic.
+5. A track can be created, and its 5 files are scaffolded
+   (`index`, `spec`, `plan`, `test`, `conversation`) with a real
+   populated `test.md`.
+6. A lane action (plan) can be **triggered from this interface** and
+   actually runs to completion — the track reaches `plan/success`.
+7. The run is observable from this interface while it happens, and its
+   output is readable afterwards.
+8. Failures are visible: if the action fails, this interface says so with
+   a usable reason (no silent `claimed`/`running` limbo — track 1102 F8).
+
+## UI-specific path
+
+- New Project wizard (`+ Project`)
+- Project selector
+- `+ Track` modal
+- The track card's lane-action controls
+- Activity panel (live run) and the track detail drawer (transcript,
+  conversation)
+- Inbox
+- CI/CD tab and deploy wizard — **walk it, stop before actually deploying**
+
+## Phases
+- [ ] Phase 1: Walk the path in a real browser against a clean project; record each step's observed result (not intended result)
+- [ ] Phase 2: File/fix what breaks — link findings to track 1102 where they overlap rather than duplicating
+- [ ] Phase 3: Note every state the UI fails to represent (no worker, no git, action failed, which machine) → feeds track 1103's design
+- [ ] Phase 4: Write the walkthrough up as the wiki's UI guide (track 1103 Phase 5)
+- [ ] Phase 5: Encode it as a Playwright spec in track 1100's **fast tier** so it can't rot
+
+## Depends on
+[1103](../1103-e2e-onboarding-experience/index.md) (the design this validates), [1102](../1102-e2e-session-findings/index.md) (known bugs on this path), [1100](../1100-fix-playwright-e2e-suite/index.md) (Phase 5 needs the fast tier).
