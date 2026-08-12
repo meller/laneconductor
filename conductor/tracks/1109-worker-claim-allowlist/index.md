@@ -90,13 +90,67 @@ Design questions this raises, to settle during planning rather than assume:
   `sync-only` vs `sync+poll`) — a scoped run is a third shape and shouldn't
   quietly contradict the configured mode.
 
+### ⚠️ Constraint: a scoped/exiting worker MUST reuse a stable identity
+
+The obvious worry about per-task workers is cost — if each run cold-starts an
+agent, every task pays to rebuild the whole context. Two things have to be
+kept apart here:
+
+- The **worker process** is a Node daemon. Starting and stopping it is
+  effectively free; no LLM is involved.
+- The **agent session** (the `claude` CLI invocation) is the expensive part.
+
+The claim allowlist only affects the first, so it is cost-neutral on its own:
+a whole-queue worker running 5 tracks spawns the same 5 agent sessions a
+scoped worker would.
+
+What actually governs rebuild cost is track 1086's session persistence, and
+critically **it lives server-side, not in the worker process**:
+
+- `resolveTrackSession` (`laneconductor.sync.mjs:3840`) asks the collector
+  `GET /track/:num/session`.
+- The row lives in `track_sessions`, keyed **`(track_number, worker_id)`**
+  (`ui/server/index.mjs:2523`).
+- Hit → `--resume <id>` + `FRESH_SESSION: false`; miss → `--session-id <new>`
+  + `FRESH_SESSION: true`.
+
+So the session **survives worker exit** — exit-when-done does not by itself
+force a context rebuild. But resumption is keyed on `worker_id`, so:
+
+> If an ephemeral scoped worker registers under a **fresh identity** each
+> run, it gets a new `worker_id`, misses the `track_sessions` row, and cold
+> rebuilds context on every single invocation — silently, with no error.
+
+Track 1084 Phase 0 already made `worker_number` (not pid) the identity key
+precisely so restarts stop orphaning FK'd rows. A scoped worker must reuse a
+stable `hostname` + `worker_number` to inherit that. **Phase 6 must assert
+this directly**: run the same scoped track twice and confirm the second run
+receives `FRESH_SESSION: false`. A passing functional test that silently
+cold-starts every time is exactly the kind of false green track 1100 was
+opened over.
+
+### Two related gaps found while checking the above
+
+1. **Session persistence is disabled in local-fs mode.** `resolveTrackSession`
+   opens with `if (getIsLocalFs() || !myWorkerId) return null` — no collector,
+   no `track_sessions`. So in local-fs *every* run is a cold start regardless
+   of scoping. Out of scope here, but it is the mode where the cost concern
+   fully applies, and it is currently unaddressed.
+2. **Continuity-first routing was left as a follow-up and never done.**
+   `claimable-tracks` carries the comment: *"Continuity-first routing via
+   track_sessions — track 1086 — is a follow-up once that table exists; this
+   is the assignee gate alone."* The table exists now. Preferring the worker
+   that already holds a track's session is the actual cost optimisation for
+   multi-worker setups, and it lands in the same function this track edits —
+   worth sequencing deliberately rather than colliding with it.
+
 ## Phases
 - [ ] Phase 1: `--only-tracks <csv>` flag in `bin/lc.mjs`, forwarded to the sync worker alongside the existing `--sync-and-work` / `--sync-only` flags.
 - [ ] Phase 2: Parse it in `laneconductor.sync.mjs` and intersect with `claimableSet` at the existing gate. Must apply in **local-fs mode too**, where `claimableSet` is null (that is the mode with no identities, so it needs this most).
 - [ ] Phase 3: Exit-when-done semantics for a scoped worker, so it works as a foreground tool and in CI rather than idling forever. Settle the `--once` question from the design notes above.
 - [ ] Phase 4: `lc worker run <track>` as the ergonomic front door — a thin wrapper over the scoped path, not a second implementation.
 - [ ] Phase 5: Make the scope observable — log the effective claim scope at startup and surface it on the worker card, so a scoped worker is not mistaken for a broken one that "won't pick anything up".
-- [ ] Phase 6: Tests — a scoped worker claims its listed track and provably leaves an unlisted queued track alone (assert the negative, not just the positive), and exits when done.
+- [ ] Phase 6: Tests — a scoped worker claims its listed track, provably leaves an unlisted queued track alone (assert the negative, not just the positive), exits when done, and on a second run for the same track receives `FRESH_SESSION: false` (proving session resumption survived the exit rather than silently cold-starting).
 - [ ] Phase 7: Document in `SKILL.md` + `lc worker --help`, lead with `lc worker run <track>` as the normal path, and note it in `conductor/quality-gate.md` as the safe way to run the slow E2E tier.
 
 ## Non-Goals
