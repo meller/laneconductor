@@ -48,6 +48,12 @@ Same 8 items as the siblings (see [1104](../1104-e2e-ui-walkthrough/index.md))
 12. Kill the network between worker and API mid-run: the worker recovers
     on reconnect, and the UI's stale-worker indication is honest while
     it's gone.
+13. **First-host onboarding from zero** ([1108](../1108-remote-worker-vm-provisioning/index.md)):
+    a fresh user with no registered hosts is detected at login and offered
+    the first-host flow (VM creation or guided manual bootstrap) — and can
+    reach "one manager worker online" through it without side channels.
+    Until 1108 lands, this item is expected to FAIL and is the walkthrough's
+    first recorded finding, not a step to skip.
 
 ## Environment
 
@@ -77,4 +83,6 @@ hardest part.
 - [ ] Phase 6: Whatever subset is automatable joins the E2E suite (track 1100) as a tagged remote tier — likely reusing `PW_TEST_MODE`/`global-setup.js`'s existing remote-auth scaffolding
 
 ## Depends on
+**Prerequisite**: [1108](../1108-remote-worker-vm-provisioning/index.md) — the walkthrough begins as a fresh user with zero hosts, which is exactly the state 1108 exists to handle; without it Phase 2 cannot start cleanly from nothing.
+
 [1103](../1103-e2e-onboarding-experience/index.md) (design questions this makes concrete), [1101](../1101-cloud-project-selector-dead/index.md) (first known cloud-only bug — this track verifies its fix), [1033](../1033-track-1033-worker-use-connection/index.md) (auth machinery under test), [1100](../1100-fix-playwright-e2e-suite/index.md) (Phase 6). Siblings: [1104](../1104-e2e-ui-walkthrough/index.md), [1105](../1105-e2e-skill-walkthrough/index.md), [1106](../1106-e2e-cli-walkthrough/index.md).
