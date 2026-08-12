@@ -119,17 +119,53 @@ general, not just for the one path that was caught.
 - [ ] Task 3: Apply the identical fix to `restart`'s kill-then-unlink step
 - [ ] Task 4: Task 1's test passes post-fix (GREEN) — `lc stop` now
       blocks until the fake process is actually gone
-- [ ] Task 5: Small lock helper (`acquireLock(path): boolean`,
-      non-blocking) — `bin/lc.mjs` or a new shared
-      `conductor/services/worker-lock.mjs` if the sync script also needs
-      it later
-- [ ] Task 6: Wire into `lc worker start` (project) and `lc worker start
-      --manager` — failure to acquire means "already running" regardless
-      of pidfile state
-- [ ] Task 7: Test — two rapid `lc worker start` invocations for the same
+**Corrected design (2026-08-13, before implementing) — who actually
+holds the lock**: `lc worker start` spawns `laneconductor.sync.mjs`
+detached and exits almost immediately; it cannot itself hold a lock "for
+the process's entire lifetime" because it doesn't live that long. Only
+the long-running child (`laneconductor.sync.mjs`) persists, so it must be
+the one to acquire and hold the lock, at its own startup, before doing
+anything else. `lc worker start`'s role shrinks to: spawn the child, wait
+a short grace period (~750ms), and check whether it's still alive — if
+the child exited immediately (lock acquisition failed), surface that as
+"already running"; if it's still alive, report success as today. Chosen
+dependency: `proper-lockfile` (added to `package.json`) — not true
+kernel-level auto-release, but atomic `mkdir`-based acquisition plus an
+internally-managed mtime refresh while held, so a live process's lock
+never goes stale, and a dead process's lock becomes stealable after a
+bounded window (`stale` option) rather than staying wrong forever.
+
+- [ ] Task 5: `conductor/services/worker-lock.mjs` —
+      `acquireWorkerLock(path): Promise<release|null>` wrapping
+      `proper-lockfile`, `stale` set generously above the heartbeat
+      interval so a live, merely-slow-to-heartbeat worker is never
+      mistaken for dead
+- [ ] Task 6: Call it at the very top of `laneconductor.sync.mjs`'s
+      startup (project identity: derived from `projectRoot` +
+      `workerNumber`; manager identity: the existing
+      `~/.laneconductor/manager-config.json` directory) — `process.exit(1)`
+      with a clear message if acquisition fails, before any other startup
+      work runs
+- [ ] Task 7: `lc worker start` (project) and `--manager`: after spawning,
+      wait the grace period and check child liveness; surface a clear
+      "already running" message if it died immediately
+- [ ] Task 8: Test — two rapid `lc worker start` invocations for the same
       identity → exactly one live process; `SIGKILL` the holder (bypassing
       `stop` entirely, unlike Task 1's test) → an immediate subsequent
-      `lc worker start` still succeeds (REQ-1, REQ-2)
+      `lc worker start` still succeeds once the lock's `stale` window
+      passes (REQ-1, REQ-2)
+
+**Confirmed live again while writing this phase (2026-08-13)**: cleaning
+up after the Task 1-4 fix landed, found the *exact* class of bug this
+layer targets, unprompted — `lc stop` reported success in 31ms against a
+pidfile that had already drifted to point at a phantom pid (597416, not
+alive), while the real worker (pid 420522, hung and unresponsive, 9h13m
+old) sat completely untouched and only discovered by manually diffing
+`ps` against the pidfile. `stop` did exactly what Task 1-4 now correctly
+guarantees — confirmed death of the pid *it was told about* — but that
+pid was already wrong, which is precisely what a lock (checked by the
+long-lived process itself, not read from a file another command trusts)
+closes.
 
 **Impact**: `lc stop`/`restart` can no longer report success while the
 old process is still alive (the actual observed incident), and a stale

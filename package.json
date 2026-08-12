@@ -43,6 +43,7 @@
   "dependencies": {
     "pino": "^10.3.1",
     "pinorama-studio": "^0.5.2",
-    "pinorama-transport": "^0.1.4"
+    "pinorama-transport": "^0.1.4",
+    "proper-lockfile": "^4.1.2"
   }
 }
