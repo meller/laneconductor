@@ -1,7 +1,7 @@
 # Track 1084: Worker Identity & Assignment
 
 **Lane**: review
-**Lane Status**: success
+**Lane Status**: running
 **Progress**: 95%
 **Phase**: Phases 0-5 complete for their achievable scope — 2 acceptance-criteria items (continuity-first routing, same-developer parallel claims) remain blocked on 1086's track_sessions table, not a defect
 **Type**: dev
