@@ -114,7 +114,7 @@ whichever worker already has a session for this track (depends on
 rest of this phase can).
 
 - [x] Task 1: In `autoLaunchLocalFs`, before claiming a track: resolve assignee, resolve candidate pinned workers (Phase 2 Task 2) — implemented server-side as a new `GET /api/projects/:id/claimable-tracks?worker_id=X` endpoint (reuses `resolveAssignee`/`resolvePinnedWorkers`), fetched once per auto-launch cycle rather than per track, since the worker has "zero DB knowledge" by design and can't run this resolution itself
-- [ ] Task 2: Continuity check — deferred, as planned: needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table, which doesn't exist yet
+- [ ] Task 2: Continuity check — deferred, as planned: needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table, which doesn't exist yet. **→ Unblocked 2026-08-12 (1086 shipped, 100%); tracked as Phase 7 below rather than reopening this phase.**
 - [x] Task 3: No prior session — any idle candidate worker may claim it (first-idle-wins) — this is the actual behavior right now, since there's no continuity check yet to prefer a specific one
 - [x] Task 4: Apply the same gating to the API-mode claim path — there is only one claim path (`autoLaunchLocalFs`, shared by local-fs and API mode; the "claim-queue endpoint" comment nearby was stale/vestigial, no such endpoint is actually used for concurrency decisions), so this was gated once at the source
 - [x] Task 5: Confirm unpinned-assignee fallback preserves current open-claim behavior exactly — verified via curl: a track whose assignee has no pins is claimable by any worker
@@ -252,3 +252,62 @@ own brainstorming-before-code convention.
       running. `workers.pid` is right there in the row the endpoint
       already fetches — it should verify the process is actually gone
       (`process.kill(pid, 0)`) and report honestly if it isn't.
+
+## Phase 7: Continuity-first routing (unblocked 2026-08-12)
+
+**Problem**: `claimable-tracks` currently answers "may this worker claim
+this track?" with the assignee gate alone. Among an assignee's candidate
+workers it is first-idle-wins, so a track can be claimed by a worker that
+has never seen it while the worker holding its live Claude session sits
+idle. That worker then cold-starts and rebuilds the entire context —
+`product.md`, `tech-stack.md`, `spec.md`, `plan.md`, `conversation.md`, the
+lot — which is precisely the cost `FRESH_SESSION` exists to avoid.
+
+The endpoint says so itself (`ui/server/index.mjs:3785`):
+
+> *"(Continuity-first routing via track_sessions — track 1086 — is a
+> follow-up once that table exists; this is the assignee gate alone.)"*
+
+**That table now exists** — 1086 is `done`, 100%. The stated precondition is
+met, so this is no longer deferred work, it is just unimplemented work.
+
+**Solution**: implement REQ-3 step 3 — if `track_sessions` holds a row for
+`(track_number, worker_id)` and that worker is among the candidates, only
+that worker may claim the track. Fall back to today's first-idle-wins when
+there is no session row.
+
+- [ ] Task 1: In `claimable-tracks` (`ui/server/index.mjs:3770`), after the
+      assignee gate, look up `track_sessions` for the queued track numbers.
+      Batch it — one query for the whole candidate set, not per track; the
+      endpoint is already called once per auto-launch cycle and must not
+      become N+1.
+- [ ] Task 2: If a session row exists for this track, return it as claimable
+      **only** to that `worker_id`. No session row → unchanged behaviour.
+- [ ] Task 3: Liveness escape hatch. A session pinned to a worker that is
+      dead or long gone must not strand the track forever — if the holder
+      has aged out of the 60s heartbeat-freshness window used by
+      `GET /api/workers`, fall back to first-idle-wins. **Decide explicitly
+      whether to also delete the stale `track_sessions` row** (there is
+      already a `DELETE /track/:num/session`), or leave it so the original
+      worker reclaims continuity if it comes back. Leaving it is probably
+      right; make it a decision, not an accident.
+- [ ] Task 4: Tests — extend `conductor/tests/track-1084-worker-identity.test.mjs`'s
+      Phase 3 suite (its `mock-collector.mjs` already fakes
+      `/claimable-tracks` + `/_set-claimable`). Required cases:
+      - session-holder gets it, non-holder is refused **(assert the refusal,
+        not just the grant)**
+      - no session row → both candidates eligible, unchanged
+      - dead session-holder → track becomes claimable again (Task 3)
+- [ ] Task 5: Prove the payoff end to end rather than asserting it: run the
+      same track twice across two registered workers and confirm the second
+      run receives `FRESH_SESSION: false`. A green routing test that still
+      cold-starts every time would be a false pass — the whole point of this
+      phase is the session reuse, not the routing decision on its own.
+
+**Sequencing**: [1109](../1109-worker-claim-allowlist/index.md) adds a claim
+allowlist to this same function. Two independent claim predicates landing in
+`claimable-tracks` at once will conflict — land one, then rebase the other.
+The intersection semantics also need stating: an explicit `--only-tracks`
+allowlist should almost certainly **override** continuity (the operator asked
+for this track on this worker), but that ordering must be written down and
+tested, not left to whichever `if` happens to come first.
