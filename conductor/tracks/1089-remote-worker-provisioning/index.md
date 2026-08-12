@@ -1,9 +1,9 @@
 # Track 1089: Remote Worker Provisioning
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Planning complete
+**Lane**: review
+**Lane Status**: running
+**Progress**: 100%
+**Phase**: Complete
 **Type**: dev
 **Summary**: Activate a worker on an already-known remote machine from the app, delegated through an existing worker — SSH execution itself deferred (FFU).
 
@@ -55,11 +55,11 @@ LaneConductor installed on.
 Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md](../../../docs/superpowers/specs/2026-08-07-remote-worker-identity-and-sessions-design.md) (Section F)
 
 ## Phases
-- [ ] Phase 1: Schema — `provision_targets` table
-- [ ] Phase 2: API — CRUD for provision targets, dispatch endpoint for `provision-worker`
-- [ ] Phase 3: Worker-side stub handler — logs "not yet implemented", marks dispatch failed with a clear message
-- [ ] Phase 4: UI — `+ New Worker` flow (target host picker/add, launcher worker picker, Provision button)
-- [ ] Phase 5: Tests — target CRUD, dispatch entry creation, stub handler produces the expected failed status + message
+- [x] Phase 1: Schema — `provision_targets` table
+- [x] Phase 2: API — CRUD for provision targets, dispatch endpoint for `provision-worker`
+- [x] Phase 3: Worker-side stub handler — logs "not yet implemented", marks dispatch failed with a clear message
+- [x] Phase 4: UI — `+ New Worker` flow (target host picker/add, launcher worker picker, Provision button)
+- [x] Phase 5: Tests — target CRUD, dispatch entry creation, stub handler produces the expected failed status + message
 
 ## Depends on
 [1084](../1084-worker-identity-and-assignment/index.md) — needs `--worker-number` stable identity to assign the new worker a slot. [1085](../1085-manual-worker-dispatch/index.md) — reuses its dispatch inbox and generic `payload` column directly.
