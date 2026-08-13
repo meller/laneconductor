@@ -852,6 +852,29 @@ async function upsertWorker() {
 
 const TASK_UNCHANGED = Symbol('TASK_UNCHANGED');
 
+// Track 1112 Phase 7: compact worktree inventory reported on the heartbeat
+// — same shape as `lc worktrees --json` (D-6: the heartbeat is just a
+// transport for state that lives at the shared repo checkout's cwd, not a
+// per-worker-owned resource). Recomputed on a slower cadence than the
+// heartbeat itself (git-shelling-out on every 10s beat would be wasteful);
+// cached and attached to whichever heartbeat fires next.
+let cachedWorktreeSummary = null;
+async function refreshWorktreeSummaryCache() {
+  if (getIsLocalFs()) return; // nothing to report — no heartbeat is sent in this mode anyway
+  try {
+    const mainBranch = getMainBranch();
+    const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
+    cachedWorktreeSummary = rows.map(r => ({
+      track: r.trackNumber, title: r.title, lane: r.lane, lane_status: r.laneStatus,
+      ahead: r.ahead, behind: r.behind, dirty: r.dirtyCount, class: r.classification,
+    }));
+  } catch (err) {
+    console.error('[worktree-summary error]:', err.message);
+  }
+}
+refreshWorktreeSummaryCache(); // populate before the first heartbeat, not 60s late
+setInterval(() => { refreshWorktreeSummaryCache(); }, 60000);
+
 async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
   if (getIsLocalFs()) return;
   const cls = getCollectors();
@@ -878,7 +901,8 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
         worker_number: workerNumber,
         cli: primary.cli || 'claude',
         model: primary.model || null,
-        available_models: cachedModels || undefined
+        available_models: cachedModels || undefined,
+        worktrees: isManager ? undefined : cachedWorktreeSummary,
       };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
