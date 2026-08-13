@@ -615,6 +615,71 @@ describe('Team worker sharing — full flow (Track 1033, REQ-7)', () => {
     expect(res.body.tracks[0].track_number).toBe('042');
   });
 
+  // Track 1110 Phase 3: optional track_number targets the atomic claim at
+  // ONE specific track — needed so autoLaunchLocalFs's per-track loop
+  // (which decides candidates from local file state) can ask the DB "is
+  // THIS specific track still mine to claim" right before spawning it,
+  // rather than the untargeted "give me your next N" shape the endpoint
+  // only supported before this track.
+  it('claim-queue with track_number targets the claim SQL at that one track', async () => {
+    mockQuery({ rows: [{ id: 7, project_id: 1, user_uid: 'user-a', visibility: 'public' }] });
+
+    let capturedSql = null;
+    let capturedParams = null;
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockImplementationOnce((sql, params) => {
+        capturedSql = sql;
+        capturedParams = params;
+        return Promise.resolve({ rows: [] });
+      })
+      .mockResolvedValueOnce({ rows: [] }); // COMMIT
+
+    await request(app)
+      .post('/tracks/claim-queue?project_id=1')
+      .set('Authorization', 'Bearer tok-a')
+      .send({ limit: 1, track_number: '042' });
+
+    expect(capturedSql).toContain('track_number');
+    expect(capturedParams).toContain('042');
+  });
+
+  it('claim-queue with track_number returns empty when that track is not eligible (already claimed elsewhere)', async () => {
+    mockQuery({ rows: [{ id: 7, project_id: 1, user_uid: 'user-a', visibility: 'public' }] });
+    mockQuery({ rows: [] });  // BEGIN
+    mockQuery({ rows: [] });  // UPDATE ... RETURNING — no match, someone else already flipped it out of 'queue'
+    mockQuery({ rows: [] });  // COMMIT
+
+    const res = await request(app)
+      .post('/tracks/claim-queue?project_id=1')
+      .set('Authorization', 'Bearer tok-a')
+      .send({ limit: 1, track_number: '042' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.tracks).toHaveLength(0);
+  });
+
+  it('claim-queue with track_number still returns the track when it IS eligible', async () => {
+    const track = {
+      track_number: '042', lane_status: 'implement',
+      lane_action_result: 'claimed', progress_percent: 0, priority: 0,
+      last_comment_author: null, last_comment_replied: null
+    };
+    mockQuery({ rows: [{ id: 7, project_id: 1, user_uid: 'user-a', visibility: 'public' }] });
+    mockQuery({ rows: [] });        // BEGIN
+    mockQuery({ rows: [track] });   // UPDATE ... RETURNING
+    mockQuery({ rows: [] });        // COMMIT
+
+    const res = await request(app)
+      .post('/tracks/claim-queue?project_id=1')
+      .set('Authorization', 'Bearer tok-a')
+      .send({ limit: 1, track_number: '042' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.tracks).toHaveLength(1);
+    expect(res.body.tracks[0].track_number).toBe('042');
+  });
+
   // Step 5b: claim-queue SQL shape — tracks always filtered by project_id and queue status
   it('claim-queue filters by project_id and lane_action_status=queue', async () => {
     // collectorAuth: machine_token → team worker owned by user-a
