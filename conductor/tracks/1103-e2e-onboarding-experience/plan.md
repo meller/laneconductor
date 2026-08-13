@@ -103,19 +103,27 @@ actual implementation (`bin/lc.mjs`) rather than assumed.
 Per `SKILL.md`'s own description: `/laneconductor setup` detects no `lc`
 binary, assumes `mode: "local-fs"`, writes a minimal
 `.laneconductor.json`, and proceeds straight to scaffold generation — no
-brainstorm-loop distinction from Variant A at the file-generation step,
-but **there is no worker at all**: the AI itself acts as the
-orchestrator, updating `conductor/` files directly during its own turn
-rather than a background process reacting to them.
+brainstorm-loop distinction from Variant A at the file-generation step.
 
-This makes several of Phase 1's UI-path concepts **not applicable**, not
-just differently-implemented:
-- "Which machine is the worker on" — no machine/worker to report; there
-  is no persistent process.
-- "Worker mode (manual/automatic)" — doesn't exist; the AI drives the
-  lane transitions inline, synchronously, during the conversation.
-- Live Activity/Transcript panel — nothing to stream; the "live view" is
-  the AI editor's own chat transcript.
+**Corrected 2026-08-13** (user): there is no *separate background
+process to manage* — no daemon to start/stop/monitor — but the skill
+invocation itself (the AI editor session/turn) is functionally the
+worker for that action, not an absence of one. "No worker at all" was
+the wrong framing; "the worker is the current AI session, not a
+long-lived service" is accurate.
+
+What genuinely doesn't apply to Phase 1's UI-path concepts, restated
+correctly:
+- "Which machine is the worker on" — moot in the sense that there's
+  nothing separate to locate: whatever machine is running the AI editor
+  session *is* where the work happens, for exactly as long as that
+  session does the work.
+- "Worker mode (manual/automatic)" — doesn't apply as a persistent
+  setting, since there's no standing process to configure; every action
+  is inherently a one-off, driven inline by the current conversation.
+- Live Activity/Transcript panel — nothing external to stream; the "live
+  view" is the AI editor's own chat transcript, which already shows this
+  in real time by construction.
 
 This is documented as advertised behavior but had never actually been
 walked this session — flagged in track 1105's own scope as something to
