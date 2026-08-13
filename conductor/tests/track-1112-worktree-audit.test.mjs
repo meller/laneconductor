@@ -169,6 +169,45 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'open', 'a stale done:success snapshot must not be trusted once main has independently moved the same track');
   });
 
+  it('lists a detached-HEAD worktree with no track-* branch as detached, never mergeable', async () => {
+    // Reproduces the live `.worktrees/1063/.worktrees/9998` shape: a nested
+    // worktree checked out at a detached HEAD, with no `track-*` branch at
+    // all. `git branch --list track-*` can never surface this — it has to
+    // come from the worktree list itself.
+    setupRepo();
+    writeTrackIndex(REPO, '107', 'Detached Parent', 'plan', 'queue');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+    const headSha = git('rev-parse HEAD');
+
+    git(`worktree add -q --detach .worktrees/detached-scratch ${headSha}`);
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.worktreePath?.endsWith('.worktrees/detached-scratch'));
+    assert.ok(row, 'a detached worktree with no track-* branch must still be listed');
+    assert.equal(row.classification, 'detached');
+    assert.equal(row.trackNumber, null);
+  });
+
+  it('does not misreport the primary checkout as a detached worktree when run from inside a linked worktree', async () => {
+    // Real bug found while live-verifying against this repo: this session
+    // itself runs from a linked worktree (.worktrees/1112), not the primary
+    // checkout. auditWorktrees used to identify "the primary checkout" by
+    // comparing each worktree path to the `repoRoot` argument — which,
+    // called from a linked worktree, is the linked worktree's own path, not
+    // the primary's. The primary checkout then fell through into the
+    // "no track-* branch" bucket and was misreported as `detached`.
+    setupRepo();
+    writeTrackIndex(REPO, '108', 'Primary Repo Track', 'plan', 'queue');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+    git('worktree add -q -B track-108 .worktrees/108 HEAD');
+
+    // Call auditWorktrees with repoRoot pointed at the LINKED worktree, the
+    // same way a real invocation from inside .worktrees/108 would.
+    const rows = await auditWorktrees({ repoRoot: join(REPO, '.worktrees/108'), mainBranch: 'main' });
+    const primaryRow = rows.find(r => r.worktreePath === REPO);
+    assert.equal(primaryRow, undefined, 'the primary checkout must never be reported as its own row');
+  });
+
   it('does not merge, delete, or otherwise mutate anything — read-only', async () => {
     setupRepo();
     writeTrackIndex(REPO, '105', 'Readonly Track', 'plan', 'queue');

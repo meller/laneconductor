@@ -26,8 +26,13 @@ function git(args, cwd) {
 
 function parsePorcelainWorktreeList(raw) {
   // `git worktree list --porcelain` — blank-line-separated blocks, each a
-  // sequence of "key value" lines (worktree/HEAD/branch/detached/etc).
+  // sequence of "key value" lines (worktree/HEAD/branch/detached/etc). Git
+  // always lists the main (primary) working tree first, regardless of which
+  // worktree's directory the command was run from — that ordering is the
+  // only reliable way to identify the primary checkout, since `repoRoot`
+  // passed in by a caller running from a *linked* worktree is not it.
   const byPath = new Map();
+  let primaryPath = null;
   for (const block of raw.split('\n\n')) {
     if (!block.trim()) continue;
     const lines = block.split('\n').filter(Boolean);
@@ -36,9 +41,12 @@ function parsePorcelainWorktreeList(raw) {
       const [key, ...rest] = line.split(' ');
       entry[key] = rest.join(' ');
     }
-    if (entry.worktree) byPath.set(entry.worktree, entry);
+    if (entry.worktree) {
+      byPath.set(entry.worktree, entry);
+      if (primaryPath === null) primaryPath = entry.worktree;
+    }
   }
-  return byPath;
+  return { byPath, primaryPath };
 }
 
 function listTrackBranches(repoRoot) {
@@ -123,28 +131,51 @@ function wouldConflict(repoRoot, mainBranch, branch) {
 }
 
 /**
- * Returns one row per unmerged track-* branch: { trackNumber, branch,
- * worktreePath, hasWorktree, ahead, behind, dirtyCount, lane, laneStatus,
- * title, classification }. classification is one of:
+ * Returns one row per unmerged track-* branch, plus one row per worktree
+ * that has no track-* branch at all (detached HEAD, or a branch outside the
+ * track-* naming convention): { trackNumber, branch, worktreePath,
+ * hasWorktree, ahead, behind, dirtyCount, lane, laneStatus, title,
+ * classification }. classification is one of:
  *   'open'        — track not yet done:success (working as designed)
  *   'mergeable'   — done:success, worktree present, clean merge available
  *   'stranded'    — done:success, worktree directory gone (RC-A)
  *   'conflicted'  — done:success, merge would conflict
+ *   'detached'    — worktree present but no track-* branch to classify
+ *                   against (e.g. a nested scratch worktree at a detached
+ *                   HEAD) — never mergeable, since there is no branch to
+ *                   merge.
  * Fully merged branches are omitted — nothing to report.
  * Read-only: never merges, deletes, or checks anything out.
  */
 export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
-  const worktreesByPath = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
+  const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
   const branchToWorktree = new Map();
+  const worktreePathsWithTrackBranch = new Set();
   for (const [path, entry] of worktreesByPath) {
     const branchRef = entry.branch; // e.g. "refs/heads/track-101"
-    if (branchRef?.startsWith('refs/heads/')) {
-      branchToWorktree.set(branchRef.slice('refs/heads/'.length), path);
+    const branchName = branchRef?.startsWith('refs/heads/') ? branchRef.slice('refs/heads/'.length) : null;
+    if (branchName?.match(/^track-\d+$/)) {
+      branchToWorktree.set(branchName, path);
+      worktreePathsWithTrackBranch.add(path);
     }
   }
 
   const branches = listTrackBranches(repoRoot);
   const rows = [];
+
+  // Worktrees with no recognized track-* branch — detached HEAD or a branch
+  // outside the naming convention. `git branch --list track-*` can never
+  // surface these; they only show up by walking the worktree list itself.
+  for (const [path] of worktreesByPath) {
+    if (path === primaryPath) continue; // the primary checkout itself
+    if (worktreePathsWithTrackBranch.has(path)) continue;
+    const dirtyCount = git(['status', '--porcelain'], path).split('\n').filter(Boolean).length;
+    rows.push({
+      trackNumber: null, branch: worktreesByPath.get(path).branch ?? null, worktreePath: path,
+      hasWorktree: true, ahead: null, behind: null, dirtyCount,
+      lane: null, laneStatus: null, title: null, classification: 'detached',
+    });
+  }
 
   for (const branch of branches) {
     if (isAncestor(repoRoot, branch, mainBranch)) continue; // fully merged, nothing to report
