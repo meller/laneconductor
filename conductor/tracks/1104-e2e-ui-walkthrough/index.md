@@ -1,12 +1,12 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: queue
+**Progress**: 60%
 **Last Run**: claude/sonnet (primary)
-**Phase**: Phase 1 — walking the path in a real browser against a clean project
+**Phase**: Phase 4 — write up the wiki UI guide (blocked: track 1103 hasn't established the wiki location yet); Phase 5 blocked on track 1100's fast tier being green
 **Type**: dev
-**Summary**: Run the complete "nothing → a track planned" path entirely through the web UI, record every point where it breaks or is unclear, and leave behind a repeatable walkthrough. One of three sibling…
+**Summary**: Phases 1-3 complete: real-browser walkthrough recorded (`session-log.md`), findings cross-referenced into 1102 (F5/F7 re-confirmed fixed; new F9 filed — a successful plan run inside a worktree never…
 
 ## Problem
 
@@ -56,11 +56,11 @@ quietly skip.
 - CI/CD tab and deploy wizard — **walk it, stop before actually deploying**
 
 ## Phases
-- [ ] Phase 1: Walk the path in a real browser against a clean project; record each step's observed result (not intended result)
-- [ ] Phase 2: File/fix what breaks — link findings to track 1102 where they overlap rather than duplicating
-- [ ] Phase 3: Note every state the UI fails to represent (no worker, no git, action failed, which machine) → feeds track 1103's design
-- [ ] Phase 4: Write the walkthrough up as the wiki's UI guide (track 1103 Phase 5)
-- [ ] Phase 5: Encode it as a Playwright spec in track 1100's **fast tier** so it can't rot
+- [x] Phase 1: Walk the path in a real browser against a clean project; record each step's observed result (not intended result)
+- [x] Phase 2: File/fix what breaks — link findings to track 1102 where they overlap rather than duplicating
+- [x] Phase 3: Note every state the UI fails to represent (no worker, no git, action failed, which machine) → feeds track 1103's design
+- [ ] Phase 4: Write the walkthrough up as the wiki's UI guide (track 1103 Phase 5) — **blocked**: 1103 hasn't reached Phase 5 / established a wiki location yet; `session-log.md` in this track is ready as direct transcription input when it does
+- [ ] Phase 5: Encode it as a Playwright spec in track 1100's **fast tier** so it can't rot — **blocked**: 1100 is back at `implement/queue` after a failed review (fixture visibility not reset, slow tier not green), so its fast tier isn't confirmed usable yet
 
 ## Meta: this track is itself driven through the UI
 

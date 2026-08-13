@@ -295,6 +295,72 @@ structural fix; the per-lane-override / keepalive design question above
 is still open for whoever picks it up.
 
 
+### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED
+Found while dogfooding track 1104's UI walkthrough on a fresh project
+(`Walkthrough Test Project 1104`, project 925, track 001). This is a
+**different** trigger than F7/F8 above — it happens on a project that
+**is** a git repo (F7 fixed) and where the "Run plan now" button **does**
+create a real dispatch that a sync-only worker claims (so F5's fix is
+holding — confirmed live, not just by code reading).
+
+Sequence observed:
+1. Clicked "Run plan now" in the track detail drawer. Card correctly
+   flipped to a `RUNNING` section with a `WORKER ACTIVE: PROCESSING…`
+   badge and a live `stale Ns` counter — this part of the UI works well.
+2. The dispatched Claude agent actually ran to completion inside its
+   worktree (`.worktrees/001/`): its own Live Transcript panel shows every
+   step succeeding and ending with *"Track 001's plan is complete: `spec.md`,
+   `plan.md`, and `test.md` have been rewritten… `index.md` is transitioned
+   to `**Lane**: plan`, `**Lane Status**: success`… The sync worker will
+   pick this up on its next heartbeat and reflect it on the Kanban
+   dashboard."* The worktree's `index.md` on disk confirms this:
+   `**Lane Status**: success`, real (non-stub) content.
+3. That never happened. Hours later: the **main** repo's tracked
+   `conductor/tracks/001-.../index.md` (outside `.worktrees/001/`) still
+   has the original stub content and `**Lane Status**: running`. The DB
+   agrees: `GET /api/projects/925/tracks` returns
+   `lane_action_status: "running"`, `lane_action_result: "stuck_timeout"`
+   for track 001 — the two fields disagree with each other (`stuck_timeout`
+   normally pairs with resetting `lane_action_status` back to `queue`, per
+   `POST /tracks/reset-stuck-actions` in `ui/server/index.mjs:2376`, but
+   here it's stuck on `running` instead, suggesting the track got
+   re-claimed after one reset and got stuck a second time without ever
+   clearing the stale result field).
+4. The dispatch queue for the project is now empty (nothing to retry) and
+   `GET /api/projects/925/workers` reports the worker `status: "idle"`,
+   `current_task: null` — matching F8's exact symptom (Activity panel
+   shows an idle worker while the board still shows a running track), but
+   from a **different root cause**: not an exception during worktree
+   setup, but the worker apparently never running (or never finishing) the
+   "copy artifacts from worktree → main repo" step
+   (`conductor/laneconductor.sync.mjs:3707` onward) after the spawned
+   Claude process exited — despite that process's own transcript showing a
+   clean, successful finish.
+5. The board card is left showing a permanently escalating `stale Ns`
+   indicator (yellow → red) with no explanation, no retry affordance, and
+   no link to what actually happened — the real, complete plan output sits
+   unreachable in `.worktrees/001/conductor/tracks/001-.../`.
+
+**Net effect**: real completed work can be silently orphaned in a worktree
+indefinitely, and the UI's only visible signal is a color-shifting "stale"
+timer that never resolves into an actual error state — worse than F8's
+case in one respect: here the work genuinely succeeded and is sitting on
+disk, but nothing surfaces that or offers a way to recover/merge it.
+
+Fix direction (separate from F8's dispatch-failure-reporting fix): the
+worktree copy-back-and-merge step needs to run (or be retried) independent
+of whether the parent worker process that spawned the child is still
+alive to observe its exit — e.g. reconcile orphaned worktrees with a
+`Lane Status: success` marker against their tracked track state on worker
+startup/heartbeat, not only in the immediate child-process exit handler.
+This track (1104) does not attempt that fix — filing per its Phase 2
+scope ("fix anything trivial and local... leave larger fixes referenced
+in 1102").
+
+**Filed as F12** (renumbered from the worktree's own "F9" — that slot was already taken in main's committed history by a different, unrelated finding: the gutted-index-content guard. Two independent processes — this dogfooded implement agent working inside `.worktrees/1104`, and my own manual session — each picked "F9" as the next free number without seeing the other's concurrent edit, since the worktree's copy of this file diverged from main the moment the worktree was created. Content preserved exactly as the agent wrote it; only the heading number and this note changed.)
+
+**Directly relevant to [1112](../1112-git-sync-and-worktree-visibility/index.md)**, opened the same day: this finding IS the worktree-merge-back failure 1112 exists to fix, caught in the act rather than inferred from branch-count alone.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
