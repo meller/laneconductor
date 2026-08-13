@@ -1,11 +1,12 @@
 # Track 1112: Out-of-band git sync + worktree visibility/merge UI
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New — grounded by live inspection 2026-08-13, not yet planned
+**Lane Status**: success
+**Progress**: 10%
+**Phase**: Planned — audit complete (Phase 1 done), Phases 2–7 specced
 **Type**: dev
-**Summary**: Two related gaps confirmed live: nothing pulls changes made by a user pushing directly to git (bypassing LaneConductor), and per-track worktrees have zero visibility anywhere — this machine alone…
+**Waiting for reply**: no
+**Summary**: Planned. Audit of all 44 unmerged branches found 41 legitimately open, 2 stranded by RC-A (merge gated on the worktree dir existing), 1 missed by RC-B (merge only fires from one worker exit path).…
 
 ## Problem
 
@@ -53,33 +54,50 @@ consistently reached (tracks not yet at `done`), or failing silently
 somewhere — worth establishing which, at planning time, before assuming
 a UI is the only fix needed.
 
-## Solution (to be designed at planning — this file states the confirmed problem)
+> **Planning-time re-measurement (2026-08-13)**: 48 worktrees / 44 unmerged.
+> The counts above (49/45) were taken when the track was opened; track 1104's
+> branch has since landed (commit `902ee2f`). Both questions above are now
+> answered — see Solution below. All figures in `spec.md` use the 48/44
+> re-measurement.
 
-- Sync direction: decide whether LaneConductor should proactively `git
-  pull` on some cadence (heartbeat-adjacent?) to catch out-of-band
-  pushes, and what happens when a pulled change conflicts with a
-  worker's own in-progress worktree — needs real conflict-handling
-  design, not just "pull more often."
-- Visibility: at minimum, a way to list worktrees + their merge status
-  (ahead/behind main, uncommitted changes) somewhere in the UI or via
-  `lc`. Given 45 branches are already unmerged on just one developer's
-  machine, this is not a hypothetical need.
-- Merge path: once visible, what's the actual action — a UI "merge to
-  main" button, an `lc` command, or is fixing why `mergeAndRemoveWorktree`
-  isn't reliably firing the actual fix (making the UI unnecessary for the
-  common case, still useful for the exceptional one)?
-- Investigate why 45 branches are unmerged before designing the fix —
-  likely a mix of (a) tracks legitimately not yet at `done`, (b) the
-  `per-cycle` merge step failing/skipping silently, (c) tracks whose
-  worktree lifecycle is configured `per-lane` or otherwise never
-  triggers a merge at all. Different causes need different fixes.
+## Solution
+
+Designed at planning — see `spec.md` for full requirements and `plan.md`
+for phases. Audit results (measured 2026-08-13, all 44 unmerged branches):
+
+| Class | Count | Cause |
+|-------|-------|-------|
+| Track not yet at `done` | 41 | Working as designed — invisible, but not a bug |
+| `done:success`, worktree gone | 2 (1044, 1059) | **RC-A** — permanently stranded |
+| `done:success`, worktree present | 1 (1099) | **RC-B** — merge never attempted |
+
+- **RC-A**: `mergeAndRemoveWorktree` returns early on a missing worktree
+  directory *before* attempting the merge (`laneconductor.sync.mjs:3334`) —
+  but the branch outlives the directory, so it is stranded forever.
+- **RC-B**: the merge only fires from `spawnCli`'s exit handler under
+  `targetLane === 'done' && isSuccess` (`laneconductor.sync.mjs:3912`). A UI
+  drag, `lc move`, or a quality gate on another machine never merges.
+
+Orphaned-source sweep: only `track-1059` carries non-track-file changes, and
+that work is already in main via another route — so nothing is *currently*
+lost. But commit `902ee2f` (`.worktrees/1104`, 60% recovered) proves the loss
+mode is real; invisibility is what made it expensive.
+
+Approach: **CLI before UI** (worktrees are per-machine; the API may be
+remote, and `local-fs` has no API at all), **reconcile on lane state rather
+than on an exit-handler side effect**, **merge in a scratch worktree** so the
+shared checkout with its 100+ dirty files is never touched, and
+**detect-and-surface** out-of-band pushes with auto-pull only on a provably
+safe fast-forward.
 
 ## Phases
-- [ ] Phase 1: Audit — for a sample of this machine's 45 unmerged worktrees, determine which of the three causes above applies to each; establishes whether this is mostly a lifecycle bug or mostly a visibility gap
-- [ ] Phase 2: Worktree visibility — list worktrees + merge/dirty status (UI panel and/or `lc` command, decide which at planning)
-- [ ] Phase 3: Merge action — surfaced from Phase 2's listing, scoped based on Phase 1's findings (fix the automatic path, add a manual one, or both)
-- [ ] Phase 4: Out-of-band git sync — design the pull cadence + conflict handling; this is the riskier half (wrong conflict handling could silently lose work) and may deserve its own sub-design review before implementation
-- [ ] Phase 5: Tests + a real live check on this machine's actual 45 unmerged branches (not just synthetic ones) — this track has an unusually large, real dataset to validate against already
+- [x] Phase 1: Audit — all 44 branches classified; RC-A and RC-B identified with line numbers (done at planning time)
+- [ ] Phase 2: `lc worktrees` — visibility, local-only, works in `local-fs`, surfaces stranded branches `git worktree list` can't see
+- [ ] Phase 3: Lifecycle fixes — RC-A (merge on branch existence, not directory), RC-B (`reconcileWorktrees()` on heartbeat), merge in a scratch worktree
+- [ ] Phase 4: `lc worktrees merge <track>` — manual path, incl. the stranded case, `--dry-run` / `--force`
+- [ ] Phase 5: Out-of-band git sync — periodic fetch + divergence reporting; auto-pull only on clean FF with no dirty overlap; post-pull FS→DB resync
+- [ ] Phase 6: Tests + LIVE verification against this machine's real 44-branch state
+- [ ] Phase 7: UI worktree panel via heartbeat reporting — **may be deferred**; if it is, this track cannot be marked `done` at 100%
 
 ## Depends on
 None directly, but touches the same worktree lifecycle code
