@@ -106,7 +106,15 @@ make install-cli
 ```
 
 ### Core Commands
-- `lc worker start [--sync-and-work]`: Start the heartbeat worker in the background.
+- `lc worker run <track>`: **Normally what you want.** Runs a worker scoped to
+  that track in the foreground and exits when it's done. It cannot claim any
+  other queued track — unlike `lc worker start --sync-and-work`, which claims
+  *anything* queued and will begin autonomous agent runs on every other track
+  sitting in `queue`. (Track 1109)
+- `lc worker start [--sync-and-work] [--only-tracks <n,n>] [--once]`: Start the
+  heartbeat worker in the background. `--only-tracks` restricts what it may
+  claim — it narrows only, and can never widen a server-side permission
+  decision; `--once` exits when that scoped work is finished.
 - `lc worker stop`: Stop the background heartbeat worker.
 - `lc worker restart`: Restart the background heartbeat worker.
 - `lc worker status`: Check the health and PID of the local worker.

@@ -4269,6 +4269,34 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       continue;
     }
 
+    // Track 1110 Phase 3: in API mode, everything above this point is
+    // still a LOCAL decision from this process's own reading of
+    // index.md — exactly the read-then-write with no lock between them
+    // that made the claim race real (see conductor/tracks/1110-*/spec.md).
+    // Before actually spawning, ask the DB to atomically claim this ONE
+    // track (POST /tracks/claim-queue, FOR UPDATE SKIP LOCKED — already
+    // built and tested, just never called by this loop before). If the
+    // DB says someone else already has it, don't spawn, don't write —
+    // this process simply lost the race for this track this cycle.
+    // Skipped for local-fs mode (no DB to ask; Phase 4 covers that case
+    // with its own FS-atomic primitive) and for waitingForReply (an
+    // answer-flow isn't driven by lane_action_status==='queue', which is
+    // what claim-queue's own WHERE clause requires — it would never
+    // match and would incorrectly skip a legitimate reply).
+    if (!getIsLocalFs() && !waitingForReply) {
+      try {
+        const { url, token } = primaryCollector();
+        const { tracks: won } = await post(url, token, '/tracks/claim-queue', { limit: 1, track_number });
+        if (!won || won.length === 0) {
+          console.log(`[local-fs] Track ${track_number}: lost the DB claim race this cycle (another worker already has it). Skipping.`);
+          continue;
+        }
+      } catch (err) {
+        console.error(`[local-fs] Track ${track_number}: claim-queue call failed (${err.message}) — skipping rather than spawning unclaimed.`);
+        continue;
+      }
+    }
+
     try {
       const [cmd, args, cli, model, tier, session] = cliArgs;
 

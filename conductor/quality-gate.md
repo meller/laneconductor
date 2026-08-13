@@ -58,10 +58,19 @@
 
       3 specs (`brainstorm-concurrency`, `brainstorm-concurrency-v2`,
       `new-track-plan`) that drive real agent/worker runs end to end. Minutes
-      long by construction, and they **require a running sync+poll worker**
-      (`lc worker start --sync-and-work`) — without one they fail by design,
-      waiting for a claim that never comes. Run these when touching the
-      worker claim/brainstorm/planning path.
+      long by construction, and they **require a running sync+poll worker** —
+      without one they fail by design, waiting for a claim that never comes.
+      Run these when touching the worker claim/brainstorm/planning path.
+
+      ⚠️ **Do not use a bare `lc worker start --sync-and-work` for this.** It
+      claims *anything* queued, so on a machine with real queued tracks it
+      will start autonomous agent runs on all of them. Scope it instead
+      (track 1109):
+      ```bash
+      lc worker start --sync-and-work --only-tracks <the-test-track> --once
+      ```
+      A worker started that way is structurally incapable of touching
+      anything else.
 
       **Measured 2026-08-12** with only a sync-only *manager* worker running:
       `new-track-plan` fails at ~71s at "Worker should pick up track within
