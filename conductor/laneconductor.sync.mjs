@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync, exec } from 'child_process';
@@ -3559,6 +3559,19 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     runningTrackMap.delete(proc.pid);
     updateWorkerHeartbeat('idle', null);
 
+    // Track 1110 Phase 4: release this track's local-fs claim marker, if
+    // one was created (auto-launch's local-fs branch, above). Harmless
+    // no-op for every other spawnCli caller (dispatch, chat, API mode) —
+    // releaseTrackClaim is best-effort and silently does nothing when the
+    // marker never existed. Runs unconditionally so a failed/killed run
+    // still frees the track rather than leaning solely on the startup
+    // sweep's staleness window.
+    {
+      const tracksDirForClaim = 'conductor/tracks';
+      const trackDirForClaim = resolveTrackFolder(tracksDirForClaim, trackNumber);
+      if (trackDirForClaim) releaseTrackClaim(tracksDirForClaim, trackDirForClaim);
+    }
+
     const isSuccess = code === 0;
 
     // Detect provider quota exhaustion — re-queue without consuming a retry
@@ -4067,6 +4080,68 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
 setInterval(() => checkFileSyncQueue(), 5000);
 setInterval(() => processFileSyncQueue().catch(e => console.error('[file-queue error]:', e.message)), 5000);
 
+// Track 1110 Phase 4: local-fs mode's counterpart to Phase 3's DB claim —
+// there's no Postgres to ask "is this track still mine," so this uses the
+// OS's own atomic file creation instead. `wx` fails with EEXIST if the
+// path already exists; unlike a plain existsSync-then-writeFileSync (the
+// read-then-write gap that made the race real in the first place), there
+// is no window between "check" and "claim" for a second process to slip
+// through — the kernel resolves the race, not this process's own timing.
+function claimTrackPath(tracksDir, trackDir) {
+  return join(tracksDir, trackDir, '.claim-lock');
+}
+
+function claimTrackFile(tracksDir, trackDir) {
+  try {
+    closeSync(openSync(claimTrackPath(tracksDir, trackDir), 'wx'));
+    return true;
+  } catch (err) {
+    if (err.code === 'EEXIST') return false;
+    throw err;
+  }
+}
+
+function releaseTrackClaim(tracksDir, trackDir) {
+  try { rmSync(claimTrackPath(tracksDir, trackDir), { force: true }); } catch { /* best-effort */ }
+}
+
+// Track 1110 Phase 4: a worker that dies (crash, SIGKILL) between claiming
+// a track and spawnCli's exit handler releasing it would otherwise leave
+// that track permanently unclaimable — nothing else ever removes the
+// marker.
+//
+// Deliberately NOT a blind "no PIDs yet, so anything present is stale"
+// sweep the way `resetFilesystemRunningStatus` above is — multiple
+// legitimate workers (worker_number 1, 2, ...) share this SAME
+// conductor/tracks/ directory (track 1084 Phase 0), so "I haven't
+// claimed anything yet" says nothing about whether ANOTHER, currently
+// live worker claimed a track moments before this one started up. A
+// blind sweep would delete a live sibling's claim out from under it —
+// reintroducing the exact race this phase exists to close, just moved to
+// worker-startup timing instead of auto-launch timing.
+//
+// Uses mtime-based staleness instead, mirroring `checkAndClaimGitLock`'s
+// already-established pattern in this same file for the identical
+// problem (a per-track lock that must survive concurrent legitimate
+// holders but still recover from a dead one). A claim marker should
+// never legitimately outlive spawnCli's own runaway-process timeout by
+// more than a small margin, since that timeout SIGTERMs/SIGKILLs the
+// process and its exit handler releases the claim either way.
+const CLAIM_STALE_MS = (Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker?.spawn_timeout_ms || 300000) + 30000;
+(function clearStaleClaimMarkers() {
+  const tracksDir = 'conductor/tracks';
+  if (!existsSync(tracksDir)) return;
+  for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
+    const claimPath = claimTrackPath(tracksDir, dir);
+    if (!existsSync(claimPath)) continue;
+    const ageMs = Date.now() - statSync(claimPath).mtimeMs;
+    if (ageMs > CLAIM_STALE_MS) {
+      releaseTrackClaim(tracksDir, dir);
+      console.log(`[startup] Cleared stale claim marker for ${dir} (age: ${Math.round(ageMs / 1000)}s)`);
+    }
+  }
+})();
+
 // ── Local-fs auto-launch (Mode 1: no API) ─────────────────────────────────────
 // Scans conductor/tracks/*/index.md for queued tracks, respects workflow.json limits.
 // claimableSet (Track 1084 Phase 3): in API mode, the set of track_numbers this
@@ -4293,6 +4368,21 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
         }
       } catch (err) {
         console.error(`[local-fs] Track ${track_number}: claim-queue call failed (${err.message}) — skipping rather than spawning unclaimed.`);
+        continue;
+      }
+    }
+
+    // Track 1110 Phase 4: local-fs mode's counterpart — no DB to ask, so
+    // this uses the OS's own atomic file creation instead
+    // (claimTrackFile, defined above this function). Same reasoning as
+    // Phase 3's block: without this, two worker processes sharing this
+    // directory could both read 'queue' in the same tick and both spawn
+    // for the same track — the exact race Phase 1's reproduction proved
+    // real. waitingForReply is excluded for the same reason as Phase 3:
+    // an answer-flow isn't a queue-claim.
+    if (getIsLocalFs() && !waitingForReply) {
+      if (!claimTrackFile(tracksDir, dir)) {
+        console.log(`[local-fs] Track ${track_number}: lost the file claim race this cycle (another worker already has it). Skipping.`);
         continue;
       }
     }

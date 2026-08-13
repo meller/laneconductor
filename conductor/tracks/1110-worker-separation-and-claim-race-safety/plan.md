@@ -252,6 +252,45 @@ cleanup path is the natural place.
 can no longer double-claim, closing the general case Phase 3 only
 addressed for API mode.
 
+**Design correction made before finishing (2026-08-13)**: the plan's own
+Task 3 wording ("clear markers for tracks not in runningPids on startup")
+would have been a real bug if implemented literally — multiple
+legitimate workers (worker_number 1, 2, ...) share this same
+`conductor/tracks/` directory (track 1084 Phase 0), so "I own no PIDs
+yet" says nothing about whether ANOTHER, currently-live sibling worker
+claimed a track moments before this one started. A blind per-process
+sweep would delete a live sibling's claim out from under it —
+reintroducing the exact race this phase exists to close, just moved to
+worker-startup timing. Used mtime-based staleness instead
+(`spawn_timeout_ms` + 30s margin), mirroring `checkAndClaimGitLock`'s
+already-established pattern in this same file for the identical
+"survive concurrent legitimate holders, still recover from a dead one"
+problem.
+
+**Verified 2026-08-13**: Phase 1's original reproduction test
+(`track-1110-claim-race.test.mjs`) — red for this entire track's
+duration (2-5/8 double-claims across every prior run) — is now GREEN,
+twice in a row (0/8, 0/8). Full regression sweep (13 test files touching
+worker startup/spawn/claim): 33 tests passing, only the same
+pre-existing, already-confirmed-unrelated `local-api-e2e.test.mjs`
+failure remains.
+
+Also found and fixed two Phase 2 regressions that Phase 2's OWN
+regression pass had missed (not caused by Phase 4's changes, surfaced
+while running Phase 4's broader sweep): `track-1091-manager-worker.test.mjs`
+and `track-1091-create-project-worker.test.mjs` both spawn their own
+"test" manager worker without `LC_SKIP_WORKER_LOCK` — harmless when no
+real manager is running, but the manager identity lock is deliberately
+machine-global (matching the real `workers_one_manager_per_host`
+constraint), so it correctly refused a second one once a genuinely live
+manager process happened to be running on this development machine
+(pid 954975, from earlier dogfooding this session). Fixed by adding the
+skip flag those tests' own isolation already needed — the lock was
+working exactly as designed; the tests hadn't been updated for it.
+`track-1089-provision-worker-dispatch.test.mjs`'s manager spawn was
+unaffected — it already isolates via a fake `HOME`, which the lock path
+(derived from `os.homedir()`) naturally respects.
+
 ## Phase 5: Full regression pass
 
 **Problem**: Both fixes touch code every project's worker runs through.
