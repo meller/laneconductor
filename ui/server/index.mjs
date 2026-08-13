@@ -293,6 +293,35 @@ app.get('/api/projects/:id/workers', async (req, res) => {
   }
 });
 
+// Track 1112 Phase 7 (D-6): project-scoped, not worker-scoped — `.worktrees/`
+// lives at the shared repo checkout's cwd, not inside any one worker's
+// private state, so every worker for this project on a given host reports
+// an identical list. DISTINCT ON (hostname) dedupes to the freshest report
+// per host; each row is tagged with `host` so the UI can group by host only
+// when more than one has actually reported (the common case is exactly one).
+app.get('/api/projects/:id/worktrees', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const result = await pool.query(
+      `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
+       FROM workers
+       WHERE project_id = $1 AND worktrees IS NOT NULL
+         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+       ORDER BY hostname, last_heartbeat DESC`,
+      [projectId]
+    );
+
+    const rows = [];
+    for (const hostRow of result.rows) {
+      const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
+      for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
+    }
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/workers', async (req, res) => {
   try {
     const userId = req.user?.uid || null;
@@ -2966,7 +2995,7 @@ app.post('/worker/register', async (req, res, next) => {
 app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
-    const { hostname, pid, status, current_task, mode, cli, model, available_models } = req.body;
+    const { hostname, pid, status, current_task, mode, cli, model, available_models, worktrees } = req.body;
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     // Track 1102 F13: an explicit project_id in the BODY (including an
     // explicit null, e.g. a manager's own heartbeat) must win over
@@ -2997,6 +3026,7 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     if (cli !== undefined) { sets.push(`cli = $${i++} `); params.push(cli); }
     if (model !== undefined) { sets.push(`model = $${i++} `); params.push(model); }
     if (available_models !== undefined) { sets.push(`available_models = $${i++}`); params.push(JSON.stringify(available_models)); }
+    if (worktrees !== undefined) { sets.push(`worktrees = $${i++}`); params.push(JSON.stringify(worktrees)); }
     // Track 1091: IS NOT DISTINCT FROM, not `=` — a manager worker's
     // project_id is always NULL, and SQL's `NULL = NULL` is never true, so
     // a plain `=` silently matched zero rows for every manager heartbeat
@@ -3244,7 +3274,45 @@ app.delete('/api/projects/:id/provision-targets/:targetId', async (req, res) => 
 // since project-level actions aren't tied to any one track's lane.
 app.post('/api/projects/:id/dispatch', async (req, res) => {
   try {
-    const { worker_id, action, payload, track_number } = req.body;
+    let { worker_id, action, payload, track_number } = req.body;
+    if (!action) return res.status(400).json({ error: 'action is required' });
+
+    // Track 1112 D7: the "Merge to main" button doesn't make the client
+    // pick a worker — it resolves server-side, reusing 1084's
+    // resolveAssignee/resolvePinnedWorkers so the merge lands on whichever
+    // worker is already holding that track's session (continuity-first),
+    // falling back to any live worker for the project only when the
+    // assignee has none of their own (claimable-tracks' same zero-config
+    // fallback). A caller MAY still pass worker_id explicitly (tests, or a
+    // future "pick a worker" UI) — resolution only fires when it's absent.
+    if (action === 'merge-worktree' && !worker_id) {
+      const trackNumber = payload?.track_number;
+      if (!trackNumber) return res.status(400).json({ error: 'payload.track_number is required for merge-worktree' });
+
+      const { rows: [project] } = await pool.query('SELECT owner_uid FROM projects WHERE id = $1', [req.params.id]);
+      if (!project) return res.status(404).json({ error: 'project not found' });
+      const { rows: [track] } = await pool.query(
+        'SELECT assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND track_number = $2',
+        [req.params.id, String(trackNumber)]
+      );
+
+      let resolvedWorkerId = null;
+      const assignee = track ? resolveAssignee(track, project) : null;
+      if (assignee) {
+        const own = await resolvePinnedWorkers(pool, req.params.id, assignee);
+        if (own.length > 0) resolvedWorkerId = own[0].id;
+      }
+      if (!resolvedWorkerId) {
+        const { rows: any } = await pool.query(
+          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+          [req.params.id]
+        );
+        resolvedWorkerId = any[0]?.id ?? null;
+      }
+      if (!resolvedWorkerId) return res.status(400).json({ error: 'no worker available for this project to merge on' });
+      worker_id = resolvedWorkerId;
+    }
+
     if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
     if ((action === 'deploy' || action === 'build_and_deploy') && !payload?.environment) {
       return res.status(400).json({ error: 'payload.environment is required for deploy' });

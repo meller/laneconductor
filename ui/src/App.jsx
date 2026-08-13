@@ -10,6 +10,7 @@ import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
 import { NewProjectModal } from './components/NewProjectModal.jsx';
 import { WorkersList } from './components/WorkersList.jsx';
+import { WorktreesPanel } from './components/WorktreesPanel.jsx';
 import { CICDView } from './components/CICDView.jsx';
 import { InboxPanel } from './components/InboxPanel.jsx';
 import { WorkerActivityLatch } from './components/WorkerActivityLatch.jsx';
@@ -295,6 +296,24 @@ function AppContent({ user, logout }) {
               >
                 CI/CD
               </button>
+              {/* Track 1112 Phase 7: worktrees are physically per-machine,
+                  scoped to one project's checkout — no meaningful cross-
+                  project view, so this tab only appears once a project is
+                  selected (same gating as the parent block itself, but
+                  worth being explicit here since Lanes/Workers/CI/CD all
+                  degrade gracefully in All Projects mode and this one
+                  can't). */}
+              {selectedProjectId && (
+                <button
+                  onClick={() => setViewMode('worktrees')}
+                  className={`text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-md transition-all ${viewMode === 'worktrees'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                >
+                  Worktrees
+                </button>
+              )}
             </div>
           )}
 
@@ -483,6 +502,8 @@ function AppContent({ user, logout }) {
           <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
+        ) : viewMode === 'worktrees' ? (
+          <WorktreesPanel projectId={selectedProjectId} />
         ) : tracks.length === 0 && user && !user.local ? (
           <RemoteEmptyState onOpenAccount={() => setAccountOpen(true)} />
         ) : (

@@ -205,6 +205,7 @@ model workers {
   machine_token  String?              @unique
   user_uid       String?
   visibility     String?              @default("private") // 'private', 'team', 'public'
+  worktrees      Json?                // Track 1112: reported worktree inventory, same shape as `lc worktrees --json`
   projects       projects?            @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   permissions    worker_permissions[]
 
