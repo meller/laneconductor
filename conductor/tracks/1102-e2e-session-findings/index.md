@@ -317,7 +317,7 @@ Sequence observed:
    `**Lane Status**: success`, real (non-stub) content.
 3. That never happened. Hours later: the **main** repo's tracked
    `conductor/tracks/001-.../index.md` (outside `.worktrees/001/`) still
-   has the original stub content and `**Lane Status**: running`. The DB
+   has the original stub content and `**Lane Status**: queue`. The DB
    agrees: `GET /api/projects/925/tracks` returns
    `lane_action_status: "running"`, `lane_action_result: "stuck_timeout"`
    for track 001 — the two fields disagree with each other (`stuck_timeout`
@@ -360,6 +360,64 @@ in 1102").
 **Filed as F12** (renumbered from the worktree's own "F9" — that slot was already taken in main's committed history by a different, unrelated finding: the gutted-index-content guard. Two independent processes — this dogfooded implement agent working inside `.worktrees/1104`, and my own manual session — each picked "F9" as the next free number without seeing the other's concurrent edit, since the worktree's copy of this file diverged from main the moment the worktree was created. Content preserved exactly as the agent wrote it; only the heading number and this note changed.)
 
 **Directly relevant to [1112](../1112-git-sync-and-worktree-visibility/index.md)**, opened the same day: this finding IS the worktree-merge-back failure 1112 exists to fix, caught in the act rather than inferred from branch-count alone.
+
+### F13 — A manager co-located with a project shares (and clobbers) that project's auth token 🔴 CONFIRMED & FIXED
+Caught live while dogfooding track 1112's own dispatch: `GET
+/api/projects/1/workers` showed the project worker's `pid` field flapping
+every ~10s between the real worker's pid and the **manager's** pid,
+even though the manager process was demonstrably healthy and its own
+heartbeat body correctly declared `project_id: null` every single time
+(verified directly against its `.manager.log`).
+
+Root cause, traced precisely: `resolveCollectorToken()`
+(`conductor/laneconductor.sync.mjs:706`) falls through to
+`collectors[0].machine_token` — read from **whatever
+`.laneconductor.json` is in the current working directory**. A manager
+worker started from a directory that is *also* a real project (this
+project's own dogfooding setup, and plausibly common for anyone running
+`lc worker start --manager` from inside a project they also work on) has
+**no credential storage of its own** — it authenticates its heartbeats
+using that co-located project's own `machine_token`. The server's
+`collectorAuth` then resolves `req.worker_project_id` from *that token's
+owning row* (the project worker's, `project_id: 1`) — and the heartbeat
+handler's old precedence, `req.worker_project_id || body.project_id`, let
+that auth-derived value silently win over the manager's own correct
+`project_id: null`, so every manager heartbeat overwrote the **project
+worker's** row with the manager's own `pid`.
+
+**Fixed**: the handler now trusts an explicit `project_id` in the request
+body (including an explicit `null`) over the auth-derived value —
+`'project_id' in req.body ? ... : req.worker_project_id` — falling back
+to the auth-derived value only when the body says nothing at all (the
+common, legitimate case). 3 tests, verified live: pid stayed stable
+across 4 consecutive 10s heartbeat cycles post-fix, no more flapping.
+
+**Left open**: the deeper cause — a manager has no credential storage
+separate from a co-located project's `.laneconductor.json` — is not
+fixed, only its most damaging symptom. A manager should plausibly persist
+its own `machine_token` in `~/.laneconductor/manager-config.json`
+(alongside the existing `projectsDir` setting) rather than ever reading
+`collectors[].machine_token` from whatever directory it happens to be
+started in. Worth its own track.
+
+### F14 — The Logs tab is silently empty for every Claude-cli run, by design nobody documented in the UI 🟡 CONFIRMED & FIXED (UX only)
+Noticed live: track 1112's Transcript tab showed the live implement run
+in full; its Logs tab was empty, with no explanation. Confirmed in code
+— `spawnCli`'s raw-text tail interval is explicitly disabled for Claude
+(`tailInterval = cli === 'claude' ? null : setInterval(...)`,
+`conductor/laneconductor.sync.mjs:3523`), because track 1087 moved
+Claude's live output to the structured stream-json feed the Transcript
+tab reads instead. `last_log_tail` (what the Logs tab renders) is simply
+never populated for Claude runs — correct by design, but the empty state
+read identically to "nothing has run yet," which is what prompted the
+question.
+
+**Fixed (UX only, not the underlying data)**: the empty state now says
+explicitly, for Claude runs, that the live output is on the Transcript
+tab instead. Backfilling `last_log_tail` itself (e.g. from the completed
+transcript) was considered and deferred — the Transcript tab already
+serves that need better than a raw tail would for Claude specifically;
+non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 
 ## What worked (verified live, not assumed)
 

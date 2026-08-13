@@ -574,7 +574,19 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 <div ref={logsEndRef} />
               </>
             ) : (
-              <p className="text-gray-600 text-sm italic pt-4">No logs available yet for this track.</p>
+              // Track 1102 F14: for cli === 'claude' runs, spawnCli
+              // deliberately skips the raw-text tail interval
+              // (conductor/laneconductor.sync.mjs:3523) in favor of the
+              // structured stream-json feed the Transcript tab reads —
+              // last_log_tail is never populated for them, so this tab
+              // is correctly empty by design, not broken. Said so
+              // honestly instead of leaving an unexplained empty state
+              // that reads the same as "nothing ran yet."
+              <p className="text-gray-600 text-sm italic pt-4">
+                {detail?.active_cli === 'claude'
+                  ? 'This run\'s live output is on the Transcript tab — Claude runs stream structured events there instead of a raw log tail.'
+                  : 'No logs available yet for this track.'}
+              </p>
             )}
           </div>
         ) : (
