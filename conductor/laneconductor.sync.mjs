@@ -37,6 +37,10 @@ import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim
 import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
+import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
+import { auditWorktrees } from './services/worktree-audit.mjs';
+import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
+import { checkDivergence, safePull } from './services/git-divergence.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -191,6 +195,10 @@ const getCollectors = () => {
 const getUi = () => config.ui;
 const getWorktreeLifecycle = () => getProject().worktree_lifecycle ?? 'per-cycle';
 const getWorkerModeConfig = () => config.worker?.mode ?? 'sync+poll';
+// Track 1112 Phase 3/5: optional `git` block in .laneconductor.json —
+// fetch_interval_ms (Phase 5), auto_pull (Phase 5), reconcile_worktrees
+// (Phase 3). Absent means default; see spec.md's Configuration section.
+const getGitConfig = () => config.git ?? {};
 
 // Resolve worker mode: CLI flag overrides config, config defaults to 'sync+poll'
 if (!workerMode) {
@@ -3180,26 +3188,13 @@ async function checkAndClaimGitLock(trackNumber) {
   }
 }
 
-// Path isolation validation — ensures worktree paths can't escape the project root
+// Path isolation validation — ensures worktree paths can't escape the project
+// root. Lives in conductor/services/path-isolation.mjs (track 1112) so
+// conductor/services/worktree-merge.mjs can reuse the identical check
+// without importing this file (which has setInterval/chokidar side effects
+// at module load).
 function validatePathIsolation(trackNumber, proposedPath) {
-  // Check for path traversal in track number
-  if (trackNumber.includes('..') || trackNumber.includes('/') || trackNumber.includes('\\')) {
-    throw new Error(`[isolation] Invalid track number (path traversal attempt): ${trackNumber}`);
-  }
-
-  const projectRoot = process.cwd();
-  const worktreeBase = resolve(projectRoot, '.worktrees');
-  const resolvedPath = resolve(proposedPath);
-
-  // Verify resolved path is within .worktrees and project root
-  if (!resolvedPath.startsWith(worktreeBase)) {
-    throw new Error(`[isolation] Proposed path is outside .worktrees: ${resolvedPath}`);
-  }
-  if (!resolvedPath.startsWith(projectRoot)) {
-    throw new Error(`[isolation] Proposed path is outside project root: ${resolvedPath}`);
-  }
-
-  return resolvedPath;
+  return sharedValidatePathIsolation(trackNumber, proposedPath, process.cwd());
 }
 
 async function createWorktree(trackNumber) {
@@ -3324,59 +3319,129 @@ async function removeWorktree(trackNumber) {
   }
 }
 
+// Track 1112 Phase 3 (RC-A fix): merging no longer depends on the worktree
+// directory existing at all — mergeWorktreeBranch() operates purely off the
+// branch ref, in its own ephemeral scratch worktree, so a directory that
+// was already removed by any other path (a failed run, `per-lane`
+// lifecycle, a manual `git worktree remove`/`prune`) no longer strands the
+// branch forever. mergeWorktreeBranch() also owns removing the ORIGINAL
+// per-track worktree itself now (not this function) — it has to happen
+// before branch deletion, not after; see that function's doc comment for
+// the real bug (silently-undeleted branches) that ordering caused.
 async function mergeAndRemoveWorktree(trackNumber) {
-  const worktreePath = join(process.cwd(), '.worktrees', `${trackNumber}`);
-  const branchName = `track-${trackNumber}`;
   const mainBranch = getMainBranch();
 
+  const result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber, mainBranch });
+
+  if (!result.merged) {
+    if (result.reason === 'no-branch') {
+      console.warn(`[worktree] Branch track-${trackNumber} not found, skipping merge`);
+    } else if (result.reason === 'conflict') {
+      console.error(`[worktree] Merge conflict for track ${trackNumber}: ${(result.conflictPaths || []).join(', ')}`);
+      console.log(`[worktree] Leaving branch and worktree in place for manual conflict resolution`);
+    }
+    return;
+  }
+
+  console.log(`[worktree] Merged branch track-${trackNumber} into ${mainBranch} (${result.mergeCommit})`);
+  console.log(result.worktreeRemoved
+    ? `[worktree] Removed worktree for track ${trackNumber}`
+    : `[worktree] Worktree directory absent for track ${trackNumber} — merge completed without it`);
+  console.log(`[worktree] Completed merge and cleanup for track ${trackNumber}`);
+}
+
+// Track 1112 Phase 3 (RC-B fix / REQ-4): the exit-handler call above is a
+// fast path that only fires when THIS worker's own action lands a track on
+// done:success. This is the safety net — a state-driven pass (D-2) that
+// merges any track-* branch whose track is at done:success and unmerged,
+// regardless of which route (UI drag, `lc move`, a quality gate on another
+// machine) put it there. Idempotent, quiet when there's nothing to do
+// (REQ-4), and skips anything actively locked by a running worker (REQ-5).
+async function reconcileWorktrees() {
+  if (getGitConfig().reconcile_worktrees === false) return;
+
+  const mainBranch = getMainBranch();
+  let rows;
   try {
-    // Verify worktree exists
-    if (!existsSync(worktreePath)) {
-      console.log(`[worktree] Worktree not found for track ${trackNumber}, skipping merge`);
-      return;
-    }
-
-    // Ensure we're on the main branch before merging
-    gitExec(`git checkout ${mainBranch}`, process.cwd());
-
-    // Check if branch exists before attempting merge
-    let branchExists = false;
-    try {
-      gitExec(`git rev-parse --verify ${branchName}`, process.cwd());
-      branchExists = true;
-    } catch (e) {
-      console.warn(`[worktree] Branch ${branchName} not found, skipping merge`);
-    }
-
-    if (branchExists) {
-      // Merge the feature branch with --no-ff to preserve history
-      try {
-        gitExec(`git merge --no-ff ${branchName} -m "Merge track ${trackNumber}"`, process.cwd());
-        console.log(`[worktree] Merged branch ${branchName} to ${mainBranch}`);
-
-        // Delete the feature branch after successful merge
-        try {
-          gitExec(`git branch -d ${branchName}`, process.cwd());
-          console.log(`[worktree] Deleted branch ${branchName}`);
-        } catch (err) {
-          console.warn(`[worktree] Failed to delete branch ${branchName}: ${err.message}`);
-          // Continue to remove worktree even if branch deletion fails
-        }
-      } catch (err) {
-        console.error(`[worktree] Merge conflict for track ${trackNumber}: ${err.message}`);
-        console.log(`[worktree] Leaving worktree in place for manual conflict resolution`);
-        // Leave worktree in place for developer to resolve manually
-        return;
-      }
-    }
-
-    // Remove the worktree
-    await removeWorktree(trackNumber);
-    console.log(`[worktree] Completed merge and cleanup for track ${trackNumber}`);
+    rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
   } catch (err) {
-    console.error(`[worktree] Error during merge and cleanup: ${err.message}`);
+    console.error(`[reconcile] Audit failed: ${err.message}`);
+    return;
+  }
+
+  const lockDir = join(process.cwd(), '.conductor', 'locks');
+  for (const row of rows) {
+    if (row.classification !== 'mergeable' && row.classification !== 'stranded') continue;
+    if (!row.trackNumber) continue;
+    if (existsSync(join(lockDir, `${row.trackNumber}.lock`))) continue; // actively claimed — never merge out from under a running worker
+
+    const result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: row.trackNumber, mainBranch });
+    if (result.merged) {
+      console.log(`[reconcile] Merged track-${row.trackNumber} into ${mainBranch} (was ${row.classification}, ${result.mergeCommit})`);
+    } else if (result.reason === 'conflict') {
+      console.warn(`[reconcile] track-${row.trackNumber} conflicts with ${mainBranch}: ${(result.conflictPaths || []).join(', ')} — left unmerged, worktree intact`);
+    }
   }
 }
+
+// Track 1112 Phase 3: runs on every worker regardless of mode (local-fs
+// included — worktrees are a git-local concept, not a DB one) so the RC-B
+// safety net applies no matter how a track reached done:success.
+setInterval(() => {
+  reconcileWorktrees().catch(err => console.error('[reconcile error]:', err.message));
+}, 60000);
+
+// Track 1112 Phase 5 (REQ-8...REQ-11): a third-party `git push` straight to
+// `origin/<main>` — bypassing LaneConductor entirely — was previously
+// invisible to every worker; the only fetch anywhere ran solely as a side
+// effect of claiming a git lock, and nothing read its result. This detects
+// that divergence on its own schedule and, only when D-4's conditions all
+// hold, pulls it in — never a bare `git pull`.
+let lastGitDivergenceCheck = 0;
+async function checkOutOfBandGitSync() {
+  const fetchIntervalMs = getGitConfig().fetch_interval_ms ?? 300000;
+  if (fetchIntervalMs === 0) return; // explicitly disabled
+  if (Date.now() - lastGitDivergenceCheck < fetchIntervalMs) return;
+  lastGitDivergenceCheck = Date.now();
+
+  const mainBranch = getMainBranch();
+  const divergence = await checkDivergence({ repoRoot: process.cwd(), mainBranch });
+  if (!divergence.fetchOk) {
+    console.warn(`[git-sync] Fetch of origin/${mainBranch} failed — will retry next interval`);
+    return;
+  }
+  if (divergence.behind === 0) return; // nothing to report — stay quiet, no per-tick log spam
+
+  console.log(`[git-sync] Local ${mainBranch} is ${divergence.behind} commit(s) behind origin/${mainBranch}` +
+    (divergence.ahead > 0 ? ` and ${divergence.ahead} ahead (diverged)` : '') +
+    ` — fast-forward ${divergence.canFastForward ? 'available' : 'NOT available'}.`);
+
+  if (!divergence.canFastForward) return; // diverged — never auto-pull, detection only
+
+  const autoPull = getGitConfig().auto_pull !== false;
+  if (!autoPull) {
+    console.log(`[git-sync] git.auto_pull is disabled — reporting only, not pulling.`);
+    return;
+  }
+
+  const result = await safePull({ repoRoot: process.cwd(), mainBranch, autoPull: true });
+  if (result.pulled) {
+    console.log(`[git-sync] Pulled ${divergence.behind} commit(s) into ${mainBranch}: ${result.beforeSha.slice(0, 7)} → ${result.afterSha.slice(0, 7)}`);
+    for (const relPath of result.changedTrackFiles) {
+      const fullPath = join(process.cwd(), relPath);
+      if (existsSync(fullPath)) {
+        await syncTrack(fullPath).catch(err => console.warn(`[git-sync] Failed to resync ${relPath} to DB: ${err.message}`));
+      }
+    }
+  } else if (result.reason === 'dirty-overlap') {
+    console.warn(`[git-sync] Not pulling — local uncommitted change(s) overlap incoming commits: ${(result.overlapPaths || []).join(', ')}`);
+  } else if (result.reason !== 'up-to-date') {
+    console.warn(`[git-sync] Not pulling — ${result.reason}`);
+  }
+}
+setInterval(() => {
+  checkOutOfBandGitSync().catch(err => console.error('[git-sync error]:', err.message));
+}, 30000); // ticks every 30s; actual fetch cadence is governed by git.fetch_interval_ms above
 
 async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null) {
   let lockFile = null;
