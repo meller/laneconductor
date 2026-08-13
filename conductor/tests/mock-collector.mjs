@@ -142,15 +142,28 @@ const server = createServer(async (req, res) => {
   }
 
   // ── Claim queue ────────────────────────────────────────────────────────────
-  // Returns 'queue' tracks WITHOUT atomically claiming them.
-  // The worker PATCHes them to 'running' after spawning, which is sufficient
-  // for single-worker tests (no race conditions to prevent).
+  // Track 1110 Phase 3: this used to just RETURN 'queue' tracks without
+  // marking them claimed — fine when nothing could race, but the whole
+  // point of this endpoint (and this mock) is now to prove races DON'T
+  // happen. Mutates lane_action_status to 'running' on whatever it
+  // returns, single-threaded (Node's request handling here is not
+  // actually concurrent per request, mirroring the real server's
+  // FOR UPDATE SKIP LOCKED transaction: only one caller can ever see a
+  // given track in the 'queue' state). Supports an optional track_number
+  // filter, matching the real server (POST /tracks/claim-queue accepts
+  // it since Track 1110 Phase 3).
   if ((params = route('POST', '/tracks/claim-queue', req)) !== null) {
     const limit = body?.limit ?? 1;
-    const queued = Object.values(state.tracks)
-      .filter(t => t.lane_action_status === 'queue')
-      .slice(0, limit);
-    return reply(res, 200, { tracks: queued });
+    const trackNumberFilter = body?.track_number;
+    const eligible = Object.values(state.tracks).filter(t =>
+      t.lane_action_status === 'queue' && (!trackNumberFilter || t.track_number === trackNumberFilter)
+    );
+    const claimed = eligible.slice(0, limit);
+    for (const t of claimed) {
+      t.lane_action_status = 'running';
+      t.lane_action_result = 'claimed';
+    }
+    return reply(res, 200, { tracks: claimed });
   }
 
   // ── Action status update ───────────────────────────────────────────────────
