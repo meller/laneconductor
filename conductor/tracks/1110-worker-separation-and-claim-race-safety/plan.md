@@ -201,6 +201,25 @@ decision untouched (it has no DB to ask).
 **Impact**: Two worker processes in API mode can no longer double-claim
 the same track — the DB row lock makes it impossible, not just unlikely.
 
+**Verified 2026-08-13**: `conductor/tests/track-1110-claim-race-api-mode.test.mjs`
+— two distinct, legitimately-running workers (worker_number 1 and 2)
+racing on one queued track via a real mock collector, 5 repeated runs:
+**0/5 double-spawns** post-fix. Confirmed the test is meaningful (not
+trivially green) by temporarily swapping in the pre-Phase-3 version of
+`laneconductor.sync.mjs` and re-running: **3/5 runs double-spawned**
+against the old code, exactly the race Phase 1 predicted. Restored the
+fix immediately after. Also confirmed unaffected: single-worker case
+(REQ-5, own test) and the existing `track-1033-worker-auth.test.mjs`
+suite (59/60 — the one failure is pre-existing and unrelated, confirmed
+via `git stash` against fully reverted code) and `local-api-e2e.test.mjs`
+(5/6, same pre-existing failure, not caused by this change).
+
+Local-fs mode's own claim-race test
+(`track-1110-claim-race.test.mjs`, Phase 1) still shows the race
+post-Phase-3 (5/8 double-claims on the latest run) — expected and
+correct: Phase 3 is API-mode only by design; Phase 4 is what closes the
+local-fs case.
+
 ## Phase 4: Problem B, local-fs mode — atomic claim-file primitive
 
 **Problem**: Local-fs mode has no DB to arbitrate a claim.
