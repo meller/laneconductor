@@ -1,7 +1,7 @@
 # Track 1112: Out-of-band git sync + worktree visibility/merge UI
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 10%
 **Phase**: Planned — audit complete (Phase 1 done), Phases 2–7 specced
 **Type**: dev
