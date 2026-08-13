@@ -1,9 +1,9 @@
 # Track 1109: Worker claim allowlist — scope which tracks a worker may claim
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 90%
+**Phase**: Phases 1-4,7 done; 2 tasks open (UI scope reporting, FRESH_SESSION check)
 **Type**: dev
 **Summary**: "Start a worker" today means "consume the whole queue", so you cannot run one track without collateral. Add a claim allowlist plus an `lc worker run <track>` front door, making scoped invocation the…
 
