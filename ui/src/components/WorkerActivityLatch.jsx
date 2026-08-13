@@ -3,6 +3,7 @@ import { TranscriptView } from './TranscriptView.jsx';
 import { DeployLogView } from './DeployLogView.jsx';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
+import { isWorkerOffline } from '../lib/workerStatus.js';
 import { useApi } from '../hooks/useApi.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 
@@ -18,14 +19,8 @@ import { useWebSocket } from '../hooks/useWebSocket.js';
 // right content pane (structured transcript vs. raw deploy log) instead
 // of just falling through to "idle".
 
-const WORKER_OFFLINE_MS = 60_000;
 
-function isWorkerOffline(worker) {
-  if (!worker?.last_heartbeat) return true;
-  return Date.now() - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
-}
-
-export function WorkerActivityLatch({ workers, projectId, onClose }) {
+export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack }) {
   const { apiFetch } = useApi();
   const [selectedWorkerId, setSelectedWorkerId] = useState(null);
   const [transcriptState, setTranscriptState] = useState(() => createTranscriptState());
@@ -245,7 +240,18 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
             ) : selectedTask?.kind === 'track' ? (
               <>
                 <div className="text-xs text-gray-500 mb-3 font-mono">
-                  {workerDisplayName} · Track #{selectedTask.trackNumber}
+                  {workerDisplayName} ·{' '}
+                  {onSelectTrack ? (
+                    <button
+                      onClick={() => onSelectTrack(selectedProjectId, selectedTask.trackNumber)}
+                      className="text-blue-400 hover:text-blue-300 hover:underline"
+                      title="Open this track"
+                    >
+                      Track #{selectedTask.trackNumber} ↗
+                    </button>
+                  ) : (
+                    <>Track #{selectedTask.trackNumber}</>
+                  )}
                 </div>
                 {transcriptState.blocks.length > 0 ? (
                   <TranscriptView blocks={transcriptState.blocks} />

@@ -37,6 +37,8 @@ import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim
 import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
+import { auditWorktrees } from './services/worktree-audit.mjs';
+import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -2225,13 +2227,15 @@ if (!getIsLocalFs()) console.log(`[LaneConductor] Collectors: ${getCollectors().
 if (!getIsLocalFs()) console.log(`[LaneConductor] Dashboard: http://localhost:${getUi()?.port ?? 8090}`);
 
 // Ensure providers are in DB so they show in UI (API modes only)
+// 'mock' is the LC_MOCK_CLI test sentinel (see buildCliArgs) — never a real
+// provider, so it's excluded even if a config was left pointing at it.
 if (!getIsLocalFs()) (async () => {
   const { url, token } = primaryCollector();
   const proj = getProject();
-  if (proj.primary?.cli) {
+  if (proj.primary?.cli && proj.primary.cli !== 'mock') {
     post(url, token, '/provider-status', { provider: proj.primary.cli, status: 'available' }).catch(() => { });
   }
-  if (proj.secondary?.cli) {
+  if (proj.secondary?.cli && proj.secondary.cli !== 'mock') {
     post(url, token, '/provider-status', { provider: proj.secondary.cli, status: 'available' }).catch(() => { });
   }
 })();
@@ -3003,7 +3007,7 @@ async function checkExhaustion(logPath, cli) {
   const hasMins = geminiMatch?.[2] !== undefined;
   const hasSecs = geminiMatch?.[3] !== undefined;
 
-  if ((geminiMatch && (hasHours || hasMins || hasSecs) || content.includes('exhausted your capacity') || content.includes('code: 429')) && (cli === 'gemini' || cli === 'npx' || cli === 'antigravity' || cli === 'agy')) {
+  if (isProviderExhausted(content, cli) && (cli === 'gemini' || cli === 'npx' || cli === 'antigravity' || cli === 'agy')) {
     const hours = parseInt(geminiMatch?.[1] || 0);
     const mins = parseInt(geminiMatch?.[2] || 0);
     const secs = parseInt(geminiMatch?.[3] || 0);
@@ -3029,7 +3033,7 @@ async function checkExhaustion(logPath, cli) {
   }
 
   // Claude: generic 429 detection and limit messages
-  if (cli === 'claude' && (content.includes('429') || content.includes('Overloaded') || content.includes('Rate limit') || content.includes('hit your limit') || content.includes('resets'))) {
+  if (cli === 'claude' && isProviderExhausted(content, cli)) {
     // Try to parse reset time if present (e.g. "resets 7am")
     let resetAt = new Date(Date.now() + 60000); // 1 min default
     const resetMatch = content.match(/resets\s+(\d+)(am|pm)/i);
@@ -3578,13 +3582,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     let isExhausted = false;
     if (!isSuccess && existsSync(logPath)) {
       const logContent = readFileSync(logPath, 'utf8');
-      if ((cli === 'gemini' || cli === 'npx' || cli === 'antigravity' || cli === 'agy') &&
-        (logContent.includes('quota will reset after') || logContent.includes('exhausted your capacity') || logContent.includes('code: 429'))) {
-        isExhausted = true;
-      } else if (cli === 'claude' &&
-        (logContent.includes('429') || logContent.includes('Overloaded') || logContent.includes('Rate limit'))) {
-        isExhausted = true;
-      }
+      isExhausted = isProviderExhausted(logContent, cli);
       if (isExhausted) {
         console.log(`[${label}] Provider ${cli} quota exhausted — re-queuing track ${trackNumber} without consuming retry`);
         await checkExhaustion(logPath, cli);
@@ -3812,7 +3810,18 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     }
 
-    if (!getIsLocalFs()) await patch(url, token, `/track/${trackNumber}/action`, patchData).catch(() => { });
+    // Track 1112 dogfood incident (2026-08-13): this PATCH is the ONLY
+    // thing that tells the DB (and therefore the UI) a run finished — the
+    // file/git-level update above can succeed while this silently fails
+    // (network blip, server error, timeout), leaving the track frozen at
+    // lane_action_status='running' forever with no signal anywhere that
+    // anything went wrong. Previously `.catch(() => {})` swallowed that
+    // completely, unlike every other patch() call site in this file, which
+    // at minimum logs a warning. Logged loudly (error, not warn) because
+    // this one specifically has no other path to recovery — the caller
+    // still needs an unblocked way to notice a stuck track.
+    if (!getIsLocalFs()) await patch(url, token, `/track/${trackNumber}/action`, patchData)
+      .catch(err => console.error(`[${label}] CRITICAL: failed to report completion for track ${trackNumber} — DB will show stale state until reconciled: ${err.message}`));
 
     // Cleanup git lock and worktree (API modes only — local-fs skips; LC_SKIP_GIT_LOCK skips in tests)
     if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {

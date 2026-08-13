@@ -3,6 +3,7 @@ import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
 import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
 import { WorkerModelModal } from './WorkerModelModal.jsx';
 import { useApi } from '../hooks/useApi.js';
+import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -121,7 +122,7 @@ function WaitingQueue({ tracks, onPriorityChange }) {
   );
 }
 
-export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh }) {
+export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh, onSelectTrack }) {
   const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
   // Track 1084 Phase 6: "does this project have a worker of its own?" is a
@@ -417,12 +418,30 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                           <span className={`text-[10px] uppercase font-bold tracking-tight ${worker.status === 'busy' ? 'text-amber-500' : 'text-gray-500'}`}>
                             Current Task
                           </span>
-                          <p className={`text-xs leading-relaxed p-2 rounded border font-medium ${worker.status === 'busy'
-                            ? 'bg-amber-950/40 text-amber-300 border-amber-800/80 shadow-[0_0_10px_rgba(217,119,6,0.1)]'
-                            : 'bg-gray-950/50 text-gray-300 border-gray-800/50'
-                            }`}>
-                            {worker.current_task}
-                          </p>
+                          {(() => {
+                            const task = parseWorkerTask(worker.current_task);
+                            const trackNumber = task?.kind === 'track' ? task.trackNumber : null;
+                            const badgeClass = `text-xs leading-relaxed p-2 rounded border font-medium ${worker.status === 'busy'
+                              ? 'bg-amber-950/40 text-amber-300 border-amber-800/80 shadow-[0_0_10px_rgba(217,119,6,0.1)]'
+                              : 'bg-gray-950/50 text-gray-300 border-gray-800/50'
+                              }`;
+                            // Track 1112 dogfood incident (2026-08-13): the
+                            // user asked for exactly this — from the
+                            // Workers view, clicking a worker's current
+                            // task should jump straight to that track,
+                            // instead of having to go find it on the board.
+                            return trackNumber && onSelectTrack ? (
+                              <button
+                                onClick={() => onSelectTrack(worker.project_id ?? projectId, trackNumber)}
+                                className={`${badgeClass} text-left hover:brightness-110 transition-all cursor-pointer`}
+                                title="Open this track"
+                              >
+                                {worker.current_task} ↗
+                              </button>
+                            ) : (
+                              <p className={badgeClass}>{worker.current_task}</p>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <div className="h-full flex items-center justify-center border border-dashed border-gray-800 rounded-lg">
@@ -582,12 +601,23 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                 {worker.project_name}
               </span>
             ) : null}
-            {worker.current_task && (
-              <span className={`text-[10px] border-l pl-2 max-w-[200px] truncate transition-colors ${worker.status === 'busy' ? 'text-amber-400/80 border-amber-800/50' : 'text-gray-500 border-gray-800'
-                }`}>
-                {worker.current_task}
-              </span>
-            )}
+            {worker.current_task && (() => {
+              const task = parseWorkerTask(worker.current_task);
+              const trackNumber = task?.kind === 'track' ? task.trackNumber : null;
+              const spanClass = `text-[10px] border-l pl-2 max-w-[200px] truncate transition-colors ${worker.status === 'busy' ? 'text-amber-400/80 border-amber-800/50' : 'text-gray-500 border-gray-800'
+                }`;
+              return trackNumber && onSelectTrack ? (
+                <button
+                  onClick={() => onSelectTrack(worker.project_id ?? projectId, trackNumber)}
+                  className={`${spanClass} hover:brightness-125 cursor-pointer`}
+                  title="Open this track"
+                >
+                  {worker.current_task} ↗
+                </button>
+              ) : (
+                <span className={spanClass}>{worker.current_task}</span>
+              );
+            })()}
             <button
               onClick={() => setConfigWorker(worker)}
               className="text-[10px] font-mono text-purple-300 bg-purple-950/40 hover:bg-purple-900/40 px-1.5 py-0.5 rounded border border-purple-800/50 transition-colors flex items-center gap-1 ml-2"
