@@ -1,13 +1,13 @@
 # Track 1112: Out-of-band git sync + worktree visibility/merge UI
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 85%
 **Last Run**: claude/sonnet (primary)
-**Phase**: Planned — audit complete (Phase 1 done), Phases 2–7 specced
+**Phase**: Phases 1-6 complete and live-verified (audit, `lc worktrees`, RC-A/RC-B lifecycle fixes + reconciler, manual merge, out-of-band git sync + safe auto-pull, tests). Re-invoked to implement Phase 7 (UI worktree panel), previously deferred.
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Planned. Audit of all 44 unmerged branches found 41 legitimately open, 2 stranded by RC-A (merge gated on the worktree dir existing), 1 missed by RC-B (merge only fires from one worker exit path).…
+**Summary**: Phases 1-6 implemented and live-verified against this repo's real branches and real remote — see conversation.md for full evidence. Now implementing Phase 7 (UI worktree panel + merge button).
 
 ## Problem
 
