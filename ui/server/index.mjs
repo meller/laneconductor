@@ -2209,6 +2209,10 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
 app.post('/provider-status', collectorAuth, async (req, res) => {
   try {
     const { provider, status, reset_at, last_error } = req.body;
+    // 'mock' is the LC_MOCK_CLI test sentinel, never a real LLM provider —
+    // reject it here so a stray test run or misconfigured worker can't
+    // leave a fake provider card in the dashboard.
+    if (provider === 'mock') return res.json({ ok: true });
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
     await pool.query(`
     INSERT INTO provider_status (project_id, provider, status, reset_at, last_error, updated_at)
@@ -2928,7 +2932,24 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     console.log('[API] /worker/heartbeat body:', req.body);
     const { hostname, pid, status, current_task, mode, cli, model, available_models } = req.body;
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
-    const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
+    // Track 1102 F13: an explicit project_id in the BODY (including an
+    // explicit null, e.g. a manager's own heartbeat) must win over
+    // collectorAuth's auth-derived req.worker_project_id, not the other
+    // way around. Observed live: a manager co-located with a project in
+    // the same directory has no credential storage of its own --
+    // resolveCollectorToken() falls through to the project's own
+    // machine_token, so the manager authenticates AS that project's
+    // worker even though its own body correctly says project_id: null.
+    // The old `req.worker_project_id || body.project_id` precedence let
+    // that misattributed auth resolution silently win, corrupting the
+    // project worker's row with the manager's pid every heartbeat cycle.
+    // 'project_id' in req.body distinguishes "the body explicitly
+    // declared this (maybe null)" from "the body said nothing at all",
+    // where falling back to the auth-resolved value is still correct
+    // (the common case: a normal worker's own heartbeat).
+    const projectId = 'project_id' in req.body
+      ? (req.body.project_id ? parseInt(req.body.project_id) : null)
+      : req.worker_project_id;
     // pid is kept updated for liveness/informational purposes even though
     // worker_number (not pid) is the identity key — see /worker/register.
     const sets = ['last_heartbeat = NOW()', 'pid = $4'];
