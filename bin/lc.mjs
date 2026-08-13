@@ -11,6 +11,9 @@ import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../co
 import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, getServicePid, enableLinger } from './systemd-user.mjs';
 import { runDeploy } from '../conductor/deploy-runner.mjs';
 import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
+import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
+import { mergeWorktreeBranch } from '../conductor/services/worktree-merge.mjs';
+import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -3179,6 +3182,146 @@ Please review this, answer any questions (some fields may contain questions rath
 
     console.log(`\n📊 Results: ${passedTests}/${totalTests} tests passed`);
     process.exit(passedTests === totalTests ? 0 : 1);
+} else if (command === 'worktrees') {
+    // Track 1112 Phase 2/4: local, zero-infrastructure worktree visibility
+    // + manual merge. Deliberately reads git + `conductor/tracks/**/index.md`
+    // directly — no API, no DB — so it works identically in every mode,
+    // including local-fs (REQ-2/AC-3).
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+
+    let mainBranch = 'main';
+    try {
+        const remoteInfo = execSync('git remote show origin', { cwd: projectRoot, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+        const m = remoteInfo.match(/HEAD branch: (.*)/);
+        if (m?.[1]) mainBranch = m[1].trim();
+    } catch (e) {
+        try {
+            const branches = execSync('git branch -a', { cwd: projectRoot, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+            if (branches.includes('remotes/origin/master') && !branches.includes('remotes/origin/main')) mainBranch = 'master';
+        } catch (e2) { /* fall back to 'main' */ }
+    }
+
+    const sub = args[1];
+
+    if (sub === 'merge') {
+        const trackNumber = args[2];
+        if (!trackNumber) {
+            console.error('Usage: lc worktrees merge <track-number> [--dry-run] [--force]');
+            process.exit(2);
+        }
+        const dryRun = args.includes('--dry-run');
+        const force = args.includes('--force');
+
+        const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        const isDoneSuccess = row?.lane === 'done' && row?.laneStatus === 'success';
+
+        if (!row) {
+            console.error(`❌ No unmerged track-${trackNumber} branch found (already merged, or never existed).`);
+            process.exit(1);
+        }
+        if (!isDoneSuccess && !force) {
+            console.error(`❌ Track ${trackNumber} is not at done:success (lane: ${row.lane ?? 'unknown'}, status: ${row.laneStatus ?? 'unknown'}) — refusing to merge. Pass --force to override.`);
+            process.exit(1);
+        }
+
+        if (dryRun) {
+            if (row.classification === 'conflicted') {
+                console.log(`⚠️  track-${trackNumber} would CONFLICT merging into ${mainBranch}.`);
+            } else {
+                console.log(`✅ track-${trackNumber} would merge cleanly into ${mainBranch}.`);
+            }
+            process.exit(0);
+        }
+
+        const result = await mergeWorktreeBranch({ repoRoot: projectRoot, trackNumber: String(trackNumber), mainBranch });
+        if (result.merged) {
+            // mergeWorktreeBranch() already removed the original per-track
+            // worktree itself (must happen before branch -d, not after —
+            // see that function's doc comment for the real bug this fixed).
+            console.log(`✅ Merged track-${trackNumber} into ${mainBranch} (${result.mergeCommit})`);
+            process.exit(0);
+        } else if (result.reason === 'conflict') {
+            console.error(`❌ Merge conflict — the following paths conflict with ${mainBranch}:`);
+            for (const p of result.conflictPaths || []) console.error(`   ${p}`);
+            console.error(`Branch and worktree left intact for manual resolution.`);
+            process.exit(1);
+        } else {
+            console.error(`❌ Branch track-${trackNumber} not found.`);
+            process.exit(1);
+        }
+    }
+
+    const asJson = args.includes('--json');
+    const strandedOnly = args.includes('--stranded');
+
+    let rows;
+    try {
+        rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+    } catch (e) {
+        console.error(`❌ Failed to audit worktrees: ${e.message}`);
+        process.exit(1);
+    }
+    if (strandedOnly) rows = rows.filter(r => r.classification === 'stranded');
+
+    if (asJson) {
+        console.log(JSON.stringify(rows.map(r => ({
+            track: r.trackNumber, title: r.title, lane: r.lane, lane_status: r.laneStatus,
+            ahead: r.ahead, behind: r.behind, dirty: r.dirtyCount, class: r.classification,
+        })), null, 2));
+        process.exit(0);
+    }
+
+    if (rows.length === 0) {
+        console.log('✅ No unmerged worktrees or branches — nothing to show.');
+        process.exit(0);
+    }
+
+    const classIcon = { mergeable: '🟢', stranded: '🔴', conflicted: '🟠', open: '⚪', detached: '🟣' };
+    console.log(`\n🌳 Worktrees (${rows.length}) — main: ${mainBranch}\n`);
+    for (const r of rows) {
+        const icon = classIcon[r.classification] || '•';
+        const track = r.trackNumber ? `${r.trackNumber}` : '(no track)';
+        const title = r.title ? ` ${r.title}` : (r.branch ? ` [${r.branch}]` : '');
+        const lane = r.lane ? `${r.lane}:${r.laneStatus ?? '?'}` : '-';
+        const ahead = r.ahead ?? '-';
+        const behind = r.behind ?? '-';
+        const dirty = r.dirtyCount ?? '-';
+        console.log(`${icon} ${track}${title}`);
+        console.log(`   class=${r.classification}  lane=${lane}  ahead=${ahead}  behind=${behind}  dirty=${dirty}  worktree=${r.hasWorktree ? 'yes' : 'no'}`);
+    }
+
+    // Open-worktree cap warning (non-blocking) — plan.md Phase 2: a nudge
+    // when a project accumulates too many simultaneously-open tracks, named
+    // and pointed at the oldest ones so a human can triage. Never blocks
+    // creating a new worktree.
+    const OPEN_WARN_THRESHOLD = 10;
+    const openRows = rows.filter(r => r.classification === 'open' && r.trackNumber);
+    if (openRows.length > OPEN_WARN_THRESHOLD) {
+        const oldest = [...openRows].sort((a, b) => parseInt(a.trackNumber, 10) - parseInt(b.trackNumber, 10)).slice(0, 5);
+        console.log(`\n⚠️  ${openRows.length} open worktrees (> ${OPEN_WARN_THRESHOLD}) — consider running review/quality-gate on the oldest to close some out:`);
+        for (const r of oldest) console.log(`   ${r.trackNumber}${r.title ? ' — ' + r.title : ''} (${r.lane ?? 'unknown'}:${r.laneStatus ?? '?'})`);
+    }
+
+    // Track 1112 Phase 5 / REQ-9: out-of-band divergence report — a live
+    // fetch on every invocation (this command is explicitly on-demand
+    // inspection, unlike the worker's periodic background check).
+    try {
+        const divergence = await checkDivergence({ repoRoot: projectRoot, mainBranch });
+        if (!divergence.fetchOk) {
+            console.log(`\n⚠️  git-sync: fetch of origin/${mainBranch} failed — divergence unknown.`);
+        } else if (divergence.behind > 0) {
+            console.log(`\n🔀 git-sync: local ${mainBranch} is ${divergence.behind} commit(s) behind origin/${mainBranch}` +
+                (divergence.ahead > 0 ? ` and ${divergence.ahead} ahead (diverged)` : '') +
+                ` — fast-forward ${divergence.canFastForward ? 'available' : 'NOT available'}.`);
+        }
+    } catch (e) { /* best-effort — never block the worktree listing on a network hiccup */ }
+
+    console.log('');
+    process.exit(0);
 } else if (command === 'doc') {
     if (!projectRoot) { process.exit(1); }
     const [type, section, val] = [args[2], args[3], args[4]];
