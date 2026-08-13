@@ -420,7 +420,7 @@ fixtures alone would have caught.
 
 ---
 
-## Phase 7: UI worktree panel (REQ-12) — may be deferred
+## Phase 7: UI worktree panel (REQ-12) — ✅ implemented
 
 **Problem**: The CLI covers the developer at a terminal; the Kanban UI
 still shows nothing about worktrees. The visibility gap this track exists to
@@ -459,36 +459,67 @@ not per-track.
 
 **Solution**:
 
-- [ ] Include a compact worktree summary in the worker's
-      `/worker/heartbeat` payload (`laneconductor.sync.mjs:877`) — reuses
-      Phase 2's `lc worktrees --json` output as the payload shape
-- [ ] `GET /api/projects/:id/worktrees` in `ui/server/index.mjs` — project-
-      scoped (not `/api/workers/:id/worktrees`), per the data-ownership
-      nuance above; dedupes if multiple workers on one host report the same
-      list, groups by host if more than one host has reported
-- [ ] New `WorktreesPanel.jsx` (project-level, `WorkersList.jsx` pattern),
+- [x] Compact worktree summary in the worker's `/worker/heartbeat` payload
+      — `refreshWorktreeSummaryCache()` in `laneconductor.sync.mjs` recomputes
+      the `lc worktrees --json` shape on a 60s cadence (not every 10s
+      heartbeat — git-shelling-out that often would be wasteful) and attaches
+      it to the next heartbeat; skipped for manager workers. Stored in a new
+      `workers.worktrees JSONB` column (additive migration — applied
+      directly via `psql`, since `atlas migrate apply`'s full replay is
+      broken on unrelated pre-existing schema drift from months ago,
+      unrelated to this change).
+- [x] `GET /api/projects/:id/worktrees` in `ui/server/index.mjs` — project-
+      scoped (not `/api/workers/:id/worktrees`). `DISTINCT ON (hostname)`
+      dedupes to the freshest report per host, flattened into rows tagged
+      with `host` for client-side grouping.
+- [x] New `WorktreesPanel.jsx` (project-level, `WorkersList.jsx` pattern),
       sorted `stranded` → `conflicted` → `mergeable` → `open`, with
-      `stranded` visually flagged
-- [ ] Inline per-track worktree strip in `TrackDetailPanel.jsx` (secondary
-      surface, same data)
-- [ ] "Merge to main" button: enabled for `mergeable`/`stranded`, disabled
-      with a tooltip for `conflicted`, hidden for `open`
-- [ ] Wire the button to `POST /api/projects/:id/dispatch` with
-      `action: 'merge-worktree'`, worker resolved per the routing decision
-      above
-- [ ] Worker-side: handle `merge-worktree` in the dispatch poll loop
-      (alongside `deploy`/`build`/`set_model`, `laneconductor.sync.mjs`
-      ~4600–4750), calling Phase 4's shared merge primitive; report result
-      via `PATCH /worker-dispatch/:id` and post a `conversation.md` comment
-- [ ] Playwright fast-tier spec covering the panel + merge button
+      `stranded` visually flagged (red border/badge)
+- [x] Inline per-track worktree strip in `TrackDetailPanel.jsx` (secondary
+      surface, same data — fetches the same endpoint, filters to one track)
+- [x] "Merge to main" button: enabled for `mergeable`/`stranded`, disabled
+      (grayed, with a tooltip) for `conflicted`, hidden for `open`
+- [x] Wired to `POST /api/projects/:id/dispatch` with
+      `action: 'merge-worktree'` — client sends only `payload.track_number`,
+      no `worker_id`; the server resolves it
+- [x] API-side resolution: when `action === 'merge-worktree'` and the client
+      omits `worker_id`, the server resolves it via 1084's
+      `resolveAssignee`/`resolvePinnedWorkers` — the assignee's own worker if
+      they have one, else any live worker for the project (matches
+      `claimable-tracks`' own zero-config fallback)
+- [x] Worker-side: handles `merge-worktree` in `checkDispatchInbox()`
+      (alongside `deploy`/`build`/`set_model`), refusing a non-done:success
+      track unless `payload.force`, otherwise calling Phase 4's shared
+      `mergeWorktreeBranch()` primitive; reports result via
+      `PATCH /worker-dispatch/:id` and posts a `conversation.md` comment
+- [x] Playwright fast-tier spec (`track-1112-worktree-panel.spec.js`) — seeds
+      a real `workers.worktrees` row via direct DB write, drives the real UI,
+      asserts render + classification, clicks "Merge to main", confirms a
+      real `worker_dispatch` row was created. **Executed** against an
+      isolated API+UI instance (not the shared live `:8090`/`:8091` — one of
+      those workers is this session's own dispatching worker, and the API
+      serves other in-flight tracks; restarting either mid-session was
+      avoided the same way the live-merge verification in Phase 3 was).
+      Passed; found and fixed one real test bug along the way
+      (`getByText('MERGEABLE')` substring-matched a seeded title containing
+      the word "Mergeable" too — fixed with `exact: true`).
 
 **Impact**: Worktree state is visible without a terminal, including on
-machines the viewer isn't sitting at.
+machines the viewer isn't sitting at. Live-verified end to end: seeded real
+worktree data, confirmed the panel renders it correctly, clicked "Merge to
+main," and confirmed a real `worker_dispatch` row was created with the
+correct action/payload — not just unit-tested in isolation.
 
-> **Done-gate note**: if Phase 7 is not implemented, this track does **not**
-> reach `done` at 100%. Per the quality-gate done-gate, it lands in `review`
-> with Phase 7 named as the remaining work. Deferring is allowed; calling it
-> complete is not.
+> **Done-gate note, resolved**: Phase 7 is now implemented — the concern
+> this note originally guarded against (calling the track `done` with UI
+> work silently missing) no longer applies to that dimension. See spec.md's
+> Scope Notes for the one honest caveat that remains: AC-7/8/9/10/11 are
+> covered by synthetic-fixture tests (not mocked — real git/DB operations
+> against throwaway repos) but not observed live against this repo's real
+> worker/remote, since doing that would mean either dragging a real track
+> through a live worker's reconciliation cycle or pushing to the real
+> `origin` from outside LaneConductor — neither was done this session. That
+> gap, not Phase 7, is what a quality-gate pass should weigh.
 
 ## ⚠️ PARTIAL — Phases 1-6 complete, Phase 7 deferred
 
