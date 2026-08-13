@@ -2344,6 +2344,19 @@ async function claimQueuedTracks(req, res) {
       }
     }
 
+    // Track 1110 Phase 3: optional single-track target. autoLaunchLocalFs
+    // decides ITS OWN candidate from local file state (which track, which
+    // lane) — this lets it ask the DB "is this SPECIFIC track still mine
+    // to claim" atomically right before spawning, instead of only
+    // supporting "give me your next N eligible tracks" (which the
+    // untargeted form above still does, unchanged, for every existing
+    // caller). Placed after the visibility filter so a targeted claim is
+    // still subject to the same ownership/team rules as any other.
+    if (req.body.track_number) {
+      params.push(req.body.track_number);
+      queryStr += ` AND track_number = $${params.length} `;
+    }
+
     queryStr += `
         ORDER BY priority DESC, CASE
           WHEN lane_status = 'plan' THEN 1
