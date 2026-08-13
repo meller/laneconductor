@@ -349,11 +349,22 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                                 👑 MANAGER
                               </span>
                             ) : worker.mode ? (
-                              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm ${worker.mode === 'sync-only'
-                                ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
-                                : 'bg-purple-600/20 text-purple-400 border-purple-500/50'
-                                }`}>
-                                {worker.mode === 'sync-only' ? 'SYNC-ONLY' : 'SYNC+POLL'}
+                              <span
+                                className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm ${worker.mode === 'sync-only'
+                                  ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
+                                  : 'bg-purple-600/20 text-purple-400 border-purple-500/50'
+                                  }`}
+                                title={worker.mode === 'sync-only'
+                                  ? 'Manual — syncs and serves dispatched actions, does not auto-claim the queue'
+                                  : 'Automatic — also claims and runs queued tracks on its own'}
+                              >
+                                {/* Track 1103 D6: user-facing label is Manual/Automatic — the
+                                    internal wire value (worker.mode, DB column, CLI flags) stays
+                                    sync-only/sync+poll unchanged, this is display-only. Renamed
+                                    because the mechanism names caused a real misdiagnosis
+                                    earlier (1102 F1): a sync-only worker was reported as
+                                    "broken" when it was working exactly as designed. */}
+                                {worker.mode === 'sync-only' ? 'MANUAL' : 'AUTOMATIC'}
                               </span>
                             ) : (
                               <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gray-600/20 text-gray-500 border-gray-500/50">
@@ -512,7 +523,23 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
         <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex-shrink-0">
           Workers:
         </div>
-        {!hasWorkers && <span className="text-[10px] text-gray-600 italic">none active</span>}
+        {/* Track 1103 D1/D2: hasOwnWorkers, not hasWorkers — this used
+            hasWorkers, which stayed true whenever a manager was visible
+            (nearly always, since managers appear in every project's
+            worker list for provisioning), so this indicator was silently
+            hidden for every project with zero of its OWN workers. Also
+            strengthened from small gray italic text — easy to miss on
+            the exact board a user is staring at while nothing happens —
+            to an explicit, actionable badge. Not a blocking modal (D1:
+            zero workers is a valid state), just no longer silent (D2). */}
+        {!hasOwnWorkers && (
+          <span
+            className="text-[10px] font-bold text-amber-400 bg-amber-900/20 border border-amber-800/50 rounded px-2 py-0.5"
+            title="No workers registered for this project — lane actions triggered from the board will queue but nothing will run them."
+          >
+            ⚠ No worker for this project
+          </span>
+        )}
         {workers.map(worker => (
           <div
             key={worker.id}
@@ -529,11 +556,17 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                 👑 MANAGER
               </span>
             ) : worker.mode ? (
-              <span className={`text-[8px] font-bold uppercase tracking-wider px-1 rounded border ${worker.mode === 'sync-only'
-                ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
-                : 'bg-purple-900/40 text-purple-400 border-purple-800/50'
-                }`}>
-                {worker.mode === 'sync-only' ? 'SYNC-ONLY' : 'SYNC+POLL'}
+              <span
+                className={`text-[8px] font-bold uppercase tracking-wider px-1 rounded border ${worker.mode === 'sync-only'
+                  ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
+                  : 'bg-purple-900/40 text-purple-400 border-purple-800/50'
+                  }`}
+                title={worker.mode === 'sync-only'
+                  ? 'Manual — syncs and serves dispatched actions, does not auto-claim the queue'
+                  : 'Automatic — also claims and runs queued tracks on its own'}
+              >
+                {/* Track 1103 D6: see the grid layout's identical badge above for the full note. */}
+                {worker.mode === 'sync-only' ? 'MANUAL' : 'AUTOMATIC'}
               </span>
             ) : (
               <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-gray-600/20 text-gray-500 border-gray-500/50">
