@@ -86,6 +86,10 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState([]);
+  // Track 1112 Phase 7: this track's own worktree row (if any), secondary/
+  // detail-level view of the same data WorktreesPanel lists project-wide.
+  const [worktreeRow, setWorktreeRow] = useState(null);
+  const [mergingWorktree, setMergingWorktree] = useState(false);
   // Track 1087 Phase 4: live session transcript drawer
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptState, setTranscriptState] = useState(() => createTranscriptState());
@@ -192,6 +196,40 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     const id = setInterval(fetchDispatchHistory, 4000);
     return () => clearInterval(id);
   }, [detail?.id]);
+
+  // Track 1112 Phase 7: find this track's own row out of the project-wide
+  // worktree list — same endpoint WorktreesPanel uses, just filtered down
+  // to one track here. Absent (null) is a normal state (no worktree, or
+  // fully merged already) — the strip renders nothing in that case.
+  const fetchWorktreeRow = () => {
+    apiFetch(`/api/projects/${projectId}/worktrees`)
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => setWorktreeRow((rows || []).find(r => r.track === String(trackNumber)) ?? null))
+      .catch(() => setWorktreeRow(null));
+  };
+
+  useEffect(() => {
+    fetchWorktreeRow();
+    const id = setInterval(fetchWorktreeRow, 10000);
+    return () => clearInterval(id);
+  }, [projectId, trackNumber]);
+
+  async function handleMergeWorktree() {
+    setMergingWorktree(true);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'merge-worktree', payload: { track_number: String(trackNumber) } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      fetchWorktreeRow();
+      fetchDispatchHistory();
+    } catch (err) {
+      alert(`Failed to dispatch merge: ${err.message}`);
+    } finally {
+      setMergingWorktree(false);
+    }
+  }
 
   // Default the worker dropdown to one of the resolved assignee's own
   // workers (workers.user_uid, track 1084) when possible, falling back to
@@ -438,6 +476,35 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                   <div className="mt-2 pt-2 border-t border-gray-700 flex items-center gap-2">
                     <span className="text-xs text-gray-600">Dev Server:</span>
                     <DevServerButton projectId={projectId} devUrl={detail.dev_url} />
+                  </div>
+                )}
+                {/* Track 1112 Phase 7: inline worktree strip — secondary,
+                    detail-level view of the same data WorktreesPanel lists
+                    project-wide. Nothing renders when this track has no
+                    worktree row (no worktree, or already fully merged). */}
+                {worktreeRow && (
+                  <div className="mt-2 pt-2 border-t border-gray-700 flex items-center gap-2 flex-wrap" data-testid="track-worktree-strip">
+                    <span className="text-xs text-gray-600">Worktree:</span>
+                    <span className="text-[10px] font-mono text-gray-400">
+                      ahead {worktreeRow.ahead ?? '—'} / behind {worktreeRow.behind ?? '—'} / dirty {worktreeRow.dirty ?? '—'}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${worktreeRow.class === 'stranded' ? 'bg-red-950/40 text-red-300 border-red-800/80' :
+                      worktreeRow.class === 'conflicted' ? 'bg-amber-950/40 text-amber-300 border-amber-800/80' :
+                        worktreeRow.class === 'mergeable' ? 'bg-green-950/40 text-green-300 border-green-800/80' :
+                          'bg-gray-900 text-gray-400 border-gray-800'
+                      }`}>
+                      {worktreeRow.class}
+                    </span>
+                    {(worktreeRow.class === 'mergeable' || worktreeRow.class === 'stranded') && (
+                      <button
+                        onClick={handleMergeWorktree}
+                        disabled={mergingWorktree}
+                        data-testid="track-merge-to-main-btn"
+                        className="text-[10px] px-2 py-0.5 border border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40 disabled:opacity-50 rounded font-bold uppercase tracking-wider transition-colors"
+                      >
+                        {mergingWorktree ? 'Merging…' : 'Merge to main'}
+                      </button>
+                    )}
                   </div>
                 )}
               </>
