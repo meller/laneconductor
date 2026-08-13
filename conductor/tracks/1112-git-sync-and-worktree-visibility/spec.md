@@ -260,9 +260,21 @@ by a stub.
 - [ ] AC-5: `lc worktrees merge 1044` merges the stranded branch even though
       `.worktrees/1044` does not exist (the RC-A case that is impossible
       today).
-- [ ] AC-6: Immediately before and after any merge, the primary checkout's
-      `git rev-parse --abbrev-ref HEAD` and `git status --porcelain` output
-      are byte-identical — the merge did not touch the shared checkout.
+- [ ] AC-6: Immediately before and after a merge with no dirty-file overlap,
+      the primary checkout's `git rev-parse --abbrev-ref HEAD` and
+      `git status --porcelain` output are byte-identical — the merge did not
+      touch the shared checkout. **Scope note, discovered empirically during
+      Phase 3 implementation**: this byte-identical guarantee applies to the
+      no-overlap case (the scenario this criterion and TC-3.5 describe).
+      When a touched path IS locally dirty in the primary checkout (TC-3.6's
+      separate scenario), `git status --porcelain` legitimately changes for
+      that one path — from unstaged-only (` M`) to both staged-and-unstaged
+      (`MM`), because the committed baseline genuinely advanced. Verified
+      that the alternative (silently rebasing the index onto the merge's
+      version so the status line stays ` M`) would hide the fact that a
+      merge happened from the human's own diff — actively worse. TC-3.6's
+      real guarantee is narrower and still fully honored: the file's
+      *content* is provably unmodified.
 - [ ] AC-7: With a track moved to `done:success` by a UI drag (not by a
       worker action), a running worker merges its branch within one
       reconciliation interval, and the worker log names the branch it merged.

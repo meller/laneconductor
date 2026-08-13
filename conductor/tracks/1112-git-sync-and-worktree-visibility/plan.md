@@ -48,18 +48,31 @@ invisible even to `git worktree list`.
 **Solution**: A local `lc worktrees` command that joins git state to track
 lane state. No API, no DB, works in `local-fs` (D-1).
 
-- [ ] Add a `worktrees` command to `bin/lc.mjs`'s dispatch (same style as the
-      existing `worker` block at `bin/lc.mjs:1679`)
-- [ ] Enumerate sources — union of two sets, because neither is sufficient:
-    - [ ] `git worktree list --porcelain` → worktrees present on disk
-    - [ ] `git branch --no-merged <main> --format=%(refname:short)` filtered
-          to `track-*` → catches stranded branches with no directory
-- [ ] Per row, compute: `git rev-list --count <main>..<branch>` (ahead),
+- [x] Add a `worktrees` command to `bin/lc.mjs`'s dispatch (`worktrees` /
+      `worktrees merge` block, alongside the other top-level commands)
+- [x] Enumerate sources — union of two sets, because neither is sufficient:
+    - [x] `git worktree list --porcelain` → worktrees present on disk
+    - [x] `git branch --list track-*` cross-referenced with
+          `git merge-base --is-ancestor` → catches stranded branches with no
+          directory
+    - [x] **Bug found live**: when run from a linked worktree (this
+          session's own cwd), the primary checkout was misidentified —
+          comparing each worktree path to the `repoRoot` argument doesn't
+          work when `repoRoot` IS a linked worktree, not the primary. Fixed
+          by tracking which path `git worktree list --porcelain` lists
+          first (always the primary, regardless of invocation cwd) — see
+          `worktree-audit.mjs`'s `parsePorcelainWorktreeList`. Covered by a
+          regression test.
+- [x] Per row, compute: `git rev-list --count <main>..<branch>` (ahead),
       `git rev-list --count <branch>..<main>` (behind),
-      `git -C <worktree> status --porcelain | wc -l` (dirty, `-` when the
-      directory is gone)
-- [ ] Resolve each track's lane from `conductor/tracks/NNN-*/index.md`
-      (`**Lane**`, `**Lane Status**`, title) — filesystem only, per REQ-2
+      `git status --porcelain | wc -l` in the worktree (dirty, `null` when
+      the directory is gone)
+- [x] Resolve each track's lane from the branch's own tip commit via
+      `git show <branch>:<path>/index.md` (not the filesystem directly —
+      see the Phase 2 classification correction below for why; this reads
+      identically whether or not a worktree directory currently exists,
+      satisfying REQ-2's "no API/DB needed" without depending on a live
+      checkout)
 - [x] Classify each row — **corrected during implementation**: the
       "done:success" check must read the **branch's own tip commit**
       (`git show <branch>:<path>`), not the working directory or main's
@@ -90,30 +103,31 @@ lane state. No API, no DB, works in `local-fs` (D-1).
           **42 open, 2 mergeable (1053, 1069), 0 stranded, 0 conflicted**
           — see spec.md's corrected Audit Findings for the full
           reconciliation against the original (wrong) 41/2/1 numbers
-- [ ] Render a table; add `--json` for scripting and `--stranded` to filter
-- [ ] Handle the nested-worktree case seen live
+- [x] Render a table; add `--json` for scripting and `--stranded` to filter
+- [x] Handle the nested-worktree case seen live
       (`.worktrees/1063/.worktrees/9998` — detached HEAD, no `track-*`
-      branch): list it, do not classify it as mergeable, never try to merge
-      a detached HEAD
-- [ ] Add `worktrees` to `lc --help` / the scoped help sections
-- [ ] **Open-worktree cap warning** (user request, 2026-08-13): when the
-      total *open* count (not stranded/mergeable — those are Phase
-      3/4's job) for a project crosses a threshold (default suggestion:
-      10 — tune once real usage is observed), print a warning naming the
-      oldest open tracks and suggesting the user run their review/
-      quality-gate lanes to close some out. **Warning, never a block** —
-      does not prevent a new worktree from being created. Two surface
-      points, both CLI/log for now (no UI panel exists yet — that's
-      Phase 7, already scoped as possibly deferred; this task does not
-      pull it forward):
-    - [ ] `lc worktrees` itself prints the warning line when the count is
-          over threshold (it already computes the full count for the
-          table)
-    - [ ] `createWorktree` (`laneconductor.sync.mjs`) logs the same
-          warning once per heartbeat cycle (not once per worktree
-          creation — would spam) when a NEW worktree would cross the
-          threshold
-    - [ ] Explicitly NOT part of the implement skill's own per-track
+      branch): listed as its own `detached` classification, never
+      `mergeable`, never a merge target
+- [x] Add `worktrees` to `lc --help` / the scoped help sections — usage
+      strings printed on bad args (`lc worktrees merge` with no track
+      number); not added to a separate top-level help listing since none
+      currently exists in `bin/lc.mjs` for other commands either (checked —
+      consistent with existing convention, not a gap this track introduces)
+- [x] **Open-worktree cap warning** (user request, 2026-08-13): `lc
+      worktrees` prints a warning + oldest-5 tracks when the open count
+      exceeds 10 (verified live: 42 open tracks in this repo trips it).
+      Warning only, never blocks worktree creation.
+    - [x] `lc worktrees` itself prints the warning line when the count is
+          over threshold
+    - [ ] `createWorktree` (`laneconductor.sync.mjs`) logging the same
+          warning on the worker side (once per heartbeat cycle, not once
+          per worktree creation) — **not yet done**, deferred to keep this
+          implementation pass scoped to what's independently testable
+          without a live worker process; the CLI-side warning above already
+          delivers the actual user-facing value (a human runs `lc
+          worktrees` to look, not tails worker logs for a housekeeping
+          nudge)
+    - [x] Explicitly NOT part of the implement skill's own per-track
           flow (`SKILL.md`'s `/laneconductor implement`) — this is a
           whole-project housekeeping signal, not something one track's
           implementation should reason about or be blocked by
@@ -138,43 +152,136 @@ exit path never merges at all. Both are in
 check, move the merge off the shared primary checkout, and add a
 state-driven reconciliation pass.
 
-- [ ] **RC-A** — restructure `mergeAndRemoveWorktree`
-      (`laneconductor.sync.mjs:3327`):
-    - [ ] Precondition for merging = *branch* exists (`git rev-parse
+- [x] **RC-A** — restructured. `mergeAndRemoveWorktree` now delegates
+      entirely to the new shared primitive (below), which never checks
+      directory existence as a merge precondition at all — it operates
+      purely off the branch ref in its own ephemeral worktree:
+    - [x] Precondition for merging = *branch* exists (`git rev-parse
           --verify track-NNN`), not directory exists
-    - [ ] Precondition for `removeWorktree` = directory exists (unchanged
+    - [x] Precondition for `removeWorktree` = directory exists (unchanged
           behaviour, just no longer gating the merge)
-    - [ ] Missing directory + existing branch → merge, log, skip removal
-- [ ] **D-5 / REQ-7** — stop merging in the primary checkout:
-    - [ ] Replace `git checkout <main>` + `git merge` in `process.cwd()`
-          with a merge performed in a dedicated ephemeral worktree
-          (`.worktrees/.merge-<pid>`), removed in a `finally`
-    - [ ] Assert (in tests) the primary checkout's branch and
-          `git status --porcelain` are unchanged across a merge
-    - [ ] Reuse `validatePathIsolation` (`laneconductor.sync.mjs:3183`) for
-          the scratch path
-- [ ] **RC-B / REQ-4** — add `reconcileWorktrees()`:
-    - [ ] For every `track-*` branch unmerged into main, read the track's
-          lane from `index.md`; merge only when `done` + `success` (D-2)
-    - [ ] Call it from the heartbeat loop, gated on
+    - [x] Missing directory + existing branch → merge, log, skip removal
+- [x] **D-5 / REQ-7** — stop merging in the primary checkout. Implemented
+      as `conductor/services/worktree-merge.mjs`'s `mergeWorktreeBranch()`,
+      the one shared primitive used by the exit handler, the reconciler,
+      and `lc worktrees merge`:
+    - [x] Merge runs in a dedicated ephemeral, **detached-HEAD** scratch
+          worktree (`.worktrees/.merge-<pid>-<track>`), removed in a
+          `finally`. Detached, not checked out on `mainBranch` itself —
+          **empirically confirmed** git refuses to check the same branch
+          out in two worktrees at once (`git branch -f main <sha>` errors
+          "cannot force update the branch ... used by worktree at ..."),
+          so a scratch worktree can never literally hold `main` while the
+          primary checkout does.
+    - [x] **Second empirical finding, this one requiring a real fix, not
+          just a design choice**: advancing `refs/heads/main` via
+          `update-ref` while `main` is checked out in the primary
+          worktree succeeds (unlike `branch -f`, `update-ref` has no
+          worktree-awareness) but leaves that worktree's index stale —
+          every merge-touched path shows up as a spurious staged diff in
+          `git status`, breaking REQ-7/AC-6. Fixed by resyncing exactly
+          the touched-and-not-already-dirty paths back into the primary
+          checkout afterward (`resyncPrimaryCheckout`) — paths that are
+          ALSO locally dirty are left completely alone, which is what
+          keeps a dirty-overlap merge (REQ-5/TC-3.6) safe. See AC-6's
+          scope-note correction in spec.md: byte-identical status holds
+          for the no-overlap case; the overlap case's real guarantee is
+          content preservation, not identical status text (verified
+          silently rebasing the index instead would hide that a merge
+          happened at all — worse, not better).
+    - [x] **Third empirical bug, found live against this repo's own
+          tracks 1053/1069**: `git branch -d` also refuses when the
+          branch is still checked out in the ORIGINAL per-track worktree
+          — same guard as `branch -f`. A caller that removes that
+          worktree only *after* calling the merge primitive leaves the
+          branch merged-but-undeleted with no visible error (swallowed by
+          a bare try/catch). Fixed by having `mergeWorktreeBranch()` own
+          removing the original per-track worktree itself, before
+          attempting `-d` — not the caller, and not after. Regression
+          test added; both real zombie branches cleaned up manually once
+          found.
+    - [x] Assert (in tests) the primary checkout's branch and
+          `git status --porcelain` are unchanged across a merge (6 tests,
+          `track-1112-worktree-merge.test.mjs`)
+    - [x] Reuse path isolation — extracted the existing
+          `validatePathIsolation` out of `laneconductor.sync.mjs` into
+          `conductor/services/path-isolation.mjs` (no behavior change,
+          same checks) specifically so `worktree-merge.mjs` could reuse it
+          without importing `laneconductor.sync.mjs` itself, which runs
+          `setInterval`/chokidar side effects at module load — importing
+          it from the CLI would have started a heartbeat loop inside `lc`.
+    - [x] **Fourth empirical bug, the most consequential one, found live
+          during Phase 6's own real-repo verification**: `mergeWorktreeBranch`
+          trusted its `repoRoot` argument as-is. This session's own `lc`
+          invocations run from `.worktrees/1112` (this track's own linked
+          worktree) — which also has a `conductor/` directory, so
+          `bin/lc.mjs`'s `findProjectRoot()` (walk up from cwd looking for
+          a project marker) resolved to `.worktrees/1112` itself, NOT the
+          true primary checkout at `/home/meller/Code/laneconductor`. Every
+          `repoRoot`-scoped guarantee in this file — the resync that keeps
+          the primary's `git status` byte-identical, "never touches the
+          shared checkout" — silently applied to the wrong directory: the
+          real primary's index was never resynced at all (see the
+          corrected Impact note below), and the merge accidentally wrote
+          into this session's own worktree instead. Fixed by resolving the
+          TRUE primary INSIDE `mergeWorktreeBranch()` itself, from
+          whichever directory it's called with — `git rev-parse --git-dir`
+          vs `--git-common-dir` agree only for the primary worktree (a
+          linked worktree's `--git-dir` is always `.git/worktrees/<name>`,
+          distinct from the shared `--git-common-dir`) — so no caller can
+          get this wrong again, regardless of its own invocation cwd.
+          Exported as `resolvePrimaryRepoRoot()`, reused by
+          `git-divergence.mjs` in Phase 5 for the same reason. Regression
+          test added (calls `mergeWorktreeBranch` with `repoRoot` pointed
+          at a deliberately-wrong bystander worktree, asserts the TRUE
+          primary is what actually changes).
+- [x] **RC-B / REQ-4** — added `reconcileWorktrees()`:
+    - [x] For every unmerged `track-*` branch, reuses Phase 2's
+          `auditWorktrees()` classification (branch-tip lane state, not
+          filesystem) rather than a second, possibly-inconsistent check;
+          merges rows classified `mergeable` or `stranded`
+    - [x] Called from a `setInterval` (60s), gated on
           `git.reconcile_worktrees !== false`
-    - [ ] Idempotent and quiet when there is nothing to do (no log spam on
+    - [x] Idempotent and quiet when there is nothing to do (no log spam on
           every heartbeat — log only when it acts)
-    - [ ] Skip any track currently git-locked / claimed by a running worker
-          (check the existing lock mechanism — do not merge a branch that is
-          being actively written)
-- [ ] **REQ-5** — conservative failure handling:
-    - [ ] On merge conflict: leave branch + worktree intact, report, continue
+    - [x] Skips any track with an active `.conductor/locks/NNN.lock` file —
+          never merges a branch out from under a running worker
+- [x] **REQ-5** — conservative failure handling:
+    - [x] On merge conflict: leave branch + worktree intact, report, continue
           to the next branch (never abort the whole pass)
-    - [ ] Never `git branch -D`; only `-d` after a merge this pass confirmed
-    - [ ] Never leave the repo mid-merge — `git merge --abort` in the scratch
-          worktree on any failure path
-- [ ] Keep the existing exit-handler call site working (it becomes the fast
-      path; the reconciler is the safety net)
+    - [x] Never `git branch -D`; only `-d` after a merge this pass confirmed
+    - [x] Never leave the repo mid-merge — `git merge --abort` runs in the
+          scratch worktree only, so the primary checkout can never show a
+          `MERGING` state (it never ran `git merge` at all); verified by
+          test
+- [x] Keep the existing exit-handler call site working (it becomes the fast
+      path; the reconciler is the safety net) — `mergeAndRemoveWorktree` is
+      now a thin wrapper over `mergeWorktreeBranch()`, same call site
+      unchanged
 
 **Impact**: Tracks stop accumulating stranded branches regardless of how
 they reach `done`, and merges stop depending on — or endangering — the
-shared working copy.
+shared working copy. **Live-verified, not just unit-tested**: merged the
+real `track-1053`/`track-1069` branches into this repo's actual `main` —
+`git branch --no-merged main` dropped from 44 to 42, HEAD stayed on `main`
+throughout, no `MERGE_HEAD` ever appeared, and both branches were cleanly
+deleted.
+
+> **Correction (same investigation, found immediately after)**: this
+> paragraph originally also claimed "the primary checkout's dirty-file
+> count stayed at exactly 104 across both merges" as live-verified proof of
+> REQ-7/AC-6. That check was run against `/home/meller/Code/laneconductor`
+> directly and DID read 104 before and after — but, per the bug logged
+> above, the actual merge's `repoRoot` had silently resolved to
+> `.worktrees/1112` instead (this session's own cwd), so that 104-count
+> comparison was measuring a directory the merge never touched in the
+> first place — true, but not evidence of anything. The REAL primary
+> checkout's two affected files (`conductor/tracks/1053-*/index.md`,
+> `1069-*/index.md`) were left un-resynced by that run; found and fixed
+> (see the bug entry above) before Phase 5 began, verified this time via a
+> test that deliberately invokes `mergeWorktreeBranch` from a bystander
+> worktree and asserts the true primary — not the invocation directory —
+> is what changes.
 
 ---
 
@@ -187,17 +294,24 @@ a conflict.
 **Solution**: A merge subcommand on top of Phase 3's now-correct merge
 primitive.
 
-- [ ] `lc worktrees merge <track>` — merges one branch, prints what it did
-- [ ] Works for the `stranded` case with no worktree directory (REQ-6/AC-5)
-- [ ] Refuses when the track is not `done:success`, explaining why; `--force`
+- [x] `lc worktrees merge <track>` — merges one branch, prints what it did
+- [x] Works for the `stranded` case with no worktree directory (REQ-6/AC-5)
+      — inherent to `mergeWorktreeBranch()`'s design, no special-casing
+      needed
+- [x] Refuses when the track is not `done:success`, explaining why; `--force`
       overrides
-- [ ] `--dry-run` reports whether the merge would conflict, changing nothing
-- [ ] On conflict: report the conflicting paths and leave everything intact
-- [ ] Shares one implementation with Phase 3's reconciler — no second copy of
-      the merge logic
+- [x] `--dry-run` reports whether the merge would conflict, changing nothing
+      (reuses `auditWorktrees()`'s classification rather than re-running
+      `merge-tree` — same read-only check)
+- [x] On conflict: report the conflicting paths and leave everything intact
+- [x] Shares one implementation with Phase 3's reconciler — both call
+      `mergeWorktreeBranch()` from `conductor/services/worktree-merge.mjs`;
+      no second copy of the merge logic anywhere
 
 **Impact**: The backlog is clearable, and the exceptional case has an
-answer that isn't "know the right git incantation".
+answer that isn't "know the right git incantation". **Live-verified**: see
+Phase 3's impact note — the same real merges (`lc worktrees merge 1053`,
+`lc worktrees merge 1069`) exercised this exact command.
 
 ---
 
@@ -211,35 +325,53 @@ claiming a lock, and nothing reads its result.
 provably safe (D-4). This is the riskiest phase — wrong conflict handling
 silently loses work — so detection lands before any mutation.
 
-- [ ] **5a — detection only (no git mutation)**:
-    - [ ] Read `git.fetch_interval_ms` from `.laneconductor.json`
-          (default 300000, `0` disables)
-    - [ ] On that interval, `git fetch origin <main> --quiet` in the primary
-          repo (read-only; already the established call, see
-          `laneconductor.sync.mjs:3108`)
-    - [ ] Compute ahead/behind via
+- [x] **5a — detection only (no git mutation)**:
+    - [x] Read `git.fetch_interval_ms` from `.laneconductor.json`
+          (default 300000, `0` disables) — `getGitConfig()` getter, worker
+          ticks a 30s `setInterval` but only actually fetches once
+          `fetch_interval_ms` has elapsed since the last check (decouples
+          tick rate from the configured cadence)
+    - [x] On that interval, `git fetch origin <main> --quiet` in the primary
+          repo (read-only) — implemented as `checkDivergence()` in the new
+          `conductor/services/git-divergence.mjs`, resolving the TRUE
+          primary via the same `resolvePrimaryRepoRoot()` Phase 3 needed
+          (same class of bug would otherwise apply here too — fetching/
+          reporting against the wrong worktree)
+    - [x] Compute ahead/behind via
           `git rev-list --left-right --count main...origin/main`
-    - [ ] Report divergence in the worker log and in the CLI output (REQ-9),
-          naming the commit count and whether a fast-forward is available
-- [ ] **5b — safe auto-pull (REQ-10)**, gated on `git.auto_pull !== false`
+    - [x] Report divergence in the worker log (`[git-sync]` prefix) and in
+          `lc worktrees`' CLI output (REQ-9), naming the commit count and
+          whether a fast-forward is available
+- [x] **5b — safe auto-pull (REQ-10)**, gated on `git.auto_pull !== false`
       and on ALL of:
-    - [ ] local `main` strictly behind `origin/main`, zero local-only commits
-    - [ ] fast-forward possible
-    - [ ] no tracked file touched by the incoming commits is dirty locally
+    - [x] local `main` strictly behind `origin/main`, zero local-only commits
+          (`ahead === 0 && behind > 0`, i.e. `canFastForward`)
+    - [x] fast-forward possible (same check — a real divergence, `ahead > 0`,
+          is never fast-forwardable by definition)
+    - [x] no tracked file touched by the incoming commits is dirty locally
           (intersect `git diff --name-only main..origin/main` with
           `git status --porcelain`) — the primary checkout routinely carries
           100+ dirty files, so this check is load-bearing, not defensive
-    - [ ] pull via `git merge --ff-only origin/main` (never a bare
-          `git pull`, which can start a merge)
-- [ ] **5c — post-pull FS→DB resync**: for each
-      `conductor/tracks/**/index.md` changed by the pulled commits, run the
-      existing `syncTrack` path so out-of-band lane changes reach the DB
-- [ ] **5d — unsafe path (REQ-11)**: take no git-mutating action; state the
-      reason (diverged / dirty overlap); assert the repo is never left in a
-      `MERGING` state
+    - [x] pull via `git merge --ff-only origin/main` (never a bare
+          `git pull`) — unlike Phase 3's cross-worktree merge, this needs no
+          scratch worktree: `mainBranch` is expected to already be checked
+          out where the pull runs, so a direct `--ff-only` there is the
+          normal, safe case that flag exists for
+- [x] **5c — post-pull FS→DB resync**: `safePull()` reports every changed
+      `conductor/tracks/**/index.md` path; the worker calls the existing
+      `syncTrack()` on each after a successful pull
+- [x] **5d — unsafe path (REQ-11)**: `safePull()` takes no git-mutating
+      action on `diverged`/`dirty-overlap`/`fetch-failed`/`up-to-date` —
+      verified by test that local `main`'s SHA is byte-identical before and
+      after a refused pull in every unsafe case, and that no `MERGE_HEAD`
+      ever appears (10 tests, `track-1112-git-divergence.test.mjs`)
 
 **Impact**: A third party's push stops being invisible; the safe majority
 case self-heals, and the unsafe case is surfaced instead of guessed at.
+Live-checked against this repo's real remote: local `main` and
+`origin/main` were confirmed in sync (0 ahead / 0 behind) after Phase 3's
+merges landed — nothing to pull, correctly silent, matching TC-5.2's "no
+repeated noise when there's no divergence" expectation.
 
 ---
 

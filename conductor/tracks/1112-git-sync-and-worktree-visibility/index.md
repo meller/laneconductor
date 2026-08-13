@@ -1,10 +1,10 @@
 # Track 1112: Out-of-band git sync + worktree visibility/merge UI
 
 **Lane**: implement
-**Lane Status**: queue
-**Progress**: 10%
+**Lane Status**: running
+**Progress**: 70%
 **Last Run**: claude/sonnet (primary)
-**Phase**: Planned — audit complete (Phase 1 done), Phases 2–7 specced
+**Phase**: Phases 1–5 complete (audit, `lc worktrees`, RC-A/RC-B lifecycle fixes + reconciler, manual merge, out-of-band git sync + safe auto-pull) — live-verified against this repo's real branches and real remote. Phase 6 (regression + live-verification writeup) remains; Phase 7 (UI panel) may be deferred.
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: Planned. Audit of all 44 unmerged branches found 41 legitimately open, 2 stranded by RC-A (merge gated on the worktree dir existing), 1 missed by RC-B (merge only fires from one worker exit path).…
@@ -93,10 +93,10 @@ safe fast-forward.
 
 ## Phases
 - [x] Phase 1: Audit — all 44 branches classified; RC-A and RC-B identified with line numbers (done at planning time)
-- [ ] Phase 2: `lc worktrees` — visibility, local-only, works in `local-fs`, surfaces stranded branches `git worktree list` can't see
-- [ ] Phase 3: Lifecycle fixes — RC-A (merge on branch existence, not directory), RC-B (`reconcileWorktrees()` on heartbeat), merge in a scratch worktree
-- [ ] Phase 4: `lc worktrees merge <track>` — manual path, incl. the stranded case, `--dry-run` / `--force`
-- [ ] Phase 5: Out-of-band git sync — periodic fetch + divergence reporting; auto-pull only on clean FF with no dirty overlap; post-pull FS→DB resync
+- [x] Phase 2: `lc worktrees` — visibility, local-only, works in `local-fs`, surfaces stranded branches `git worktree list` can't see
+- [x] Phase 3: Lifecycle fixes — RC-A (merge on branch existence, not directory), RC-B (`reconcileWorktrees()` on heartbeat), merge in a scratch worktree
+- [x] Phase 4: `lc worktrees merge <track>` — manual path, incl. the stranded case, `--dry-run` / `--force`
+- [x] Phase 5: Out-of-band git sync — periodic fetch + divergence reporting; auto-pull only on clean FF with no dirty overlap; post-pull FS→DB resync
 - [ ] Phase 6: Tests + LIVE verification against this machine's real 44-branch state
 - [ ] Phase 7: UI worktree panel via heartbeat reporting — **may be deferred**; if it is, this track cannot be marked `done` at 100%
 
