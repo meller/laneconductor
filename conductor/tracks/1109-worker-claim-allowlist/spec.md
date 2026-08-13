@@ -44,8 +44,18 @@ own git worktree. Isolation is solved; *admission control* is not.
   foreground. One execution path, no second implementation.
 
 **REQ-4: The scope is observable**
-- Logged at startup and reported to the collector, so a deliberately scoped
-  worker is not mistaken for a broken one that "won't pick anything up".
+- Logged at startup, so a deliberately scoped worker is not mistaken for a
+  broken one that "won't pick anything up".
+- **Descoped 2026-08-13**: reporting the scope to the collector (so the UI
+  itself could show a worker as scoped) is dropped from this track's
+  requirements. It needs a `workers` schema column plus UI work, which is
+  disproportionate to what this track is actually for — unblocking
+  `lc worker run` as a CLI/CI tool, not building UI affordance for it. The
+  startup log is sufficient for that purpose: anyone running a scoped worker
+  is, by construction, already looking at its own terminal output.
+  Collector-side reporting is real, useful, follow-up work — it just isn't
+  *this* track's job. If picked up later, it belongs with track 1084's
+  worker-lifecycle UI work (Phase 6), which already owns this class of gap.
 
 **REQ-5: Session continuity is preserved across scoped runs**
 - A scoped worker must reuse a **stable** identity (`hostname` +
@@ -66,6 +76,7 @@ Observable outcomes only — a criterion satisfiable by a stub does not count.
 - [ ] `lc worker run <track>` runs that track to completion in the
       foreground and exits, without touching other queued tracks.
 - [ ] The effective claim scope appears in the worker's startup log.
+      (Collector-side reporting removed from scope — see REQ-4.)
 - [ ] Running the same scoped track twice yields `FRESH_SESSION: false` on
       the second run — proving session reuse survived the exit rather than
       silently cold-starting.
@@ -100,3 +111,6 @@ Settled here rather than left to the implementation:
   tested there.
 - Session persistence in local-fs mode (`resolveTrackSession` returns null
   there, so every local-fs run cold-starts regardless of this track).
+- **Reporting the claim scope to the collector for UI display** (descoped
+  2026-08-13 — see REQ-4). Belongs with [1084](../1084-worker-identity-and-assignment/index.md)
+  Phase 6, not here.
