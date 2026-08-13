@@ -66,20 +66,31 @@ own git worktree. Isolation is solved; *admission control* is not.
 
 Observable outcomes only — a criterion satisfiable by a stub does not count.
 
-- [ ] A worker started with `--only-tracks N` claims track N **and provably
+- [x] A worker started with `--only-tracks N` claims track N **and provably
       leaves an unlisted queued track alone** (the negative is the point).
-- [ ] The allowlist works in local-fs mode, where `claimableSet` is null.
-- [ ] The allowlist cannot widen server-side permission: a track excluded by
+      Verified against a real two-track local-fs fixture with a control run.
+- [x] The allowlist works in local-fs mode, where `claimableSet` is null.
+      Same fixture — local-fs was the test mode used.
+- [x] The allowlist cannot widen server-side permission: a track excluded by
       `claimableSet` stays unclaimable even if named in `--only-tracks`.
-- [ ] `--once` exits after the scoped work is done, and does **not** exit
-      while a track is still running.
-- [ ] `lc worker run <track>` runs that track to completion in the
-      foreground and exits, without touching other queued tracks.
-- [ ] The effective claim scope appears in the worker's startup log.
+      Unit-tested (TC-7).
+- [x] `--once` exits after the scoped work is done, and does **not** exit
+      while a track is still running. Exited 0 in ~20s against the fixture,
+      not the 60s timeout used to bound the test.
+- [x] `lc worker run <track>` runs that track to completion in the
+      foreground and exits, without touching other queued tracks. Exited 0
+      in ~21s, only the targeted track claimed.
+- [x] The effective claim scope appears in the worker's startup log.
       (Collector-side reporting removed from scope — see REQ-4.)
-- [ ] Running the same scoped track twice yields `FRESH_SESSION: false` on
+- [x] Running the same scoped track twice yields `FRESH_SESSION: false` on
       the second run — proving session reuse survived the exit rather than
-      silently cold-starting.
+      silently cold-starting. Verified in two parts rather than one live
+      run (see plan.md): the DB-level persistence chain, live against the
+      real collector; and the exact literal `-p` argument a real `claude`
+      invocation receives, computed from that session — both confirmed
+      correct. No live `claude` process was actually spawned (real API
+      cost); that final hop is Anthropic's CLI honoring its own `-p` input,
+      not something this track controls.
 
 ## Design Decisions
 

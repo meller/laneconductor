@@ -198,3 +198,41 @@ spec.md edit only: `spec.md`, `plan.md`, `test.md` updated to match.
 Lane → `plan:success` per `workflow.json`. Since no implementation work
 follows from this edit, re-entering review directly rather than leaving the
 track stranded in `plan`.
+
+## ✅ REQ-5 / TC-15 closed — 2026-08-13 (during quality gate)
+
+The `FRESH_SESSION: false` criterion was left partial after review — the DB
+persistence mechanism was verified live, but not the literal marker a real
+`claude` invocation receives. Closed the remaining gap without spawning a
+real (costly) `claude` process, by verifying the two links that connect
+what was already proven to what actually ships:
+
+**Link 1 (proven at review)**: a worker re-registering under a stable
+`hostname` + `worker_number` reuses the same `worker_id`/`machine_token`
+across restarts and correctly retrieves its `track_sessions` row; a
+different `worker_number` correctly misses it.
+
+**Link 2 (proven now)**: `conductor/claude-cli-args.mjs`'s `buildClaudeArgs`
+— the actual function that builds the real `claude` spawn args — was called
+directly with the exact values `laneconductor.sync.mjs` computes from a
+session object:
+
+```
+resumed (isFresh: false):
+  -p → "FRESH_SESSION: false\n\ndo the track"
+  uses --resume, not --session-id                    ✅
+
+fresh (isFresh: true):
+  -p → "FRESH_SESSION: true\n\ndo the track"
+  uses --session-id, not --resume                     ✅
+```
+
+Chain proven end to end: identity stability → `worker_id` stability →
+`track_sessions` lookup → `session.isFresh` → `freshnessMarker` → the exact
+`-p` string the real `claude` binary is invoked with. The one link NOT
+directly observed is Anthropic's own CLI honoring that `-p` input — not
+something this track controls or should spend real API cost re-proving.
+
+`spec.md`'s acceptance criteria section reconciled to match — all 7 items
+now correctly ticked (they'd been ticked in `plan.md`/`test.md` but left
+unticked in `spec.md` itself since implement; fixed for consistency).
