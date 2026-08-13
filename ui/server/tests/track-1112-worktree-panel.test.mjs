@@ -98,4 +98,76 @@ describe('Track 1112 Phase 7: worktree panel API', () => {
       expect(sql).not.toMatch(/worktrees =/);
     });
   });
+
+  describe('POST /api/projects/:id/dispatch — merge-worktree (D-7 stickiness)', () => {
+    it('routes to the assignee\'s own worker when they have one registered', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [{ owner_uid: 'owner-1' }] }) // project
+        .mockResolvedValueOnce({ rows: [{ assignee_uid: 'dev-1', created_by_uid: null }] }) // track
+        .mockResolvedValueOnce({ rows: [{ id: 77, project_id: '1', user_uid: 'dev-1' }] }) // resolvePinnedWorkers
+        .mockResolvedValueOnce({ rows: [{ id: 501 }], rowCount: 1 }); // INSERT worker_dispatch
+
+      const res = await request(app)
+        .post('/api/projects/1/dispatch')
+        .send({ action: 'merge-worktree', payload: { track_number: '1053' } })
+        .expect(200);
+
+      expect(res.body).toEqual({ ok: true, id: 501 });
+      const insertCall = pool.query.mock.calls.find(c => c[0].includes('INSERT INTO worker_dispatch'));
+      expect(insertCall[1][0]).toBe(77); // worker_id resolved to the assignee's own worker, not an arbitrary one
+    });
+
+    it('falls back to any live worker for the project when the assignee has none of their own', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [{ owner_uid: 'owner-1' }] }) // project
+        .mockResolvedValueOnce({ rows: [{ assignee_uid: 'dev-1', created_by_uid: null }] }) // track
+        .mockResolvedValueOnce({ rows: [] }) // resolvePinnedWorkers — none of dev-1's own
+        .mockResolvedValueOnce({ rows: [{ id: 88 }] }) // any live worker for the project
+        .mockResolvedValueOnce({ rows: [{ id: 502 }], rowCount: 1 }); // INSERT worker_dispatch
+
+      const res = await request(app)
+        .post('/api/projects/1/dispatch')
+        .send({ action: 'merge-worktree', payload: { track_number: '1053' } })
+        .expect(200);
+
+      expect(res.body).toEqual({ ok: true, id: 502 });
+      const insertCall = pool.query.mock.calls.find(c => c[0].includes('INSERT INTO worker_dispatch'));
+      expect(insertCall[1][0]).toBe(88);
+    });
+
+    it('respects an explicitly-provided worker_id instead of resolving one', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 999 }], rowCount: 1 });
+
+      const res = await request(app)
+        .post('/api/projects/1/dispatch')
+        .send({ action: 'merge-worktree', worker_id: 55, payload: { track_number: '1053' } })
+        .expect(200);
+
+      expect(res.body).toEqual({ ok: true, id: 999 });
+      // Only the INSERT ran — no project/track/worker resolution queries.
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('400s when no worker is available for the project at all', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [{ owner_uid: 'owner-1' }] }) // project
+        .mockResolvedValueOnce({ rows: [{ assignee_uid: null, created_by_uid: null }] }) // track — falls through to project.owner_uid
+        .mockResolvedValueOnce({ rows: [] }) // resolvePinnedWorkers for owner-1 — none
+        .mockResolvedValueOnce({ rows: [] }); // any live worker for the project — none either
+
+      const res = await request(app)
+        .post('/api/projects/1/dispatch')
+        .send({ action: 'merge-worktree', payload: { track_number: '1053' } })
+        .expect(400);
+      expect(res.body.error).toMatch(/no worker available/i);
+    });
+
+    it('400s when payload.track_number is missing', async () => {
+      const res = await request(app)
+        .post('/api/projects/1/dispatch')
+        .send({ action: 'merge-worktree', payload: {} })
+        .expect(400);
+      expect(res.body.error).toMatch(/track_number/i);
+    });
+  });
 });

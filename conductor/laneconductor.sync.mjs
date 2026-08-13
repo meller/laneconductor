@@ -4794,6 +4794,62 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    // Track 1112 Phase 7 (D-7): the "Merge to main" button's target — a
+    // pure git operation with no LLM context needed, but still routed
+    // through the assignee's own worker (the API resolves worker_id via
+    // 1084's resolveAssignee/resolvePinnedWorkers before creating this
+    // dispatch entry) so it's consistent with every other track-scoped
+    // dispatch. Calls Phase 4's shared mergeWorktreeBranch() primitive —
+    // no second copy of the merge logic.
+    if (entry.action === 'merge-worktree') {
+      const trackNumber = entry.payload?.track_number;
+      const force = entry.payload?.force === true;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] merge-worktree track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `merge-worktree track ${trackNumber} (dispatch ${entry.id})`);
+
+      const mainBranch = getMainBranch();
+      let result;
+      try {
+        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        const isDoneSuccess = row?.lane === 'done' && row?.laneStatus === 'success';
+        if (!row) {
+          result = { merged: false, reason: 'not-found' };
+        } else if (!isDoneSuccess && !force) {
+          result = { merged: false, reason: 'not-done-success' };
+        } else {
+          result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch });
+        }
+      } catch (err) {
+        result = { merged: false, reason: 'error', error: err.message };
+      }
+      updateWorkerHeartbeat('idle', null);
+
+      const resultText = result.merged
+        ? `Merged track-${trackNumber} into ${mainBranch} (${result.mergeCommit})`
+        : `Not merged: ${result.reason}${result.conflictPaths?.length ? ` (${result.conflictPaths.join(', ')})` : ''}${result.error ? `: ${result.error}` : ''}`;
+
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.merged ? 'done' : 'failed',
+        result: resultText,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-worktree result'));
+
+      try {
+        const tracksDir = join(process.cwd(), 'conductor/tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (trackDirName) {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+        }
+      } catch (err) {
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-worktree conversation comment');
+      }
+      continue;
+    }
+
     if (entry.action === 'create-project') {
       // Task 1: defense in depth — the API (Phase 1) already restricts
       // create-project dispatch creation to manager-type workers, but a

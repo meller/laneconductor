@@ -3217,7 +3217,45 @@ app.delete('/api/projects/:id/provision-targets/:targetId', async (req, res) => 
 // since project-level actions aren't tied to any one track's lane.
 app.post('/api/projects/:id/dispatch', async (req, res) => {
   try {
-    const { worker_id, action, payload, track_number } = req.body;
+    let { worker_id, action, payload, track_number } = req.body;
+    if (!action) return res.status(400).json({ error: 'action is required' });
+
+    // Track 1112 D7: the "Merge to main" button doesn't make the client
+    // pick a worker — it resolves server-side, reusing 1084's
+    // resolveAssignee/resolvePinnedWorkers so the merge lands on whichever
+    // worker is already holding that track's session (continuity-first),
+    // falling back to any live worker for the project only when the
+    // assignee has none of their own (claimable-tracks' same zero-config
+    // fallback). A caller MAY still pass worker_id explicitly (tests, or a
+    // future "pick a worker" UI) — resolution only fires when it's absent.
+    if (action === 'merge-worktree' && !worker_id) {
+      const trackNumber = payload?.track_number;
+      if (!trackNumber) return res.status(400).json({ error: 'payload.track_number is required for merge-worktree' });
+
+      const { rows: [project] } = await pool.query('SELECT owner_uid FROM projects WHERE id = $1', [req.params.id]);
+      if (!project) return res.status(404).json({ error: 'project not found' });
+      const { rows: [track] } = await pool.query(
+        'SELECT assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND track_number = $2',
+        [req.params.id, String(trackNumber)]
+      );
+
+      let resolvedWorkerId = null;
+      const assignee = track ? resolveAssignee(track, project) : null;
+      if (assignee) {
+        const own = await resolvePinnedWorkers(pool, req.params.id, assignee);
+        if (own.length > 0) resolvedWorkerId = own[0].id;
+      }
+      if (!resolvedWorkerId) {
+        const { rows: any } = await pool.query(
+          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+          [req.params.id]
+        );
+        resolvedWorkerId = any[0]?.id ?? null;
+      }
+      if (!resolvedWorkerId) return res.status(400).json({ error: 'no worker available for this project to merge on' });
+      worker_id = resolvedWorkerId;
+    }
+
     if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
     if ((action === 'deploy' || action === 'build_and_deploy') && !payload?.environment) {
       return res.status(400).json({ error: 'payload.environment is required for deploy' });
