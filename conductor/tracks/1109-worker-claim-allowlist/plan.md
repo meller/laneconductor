@@ -150,3 +150,17 @@ per-file isolation rather than by absolute counts.
 
 Track 1100's slow tier can now be run without collateral:
 `lc worker start --sync-and-work --only-tracks <track> --once`
+
+## ✅ REVIEWED — 2026-08-13 (PASS, one residual gap)
+
+6 of 7 spec acceptance criteria fully met. The 7th (`FRESH_SESSION: false` on
+a second scoped run) was pushed further during review: the **mechanism** is
+now proven against the live collector — a re-registered worker with a stable
+`hostname` + `worker_number` reuses `worker_id 1123` and its `machine_token`
+across three different pids, retrieves its `track_sessions` row, and a
+`worker_number 8` worker correctly misses it. What remains unproven is the
+literal marker reaching the agent prompt on a real run.
+
+Still open: Phase 5 Task 2 (report claim scope to the collector for the UI).
+
+Lane → quality-gate:queue per `workflow.json` `lanes.review.on_success`.
