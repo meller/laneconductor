@@ -2,8 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: Not started — opened 2026-08-12
+**Progress**: 50%
+**Phase**: Phases 1-3 complete 2026-08-13 (UI happy path, skill/CLI happy path, all 7 design decisions made and recorded) — Phase 4 (UI affordances) next
 **Type**: dev
 **Summary**: Define and make coherent the whole "I have nothing → I have a project doing work" experience, for both the UI path and the skill/CLI path. Track 1102 collects the individual bugs; this track owns…
 
