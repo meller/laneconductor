@@ -1,7 +1,7 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New — grounded by code inspection 2026-08-13, not yet planned in detail
 **Type**: dev
