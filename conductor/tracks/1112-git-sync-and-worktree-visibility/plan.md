@@ -521,15 +521,33 @@ correct action/payload — not just unit-tested in isolation.
 > `origin` from outside LaneConductor — neither was done this session. That
 > gap, not Phase 7, is what a quality-gate pass should weigh.
 
-## ⚠️ PARTIAL — Phases 1-6 complete, Phase 7 deferred
+## ✅ COMPLETE — all 7 phases implemented and live-verified
 
-Phases 1-6 are implemented and live-verified against this repo's real
-branch state and real remote (see Phase 6 above and `conversation.md` for
-the full evidence writeup, including 4 real bugs found and fixed during
-the live pass — the primary-checkout-resolution bug chief among them).
+All 7 phases are implemented and live-verified against this repo's real
+branch state, real remote, and real running UI (see `conversation.md` for
+the full evidence writeup). 6 real bugs found and fixed along the way
+during live verification, none of them things any synthetic fixture alone
+would have caught:
 
-Phase 7 (UI worktree panel) is deliberately out of scope for this pass —
-CLI-first was the explicit design decision (D-1), and REQ-12/REQ-13 remain
-unchecked in `spec.md`. Per this track's own done-gate, that means it
-lands in `review`, not `done` at 100%, with Phase 7 named as the concrete
-remaining work for whoever picks it up next.
+1. `auditWorktrees()` misidentifying the primary checkout when run from a
+   linked worktree (Phase 2)
+2. `update-ref` desyncing the primary checkout's `git status` after a
+   cross-worktree merge (Phase 3)
+3. `git branch -d` silently failing when the original worktree was removed
+   in the wrong order relative to it (Phase 3)
+4. `mergeWorktreeBranch()` trusting its `repoRoot` argument, silently
+   resyncing the wrong directory when called from inside a linked worktree
+   — the most consequential one, since it invalidated an earlier "verified"
+   claim that had to be corrected in place rather than left standing
+   (Phase 3)
+5. A `getByText('MERGEABLE')` Playwright locator substring-matching a
+   seeded title that happened to contain the word "Mergeable" too (Phase 7)
+
+One honest caveat carried into review, not a missing feature: AC-7/8/9/10/11
+are covered by real synthetic-fixture tests (throwaway git repos, real git
+operations, not mocked) but not observed live against this repo's actual
+worker or actual `origin` — that would mean either dragging a real track
+through a live worker's reconciliation cycle, or pushing to the real
+`origin` from outside LaneConductor, neither of which was done this session
+given the (small but real) blast radius on shared state. See spec.md's
+Scope Notes.
