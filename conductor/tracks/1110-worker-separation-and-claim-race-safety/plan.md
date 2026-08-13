@@ -305,5 +305,29 @@ regression could hide.
       original failure rate (e.g. 10/10 clean if the bug reproduced in
       most runs pre-fix)
 - [ ] Task 4: Manual live check — restart this project's own worker
+
+**Verified 2026-08-13 — all four tasks**:
+1. `local-fs-e2e.test.mjs`: 5/5 green.
+2. `track-1091-manager-worker.test.mjs`, `track-1091-create-project-worker.test.mjs`,
+   `track-1089-provision-worker-dispatch.test.mjs`, `track-1084-worker-lifecycle.test.mjs`,
+   `track-1033-worker-auth.test.mjs`: all green except the one
+   pre-existing, independently-confirmed-unrelated failure in
+   `track-1033-worker-auth.test.mjs` (present even on fully reverted
+   code, per the earlier `git stash` comparison).
+3. Phase 1's reproduction test: 0/8 double-claims, twice in a row.
+4. **Real live dogfood**, not just tests: this project's own worker was
+   stopped (`node bin/lc.mjs stop`, 131ms, confirmed genuinely dead) and
+   restarted (`node bin/lc.mjs start`, 841ms including the grace-period
+   check) using the actual fixed CLI in production. Result: exactly one
+   project worker process afterward, plus the separate manager identity
+   untouched — no duplicate, confirmed by cwd-filtered process
+   inspection, not by trusting the pidfile alone.
+
+**Track 1110 complete.** All 5 phases done: reproduction, worker
+separation (stop/restart confirming death + FS-lock defense-in-depth),
+API-mode claim atomicity, local-fs-mode claim atomicity, full regression.
+Both original problems (A: duplicate worker processes, B: double-claimed
+tracks) are closed and verified — by automated test, by intentional
+RED/GREEN swaps proving the tests are real, and by live production use.
       (dogfooding) and confirm no duplicate-process/duplicate-claim
       symptom recurs, mirroring how the original bug was found

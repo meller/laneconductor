@@ -1,9 +1,9 @@
 # Track 1110: Worker process separation + atomic track claiming
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New — root cause investigated 2026-08-13, design not yet chosen
+**Progress**: 100%
+**Phase**: All 5 phases complete 2026-08-13 — reproduction, worker separation, API-mode + local-fs-mode claim atomicity, full regression (incl. live production dogfood). Ready for review.
 **Type**: dev
 **Summary**: Two related safety gaps found live while dogfooding: (1) a worker restart can leave two OS processes sharing one identity because the pidfile guard trusts a possibly-stale local file, and (2) the…
 
