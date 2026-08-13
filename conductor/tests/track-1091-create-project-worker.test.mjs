@@ -91,7 +91,9 @@ describe('Track 1091 Phase 3: create-project dispatch handler', () => {
 
     managerWorker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', '--manager'], {
       cwd: MANAGER_DIR,
-      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1' },
+      // Track 1110 Phase 2: the manager identity lock is machine-global —
+      // see track-1091-manager-worker.test.mjs's identical note.
+      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     managerWorker.stdout.on('data', d => process.stdout.write(`[manager] ${d}`));
