@@ -346,6 +346,33 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
   }
 });
 
+// Track 1112/1084 dogfood incident (2026-08-13): the track panel's "Run on
+// worker" dropdown could only ever offer workers that already exist —
+// if the project's one worker was busy, a dispatch just queued silently
+// behind it with no way to actually get more capacity from the UI. Reuses
+// the exact mechanism the "Start Sync Worker" button already uses
+// (`lc start`), just parameterized with the next free --worker-number for
+// this project instead of always defaulting to 1 (which would hit the
+// "already running" guard when worker #1 exists, per bin/lc.mjs).
+app.post('/api/projects/:id/workers/start-new', async (req, res) => {
+  try {
+    const { rows: projRows } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (projRows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path } = projRows[0];
+
+    const { rows: numRows } = await pool.query(
+      `SELECT COALESCE(MAX(worker_number), 0) AS max_num FROM workers WHERE project_id = $1 AND type != 'manager'`,
+      [req.params.id]
+    );
+    const nextNumber = (numRows[0]?.max_num || 0) + 1;
+
+    const { stdout, stderr } = await execAsync(`lc start --worker-number ${nextNumber}`, { cwd: repo_path });
+    res.json({ ok: true, worker_number: nextNumber, stdout, stderr });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/projects/:id/worker/stop', async (req, res) => {
   try {
     const result = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
@@ -1014,10 +1041,10 @@ app.get('/api/projects/:id/tracks/finished', async (req, res) => {
 app.get('/api/projects/:id/tracks/:num', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, track_number, title, lane_status, progress_percent,
+      `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              assignee_uid, created_by_uid
+              active_cli, assignee_uid, created_by_uid
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1029,6 +1056,15 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       track_number: t.track_number,
       title: t.title,
       lane_status: t.lane_status,
+      // Track 1112 dogfood incident (2026-08-13): lane_action_status and
+      // active_cli were columns on the table and written by the worker,
+      // but never selected/returned here — the client's "is this run
+      // actually live right now" logic (TrackDetailPanel's Logs tab) had
+      // no way to ever be correct, for any track, because the field it
+      // checked was always undefined. Verified live: a real running
+      // track's own detail fetch had neither key at all.
+      lane_action_status: t.lane_action_status,
+      active_cli: t.active_cli,
       progress_percent: t.progress_percent,
       current_phase: t.current_phase,
       content_summary: t.content_summary,

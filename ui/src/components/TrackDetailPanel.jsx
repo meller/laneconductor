@@ -5,6 +5,7 @@ import { TranscriptView } from './TranscriptView.jsx';
 import { useApi } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
+import { isWorkerOffline, selectDefaultWorker } from '../lib/workerStatus.js';
 
 const CONTENT_TABS = [
   { key: 'index', label: 'Overview' },
@@ -26,12 +27,21 @@ const LANE_BADGE = {
 // validates action === track.lane_status, so a track sitting in 'backlog'
 // or 'done' has no valid action to dispatch at all.
 const DISPATCHABLE_LANES = ['plan', 'implement', 'review', 'quality-gate'];
-const WORKER_OFFLINE_MS = 60_000;
 
-function isWorkerOffline(worker) {
-  if (!worker?.last_heartbeat) return true;
-  return Date.now() - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
-}
+// One helper line per composer mode, shown BEFORE sending — states exactly
+// what will happen, including the manual-worker caveat that made plain
+// "Send" look broken (track 1112: message posted, lane re-queued, nothing
+// ever ran, zero feedback).
+const SEND_MODE_HELP = {
+  send: 'Posts to the conversation and re-queues the current lane. On a manual (sync-only) worker nothing runs until you dispatch — use a "Run" mode to act immediately.',
+  note: 'Posts to the conversation only. No automation, no worker wake-up.',
+  'run:plan': 'Posts the message, moves this track to plan, and runs plan now on the selected worker.',
+  'run:implement': 'Posts the message, moves this track to implement, and runs implement now on the selected worker.',
+  'run:review': 'Posts the message, moves this track to review, and runs review now on the selected worker.',
+  'run:quality-gate': 'Posts the message, moves this track to quality-gate, and runs quality-gate now on the selected worker.',
+  brainstorm: 'Posts the message and dispatches a Q&A turn to the selected worker (a quick reply, no lane action, no worktree) — reply appears above in the dispatch history.',
+  bug: 'Posts a bug report and appends a regression-test block to this track\'s test.md.',
+};
 
 const AUTHOR_STYLES = {
   human: { label: 'You', dot: 'bg-gray-400', body: 'bg-gray-800 text-gray-200' },
@@ -86,6 +96,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState([]);
+  const [sendMode, setSendMode] = useState('send');
+  const [provisioningWorker, setProvisioningWorker] = useState(false);
   // Track 1087 Phase 4: live session transcript drawer
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptState, setTranscriptState] = useState(() => createTranscriptState());
@@ -171,11 +183,28 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // worker" dropdown. Unlike the assignee list, this isn't auth-gated — a
   // worker is visible regardless of who (if anyone) owns it, since in a
   // no-auth (local-api) deployment every worker's user_uid is null anyway.
+  //
+  // Track 1112 dogfood incident (2026-08-13): this was a ONE-TIME fetch —
+  // the server's own query additionally requires
+  // `last_heartbeat > NOW() - INTERVAL '60 seconds'` (see
+  // GET /api/projects/:id/workers), so whatever snapshot happened to be
+  // true at the single moment this fired became permanently frozen for
+  // the rest of the panel's mounted lifetime. Observed live: a panel left
+  // open while a track's own dispatch ran ended up with its real, active
+  // worker missing from the dropdown entirely (not just mis-selected —
+  // genuinely absent from the option list), because that one query moment
+  // didn't catch it. Polling matches the existing fetchDispatchHistory
+  // pattern just above.
   useEffect(() => {
-    apiFetch(`/api/projects/${projectId}/workers`)
-      .then(r => r.ok ? r.json() : [])
-      .then(setProjectWorkers)
-      .catch(() => setProjectWorkers([]));
+    const fetchWorkers = () => {
+      apiFetch(`/api/projects/${projectId}/workers`)
+        .then(r => r.ok ? r.json() : [])
+        .then(setProjectWorkers)
+        .catch(() => setProjectWorkers([]));
+    };
+    fetchWorkers();
+    const id = setInterval(fetchWorkers, 4000);
+    return () => clearInterval(id);
   }, [projectId]);
 
   const fetchDispatchHistory = () => {
@@ -197,20 +226,121 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // workers (workers.user_uid, track 1084) when possible, falling back to
   // the first idle worker, then just the first worker in the list.
   useEffect(() => {
-    if (!detail || projectWorkers.length === 0 || selectedWorkerId) return;
+    if (!detail || projectWorkers.length === 0) return;
+    // Track 1112 dogfood incident (2026-08-13): don't just pick once and
+    // stop — if the currently selected worker has since gone offline (or
+    // was wrongly picked before this fix existed, on a panel that's stayed
+    // mounted since), re-run the selection instead of leaving a dead
+    // choice stuck in the dropdown indefinitely. A still-valid selection
+    // (present in the list, online) is left alone — this must not fight a
+    // user's own manual pick.
+    // A worker actually usable RIGHT NOW for a fresh dispatch — busy
+    // still counts as "valid" once already selected (that's normal
+    // queueing), but never as the INITIAL default (see below).
+    const current = projectWorkers.find(w => String(w.id) === selectedWorkerId);
+    if (current && !isWorkerOffline(current)) return;
+    if (selectedWorkerId === '__new__') return;
     const assignee = detail.assignee_uid ?? detail.created_by_uid;
-    const ownWorker = assignee ? projectWorkers.find(w => w.user_uid === assignee) : null;
-    const idleWorker = projectWorkers.find(w => w.status !== 'busy' && !isWorkerOffline(w));
-    setSelectedWorkerId(String((ownWorker ?? idleWorker ?? projectWorkers[0]).id));
+    const picked = selectDefaultWorker(projectWorkers, assignee);
+    // Track 1112/1084 dogfood incident (2026-08-13): "it should default
+    // [to New] if all workers are busy (manager is also not used by
+    // default)" — a busy or manager pick is technically "a worker," but
+    // defaulting TO it silently queues the user behind other work with no
+    // signal that a faster path (start a new one) exists. Only default to
+    // an existing worker if it's genuinely ready to go right now.
+    const isReadyNow = picked && picked.type !== 'manager' && !isWorkerOffline(picked) && picked.status !== 'busy';
+    setSelectedWorkerId(isReadyNow ? String(picked.id) : '__new__');
   }, [detail, projectWorkers]);
 
+  // Track 1112 dogfood incident (2026-08-13), third instance: "Brainstorm"
+  // set Waiting for reply=yes and relied on autoLaunchLocalFs to notice —
+  // but that whole poll is hard-skipped for sync-only workers
+  // (conductor/laneconductor.sync.mjs:5055, `if (syncOnly) return`), so on
+  // this project's workers it silently never happened, same as plain
+  // Send. track_chat dispatches don't have this problem: they're picked
+  // up by checkDispatchInbox, which polls unconditionally regardless of
+  // worker mode — already proven live earlier this session (the
+  // worktree-merge Q&A). Routing Brainstorm through it instead of the
+  // flag-and-hope mechanism.
+  async function dispatchTrackChat(prompt) {
+    if (!detail?.id || !projectId || !trackNumber) return;
+    const workerId = await resolveWorkerId();
+    if (!workerId) return;
+    await apiFetch(`/api/projects/${projectId}/dispatch`, {
+      method: 'POST',
+      body: JSON.stringify({
+        worker_id: parseInt(workerId),
+        action: 'track_chat',
+        track_number: trackNumber,
+        payload: { prompt, track_number: trackNumber },
+      }),
+    });
+    fetchDispatchHistory();
+  }
+
+  // Track 1112/1084 dogfood incident (2026-08-13): "the modal isn't aware
+  // [the only worker is busy]" — correct, but the fix isn't just showing
+  // busy status, it's giving the user somewhere to go when the one worker
+  // IS busy: get another one right from this dropdown, reusing the exact
+  // mechanism the Workers tab's "Start Sync Worker" button already uses
+  // (POST .../worker/start → `lc start`), just auto-numbered so it adds a
+  // worker instead of hitting the "already running" guard on #1.
+  // Returns the new worker's id (string) once it's registered and online,
+  // or null if provisioning failed/timed out — callers that need to
+  // dispatch immediately after (Run now / Send & Run / Brainstorm, all
+  // triggered by picking "+ New worker…") await this instead of relying
+  // on the state update landing before their own next line runs.
+  async function handleStartNewWorker() {
+    if (!projectId) return null;
+    setProvisioningWorker(true);
+    const knownIds = new Set(projectWorkers.map(w => w.id));
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/workers/start-new`, { method: 'POST' });
+      if (!r.ok) {
+        const { error } = await r.json().catch(() => ({}));
+        alert(`Failed to start a new worker: ${error || r.statusText}`);
+        return null;
+      }
+      // The new worker registers async (its own process boot + heartbeat
+      // POST) — poll briefly for it to show up rather than guessing a delay.
+      for (let attempt = 0; attempt < 15; attempt++) {
+        await new Promise(res => setTimeout(res, 1500));
+        const wr = await apiFetch(`/api/projects/${projectId}/workers`);
+        if (!wr.ok) continue;
+        const workers = await wr.json();
+        const fresh = workers.find(w => !knownIds.has(w.id) && w.type !== 'manager');
+        if (fresh) {
+          setProjectWorkers(workers);
+          setSelectedWorkerId(String(fresh.id));
+          return String(fresh.id);
+        }
+      }
+      alert('New worker was started but hasn\'t registered yet — it should appear shortly; refresh if not.');
+      return null;
+    } catch (err) {
+      alert(`Failed to start a new worker: ${err.message}`);
+      return null;
+    } finally {
+      setProvisioningWorker(false);
+    }
+  }
+
+  // Resolves the "+ New worker…" sentinel to a real worker id before any
+  // dispatch, provisioning one on demand if that's what's selected.
+  async function resolveWorkerId() {
+    if (selectedWorkerId === '__new__') return handleStartNewWorker();
+    return selectedWorkerId || null;
+  }
+
   async function dispatchRunNow(action) {
-    if (!detail?.id || !selectedWorkerId) return;
+    if (!detail?.id) return;
+    const workerId = await resolveWorkerId();
+    if (!workerId) return;
     setDispatching(true);
     try {
       const r = await apiFetch(`/api/tracks/${detail.id}/dispatch`, {
         method: 'POST',
-        body: JSON.stringify({ worker_id: parseInt(selectedWorkerId), action }),
+        body: JSON.stringify({ worker_id: parseInt(workerId), action }),
       });
       if (r.ok) fetchDispatchHistory();
       else {
@@ -280,7 +410,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     setSending(false);
   }
 
-  async function sendComment(textOverride, newLaneStatus, noWake = false, command = undefined) {
+  async function sendComment(textOverride, newLaneStatus, noWake = false, command = undefined, dispatchAfter = false) {
     const isEvent = typeof textOverride === 'object' && textOverride !== null;
     const isMissing = textOverride === undefined;
     const bodyStr = isEvent || isMissing ? draft : textOverride;
@@ -308,14 +438,46 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
         });
         if (pr.ok) {
           fetchDetail();
+          // Track 1112 dogfood incident (2026-08-13): posting "lets do
+          // phase 7" to a track sitting in review re-queued the REVIEW
+          // lane (the wake logic re-queues whatever lane is current) on a
+          // sync-only worker that never polls — so nothing visibly
+          // happened at all. Send & Run closes that whole gap in one
+          // action: comment → lane move → explicit dispatch. The dispatch
+          // must come AFTER the lane PATCH commits, because
+          // POST /api/tracks/:id/dispatch rejects any action that doesn't
+          // match the track's current lane.
+          if (dispatchAfter && detail?.id && selectedWorkerId) {
+            await dispatchRunNow(newLaneStatus);
+          }
         }
       }
     } catch { }
     setSending(false);
   }
 
+  const needsOnlineWorker = sendMode.startsWith('run:') || sendMode === 'brainstorm';
+  // '__new__' isn't a real worker to check offline-ness against — it means
+  // "provision one on click," which resolveWorkerId() handles. Only an
+  // actually-selected-but-offline worker should disable the button.
+  const selectedWorkerUnusable = selectedWorkerId && selectedWorkerId !== '__new__'
+    && isWorkerOffline(projectWorkers.find(w => String(w.id) === selectedWorkerId));
+
+  function handleComposerSend() {
+    if (sendMode === 'note') return sendComment(undefined, undefined, true);
+    if (sendMode === 'brainstorm') {
+      const text = draft.trim();
+      if (!text) return;
+      sendComment(undefined, undefined, true); // persist the human turn; no_wake — the dispatch below is the real wake
+      return dispatchTrackChat(text);
+    }
+    if (sendMode === 'bug') return openBug();
+    if (sendMode.startsWith('run:')) return sendComment(undefined, sendMode.slice(4), true, undefined, true);
+    return sendComment();
+  }
+
   function handleKeyDown(e) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendComment();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleComposerSend();
   }
 
   const allTabs = [
@@ -395,23 +557,37 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                     <span className="text-xs text-gray-600">Run on worker:</span>
                     <select
                       value={selectedWorkerId}
-                      disabled={dispatching}
-                      onChange={e => setSelectedWorkerId(e.target.value)}
+                      disabled={dispatching || provisioningWorker}
+                      onChange={e => e.target.value === '__new__' ? handleStartNewWorker() : setSelectedWorkerId(e.target.value)}
                       className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
                     >
                       {projectWorkers.map(w => (
                         <option key={w.id} value={w.id}>
-                          {w.hostname}#{w.worker_number ?? 1}{isWorkerOffline(w) ? ' (offline)' : ''}
+                          {/* Track 1112 dogfood incident (2026-08-13): the
+                              manager and this project's own worker can
+                              share a hostname and worker_number, making
+                              them render as literally identical text —
+                              "is it the real worker?" was unanswerable
+                              from this dropdown alone. PID disambiguates
+                              (always unique) and the MANAGER tag explains
+                              *why* two entries look alike instead of
+                              leaving it a mystery. Busy is now shown too —
+                              "the modal isn't aware [it's busy]" (same
+                              session): a track_chat sat silently queued
+                              behind another dispatch with no visible
+                              reason until it finally ran. */}
+                          {w.hostname}#{w.worker_number ?? 1}{w.type === 'manager' ? ' · MANAGER' : ''} (PID {w.pid}){isWorkerOffline(w) ? ' — offline' : w.status === 'busy' ? ' — busy' : ''}
                         </option>
                       ))}
+                      <option value="__new__">+ New worker…</option>
                     </select>
                     <button
                       onClick={() => dispatchRunNow(detail.lane_status)}
-                      disabled={dispatching || !selectedWorkerId || isWorkerOffline(projectWorkers.find(w => String(w.id) === selectedWorkerId))}
+                      disabled={dispatching || provisioningWorker || !selectedWorkerId || selectedWorkerUnusable}
                       title={`Run ${detail.lane_status} now on this worker, outside the normal queue`}
                       className="text-xs px-2 py-0.5 rounded border border-blue-800/70 text-blue-400 hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {dispatching ? 'Dispatching…' : `Run ${detail.lane_status} now`}
+                      {provisioningWorker ? 'Starting worker…' : dispatching ? 'Dispatching…' : `Run ${detail.lane_status} now`}
                     </button>
                   </div>
                 )}
@@ -507,65 +683,81 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 rows={2}
                 className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-gray-500 shadow-inner"
               />
-              <div className="flex flex-wrap items-center justify-between gap-y-3">
-                <div className="flex gap-2">
-                  <button
-                    onClick={openBug}
-                    disabled={sending}
-                    title="Report a bug — uses your draft text as the description and adds a regression test to test.md"
-                    className="px-2 py-1 rounded border border-red-900/50 bg-red-950/20 text-red-400 text-[10px] font-medium hover:bg-red-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              {/* Track 1112/1113 dogfood consolidation (2026-08-13): the
+                  composer had 7 separate controls (Bug, Brainstorm, Replan,
+                  + New Track, Post Note, Send & Run, Send) and the user
+                  couldn't tell what any of them would actually do — "all
+                  these buttons are confusing." Replaced with ONE action
+                  selector + ONE Send button + a helper line that states
+                  exactly what will happen before it happens. Replan is
+                  gone entirely (it was Send & Run → plan minus the
+                  dispatch, i.e. strictly worse); Bug/Brainstorm keep their
+                  real side effects as selectable modes; + New Track stays
+                  as a small side control since it opens a modal rather
+                  than sending anything. */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={sendMode}
+                    onChange={e => setSendMode(e.target.value)}
+                    disabled={sending || dispatching}
+                    className="text-[11px] bg-gray-950 border border-gray-700 rounded-lg px-2 py-2 text-gray-300 disabled:opacity-40"
                   >
-                    Bug
-                  </button>
-                  <button
-                    onClick={() => sendComment(undefined, undefined, false, 'brainstorm')}
-                    disabled={sending}
-                    title="Start a brainstorm dialogue"
-                    className="px-2 py-1 rounded border border-violet-900/50 bg-violet-950/20 text-violet-400 text-[10px] font-medium hover:bg-violet-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Brainstorm
-                  </button>
-                  <button
-                    onClick={() => sendComment(undefined, 'plan', false, 'replan')}
-                    disabled={sending}
-                    title="Move back to planning to refine spec or plan"
-                    className="px-2 py-1 rounded border border-indigo-900/50 bg-indigo-950/20 text-indigo-400 text-[10px] font-medium hover:bg-indigo-900/40 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Replan
-                  </button>
+                    <option value="send">💬 Message</option>
+                    <option value="note">📝 Note (no automation)</option>
+                    {projectWorkers.length > 0 && DISPATCHABLE_LANES.map(l => (
+                      <option key={l} value={`run:${l}`}>▶ Run {l}</option>
+                    ))}
+                    <option value="brainstorm">💭 Brainstorm (Q&A)</option>
+                    <option value="bug">🐛 Bug report</option>
+                  </select>
                   <button
                     onClick={() => setShowNewTrack(true)}
                     title="Open a new related track using draft text"
-                    className="px-2 py-1 rounded border border-emerald-900/50 bg-emerald-950/20 text-emerald-400 text-[10px] font-medium hover:bg-emerald-900/40 transition-colors"
+                    className="px-2 py-2 rounded-lg border border-gray-700 text-gray-400 text-[11px] font-medium hover:bg-gray-800 hover:text-gray-200 transition-colors"
                   >
                     + New Track
                   </button>
-                </div>
-
-                <div className="flex gap-2 ml-auto">
                   <button
-                    onClick={() => sendComment(undefined, undefined, true)}
-                    disabled={!draft.trim() || sending}
-                    title="Send as a note (won't trigger automation or wake workers)"
-                    className="px-3 py-2 rounded-lg border border-gray-700 text-gray-400 text-[11px] font-medium hover:bg-gray-800 hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    onClick={handleComposerSend}
+                    disabled={!draft.trim() || sending || dispatching || provisioningWorker || (needsOnlineWorker && (!selectedWorkerId || selectedWorkerUnusable))}
+                    title={SEND_MODE_HELP[sendMode]}
+                    className={`ml-auto px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-medium shadow-lg transition-all flex items-center gap-1.5 ${sendMode.startsWith('run:')
+                      ? 'bg-emerald-700 hover:bg-emerald-600 shadow-emerald-900/20'
+                      : 'bg-blue-700 hover:bg-blue-600 shadow-blue-900/20'
+                      }`}
                   >
-                    Post Note
-                  </button>
-                  <button
-                    onClick={() => sendComment()}
-                    disabled={!draft.trim() || sending}
-                    title="Send message and notify workers (⌘↵)"
-                    className="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-medium shadow-lg shadow-blue-900/20 transition-all flex items-center gap-1.5"
-                  >
-                    <span>Send</span>
+                    <span>{sendMode.startsWith('run:') ? `Send & Run ${sendMode.slice(4)}` : 'Send'}</span>
                     <span className="text-[10px] opacity-60">⌘↵</span>
                   </button>
                 </div>
+                <p className="text-[10px] text-gray-500 leading-relaxed">
+                  {SEND_MODE_HELP[sendMode]}
+                </p>
               </div>
             </div>
           </div>
         ) : tab === 'logs' ? (
           <div className="flex-1 overflow-y-auto px-5 py-4 bg-gray-900/50">
+            {/* Track 1102 F14, corrected live (2026-08-13, track 1112's own
+                dispatch): last_log_tail is only written by spawnCli's exit
+                handler for claude runs (the live 5s tail interval at
+                conductor/laneconductor.sync.mjs:3523 is disabled for
+                cli === 'claude') — so during an ACTIVE claude run, any
+                last_log_tail present is a leftover from the PREVIOUS
+                completed run, not this one. The banner below flags that
+                live case, but does NOT hide the old content underneath —
+                a first version of this fix replaced the log entirely with
+                the hint, which silently made a real previous-run log
+                unreachable while a new run was in progress. Non-claude
+                CLIs are untouched — their last_log_tail IS live (same
+                interval, still enabled), so no banner is needed there. */}
+            {detail?.lane_action_status === 'running' && detail?.active_cli === 'claude' && (
+              <p className="text-blue-400 text-xs italic mb-3 pb-3 border-b border-gray-800">
+                A run is in progress right now — its live output is on the Transcript tab, not here.
+                {detail?.last_log_tail && ' The log below is from the previous run.'}
+              </p>
+            )}
             {detail?.last_log_tail ? (
               <>
                 <pre className="text-[11px] font-mono text-gray-400 whitespace-pre-wrap leading-relaxed">
@@ -573,15 +765,14 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                 </pre>
                 <div ref={logsEndRef} />
               </>
-            ) : (
+            ) : !(detail?.lane_action_status === 'running' && detail?.active_cli === 'claude') && (
               // Track 1102 F14: for cli === 'claude' runs, spawnCli
-              // deliberately skips the raw-text tail interval
-              // (conductor/laneconductor.sync.mjs:3523) in favor of the
-              // structured stream-json feed the Transcript tab reads —
-              // last_log_tail is never populated for them, so this tab
-              // is correctly empty by design, not broken. Said so
-              // honestly instead of leaving an unexplained empty state
-              // that reads the same as "nothing ran yet."
+              // deliberately skips the raw-text tail interval in favor of
+              // the structured stream-json feed the Transcript tab reads —
+              // last_log_tail is never populated for them, so this tab is
+              // correctly empty by design, not broken. Said so honestly
+              // instead of leaving an unexplained empty state that reads
+              // the same as "nothing ran yet."
               <p className="text-gray-600 text-sm italic pt-4">
                 {detail?.active_cli === 'claude'
                   ? 'This run\'s live output is on the Transcript tab — Claude runs stream structured events there instead of a raw log tail.'

@@ -424,7 +424,7 @@ function AppContent({ user, logout }) {
         </div>
       </header>
 
-      {viewMode === 'lanes' && <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} />}
+      {viewMode === 'lanes' && <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} onSelectTrack={handleInboxSelect} />}
 
       {/* Conductor context panel */}
       {conductorOpen && selectedProject && (
@@ -480,7 +480,7 @@ function AppContent({ user, logout }) {
             </p>
           </div>
         ) : viewMode === 'workers' ? (
-          <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} />
+          <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
         ) : tracks.length === 0 && user && !user.local ? (
@@ -554,6 +554,7 @@ function AppContent({ user, logout }) {
           workers={workers}
           projectId={selectedProjectId}
           onClose={() => setActivityOpen(false)}
+          onSelectTrack={handleInboxSelect}
         />
       )}
 
