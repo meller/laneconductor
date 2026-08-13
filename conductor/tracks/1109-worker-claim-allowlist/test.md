@@ -49,7 +49,9 @@ node --test conductor/tests/*.test.mjs
       `--sync-and-work --only-tracks 42 --once` — expected: exact argv.
 
 ### Phase 5: Observability
-- [~] TC-14: (startup log only; collector reporting not done)  startup log names the effective claim scope.
+- [x] TC-14: startup log names the effective claim scope. (Collector-side
+      reporting descoped 2026-08-13 — see spec.md REQ-4; no longer part of
+      this criterion.)
 
 ### Phase 6: Session continuity
 - [ ] TC-15: **NOT RUN** — two successive scoped runs of the same track → the second gets

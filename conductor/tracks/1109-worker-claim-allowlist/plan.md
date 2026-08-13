@@ -52,12 +52,12 @@ foreground tool or in CI.
 ## Phase 5: Observability
 
 - [x] Task 1: Log the effective claim scope at startup.
-- [ ] Task 2: **NOT DONE.** Report the scope to the collector so the UI can
-      show a scoped worker as scoped rather than idle-and-broken. Only the
-      startup log (Task 1) was implemented. Persisting this needs a new
-      `workers` column plus UI work — a schema change, not a one-liner, so it
-      is left open rather than half-shipped. Consequence today: in the UI a
-      scoped worker is indistinguishable from an idle one.
+- [x] Task 2: **Descoped 2026-08-13** (see spec.md REQ-4), not implemented.
+      Reporting the scope to the collector for UI display needs a `workers`
+      schema column plus UI work, disproportionate to what this track is for.
+      Real follow-up work, but it belongs with 1084 Phase 6, not here. In the
+      UI a scoped worker still looks like an idle one — a known, accepted
+      limitation, not a silently dropped requirement.
 
 ## Phase 6: Tests
 
@@ -176,3 +176,25 @@ green tests do not override it.
 
 Lane → `plan:queue` per `workflow.json` `lanes.quality-gate.on_failure`.
 Progress held at 95%.
+
+## ✅ REQ-4 descoped — 2026-08-13
+
+Per explicit decision: the collector-reporting half of REQ-4 (persisting
+claim scope to the `workers` table for UI display) is dropped from this
+track's requirements. It needs a schema column plus UI work, which is
+disproportionate to what this track exists for — unblocking `lc worker run`
+as a CLI/CI tool. The startup log already satisfies the remaining
+requirement (a deliberately scoped worker must not read as broken); anyone
+running one is watching its own terminal.
+
+Collector-side reporting is real work, not abandoned — it's reassigned to
+[1084](../1084-worker-identity-and-assignment/index.md) Phase 6, which
+already owns the worker-lifecycle UI gaps this belongs with.
+
+**No code change required** — the shipped implementation (Phase 5 Task 1,
+the startup log) already fully satisfies the descoped REQ-4. This was a
+spec.md edit only: `spec.md`, `plan.md`, `test.md` updated to match.
+
+Lane → `plan:success` per `workflow.json`. Since no implementation work
+follows from this edit, re-entering review directly rather than leaving the
+track stranded in `plan`.

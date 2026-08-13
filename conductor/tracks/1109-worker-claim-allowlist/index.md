@@ -1,9 +1,9 @@
 # Track 1109: Worker claim allowlist — scope which tracks a worker may claim
 
-**Lane**: plan
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 95%
-**Phase**: Quality gate FAILED (done-gate) — REQ-4 collector reporting incomplete
+**Phase**: REQ-4 descoped 2026-08-13 — collector reporting dropped, startup log suffices
 **Type**: dev
 **Summary**: "Start a worker" today means "consume the whole queue", so you cannot run one track without collateral. Add a claim allowlist plus an `lc worker run <track>` front door, making scoped invocation the…
 
