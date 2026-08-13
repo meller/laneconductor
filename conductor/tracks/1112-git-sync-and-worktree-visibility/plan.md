@@ -384,24 +384,39 @@ classifications. Synthetic fixtures alone would not have caught RC-A.
 **Solution**: Unit/integration tests on synthetic repos, plus a real check
 against this machine's actual state.
 
-- [ ] New `conductor/tests/track-1112-worktree-visibility.test.mjs`
-      (classification, stranded detection, local-fs mode, JSON output)
-- [ ] New `conductor/tests/track-1112-worktree-merge.test.mjs` (RC-A merge
-      with no directory, primary-checkout-untouched assertion, conflict
-      left intact, idempotent reconciler)
-- [ ] New `conductor/tests/track-1112-git-divergence.test.mjs` (two-repo
-      fixture with a real remote: behind → reported; diverged → refused;
-      dirty overlap → refused; clean FF → pulled + resynced)
-- [ ] Existing `conductor/tests/track-1035-worktree-lifecycle.test.mjs`
-      still passes (AC-12)
-- [ ] **Live check on this machine** (not synthetic): `lc worktrees` output
-      classifies 1044/1059 `stranded` and 1099 `mergeable`, computed — then
-      `lc worktrees merge 1099` and `1044` actually clear them from
-      `git branch --no-merged main`
-- [ ] Record the observed output in `conversation.md` as evidence
+- [x] New `conductor/tests/track-1112-worktree-visibility.test.mjs` (5
+      tests: CLI-level coverage of `bin/lc.mjs`'s `worktrees` wrapper —
+      clean-exit message, `--json` shape, `--stranded` filter, `--dry-run`,
+      non-done:success refusal — scaffolded against a real `mode:
+      "local-fs"` project per REQ-2/AC-3)
+- [x] New `conductor/tests/track-1112-worktree-merge.test.mjs` (8 tests:
+      RC-A merge with no directory, primary-checkout-untouched assertion,
+      dirty-overlap content-preservation, conflict left intact, branch
+      deletion when the original worktree still exists, and the
+      primary-checkout-resolution regression test)
+- [x] New `conductor/tests/track-1112-git-divergence.test.mjs` (10 tests,
+      real bare-origin + two-clone fixture: behind → reported; diverged →
+      refused; dirty overlap → refused; clean FF → pulled + resynced;
+      never a bare `git pull`; `auto_pull:false` respected)
+- [x] Existing `conductor/tests/track-1035-worktree-lifecycle.test.mjs`
+      still passes (AC-12) — 4/4
+- [x] **Live check on this machine** (not synthetic, real remote too):
+      `lc worktrees` classified `track-1053`/`track-1069` `mergeable`
+      (the corrected audit's actual 2 actionable branches — 1044/1059/1099
+      turned out `open`/superseded per the Phase 1→2 correction, not
+      `stranded`/`mergeable` as originally estimated) — then
+      `lc worktrees merge 1053` and `1069` actually cleared them from
+      `git branch --no-merged main` (44 → 42), and `checkDivergence()`
+      confirmed local `main` in sync with the real `origin/main` afterward.
+      Four additional real bugs found and fixed during this live pass (see
+      Phase 3/5 entries above and `conversation.md`).
+- [x] Recorded the observed output in `conversation.md` as evidence
 
-**Impact**: The fix is verified against the exact 44-branch state that
-motivated the track, not a toy repo.
+**Impact**: The fix is verified against the exact real branch state that
+motivated the track, not a toy repo — and that live pass is what surfaced
+4 of the bugs actually fixed in this track (the primary-checkout
+resolution bug chief among them), none of which any of the synthetic
+fixtures alone would have caught.
 
 ---
 
@@ -474,3 +489,16 @@ machines the viewer isn't sitting at.
 > reach `done` at 100%. Per the quality-gate done-gate, it lands in `review`
 > with Phase 7 named as the remaining work. Deferring is allowed; calling it
 > complete is not.
+
+## ⚠️ PARTIAL — Phases 1-6 complete, Phase 7 deferred
+
+Phases 1-6 are implemented and live-verified against this repo's real
+branch state and real remote (see Phase 6 above and `conversation.md` for
+the full evidence writeup, including 4 real bugs found and fixed during
+the live pass — the primary-checkout-resolution bug chief among them).
+
+Phase 7 (UI worktree panel) is deliberately out of scope for this pass —
+CLI-first was the explicit design decision (D-1), and REQ-12/REQ-13 remain
+unchecked in `spec.md`. Per this track's own done-gate, that means it
+lands in `review`, not `done` at 100%, with Phase 7 named as the concrete
+remaining work for whoever picks it up next.

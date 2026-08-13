@@ -1,13 +1,13 @@
 # Track 1112: Out-of-band git sync + worktree visibility/merge UI
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 70%
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 85%
 **Last Run**: claude/sonnet (primary)
-**Phase**: Phases 1–5 complete (audit, `lc worktrees`, RC-A/RC-B lifecycle fixes + reconciler, manual merge, out-of-band git sync + safe auto-pull) — live-verified against this repo's real branches and real remote. Phase 6 (regression + live-verification writeup) remains; Phase 7 (UI panel) may be deferred.
+**Phase**: Phases 1–6 complete (audit, `lc worktrees`, RC-A/RC-B lifecycle fixes + reconciler, manual merge, out-of-band git sync + safe auto-pull, tests + live verification) — live-verified against this repo's real branches and real remote, 4 real bugs found and fixed along the way. Phase 7 (UI worktree panel) explicitly deferred — see plan.md's done-gate note; track cannot reach `done` at 100% without it.
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Planned. Audit of all 44 unmerged branches found 41 legitimately open, 2 stranded by RC-A (merge gated on the worktree dir existing), 1 missed by RC-B (merge only fires from one worker exit path).…
+**Summary**: Implemented and live-verified. `lc worktrees` (+ `merge`) ships; RC-A/RC-B lifecycle bugs fixed with a heartbeat reconciler; out-of-band git sync detects and safely auto-pulls third-party pushes. Live pass against this repo's real branches merged 2 real tracks into `main` and surfaced 4 additional real bugs (fixed). Phase 7 (UI panel) deferred — lands in review, not done.
 
 ## Problem
 
@@ -97,8 +97,8 @@ safe fast-forward.
 - [x] Phase 3: Lifecycle fixes — RC-A (merge on branch existence, not directory), RC-B (`reconcileWorktrees()` on heartbeat), merge in a scratch worktree
 - [x] Phase 4: `lc worktrees merge <track>` — manual path, incl. the stranded case, `--dry-run` / `--force`
 - [x] Phase 5: Out-of-band git sync — periodic fetch + divergence reporting; auto-pull only on clean FF with no dirty overlap; post-pull FS→DB resync
-- [ ] Phase 6: Tests + LIVE verification against this machine's real 44-branch state
-- [ ] Phase 7: UI worktree panel via heartbeat reporting — **may be deferred**; if it is, this track cannot be marked `done` at 100%
+- [x] Phase 6: Tests + LIVE verification against this machine's real branch state (35 new tests, 4 real bugs found live and fixed, evidence in conversation.md)
+- [ ] Phase 7: UI worktree panel via heartbeat reporting — **deferred**; this track lands in `review`, not `done`, until it's implemented
 
 ## Depends on
 None directly, but touches the same worktree lifecycle code
