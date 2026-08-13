@@ -164,3 +164,15 @@ literal marker reaching the agent prompt on a real run.
 Still open: Phase 5 Task 2 (report claim scope to the collector for the UI).
 
 Lane → quality-gate:queue per `workflow.json` `lanes.review.on_success`.
+
+## ❌ QUALITY GATE FAILED — 2026-08-13 (done-gate)
+
+All automated/E2E/real-product checks pass. Fails purely on the done-gate:
+`spec.md` REQ-4 requires the claim scope be "reported to the collector", and
+only the startup-log half of that shipped (Phase 5 Task 1). Task 2 remains
+open, as honestly flagged at implement and review time. Per the quality
+gate's rule, an honestly-flagged deferred capability still blocks `done` —
+green tests do not override it.
+
+Lane → `plan:queue` per `workflow.json` `lanes.quality-gate.on_failure`.
+Progress held at 95%.
