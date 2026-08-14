@@ -133,15 +133,36 @@ found during Phase 2 implementation, not present in the original spec)
 
 ## Acceptance Criteria
 
-- [ ] `workers.type` migration applied; existing workers default to `'project'`
-- [ ] `lc worker start --manager` registers a worker with `type: 'manager'`, `project_id: null`
-- [ ] A second `lc worker start --manager` on the same hostname fails clearly instead of registering a second manager for that machine
-- [ ] A `create-project` dispatch is rejected by the API if the target
+*(checked off 2026-08-14 during review/quality-gate — these were satisfied
+since Phase 1-4 but the boxes were never updated; each now backed by the
+test/verification evidence in test.md and conversation.md, not just this
+checkbox)*
+
+- [x] `workers.type` migration applied; existing workers default to `'project'`
+- [x] `lc worker start --manager` registers a worker with `type: 'manager'`, `project_id: null`
+- [x] A second `lc worker start --manager` on the same hostname fails clearly instead of registering a second manager for that machine
+- [x] A `create-project` dispatch is rejected by the API if the target
       worker isn't `type: 'manager'`
-- [ ] A `type: 'project'` worker never claims a `create-project` entry even
+- [x] A `type: 'project'` worker never claims a `create-project` entry even
       if one somehow exists addressed to it
-- [ ] End-to-end: submitting the New Project UI flow results in a scaffolded
+- [x] End-to-end: submitting the New Project UI flow results in a scaffolded
       project (all standard `conductor/` files present) and a registered
       `projects` + `workers` row, without any manual terminal command
-- [ ] Existing single-worker, `lc setup`-based onboarding is completely
-      unaffected (this is a new, additional path, not a replacement)
+- [x] Existing single-worker, `lc setup`-based onboarding is completely
+      unaffected (this is a new, additional path, not a replacement) —
+      verified 2026-08-14, see test.md TC-31
+
+## REQ-6: Create Manager Worker UI (added 2026-08-14, Phase 5b)
+
+Both `ProvisionWorkerModal.jsx` and `NewProjectModal.jsx` dead-ended into
+"go run `lc worker start --manager --projects-dir <path>` yourself" when no
+manager was online. Added `POST /api/workers/manager/start` (execFile,
+argument array — the first of these worker-lifecycle endpoints taking
+free-text browser input) and a shared `CreateManagerWorkerForm.jsx`, gated
+`!cloudMode`, wired into both dead-ends alongside (not replacing) the
+manual command, which remains the only path for machines other than the
+one running the API server.
+
+- [x] Button actually starts a manager and it registers in the DB (verified live)
+- [x] Free-text `projectsDir` cannot reach a shell (verified live + automated test)
+- [x] Automated test coverage for the endpoint (`track-1091-manager-start.test.mjs`)

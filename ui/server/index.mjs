@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from 'crypto';
 import express from 'express';
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 import cors from 'cors';
 import pg from 'pg';
 import { readFileSync, mkdirSync, writeFileSync, readdirSync, existsSync, statSync, appendFileSync, rmSync } from 'fs';
@@ -454,6 +455,31 @@ app.post('/api/workers/:id/stop', requireAuth, async (req, res) => {
 
     const { stdout, stderr } = await execAsync(cmd, { cwd });
     broadcast('worker:updated', { projectId: null });
+    res.json({ ok: true, stdout, stderr });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1091 Phase 5b: the New Project and Provision-Worker flows both
+// dead-ended into "go run `lc worker start --manager --projects-dir <path>`
+// yourself" whenever no manager was online for the current machine — there
+// was a symmetric stop-manager path (above) but nothing to start one.
+// Mirrors POST /api/projects/:id/worker/start (`lc start`) for the
+// machine-level manager singleton instead of a project worker.
+//
+// Uses execFile with an argument array, not execAsync's shell string —
+// projectsDir is free text from a browser field, and every other command
+// built by this file interpolates only server-derived or numeric values
+// into its exec() string. This is the first one taking arbitrary user text,
+// so string interpolation into a shell command here would be a real
+// injection hole, not just an inconsistency.
+app.post('/api/workers/manager/start', async (req, res) => {
+  try {
+    const projectsDir = typeof req.body?.projectsDir === 'string' ? req.body.projectsDir.trim() : '';
+    const args = ['worker', 'start', '--manager'];
+    if (projectsDir) args.push('--projects-dir', projectsDir);
+    const { stdout, stderr } = await execFileAsync('lc', args, { cwd: process.cwd() });
     res.json({ ok: true, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
