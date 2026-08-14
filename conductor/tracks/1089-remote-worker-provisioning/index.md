@@ -1,11 +1,11 @@
 # Track 1089: Remote Worker Provisioning
 
-**Lane**: review
+**Lane**: done
 **Lane Status**: success
 **Progress**: 95%
 **Phase**: Phase 6 implemented and verified live 2026-08-12 — and SSH was dropped entirely along the way (see Solution). Starting a worker on another machine is now just a dispatch to that machine's own manager, which starts it locally. Two known gaps remain open in plan.md (the modal's CLI/model pickers don't affect the provisioned worker; `sync.mjs --projects-dir` is silently ignored).
 **Type**: dev
-**Summary**: Start a worker for a project on whichever machine should run it, dispatched to that machine's manager worker. No SSH: the dispatch inbox is outbound-polling, so the machine already has a manager that can start the worker locally.
+**Summary**: Start a worker for a project on whichever machine should run it, dispatched to that machine's manager worker. No SSH: the dispatch inbox is outbound-polling, so the machine already has a manager…
 
 ## Problem
 

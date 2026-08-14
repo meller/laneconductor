@@ -1,7 +1,7 @@
 # Track 1087: Live Session Transcript Panel
 
-**Lane**: implement
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 89%
 **Phase**: Phases 1-7 complete (8/9, see below for what "complete" is backed by). Phase 8 (Direct Worker Interactive Chat) reopened 2026-08-12: live-tested end-to-end and found the worker has no handler for the chat dispatch actions at all — UI and dispatch-creation work, nothing executes on the worker side. Same shape of gap as track 1089's SSH stub.
 **Type**: dev

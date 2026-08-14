@@ -1,7 +1,7 @@
 # Track 1067: Jira Integration — Polling-Based Bidirectional Sync
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 
 # Track 1067: Jira Integration — Polling-Based Bidirectional Sync
 
