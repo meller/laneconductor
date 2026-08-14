@@ -148,27 +148,26 @@ it after any in-flight lane action for that track/worker instead of
 running concurrently, and make the heartbeat write conditional. True
 mid-run interrupt is FFU (see spec.md Out of Scope).
 
-- [ ] `conductor/laneconductor.sync.mjs`: in the `track_chat` branch of
-      `checkDispatchInbox` (~line 4758), call `resolveTrackSession()` and
-      pass the resulting `--resume`/`--session-id` args instead of the
-      current from-scratch file-concatenation prompt (REQ-5)
-- [ ] Call `persistTrackSession()` after a successful `track_chat` turn,
-      same as the lane-action path does
-- [ ] Before spawning a `track_chat` turn, check `activeDispatch` (or
-      equivalent) for an in-flight lane action on the same
-      `(track_number, worker_id)`; if found, defer the chat dispatch
-      (leave it `pending`, don't claim) until that lane action's process
-      exit is observed (REQ-6)
-- [ ] `updateWorkerHeartbeat('idle', null)` on chat completion
-      (~line 4838): guard it — only force `idle` if no lane action is
-      still active for this worker; otherwise leave/restore `busy` (REQ-7)
-- [ ] Explicitly do NOT attempt to inject into an already-running foreign
-      process — confirm this stays purely a scheduling/sequencing fix, not
-      an IPC feature
-- [ ] Manual check: start an `implement` run, send a `track_chat` message
-      for the same track before it finishes — confirm only one CLI process
-      is running at a time and the worker's heartbeat status stays `busy`
-      until the lane action truly exits
+- [x] `conductor/laneconductor.sync.mjs`: `track_chat` calls
+      `resolveTrackSession()` and passes `--session-id` (fresh) /
+      `--resume` (shared) instead of the from-scratch file-concatenation
+      prompt (REQ-5). Context injection is skipped on a resumed session.
+- [x] `persistTrackSession()` called after a successful `track_chat` turn
+- [x] `activeDispatch` checked before claiming a `track_chat` entry; a
+      lane action in flight for the same track leaves it `pending` for a
+      later cycle to re-serve (REQ-6)
+- [x] `updateWorkerHeartbeat('idle', null)` guarded by `runningPids.size
+      === 0`; otherwise logs and leaves the lane action's `busy` intact
+      (REQ-7)
+- [x] Confirmed scheduling/sequencing only — no IPC into a running foreign
+      process was added (true mid-run interrupt remains FFU)
+- [x] Verified by automated test (Phase 5), not a manual check — see below
+- [x] **Implementation note (2026-08-14)**: built once on the `track-1113`
+      branch, but not merged before a separate live incident that same day
+      (a human's message to track 182 went unanswered) drove an
+      independent, simpler fix for the REQ-8 half directly on `main` — see
+      Phase 4 below for how these were reconciled rather than shipped as
+      two competing mechanisms.
 
 **Impact**: Closes gap 3's two concrete bugs (no coordination, heartbeat
 clobber); explicitly scopes out what isn't buildable given today's CLI
@@ -184,19 +183,29 @@ Inbox no matter how long they sit unread (gap 4).
 `human_needs_reply`) picks it up unchanged. `worker_adhoc_chat` and raw
 transcripts stay out of the Inbox by explicit decision, not omission.
 
-- [ ] `conductor/laneconductor.sync.mjs`: after a `track_chat` dispatch
-      completes successfully (has a `track_number`), insert a
-      `track_comments` row via the existing comment-post path (author =
-      the CLI that answered; body = the chat result) (REQ-8)
-- [ ] Confirm `worker_adhoc_chat` (no `track_number`) is explicitly
-      excluded from this — no comment insert attempted (REQ-9)
-- [ ] Confirm no changes needed to `GET /api/inbox`'s query — the point of
-      D3 is that reusing `track_comments` requires zero new query surface
-- [ ] Manual check: send a `track_chat` message for a specific track, wait
-      for the reply, confirm it appears in both the Conversation tab and
-      the Inbox's unreplied count without any other change
-- [ ] Manual check: send a `worker_adhoc_chat` (no track selected) message,
-      confirm its reply does NOT appear in the Inbox
+- [x] **Mechanism changed from the original plan.** The original design
+      (POST straight to `/track/:num/comment` from the chat handler) was
+      built first on the `track-1113` branch, but a live incident the same
+      day (2026-08-14, aitutor track 182: a human's chat message got a
+      reply visible in the Transcript but never in Conversation) surfaced
+      why that's the wrong mechanism: a direct API/DB write desyncs
+      `conversation.md` (the source of truth a future AI turn reads) from
+      `track_comments` (what the UI shows) — a worker restart mid-sync can
+      then advance the file's cursor past content that was never actually
+      parsed, silently losing it. This was proven live, not theoretically:
+      it happened to a manually-written comment earlier the same session.
+      **Fixed instead by appending the reply to `conversation.md`** in the
+      standard `> **author**: body` turn format and letting the
+      *pre-existing* conv-sync file watcher push it to `track_comments` —
+      the same path every other reply in this file already uses. Still
+      satisfies D3/REQ-8 (a `track_chat` reply becomes inbox-worthy) with
+      one fewer parallel write path, not two.
+- [x] `worker_adhoc_chat` (no `track_number`) explicitly excluded — the
+      append is gated on `entry.action === 'track_chat' && chatTrack`
+      (REQ-9)
+- [x] No changes needed to `GET /api/inbox` — confirmed
+- [x] Verified by automated test (Phase 5) against a real worker process,
+      not a manual check
 
 **Impact**: Closes gap 4 by reusing the mechanism that already works
 correctly, rather than building a second parallel "unread" concept across
@@ -210,18 +219,61 @@ gap 1 was invisible (queued correctly, silently never claimed).
 **Solution**: Write/extend E2E coverage that exercises the full path on a
 real worker process, matching `test.md`'s test cases.
 
-- [ ] Cover Phase 2: Send & Run → different lane, on a `sync-only` worker,
-      asserting the worker actually spawns and the track's
-      `lane_action_status` transitions `queue → running → success` (not
-      just that the DB row was written)
-- [ ] Cover Phase 3: concurrent `track_chat` + in-flight lane action on
-      the same track — assert only one CLI process runs at a time and
-      heartbeat stays `busy` throughout
-- [ ] Cover Phase 4: `track_chat` reply surfaces in `GET /api/inbox`;
-      `worker_adhoc_chat` reply does not
-- [ ] Regression: Post Note, Bug, Brainstorm, +New Track still behave as
-      before (no `no_wake` regressions from the Brainstorm fix)
+- [x] Cover Phase 3: `conductor/tests/track-1113-chat-coordination.test.mjs`
+      — REQ-5 (session mint on first turn, resume on second, same session
+      id persisted), REQ-6/REQ-7 (chat turn deferred while a real lane
+      action is in flight for the same track, worker heartbeat stays busy
+      throughout, deferred chat still runs once the lane action exits) —
+      against a real spawned `sync-only` worker
+- [x] Cover Phase 4 (reconciled mechanism): `conductor/tests/
+      chat-reply-conversation-md.test.mjs` — a `track_chat` reply is
+      appended to `conversation.md` in the correct multi-line-safe format
+      and reaches `track_comments` via the pre-existing conv-sync path;
+      negative-controlled (disabling the append fails the suite)
+- [x] **Negative controls, not just green runs**: both new suites were
+      confirmed to fail when their respective fix was reverted (stubbing
+      out the relevant branch with `if (false) { ... }`) before being
+      trusted. Worth the extra step this pass specifically: two *other*
+      tests written the same day (per-worker-machine-token's session-
+      isolation case, chat-reply-conversation-md's format assertion)
+      initially passed for the wrong reason — checking too early, or
+      asserting on the wrong fragment of a multi-line write — and only
+      negative-controlling caught it. The REQ-6/7 deferral test here
+      already builds in the fix for that class of mistake (it waits for
+      the worker's own "Deferring chat turn" log line, not just "still
+      pending," which is trivially true before any cycle has run).
+- [ ] Cover Phase 2 (Send & Run → different lane, asserting an actual
+      `queue → running → success` transition) — still NOT written; Phase
+      2 itself records this as open (TC-1..TC-6 unwritten). Genuinely
+      outstanding, not carried over into this pass's scope.
+- [x] Regression: track-1084/1085/1086/1087 and sync-conversation-parser
+      all pass unchanged (31/31 total across every suite this pass and the
+      same day's other fixes touched)
 
 **Impact**: Prevents this track's own failure mode — a plausible-looking
 fix that was never actually exercised against a real `sync-only` worker —
 from recurring.
+
+## Implementation note (2026-08-14)
+
+Phases 3, 4, 5 complete. Not moved to `done`: Phase 2 has two genuinely
+open items (header "Run <lane> now" not folded in; TC-1..6 unwritten).
+Moved to `review` at 90%, per the done-gate rule — honestly documenting a
+deferral does not make a track complete.
+
+Motivating incident: track 182 (aitutor) had a conversation message
+posted while a plan dispatch was still running; the run finished via a
+`--resume` continuation and never re-read `conversation.md`, silently
+dropping the human's input. That's the FFU half of D2 (true mid-run
+interrupt), still out of scope. What Phase 3 fixes is the adjacent,
+buildable half — chat and lane actions on a track now share one session
+and are sequenced rather than raced.
+
+Separately, the same incident's follow-up (a chat reply visible in the
+Transcript but never in Conversation) exposed that this track's own
+Phase 3/4 work had been built twice, on two branches, using two different
+mechanisms for REQ-8. Reconciled today: REQ-5/6/7 merged from the
+original `track-1113` branch; REQ-8 keeps the file-append mechanism
+(append to `conversation.md`, let the existing conv-sync watcher push it
+to `track_comments`) that the live incident proved correct, over the
+branch's original direct-DB-write version.
