@@ -44,7 +44,7 @@ import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
-import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
+import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -3386,18 +3386,26 @@ async function checkAndClaimGitLock(trackNumber) {
 // conductor/services/worktree-merge.mjs can reuse the identical check
 // without importing this file (which has setInterval/chokidar side effects
 // at module load).
-function validatePathIsolation(trackNumber, proposedPath) {
-  return sharedValidatePathIsolation(trackNumber, proposedPath, process.cwd());
+function validatePathIsolation(trackNumber, proposedPath, projectRoot) {
+  return sharedValidatePathIsolation(trackNumber, proposedPath, projectRoot ?? process.cwd());
 }
 
 async function createWorktree(trackNumber) {
-  const worktreePath = join(process.cwd(), '.worktrees', `${trackNumber}`);
-  const parentDir = join(process.cwd(), '.worktrees');
+  // Resolve the PRIMARY checkout, not just process.cwd() — a worker's cwd
+  // can itself be inside a linked worktree (e.g. running track 1112's own
+  // work from .worktrees/1112). Building the path off cwd directly nests
+  // the new worktree inside the current one (.worktrees/1112/.worktrees/9998)
+  // instead of the repo root's .worktrees/9998. Once the parent worktree is
+  // later removed, the nested one is orphaned: prunable, detached HEAD,
+  // reappearing on every worktree scan. See conductor/tests/track-1112-worktree-audit.test.mjs:172.
+  const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+  const worktreePath = join(repoRoot, '.worktrees', `${trackNumber}`);
+  const parentDir = join(repoRoot, '.worktrees');
   const lifecycle = getWorktreeLifecycle();
 
   try {
     // Validate path isolation before proceeding
-    validatePathIsolation(trackNumber, worktreePath);
+    validatePathIsolation(trackNumber, worktreePath, repoRoot);
     // Ensure parent directory exists
     if (!existsSync(parentDir)) {
       mkdirSync(parentDir, { recursive: true });
@@ -3463,7 +3471,7 @@ async function createWorktree(trackNumber) {
     // file_sync_queue.md is written by API/humans but never committed — copy so planning agents see it
     const configs = ['.laneconductor.json', 'conductor/workflow.json', 'conductor/tracks/file_sync_queue.md'];
     for (const cfg of configs) {
-      const src = join(process.cwd(), cfg);
+      const src = join(repoRoot, cfg);
       const dest = join(worktreePath, cfg);
       if (existsSync(src)) {
         try {
@@ -3476,7 +3484,7 @@ async function createWorktree(trackNumber) {
     }
 
     // Copy .claude directory for skills
-    const claudeSrc = join(process.cwd(), '.claude');
+    const claudeSrc = join(repoRoot, '.claude');
     const claudeDest = join(worktreePath, '.claude');
     if (existsSync(claudeSrc)) {
       try {
@@ -3520,7 +3528,8 @@ async function releaseGitLock(trackNumber) {
 }
 
 async function removeWorktree(trackNumber) {
-  const worktreePath = join(process.cwd(), '.worktrees', `${trackNumber}`);
+  const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+  const worktreePath = join(repoRoot, '.worktrees', `${trackNumber}`);
 
   try {
     if (!existsSync(worktreePath)) {

@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import { join } from 'path';
 import os from 'os';
+import { resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 
 const trackNumber = process.argv[2];
 
@@ -29,7 +30,11 @@ if (!trackNumber) {
 const cwd = process.cwd();
 const lockDir = join(cwd, '.conductor', 'locks');
 const lockFile = join(lockDir, `${trackNumber}.lock`);
-const worktreePath = join(cwd, '.worktrees', `${trackNumber}`);
+// Worktrees live under the PRIMARY checkout, not cwd — cwd can itself be
+// inside a linked worktree, which would otherwise nest a new worktree
+// under the current one (.worktrees/1112/.worktrees/9998) instead of the
+// repo root's .worktrees/9998.
+const worktreePath = join(resolvePrimaryRepoRoot(cwd), '.worktrees', `${trackNumber}`);
 
 try {
   // Ensure .conductor/locks directory exists
