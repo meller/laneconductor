@@ -29,11 +29,13 @@ const LANE_BADGE = {
 const DISPATCHABLE_LANES = ['plan', 'implement', 'review', 'quality-gate'];
 
 // One helper line per composer mode, shown BEFORE sending — states exactly
-// what will happen, including the manual-worker caveat that made plain
-// "Send" look broken (track 1112: message posted, lane re-queued, nothing
-// ever ran, zero feedback).
+// what will happen. Track 1112 originally shipped plain "Send" as a
+// passive post-only action (message posted, lane re-queued, nothing ran on
+// a sync-only worker) and documented the caveat here rather than fixing
+// it. Superseded — plain Send now dispatches like Brainstorm does, so the
+// caveat no longer applies; see handleComposerSend.
 const SEND_MODE_HELP = {
-  send: 'Posts to the conversation and re-queues the current lane. On a manual (sync-only) worker nothing runs until you dispatch — use a "Run" mode to act immediately.',
+  send: 'Posts the message and dispatches a chat turn to the selected worker (reaches it immediately, same mechanism as Brainstorm) — use a "Run" mode instead if you also want to move the lane and act on it.',
   note: 'Posts to the conversation only. No automation, no worker wake-up.',
   'run:plan': 'Posts the message, moves this track to plan, and runs plan now on the selected worker.',
   'run:implement': 'Posts the message, moves this track to implement, and runs implement now on the selected worker.',
@@ -494,7 +496,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     setSending(false);
   }
 
-  const needsOnlineWorker = sendMode.startsWith('run:') || sendMode === 'brainstorm';
+  const needsOnlineWorker = sendMode.startsWith('run:') || sendMode === 'brainstorm' || sendMode === 'send';
   // '__new__' isn't a real worker to check offline-ness against — it means
   // "provision one on click," which resolveWorkerId() handles. Only an
   // actually-selected-but-offline worker should disable the button.
@@ -503,7 +505,16 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
 
   function handleComposerSend() {
     if (sendMode === 'note') return sendComment(undefined, undefined, true);
-    if (sendMode === 'brainstorm') {
+    // Plain "Message" used to just post-and-hope: sendComment()'s own
+    // "wake" path is a flag-and-poll mechanism that autoLaunchLocalFs
+    // skips entirely for sync-only workers (same root cause Brainstorm hit
+    // — see dispatchTrackChat's comment above), so a message could sit
+    // fully queued with no visible sign anything was wrong. Routing it
+    // through the same worker-dropdown + track_chat dispatch Brainstorm
+    // already uses — including "+ New worker…" provisioning one on demand
+    // — makes plain messages reach a worker exactly as reliably as Run/
+    // Brainstorm do, instead of being the one mode that silently didn't.
+    if (sendMode === 'send' || sendMode === 'brainstorm') {
       const text = draft.trim();
       if (!text) return;
       sendComment(undefined, undefined, true); // persist the human turn; no_wake — the dispatch below is the real wake
