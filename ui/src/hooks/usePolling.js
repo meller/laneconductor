@@ -88,13 +88,22 @@ export function usePolling(projectId, options = {}) {
     }
   }, [projectId, effectiveApiUrl, idToken]);
 
+  const wsDebounceRef = useRef(null);
+
   const onWSMessage = useCallback((msg) => {
     const { event, data } = msg;
     if (event === 'track:updated' || event === 'conductor:updated' || event === 'worker:updated') {
       // If message is for another project, we still refetch if we are in "all projects" view (projectId null)
       if (!projectId || data.projectId === projectId) {
-        console.log(`[polling] Refreshing due to ${event} for project ${data.projectId}`);
-        fetchData();
+        // Debounce: bursts of WS events (e.g. many active workers heartbeating
+        // in "All Projects" view) were each aborting the prior in-flight fetch,
+        // so under sustained load no fetch ever completed and loading never
+        // cleared. Collapse bursts into a single trailing fetch instead.
+        if (wsDebounceRef.current) clearTimeout(wsDebounceRef.current);
+        wsDebounceRef.current = setTimeout(() => {
+          console.log(`[polling] Refreshing due to ${event} for project ${data.projectId}`);
+          fetchData();
+        }, 500);
       }
     }
   }, [projectId, fetchData]);
@@ -116,6 +125,7 @@ export function usePolling(projectId, options = {}) {
     return () => {
       clearInterval(intervalRef.current);
       document.removeEventListener('visibilitychange', onVisibility);
+      if (wsDebounceRef.current) clearTimeout(wsDebounceRef.current);
     };
   }, [fetchData, wsConnected]);
 
