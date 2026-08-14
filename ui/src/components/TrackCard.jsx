@@ -291,9 +291,11 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
       {/* Progress bar */}
       <div className="space-y-1">
-        <div className="flex justify-between text-xs text-gray-500">
-          <span>{track.current_phase ?? 'No active phase'}</span>
-          <span>{track.progress_percent ?? 0}%</span>
+        <div className="flex justify-between gap-2 text-xs text-gray-500">
+          <span className="truncate min-w-0" title={track.current_phase ?? undefined}>
+            {track.current_phase ?? 'No active phase'}
+          </span>
+          <span className="shrink-0">{track.progress_percent ?? 0}%</span>
         </div>
         <div className="w-full bg-gray-800 rounded-full h-1.5">
           <div
