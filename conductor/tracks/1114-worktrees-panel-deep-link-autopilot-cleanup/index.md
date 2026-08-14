@@ -1,7 +1,7 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 85%
 **Phase**: Phases 1-9 implemented and live-verified. This track surfaced far more real, pre-existing bugs than originally scoped for — a data-loss bug in `createWorktree()` (unconditional branch reset), two…
 **Type**: dev
