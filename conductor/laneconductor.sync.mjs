@@ -1265,7 +1265,11 @@ function parseCurrentPhaseMarker(content) {
   const m = content.match(/\*\*Phase\*\*:[ \t]*([^\n]*)/i);
   if (!m) return null;
   const value = m[1].replace(/⏳|✅/g, '').trim();
-  return value || null; // an empty marker isn't a real value — let the caller fall back
+  // Phase is meant to be a short label ("Phase 6: Testing"), not a session
+  // recap — but nothing stops an agent writing a full paragraph into the
+  // marker, and unlike Summary this had no cap, so it flowed straight to
+  // the Kanban card's phase line unbounded (track 1114 hit this live).
+  return value ? truncateSummary(value) : null; // an empty marker isn't a real value — let the caller fall back
 }
 
 function parseProgress(content) {
