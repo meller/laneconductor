@@ -1,7 +1,7 @@
 # Track 1112: Out-of-band git sync + worktree visibility/merge UI
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/sonnet (primary)
 **Phase**: Planned — audit complete (Phase 1 done), Phases 2–7 specced
