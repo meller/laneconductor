@@ -1,9 +1,9 @@
 # Track 1113: Conversation ↔ Worker Interaction Consolidation
 
-**Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Not started — problem inventory captured live 2026-08-13
+**Lane**: implement
+**Lane Status**: queue
+**Progress**: 40%
+**Phase**: Phase 1 (design) and Phase 2 (Send & Run control) complete — see plan.md's reconciliation note. Phases 3 (chat/session coordination), 4 (inbox consolidation), 5 (E2E tests) not started.
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: The conversation panel, inbox, transcripts, and worker-chat grew as four separate tracks (015, 1085, 1086, 1087) and their interaction semantics no longer compose — found live while dogfooding track…

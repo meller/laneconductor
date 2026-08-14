@@ -1,5 +1,80 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi.js';
+import { computeWorktreeStats } from '../lib/worktreeStats.js';
+
+const REC_STYLE = {
+  warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
+  action: 'bg-blue-950/30 border-blue-800/60 text-blue-300',
+  info: 'bg-gray-900 border-gray-800 text-gray-400',
+};
+const REC_ICON = { warning: '⚠', action: '→', info: 'ℹ' };
+
+const CLASS_LABEL = { stranded: 'Stranded', conflicted: 'Conflicted', mergeable: 'Mergeable', open: 'Open', detached: 'Detached' };
+const CLASS_DOT = { stranded: 'bg-red-500', conflicted: 'bg-amber-500', mergeable: 'bg-green-500', open: 'bg-gray-500', detached: 'bg-purple-500' };
+
+function WorktreeStatsHeader({ rows }) {
+  const stats = computeWorktreeStats(rows);
+  if (stats.total === 0) return null;
+  return (
+    <div className="flex flex-col gap-3 mb-2" data-testid="worktree-stats-header">
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold text-gray-100">{stats.total}</span>
+          <span className="text-xs text-gray-500 uppercase tracking-wider font-bold">Worktrees</span>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {Object.entries(stats.counts).filter(([, n]) => n > 0).map(([cls, n]) => (
+            <span key={cls} className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className={`w-2 h-2 rounded-full ${CLASS_DOT[cls]}`} />
+              {n} {CLASS_LABEL[cls]}
+            </span>
+          ))}
+        </div>
+        {stats.totalDirty > 0 && (
+          <span className="text-[11px] text-gray-600 ml-auto">
+            {stats.totalDirty} dirty file{stats.totalDirty === 1 ? '' : 's'} total across all worktrees
+          </span>
+        )}
+      </div>
+      {stats.recommendations.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {stats.recommendations.map((rec, i) => (
+            <div key={i} className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-2 ${REC_STYLE[rec.level]}`}>
+              <span className="shrink-0">{REC_ICON[rec.level]}</span>
+              <span>{rec.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Track 1114 (found live): `window.confirm()` never surfaced in this
+// app's runtime — clicking "Remove worktree" produced zero dispatch, zero
+// error, zero visible feedback ("nothing happens"), confirmed by checking
+// worker_dispatch directly after a real click: no new row at all, meaning
+// the click handler ran but exited at the (silently-failing) confirm gate.
+// Two-step in-DOM confirm instead of a native dialog — first click arms
+// it (distinct label/color, auto-disarms after 4s if not confirmed),
+// second click while armed actually fires. No dependency on a browser
+// API that may not be reliable in every embedding context.
+function useArmedConfirm() {
+  const [armedKey, setArmedKey] = useState(null);
+  const timerRef = useRef(null);
+  const request = (key, action) => {
+    if (armedKey === key) {
+      clearTimeout(timerRef.current);
+      setArmedKey(null);
+      action();
+    } else {
+      clearTimeout(timerRef.current);
+      setArmedKey(key);
+      timerRef.current = setTimeout(() => setArmedKey(null), 4000);
+    }
+  };
+  return { armedKey, request };
+}
 
 // Track 1112 Phase 7: project-level worktree visibility, WorkersList.jsx's
 // grid-layout pattern. Primary surface for "N unmerged branches, nobody
@@ -19,10 +94,44 @@ const CLASS_BADGE = {
 // the rows that need a human's attention float to the top.
 const CLASS_SORT_ORDER = { stranded: 0, conflicted: 1, mergeable: 2, detached: 3, open: 4 };
 
-function WorktreeRow({ row, onMerge, merging }) {
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging }) {
+  const { armedKey, request } = useArmedConfirm();
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
   const canMerge = row.class === 'mergeable' || row.class === 'stranded';
   const isConflicted = row.class === 'conflicted';
+  // Track 1114: initially scoped to `detached` only, widened after
+  // finding real backlog-lane rows in this repo's own data — they turned
+  // out to be leftover test fixtures from this project's own concurrency/
+  // E2E suite (track-10000/10001/10002: real git branches+worktrees the
+  // tests create for isolation, not always cleaned up after). No reason
+  // to gate by class at all: `git worktree remove --force` only ever
+  // discards that worktree's own uncommitted changes, never the branch
+  // or its commits, regardless of what class the row is. The risk (and
+  // the confirm text) scales with class, not availability.
+  //
+  // Found live: gating on `row.worktree_path || row.branch` kept the
+  // button showing for rows whose worktree was ALREADY removed (branch
+  // alone doesn't mean a live worktree exists — an `open` row's branch
+  // persists after its worktree is gone, since remove-worktree only ever
+  // deletes the working directory, never the branch). Clicking it then
+  // just fails with "not-found" every time — confusing, since nothing
+  // about the row visually signals there's nothing left to remove.
+  // worktree_path alone is the real signal.
+  const canRemove = Boolean(row.worktree_path);
+  // Complete & Merge is for rows still genuinely mid-pipeline (`open`
+  // with a real track) — mergeable/stranded already have their own
+  // direct "Merge to main"; conflicted needs manual resolution first;
+  // detached has no track to run lane actions against at all.
+  const canAutoComplete = row.class === 'open' && row.track;
+  // Track 1114: explicitly requested — "not recommended, but allow it."
+  // Skips review/quality-gate's real verification entirely; distinct from
+  // Complete & Merge, which runs them for real. Same `open`+track gate.
+  const canForceMerge = row.class === 'open' && row.track;
+  // A row's four actions can conflict with each other (e.g. force-merging
+  // while a Complete & Merge sequence is still running) — while ANY one
+  // is pending for this row, the rest are disabled too, not just the one
+  // that was clicked.
+  const rowBusy = merging || removing || autoCompleting || forceMerging;
 
   return (
     <div
@@ -33,7 +142,21 @@ function WorktreeRow({ row, onMerge, merging }) {
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-200">{row.track ? `#${row.track}` : row.branch || 'unknown'}</span>
+            {/* Track 1114: each row maps 1:1 to a track — clicking should
+                jump straight there, same pattern as the Workers view's
+                current-task deep link. Rows with no track (detached
+                scratch worktrees) aren't linkable. */}
+            {row.track && onSelectTrack ? (
+              <button
+                onClick={() => onSelectTrack(row.track)}
+                className="font-semibold text-gray-200 hover:text-blue-400 hover:underline"
+                title="Open this track"
+              >
+                #{row.track} ↗
+              </button>
+            ) : (
+              <span className="font-semibold text-gray-200">{row.track ? `#${row.track}` : row.branch || 'unknown'}</span>
+            )}
             {row.host && (
               <span className="text-[9px] font-mono text-gray-600 bg-black/30 px-1.5 py-0.5 rounded border border-gray-800">
                 {row.host}
@@ -67,11 +190,39 @@ function WorktreeRow({ row, onMerge, merging }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-end pt-2 border-t border-gray-800/50">
+      <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800/50 flex-wrap">
+        {canAutoComplete && (
+          <button
+            onClick={() => request(`complete:${row.track}`, () => onAutoComplete(row))}
+            disabled={rowBusy}
+            data-testid="complete-and-merge-btn"
+            title="Runs this track's remaining lane actions for real (review, quality-gate, ...) and merges once it reaches done:success. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `complete:${row.track}`
+              ? 'border-blue-500 bg-blue-800/60 text-white'
+              : 'border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40'
+              }`}
+          >
+            {autoCompleting ? 'Running…' : armedKey === `complete:${row.track}` ? 'Click again to run' : 'Complete & merge'}
+          </button>
+        )}
+        {canForceMerge && (
+          <button
+            onClick={() => request(`force:${row.track}`, () => onForceMerge(row))}
+            disabled={rowBusy}
+            data-testid="force-merge-btn"
+            title="Marks this track done and merges it WITHOUT running review or quality-gate — not recommended. Only the branch's own uncommitted-work risk applies; use Complete & Merge instead unless you specifically want to skip verification."
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `force:${row.track}`
+              ? 'border-amber-400 bg-amber-800/60 text-white'
+              : 'border-amber-800/60 bg-amber-950/30 text-amber-400 hover:bg-amber-900/40'
+              }`}
+          >
+            {forceMerging ? 'Merging…' : armedKey === `force:${row.track}` ? 'Click again to skip checks' : 'Force merge (skip checks)'}
+          </button>
+        )}
         {canMerge && (
           <button
             onClick={() => onMerge(row)}
-            disabled={merging}
+            disabled={rowBusy}
             data-testid="merge-to-main-btn"
             className="text-[10px] px-2.5 py-1 border border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold uppercase tracking-wider transition-colors"
           >
@@ -86,51 +237,202 @@ function WorktreeRow({ row, onMerge, merging }) {
             Merge to main
           </span>
         )}
+        {canRemove && (
+          <button
+            onClick={() => request(`remove:${row.worktree_path || row.branch}`, () => onRemove(row))}
+            disabled={rowBusy}
+            data-testid="remove-worktree-btn"
+            title="Discards this worktree's uncommitted changes — the branch/commits (if any) are not deleted"
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `remove:${row.worktree_path || row.branch}`
+              ? 'border-red-500 bg-red-800/60 text-white'
+              : 'border-red-900/60 bg-red-950/20 text-red-400 hover:bg-red-900/30'
+              }`}
+          >
+            {removing ? 'Removing…' : armedKey === `remove:${row.worktree_path || row.branch}` ? 'Click again to remove' : 'Remove worktree'}
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-export function WorktreesPanel({ projectId }) {
+// Track 1114 Phase 6 (found live: "removing in progress needs to show so
+// we can't push anything twice"): the four actions in this panel are all
+// async dispatches a worker processes over seconds-to-minutes, but the
+// UI's busy state previously only covered the POST call itself — a
+// fraction of a second. A user had no way to tell a dispatch was actually
+// still running, and could re-click and create a duplicate/conflicting
+// one on the same row. Pending keys now persist until the row's real
+// outcome shows up in the next poll (or a bounded timeout, so a button
+// never gets stuck disabled forever if something goes wrong client-side).
+const PENDING_TIMEOUT_MS = 3 * 60 * 1000;
+
+function usePendingActions() {
+  const [pending, setPending] = useState({}); // key -> timer id
+  const start = (key) => {
+    setPending(prev => {
+      if (prev[key]) clearTimeout(prev[key]);
+      const timer = setTimeout(() => {
+        setPending(p => { const { [key]: _, ...rest } = p; return rest; });
+      }, PENDING_TIMEOUT_MS);
+      return { ...prev, [key]: timer };
+    });
+  };
+  const clear = (key) => {
+    setPending(prev => {
+      if (!prev[key]) return prev;
+      clearTimeout(prev[key]);
+      const { [key]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+  return { pendingKeys: pending, start, clear };
+}
+
+export function WorktreesPanel({ projectId, onSelectTrack }) {
   const { apiFetch } = useApi();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mergingTrack, setMergingTrack] = useState(null);
+  const { pendingKeys, start: startPending, clear: clearPending } = usePendingActions();
   const [error, setError] = useState(null);
+
+  // Row identity keys, shared between the pending-tracking below and the
+  // action handlers, so both always agree on what "this row" means.
+  const removeKey = (row) => `remove:${row.worktree_path || row.branch}`;
+  const mergeKey = (row) => `merge:${row.track}`;
+  const completeKey = (row) => `complete:${row.track}`;
+  const forceKey = (row) => `force:${row.track}`;
 
   const fetchRows = useCallback(() => {
     if (!projectId) return;
     apiFetch(`/api/projects/${projectId}/worktrees`)
       .then(r => r.ok ? r.json() : [])
-      .then(data => { setRows(Array.isArray(data) ? data : []); setLoading(false); })
+      .then(data => {
+        const next = Array.isArray(data) ? data : [];
+        // A pending action's row either vanished (removed, or merged —
+        // merged rows drop out of this list entirely since they're no
+        // longer unmerged relative to main) or is still present but no
+        // longer what we dispatched against — either way, once it's not
+        // the SAME pending state, clear it rather than waiting out the
+        // full timeout. Cheap re-derivation each poll; the set is tiny.
+        const stillPresent = new Set();
+        for (const row of next) {
+          stillPresent.add(removeKey(row));
+          if (row.track) { stillPresent.add(mergeKey(row)); stillPresent.add(completeKey(row)); stillPresent.add(forceKey(row)); }
+        }
+        for (const key of Object.keys(pendingKeys)) {
+          if (!stillPresent.has(key)) clearPending(key);
+        }
+        setRows(next);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
-  }, [projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, pendingKeys, clearPending]);
+
+  // Found live: rows stuck showing "Removing…" indefinitely (well past
+  // any real completion) with no clear reason why. Root cause — the poll
+  // interval below was set up once at mount with `[projectId]` as its
+  // only dep (deliberately, to avoid resetting the 10s timer on every
+  // pendingKeys change), but that also froze which `fetchRows` closure it
+  // called: the interval kept invoking the ORIGINAL closure from mount,
+  // which had captured `pendingKeys` as `{}` forever — so the "clear
+  // anything no longer present" check above was always comparing against
+  // an empty snapshot and could never find anything to clear, no matter
+  // how many polls ran. Only the 3-minute safety timeout was ever freeing
+  // a row, which reads as "stuck" for the entire wait. A ref keeps the
+  // interval's target pointed at whatever the CURRENT fetchRows closure
+  // is on every tick, without needing to recreate the timer itself.
+  const fetchRowsRef = useRef(fetchRows);
+  useEffect(() => { fetchRowsRef.current = fetchRows; }, [fetchRows]);
 
   useEffect(() => {
     setLoading(true);
-    fetchRows();
-    const id = setInterval(fetchRows, 10000);
+    fetchRowsRef.current();
+    const id = setInterval(() => fetchRowsRef.current(), 10000);
     return () => clearInterval(id);
-  }, [fetchRows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   async function handleMerge(row) {
     if (!row.track) return;
     setError(null);
-    setMergingTrack(row.track);
+    startPending(mergeKey(row));
     try {
       const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
         method: 'POST',
         body: JSON.stringify({ action: 'merge-worktree', payload: { track_number: row.track } }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
-      // Dispatch is async (a worker picks it up) — the row will update to
-      // reflect the merge once that worker's next poll runs and reports
-      // back; refetch now anyway so `merging` doesn't spin forever.
       fetchRows();
     } catch (err) {
       setError(`Failed to dispatch merge for #${row.track}: ${err.message}`);
-    } finally {
-      setMergingTrack(null);
+      clearPending(mergeKey(row));
+    }
+  }
+
+  async function handleRemove(row) {
+    if (!row.worktree_path && !row.branch) return;
+    // Destructive and irreversible for that worktree's OWN uncommitted
+    // changes (branch/commits are never touched). Confirmation is the
+    // row's own two-step armed button (see useArmedConfirm above) — a
+    // native window.confirm() here silently never surfaced in this app's
+    // runtime, found live: a real click produced zero dispatch, zero
+    // error, zero feedback, confirmed by checking worker_dispatch
+    // directly afterward.
+    const label = row.track ? `#${row.track}` : (row.branch || row.worktree_path);
+    setError(null);
+    startPending(removeKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'remove-worktree', payload: { branch: row.branch, worktree_path: row.worktree_path } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch remove for "${label}": ${err.message}`);
+      clearPending(removeKey(row));
+    }
+  }
+
+  async function handleAutoComplete(row) {
+    if (!row.track) return;
+    setError(null);
+    startPending(completeKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'auto-complete-track', payload: { track_number: row.track } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      // Multi-stage and can take a long time — pending state stays until
+      // the row either disappears (merged) or the 3-minute safety timeout
+      // fires, whichever comes first (a real multi-stage run can legitimately
+      // run longer than 3 minutes per stage, but at that point the live
+      // Transcript/track panel is the better place to watch it, not a
+      // disabled button in this list).
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch auto-complete for #${row.track}: ${err.message}`);
+      clearPending(completeKey(row));
+    }
+  }
+
+  async function handleForceMerge(row) {
+    if (!row.track) return;
+    setError(null);
+    startPending(forceKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'merge-worktree', payload: { track_number: row.track, force: true } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch force-merge for #${row.track}: ${err.message}`);
+      clearPending(forceKey(row));
     }
   }
 
@@ -160,13 +462,26 @@ export function WorktreesPanel({ projectId }) {
   const renderGroup = (groupRows) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {groupRows.map((row, i) => (
-        <WorktreeRow key={`${row.host || ''}-${row.track || row.branch || i}`} row={row} onMerge={handleMerge} merging={mergingTrack === row.track} />
+        <WorktreeRow
+          key={`${row.host || ''}-${row.track || row.branch || i}`}
+          row={row}
+          onMerge={handleMerge}
+          merging={Boolean(pendingKeys[mergeKey(row)])}
+          onSelectTrack={onSelectTrack ? (track) => onSelectTrack(projectId, track) : null}
+          onRemove={handleRemove}
+          removing={Boolean(pendingKeys[removeKey(row)])}
+          onAutoComplete={handleAutoComplete}
+          autoCompleting={Boolean(pendingKeys[completeKey(row)])}
+          onForceMerge={handleForceMerge}
+          forceMerging={Boolean(pendingKeys[forceKey(row)])}
+        />
       ))}
     </div>
   );
 
   return (
     <div className="flex flex-col gap-6">
+      <WorktreeStatsHeader rows={rows} />
       {error && (
         <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2">{error}</div>
       )}
