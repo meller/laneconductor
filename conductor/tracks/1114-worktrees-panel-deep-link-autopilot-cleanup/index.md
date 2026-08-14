@@ -1,0 +1,223 @@
+# Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
+
+**Lane**: implement
+**Lane Status**: queue
+**Progress**: 85%
+**Phase**: Phases 1-9 implemented and live-verified. This track surfaced far more real, pre-existing bugs than originally scoped for — a data-loss bug in `createWorktree()` (unconditional branch reset), two client-side state bugs (stale-closure stuck buttons, stale `canRemove` gating), a heartbeat null-clobber on restart, and a module-load-order TDZ crash that silently broke the worktree cache on every restart. All found and fixed live against this repo's real data, not synthetic fixtures. Remaining: dedicated test coverage for the newer server-side paths (Phase 7 — not started) and a few one-off manual cleanups (9 confirmed test-fixture branches deleted, 3 real-but-unmerged branches identified and deliberately left alone pending further review).
+**Type**: dev
+**Waiting for reply**: no
+**Summary**: Follow-on requests for the Worktrees panel (track 1112, now merged): deep-link each row to its track, autopilot/force-merge a track to done, remove-worktree cleanup widened to every row, and durable…
+
+## Problem
+
+Track 1112 shipped the Worktrees panel (project-scoped list, classification,
+manual "Merge to main" for already-`done:success` rows). Using it live
+immediately surfaced three gaps:
+
+1. **No deep link.** Each row shows `#1065`, `#1067`, etc., but clicking
+   does nothing — has to go find the track manually on the board.
+2. **"Merge to main" only helps tracks already at `done:success`.** Most
+   rows are legitimately `open` (still mid-pipeline) — there's no way to
+   say "take this the rest of the way and merge it" without manually
+   clicking through review, then quality-gate, waiting on each, then
+   merging by hand.
+3. **Detached worktrees have no cleanup path.** Rows classified `detached`
+   (nested scratch worktrees with no `track-*` branch — mostly leftover
+   test-repo fixtures) just sit there with no way to remove them from the
+   UI at all.
+
+## Solution
+
+**1. Deep link** — reuse the existing `onSelectTrack(projectId, trackNumber)`
+pattern already threaded through `WorkersList`/`WorkerActivityLatch`
+(Track 1112/1084 dogfood session). Wire it into `WorktreesPanel` → `App.jsx`.
+Rows with no `track` (detached) aren't linkable.
+
+**2. Complete & Merge — worker-side autopilot dispatch.** Decided against
+client-side orchestration (a real review/quality-gate run can take 20-30+
+minutes — tying that to a browser tab staying open is fragile). New
+dispatch action `auto-complete-track`:
+- Worker claims it, reads the track's current `lane_status`.
+- Runs that lane's action for real (same `spawnCli` path a manual dispatch
+  uses) and waits for it to actually finish — not fire-and-forget.
+- On success, advances to the next lane per `workflow.json`'s
+  `on_success` and repeats, until `lane_status: done, lane_action_status:
+  success`.
+- On any real failure (a stage genuinely fails/maxes retries): **stop and
+  surface it** — leave the track at the failed stage for a human, exactly
+  like today's normal failure handling, just automated up to the point it
+  broke. No auto-retry, no silent skip of review/quality-gate's actual
+  purpose.
+- Once `done:success`, calls the existing `mergeWorktreeBranch()`
+  primitive (Phase 4 of 1112) to merge — same code path "Merge to main"
+  already uses, not a second copy.
+
+**3. Remove Worktree** — `git worktree remove --force <path>`, scoped to
+discarding that worktree's own uncommitted changes (does not delete the
+branch/commits, which stay recoverable via git — only the working
+directory's dirty state is genuinely lost, matching what the user actually
+asked to be able to discard). Requires extending the heartbeat's worktree
+summary (`refreshWorktreeSummaryCache` in `laneconductor.sync.mjs`) to
+include `branch` and `worktreePath` — currently omitted, and detached rows
+have no `track` number to identify them by otherwise.
+**Widened during implementation**: initially scoped to `detached` rows
+only; widened to every row after finding real `backlog`-lane rows in this
+repo's own data (tracks 10000-10005 — leftover git branches+worktrees from
+this project's own concurrency/E2E test suite, not always cleaned up after
+a run). The underlying git operation never touches the branch regardless
+of class, so there was no real reason to gate by classification — only the
+confirm-dialog wording scales with actual risk.
+
+**4. Force Merge (skip checks)** — explicitly requested, "not recommended
+but allow it": marks a track `done:success` directly (on the branch, before
+merging) and merges, without running review/quality-gate at all. Reuses
+`merge-worktree`'s existing `force: true` payload — previously force only
+bypassed the done-check gate for the merge itself and never touched lane
+state, so a forced merge left the board showing "review"/"implement" while
+the code was already in main. Now force also writes the done:success
+marker (worktree case only; a `stranded` row with no active worktree falls
+back to the old git-only behavior, lane state left as-is) and syncs it to
+the DB, so the board and git history don't diverge.
+
+**5. Native `window.confirm()` doesn't work in this app's runtime** — found
+live: a real click on "Remove worktree" produced zero dispatch, zero error,
+zero visible feedback. Confirmed by checking `worker_dispatch` directly
+after the click: no new row at all. Replaced with an in-DOM two-step armed
+button (`useArmedConfirm`) for Remove Worktree, Complete & Merge, and Force
+Merge — no dependency on a browser API that isn't reliably available here.
+
+**6. Heartbeat null-clobber (found + fixed live)** — every worker restart
+briefly showed "No Unmerged Worktrees" even though the DB already had good
+data. Root cause: `cachedWorktreeSummary` starts as `null` (not
+`undefined`) at process boot; the heartbeat handler
+(`ui/server/index.mjs`) only skips updating the `worktrees` column
+`if (worktrees !== undefined)`, and `null !== undefined` is true — so the
+very first heartbeat after every restart, sent before the async git-audit
+finishes, explicitly overwrote a good cached value with `null`. Fixed by
+omitting the field entirely until a real value exists. Verified live:
+DB retained its value through a real worker restart afterward.
+
+**7. Pending-action feedback (fixed live)** — `removing`/`autoCompleting`/
+`forceMerging` originally only lasted for the dispatch-creation POST call
+itself, not the real processing duration. Replaced with a `usePendingActions`
+hook: pending keys persist until the row's outcome is confirmed by the next
+poll (or a bounded 3-minute safety timeout), and all four action buttons on
+a row disable together while any one is pending, preventing a second
+conflicting dispatch on the same row.
+
+**8. Stale-closure bug in the poll interval (found + fixed live)** —
+found live: rows stuck showing "Removing…" indefinitely, well past any
+real completion, "in the end nothing happened." Root cause: the 10s
+`setInterval` was set up once at mount with `[projectId]` as its only
+dependency (deliberately, to avoid resetting the timer on every
+`pendingKeys` change) — but that froze which `fetchRows` closure it
+called. It kept invoking the ORIGINAL closure from mount forever, which
+had captured `pendingKeys` as `{}` — so the "clear anything no longer
+present" check could never find anything to clear, no matter how many
+polls ran; only the 3-minute safety timeout was ever freeing a row. Fixed
+with a ref (`fetchRowsRef`) so the interval always calls the current
+closure. Verified live: confirmed via direct git/filesystem check that
+tracks 10000-10004 and 8001-8004 had ALREADY been successfully removed on
+their first click — the "nothing happened" was purely the stuck UI, not a
+failed operation. The re-click that looked like a no-op correctly failed
+with "not-found" because there was genuinely nothing left to remove.
+
+**9. Remove Worktree stayed visible for already-removed rows (found + fixed
+live)** — direct fallout of #8: `canRemove` gated on
+`row.worktree_path || row.branch`, but an `open` row's `branch` persists
+after its worktree is gone (remove-worktree only ever deletes the working
+directory, never the branch) — so the button kept showing, and re-clicking
+it would always fail with the same "not-found." Fixed to gate on
+`row.worktree_path` alone — the only field that actually means "a live
+worktree exists to remove." Verified live: tracks 10000-10004 now
+correctly show no Remove Worktree button at all.
+
+**10. `createWorktree()` destroyed a resumed branch's history (found + fixed
+live — the most serious finding in this track)** — asking "if there's no
+worktree, what is there to merge" surfaced it: a branch's commits are
+independent of any worktree (merge needs no working directory at all —
+confirmed Force Merge is fine without one), but `createWorktree()` in
+`conductor/laneconductor.sync.mjs` unconditionally ran
+`git worktree add -B <branch> <path> HEAD` whenever a worktree needed
+(re)creating. `-B` force-resets a branch to the given start point even if
+it already has real commits. Pre-existing bug, not introduced this
+session — Remove Worktree just made the trigger state (worktree gone,
+branch still holds real work) trivial to reach on purpose instead of only
+by accident (crash, manual cleanup). Fixed: only force-create when the
+branch is genuinely new (`git rev-parse --verify` check); an existing
+branch is checked out as-is via plain `git worktree add <path> <branch>`,
+no reset. Decision logic extracted to `worktree-create-args.mjs` and unit
+tested (2/2); the fix was also verified directly against real git in a
+scratch repo both ways — confirmed the OLD command's own output
+(`"resetting branch 'track-999'; was at 3ffbb94"`) destroys a real commit,
+and the NEW command preserves it byte-for-byte.
+
+**11. Panel showed unmerged branches with no live worktree at all (found +
+fixed live)** — direct user report: "if they don't have a worktree they
+shouldn't appear in Worktrees." Real rows like #991/#992/#1044 had genuine
+unmerged commits (verified: 2/5/3 commits each, confirmed NOT ancestors of
+main via `git merge-base --is-ancestor`) but no live worktree — just
+abandoned branches, not active work, cluttering a panel meant to show live
+worktrees. Fixed by filtering `refreshWorktreeSummaryCache`'s output
+through a new `belongsInWorktreesPanel()` (unit tested, 5/5): excludes any
+`open` row with `hasWorktree: false`, but deliberately KEEPS `stranded`
+rows even without a worktree, since that's the exact orphaned-but-ready-
+to-merge case this panel exists to catch — filtering those too would
+silently defeat its own purpose. Nothing deleted; hidden rows' branches
+remain fully intact, just out of this view.
+
+**12. Module-load-order TDZ crash on every restart (found + fixed live)**
+— found while investigating: `[worktree-summary error]: Cannot access
+'cachedMainBranch' before initialization`, present in the log on every
+single worker restart this session (3 occurrences, one per restart).
+`refreshWorktreeSummaryCache()` was invoked synchronously immediately
+after its own definition (~line 888) specifically to populate the cache
+"before the first heartbeat, not 60s late" — but it calls `getMainBranch()`,
+which reads a `let cachedMainBranch` declared far later in this file
+(~line 3132). Since the whole file is one module evaluated top-to-bottom,
+that immediate call always fired before the module reached its own
+declaration, throwing (caught silently, only logged) every time — meaning
+the cache actually stayed stale/empty for up to 60s after every restart,
+the opposite of the comment's stated intent. Fixed with a deferred
+`setTimeout(fn, 0)` so the module finishes evaluating first. Verified
+live: restarted the worker, confirmed zero error in the log and the panel
+correctly reflecting fresh data within 3 seconds (previously required
+waiting out the full 60s interval).
+
+**13. Stats + recommendations header (requested)** — a summary bar above
+the row grid: total worktree count, a per-classification breakdown
+(colored dots matching each row's own badge colors), total dirty-file
+count across all worktrees, and a list of actionable recommendations
+that only appear when relevant:
+- `open` count over 10 (the exact threshold requested) → warning: review
+  and quality-gate some tracks before opening more
+- any `stranded` rows → action: done and ready to merge, but orphaned —
+  merge them now (the exact class of problem Track 1112 was built to
+  catch, now surfaced at a glance instead of requiring a scroll)
+- any `conflicted` rows → action: needs manual resolution
+- any `detached` rows → info: safe to remove if not in use
+
+Pure `computeWorktreeStats()` in `ui/src/lib/worktreeStats.js`, unit
+tested (9/9 — counting, singular/plural wording, threshold boundary,
+empty-list edge case). Verified live against this repo's real data: 30
+total, 30 Open, 235 dirty files, and the >10 warning correctly firing.
+
+## Phases
+- [x] Phase 1: Deep link — `onSelectTrack` wired through `WorktreesPanel` → `App.jsx`, verified live
+- [x] Phase 2: Extend heartbeat worktree summary with `branch`/`worktreePath` fields
+- [x] Phase 3: Remove Worktree — server dispatch handler (`remove-worktree`) + UI button, widened to every class (not just detached), verified live (removed 5+ real worktrees end to end across multiple sessions)
+- [x] Phase 4: Complete & Merge — `auto-complete-track` dispatch action (worker-side sequencing, wait-for-real-completion, stop-on-failure) — wired and unit-tested (6/6, `classifyAutoCompleteOutcome`); NOT live-verified end to end (a real multi-stage run takes 20-30+ min, not exercised this session)
+- [x] Phase 4b: Force Merge (skip checks) — extends `merge-worktree`'s `force` flag to also write done:success before merging; not yet live-verified against a real `open` track (only exercised the pre-existing plain-force code path indirectly)
+- [x] Phase 5a: Replace native `window.confirm()` with in-DOM two-step armed buttons — found live (real click produced zero dispatch), fixed, verified live
+- [x] Phase 5b: Heartbeat null-clobber on restart — found live, fixed, verified live (DB value survived a real worker restart after the fix)
+- [x] Phase 6: Durable pending-state for all four actions — implemented (`usePendingActions`), then found + fixed a stale-closure bug in the same change that made rows appear permanently stuck, then found + fixed a related `canRemove` gating bug — all three verified live
+- [x] Phase 8: Fix `createWorktree()`'s unconditional `-B HEAD` branch-reset — found live (real data-loss bug, pre-existing), fixed, unit tested (2/2), and verified directly against real git both ways in a scratch repo
+- [x] Phase 9: Scope the panel to rows with a live worktree (plus the deliberate `stranded` exception) — found live (#991/#992/#1044 cluttering the view with no active work), fixed (`belongsInWorktreesPanel`, unit tested 5/5), verified live (row count 44→30 after the fix took effect)
+- [x] Phase 10: Fix a pre-existing TDZ crash on every worker restart (`cachedMainBranch` accessed before its own declaration, due to file load order) — found via the real sync.log (3/3 restarts this session hit it), fixed with a deferred macrotask, verified live (zero error + fresh data within 3s on the next restart, vs. silently stale for up to 60s before)
+- [x] Cleanup: deleted 9 confirmed test-fixture branches (`10000`-`10005`, `8001`-`8004` — concurrency/E2E suite debris, verified worthless before deleting); identified `991`/`992`/`1044` as having real unmerged commits (not ancestors of main) and deliberately left them alone pending further review, rather than assuming they're safe to discard
+- [x] Phase 11: Stats + recommendations header — `computeWorktreeStats()`, unit tested (9/9), wired into `WorktreesPanel.jsx`, verified live (real counts, real >10 warning firing on this repo's actual data)
+- [ ] Phase 7: Tests — unit coverage exists for the auto-complete sequencing logic, worktree-create-args, panel-scope, and worktree-stats decisions; no coverage yet for the server-side force-merge lane-write path or the armed-confirm/pending-state UI behavior (the exact area that regressed live this session — highest-value gap to close next)
+
+## Related tracks
+- [1112](../1112-git-sync-and-worktree-visibility/index.md) — built the Worktrees panel this extends
+- [1084](../1084-worker-identity-and-assignment/index.md) — `resolveAssignee`/`resolvePinnedWorkers`, same routing `merge-worktree` already uses, reused for `auto-complete-track`

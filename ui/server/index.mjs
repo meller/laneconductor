@@ -368,7 +368,15 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     const { repo_path } = result.rows[0];
 
-    const { stdout, stderr } = await execAsync('make lc-start', { cwd: repo_path });
+    // Track 1114 (found live, real bug): `make lc-start` assumed every
+    // project's own Makefile defines an `lc-start` target — this repo's
+    // does, but that's not guaranteed (confirmed live: `aitutor`/coachai
+    // has no such target at all, failing with "No rule to make target").
+    // `lc start` is the actual CLI command Makefile targets like this one
+    // just wrap — calling it directly removes the per-project Makefile
+    // dependency entirely, matching the same direct-CLI approach already
+    // used by POST /api/projects/:id/workers/start-new.
+    const { stdout, stderr } = await execAsync('lc start', { cwd: repo_path });
     res.json({ ok: true, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3285,22 +3293,32 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
     // assignee has none of their own (claimable-tracks' same zero-config
     // fallback). A caller MAY still pass worker_id explicitly (tests, or a
     // future "pick a worker" UI) — resolution only fires when it's absent.
-    if (action === 'merge-worktree' && !worker_id) {
+    // Track 1114: same auto-resolution as merge-worktree, extended to
+    // remove-worktree and auto-complete-track — none of these should make
+    // the client pick a worker. remove-worktree is the one exception to
+    // requiring a track_number: a detached worktree (no track-* branch)
+    // has no track to resolve an assignee from at all, so it always falls
+    // straight to "any live worker for the project."
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track') && !worker_id) {
       const trackNumber = payload?.track_number;
-      if (!trackNumber) return res.status(400).json({ error: 'payload.track_number is required for merge-worktree' });
+      if (action !== 'remove-worktree' && !trackNumber) {
+        return res.status(400).json({ error: `payload.track_number is required for ${action}` });
+      }
 
       const { rows: [project] } = await pool.query('SELECT owner_uid FROM projects WHERE id = $1', [req.params.id]);
       if (!project) return res.status(404).json({ error: 'project not found' });
-      const { rows: [track] } = await pool.query(
-        'SELECT assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND track_number = $2',
-        [req.params.id, String(trackNumber)]
-      );
 
       let resolvedWorkerId = null;
-      const assignee = track ? resolveAssignee(track, project) : null;
-      if (assignee) {
-        const own = await resolvePinnedWorkers(pool, req.params.id, assignee);
-        if (own.length > 0) resolvedWorkerId = own[0].id;
+      if (trackNumber) {
+        const { rows: [track] } = await pool.query(
+          'SELECT assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND track_number = $2',
+          [req.params.id, String(trackNumber)]
+        );
+        const assignee = track ? resolveAssignee(track, project) : null;
+        if (assignee) {
+          const own = await resolvePinnedWorkers(pool, req.params.id, assignee);
+          if (own.length > 0) resolvedWorkerId = own[0].id;
+        }
       }
       if (!resolvedWorkerId) {
         const { rows: any } = await pool.query(
@@ -3309,7 +3327,7 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
         );
         resolvedWorkerId = any[0]?.id ?? null;
       }
-      if (!resolvedWorkerId) return res.status(400).json({ error: 'no worker available for this project to merge on' });
+      if (!resolvedWorkerId) return res.status(400).json({ error: `no worker available for this project to run ${action} on` });
       worker_id = resolvedWorkerId;
     }
 

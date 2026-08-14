@@ -38,6 +38,9 @@ import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tai
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
+import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
+import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
+import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
@@ -865,15 +868,37 @@ async function refreshWorktreeSummaryCache() {
   try {
     const mainBranch = getMainBranch();
     const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
-    cachedWorktreeSummary = rows.map(r => ({
+    // Track 1114 (found live): "if they don't have a worktree they
+    // shouldn't appear in Worktrees" — a plain `open` row with no live
+    // worktree is an abandoned branch, not active work. `stranded` is the
+    // deliberate exception (always worktree-less by definition — the
+    // orphaned-but-ready-to-merge case this panel exists to surface).
+    cachedWorktreeSummary = rows.filter(r => belongsInWorktreesPanel({ hasWorktree: r.hasWorktree, classification: r.classification })).map(r => ({
       track: r.trackNumber, title: r.title, lane: r.lane, lane_status: r.laneStatus,
       ahead: r.ahead, behind: r.behind, dirty: r.dirtyCount, class: r.classification,
+      // Track 1114: needed to identify/remove a specific worktree —
+      // detached rows have no `track` number at all, so branch/path are
+      // the only handles available for them.
+      branch: r.branch, worktree_path: r.worktreePath,
     }));
   } catch (err) {
     console.error('[worktree-summary error]:', err.message);
   }
 }
-refreshWorktreeSummaryCache(); // populate before the first heartbeat, not 60s late
+// Track 1114 (found live in the actual log — 3 occurrences, one per
+// worker restart this session): calling this synchronously here throws
+// "Cannot access 'cachedMainBranch' before initialization" every time,
+// silently (caught below, only logged) — `getMainBranch()` reads a `let`
+// declared much later in this file (line ~3132), and since the whole
+// file is one module evaluated top-to-bottom, this immediate call always
+// fires before the module has reached that declaration. The cache stays
+// unpopulated until the NEXT scheduled tick (60s later), meaning every
+// restart runs on stale/empty worktree data for up to a minute despite
+// the comment's own intent ("not 60s late"). A deferred macrotask lets
+// the module finish evaluating first — cachedMainBranch is long since
+// initialized by the time this actually runs, and it still fires
+// essentially immediately, achieving the original intent for real.
+setTimeout(() => { refreshWorktreeSummaryCache(); }, 0);
 setInterval(() => { refreshWorktreeSummaryCache(); }, 60000);
 
 async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
@@ -903,7 +928,17 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
         cli: primary.cli || 'claude',
         model: primary.model || null,
         available_models: cachedModels || undefined,
-        worktrees: isManager ? undefined : cachedWorktreeSummary,
+        // Track 1114 (found live): cachedWorktreeSummary starts as `null`
+        // at process boot, not `undefined` — the server's heartbeat
+        // handler only skips updating the column `if (worktrees !==
+        // undefined)`, and `null !== undefined` is true. That meant the
+        // FIRST heartbeat after every worker restart — sent before the
+        // async git-audit (refreshWorktreeSummaryCache) finishes —
+        // explicitly overwrote a perfectly good cached value with `null`,
+        // producing a real but pointless "No Unmerged Worktrees" gap on
+        // every restart. This is persisted state, not per-process
+        // scratch — no reason a restart should ever blank it.
+        worktrees: (isManager || cachedWorktreeSummary === null) ? undefined : cachedWorktreeSummary,
       };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
@@ -3257,9 +3292,32 @@ async function createWorktree(trackNumber) {
     } catch (e) { }
 
     // Create worktree from current HEAD with a named branch for proper merge later
-    // If per-cycle and branch exists, we already returned above, so this always creates fresh
+    // If per-cycle and branch exists AND its worktree is still there, we
+    // already returned above — this only runs when the worktree needs
+    // (re)creating. Track 1114 (found live, real data loss): unconditional
+    // `-B` here force-resets an EXISTING branch to HEAD, discarding
+    // whatever commits it already had — correct for a genuinely new
+    // track, destructive for one just being resumed after its worktree
+    // was cleaned up (e.g. via Remove Worktree) while the branch itself
+    // still holds real work. Only force-create when the branch is
+    // genuinely new.
     const branchName = `track-${trackNumber}`;
-    gitExec(`git worktree add -B "${branchName}" "${worktreePath}" HEAD`, process.cwd());
+    let branchExists = false;
+    try {
+      gitExec(`git rev-parse --verify --quiet "refs/heads/${branchName}"`, process.cwd());
+      branchExists = true;
+    } catch (e) { /* non-zero exit — branch doesn't exist, that's fine */ }
+    // resolveWorktreeAddArgs owns the safety-critical decision (tested in
+    // isolation — see track-1114-worktree-create-args.test.mjs); this just
+    // renders its result into a quoted command matching this file's other
+    // gitExec call sites.
+    const addArgs = resolveWorktreeAddArgs({ branchExists, branchName, worktreePath, startPoint: 'HEAD' });
+    gitExec(
+      addArgs.includes('-B')
+        ? `git worktree add -B "${branchName}" "${worktreePath}" HEAD`
+        : `git worktree add "${worktreePath}" "${branchName}"`,
+      process.cwd()
+    );
 
     // Small delay to ensure OS filesystem catchup (especially on network mounts or slow disks)
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -4521,6 +4579,146 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
 // into spawnCli's already-complex internals.
 const activeDispatch = new Map();
 
+// Track 1114: "Complete & Merge" autopilot. Same poll-based completion
+// detection as activeDispatch (reads Lane/Lane Status from index.md) but
+// chains multiple stages instead of reporting after one — track_number ->
+// { dispatchId, stagesRun: string[], currentLane: string }.
+const activeAutoComplete = new Map();
+
+async function reportAutoCompleteResult(dispatchId, status, resultText) {
+  const { url, token } = primaryCollector();
+  if (!url) return;
+  await patch(url, token, `/worker-dispatch/${dispatchId}`, { status, result: resultText })
+    .catch(err => logger.warn({ dispatchId, err: err.message }, '[dispatch] Failed to report auto-complete-track result'));
+}
+
+// Kicks off ONE stage (the track's current lane) and registers it in
+// activeAutoComplete for reconcileAutoComplete to pick up once it finishes
+// — mirrors the manual lane-action dispatch path in checkDispatchInbox
+// (buildCliArgs → write Lane Status: running → spawnCli), kept as its own
+// copy rather than refactored to share code, since that path is
+// already well-tested and this needed a from-scratch call site anyway
+// (no `entry` object here — the "entry" is the ongoing sequence itself).
+async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
+  const tracksDir = 'conductor/tracks';
+  const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+  if (!trackDirName) {
+    await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: track ${trackNumber} not found locally`);
+    activeAutoComplete.delete(trackNumber);
+    return;
+  }
+  const indexPath = join(tracksDir, trackDirName, 'index.md');
+  const content = readFileSync(indexPath, 'utf8');
+  const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+  const currentLane = laneMatch?.[1]?.trim();
+
+  if (currentLane === 'done') {
+    // Already done when this stage would have started (e.g. dispatched
+    // against a track that reached done:success some other way) — skip
+    // straight to merge instead of trying to "run" a done lane.
+    await finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun);
+    return;
+  }
+
+  const laneConfig = workflowConfig?.lanes?.[currentLane];
+  if (!currentLane || !laneConfig) {
+    await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: track ${trackNumber} is in an unrecognized lane "${currentLane}"`);
+    activeAutoComplete.delete(trackNumber);
+    return;
+  }
+
+  const cliArgs = await buildCliArgs('laneconductor', currentLane, trackNumber, null, laneConfig);
+  if (!cliArgs) {
+    await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: no available provider for track ${trackNumber} at lane ${currentLane}`);
+    activeAutoComplete.delete(trackNumber);
+    return;
+  }
+
+  const [cmd, args, cli, model, tier, session] = cliArgs;
+  const updateHeader = (c, h, v) => {
+    const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+    return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+  };
+  writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
+  const proj = getProject();
+  const spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  logger.info({ trackNumber, currentLane, spawnedPid, dispatchId }, '[auto-complete] stage started');
+  // stagesRun is the history BEFORE this stage — appended with the lane
+  // just started so reconcileAutoComplete's next check has an accurate
+  // record regardless of what the caller already had.
+  activeAutoComplete.set(trackNumber, { dispatchId, stagesRun: [...stagesRun, currentLane], currentLane });
+}
+
+async function finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun) {
+  activeAutoComplete.delete(trackNumber);
+  let mergeResult;
+  try {
+    mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
+  } catch (err) {
+    mergeResult = { merged: false, reason: 'error', error: err.message };
+  }
+  const stageList = stagesRun.join(' → ') || '(already done)';
+  const resultText = mergeResult.merged
+    ? `Completed [${stageList}] and merged track-${trackNumber} into main (${mergeResult.mergeCommit}).`
+    : `Completed [${stageList}] but merge failed: ${mergeResult.reason}${mergeResult.error ? `: ${mergeResult.error}` : ''}${mergeResult.conflictPaths?.length ? ` (${mergeResult.conflictPaths.join(', ')})` : ''}`;
+  await reportAutoCompleteResult(dispatchId, mergeResult.merged ? 'done' : 'failed', resultText);
+  try {
+    const tracksDir = 'conductor/tracks';
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+    if (trackDirName) appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+  } catch (err) {
+    logger.warn({ trackNumber, err: err.message }, '[auto-complete] Failed to post completion conversation comment');
+  }
+}
+
+// Poll in-flight auto-complete sequences for the CURRENT stage's
+// completion, same 5s cadence as reconcileActiveDispatch.
+async function reconcileAutoComplete() {
+  if (activeAutoComplete.size === 0) return;
+  const tracksDir = 'conductor/tracks';
+
+  for (const [trackNumber, entry] of activeAutoComplete) {
+    const { dispatchId, stagesRun, currentLane: beforeLane } = entry;
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+    const indexPath = trackDirName ? join(tracksDir, trackDirName, 'index.md') : null;
+    if (!indexPath || !existsSync(indexPath)) {
+      await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ')}]: track ${trackNumber} not found locally`);
+      activeAutoComplete.delete(trackNumber);
+      continue;
+    }
+
+    const content = readFileSync(indexPath, 'utf8');
+    const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+    const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+    const afterLane = laneMatch?.[1]?.trim();
+    const afterStatus = statusMatch?.[1]?.trim();
+
+    const outcome = classifyAutoCompleteOutcome({ beforeLane, afterLane, afterStatus });
+
+    if (outcome.action === 'wait') continue;
+
+    if (outcome.action === 'stop') {
+      activeAutoComplete.delete(trackNumber);
+      const resultText = `Stopped after [${stagesRun.join(' → ')}]: ${outcome.reason}. Track left at ${afterLane}/${afterStatus} for review.`;
+      await reportAutoCompleteResult(dispatchId, 'failed', resultText);
+      try {
+        if (trackDirName) appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+      } catch (err) {
+        logger.warn({ trackNumber, err: err.message }, '[auto-complete] Failed to post stop conversation comment');
+      }
+      continue;
+    }
+
+    if (outcome.action === 'merge') {
+      await finishAutoCompleteWithMerge(trackNumber, dispatchId, [...stagesRun, afterLane]);
+      continue;
+    }
+
+    // action === 'advance'
+    await startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun);
+  }
+}
+
 // Track 1091 Phase 3: reads the manager's own projects-directory config
 // (written by `lc worker start --manager --projects-dir <path>`, see
 // bin/lc.mjs) directly — same pattern this file already uses for
@@ -4821,6 +5019,7 @@ async function checkDispatchInbox() {
 
       const mainBranch = getMainBranch();
       let result;
+      let forcedDoneWithoutChecks = false;
       try {
         const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
         const row = rows.find(r => r.trackNumber === String(trackNumber));
@@ -4830,7 +5029,43 @@ async function checkDispatchInbox() {
         } else if (!isDoneSuccess && !force) {
           result = { merged: false, reason: 'not-done-success' };
         } else {
+          // Track 1114 (explicit request — "not recommended, but allow
+          // it"): force on a track that hasn't actually reached
+          // done:success also marks it done:success first, on the
+          // BRANCH itself, before merging — otherwise the code lands in
+          // main while the board still shows "review"/"implement", a
+          // confusing split state where the merge silently happened but
+          // the card looks untouched. Only handles the case where a
+          // worktree is actually checked out (the realistic case for
+          // in-progress work); if none exists, falls through to a plain
+          // git-only force merge exactly like before, with the branch's
+          // own lane state left as-is.
+          if (!isDoneSuccess && force && row.hasWorktree && row.worktreePath) {
+            const wtIndexPath = join(row.worktreePath, 'conductor', 'tracks', resolveTrackFolder(join(row.worktreePath, 'conductor', 'tracks'), trackNumber) || '', 'index.md');
+            if (existsSync(wtIndexPath)) {
+              const wtContent = readFileSync(wtIndexPath, 'utf8');
+              const updateHeader = (c, h, v) => {
+                const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+                return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+              };
+              let updated = updateHeader(wtContent, 'Lane', 'done');
+              updated = updateHeader(updated, 'Lane Status', 'success');
+              writeFileSync(wtIndexPath, updated, 'utf8');
+              try {
+                gitExec(`git add "${wtIndexPath}"`, row.worktreePath);
+                gitExec(`git commit -m "Track ${trackNumber}: force-marked done:success (review/quality-gate skipped)"`, row.worktreePath);
+                forcedDoneWithoutChecks = true;
+              } catch (commitErr) {
+                logger.warn({ dispatchId: entry.id, trackNumber, err: commitErr.message }, '[dispatch] force-merge: failed to commit done:success marker');
+              }
+            }
+          }
           result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch });
+          if (result.merged && forcedDoneWithoutChecks) {
+            await patch(url, token, `/track/${trackNumber}/action`, {
+              project_id: (getProject())?.id, lane_status: 'done', lane_action_status: 'success', progress_percent: 100,
+            }).catch(err => logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, '[dispatch] force-merge: failed to sync done:success to DB'));
+          }
         }
       } catch (err) {
         result = { merged: false, reason: 'error', error: err.message };
@@ -4838,7 +5073,7 @@ async function checkDispatchInbox() {
       updateWorkerHeartbeat('idle', null);
 
       const resultText = result.merged
-        ? `Merged track-${trackNumber} into ${mainBranch} (${result.mergeCommit})`
+        ? `Merged track-${trackNumber} into ${mainBranch} (${result.mergeCommit})${forcedDoneWithoutChecks ? ' — ⚠️ forced done:success without running review/quality-gate' : ''}`
         : `Not merged: ${result.reason}${result.conflictPaths?.length ? ` (${result.conflictPaths.join(', ')})` : ''}${result.error ? `: ${result.error}` : ''}`;
 
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
@@ -4855,6 +5090,74 @@ async function checkDispatchInbox() {
       } catch (err) {
         logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-worktree conversation comment');
       }
+      continue;
+    }
+
+    // Track 1114: "Remove Worktree" for detached/orphaned scratch
+    // worktrees the panel had no cleanup path for. Deliberately only
+    // discards the worktree's own uncommitted changes (`git worktree
+    // remove --force`) — does not touch the branch/commits, which stay
+    // recoverable. Re-audits and matches against the CURRENT real worktree
+    // list rather than trusting the client-supplied path directly, so a
+    // stale or malformed payload can't be used to force-remove an
+    // arbitrary directory.
+    if (entry.action === 'remove-worktree') {
+      const branch = entry.payload?.branch || null;
+      const requestedPath = entry.payload?.worktree_path || null;
+      if (!branch && !requestedPath) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.branch or payload.worktree_path is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, branch, requestedPath }, '[dispatch] remove-worktree');
+      updateWorkerHeartbeat('busy', `remove-worktree (dispatch ${entry.id})`);
+
+      let result;
+      try {
+        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
+        const row = rows.find(r => r.hasWorktree && (
+          (branch && r.branch === branch) || (requestedPath && r.worktreePath === requestedPath)
+        ));
+        if (!row) {
+          result = { removed: false, reason: 'not-found — no live worktree matches that branch/path' };
+        } else {
+          gitExec(`git worktree remove --force "${row.worktreePath}"`, process.cwd());
+          result = { removed: true, path: row.worktreePath, branch: row.branch };
+        }
+      } catch (err) {
+        result = { removed: false, reason: 'error', error: err.message };
+      }
+      updateWorkerHeartbeat('idle', null);
+
+      const resultText = result.removed
+        ? `Removed worktree ${result.path} (${result.branch || 'no branch'})`
+        : `Not removed: ${result.reason}${result.error ? `: ${result.error}` : ''}`;
+
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.removed ? 'done' : 'failed',
+        result: resultText,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report remove-worktree result'));
+      continue;
+    }
+
+    // Track 1114: "Complete & Merge" — autopilot a track through its
+    // remaining lane actions and merge once it reaches done:success.
+    // Fire-and-forget the FIRST stage here (matching every other dispatch
+    // in this loop — checkDispatchInbox must not block on a run that can
+    // take 20-30+ minutes); reconcileAutoComplete (its own interval below)
+    // detects each stage's completion and chains the next one.
+    if (entry.action === 'auto-complete-track') {
+      const trackNumber = entry.payload?.track_number || entry.track_number;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      if (activeAutoComplete.has(trackNumber)) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: `An auto-complete sequence is already running for track ${trackNumber}` }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, '[dispatch] auto-complete-track started');
+      updateWorkerHeartbeat('busy', `auto-complete-track ${trackNumber} (dispatch ${entry.id})`);
+      await startNextAutoCompleteStage(trackNumber, entry.id, []);
       continue;
     }
 
@@ -5144,6 +5447,9 @@ setInterval(() => {
 }, 10000);
 setInterval(() => {
   reconcileActiveDispatch().catch(err => console.error('[dispatch-reconcile error]:', err.message));
+}, 5000);
+setInterval(() => {
+  reconcileAutoComplete().catch(err => console.error('[auto-complete-reconcile error]:', err.message));
 }, 5000);
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
