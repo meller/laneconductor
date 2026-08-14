@@ -1,6 +1,5 @@
 # Track 10012: inbox functionality fix
 
-**Status**: plan
 **Progress**: 100%
 **Last Run**: claude/sonnet (primary)
 
@@ -12,6 +11,6 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: queue
 **Summary**: we need to make sure that when a track action (converastion, or end of plan implementation, review, qualitty gate) ends inbox get populated to notify user a succefull end of action or if he needs to…
