@@ -48,6 +48,7 @@ import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
+let cachedMainBranch = null;
 
 function getInstallPath() {
   if (existsSync(RC_FILE)) {
@@ -362,11 +363,7 @@ async function discoverAvailableModels(cli) {
         }
       } catch { /* ignore */ }
     } else if (cli === 'gemini') {
-      // Query Gemini directly — this must never substitute another
-      // provider's live output as if it were Gemini's (previously shelled
-      // out to `agy models`, silently reporting Antigravity's model list
-      // under the Gemini badge). On failure, the caller (refreshModels)
-      // falls back to PROVIDERS.gemini.models from the registry.
+      // Try direct gemini CLI command first
       try {
         ({ stdout } = await execAsync(
           'npx @google/gemini-cli -p "List the available Gemini model IDs as a plain newline-separated list, no commentary" 2>/dev/null',
@@ -379,7 +376,22 @@ async function discoverAvailableModels(cli) {
           .map(l => l.trim().split(/\s+/)[0])
           .filter(id => looksLikeModelId(id) && id.startsWith('gemini-'));
         if (lines.length > 0) return lines.map(id => ({ id, label: id }));
-      } catch { /* not available — refreshModels() falls back to registry presets */ }
+      } catch { /* ignore and try fallback */ }
+
+      // Also support fetching Gemini models from agy models if gemini CLI command fails
+      try {
+        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length > 0) {
+          const geminiFromAgy = lines.map(l => {
+            const tokens = l.split(/\s+/);
+            const id = tokens[0];
+            const label = tokens.slice(1).join(' ') || id;
+            return { id, label };
+          }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('gemini-'));
+          if (geminiFromAgy.length > 0) return geminiFromAgy;
+        }
+      } catch { /* ignore */ }
     } else if (cli === 'antigravity') {
       try {
         ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
@@ -2409,7 +2421,7 @@ setInterval(pullTracksMetadataFromDB, 5000);
 
 // ── Heartbeat intervals ───────────────────────────────────────────────────────
 
-setInterval(() => updateWorkerHeartbeat(), 10000);
+setInterval(() => updateWorkerHeartbeat(), Number(process.env.LC_HEARTBEAT_INTERVAL_MS) || 10000);
 
 setInterval(async () => {
   try {
@@ -3190,7 +3202,6 @@ function tailLog(logPath, lines = 100) {
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
 const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
 
-let cachedMainBranch = null;
 function getMainBranch() {
   if (cachedMainBranch) return cachedMainBranch;
   try {

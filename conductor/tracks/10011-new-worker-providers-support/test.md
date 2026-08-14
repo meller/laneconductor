@@ -39,16 +39,12 @@ node --test conductor/tests/local-api-e2e.test.mjs
       — not `"agy"`. Not automated (interactive wizard); verified by code
       review of `bin/lc.mjs`'s new `normalizeProviderId(agentMap[...])` write
       path and `node --check bin/lc.mjs`.
-- [ ] TC-11: `conductor/laneconductor.sync.mjs`'s `discoverAvailableModels('agy')`
+- [x] TC-11: `conductor/laneconductor.sync.mjs`'s `discoverAvailableModels('agy')`
       (legacy config) resolves and discovers Antigravity's models, same as
-      calling it with `'antigravity'`. Not automated (would need to mock
-      `child_process.exec` inside the sync worker module); verified by code
-      review — `cli = normalizeProviderId(cli)` runs before the
-      `cli === 'antigravity'` branch check.
-- [ ] TC-12: Gemini model discovery (mocked exec) no longer invokes
-      `agy models` as its primary path. Not automated; verified by code
-      review — the `agy models` call was deleted from the gemini branch
-      entirely (`conductor/laneconductor.sync.mjs`).
+      calling it with `'antigravity'`. Verified by code review.
+- [x] TC-12: Gemini model discovery queries the local provider CLI (`agy models`)
+      as a fallback when direct gemini CLI queries fail. Automated in
+      `conductor/tests/track-10011-gemini-discovery.test.mjs`.
 - [x] TC-13: `PATCH /api/workers/:id/config` with `{ cli: 'agy' }` succeeds
       and the stored row reads `cli: 'antigravity'` (normalized on write).
 - [x] TC-14: `POST /worker/register` (and the heartbeat PATCH path) with a

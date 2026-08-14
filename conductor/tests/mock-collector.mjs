@@ -79,6 +79,10 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { claimable: state.claimable });
   }
 
+  if ((params = route('GET', '/api/projects/:id/tracks', req)) !== null) {
+    return reply(res, 200, Object.values(state.tracks));
+  }
+
   if ((params = route('POST', '/_set-claimable', req)) !== null) {
     state.claimable = body.claimable ?? [];
     return reply(res, 200, { ok: true });
@@ -122,8 +126,14 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { ok: true });
   }
 
-  if ((params = route('PATCH', '/worker/heartbeat', req)) !== null)
+  if ((params = route('PATCH', '/worker/heartbeat', req)) !== null) {
+    const w = state.workers.find(x => x.hostname === body.hostname && x.pid === body.pid);
+    if (w) {
+      if (body.available_models !== undefined) w.available_models = body.available_models;
+      if (body.status !== undefined) w.status = body.status;
+    }
     return reply(res, 200, { ok: true });
+  }
 
   if ((params = route('DELETE', '/worker', req)) !== null)
     return reply(res, 200, { ok: true });
