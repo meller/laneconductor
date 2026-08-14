@@ -1,8 +1,8 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 0%
+**Progress**: 100%
 **Phase**: New — grounded by code inspection 2026-08-13, not yet planned in detail
 **Type**: dev
 **Summary**: The mechanism for "different model per lane, same provider" already exists in code (`workflow.json`'s per-lane `primary_model`) but is configured nowhere — verified live, this project's own…
@@ -105,3 +105,4 @@ Opened directly from a user request with four numbered asks; this index
 restates each against verified current code behavior (file:line
 references above) rather than assumed behavior, per this session's
 established practice of confirming before planning fixes.
+**Waiting for reply**: yes

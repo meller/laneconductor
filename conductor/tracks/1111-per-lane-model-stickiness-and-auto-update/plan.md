@@ -14,10 +14,25 @@ already dogfooding every other track through this exact worker.
       user's example: plan=opus-tier, implement=sonnet-tier,
       review=haiku-tier, quality-gate=haiku-tier) using real current
       model IDs — cross-check against this project's own
-      `available_models` (1099's discovery data) rather than guessing a
-      string that might not exist
+      `available_models`. **Verified live 2026-08-13**: this is a
+      per-worker `workers.available_models` JSONB column (Postgres,
+      populated by 1099's heartbeat discovery), not a file — query it via
+      `SELECT hostname, worker_number, available_models FROM workers
+      WHERE project_id = 1`. This project's active worker (`meller-X1-AI`,
+      worker_number 1) currently reports for `claude`: `claude-sonnet-5`,
+      `claude-opus-5`, `claude-sonnet-4-5`, `claude-opus-4-5`,
+      `claude-3-7-sonnet`, `claude-3-5-sonnet`, `claude-3-5-haiku`. Note:
+      there is no `claude-haiku-4-5`-family entry in this list at all —
+      `claude-3-5-haiku` is the only haiku-tier option currently
+      discovered, so confirm at execution time whether that's genuinely
+      the best available haiku-tier model or whether 1099's discovery is
+      itself lagging the CLI's real capability before hardcoding it.
+      (Also note: a second worker row for this same project reports a
+      different, larger model list — pick the worker that will actually
+      run these dispatches, don't average across workers.)
 - [ ] Task 2: Write `primary_model` into each lane in
-      `conductor/workflow.json`
+      `conductor/workflow.json` — `primary_model` ONLY, never
+      `primary_cli` (see Task 5)
 - [ ] Task 3: Dispatch a real action in each lane (plan/implement/review/
       quality-gate) and confirm from the transcript/log that the actual
       `--model` flag passed matches that lane's configured value — not
@@ -26,29 +41,54 @@ already dogfooding every other track through this exact worker.
 - [ ] Task 4: Confirm `chosenCli` (the provider) does NOT change across
       any of these lane dispatches — same worker, same provider,
       `--resume` still valid throughout (REQ-3)
+- [ ] Task 5: Add a guard for REQ-3's discovered gap — `buildCliArgs`
+      (`conductor/laneconductor.sync.mjs:4011`) actually reads
+      `laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude'`, so a
+      per-lane `primary_cli` in `workflow.json` would silently override
+      the provider if ever set. REQ-3 relies on nobody doing that; add a
+      cheap check (e.g. at `loadWorkflowConfig()` load time, or in
+      `/laneconductor workflow set`) that warns/rejects a lane config
+      containing `primary_cli`, so this can't regress unnoticed later
 
 **Impact**: Proves the existing mechanism actually works once configured,
-on live data, before extending it further.
+on live data, before extending it further, and closes the one structural
+gap discovered while re-verifying the code during this planning pass.
 
 ## Phase 2: Chat dispatch model resolution — decide, then implement
 
 **Problem**: `worker_adhoc_chat`/`track_chat` always use
 `proj.primary?.model`, ignoring the scoped track's current lane even
-when `track_chat` clearly knows it.
+when `track_chat` clearly knows it. **Verified live 2026-08-13**: the
+handler is at `conductor/laneconductor.sync.mjs:4769` (block comment
+starting "Track 1087 Phase 8"); the actual resolution is at ~4809-4813:
+`cmd = proj.primary?.cli || 'claude'` and
+`if (cmd === 'claude' && proj.primary?.model) cliArgs.push('--model',
+proj.primary.model)` — no lane lookup at all, confirming the gap exactly
+as described.
 **Solution**: Decide the rule (leaning `track_chat` follows the track's
 current lane's `primary_model` when set, falls back to project default
 otherwise; `worker_adhoc_chat` always uses project default — no lane to
-derive from) and implement it in the chat dispatch handler
-(`conductor/laneconductor.sync.mjs` ~4712-4726).
+derive from) and implement it in the chat dispatch handler. The lookup
+mechanism already exists elsewhere in this file and should be reused
+verbatim: normal lane dispatch resolves
+`laneConfig = workflowConfig?.lanes?.[lane_status] ?? {}` (line ~4926)
+where `lane_status` comes from parsing `**Lane**:` out of the track's
+`index.md`, and `workflowConfig` is the cached result of
+`loadWorkflowConfig()` (line 963, hot-reloaded on `workflow.json`
+changes). `track_chat` already has `chatTrack` resolved — Task 2 just
+needs to read that track's `index.md` `**Lane**` marker the same way the
+lane-action dispatch path does, then index into `workflowConfig.lanes`.
 
 - [ ] Task 1: Confirm the rule with the user before implementing — this
       is a product decision (does a mid-conversation chat about a
       `plan`-lane track feel right running on the `plan` lane's model,
       or should chat always be the project's "default" conversational
       model regardless of lane), not purely technical
-- [ ] Task 2: Implement in the `track_chat` branch — resolve
-      `laneConfig.primary_model` for that track's current lane, same
-      precedence pattern as `buildCliArgs`
+- [ ] Task 2: Implement in the `track_chat` branch — parse `**Lane**`
+      from `chatTrack`'s `index.md` (same regex used at line ~4922:
+      `/\*\*Lane\*\*:\s*([^\n]+)/i`), resolve
+      `workflowConfig?.lanes?.[lane]?.primary_model` for that lane, fall
+      back to `proj.primary?.model`
 - [ ] Task 3: Leave `worker_adhoc_chat` on project default (no track, no
       lane to resolve) — document why explicitly in a comment so a
       future reader doesn't "fix" it into inconsistency with intent
