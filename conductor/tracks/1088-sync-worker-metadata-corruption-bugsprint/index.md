@@ -1,7 +1,7 @@
 # Track 1088: Sync Worker Metadata Corruption — Bug Sprint
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Complete
 **Type**: dev

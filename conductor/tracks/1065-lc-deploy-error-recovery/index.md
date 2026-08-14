@@ -1,7 +1,7 @@
 # Lc Deploy Error Recovery
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 
 # Lc Deploy Error Recovery
 

@@ -1,7 +1,7 @@
 # Setup Simplification
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 
 # Setup Simplification
 

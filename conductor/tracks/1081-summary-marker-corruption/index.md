@@ -1,7 +1,7 @@
 # Track 1081: Bug — `**Summary**` marker gets silently overwritten with wrong content
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
 **Phase**: New — root cause traced for mechanism 1, mechanism 2 still open
 **Type**: dev

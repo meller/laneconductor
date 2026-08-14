@@ -1,7 +1,7 @@
 # Track 1085: Manual Worker Dispatch
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Phases 1-6 complete, verified live end-to-end against the real DB/API (real dispatch, real deploy run, real bug found+fixed) and via a real two-worker isolation test
 **Type**: dev

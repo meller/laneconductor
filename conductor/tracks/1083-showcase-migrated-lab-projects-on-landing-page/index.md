@@ -1,7 +1,7 @@
 # Track 1083: Showcase Migrated Lab Projects on LaneConductor Landing Page
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: First card (Chess AI Mentor) live — 3 more to add as their migrations complete
 **Type**: dev

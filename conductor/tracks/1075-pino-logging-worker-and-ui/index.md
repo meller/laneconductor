@@ -1,11 +1,11 @@
 # Track 1075: Structured Pino logging for the worker + UI/API, with a live Pinorama viewer
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Implementation complete
 **Type**: dev
-**Summary**: Standalone `pinorama --server` on port 6201 + `pinorama-transport` wired into both the worker and API's Pino loggers, tagged by `component`. New `lc logs [start|stop|status|open]` command, auto-launched from `worker start`/`restart`/`api start`. **Phase 6**: the new logging surfaced 4 real crashes already in `ui/.api.log` — all from unhandled `'error'` events (pg pool idle-client drops, `server.listen()` EADDRINUSE, and `ws`'s `WebSocketServer` re-emitting the http server's `'error'` onto itself). Fixed all three sources; verified live by reproducing both crash scenarios against the running dev API and confirming it now survives and logs cleanly instead of crashing.
+**Summary**: Standalone `pinorama --server` on port 6201 + `pinorama-transport` wired into both the worker and API's Pino loggers, tagged by `component`. New `lc logs [start|stop|status|open]` command,…
 
 ## Problem
 
