@@ -2,7 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: success
-**Progress**: 0%
-**Phase**: Planned
+**Progress**: 100%
+**Last Run**: claude/sonnet (primary)
+**Phase**: New
 **Type**: dev
-**Summary**: Root cause: no canonical provider registry — 9 independently hardcoded provider/model lists (CLI wizard, sync worker, server, 5 UI components) plus an agy/antigravity id mismatch. Plan adds conductor/providers.mjs as single source of truth, fixes WorkersList' hardcoded claude-model fallback, and adds real provider choice to the track panel's "+ New worker" flow.
+**Summary**: new worker -both from worker lane and track - new worker dropdown- - do not supprt non claude well - for example gemini has wrong version in worker lane and drop down doesnt even suggest provdioers
