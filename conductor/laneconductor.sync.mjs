@@ -41,6 +41,7 @@ import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
+import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
@@ -4134,23 +4135,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
               if (mergeOnlyArtifacts.has(file) && existsSync(dest)) {
                 // Extract status markers from worktree artifact and apply onto existing file
                 const artifact = readFileSync(src, 'utf8');
-                let existing = readFileSync(dest, 'utf8');
-                const markerPatterns = [
-                  // Lane and Lane Status are intentionally excluded — the exit handler
-                  // always writes the correct values from workflow.json after this merge.
-                  { re: /\*\*Progress\*\*:\s*[^\n]+/i, key: 'Progress' },
-                  { re: /\*\*Phase\*\*:\s*[^\n]+/i, key: 'Phase' },
-                  { re: /\*\*Summary\*\*:\s*[^\n]+/i, key: 'Summary' },
-                  { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i, key: 'Waiting for reply' },
-                ];
-                for (const { re, key } of markerPatterns) {
-                  const m = artifact.match(re);
-                  if (!m) continue;
-                  if (re.test(existing)) {
-                    existing = existing.replace(re, m[0]);
-                  }
-                  // If marker not in existing file, don't inject it — preserve the file structure
-                }
+                // Track 1112 dogfood incident (2026-08-14): Lane/Lane Status were
+                // previously excluded from this merge on the theory that "the exit
+                // handler always writes the correct values after this merge" — true
+                // only when there's no worktree (workDir === process.cwd() IS the
+                // primary checkout, so the exit handler's own write already lands
+                // here directly). When there IS a worktree, the exit handler writes
+                // Lane/Lane Status into the WORKTREE's copy only — this merge is the
+                // only thing that ever reaches the primary checkout for that track,
+                // so excluding them left the primary checkout frozen at its pre-run
+                // lane for the track's entire time in the worktree, only catching up
+                // at final done-merge. Found live: track 1112's review passed and
+                // moved to quality-gate in its worktree, but main kept showing review
+                // indefinitely. See mergeIndexMarkers() for the (now unit-tested)
+                // marker list and merge behavior.
+                let existing = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact);
                 // Safety guard: If worktree artifact is suspiciously small, don't overwrite.
                 const artifactStats = statSync(src);
                 const existingStats = statSync(dest);
