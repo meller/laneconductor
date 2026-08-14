@@ -90,10 +90,10 @@ drifting copy.
   offer all four registry providers (currently missing `copilot` and
   `antigravity`).
 - REQ-8: `conductor/laneconductor.sync.mjs`'s Gemini model-discovery branch
-  no longer substitutes Antigravity's (`agy models`) output for Gemini's
-  own; it either queries Gemini directly or falls back to the registry's
-  static Gemini presets — it must not report Antigravity's live model list
-  as if it were Gemini's.
+  queries the local provider CLI (`agy models`) as a fallback when direct gemini
+  CLI queries fail (filtering for `gemini-` prefixed models), matching Claude's
+  fallback behavior, so that live Gemini versions are discovered in environments
+  using Antigravity.
 
 ## Acceptance Criteria
 
@@ -116,9 +116,9 @@ drifting copy.
 - [ ] `ProjectConfigSettings.jsx`'s Primary/Secondary CLI dropdowns list
       `claude`, `gemini`, `copilot`, and `antigravity` as options.
 - [ ] Running `conductor/laneconductor.sync.mjs`'s Gemini model discovery
-      no longer calls `agy models` as its primary path — it either targets
-      Gemini directly or falls back to static presets without labeling
-      Antigravity's output as Gemini's.
+      queries the local provider CLI (`agy models`) on failure of the direct
+      gemini command, filtering for `gemini-` prefixed models so that live
+      gemini versions are fetched.
 - [ ] Posting a comment as `author: 'copilot'` or `author: 'antigravity'`
       via `POST /track/:num/comment` is accepted and stored as that
       author, not silently downgraded to `'human'`.

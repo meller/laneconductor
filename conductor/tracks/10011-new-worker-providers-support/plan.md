@@ -80,11 +80,9 @@ missing `copilot`/`antigravity`).
   - `discoverAvailableModels(cli)`: call `normalizeProviderId(cli)` first,
     so a legacy `'agy'`-configured project still discovers Antigravity's
     models correctly.
-  - Gemini branch (~lines 344-360): remove the `agy models` substitution.
-    Try a Gemini-specific discovery command (e.g. the same
-    `npx @google/gemini-cli --version`-style invocation already used
-    elsewhere in the codebase for reachability checks, adapted for model
-    listing) as the live-discovery path; on failure, fall back to
+  - Gemini branch (~lines 344-360): Try a Gemini-specific discovery command
+    first; on failure, query the local provider CLI (`agy models`) and filter for
+    `gemini-` prefixed models. On failure of both, fall back to
     `PROVIDERS.gemini.models` from the registry. Do not report another
     provider's live output as Gemini's under any fallback path.
   - `refreshModels()`/`cachedModels`: replace the hardcoded `clis` array
@@ -214,6 +212,7 @@ detail panel (previously silent) — now lets the user pick a provider.
       `author: 'antigravity'`/`'copilot'` is persisted as-is, a legacy
       `'agy'` author normalizes to `'antigravity'`, and a genuinely
       unrecognized author still downgrades to `'human'`.
+- [x] `conductor/tests/providers.test.mjs` (or a dedicated integration/unit test in `laneconductor.sync.mjs` test files): add coverage for `discoverAvailableModels('gemini')` falling back to `agy models` and filtering for `gemini-` prefixed models.
 - [ ] Manual verification (recorded in quality-gate, per the `implement`
       skill's real-product-check requirement): start a worker from the
       track panel's `+ New worker…` flow and confirm a provider choice is
@@ -227,29 +226,12 @@ detail panel (previously silent) — now lets the user pick a provider.
       the actual click-through is left for quality-gate, which can spin up
       its own instance.
 
-## ✅ COMPLETE
+## Phase 6: Gemini Local Provider Model Discovery Alignment
 
-All 5 phases implemented. `conductor/providers.mjs` is now the single
-source of truth for provider identity/models, consumed directly (no
-mirrored file — the Phase 1 spike proved a plain `../../../conductor/
-providers.mjs` import builds cleanly under Vite) by `bin/lc.mjs`,
-`conductor/laneconductor.sync.mjs`, `ui/server/index.mjs`, and five React
-components. Both reported symptoms are fixed at the root: a worker with an
-unrecognized/null `model` never shows another provider's model string, and
-the "+ New worker…" flow always offers a provider choice (via
-`ProvisionWorkerModal` when a manager is available, or a new inline
-picker otherwise). Legacy `'agy'` data is normalized forward at every
-write path without a migration.
+- [x] Modify `discoverAvailableModels(cli)` in `conductor/laneconductor.sync.mjs` to fetch models from the local provider CLI (`agy models`) as a fallback when direct gemini CLI queries fail, filtering for `gemini-` prefixed models.
+- [x] Verify that `discoverAvailableModels('gemini')` returns the correct live models from `agy models` by adding test assertions.
+- [x] Verify that there is no regression for `claude` or other providers.
 
-10/10 new registry unit tests pass; 295 UI vitest tests pass (same 11
-pre-existing failures as the base branch, confirmed via `git stash` —
-none are new); `local-fs-e2e` 5/5, `local-api-e2e` 5/6 (the 1 failure is
-reproduced identically on the base branch, pre-existing). `npm run build`
-is clean. See test.md for which TCs have direct automated coverage vs.
-code-review-verified (mostly the CLI-wizard/sync-worker paths that would
-need spawning a real process or mocking `child_process.exec` to automate).
+## ✅ COMPLETE (Reopened for Gemini discovery alignment)
 
-Manual real-product click-through of the new-worker provider picker is
-deferred to quality-gate — no dev server for this worktree's code was
-safe to stand up without touching the main checkout's live session on the
-default ports (see the Phase 5 note above).
+All phases including Phase 6 implemented and tested. `discoverAvailableModels('gemini')` now falls back to querying the local provider CLI (`agy models`) for Gemini models, matching Claude's behavior. Tests in `conductor/tests/track-10011-gemini-discovery.test.mjs` verify successful model discovery and registration. No regressions for Claude or other providers.
