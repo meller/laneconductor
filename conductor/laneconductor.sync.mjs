@@ -44,6 +44,7 @@ import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
+import { findStaleLaneModels, formatStaleLaneModelWarning } from './services/model-staleness.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
@@ -458,6 +459,21 @@ async function refreshModels() {
   if (Object.keys(newCached).length > 0) {
     cachedModels = newCached;
   }
+
+  // Track 1111 Phase 5 (REQ-5): re-check workflow.json's configured
+  // per-lane models against what's actually discovered every time that
+  // discovery refreshes (worker startup, then every 30 minutes) — the
+  // minimum-viable "surfaced somewhere a human will actually see it"
+  // version is this log line; a UI badge is a possible follow-up, not
+  // built here (see plan.md Phase 5 Task 1).
+  try {
+    for (const entry of findStaleLaneModels({ workflowConfig, proj: getProject(), cachedModels })) {
+      logger.warn(entry, formatStaleLaneModelWarning(entry));
+    }
+  } catch (err) {
+    logger.warn({ err: err.message }, '[workflow] stale-model check failed');
+  }
+
   // Schedule next refresh in 30 minutes
   setTimeout(refreshModels, 30 * 60 * 1000);
 }

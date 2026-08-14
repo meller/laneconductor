@@ -185,15 +185,55 @@ project's own file had.
 — check via the DB `projects` table rather than guessing), then apply
 Phase 1's same pattern to each.
 
-- [ ] Task 1: Enumerate actively-used projects (DB query or `lc`
+- [x] Task 1: Enumerate actively-used projects (DB query or `lc`
       tooling — decide which at execution time)
-- [ ] Task 2: For each, populate `primary_model` per lane using that
+      **Resolved 2026-08-14**: queried `projects` LEFT JOIN `tracks` for
+      `max(last_heartbeat)` per project. 15 rows total; excluded 4
+      `/tmp/...` scratchpad rows (test-verification fixtures from earlier
+      tracks, not real projects) and this project (already done in
+      Phase 1). Of the remaining 10, treated "actively-used" as real
+      `repo_path` on disk with a `last_heartbeat` inside the trailing ~2
+      weeks: macrodash (2026-08-14), aitutor/coachai (2026-08-14),
+      chesstrainer (2026-08-10), otralingo (2026-08-09), FiveElements
+      (2026-08-09), tokentalos (2026-08-09).
+- [x] Task 2: For each, populate `primary_model` per lane using that
       project's own reported `available_models`, not a copy-paste of
       this project's choices (different projects may reasonably want
       different tiers per lane)
-- [ ] Task 3: Record which projects were updated and which were
+      **Resolved 2026-08-14**: of the 6 active projects, only macrodash
+      and aitutor/coachai have a `workers` row with real discovered
+      `available_models.claude` data (both lists identical to this
+      project's own: sonnet-5/opus-5/sonnet-4-5/opus-4-5/3-7-sonnet/
+      3-5-sonnet/3-5-haiku) — updated both, applying the same tiering
+      the user originally asked for (plan=claude-opus-5,
+      implement=claude-sonnet-5, review/quality-gate=claude-3-5-haiku),
+      since that was the general request, not something specific to this
+      repo. chesstrainer/otralingo/FiveElements/tokentalos have no
+      `workers.available_models` row at all (no discovery has run for
+      them yet) — same caution as Phase 1 Task 1: populating a
+      `primary_model` with no discovery data to cross-check against
+      risks hardcoding an ID that worker can't actually use. Skipped,
+      not guessed.
+      **Not committed**: both `workflow.json` edits are live,
+      uncommitted changes inside macrodash's and coachai's own working
+      trees — both have their own independently-running LaneConductor
+      workers and large amounts of unrelated in-flight uncommitted work
+      (hundreds of files each, from their own live sync daemons). This
+      track has no authority/track-context in those repos to commit on
+      their behalf, and a broad `git add`/commit there risks sweeping in
+      unrelated changes or racing their live worker's own commit cycle.
+      Left as uncommitted edits for the human to review and commit
+      through each project's own normal flow.
+- [x] Task 3: Record which projects were updated and which were
       intentionally skipped (e.g. a project with only one CLI/model
       configured at all, where per-lane differentiation doesn't apply)
+      **Resolved 2026-08-14**: Updated (uncommitted, see above): macrodash,
+      aitutor/coachai. Skipped — no discovery data: chesstrainer,
+      otralingo, FiveElements, tokentalos. Skipped — dormant (no activity
+      in 4+ months) and no local `workflow.json` (relies on the global
+      fallback, out of scope to change unilaterally): the_hero_journey,
+      air-hockey-pvp, humanities-explorer. Skipped — zero track activity
+      ever: ocumentor_landing.
 
 **Impact**: REQ-1 satisfied beyond just this project.
 
@@ -209,14 +249,36 @@ or periodically alongside heartbeat) — comparing each lane's configured
 reported by 1099's discovery. Surface a mismatch somewhere a human will
 actually see it.
 
-- [ ] Task 1: Decide the trigger (worker startup log line is the
+- [x] Task 1: Decide the trigger (worker startup log line is the
       cheapest; a UI badge on the Workers view is more visible — likely
       both, starting with the log line as the minimum-viable version)
-- [ ] Task 2: Implement the comparison — needs a definition of "same
+      **Resolved 2026-08-14**: log line, wired into `refreshModels()`
+      (`conductor/laneconductor.sync.mjs`) so it fires at worker startup
+      AND every 30-minute refresh — not just once. UI badge left as a
+      documented followup (Task 1's "likely both"), not built this pass.
+- [x] Task 2: Implement the comparison — needs a definition of "same
       family, newer version" (e.g. string-prefix/tier matching) since
       exact-string comparison alone only detects "not currently
       installed," not "a newer one exists"
-- [ ] Task 3: Surface the notification per Task 1's decision
+      **Resolved 2026-08-14**: `conductor/services/model-staleness.mjs`
+      — `findStaleLaneModels()`. Tier keyword match (opus/sonnet/haiku/
+      fable substring) distinguishes "gone, and a same-tier newer model
+      exists" (the REQ-6 auto-update case) from "gone, no same-tier
+      replacement found either" (config typo / provider access change /
+      a discovery gap like the haiku-4.5 one found in Phase 1).
+- [x] Task 3: Surface the notification per Task 1's decision
+      **Resolved 2026-08-14**: `logger.warn()` per stale entry, message
+      built by `formatStaleLaneModelWarning()`. Verified live (not just
+      by reading the code): 6 unit tests
+      (`conductor/tests/track-1111-model-staleness.test.mjs`) plus a
+      direct run against this project's REAL `workflow.json` and its
+      worker's real discovered `available_models` — zero false
+      positives on the actual current config, and a synthetic
+      `claude-opus-6` injected into a copy of the real config correctly
+      produced: `[workflow] lane 'plan' configures primary_model
+      'claude-opus-6' (claude), which is not in the currently discovered
+      available_models — a same-tier newer model IS available:
+      'claude-opus-5'. Consider updating conductor/workflow.json.`
 
 **Impact**: REQ-5 — staleness becomes visible instead of silent.
 
