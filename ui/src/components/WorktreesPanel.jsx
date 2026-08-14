@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
+import { nextArmedState } from '../lib/armedConfirm.js';
+import { removeKey, mergeKey, completeKey, forceKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -74,13 +76,12 @@ function useArmedConfirm() {
   const [armedKey, setArmedKey] = useState(null);
   const timerRef = useRef(null);
   const request = (key, action) => {
-    if (armedKey === key) {
-      clearTimeout(timerRef.current);
-      setArmedKey(null);
+    clearTimeout(timerRef.current);
+    const { armedKey: next, shouldFire } = nextArmedState(armedKey, key);
+    setArmedKey(next);
+    if (shouldFire) {
       action();
     } else {
-      clearTimeout(timerRef.current);
-      setArmedKey(key);
       timerRef.current = setTimeout(() => setArmedKey(null), 4000);
     }
   };
@@ -308,13 +309,6 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Row identity keys, shared between the pending-tracking below and the
-  // action handlers, so both always agree on what "this row" means.
-  const removeKey = (row) => `remove:${row.worktree_path || row.branch}`;
-  const mergeKey = (row) => `merge:${row.track}`;
-  const completeKey = (row) => `complete:${row.track}`;
-  const forceKey = (row) => `force:${row.track}`;
-
   const fetchRows = useCallback(() => {
     if (!projectId) return;
     apiFetch(`/api/projects/${projectId}/worktrees`)
@@ -327,13 +321,8 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
         // longer what we dispatched against — either way, once it's not
         // the SAME pending state, clear it rather than waiting out the
         // full timeout. Cheap re-derivation each poll; the set is tiny.
-        const stillPresent = new Set();
-        for (const row of next) {
-          stillPresent.add(removeKey(row));
-          if (row.track) { stillPresent.add(mergeKey(row)); stillPresent.add(completeKey(row)); stillPresent.add(forceKey(row)); }
-        }
-        for (const key of Object.keys(pendingKeys)) {
-          if (!stillPresent.has(key)) clearPending(key);
+        for (const key of computeStaleKeys(pendingKeys, next)) {
+          clearPending(key);
         }
         setRows(next);
         setLoading(false);
