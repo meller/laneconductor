@@ -3,18 +3,25 @@
 ## Test Commands
 ```bash
 # Worker/dispatch E2E (node:test, spawns real worker + mock collector)
-node --test conductor/tests/track-1113-send-and-run.test.mjs
 node --test conductor/tests/track-1113-chat-coordination.test.mjs
+node --test conductor/tests/chat-reply-conversation-md.test.mjs
 
-# UI unit/integration (Vitest — TrackDetailPanel button changes, inbox query)
-cd ui && npm test -- TrackDetailPanel
-cd ui && npm test -- inbox
+# Covers TC-3 (existing suite, not a dedicated new file — see Phase 2 notes)
+node --test conductor/tests/track-1085-dispatch-worker.test.mjs
+
+# TC-1/2/4/6 have no automated coverage: they're about the exact request
+# sequence ui/server/index.mjs's Express routes see from
+# TrackDetailPanel.jsx, and no test in this repo stands up a real
+# ui/server + test DB (every existing E2E here runs the sync worker
+# against mock-collector.mjs instead) — see Phase 2 test-case notes for
+# what was verified by code reading in place of that.
 
 # Existing suites this track touches — must still pass (regression)
-node --test conductor/tests/track-1085-dispatch-worker.test.mjs
 node --test conductor/tests/track-1086-session-worker.test.mjs
 node --test conductor/tests/track-1087-worker-chat-dispatch.test.mjs
 node --test conductor/tests/sync-conversation-parser.test.mjs
+node --test conductor/tests/per-worker-machine-token.test.mjs
+node --test conductor/tests/conv-sync-multi-worker-race.test.mjs
 ```
 
 ## Test Cases
@@ -24,28 +31,53 @@ node --test conductor/tests/sync-conversation-parser.test.mjs
       comment with `no_wake: true` — assert the server never applies the
       general-queue `UPDATE tracks SET lane_action_status='queue' WHERE
       lane_status IN (...)` side effect for this control (spec REQ-1,
-      REQ-2)
+      REQ-2). **Not automated** — would need a real `ui/server` + test DB
+      harness, which doesn't exist anywhere in this repo's test suite (every
+      existing E2E test here runs the sync worker against `mock-collector.mjs`,
+      never the actual Express `ui/server/index.mjs`). Verified by code
+      reading instead: `sendComment()`'s comment POST always sends
+      `no_wake: true` for every `sendMode` that reaches it via Send & Run
+      (`ui/src/components/TrackDetailPanel.jsx`'s `run:` branch), unchanged
+      by this pass.
 - [ ] TC-2: Selecting a lane different from `detail.lane_status` and a
       worker, then submitting: assert the PATCH (`lane_status:
       <target>`) request completes and resolves *before* the
-      `POST /api/tracks/:id/dispatch` request is sent — the dispatch
-      endpoint 400s if `action !== track.lane_status`, so out-of-order
-      calls must fail the test (spec REQ-3)
-- [ ] TC-3: **On a real `sync-only` worker process** (not just asserting
-      DB rows): create a track in `review`, send a message targeting
-      `implement`, and confirm the worker actually spawns an `implement`
-      CLI run — `lane_action_status` observed transitioning `queue →
-      running → success` on the live worker, not merely written to
-      `queue` and left unclaimed. This is the exact failure mode found
-      live in the 1112 session; a test that only checks the DB row would
-      not have caught it.
+      `POST /api/tracks/:id/dispatch` request is sent (spec REQ-3). **Not
+      automated**, same harness gap as TC-1. Verified by code reading:
+      `sendComment()` `await`s the PATCH response before its `if
+      (dispatchAfter...)` branch calls `dispatchRunNow()` — sequential,
+      not concurrent, unchanged by this pass.
+- [x] TC-3: **On a real `sync-only` worker process** (not just asserting
+      DB rows) — covered by the existing
+      `conductor/tests/track-1085-dispatch-worker.test.mjs`'s first case
+      ("a --sync-only worker runs a dispatched lane action..."): dispatches
+      a lane action via `worker_dispatch` (the same row
+      `POST /api/tracks/:id/dispatch` inserts) to a real spawned
+      `--sync-only` worker, and asserts `lane_action_status` reaches
+      `success` on that live worker, not merely written to `queue`. This
+      is TC-3's exact substance (the 1112-session failure mode: queued but
+      never claimed) — no separate test file needed.
 - [ ] TC-4: Brainstorm button's request includes `no_wake: true` (spec
-      REQ-4) — regression check that it no longer also fires the
-      general-queue wake
-- [ ] TC-5: UI no longer renders a standalone "Replan" button or a header
-      "Run \<lane\> now" button (both folded into Send & Run)
+      REQ-4). **Not automated**, same harness gap. Verified by code
+      reading: `dispatchTrackChat()`'s prompt path doesn't touch the
+      general-queue wake at all (it's a `track_chat` dispatch, a fully
+      separate mechanism from `sendComment`'s `no_wake` flag), unchanged.
+- [x] TC-5: UI no longer renders a header "Run \<lane\> now" button
+      (Replan was already removed in the original Phase 2 pass — see
+      above). Verified live in-browser (2026-08-14): opened track 182's
+      detail panel, confirmed the header button is absent from the
+      accessibility tree, and confirmed the composer's "Send & Run <lane>"
+      button is enabled with an empty draft (`document.querySelector`
+      check: `disabled: false`) while plain "Send" mode correctly stays
+      disabled empty (`disabled: true`) — the exact behavior the removed
+      button used to provide, now covered by one control instead of two.
 - [ ] TC-6: Post Note, Bug, and +New Track behavior is unchanged (byte-for-
-      byte same request bodies as before this track)
+      byte same request bodies as before this track). **Not automated**,
+      same harness gap. Verified by diff: this pass's changes to
+      `TrackDetailPanel.jsx` touch only the header button JSX, the Send
+      button's `disabled` expression, and the `run:` branch's `command`
+      argument — `openBug()`, the Bug/+New Track handlers, and Post Note's
+      `sendComment(undefined, undefined, true)` call are untouched.
 - [x] TC-6b (added 2026-08-14, addendum — plain Send didn't dispatch):
       Selecting "💬 Message" (default `sendMode`) and sending now posts the
       comment (`no_wake: true`) then dispatches a `track_chat` turn via

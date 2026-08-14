@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 90%
-**Phase**: Phases 1, 3, 4, 5 complete. Phase 2 (Send & Run) is functionally shipped but has two known-open items: the header "Run <lane> now" button was never consolidated into it, and its own test cases…
+**Progress**: 96%
+**Phase**: All 5 phases complete. Header "Run <lane> now" button consolidated into Send & Run (2026-08-14, verified live in-browser). TC-3/TC-5 now covered; TC-1/2/4/6 remain without dedicated automated…
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: The conversation panel, inbox, transcripts, and worker-chat grew as four separate tracks (015, 1085, 1086, 1087) and their interaction semantics no longer compose — found live while dogfooding track…
@@ -70,7 +70,7 @@ traced one by one:
 
 ## Phases
 - [x] Phase 1: Design — interaction model for message → worker action
-- [x] Phase 2: Send & Run UX (shipped; header button consolidation and TC-1..6 remain open — see plan.md)
+- [x] Phase 2: Send & Run UX — header button consolidated 2026-08-14; TC-1/2/4/6 still lack automated coverage (harness gap, see test.md)
 - [x] Phase 3: Chat coordination — shared session (REQ-5), defer against in-flight lane action (REQ-6), no heartbeat clobber (REQ-7)
 - [x] Phase 4: Inbox consolidation — track_chat reply reaches conversation.md → track_comments (mechanism changed from the original plan; see plan.md)
 - [x] Phase 5: Tests — track-1113-chat-coordination.test.mjs, chat-reply-conversation-md.test.mjs, both negative-controlled

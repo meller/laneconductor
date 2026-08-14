@@ -521,7 +521,13 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       return dispatchTrackChat(text);
     }
     if (sendMode === 'bug') return openBug();
-    if (sendMode.startsWith('run:')) return sendComment(undefined, sendMode.slice(4), true, undefined, true);
+    // Track 1113 Phase 2 (TC-5): command is the target lane, not left
+    // undefined — an empty-draft Run submission (the case the removed
+    // header button used to cover: "just re-run this stage, nothing to
+    // say") falls back to `Triggering ${command}...` in sendComment's body
+    // construction, and `Triggering undefined...` would be a visibly wrong
+    // regression from that button's behavior.
+    if (sendMode.startsWith('run:')) return sendComment(undefined, sendMode.slice(4), true, sendMode.slice(4), true);
     return sendComment();
   }
 
@@ -630,14 +636,15 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                       ))}
                       <option value="__new__">+ New worker…</option>
                     </select>
-                    <button
-                      onClick={() => dispatchRunNow(detail.lane_status)}
-                      disabled={dispatching || provisioningWorker || !selectedWorkerId || selectedWorkerUnusable}
-                      title={`Run ${detail.lane_status} now on this worker, outside the normal queue`}
-                      className="text-xs px-2 py-0.5 rounded border border-blue-800/70 text-blue-400 hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {provisioningWorker ? 'Starting worker…' : dispatching ? 'Dispatching…' : `Run ${detail.lane_status} now`}
-                    </button>
+                    {/* Track 1113 Phase 2 (TC-5): the standalone "Run <lane>
+                        now" button that used to live here is gone — folded
+                        into the composer's Send & Run control below, which
+                        now accepts an empty draft for a `run:<lane>`
+                        submission (see the Send button's disabled condition
+                        and handleComposerSend's run: branch). This select
+                        still feeds `selectedWorkerId`, which both Send & Run
+                        and dispatchTrackChat (Brainstorm/plain Send) read via
+                        resolveWorkerId() — it stays. */}
                   </div>
                 )}
                 {dispatchHistory.length > 0 && (
@@ -798,7 +805,12 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                   </button>
                   <button
                     onClick={handleComposerSend}
-                    disabled={!draft.trim() || sending || dispatching || provisioningWorker || (needsOnlineWorker && (!selectedWorkerId || selectedWorkerUnusable))}
+                    // Track 1113 Phase 2 (TC-5): a `run:<lane>` submission no
+                    // longer requires draft text — this is what lets the
+                    // composer cover the removed header button's case
+                    // ("just re-run this stage, nothing to say"). Every
+                    // other mode still requires a non-empty message.
+                    disabled={(!sendMode.startsWith('run:') && !draft.trim()) || sending || dispatching || provisioningWorker || (needsOnlineWorker && (!selectedWorkerId || selectedWorkerUnusable))}
                     title={SEND_MODE_HELP[sendMode]}
                     className={`ml-auto px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-medium shadow-lg transition-all flex items-center gap-1.5 ${sendMode.startsWith('run:')
                       ? 'bg-emerald-700 hover:bg-emerald-600 shadow-emerald-900/20'

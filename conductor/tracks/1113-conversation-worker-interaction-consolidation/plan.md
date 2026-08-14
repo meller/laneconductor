@@ -75,13 +75,21 @@ thing (gap 2).
       order (REQ-1/2/3)
 - [x] Replan removed entirely (not just its old behavior folded in) —
       subsumed by `Send & Run → plan`
-- [ ] Header "Run \<lane\> now" button (`dispatchRunNow`, ~line 623)
-      **NOT removed** — still present alongside the composer's Send & Run.
-      Deliberately left as-is rather than removed sight-unseen: it works
-      with no message text (composer's Send requires non-empty `draft`),
-      a real distinct case ("just re-run this stage, nothing to say").
-      Consolidating cleanly (e.g. letting Send & Run fire with an empty
-      draft) is real remaining work, not done here.
+- [x] Header "Run \<lane\> now" button removed (2026-08-14). Consolidated
+      the way originally deferred: the composer's Send button now accepts
+      an empty draft specifically for `sendMode.startsWith('run:')`
+      (`disabled={(!sendMode.startsWith('run:') && !draft.trim()) || ...}`),
+      covering "just re-run this stage, nothing to say" without the second
+      control. `command` in `handleComposerSend`'s `run:` branch changed
+      from `undefined` to the target lane name, so an empty-draft
+      submission's server-side fallback text reads `Triggering
+      implement...` rather than `Triggering undefined...` — a real
+      regression the naive version of this change would have shipped.
+      `dispatchRunNow()` itself is unchanged and still used internally by
+      `sendComment()`'s dispatch-after step; only the standalone button
+      JSX is gone. Verified live in-browser: header button absent from the
+      accessibility tree; "Send & Run \<lane\>" enabled with empty draft
+      (`disabled: false`); plain "Send" still correctly disabled empty.
 - [x] Brainstorm fixed — but via dispatch, not `no_wake`: routes through
       an actual `track_chat` dispatch (`dispatchTrackChat`) instead of the
       dead `Waiting for reply: yes` + `autoLaunchLocalFs` poll path, which
@@ -130,11 +138,14 @@ oversight. See conversation.md's review entry for the full reasoning.
       Run/Brainstorm instead of being the one mode that didn't check
 - [x] `SEND_MODE_HELP.send` and the stale explanatory comment above it
       (both described the now-superseded passive behavior) updated
-- [ ] **Not done as part of this addendum**: TC-1 through TC-6 (Phase 2's
-      own test cases) remain unwritten — this fix reuses Brainstorm's
-      already-proven path but doesn't itself add automated coverage.
-      Regression suites this area touches (1085/1086/1087/
-      sync-conversation-parser) re-run clean, 17/17.
+- [x] TC-1/2/4/6 remain without dedicated automated coverage (no
+      `ui/server` + test DB harness exists in this repo — see test.md).
+      TC-3 and TC-5 are now covered (2026-08-14): TC-3 by
+      `track-1085-dispatch-worker.test.mjs`'s existing first case, TC-5 by
+      the header-button removal above, verified live in-browser. This is
+      as complete as Phase 2 gets without building new test infrastructure
+      — see test.md for exactly what's automated vs. code-reading-verified
+      per case.
 
 ## Phase 3: Chat coordination — shared session, no concurrent execution, no heartbeat clobber
 
