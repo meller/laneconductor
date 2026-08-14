@@ -646,10 +646,64 @@ async function executeIntegrationHooks(trackNumber, lane, eventType) {
   }
 }
 
+// ── Per-worker machine tokens ────────────────────────────────────────────────
+// A machine_token identifies ONE worker row. It must therefore never live in
+// `.laneconductor.json`, which every worker process of a project shares:
+// registration used to write each worker's token there, so the last worker to
+// register overwrote the others', and the config watcher then pushed that one
+// token into every running process. All of them subsequently authenticated as
+// whichever worker registered last, and `req.worker_id` on the server
+// collapsed to that single identity.
+//
+// The visible damage was session cross-contamination: `GET /track/:num/session`
+// is scoped by (track_number, worker_id), so a worker asking for *its* session
+// got a different worker's, and `--resume`d that worker's already-finished
+// session. Live case (track 182, aitutor, 2026-08-14): worker #2 resumed
+// worker #3's completed planning session and re-emitted byte-identical
+// plan.md/spec.md, silently ignoring the human comment that prompted the
+// re-run — it looked like "the agent ignored me", not like an auth bug.
+//
+// Tokens now live in a per-worker file that no other worker writes, and the
+// in-memory copy is authoritative so a config reload can never reassign this
+// process's identity.
+const workerTokenStorePath = join('conductor', workerNumber === 1 ? '.worker.tokens.json' : `.worker-${workerNumber}.tokens.json`);
+const ownMachineTokens = new Map(); // collector url -> this worker's machine_token
+
+function loadOwnMachineTokens() {
+  try {
+    if (!existsSync(workerTokenStorePath)) return;
+    const stored = JSON.parse(readFileSync(workerTokenStorePath, 'utf8'));
+    for (const [url, tok] of Object.entries(stored)) {
+      if (typeof tok === 'string' && tok) ownMachineTokens.set(url, tok);
+    }
+  } catch (err) {
+    console.warn(`[worker-token] Could not read ${workerTokenStorePath} (will re-register): ${err.message}`);
+  }
+}
+
+function rememberOwnMachineToken(url, token) {
+  if (!url || !token || ownMachineTokens.get(url) === token) return;
+  ownMachineTokens.set(url, token);
+  try {
+    mkdirSync('conductor', { recursive: true });
+    writeFileSync(workerTokenStorePath, JSON.stringify(Object.fromEntries(ownMachineTokens), null, 2) + '\n');
+  } catch (err) {
+    // Non-fatal: the in-memory token still works for this process's lifetime.
+    console.warn(`[worker-token] Could not persist ${workerTokenStorePath}: ${err.message}`);
+  }
+}
+
+loadOwnMachineTokens();
+
 // Resolve auth token for a collector entry (handles GCP Secret Manager, env, and machine tokens)
 function resolveToken(collector, envKey) {
   // 1. Try environment variable override
   if (process.env[envKey]) return process.env[envKey];
+
+  // 1b. This worker's OWN machine token wins over anything in the shared
+  // config — see the comment above rememberOwnMachineToken.
+  const own = collector.url ? ownMachineTokens.get(collector.url) : null;
+  if (own) return own;
 
   // 2. Try GCP Secret Manager if configured
   if (collector.store_type === 'gcp-secret' && collector.secret_name) {
@@ -673,8 +727,15 @@ function resolveToken(collector, envKey) {
     }
   }
 
-  // 3. Fallback to machine token or inline token (for local-api mode)
-  return collector.machine_token ?? collector.token ?? null;
+  // 3. Fallback to machine token or inline token (for local-api mode).
+  // A config-file machine_token is only trustworthy as *this* worker's
+  // identity for worker #1: pre-fix configs stored a single token there, and
+  // for a one-worker project it is that worker's own. For any additional
+  // worker it definitionally belongs to someone else, so using it would
+  // re-create the impersonation this store exists to prevent — register
+  // anonymously instead and adopt the token the server hands back.
+  if (workerNumber === 1 && collector.machine_token) return collector.machine_token;
+  return collector.token ?? null;
 }
 
 // Post to ALL collectors. Primary (index 0) is awaited; rest are fire-and-forget.
@@ -721,6 +782,12 @@ function resolveCollectorToken(idx) {
   // 1. Env override COLLECTOR_n_TOKEN
   if (process.env[`COLLECTOR_${idx}_TOKEN`]) return process.env[`COLLECTOR_${idx}_TOKEN`];
 
+  // 1b. This worker's OWN machine token (see rememberOwnMachineToken) — must
+  // outrank both the cache and the shared config, or this process can end up
+  // authenticating as a different worker.
+  const own = c.url ? ownMachineTokens.get(c.url) : null;
+  if (own) return own;
+
   // 2. Cache
   if (tokenCache.has(idx)) return tokenCache.get(idx);
 
@@ -747,8 +814,9 @@ function resolveCollectorToken(idx) {
     }
   }
 
-  // 4. machine_token (from registration)
-  if (c.machine_token) return c.machine_token;
+  // 4. machine_token from the shared config — only ever this worker's own
+  // identity for worker #1 (see resolveToken for the full reasoning).
+  if (workerNumber === 1 && c.machine_token) return c.machine_token;
 
   // 5. auth file token (~/.laneconductor-auth.json)
   const userToken = getUserToken();
@@ -840,11 +908,11 @@ async function upsertWorker() {
 
       if (res.id) myWorkerId = res.id;
 
-      // Store the returned machine token on disk for next beats
-      if (res.machine_token && res.machine_token !== c.machine_token) {
-        c.machine_token = res.machine_token;
-        writeFileSync('.laneconductor.json', JSON.stringify(config, null, 2) + '\n');
-      }
+      // Store the returned machine token for next beats — in this worker's
+      // OWN store, never in the shared `.laneconductor.json`. Writing it to
+      // the shared config is what made every worker of a project authenticate
+      // as whichever one registered last (see rememberOwnMachineToken).
+      if (res.machine_token) rememberOwnMachineToken(url, res.machine_token);
 
       console.log(`[LaneConductor] Worker registered to ${url}: ${hostname} (PID: ${pid}) [${workerMode}]`);
       if (proj.id) notifyApi('worker:updated', { projectId: proj.id });
@@ -5140,26 +5208,6 @@ async function checkDispatchInbox() {
         status: result.removed ? 'done' : 'failed',
         result: resultText,
       }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report remove-worktree result'));
-      continue;
-    }
-
-    // Track 1114 follow-up: force a re-audit of the worktree cache on
-    // demand. Needed because anyone cleaning up worktrees/branches
-    // directly with git (outside the panel's own buttons) leaves
-    // cachedWorktreeSummary stale until the next 60s tick or a worker
-    // restart — found live after a bulk manual cleanup left the panel
-    // showing 30 already-deleted rows. updateWorkerHeartbeat() right
-    // after the refresh pushes the fresh cache immediately rather than
-    // waiting for the next scheduled beat.
-    if (entry.action === 'refresh-worktrees') {
-      logger.info({ dispatchId: entry.id }, '[dispatch] refresh-worktrees');
-      updateWorkerHeartbeat('busy', `refresh-worktrees (dispatch ${entry.id})`);
-      await refreshWorktreeSummaryCache();
-      updateWorkerHeartbeat('idle', null);
-      await patch(url, token, `/worker-dispatch/${entry.id}`, {
-        status: 'done',
-        result: `Refreshed — ${cachedWorktreeSummary ? cachedWorktreeSummary.length : 0} worktree row(s)`,
-      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report refresh-worktrees result'));
       continue;
     }
 
