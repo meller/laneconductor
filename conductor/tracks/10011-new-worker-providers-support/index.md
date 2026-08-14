@@ -1,8 +1,8 @@
 # Track 10011: new worker providers support
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 0%
+**Progress**: 100%
 **Phase**: New
 **Type**: dev
 **Summary**: new worker -both from worker lane and track - new worker dropdown- - do not supprt non claude well - for example gemini has wrong version in worker lane and drop down doesnt even suggest provdioers
