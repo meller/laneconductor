@@ -5035,6 +5035,20 @@ async function checkDispatchInbox() {
   if (!entries || entries.length === 0) return;
 
   for (const entry of entries) {
+    // Track 1113 Phase 3 (REQ-6): a chat turn and a lane action for the same
+    // track would otherwise run as two concurrent CLI processes against one
+    // worktree — checkDispatchInbox's interval is fully independent of the
+    // lane-action loop. Leave the entry `pending` (do NOT claim) so a later
+    // cycle picks it up once the lane action's process has exited.
+    if (entry.action === 'track_chat') {
+      const pendingTrack = entry.payload?.track_number ?? entry.track_number ?? null;
+      if (pendingTrack && activeDispatch.has(String(pendingTrack))) {
+        logger.info({ dispatchId: entry.id, trackNumber: pendingTrack },
+          '[dispatch] Deferring chat turn — lane action still in flight for this track');
+        continue;
+      }
+    }
+
     try {
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'claimed' });
     } catch (err) {
@@ -5366,10 +5380,24 @@ async function checkDispatchInbox() {
       logger.info({ dispatchId: entry.id, action: entry.action, chatTrack }, '[dispatch] Running chat turn');
       updateWorkerHeartbeat('busy', `${label} (dispatch ${entry.id})`);
 
+      // Track 1113 Phase 3 (REQ-5): share the same track_sessions row a lane
+      // action for this (track, worker) uses, so chat and lane actions carry
+      // one conversation instead of the chat handler cold-starting every turn.
+      // worker_adhoc_chat has no track and nothing to resume.
+      const chatSession = entry.action === 'track_chat' && chatTrack
+        ? await resolveTrackSession(chatTrack)
+        : null;
+      const resumingChat = !!chatSession && !chatSession.isFresh;
+      const chatSessionArgs = chatSession
+        ? [chatSession.isFresh ? '--session-id' : '--resume', chatSession.claude_session_id]
+        : [];
+
       // For a track chat, give the model that track's own docs as context —
-      // otherwise the question has nothing to ground itself in.
+      // otherwise the question has nothing to ground itself in. On a resumed
+      // session that context is already in the conversation, so re-injecting
+      // it every turn is the exact waste REQ-5 exists to remove.
       let fullPrompt = String(prompt);
-      if (chatTrack) {
+      if (chatTrack && !resumingChat) {
         const trackDirName = resolveTrackFolder('conductor/tracks', chatTrack);
         if (trackDirName) {
           const trackPath = join('conductor/tracks', trackDirName);
@@ -5388,7 +5416,7 @@ async function checkDispatchInbox() {
         if (process.env.LC_MOCK_CLI) {
           const [c, ...rest] = process.env.LC_MOCK_CLI.split(' ');
           cmd = c;
-          cliArgs = [...rest, 'chat', chatTrack ?? 'adhoc'];
+          cliArgs = [...rest, 'chat', chatTrack ?? 'adhoc', ...chatSessionArgs];
         } else {
           const proj = getProject();
           cmd = proj.primary?.cli || 'claude';
@@ -5397,7 +5425,7 @@ async function checkDispatchInbox() {
           // and its raw JSONL is unreadable as a chat reply (verified
           // live: the first working version returned hook/system events as
           // the "answer"). A chat turn just needs the text back.
-          cliArgs = ['--dangerously-skip-permissions', '-p', fullPrompt];
+          cliArgs = ['--dangerously-skip-permissions', ...chatSessionArgs, '-p', fullPrompt];
           if (cmd === 'claude' && proj.primary?.model) cliArgs.push('--model', proj.primary.model);
         }
 
@@ -5420,7 +5448,22 @@ async function checkDispatchInbox() {
         logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] chat turn failed');
       }
 
-      updateWorkerHeartbeat('idle', null);
+      // Track 1113 Phase 3 (REQ-5): persist only after the turn actually ran,
+      // matching spawnCli's reasoning — resolving-then-persisting on a path
+      // that never spawns orphans a session row.
+      if (chatSession && status === 'done') {
+        await persistTrackSession(chatTrack, chatSession.claude_session_id);
+      }
+
+      // Track 1113 Phase 3 (REQ-7): heartbeat writes are last-write-wins with
+      // no mutex, so an unconditional 'idle' here would clobber a lane action
+      // that is still running on this worker and make it look finished.
+      if (runningPids.size === 0) {
+        updateWorkerHeartbeat('idle', null);
+      } else {
+        logger.info({ dispatchId: entry.id, runningLaneActions: runningPids.size },
+          '[dispatch] Chat turn done — leaving heartbeat busy, lane action still running');
+      }
 
       // A track_chat reply used to live ONLY in worker_dispatch.result —
       // visible in the live Transcript/chat bar, invisible everywhere else
@@ -5608,9 +5651,13 @@ async function reconcileActiveDispatch() {
   }
 }
 
+// LC_DISPATCH_POLL_MS: test-only override (default stays 10s). Track 1113's
+// deferral path (REQ-6) only engages when an inbox cycle lands *while* a lane
+// action is still running; at the 10s default a test would have to hold a
+// mock CLI open >10s to observe it, which is both slow and timing-fragile.
 setInterval(() => {
   checkDispatchInbox().catch(err => console.error('[dispatch error]:', err.message));
-}, 10000);
+}, Number(process.env.LC_DISPATCH_POLL_MS) || 10000);
 setInterval(() => {
   reconcileActiveDispatch().catch(err => console.error('[dispatch-reconcile error]:', err.message));
 }, 5000);
