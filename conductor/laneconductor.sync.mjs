@@ -2119,14 +2119,72 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
 
 // ── Conversation sync ─────────────────────────────────────────────────────────
 
+// Every worker process of a project watches the SAME conductor/tracks
+// directory (chokidar, ignoreInitial: false), so a single conversation.md
+// write can fire syncConversation concurrently in N processes, each reading
+// the same stale .conv-cursor before any of them writes it back. Live-
+// reproduced twice in one session (aitutor track 182, 2026-08-14):
+//   - Three workers all reacting to one file touch each independently
+//     parsed the same new turn and POSTed it — three duplicate
+//     track_comments rows, byte-identical, same millisecond.
+//   - A concurrent second cycle read a cursor position that split a
+//     multi-line reply mid-body; the fragment matched no known comment
+//     format, and the cursor still advanced past it unconditionally — the
+//     reply was silently dropped, never reaching track_comments at all.
+// A lockfile per track serializes syncConversation across processes for
+// that track: only the lock holder reads-parses-posts-advances; every
+// other concurrent caller skips this cycle rather than racing it. Skipping
+// is safe (not lossy) — the content is still on disk, unconsumed, and the
+// next debounced trigger for this file re-derives newContent from
+// whatever the cursor actually says, so nothing is dropped by skipping.
+const CONV_SYNC_LOCK_STALE_MS = 30_000;
+async function withConvSyncLock(cursorPath, fn) {
+  const lockPath = `${cursorPath}.lock`;
+  let fd;
+  try {
+    fd = openSync(lockPath, 'wx');
+  } catch (err) {
+    if (err.code !== 'EEXIST') throw err;
+    // Another process holds it. Only steal a lock old enough to mean its
+    // holder crashed/was killed mid-sync (this session: a worker was
+    // killed by an overly-broad pkill while a sync was plausibly
+    // in-flight) — a live holder finishes in milliseconds, well under this
+    // threshold, so a fresh lock is never stolen out from under real work.
+    try {
+      const age = Date.now() - statSync(lockPath).mtimeMs;
+      if (age < CONV_SYNC_LOCK_STALE_MS) return; // someone else has it — skip this cycle, not an error
+      console.warn(`[conv-sync] Stale lock (${Math.round(age / 1000)}s) at ${lockPath} — assuming a dead holder and taking it`);
+      rmSync(lockPath, { force: true });
+      fd = openSync(lockPath, 'wx');
+    } catch (retryErr) {
+      if (retryErr.code === 'EEXIST') return; // lost the race to reclaim it — fine, skip this cycle
+      throw retryErr;
+    }
+  }
+  closeSync(fd);
+  try {
+    // MUST await here — fn() is async (it POSTs to the collector before
+    // returning), and releasing the lock in a bare `finally` around a call
+    // that isn't awaited would release it the instant fn() returns its
+    // pending promise, not once the work inside actually finishes. That
+    // would silently defeat the entire lock.
+    return await fn();
+  } finally {
+    try { rmSync(lockPath, { force: true }); } catch (_) { /* already gone — fine */ }
+  }
+}
+
 async function syncConversation(filepath) {
   if (getIsLocalFs()) return;
-  try {
-    const trackNumber = extractTrackNumber(filepath);
-    if (!trackNumber) return;
-    const trackDir = dirname(filepath);
-    const cursorPath = join(trackDir, '.conv-cursor');
+  const trackNumber = extractTrackNumber(filepath);
+  if (!trackNumber) return;
+  const trackDir = dirname(filepath);
+  const cursorPath = join(trackDir, '.conv-cursor');
+  return withConvSyncLock(cursorPath, () => syncConversationLocked(filepath, trackNumber, trackDir, cursorPath));
+}
 
+async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPath) {
+  try {
     const content = readFileSync(filepath, 'utf8');
     const cursor = parseInt(readIfExists(cursorPath) || '0');
     const newContent = content.slice(cursor);

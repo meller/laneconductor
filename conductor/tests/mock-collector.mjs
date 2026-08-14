@@ -20,7 +20,8 @@ const state = {
   nextWorkerId: 900, // arbitrary base so test worker ids don't collide with anything real
   dispatch: [], // Track 1085: [{ id, worker_id, track_number, action, payload, status, result }] — seeded via /_enqueue-dispatch
   nextDispatchId: 1,
-  sessions: {}, // Track 1086: { [track_number]: claude_session_id } — simplified, no per-worker scoping (every worker in this mock shares the same machine_token, so there's no way to distinguish callers without real auth; the real server's per-(track_number, worker_id) scoping is covered by ui/server/tests/track-1086-sessions.test.mjs instead)
+  sessions: {}, // Track 1086: { [track_number]: claude_session_id } — mirrors whichever worker wrote LAST, kept for tests written before per-worker scoping existed. Only accurate when a single worker is in play; see sessionsByToken for the real per-caller view.
+  sessionsByToken: {}, // Track 1113: { [bearerToken]: { [track_number]: claude_session_id } } — every worker gets its OWN machine_token (see /worker/register below), and session lookup/write is scoped by the CALLING worker's token, matching collectorAuth's req.worker_id scoping on the real server. Added after a real cross-worker session leak (track 182, aitutor, 2026-08-14) traced back to every worker in a project sharing one token in this mock, which could never have caught it.
   comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
   projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
 };
@@ -56,6 +57,7 @@ function route(method, urlPattern, req) {
 
 const server = createServer(async (req, res) => {
   const body = await readBody(req);
+  const bearerToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
   let params;
 
   // ── Startup ────────────────────────────────────────────────────────────────
@@ -66,8 +68,13 @@ const server = createServer(async (req, res) => {
 
   if ((params = route('POST', '/worker/register', req)) !== null) {
     const id = state.nextWorkerId++;
-    state.workers.push({ ...body, id });
-    return reply(res, 200, { machine_token: 'mock-token', id });
+    // One token PER WORKER — a shared 'mock-token' for every registrant is
+    // exactly the bug this mock is meant to be able to catch (see the
+    // sessionsByToken comment above). Callers only get back the token for
+    // their own registration; using it is what proves identity downstream.
+    const machine_token = `mock-token-${id}`;
+    state.workers.push({ ...body, id, machine_token });
+    return reply(res, 200, { machine_token, id });
   }
 
   // Track 1084 Phase 3: claimable-tracks. Defaults to null (endpoint 500s,
@@ -107,17 +114,26 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { id });
   }
 
-  // Track 1086: session lookup/upsert. See state.sessions comment above for
-  // why this is track_number-only rather than (track_number, worker_id).
-  if ((params = route('GET', '/track/:num/session', req)) !== null)
-    return reply(res, 200, { claude_session_id: state.sessions[params.num] ?? null });
+  // Track 1086/1113: session lookup/upsert, scoped by the CALLING worker's
+  // bearer token — mirrors the real server's (track_number, req.worker_id)
+  // key. state.sessions[num] is also updated as a flat "last writer" mirror
+  // so single-worker tests written before per-worker scoping existed don't
+  // need to change.
+  if ((params = route('GET', '/track/:num/session', req)) !== null) {
+    const byToken = bearerToken ? (state.sessionsByToken[bearerToken] ??= {}) : {};
+    return reply(res, 200, { claude_session_id: byToken[params.num] ?? null });
+  }
 
   if ((params = route('POST', '/track/:num/session', req)) !== null) {
+    if (bearerToken) {
+      (state.sessionsByToken[bearerToken] ??= {})[params.num] = body.claude_session_id;
+    }
     state.sessions[params.num] = body.claude_session_id;
     return reply(res, 200, { ok: true });
   }
 
   if ((params = route('DELETE', '/track/:num/session', req)) !== null) {
+    if (bearerToken && state.sessionsByToken[bearerToken]) delete state.sessionsByToken[bearerToken][params.num];
     delete state.sessions[params.num];
     return reply(res, 200, { ok: true });
   }
@@ -268,6 +284,7 @@ const server = createServer(async (req, res) => {
     state.claimable = null;
     state.dispatch = [];
     state.sessions = {};
+    state.sessionsByToken = {};
     state.comments = [];
     state.projectEnsureCalls = 0;
     return reply(res, 200, { ok: true });
