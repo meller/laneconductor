@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { MODEL_PRESETS, CLI_ENGINES } from './WorkerModelModal.jsx';
+import { CreateManagerWorkerForm } from './CreateManagerWorkerForm.jsx';
+
+const CLOUD_MODE = process.env.VITE_CLOUD_MODE === 'true';
 
 // Track 1089 Phase 6 (redesigned 2026-08-12): start another worker for a
 // project, on whichever machine should run it.
@@ -167,10 +170,11 @@ export function ProvisionWorkerModal({ projectId, workers = [], onClose, onProvi
               No manager worker is online. Workers are started by the manager on
               the machine that should run them.
             </p>
-            <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded-lg p-3 whitespace-pre-wrap">lc worker start --manager --projects-dir &lt;path&gt;</pre>
-            <p className="text-xs text-gray-600">
-              Run that once on each machine you want to run workers on.
+            {!CLOUD_MODE && <CreateManagerWorkerForm onCreated={loadWorkers} />}
+            <p className="text-xs text-gray-600 pt-1">
+              To start one on a <span className="font-semibold">different</span> machine, run this there yourself (no SSH — a manager only ever manages its own machine):
             </p>
+            <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded-lg p-3 whitespace-pre-wrap">lc worker start --manager --projects-dir &lt;path&gt;</pre>
             <div className="flex justify-end pt-1">
               <button onClick={onClose} className="px-3 py-1.5 text-xs rounded border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors">Close</button>
             </div>

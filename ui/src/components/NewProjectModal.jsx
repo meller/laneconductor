@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
+import { CreateManagerWorkerForm } from './CreateManagerWorkerForm.jsx';
+
+const CLOUD_MODE = process.env.VITE_CLOUD_MODE === 'true';
 
 // Track 1091 Phase 4. Form-style (spec.md REQ-5, resolved 2026-08-10):
 // dispatch is fire-and-poll, not turn-by-turn, so a conversational flow
@@ -133,6 +136,7 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
               singleton — start one on whichever of your machines should
               host new projects:
             </p>
+            {!CLOUD_MODE && <CreateManagerWorkerForm />}
             {knownHostnames.length > 0 && (
               <div>
                 <p className="text-xs text-gray-500 mb-1">
@@ -145,11 +149,10 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
                 </ul>
               </div>
             )}
-            <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded-lg p-3">lc worker start --manager --projects-dir &lt;path&gt;</pre>
-            <p className="text-xs text-gray-600">
-              Run this on the target machine itself — a manager only ever
-              manages projects on its own machine.
+            <p className="text-xs text-gray-600 pt-1">
+              To start one on a <span className="font-semibold">different</span> machine, run this there yourself:
             </p>
+            <pre className="text-xs text-gray-300 bg-gray-900 border border-gray-800 rounded-lg p-3">lc worker start --manager --projects-dir &lt;path&gt;</pre>
             <div className="flex justify-end pt-1">
               <button onClick={onClose} className="px-3 py-1.5 text-xs rounded border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors">
                 Close

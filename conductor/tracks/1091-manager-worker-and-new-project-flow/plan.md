@@ -257,17 +257,112 @@ actions like `create-project`).
 **Solution**: A distinct badge/icon for `type: 'manager'` rows wherever
 workers are listed.
 
-- [ ] Task 1: `WorkersList.jsx` — manager rows get a distinct badge (e.g. "MANAGER", different color from the existing per-project worker styling) instead of a project name (they have none)
-- [ ] Task 2: `WorkerActivityLatch.jsx` (1087) — same badge treatment in the worker-list column; a manager worker's `current_task` while running `create-project` should route to 1087's non-track dispatch view (Phase 6 there), not the track-transcript path
-- [ ] Task 3: Confirm no regression for `type: 'project'` workers — they keep their existing unbadged rendering (this phase adds a case, doesn't restructure the existing one)
+- [x] Task 1: `WorkersList.jsx` — manager rows get a distinct badge (e.g. "MANAGER", different color from the existing per-project worker styling) instead of a project name (they have none)
+- [x] Task 2: `WorkerActivityLatch.jsx` (1087) — same badge treatment in the worker-list column; a manager worker's `current_task` while running `create-project` should route to 1087's non-track dispatch view (Phase 6 there), not the track-transcript path
+- [x] Task 3: Confirm no regression for `type: 'project'` workers — they keep their existing unbadged rendering (this phase adds a case, doesn't restructure the existing one)
+
+**Checklist corrected 2026-08-14 during review**: all three tasks were
+already implemented in code (found while re-reviewing the track for Phase
+5b) — this checklist just never got updated to match. Confirmed by direct
+code read: `data-testid="manager-badge"` present in both `WorkersList.jsx`
+and `WorkerActivityLatch.jsx`; `create-project`'s
+`updateWorkerHeartbeat('busy', 'create-project (dispatch N)')` call matches
+`parseWorkerTask`'s dispatch-kind regex, routing correctly to the non-track
+view. No code change made here — documentation catch-up only.
+
+## Phase 5b: Create-Manager-Worker UI (added 2026-08-14)
+
+**Problem**: Both `ProvisionWorkerModal.jsx` and `NewProjectModal.jsx` dead-ended
+into "no manager worker — go run `lc worker start --manager --projects-dir
+<path>` yourself in a terminal" whenever none was online. There was already a
+symmetric **stop**-manager path from a UI button (`POST /api/workers/:id/stop`
+→ `lc worker stop --manager`), and "Start Sync Worker" already worked as a
+real button for project-scoped workers (`POST /api/projects/:id/worker/start`
+→ `lc start`) — but nothing could start a *manager* from the UI at all,
+including from the New Project flow that specifically requires one to exist
+first.
+**Solution**: A new server endpoint mirroring the existing worker-start
+pattern, plus a shared "Create Manager Worker" form used by both dead-end
+spots, gated to non-cloud-mode only.
+
+- [x] Task 1: `POST /api/workers/manager/start` (`ui/server/index.mjs`) — runs
+  `lc worker start --manager [--projects-dir <dir>]`
+- [x] Task 2: `CreateManagerWorkerForm.jsx` (new, shared) — editable "projects
+  directory" field defaulted from an existing project's `repo_path` parent
+  dir, calls the new endpoint
+- [x] Task 3: Wire into `ProvisionWorkerModal.jsx` and `NewProjectModal.jsx`'s
+  "no manager" empty states, alongside (not replacing) the existing
+  copy-paste command — the button can only ever start a manager on the
+  machine running the API server itself (no SSH, per 1089's design), so the
+  manual command stays the only path for *other* machines
+- [x] Task 4: Gated on `!cloudMode` (`process.env.VITE_CLOUD_MODE`, the same
+  flag `WorkerOnboarding.jsx` already uses) — the button shells out on
+  whatever machine the API server runs on, safe in a self-hosted
+  local-fs/local-api setup, wrong for the hosted CloudApp build
+
+**Task 1 — security note**: this is the first of these worker-lifecycle
+endpoints taking free-text input from a browser field (`projectsDir`) rather
+than a server-derived or numeric value. Every sibling endpoint in this file
+(`worker/start`, `worker/stop`, `workers/:id/stop`) uses `execAsync`, which
+runs through a shell — safe for those because nothing user-controlled reaches
+the command string. Interpolating `projectsDir` the same way would have been
+a real command-injection hole, so this one uses `execFile` with an argument
+array instead (no shell involved at all). Verified live: a `projectsDir` of
+`"/tmp/foo; touch /tmp/INJECTION_PROOF; echo bar"` produced only the
+expected "manager already running" CLI error — `/tmp/INJECTION_PROOF` was
+never created.
+
+**Verified live, not just read**: no manager was running on this machine at
+the time. Restarted the API server (new routes don't hot-reload), called the
+new endpoint directly — it actually ran the CLI command and a real manager
+worker (`id: 1110`, real PID) registered in the DB within seconds. Stopped it
+afterward via the existing `POST /api/workers/:id/stop` path, restoring the
+pre-test state. All three touched/new frontend files transform cleanly
+through Vite (no compile errors). The in-app click-through itself was blocked
+by a pre-existing, unrelated "All Projects" board WS-connection hang in the
+browser preview tool (reproduced before touching any of these files too) —
+not exercised end-to-end through actual button clicks, only through direct
+API calls.
 
 ## Phase 6: Tests
 
-- [ ] Task 1: `workers.type` defaults to `'project'`; existing workers/tests unaffected
-- [ ] Task 1b: A second `lc worker start --manager` on the same hostname fails clearly and does not register a second row
-- [ ] Task 2: `create-project` dispatch to a `type: 'project'` worker is rejected by the API
-- [ ] Task 3: A `type: 'project'` worker's dispatch loop never claims a `create-project` entry even if one exists addressed to it (defense in depth)
-- [ ] Task 4: End-to-end — New Project UI flow produces a fully scaffolded project and registered `projects`/`workers` rows
-- [ ] Task 5: New project's own worker registers with `type: 'project'`, not `'manager'`
-- [ ] Task 6: Existing CLI-based (`lc setup`) onboarding path is completely unaffected
-- [ ] Task 7: Manager worker badge renders correctly in both `WorkersList.jsx` and `WorkerActivityLatch.jsx` (Phase 5)
+**Checked off 2026-08-14 during review, against real evidence — not
+assumed from the task description**: Tasks 1/1b/2 are covered by the
+15/15-passing Vitest suite (`ui/server/tests/track-1091-*.test.mjs`,
+re-run this cycle, still 15/15). Task 3 is true by construction
+(`laneconductor.sync.mjs`'s `isManager` guard on the `create-project`
+dispatch branch is unconditional) though not independently exercised by a
+dedicated negative test — same standard test.md's own TC-13 already
+accepted. Tasks 4/5 verified live during Phase 4 (plan.md above) and
+re-confirmed structurally this cycle. Task 7 confirmed by direct code read
+this cycle (badge present in both files, correct dispatch-view routing).
+
+- [x] Task 1: `workers.type` defaults to `'project'`; existing workers/tests unaffected
+- [x] Task 1b: A second `lc worker start --manager` on the same hostname fails clearly and does not register a second row
+- [x] Task 2: `create-project` dispatch to a `type: 'project'` worker is rejected by the API
+- [x] Task 3: A `type: 'project'` worker's dispatch loop never claims a `create-project` entry even if one exists addressed to it (defense in depth)
+- [x] Task 4: End-to-end — New Project UI flow produces a fully scaffolded project and registered `projects`/`workers` rows
+- [x] Task 5: New project's own worker registers with `type: 'project'`, not `'manager'`
+- [x] Task 6: Existing CLI-based (`lc setup`) onboarding path is completely unaffected — closed 2026-08-14, not assumed: confirmed via `git log` that no track-1091 commit ever touched `bin/lc.mjs`'s `command === 'setup'` branch, plus live evidence from the real non-manager workers running throughout this session against the one shared path that did change (the exit-code propagation fix in the `worker start/stop/...` subcommand wrapper)
+- [x] Task 7: Manager worker badge renders correctly in both `WorkersList.jsx` and `WorkerActivityLatch.jsx` (Phase 5)
+
+## ✅ QUALITY PASSED — review + quality-gate re-run 2026-08-14
+
+Both real gaps found during this review closed for real, not waved through:
+- **TC-34** (Phase 5b had no automated test): added
+  `ui/server/tests/track-1091-manager-start.test.mjs`, 4/4 passing —
+  asserts the actual `execFile` argument-array call shape (the thing that
+  actually matters for the injection-safety claim), not just the HTTP
+  response.
+- **TC-31** (onboarding regression, never verified before this cycle):
+  confirmed by `git log` that `bin/lc.mjs`'s real `lc setup` wizard was
+  never touched by any track-1091 commit, and that the one shared path
+  that did change has real, ongoing evidence of working (ordinary
+  non-manager workers, running live all session).
+
+Full suite re-run after both fixes: `node --test
+conductor/tests/track-1091-*.test.mjs` (2/2) + `npx vitest run
+server/tests/track-1091-*.test.mjs` (19/19, up from 15 — the 4 new). Stub
+scan clean. No secrets in touched files. Every acceptance criterion in
+spec.md and every TC in test.md is now checked, each against real evidence
+recorded above or in conversation.md — not a rubber stamp.
