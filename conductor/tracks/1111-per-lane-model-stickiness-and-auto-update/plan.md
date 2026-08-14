@@ -304,3 +304,18 @@ recorded in `workflow.json`'s own git history (never a silent rewrite).
 
 **Impact**: REQ-6 — auto-update, if built, is safe, auditable, and
 strictly opt-in.
+
+## ✅ PHASES 1-5 COMPLETE (2026-08-14)
+
+Phases 1-5 implemented, tested (unit + real-worker E2E via a substitute
+`claude` binary), and verified against live data — not just code-reading:
+`conductor/tests/track-1111-model-precedence.test.mjs` (9/9),
+`conductor/tests/track-1111-model-staleness.test.mjs` (8/8). No
+regressions in the existing suite (one pre-existing flaky failure in
+`local-api-e2e.test.mjs` confirmed unrelated — reproduces identically on
+unmodified HEAD before this track's changes).
+
+Phase 6 remains genuinely open and undone, by design: it was scoped from
+the start as conditional on Phase 5 proving insufficient after real use,
+and no real-use window exists yet within this same session. Not a stub —
+nothing claims Phase 6 works. Progress reported at 95%, not 100%.

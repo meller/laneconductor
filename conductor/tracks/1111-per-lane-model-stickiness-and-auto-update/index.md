@@ -1,11 +1,11 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 100%
-**Phase**: New — grounded by code inspection 2026-08-13, not yet planned in detail
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 95%
+**Phase**: Phases 1-5 implemented and verified; Phase 6 (auto-update) deliberately deferred pending real use of Phase 5
 **Type**: dev
-**Summary**: The mechanism for "different model per lane, same provider" already exists in code (`workflow.json`'s per-lane `primary_model`) but is configured nowhere — verified live, this project's own…
+**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, and added model-staleness detection/logging. Phase 6 (auto-update) left conditional per plan.
 
 ## Problem
 
@@ -87,12 +87,12 @@ assumed:
   `workflow.json`'s configured strings and acting/notifying.
 
 ## Phases
-- [ ] Phase 1: Populate `primary_model` per lane in this project's own `workflow.json`, using it to validate the existing precedence logic end-to-end (confirms #1/#2 actually work once configured, not just in theory)
-- [ ] Phase 2: Decide + implement the chat-dispatch model question (#2's open design point)
-- [ ] Phase 3: Test coverage for manual-override-vs-per-lane-model precedence (#2's second gap) — currently unverified
-- [ ] Phase 4: Audit + populate `workflow.json` across other LaneConductor-managed projects (#3) — scope the actual list at planning time
-- [ ] Phase 5: Model-version staleness detection + notification, built on 1099's `available_models` (#4)
-- [ ] Phase 6: Intelligent same-family auto-update (opt-in/opt-out per project), if Phase 5's notification approach alone isn't judged sufficient
+- [x] Phase 1: Populate `primary_model` per lane in this project's own `workflow.json`, using it to validate the existing precedence logic end-to-end (confirms #1/#2 actually work once configured, not just in theory)
+- [x] Phase 2: Decide + implement the chat-dispatch model question (#2's open design point)
+- [x] Phase 3: Test coverage for manual-override-vs-per-lane-model precedence (#2's second gap) — currently unverified
+- [x] Phase 4: Audit + populate `workflow.json` across other LaneConductor-managed projects (#3) — scope the actual list at planning time
+- [x] Phase 5: Model-version staleness detection + notification, built on 1099's `available_models` (#4)
+- [ ] Phase 6: Intelligent same-family auto-update (opt-in/opt-out per project), if Phase 5's notification approach alone isn't judged sufficient — **deliberately deferred**: plan.md's own Task 1 says to revisit only after Phase 5 gets real use; no real-use window exists yet within this same session, so building it now would be speculative rather than judged necessary
 
 ## Depends on
 [1096](../1096-worker-cli-model-picker/index.md) — the manual override mechanism (`set_model` dispatch) this track's precedence work interacts with; its own Phase 6 (provider vs. model / session continuity) is the reasoning this track's stickiness requirement is built on.
