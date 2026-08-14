@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../hooks/useApi';
+import { PROVIDER_IDS } from '../../../conductor/providers.mjs';
 
 export function ProjectConfigSettings({ projectId, onClose }) {
   const { idToken } = useAuth() ?? {};
@@ -141,8 +142,7 @@ export function ProjectConfigSettings({ projectId, onClose }) {
             <div>
               <label className={labelCls}>Primary CLI</label>
               <select value={config?.primary?.cli || 'claude'} onChange={e => set('primary.cli', e.target.value)} className={inputCls}>
-                <option value="claude">claude</option>
-                <option value="gemini">gemini</option>
+                {PROVIDER_IDS.map(id => <option key={id} value={id}>{id}</option>)}
                 <option value="other">other</option>
               </select>
             </div>
@@ -155,8 +155,7 @@ export function ProjectConfigSettings({ projectId, onClose }) {
               <label className={labelCls}>Secondary CLI (optional)</label>
               <select value={config?.secondary?.cli || ''} onChange={e => set('secondary.cli', e.target.value)} className={inputCls}>
                 <option value="">none</option>
-                <option value="claude">claude</option>
-                <option value="gemini">gemini</option>
+                {PROVIDER_IDS.map(id => <option key={id} value={id}>{id}</option>)}
                 <option value="other">other</option>
               </select>
             </div>

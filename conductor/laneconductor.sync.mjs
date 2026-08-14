@@ -13,6 +13,7 @@ import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
+import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from './providers.mjs';
 import {
   readJiraConfig,
   pollJira,
@@ -189,6 +190,22 @@ if (existsSync('.laneconductor.json')) {
   console.log(`[config] .laneconductor.json not found, using mode "${config.mode}" with ${p.cli}${p.model ? '/' + p.model : ' (default model)'}`);
 }
 
+// Track 10011: --cli/--model let a single `lc start` invocation run a
+// different provider than the project's configured default — this worker
+// instance's own choice, not a change to the project default, so it's
+// applied in-memory only and never written back to .laneconductor.json.
+const cliArgIdx = process.argv.indexOf('--cli');
+const cliOverride = cliArgIdx !== -1 ? normalizeProviderId(process.argv[cliArgIdx + 1]) : null;
+const modelArgIdx = process.argv.indexOf('--model');
+const modelOverride = modelArgIdx !== -1 ? process.argv[modelArgIdx + 1] : null;
+if (cliOverride || modelOverride) {
+  config.project.primary = {
+    ...config.project.primary,
+    ...(cliOverride ? { cli: cliOverride } : {}),
+    ...(modelOverride ? { model: modelOverride } : {}),
+  };
+}
+
 // Use current config values (re-evaluated on reload)
 const getProject = () => config.project;
 const getCollectors = () => {
@@ -303,6 +320,9 @@ function looksLikeModelId(s) {
  * same amount every 30-minute refresh after that.
  */
 async function discoverAvailableModels(cli) {
+  // A legacy `.laneconductor.json` may still say 'agy' — normalize before
+  // dispatching so it discovers Antigravity's models, not nothing.
+  cli = normalizeProviderId(cli);
   const TIMEOUT_MS = 10_000;
   try {
     let stdout = '';
@@ -342,45 +362,25 @@ async function discoverAvailableModels(cli) {
         }
       } catch { /* ignore */ }
     } else if (cli === 'gemini') {
+      // Query Gemini directly — this must never substitute another
+      // provider's live output as if it were Gemini's (previously shelled
+      // out to `agy models`, silently reporting Antigravity's model list
+      // under the Gemini badge). On failure, the caller (refreshModels)
+      // falls back to PROVIDERS.gemini.models from the registry.
       try {
-        // Prefer agy models since we use agy/antigravity for gemini on this system
-        try {
-          ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
-          const lines = stdout.split('\n')
-            .map(l => l.trim())
-            .filter(Boolean);
-          if (lines.length > 0) {
-            return lines.map(l => {
-              const tokens = l.split(/\s+/);
-              const id = tokens[0];
-              const label = tokens.slice(1).join(' ') || id;
-              return { id, label };
-            }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('gemini-'));
-          }
-        } catch { /* fall back to gemini command */ }
-
-        ({ stdout } = await execAsync('gemini models list 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
-        // Try to parse as JSON; otherwise extract model IDs from text lines
-        try {
-          const parsed = JSON.parse(stdout);
-          const models = Array.isArray(parsed) ? parsed : (parsed.models || []);
-          return models.map(m => {
-            const id = typeof m === 'string' ? m : (m.name || m.id || String(m));
-            // Strip 'models/' prefix if present
-            const cleanId = id.replace(/^models\//, '');
-            return { id: cleanId, label: cleanId };
-          }).filter(m => m.id);
-        } catch {
-          // Plain text: look for lines that are themselves a bare model id
-          // (not `.includes('gemini-')` — a conversational reply could
-          // easily contain that substring without being a model list).
-          const lines = stdout.split('\n')
-            .map(l => l.trim().split(/\s+/)[0])
-            .filter(id => looksLikeModelId(id) && id.startsWith('gemini-'));
-          if (lines.length > 0) return lines.map(id => ({ id, label: id }));
-        }
-      } catch { /* not available */ }
-    } else if (cli === 'antigravity' || cli === 'agy') {
+        ({ stdout } = await execAsync(
+          'npx @google/gemini-cli -p "List the available Gemini model IDs as a plain newline-separated list, no commentary" 2>/dev/null',
+          { timeout: TIMEOUT_MS, encoding: 'utf8' }
+        ));
+        // Plain text: look for lines that are themselves a bare model id
+        // (not `.includes('gemini-')` — a conversational reply could
+        // easily contain that substring without being a model list).
+        const lines = stdout.split('\n')
+          .map(l => l.trim().split(/\s+/)[0])
+          .filter(id => looksLikeModelId(id) && id.startsWith('gemini-'));
+        if (lines.length > 0) return lines.map(id => ({ id, label: id }));
+      } catch { /* not available — refreshModels() falls back to registry presets */ }
+    } else if (cli === 'antigravity') {
       try {
         ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
         try {
@@ -411,35 +411,11 @@ async function discoverAvailableModels(cli) {
 }
 
 async function refreshModels() {
-  const clis = ['claude', 'gemini', 'antigravity'];
+  const clis = PROVIDER_IDS.filter(id => id !== 'copilot'); // no standard listing command for copilot
   const newCached = {};
   for (const cli of clis) {
     const discovered = (await discoverAvailableModels(cli)) || [];
-    const presets = {
-      claude: [
-        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 ✨' },
-        { id: 'claude-opus-5', label: 'Claude Opus 5' },
-        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-        { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-        { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
-        { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-        { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
-      ],
-      gemini: [
-        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro ✨' },
-        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-        { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-        { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
-      ],
-      antigravity: [
-        { id: 'auto', label: 'Auto (recommended)' },
-        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
-        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' }
-      ]
-    }[cli] || [];
+    const presets = PROVIDERS[cli]?.models || [];
 
     const combined = [...discovered];
     for (const preset of presets) {
