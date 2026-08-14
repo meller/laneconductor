@@ -5143,6 +5143,26 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    // Track 1114 follow-up: force a re-audit of the worktree cache on
+    // demand. Needed because anyone cleaning up worktrees/branches
+    // directly with git (outside the panel's own buttons) leaves
+    // cachedWorktreeSummary stale until the next 60s tick or a worker
+    // restart — found live after a bulk manual cleanup left the panel
+    // showing 30 already-deleted rows. updateWorkerHeartbeat() right
+    // after the refresh pushes the fresh cache immediately rather than
+    // waiting for the next scheduled beat.
+    if (entry.action === 'refresh-worktrees') {
+      logger.info({ dispatchId: entry.id }, '[dispatch] refresh-worktrees');
+      updateWorkerHeartbeat('busy', `refresh-worktrees (dispatch ${entry.id})`);
+      await refreshWorktreeSummaryCache();
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: 'done',
+        result: `Refreshed — ${cachedWorktreeSummary ? cachedWorktreeSummary.length : 0} worktree row(s)`,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report refresh-worktrees result'));
+      continue;
+    }
+
     // Track 1114: "Complete & Merge" — autopilot a track through its
     // remaining lane actions and merge once it reaches done:success.
     // Fire-and-forget the FIRST stage here (matching every other dispatch

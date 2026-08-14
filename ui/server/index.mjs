@@ -3295,13 +3295,14 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
     // future "pick a worker" UI) — resolution only fires when it's absent.
     // Track 1114: same auto-resolution as merge-worktree, extended to
     // remove-worktree and auto-complete-track — none of these should make
-    // the client pick a worker. remove-worktree is the one exception to
-    // requiring a track_number: a detached worktree (no track-* branch)
-    // has no track to resolve an assignee from at all, so it always falls
-    // straight to "any live worker for the project."
-    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track') && !worker_id) {
+    // the client pick a worker. remove-worktree and refresh-worktrees are
+    // the exceptions to requiring a track_number: neither is scoped to a
+    // single track (a detached worktree has no track-* branch to resolve
+    // an assignee from; a cache refresh isn't track-scoped at all), so
+    // both always fall straight to "any live worker for the project."
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees') && !worker_id) {
       const trackNumber = payload?.track_number;
-      if (action !== 'remove-worktree' && !trackNumber) {
+      if (action !== 'remove-worktree' && action !== 'refresh-worktrees' && !trackNumber) {
         return res.status(400).json({ error: `payload.track_number is required for ${action}` });
       }
 
@@ -3380,6 +3381,32 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
       [worker_id, trackNum, action, payload ? JSON.stringify(payload) : null, projId]
     );
     if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this project' });
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1114 follow-up: named convenience route for forcing a worktree
+// cache re-audit, so the Worktrees panel doesn't have to know the
+// underlying dispatch action name — thin wrapper over the same
+// worker-resolution + insert the generic /dispatch endpoint does for
+// refresh-worktrees, since this action is never track-scoped.
+app.post('/api/projects/:id/worktrees/refresh', async (req, res) => {
+  try {
+    const { rows: any } = await pool.query(
+      `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+      [req.params.id]
+    );
+    const workerId = any[0]?.id ?? null;
+    if (!workerId) return res.status(400).json({ error: 'no worker available for this project to refresh worktrees' });
+
+    const { rows: [inserted] } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, NULL, 'refresh-worktrees', NULL)
+       RETURNING id`,
+      [workerId]
+    );
     res.json({ ok: true, id: inserted.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
