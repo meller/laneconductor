@@ -3,7 +3,7 @@
 **Lane**: implement
 **Lane Status**: queue
 **Progress**: 40%
-**Phase**: Phase 1 (design) and Phase 2 (Send & Run control) complete — see plan.md's reconciliation note. Phases 3 (chat/session coordination), 4 (inbox consolidation), 5 (E2E tests) not started.
+**Phase**: Phase 1+2 complete, plus a 2026-08-14 addendum (plain "Send" now dispatches via track_chat, same as Brainstorm — see plan.md). Phases 3-5 still not started; Phase 2 itself still has zero automated test coverage.
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: The conversation panel, inbox, transcripts, and worker-chat grew as four separate tracks (015, 1085, 1086, 1087) and their interaction semantics no longer compose — found live while dogfooding track…

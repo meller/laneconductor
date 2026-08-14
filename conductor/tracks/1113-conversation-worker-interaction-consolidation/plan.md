@@ -103,6 +103,39 @@ thing (gap 2).
 duplicate controls (Send's old behavior, Replan, header Run-now) into 1
 working one.
 
+### Addendum (2026-08-14): plain "Send" ("💬 Message") still didn't dispatch
+
+**Found live** (not in the original Phase 2 scope): plain Send remained a
+passive `sendComment()`-only post — `SEND_MODE_HELP` explicitly documented
+this as a known caveat ("nothing runs until you dispatch — use a Run
+mode"), meaning gap 1 was still open for the plain-message case even
+though Send & Run closed it for explicit lane dispatches.
+
+**Design note — deviates from D1's original sketch, flagged not hidden**:
+D1 envisioned "Send & Run → [lane▾]" defaulting to the current
+`lane_status` as covering "keep going," implying plain Send should
+dispatch a *lane action*. What shipped instead routes plain Send through
+`track_chat` — the same mechanism Brainstorm uses — a considered choice
+(chat is read-only/non-mutating; defaulting every casual message to a
+real, git-lock-taking lane action felt like the wrong default), not an
+oversight. See conversation.md's review entry for the full reasoning.
+
+- [x] `handleComposerSend`: `sendMode === 'send'` now takes the same
+      branch as `'brainstorm'` — persists the comment (`no_wake: true`)
+      then calls `dispatchTrackChat(text)`, which resolves the worker via
+      `resolveWorkerId()` (handles "+ New worker…" the same as every other
+      dispatching control)
+- [x] `needsOnlineWorker` includes `'send'`, so the button correctly
+      disables when no usable worker is selected/available — matching
+      Run/Brainstorm instead of being the one mode that didn't check
+- [x] `SEND_MODE_HELP.send` and the stale explanatory comment above it
+      (both described the now-superseded passive behavior) updated
+- [ ] **Not done as part of this addendum**: TC-1 through TC-6 (Phase 2's
+      own test cases) remain unwritten — this fix reuses Brainstorm's
+      already-proven path but doesn't itself add automated coverage.
+      Regression suites this area touches (1085/1086/1087/
+      sync-conversation-parser) re-run clean, 17/17.
+
 ## Phase 3: Chat coordination — shared session, no concurrent execution, no heartbeat clobber
 
 **Problem**: `track_chat` is a fully independent code path from lane
