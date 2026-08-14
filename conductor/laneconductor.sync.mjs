@@ -5364,6 +5364,43 @@ async function checkDispatchInbox() {
       }
 
       updateWorkerHeartbeat('idle', null);
+
+      // A track_chat reply used to live ONLY in worker_dispatch.result —
+      // visible in the live Transcript/chat bar, invisible everywhere else
+      // (Conversation tab, the Inbox's unreplied count, any future turn's
+      // `conversation.md` re-read). Reported live during this session: a
+      // human asked a question via the chat bar and never saw an answer in
+      // Conversation, because none was ever written there.
+      //
+      // Fix: append to conversation.md, the same file every other reply
+      // (dispatch-plan/implement/review closing responses, session-turn
+      // summaries) already writes to — NOT a direct DB/API write. Writing
+      // straight to track_comments was tried and reverted earlier this
+      // session: it desyncs the file (the source of truth a future turn
+      // reads) from the DB (what the UI shows), and a worker restart mid-
+      // sync can then advance the file's cursor past content that was
+      // never actually parsed, silently losing it. Appending to the file
+      // and letting the EXISTING conv-sync watcher push it to
+      // track_comments keeps exactly one source of truth, like every other
+      // reply path in this file.
+      //
+      // Every line must be `>`-prefixed (see "Protocol: conversation.md
+      // Format") — a chat reply is often multi-paragraph, and a single
+      // unprefixed blank line silently truncates the parsed comment body.
+      if (entry.action === 'track_chat' && chatTrack && status === 'done') {
+        const trackDirName = resolveTrackFolder('conductor/tracks', chatTrack);
+        if (trackDirName) {
+          const proj = getProject();
+          const author = process.env.LC_MOCK_CLI ? 'worker' : (proj?.primary?.cli || 'claude');
+          const quoted = result.split('\n').map(line => line ? `> ${line}` : '>').join('\n');
+          try {
+            appendFileSync(join('conductor/tracks', trackDirName, 'conversation.md'), `\n> **${author}**: ${quoted.slice(2)}\n`, 'utf8');
+          } catch (err) {
+            logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to append chat reply to conversation.md');
+          }
+        }
+      }
+
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status, result })
         .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report chat result'));
       continue;
