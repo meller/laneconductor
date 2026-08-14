@@ -53,6 +53,15 @@ if (process.env.MOCK_CLI_CLAIM_MARKER) {
   appendFileSync(process.env.MOCK_CLI_CLAIM_MARKER, `${process.pid}\n`);
 }
 
+// Track 1113: one JSON line per invocation with the full argv, so a test can
+// assert which session flag a chat turn was actually invoked with
+// (--session-id on a fresh session vs --resume on a shared one). The
+// CLAIM_MARKER above only records pids, which cannot answer that.
+if (process.env.MOCK_CLI_ARGV_LOG) {
+  appendFileSync(process.env.MOCK_CLI_ARGV_LOG,
+    JSON.stringify({ pid: process.pid, argv: process.argv.slice(2), at: Date.now() }) + '\n');
+}
+
 if (resumeFailure) {
   console.log('No conversation found with session ID: (mock)');
 } else {
