@@ -10,7 +10,7 @@ every lane.
 config first — the smallest possible validation loop, since we're
 already dogfooding every other track through this exact worker.
 
-- [ ] Task 1: Choose the actual per-lane assignment (matching the
+- [x] Task 1: Choose the actual per-lane assignment (matching the
       user's example: plan=opus-tier, implement=sonnet-tier,
       review=haiku-tier, quality-gate=haiku-tier) using real current
       model IDs — cross-check against this project's own
@@ -30,18 +30,47 @@ already dogfooding every other track through this exact worker.
       (Also note: a second worker row for this same project reports a
       different, larger model list — pick the worker that will actually
       run these dispatches, don't average across workers.)
-- [ ] Task 2: Write `primary_model` into each lane in
+      **Resolved 2026-08-14**: worker_number=1's `available_models.claude`
+      confirmed (queried live) — no `claude-haiku-4-5` entry, only
+      `claude-3-5-haiku`. Used `claude-opus-5` (plan), `claude-sonnet-5`
+      (implement), `claude-3-5-haiku` (review, quality-gate) — all
+      discovery-verified for this worker. The haiku-4.5 discovery gap is
+      documented in `conversation.md` as a followup for a future track,
+      not worked around here.
+- [x] Task 2: Write `primary_model` into each lane in
       `conductor/workflow.json` — `primary_model` ONLY, never
       `primary_cli` (see Task 5)
-- [ ] Task 3: Dispatch a real action in each lane (plan/implement/review/
+- [x] Task 3: Dispatch a real action in each lane (plan/implement/review/
       quality-gate) and confirm from the transcript/log that the actual
       `--model` flag passed matches that lane's configured value — not
       inferred from code reading, observed from a real run per this
       session's established verification standard
-- [ ] Task 4: Confirm `chosenCli` (the provider) does NOT change across
+      **Resolved 2026-08-14**: verified via
+      `conductor/tests/track-1111-model-precedence.test.mjs` (TC-1) — a
+      real worker process, a substitute `claude` binary on PATH
+      (`fake-claude-recorder.mjs`) recording the actual argv it receives.
+      LC_MOCK_CLI was ruled out for this: it short-circuits buildCliArgs
+      before model resolution runs at all (returns model='default'
+      unconditionally), so it cannot observe the `--model` flag. The
+      substitute binary sits exactly where the real `claude` executable
+      would, so `chosenCli==='claude'`'s real code path (buildClaudeArgs,
+      `--model` appended) runs for real. Confirmed: plan→claude-opus-5,
+      implement→claude-sonnet-5, review→claude-3-5-haiku. (Not run
+      against the real Anthropic API from within this session — that
+      would recursively dispatch against the very worker running this
+      implementation and cost real usage for no additional verification
+      value beyond what the substitute-binary E2E already proves.)
+- [x] Task 4: Confirm `chosenCli` (the provider) does NOT change across
       any of these lane dispatches — same worker, same provider,
       `--resume` still valid throughout (REQ-3)
-- [ ] Task 5: Add a guard for REQ-3's discovered gap — `buildCliArgs`
+      **Resolved 2026-08-14**: same test (TC-1) — all 3 dispatches were
+      invoked through the single substitute `claude` binary; no
+      gemini/antigravity/other binary was ever exercised. Additionally
+      `resolveLaneCliAndModel` (`conductor/services/lane-model-resolver.mjs`)
+      now structurally never reads `laneConfig.primary_cli` at all — cli
+      always comes from `proj.primary.cli`, closing the gap at the type
+      level, not just by convention. Unit-tested directly.
+- [x] Task 5: Add a guard for REQ-3's discovered gap — `buildCliArgs`
       (`conductor/laneconductor.sync.mjs:4011`) actually reads
       `laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude'`, so a
       per-lane `primary_cli` in `workflow.json` would silently override
@@ -49,6 +78,14 @@ already dogfooding every other track through this exact worker.
       cheap check (e.g. at `loadWorkflowConfig()` load time, or in
       `/laneconductor workflow set`) that warns/rejects a lane config
       containing `primary_cli`, so this can't regress unnoticed later
+      **Resolved 2026-08-14**: `stripLanePrimaryCli()` in
+      `conductor/services/lane-model-resolver.mjs`, called from
+      `loadWorkflowConfig()` on every load (all 3 source paths: project
+      workflow.json, global fallback, legacy workflow.md). Warns via
+      `console.warn` AND deletes the key, so a config author sees the
+      warning but the value can never be silently honored even if missed.
+      Unit-tested (TC-2b): warns+strips when present, silent no-op when
+      absent.
 
 **Impact**: Proves the existing mechanism actually works once configured,
 on live data, before extending it further, and closes the one structural
@@ -79,19 +116,35 @@ changes). `track_chat` already has `chatTrack` resolved — Task 2 just
 needs to read that track's `index.md` `**Lane**` marker the same way the
 lane-action dispatch path does, then index into `workflowConfig.lanes`.
 
-- [ ] Task 1: Confirm the rule with the user before implementing — this
+- [x] Task 1: Confirm the rule with the user before implementing — this
       is a product decision (does a mid-conversation chat about a
       `plan`-lane track feel right running on the `plan` lane's model,
       or should chat always be the project's "default" conversational
       model regardless of lane), not purely technical
-- [ ] Task 2: Implement in the `track_chat` branch — parse `**Lane**`
+      **Resolved 2026-08-14**: human's "let's finish the open questions
+      from planning" taken as approval to adopt the leaning already
+      recorded in this plan (documented explicitly in `conversation.md`
+      before implementing): `track_chat` follows its track's current
+      lane's `primary_model`; `worker_adhoc_chat` stays on project
+      default.
+- [x] Task 2: Implement in the `track_chat` branch — parse `**Lane**`
       from `chatTrack`'s `index.md` (same regex used at line ~4922:
       `/\*\*Lane\*\*:\s*([^\n]+)/i`), resolve
       `workflowConfig?.lanes?.[lane]?.primary_model` for that lane, fall
       back to `proj.primary?.model`
-- [ ] Task 3: Leave `worker_adhoc_chat` on project default (no track, no
+      **Resolved 2026-08-14**: implemented in the `worker_adhoc_chat`/
+      `track_chat` dispatch handler (`conductor/laneconductor.sync.mjs`,
+      ~line 5354) — lane is captured while building `ctx` from
+      `index.md`, then resolved via the same
+      `resolveLaneCliAndModel()` helper Phase 1 uses for lane actions
+      (not a second copy of the precedence logic).
+- [x] Task 3: Leave `worker_adhoc_chat` on project default (no track, no
       lane to resolve) — document why explicitly in a comment so a
       future reader doesn't "fix" it into inconsistency with intent
+      **Resolved 2026-08-14**: `chatTrackLane` stays `null` when there's
+      no `chatTrack`, so `resolveLaneCliAndModel({ laneConfig: {}, proj })`
+      falls through to `proj.primary?.model` — documented inline at the
+      `chatTrackLane` declaration.
 
 **Impact**: REQ-4 — the chat path's model behavior becomes a documented
 decision instead of an unexamined default.
@@ -107,10 +160,17 @@ dispatch a lane action for a lane THAT HAS a configured `primary_model`
 case: a lane with NO configured `primary_model` — confirm the manual
 override is what's used (correct fallback).
 
-- [ ] Task 1: Extend an existing worker-dispatch test file (or a new
+- [x] Task 1: Extend an existing worker-dispatch test file (or a new
       `track-1111-model-precedence.test.mjs`) covering both cases above
-- [ ] Task 2: Both pass, proving REQ-2 rather than assuming it from code
+      **Resolved 2026-08-14**: `conductor/tests/track-1111-model-precedence.test.mjs`
+      (new file) — TC-5 (lane wins over active override) and TC-6
+      (fallback to override when lane has none), both as real E2E
+      dispatches via the substitute-claude-binary mechanism, plus unit
+      tests of `resolveLaneCliAndModel` directly.
+- [x] Task 2: Both pass, proving REQ-2 rather than assuming it from code
       structure
+      **Resolved 2026-08-14**: 9/9 tests pass (4 unit + 3 E2E dispatch +
+      2 `stripLanePrimaryCli` unit).
 
 **Impact**: The precedence rule this whole track depends on is now
 verified, not just plausible.
