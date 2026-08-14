@@ -10,24 +10,28 @@
     "plan": {
       "parallel_limit": 1,
       "max_retries": 1,
+      "primary_model": "claude-opus-5",
       "on_success": "plan:success",
       "on_failure": "backlog"
     },
     "implement": {
       "parallel_limit": 1,
       "max_retries": 3,
+      "primary_model": "claude-sonnet-5",
       "on_success": "review:queue",
       "on_failure": "implement:failure"
     },
     "review": {
       "parallel_limit": 1,
       "max_retries": 1,
+      "primary_model": "claude-3-5-haiku",
       "on_success": "quality-gate:queue",
       "on_failure": "implement:queue"
     },
     "quality-gate": {
       "parallel_limit": 1,
       "max_retries": 1,
+      "primary_model": "claude-3-5-haiku",
       "on_success": "done:success",
       "on_failure": "plan:queue"
     },

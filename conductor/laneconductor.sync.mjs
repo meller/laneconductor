@@ -43,6 +43,7 @@ import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
+import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
@@ -1100,7 +1101,7 @@ function readIfExists(filepath) {
 function loadWorkflowConfig() {
   // 1. Try project-local workflow.json (canonical per-project source)
   if (existsSync('conductor/workflow.json')) {
-    try { return JSON.parse(readFileSync('conductor/workflow.json', 'utf8')); }
+    try { return stripLanePrimaryCli(JSON.parse(readFileSync('conductor/workflow.json', 'utf8'))); }
     catch (err) { console.error('[config] Failed to parse conductor/workflow.json:', err.message); }
   }
 
@@ -1109,7 +1110,7 @@ function loadWorkflowConfig() {
   if (installPath) {
     const globalWf = join(installPath, 'conductor', 'workflow.json');
     if (existsSync(globalWf)) {
-      try { return JSON.parse(readFileSync(globalWf, 'utf8')); }
+      try { return stripLanePrimaryCli(JSON.parse(readFileSync(globalWf, 'utf8'))); }
       catch (err) { console.error('[config] Failed to parse global workflow.json:', err.message); }
     }
   }
@@ -1119,7 +1120,7 @@ function loadWorkflowConfig() {
   if (!content) return null;
   const match = content.match(/## Workflow Configuration\n```json\n([\s\S]*?)\n```/);
   if (!match) return null;
-  try { return JSON.parse(match[1]); }
+  try { return stripLanePrimaryCli(JSON.parse(match[1])); }
   catch (err) { console.error('[config] Failed to parse workflow.md config:', err.message); return null; }
 }
 
@@ -4296,8 +4297,10 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
   }
   const proj = getProject();
-  const primary = laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude';
-  const primaryModel = laneConfig.primary_model ?? proj.primary?.model;
+  // Track 1111: cli stays project-wide fixed (REQ-3); only model varies
+  // per lane (REQ-2's precedence — lane's primary_model wins over any
+  // manual override in proj.primary.model).
+  const { cli: primary, model: primaryModel } = resolveLaneCliAndModel({ laneConfig, proj });
   const secondary = proj.secondary?.cli;
   const secondaryModel = proj.secondary?.model;
 
@@ -5369,6 +5372,14 @@ async function checkDispatchInbox() {
       // For a track chat, give the model that track's own docs as context —
       // otherwise the question has nothing to ground itself in.
       let fullPrompt = String(prompt);
+      // Track 1111 Phase 2: track_chat follows its track's current lane's
+      // primary_model when one is configured — a chat about a plan-lane
+      // track should reason with the plan lane's model, not silently
+      // default to the project's model regardless of what's being
+      // discussed. worker_adhoc_chat has no track (chatTrackLane stays
+      // null below), so it always falls through to proj.primary?.model —
+      // there's no lane to derive a model from.
+      let chatTrackLane = null;
       if (chatTrack) {
         const trackDirName = resolveTrackFolder('conductor/tracks', chatTrack);
         if (trackDirName) {
@@ -5377,6 +5388,9 @@ async function checkDispatchInbox() {
           for (const name of ['index.md', 'spec.md', 'plan.md', 'conversation.md']) {
             const content = readIfExists(join(trackPath, name));
             if (content) ctx += `\n<track_context file="${name}">\n${content}\n</track_context>\n`;
+            if (name === 'index.md' && content) {
+              chatTrackLane = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
+            }
           }
           if (ctx) fullPrompt = `${ctx}\nThe user asks about track ${chatTrack}:\n${prompt}`;
         }
@@ -5398,7 +5412,13 @@ async function checkDispatchInbox() {
           // live: the first working version returned hook/system events as
           // the "answer"). A chat turn just needs the text back.
           cliArgs = ['--dangerously-skip-permissions', '-p', fullPrompt];
-          if (cmd === 'claude' && proj.primary?.model) cliArgs.push('--model', proj.primary.model);
+          // Track 1111 Phase 2: chatTrackLane's primary_model (if the lane
+          // has one configured) wins over the project default — same
+          // precedence rule buildCliArgs uses for lane actions (REQ-2),
+          // via the same shared resolver.
+          const chatLaneConfig = chatTrackLane ? (workflowConfig?.lanes?.[chatTrackLane] ?? {}) : {};
+          const { model: chatModel } = resolveLaneCliAndModel({ laneConfig: chatLaneConfig, proj });
+          if (cmd === 'claude' && chatModel) cliArgs.push('--model', chatModel);
         }
 
         const { stdout, code } = await new Promise((resolvePromise) => {
