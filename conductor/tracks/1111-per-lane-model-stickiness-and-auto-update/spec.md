@@ -26,7 +26,14 @@ already knowing what's currently available.
   alone.
 - REQ-3: The CLI/provider (`primary.cli`) MUST NOT vary per lane —
   only the model does. Automated lane actions never request a provider
-  switch mid-track.
+  switch mid-track. **Verified live (2026-08-13): `buildCliArgs`
+  (`conductor/laneconductor.sync.mjs:4011`) actually resolves
+  `laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude'` — a per-lane
+  `primary_cli` in `workflow.json` WOULD be honored if set.** This means
+  REQ-3 is not a structural guarantee of the code, only a convention this
+  track's own writes (Phase 1, Phase 4) must uphold by never populating
+  `primary_cli` on a lane — and ideally a guard (Phase 1 Task 5) that
+  catches a future accidental regression.
 - REQ-4: `track_chat`'s model resolution is an explicit, documented
   decision (follow the track's current lane's model, or always use
   project default) — not silent project-default-always behavior left
@@ -46,6 +53,10 @@ already knowing what's currently available.
       set on every lane, and a live dispatch through each lane uses that
       model (observed, not assumed — e.g. via the transcript/log showing
       the actual `--model` flag passed).
+- [ ] No lane in any updated `workflow.json` (this project or others from
+      Phase 4) sets `primary_cli` — and the worker warns (does not
+      silently accept) if one ever does, per REQ-3's discovered guard
+      requirement.
 - [ ] A test proves REQ-2: a worker with a manual model override active
       (via 1096's `set_model` dispatch) still uses the lane's configured
       model for an automated action, and falls back to the override only

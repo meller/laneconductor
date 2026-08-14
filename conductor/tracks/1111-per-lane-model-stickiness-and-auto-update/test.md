@@ -21,6 +21,11 @@ node --test conductor/tests/track-1086-session-worker.test.mjs
       inferred, observed
 - [ ] TC-2: Across all 4 automated lanes, `chosenCli`/the provider stays
       identical — no provider switch mid-track (REQ-3)
+- [ ] TC-2b: The Phase 1 Task 5 guard actually fires — a `workflow.json`
+      lane config containing `primary_cli` produces a warning/rejection
+      (not silent acceptance), proving REQ-3 is enforced somewhere beyond
+      "nobody happened to write it," since `buildCliArgs` would otherwise
+      honor `laneConfig.primary_cli` if present
 
 ### Phase 2: Chat dispatch model resolution
 - [ ] TC-3: A `track_chat` dispatch against a track currently in a lane
