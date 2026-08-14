@@ -12,7 +12,7 @@ const REC_ICON = { warning: '⚠', action: '→', info: 'ℹ' };
 const CLASS_LABEL = { stranded: 'Stranded', conflicted: 'Conflicted', mergeable: 'Mergeable', open: 'Open', detached: 'Detached' };
 const CLASS_DOT = { stranded: 'bg-red-500', conflicted: 'bg-amber-500', mergeable: 'bg-green-500', open: 'bg-gray-500', detached: 'bg-purple-500' };
 
-function WorktreeStatsHeader({ rows }) {
+function WorktreeStatsHeader({ rows, onRefresh, refreshing }) {
   const stats = computeWorktreeStats(rows);
   if (stats.total === 0) return null;
   return (
@@ -30,6 +30,17 @@ function WorktreeStatsHeader({ rows }) {
             </span>
           ))}
         </div>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            data-testid="refresh-worktrees-btn"
+            title="Force a fresh git audit — the server cache normally only re-checks every 60s, so this catches worktrees/branches removed outside this panel (e.g. via git directly) immediately"
+            className="text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-gray-700 bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-gray-200 ml-auto"
+          >
+            {refreshing ? 'Refreshing…' : '↻ Refresh'}
+          </button>
+        )}
         {stats.totalDirty > 0 && (
           <span className="text-[11px] text-gray-600 ml-auto">
             {stats.totalDirty} dirty file{stats.totalDirty === 1 ? '' : 's'} total across all worktrees
@@ -295,6 +306,7 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
   const [loading, setLoading] = useState(true);
   const { pendingKeys, start: startPending, clear: clearPending } = usePendingActions();
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Row identity keys, shared between the pending-tracking below and the
   // action handlers, so both always agree on what "this row" means.
@@ -353,6 +365,46 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Fire-and-forget: creates a refresh-worktrees dispatch, doesn't wait for
+  // the worker to actually claim/run it. Shared by the manual button
+  // (which does wait, below) and the background interval (which doesn't).
+  const triggerBackendRefresh = useCallback(() => {
+    if (!projectId) return Promise.resolve(null);
+    return apiFetch(`/api/projects/${projectId}/worktrees/refresh`, { method: 'POST' }).catch(() => null);
+  }, [projectId, apiFetch]);
+
+  // Found live: the panel's own 10s poll only re-reads the server's
+  // cached worktree summary — it never told the worker to re-audit git.
+  // refreshWorktreeSummaryCache() only runs on its own 60s timer, so
+  // anything done outside this panel's buttons (a raw `git worktree
+  // remove`, a branch deleted by hand) could sit stale here for up to a
+  // minute even while actively watching this view. Nudging a refresh
+  // every 30s while the panel is mounted bounds that staleness without
+  // hammering the dispatch table — best-effort and silent, not tied to
+  // the `refreshing` button state.
+  useEffect(() => {
+    if (!projectId) return;
+    const id = setInterval(() => { triggerBackendRefresh(); }, 30000);
+    return () => clearInterval(id);
+  }, [projectId, triggerBackendRefresh]);
+
+  async function handleRefresh() {
+    setError(null);
+    setRefreshing(true);
+    try {
+      const res = await triggerBackendRefresh();
+      if (res && !res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      // The dispatch is claimed by the worker's own poll loop, not
+      // instant — give it a moment before re-reading; the regular 10s
+      // poll picks up the result regardless if this fires too early.
+      setTimeout(() => fetchRowsRef.current(), 3000);
+    } catch (err) {
+      setError(`Failed to refresh: ${err.message}`);
+    } finally {
+      setTimeout(() => setRefreshing(false), 3000);
+    }
+  }
 
   async function handleMerge(row) {
     if (!row.track) return;
@@ -455,6 +507,17 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
           Every worktree for this project is either fully merged or hasn't reported yet — a worker needs at least
           one heartbeat to populate this list.
         </p>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          data-testid="refresh-worktrees-btn"
+          className="mt-4 text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-gray-700 bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+        >
+          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+        </button>
+        {error && (
+          <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2 mt-3 max-w-xs">{error}</div>
+        )}
       </div>
     );
   }
@@ -481,7 +544,7 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <WorktreeStatsHeader rows={rows} />
+      <WorktreeStatsHeader rows={rows} onRefresh={handleRefresh} refreshing={refreshing} />
       {error && (
         <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2">{error}</div>
       )}
