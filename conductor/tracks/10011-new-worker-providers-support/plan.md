@@ -391,3 +391,27 @@ merged yet." Findings, all empirically verified, not inferred:
   process on the live machine, an irreversible side effect not needed to
   answer the human's question, which was about whether Gemini would be
   *offered/discovered*, not about actually provisioning one.
+
+## ⚠️ Gaps — review pass (2026-08-15)
+
+- [ ] **Scope creep in commit `41eb06a`, undiscovered by Phase 7's cleanup.**
+      `git diff main...HEAD -- conductor/laneconductor.sync.mjs` shows two
+      hunks with nothing to do with this track, bundled into the same
+      commit that also carried the `.claude/.claude` junk (cleaned up in
+      `ba9ff33`, but these two hunks were missed):
+      1. `let cachedMainBranch = null;` hoisted from line ~3208 to the top
+         of the file (line 51) — fixes the TDZ bug documented in `main`'s
+         "Track 1114" comment block, but as an uncredited, untested
+         side effect of an unrelated commit.
+      2. A new `LC_HEARTBEAT_INTERVAL_MS` env override for the heartbeat
+         interval — unrelated feature, zero test coverage, not in this
+         track's spec/plan/test.md.
+      Action: a small follow-up commit (same shape as `ba9ff33`) that
+      either reverts both hunks so this track stays strictly scoped to
+      Gemini discovery, or keeps `cachedMainBranch`'s hoist but documents
+      + tests it explicitly and drops `LC_HEARTBEAT_INTERVAL_MS` outright.
+      Everything else in this pass's review was clean: full test suite
+      re-run (`providers.test.mjs` 10/10, gemini-discovery 1/1 live,
+      local-fs-e2e 5/5, local-api-e2e 5/6 — the 1 failure is the same
+      pre-existing/unrelated one documented in test.md, ui vitest 13/13),
+      no secrets, no stub/TODO markers, no `.claude/.claude` remnants.
