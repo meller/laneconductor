@@ -178,7 +178,7 @@ So the scaffolded files must be committed as part of project creation.
 For `repo_source.type: 'git'` this is moot (a clone already has history);
 it's the `path` / brand-new-project case that's exposed.
 
-### F8 — A failed lane action leaves the dispatch and track stuck forever 🔴 CONFIRMED
+### F8 — A failed lane action leaves the dispatch and track stuck forever 🔴 CONFIRMED & FIXED (unit-tested)
 When the worktree setup above threw, the worker logged
 `[dispatch error]` and moved on — but never reported the failure:
 
@@ -199,6 +199,40 @@ failure-reporting contract as the others — mark the dispatch `failed` with
 the error text, reset `lane_action_status`, and clear the busy heartbeat.
 This is also why the three states disagreed, which is its own debugging
 tax.
+
+**Fixed 2026-08-15**: wrapped the `spawnCli()` call in
+`checkDispatchInbox()`'s lane-action branch (`conductor/laneconductor.sync.mjs`,
+right after the "Lane action dispatch" comment) in a try/catch matching
+the other handlers: on failure it now PATCHes the dispatch `status:
+'failed'` with the real error, and reverts both the file's `**Lane
+Status**` marker and the DB's `lane_action_status` back to what they were
+before the attempt (previously overwritten to `running` right before the
+now-caught throw, with nothing to ever put it back). Also fixes a
+collateral bug the original write-up didn't call out: since this whole
+loop had no per-entry isolation on this branch, an uncaught throw here
+used to abort every *other* dispatch still waiting in that same poll
+tick, not just the one that failed.
+
+TDD'd in `conductor/tests/track-1102-f8-dispatch-failure-reporting.test.mjs`
+against a real spawned worker — reproduced via git-lock contention (a
+fresh lock already held by a different machine/pid), not the original
+git-repo-with-no-commits trigger, which turns out to now self-heal:
+`checkAndClaimGitLock()` commits the track's own files before
+`createWorktree()` runs, so a brand-new repo gets its first commit from
+that step before `git worktree add ... HEAD` would ever see a missing
+ref. 2 tests, watched both fail for the right reason (dispatch stuck
+`claimed` past a 20s poll timeout; file left at `Lane Status: running`)
+before the fix, then pass after. Confirmed the failure exactly matches
+F7's original error family (`git worktree add ... HEAD` / lock
+contention), not a different unrelated exception.
+
+**Not done**: the "clear the busy heartbeat" part of the fix direction
+doesn't apply as originally worded — traced the code and this branch
+never calls `updateWorkerHeartbeat('busy', ...)` in the first place
+(unlike every sibling handler), so there's no busy state to clear. That's
+a separate, smaller gap (the Activity panel has no way to show "running a
+lane action" as busy at all, success or failure) — worth its own
+follow-up, not fixed here.
 
 ### F9 — Post-run merge/sync gutted index.md, losing the whole track body 🔴 CONFIRMED
 Caught in the act during the first dogfooded UI-triggered plan run (track

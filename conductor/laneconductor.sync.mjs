@@ -5609,6 +5609,8 @@ async function checkDispatchInbox() {
     const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
     const lane_status = laneMatch?.[1]?.trim();
     const laneConfig = workflowConfig?.lanes?.[lane_status] ?? {};
+    const laneStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+    const originalLaneActionStatus = laneStatusMatch?.[1]?.trim() || 'queue';
 
     const cliArgs = await buildCliArgs('laneconductor', entry.action, trackNumber, null, laneConfig);
     if (!cliArgs) {
@@ -5625,9 +5627,26 @@ async function checkDispatchInbox() {
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
 
     const proj = getProject();
-    const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
-    console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
-    activeDispatch.set(trackNumber, entry.id);
+    try {
+      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
+      console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
+      activeDispatch.set(trackNumber, entry.id);
+    } catch (err) {
+      // Track 1102 F8: every other dispatch handler (chat, deploy,
+      // create-project, provision-worker) wraps its work and reports
+      // status: 'failed' with the real error; this branch didn't — a
+      // spawnCli failure (git-lock contention, worktree setup, etc.) left
+      // the dispatch permanently 'claimed' and the Lane Status marker
+      // stuck on the 'running' just written above, with nothing to ever
+      // revert either. Report failure the same way the others do, and put
+      // the file/DB status back to what it was before this attempt.
+      logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, `[dispatch] spawnCli failed for ${entry.action}`);
+      writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: err.message })
+        .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
+      await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: originalLaneActionStatus, lane_action_result: err.message })
+        .catch(e => logger.warn({ trackNumber, err: e.message }, '[dispatch] Failed to reset track lane_action_status after spawn failure'));
+    }
   }
 }
 
