@@ -338,3 +338,56 @@ the human.
       which is the outcome of quality-gate passing and the standard
       `done:success` worktree-merge flow, not a precondition of it. Handing
       this to quality-gate/merge as the next step rather than blocking here.
+
+### Phase 7 Playwright verification (2026-08-15, second implement pass)
+
+Human asked to specifically re-check the "new worker → choosing gemini"
+flow with Playwright rather than take the merge-timing theory on faith.
+Did that, plus went one step further and diffed the *actual deployed*
+code on `main` against this branch, instead of only re-asserting "nothing
+merged yet." Findings, all empirically verified, not inferred:
+
+- [x] **The Phase 1-5 UI *is* live on `main`.** `git log --all --oneline`
+      shows `9353a85 Merge track-10011 (new worker providers support) into
+      main`, dated 2026-08-14 — an earlier round of this same track (the
+      registry, `WorkersList`/`WorkerModelModal`/`TrackCard`/
+      `TrackDetailPanel`/`ProjectConfigSettings` changes) already shipped.
+      Playwright confirmed live: opened track 10011's own detail panel at
+      `localhost:8090` (main checkout's UI, port 8090/8091), and the "Run
+      on worker" `<select>` does contain `+ New worker…` as an option
+      today. This part of the original bug report is already fixed on
+      `main`.
+- [x] **The Gemini `agy models` fallback is genuinely missing from `main`
+      — this is the real, currently-live defect, confirmed by data, not
+      just by branch diffing.** Queried the live `workers` table directly:
+      every worker row's `available_models.gemini` contains exactly the 5
+      static `PROVIDERS.gemini.models` presets (`gemini-2.5-pro`,
+      `2.5-flash`, `2.5-flash-lite`, `2.0-flash`, `1.5-pro`) — none of the
+      live `gemini-3.7-flash-high/medium/low`, `3.6-*`, `3.5-*`,
+      `3.1-pro-*` ids that `agy models` actually returns on this machine
+      (confirmed again this session). So the human's report is accurate
+      and current, not stale.
+- [x] **Root-caused exactly why, with `git blame`**: `main`'s
+      `discoverAvailableModels()` gemini branch (blame: commit `7aa5e6cb`,
+      "feat(track-10011): canonical provider registry + wire all
+      consumers", 2026-08-14 — this track's *own* original Phase 1/2
+      commit, merged via `9353a85`) explicitly does **not** call `agy
+      models` as a fallback; it has a comment stating Gemini "must never
+      substitute another provider's live output" and falls straight to
+      the static presets on failure. That was the state of this track's
+      code *before* the human's later "still not seeing gemini models"
+      report triggered the replan that added Phase 6 (the `agy models`
+      fallback, filtered to `gemini-` prefixed ids, per REQ-8). Phase 6's
+      fix exists correctly on this branch (`conductor/laneconductor.sync.mjs`
+      lines ~368-394, confirmed present by direct read) — it has simply
+      never been merged past this second round. So: not a code defect in
+      this branch, not a logic bug, not an auth/env issue (already ruled
+      out last pass) — it is specifically Phase 6's diff sitting unmerged
+      on `track-10011` while `main` still runs the pre-Phase-6 Gemini
+      branch. This confirms (with evidence this time, not inference) the
+      same conclusion the previous pass reached by reasoning alone.
+- Did not click through to actually start a worker via the "+ New
+  worker…" modal — that would spin up a real background `lc start`
+  process on the live machine, an irreversible side effect not needed to
+  answer the human's question, which was about whether Gemini would be
+  *offered/discovered*, not about actually provisioning one.
