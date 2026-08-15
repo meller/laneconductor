@@ -250,6 +250,15 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
   const showNextBtn = nextLane && track.lane_status !== 'done';
   const nextBtnDisabled = track.lane_status === 'plan' && track.lane_action_status !== 'success';
+  // Track 1102 F2: the gating above is correct (don't let a plan-lane track
+  // advance until its plan actually succeeded) — only the tooltip was wrong,
+  // unconditionally claiming "in progress" for queue/failure states too,
+  // where nothing is running.
+  const nextBtnDisabledReason = track.lane_action_status === 'failure' || track.lane_action_status === 'failed'
+    ? 'Plan failed — fix and re-run before advancing'
+    : track.lane_action_status === 'running'
+      ? 'Plan in progress...'
+      : 'Plan is queued — run it before advancing';
 
   return (
     <div
@@ -488,7 +497,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                   ? 'border-gray-800 text-gray-600 bg-gray-950 cursor-not-allowed'
                   : 'border-blue-800/70 text-blue-400 hover:bg-blue-900/30'
                   }`}
-                title={nextBtnDisabled ? 'Plan in progress...' : `Move this card to the ${NEXT_LANE_LABEL[nextLane]} lane`}
+                title={nextBtnDisabled ? nextBtnDisabledReason : `Move this card to the ${NEXT_LANE_LABEL[nextLane]} lane`}
               >
                 →
               </button>
