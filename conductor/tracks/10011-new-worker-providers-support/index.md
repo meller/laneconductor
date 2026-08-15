@@ -1,9 +1,9 @@
 # Track 10011: new worker providers support
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: queue
-**Progress**: 95%
+**Progress**: 100%
 **Last Run**: claude/sonnet (primary)
 **Phase**: New
 **Type**: dev
-**Summary**: Review found scope creep in commit 41eb06a (cachedMainBranch hoist + LC_HEARTBEAT_INTERVAL_MS, unrelated to this track) alongside the Gemini fix — needs a small cleanup commit before quality-gate. Core Gemini/registry fix itself verified correct.
+**Summary**: new worker -both from worker lane and track - new worker dropdown- - do not supprt non claude well - for example gemini has wrong version in worker lane and drop down doesnt even suggest provdioers
