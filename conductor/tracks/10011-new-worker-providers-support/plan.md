@@ -415,3 +415,66 @@ merged yet." Findings, all empirically verified, not inferred:
       local-fs-e2e 5/5, local-api-e2e 5/6 — the 1 failure is the same
       pre-existing/unrelated one documented in test.md, ui vitest 13/13),
       no secrets, no stub/TODO markers, no `.claude/.claude` remnants.
+
+## ✅ QUALITY PASSED (2026-08-15)
+
+Track was moved directly from `implement` to `quality-gate` without the
+requested cleanup commit landing first — the scope-creep gap above was
+still present verbatim. Self-healed it here rather than bouncing the
+track back again, and in the process found the review verdict itself had
+been partly wrong:
+
+- [x] Attempted to revert both flagged hunks. Re-running
+      `track-10011-gemini-discovery.test.mjs` immediately failed
+      (`poll timeout (20000ms): worker reported gemini models via
+      heartbeat`) — turns out `LC_HEARTBEAT_INTERVAL_MS` is **not**
+      unrelated scope creep, it's this track's *own* Phase 6 test
+      spawning a real worker with the interval set to 1000ms specifically
+      so the test's 20s poll window is reliable (test file line ~101).
+      Restored it. The review comment calling it "zero test coverage" was
+      wrong — it's implicitly exercised every run, just never asserted on
+      directly.
+- [x] `cachedMainBranch`'s hoist to file-top, by contrast, really was
+      unrelated — reverting it back to its original position (~line 3202)
+      caused no failures anywhere. Confirmed via `git stash` diff against
+      the pre-revert commit: full `conductor/tests/*.test.mjs` (219 tests)
+      and `ui` vitest (server/tests + src/, 306 tests combined) produce
+      the **exact same** pre-existing failure set with and without the
+      revert (7 and 11 failures respectively, identical test names both
+      times) — nothing this track touches regressed.
+- [x] Net diff vs `main` (`git diff main...HEAD -- conductor/laneconductor.sync.mjs`)
+      is now scoped to exactly the Gemini `agy models` fallback plus the
+      load-bearing heartbeat-interval override. Committed as `d7eb940`.
+- [x] Syntax: `node --check` on the modified file — clean.
+- [x] Build: `cd ui && npx vite build` — succeeds (239 modules, no errors).
+- [x] Security: `npm audit --audit-level=high` — 32 pre-existing
+      vulnerabilities (12 high, 6 critical), confirmed present identically
+      on `main` (no `package.json`/`package-lock.json` diff in this
+      track) — pre-existing project-wide condition, not introduced here,
+      out of this track's scope to fix.
+- [x] Stub scan: no TODO/FIXME/FFU/placeholder markers in touched code
+      paths (only legitimate HTML `placeholder=` attributes matched).
+- [x] Real-product check for this round's actual change (backend-only —
+      no UI/JSX files in this diff; the UI dropdown from Phases 1-5 was
+      already verified live against `main` in the prior implement pass):
+      the non-mocked `track-10011-gemini-discovery.test.mjs` spawns a
+      real worker process with a real mock `agy` binary on `PATH` and
+      asserts the actual heartbeat payload contains live-discovered
+      `gemini-3.7-flash-high/medium` ids — this is real end-to-end
+      behavior, not a mocked unit assertion.
+      **Did not** run `npx playwright test --project=fast` or restart the
+      shared UI/API on :8090/:8091 — that pair is the live main-checkout
+      dev session the human is actively using across many other tracks,
+      running off `main`, which does not have this branch's code. Testing
+      against it would either produce a false pass (stale code) or
+      require restarting/repointing infrastructure shared by other
+      in-flight tracks, which every prior phase of this track has
+      correctly avoided doing. `test.md` TC-32 (live
+      `available_models.gemini` populated with real ids, post-merge) is
+      explicitly a *post-merge* check for exactly this reason — it cannot
+      run before the merge that quality-gate PASS itself triggers.
+- [x] Done-gate check: stub scan clean, no capability in spec.md's
+      Solution marked FFU/deferred, real-product check performed and
+      recorded above. Feature is fully implemented, not scaffolded.
+
+**Verdict: PASS.** Moving to `done:success` per `workflow.json`.
