@@ -353,7 +353,7 @@ async function discoverAvailableModels(cli) {
 
       // Also support fetching Claude models from agy models if claude CLI command fails
       try {
-        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
         const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
         if (lines.length > 0) {
           const claudeFromAgy = lines.map(l => {
@@ -383,7 +383,7 @@ async function discoverAvailableModels(cli) {
 
       // Also support fetching Gemini models from agy models if gemini CLI command fails
       try {
-        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
         const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
         if (lines.length > 0) {
           const geminiFromAgy = lines.map(l => {
@@ -397,7 +397,7 @@ async function discoverAvailableModels(cli) {
       } catch { /* ignore */ }
     } else if (cli === 'antigravity') {
       try {
-        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
         try {
           const parsed = JSON.parse(stdout);
           const models = Array.isArray(parsed) ? parsed : (parsed.models || []);
