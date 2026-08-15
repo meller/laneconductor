@@ -5291,6 +5291,87 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    // Track 1114 Phase 15: "Discard" — a track whose worktree is never
+    // going to be merged (a product decision changed, e.g. dropping a
+    // PayPal-integration track after moving to a different provider).
+    // Removes the worktree exactly like Remove Worktree (branch/commits
+    // stay recoverable) and moves the track's Lane to `backlog` with an
+    // explicit note, so the board stops showing it as active work
+    // awaiting its turn. Deliberately NEVER writes done:success — that
+    // would misrepresent abandoned work as shipped and risk being merged
+    // by something else (Complete & Merge, Force Merge) later.
+    if (entry.action === 'discard-track') {
+      const trackNumber = entry.payload?.track_number;
+      const reason = (entry.payload?.reason && String(entry.payload.reason).trim()) || 'Discarded via Worktrees panel — not merging.';
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] discard-track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `discard-track ${trackNumber} (dispatch ${entry.id})`);
+
+      const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+      let result;
+      try {
+        const rows = await auditWorktrees({ repoRoot, mainBranch: getMainBranch() });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+
+        let removedWorktree = false;
+        if (row?.hasWorktree && row.worktreePath) {
+          gitExec(`git worktree remove --force "${row.worktreePath}"`, repoRoot);
+          removedWorktree = true;
+        }
+
+        const tracksDir = join(repoRoot, 'conductor', 'tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (!trackDirName) {
+          result = { discarded: false, reason: 'track-not-found' };
+        } else {
+          const indexPath = join(tracksDir, trackDirName, 'index.md');
+          const content = readFileSync(indexPath, 'utf8');
+          const updateHeader = (c, h, v) => {
+            const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+            return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+          };
+          let updated = updateHeader(content, 'Lane', 'backlog');
+          updated = updateHeader(updated, 'Lane Status', 'queue');
+          updated = updateHeader(updated, 'Summary', reason);
+          writeFileSync(indexPath, updated, 'utf8');
+          gitExec(`git add "${indexPath}"`, repoRoot);
+          gitExec(`git commit -m "Track ${trackNumber}: discarded (${reason})" --quiet`, repoRoot);
+
+          await patch(url, token, `/track/${trackNumber}/action`, {
+            project_id: (getProject())?.id, lane_status: 'backlog', lane_action_status: 'queue',
+          }).catch(err => logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, '[dispatch] discard-track: failed to sync backlog lane to DB'));
+
+          result = { discarded: true, removedWorktree, branch: row?.branch ?? `track-${trackNumber}` };
+        }
+      } catch (err) {
+        result = { discarded: false, reason: 'error', error: err.message };
+      }
+      updateWorkerHeartbeat('idle', null);
+
+      const resultText = result.discarded
+        ? `Discarded track ${trackNumber}${result.removedWorktree ? ' (worktree removed, branch kept)' : ' (no live worktree)'} — moved to backlog, not merged`
+        : `Not discarded: ${result.reason}${result.error ? `: ${result.error}` : ''}`;
+
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.discarded ? 'done' : 'failed',
+        result: resultText,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report discard-track result'));
+
+      try {
+        const tracksDir = join(repoRoot, 'conductor', 'tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (trackDirName) {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+        }
+      } catch (err) {
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post discard-track conversation comment');
+      }
+      continue;
+    }
+
     // Track 1114: "Complete & Merge" — autopilot a track through its
     // remaining lane actions and merge once it reaches done:success.
     // Fire-and-forget the FIRST stage here (matching every other dispatch
