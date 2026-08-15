@@ -503,7 +503,7 @@ function AppContent({ user, logout }) {
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
         ) : viewMode === 'worktrees' ? (
-          <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} />
+          <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} />
         ) : tracks.length === 0 && user && !user.local ? (
           <RemoteEmptyState onOpenAccount={() => setAccountOpen(true)} />
         ) : (
