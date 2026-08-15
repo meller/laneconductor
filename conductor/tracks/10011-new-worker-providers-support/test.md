@@ -124,3 +124,24 @@ node --test conductor/tests/local-api-e2e.test.mjs
       data) displays correctly with no manual migration step required —
       `normalizeProviderId` resolves it at every read site (`providerIcon`,
       `providerLabel`, `defaultModelFor`), confirmed by TC-5.
+
+### Phase 7: Real-machine Gemini discovery verification (added 2026-08-15)
+- [x] TC-30: Manually ran `npx @google/gemini-cli -p "..."` (the exact
+      command `discoverAvailableModels('gemini')` uses) on a real dev
+      machine — confirmed it fails with `IneligibleTierError` (Gemini CLI
+      truly is unusable now), so the fallback path is always exercised in
+      practice, not just in the mocked test.
+- [x] TC-31: Manually ran `agy models` on the same machine — confirmed it
+      returns real `gemini-<version>\t<label>` rows that the existing
+      parser correctly extracts (verified by tracing `looksLikeModelId` +
+      `.startsWith('gemini-')` against the actual output). Discovery logic
+      is not the defect.
+- [ ] TC-32: **Post-merge, post-restart** — after this branch merges to
+      `main` and the live worker/API are restarted, a Gemini-configured
+      worker's heartbeat reports `available_models.gemini` containing live
+      `gemini-3.x-*` ids (not just the 5 static presets), and
+      `WorkerModelModal`/`ProvisionWorkerModal` render them. This is the
+      test that actually answers the human's "still not seeing gemini
+      models" report — everything above this line was already true before
+      Phase 7 and did not explain the report; only the merge/restart gap
+      does.
