@@ -1,7 +1,7 @@
 # Track 1113: Conversation ↔ Worker Interaction Consolidation
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 96%
 **Phase**: All 5 phases complete. Header "Run <lane> now" button consolidated into Send & Run (2026-08-14, verified live in-browser). TC-3/TC-5 now covered; TC-1/2/4/6 remain without dedicated automated…
 **Type**: dev
