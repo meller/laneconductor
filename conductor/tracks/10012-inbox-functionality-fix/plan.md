@@ -8,17 +8,17 @@ no `tracks.waiting_for_reply` column exists and neither route reads the field �
 dropped end-to-end (see spec.md root cause 2).
 **Solution**: Add the column via a real migration, and wire both routes to persist it.
 
-- [ ] Task 1: Add migration `migrations/<timestamp>_add_waiting_for_reply.sql` — 
+- [x] Task 1: Add migration `migrations/<timestamp>_add_waiting_for_reply.sql` — 
       `ALTER TABLE tracks ADD COLUMN waiting_for_reply boolean NOT NULL DEFAULT false;` — and the
       matching `prisma/schema.prisma` field. Apply via the project's Atlas/Prisma workflow.
-- [ ] Task 2: `ui/server/index.mjs`'s `POST /track` handler — destructure `waiting_for_reply` from
+- [x] Task 2: `ui/server/index.mjs`'s `POST /track` handler — destructure `waiting_for_reply` from
       `req.body`, include it in the INSERT/ON CONFLICT UPDATE (default `false` on insert if
       omitted, `COALESCE(EXCLUDED.waiting_for_reply, tracks.waiting_for_reply)` semantics is
       wrong here — the marker is authoritative each sync, so unlike the KPI fields this one
       should just overwrite: `waiting_for_reply = EXCLUDED.waiting_for_reply`).
-- [ ] Task 3: `ui/server/index.mjs`'s `PATCH /track/:num/action` handler — same pattern as the
+- [x] Task 3: `ui/server/index.mjs`'s `PATCH /track/:num/action` handler — same pattern as the
       other optional fields (`if (waiting_for_reply !== undefined) { sets.push(...); }`).
-- [ ] Task 4: Confirm `conductor/laneconductor.sync.mjs`'s two existing payload-build sites
+- [x] Task 4: Confirm `conductor/laneconductor.sync.mjs`'s two existing payload-build sites
       (`~line 2008`, `~line 3998`) need no changes — they already compute and send the field;
       this phase only makes the server actually listen.
 
@@ -32,11 +32,11 @@ has no severity concept, so a `✅` FYI and a real ask look identical (root caus
 **Solution**: Accept `system` as a valid author everywhere it's checked, and give `/api/inbox` a
 three-bucket classification.
 
-- [ ] Task 1: `ui/server/index.mjs`'s `POST /track/:num/comment` — add `'system'` to
+- [x] Task 1: `ui/server/index.mjs`'s `POST /track/:num/comment` — add `'system'` to
       `VALID_AUTHORS` (line ~2688). Confirm the "human comment → wake worker" branch (line
       ~2705) still only fires for `safeAuthor === 'human'` — `system` comments must never wake a
       worker or requeue an action by themselves.
-- [ ] Task 2: Audit the other two `author IN (...)` allowlists in the same file for the same gap:
+- [x] Task 2: Audit the other two `author IN (...)` allowlists in the same file for the same gap:
       the `unreplied_count` subqueries in `/api/inbox` (line ~835) and
       `/api/projects/:id/tracks` (line ~559) currently check `author IN ('claude', 'gemini')` —
       decide deliberately whether `system` `⚠️`/`❌` notices should also count toward
@@ -46,7 +46,7 @@ three-bucket classification.
       as a failure signal (check whether `quality-gate`/`review` FAIL comments are already
       authored `claude` today — spec.md's grep found real tracks use `claude`, not `system`, for
       these — so this subquery is likely unaffected).
-- [ ] Task 3: Rewrite `/api/inbox`'s query (`ui/server/index.mjs:812-856`) to select three
+- [x] Task 3: Rewrite `/api/inbox`'s query (`ui/server/index.mjs:812-856`) to select three
       buckets per REQ-6:
       - `needs_input`: `hr.human_needs_reply OR t.waiting_for_reply OR (lc.author = 'system' AND
         (lc.body LIKE '⚠️%' OR lc.body LIKE '❌%'))`
@@ -56,7 +56,7 @@ three-bucket classification.
         the above applies
       Return a `bucket` (or equivalent) field per row so the frontend doesn't reimplement this
       logic.
-- [ ] Task 4: Update `/api/projects/:id/tracks` similarly if the Machine Workers / board views
+- [x] Task 4: Update `/api/projects/:id/tracks` similarly if the Machine Workers / board views
       rely on the same `human_needs_reply`/`unreplied_count` pair for badges — check
       `ui/src/components/WorkersList.jsx` and the Kanban card component for consumers before
       deciding scope here; only touch what's actually rendered from these fields.
@@ -71,17 +71,17 @@ that miscounts `system` comments as `human`.
 panel only renders two sections ("Awaiting your reply" / "Awaiting AI").
 **Solution**: Add a `system` author style, and render the third bucket.
 
-- [ ] Task 1: `ui/src/components/InboxPanel.jsx` — add `system: { dot: '<distinct color>',
+- [x] Task 1: `ui/src/components/InboxPanel.jsx` — add `system: { dot: '<distinct color>',
       label: 'System' }` to `AUTHOR_STYLES`.
-- [ ] Task 2: `ui/src/components/TrackDetailPanel.jsx` — same `AUTHOR_STYLES` addition (line
+- [x] Task 2: `ui/src/components/TrackDetailPanel.jsx` — same `AUTHOR_STYLES` addition (line
       ~46), so the conversation thread view is consistent with the Inbox.
-- [ ] Task 3: `InboxPanel.jsx` — consume the `bucket` field from Phase 2 (or re-derive locally
+- [x] Task 3: `InboxPanel.jsx` — consume the `bucket` field from Phase 2 (or re-derive locally
       from `waiting_for_reply`/`human_needs_reply`/comment-body-emoji if the API keeps returning
       raw fields) and render three sections: "Needs your input" (was "Awaiting your reply" —
       folds in `waiting_for_reply` and `⚠️`/`❌` system notices), "Awaiting AI" (unchanged
       semantics, now correctly scoped), "Recent activity" (new — `✅` system notices, likely
       collapsed/muted styling since no action is required).
-- [ ] Task 4: Visually distinguish `✅` vs `⚠️`/`❌` badges in `InboxRow` (e.g. a small
+- [x] Task 4: Visually distinguish `✅` vs `⚠️`/`❌` badges in `InboxRow` (e.g. a small
       colored dot or icon derived from the leading emoji of `last_comment_body` when
       `last_comment_author === 'system'`).
 
@@ -95,26 +95,26 @@ dev-track `implement` post nothing on success, so the Inbox has no signal to sho
 majority of action-ends (spec.md root cause 3).
 **Solution**: Extend `.claude/skills/laneconductor/SKILL.md`'s command definitions.
 
-- [ ] Task 1: `/laneconductor plan`, step 7 (Transition) — after setting `**Lane**`, append
+- [x] Task 1: `/laneconductor plan`, step 7 (Transition) — after setting `**Lane**`, append
       `> **system**: ✅ Plan complete — moved to <lane>.` to `conversation.md`. If step 5b's
       fundamentals-conflict guardrail fired during this run, use
       `> **system**: ⚠️ Plan complete with a fundamentals conflict — see conversation above.`
       instead (don't double-post; the guardrail's existing comment plus this one line is enough
       context).
-- [ ] Task 2: `/laneconductor implement`, step 5 (dev track: on complete) — after the existing
+- [x] Task 2: `/laneconductor implement`, step 5 (dev track: on complete) — after the existing
       `## ✅ COMPLETE` append to `plan.md`, also append
       `> **system**: ✅ Implementation complete — moved to <lane>.` to `conversation.md`.
       Non-dev (supervised) tracks already set `**Waiting for reply**: yes` in step 3 — Phase 1
       of this plan makes that signal actually reach the Inbox, so no additional comment is
       required there.
-- [ ] Task 3: `/laneconductor review` and `/laneconductor quality-gate` — confirm their existing
+- [x] Task 3: `/laneconductor review` and `/laneconductor quality-gate` — confirm their existing
       "Post Review" / "Post Results" comment bodies start with `✅`/`⚠️`/`❌` consistent with
       REQ-5's convention (spec.md's grep of real tracks shows headers like
       `## ✅ REVIEW PASSED`, `## ⚠️ Review Failed` — these already lead with the right emoji
       inside a `##` heading; confirm the emoji is the *first* character of `c.body` after the
       `> **author**: ` prefix, since Phase 2's SQL matches on `lc.body LIKE '✅%'` etc. — adjust
       the match to `LIKE '%✅%'`-style or strip/normalize if headings aren't guaranteed to lead).
-- [ ] Task 4: Document the emoji convention once near the top of the "Filesystem-as-API
+- [x] Task 4: Document the emoji convention once near the top of the "Filesystem-as-API
       Interface" section of SKILL.md so future command additions follow it.
 
 **Impact**: Every documented lane-action completion now leaves an unambiguous, consistently
@@ -126,18 +126,43 @@ formatted trace the Inbox can classify.
 `waiting_for_reply` persistence.
 **Solution**: Add targeted regression tests alongside the existing Vitest/supertest suite.
 
-- [ ] Task 1: `ui/server/tests/` — new test file covering `POST /track/:num/comment` with
+- [x] Task 1: `ui/server/tests/` — new test file covering `POST /track/:num/comment` with
       `author: 'system'` persists as `'system'` (not coerced to `'human'`), and does not trigger
       the wake-worker `lane_action_status = 'queue'` update.
-- [ ] Task 2: Same file — `POST /track` and `PATCH /track/:num/action` persist
+- [x] Task 2: Same file — `POST /track` and `PATCH /track/:num/action` persist
       `waiting_for_reply` correctly (`true`/`false`/omitted-defaults-to-existing-value semantics
       per Phase 1 Task 2/3).
-- [ ] Task 3: Same file — `GET /api/inbox` bucket classification: a `system` `✅` comment lands
+- [x] Task 3: Same file — `GET /api/inbox` bucket classification: a `system` `✅` comment lands
       in `recent_activity`, a `system` `⚠️` comment or `waiting_for_reply = true` lands in
       `needs_input`, a real unresolved `human` comment lands in `awaiting_ai`.
-- [ ] Task 4: Regression — existing human-comment flows (wake-worker on human comment,
+- [x] Task 4: Regression — existing human-comment flows (wake-worker on human comment,
       "Answered" auto-reply detection is_replied flip, Jira comment push branch untouched) still
       pass; run the full `cd ui && npm test` suite, not just the new file.
 
 **Impact**: The three root causes in spec.md are each pinned by a test that fails without the
 corresponding fix.
+
+## ⚠️ Gaps — Review
+
+**Reviewed**: 2026-08-14 — no implementation exists. Phases 1-5 above are all still fully
+unchecked; `git status`/`git log` on this branch show zero application-code changes, only the
+track's own conductor markdown files. Sent back to `implement`.
+
+## ✅ COMPLETE
+
+**Implemented**: 2026-08-14. All 20 tasks across Phases 1-5 done and verified:
+- Migration `20260814154139_add_waiting_for_reply.sql` applied to the local DB; confirmed via
+  `\d tracks`.
+- `cd ui && npx vitest run server/tests/track-10012-inbox.test.mjs
+  server/tests/track-10012-inbox-buckets.test.mjs` — 13/13 pass (the buckets file runs against
+  real Postgres, not mocks, to pin the SQL `CASE` behavior).
+- `cd ui && npm test` — 295/306 pass; the 11 failures (`auth.test.mjs`, `api-keys.test.mjs`,
+  `track-1033-worker-auth.test.mjs`) are pre-existing and reproduce identically on this branch's
+  base commit (verified via `git stash`) — unrelated to this track.
+- `cd ui && npm run build` — clean production build, no errors.
+- Stub/deferred-work grep on all changed files — no hits in new code paths.
+- Phase 2 Task 4 scope decision: `WorkersList.jsx` doesn't consume
+  `human_needs_reply`/`unreplied_count` at all; `TrackCard.jsx`'s Kanban badge does, and now
+  benefits automatically from the `unreplied_count` fix (system `⚠️`/`❌` notices already count)
+  without needing its own change — `waiting_for_reply` itself was deliberately left
+  Inbox-only, per spec.md's acceptance criteria.
