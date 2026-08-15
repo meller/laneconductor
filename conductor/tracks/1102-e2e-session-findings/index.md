@@ -37,7 +37,7 @@ plan button — which is what the symptom actually was.
 Test updated to assert `mode === 'sync-only'` deliberately, so a future
 change to `lc worker start`'s default is a conscious decision.
 
-### F2 — "Plan in progress…" is shown for a track that is merely queued 🟠
+### F2 — "Plan in progress…" is shown for a track that is merely queued 🟠 CONFIRMED & FIXED (unit-tested)
 `TrackCard.jsx:245`:
 `nextBtnDisabled = track.lane_status === 'plan' && track.lane_action_status !== 'success'`
 so any `plan` track that isn't `success` gets a disabled arrow captioned
@@ -45,6 +45,23 @@ so any `plan` track that isn't `success` gets a disabled arrow captioned
 `failed`. Combined with F1 the user sees a permanently disabled button
 claiming work is happening when nothing is. Needs to distinguish
 queue / running / failed, and say what to do about it.
+
+**Fixed 2026-08-15**: the disabled *gating* (`nextBtnDisabled`) was
+already correct — a `plan`-lane track genuinely shouldn't advance until
+its plan actually succeeds — only the tooltip text was wrong, hardcoding
+"Plan in progress..." for every non-`success` state. Added
+`nextBtnDisabledReason` (`ui/src/components/TrackCard.jsx`) that
+distinguishes `running` ("Plan in progress...") from `failure`/`failed`
+("Plan failed — fix and re-run before advancing") from everything else,
+i.e. `queue` ("Plan is queued — run it before advancing"). TDD'd:
+`ui/src/components/TrackCard.test.jsx` (5 tests — queued/failed/running
+tooltip text, arrow enabled+correct-tooltip once succeeded, arrow stays
+disabled while queued). 2 of the 5 failed for the right reason (queued/
+failed cases got the stale "Plan in progress..." text) before the fix —
+the other 3 encoded already-correct behavior (running tooltip, enabled+
+correct tooltip on success, disabled-while-queued gating) and passed
+immediately, which is expected since only the tooltip text was wrong.
+All 5 pass after the fix.
 
 ### F3 — index.md carries both legacy `**Status**` and `**Lane**` markers 🟡
 The scaffold template writes `**Status**: plan` near the top; the sync
@@ -476,7 +493,7 @@ resurfaces.
 
 ## Phases
 - [ ] Phase 1: Fix F1 — decide and implement the worker mode a newly created project should get
-- [ ] Phase 2: Fix F2 — accurate lane-action button state/tooltip
+- [x] Phase 2: Fix F2 — accurate lane-action button state/tooltip (fixed, unit-tested)
 - [ ] Phase 3: Fix F3 — one status marker, not two
 - [ ] Phase 4: Continue the walkthrough — plan run, Activity, Inbox, deploy wizard (stop before an actual deploy)
 - [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification still open)
