@@ -26,6 +26,20 @@ export function usePolling(projectId, options = {}) {
   const [lastUpdated, setLastUpdated] = useState(null);
   const intervalRef = useRef(null);
   const abortRef = useRef(null);
+  // Track 10013: a fetch already in flight used to get aborted by every
+  // subsequent trigger (WS message, interval tick, visibility change) —
+  // fine in isolation, but with several concurrent sync workers heartbeating
+  // (multiple projects, multiple workers per project), WS-triggered
+  // debounced calls arrived faster than any single fetch's round trip,
+  // so every fetch got cancelled before it could finish and `loading` never
+  // cleared (board stuck on "Connecting to LaneConductor DB…" forever).
+  // Fix: coalesce instead of cancel — if a fetch is already running, just
+  // remember that another one is wanted and let the in-flight one finish;
+  // it always runs to completion, so `loading` reliably clears after the
+  // very first successful round trip, and a trailing re-fetch afterward
+  // picks up whatever changed while it was busy.
+  const inFlightRef = useRef(false);
+  const pendingRerunRef = useRef(false);
 
   // Options: { readerUrl }
   const effectiveApiUrl = options.readerUrl || getApiBaseUrl();
@@ -33,8 +47,14 @@ export function usePolling(projectId, options = {}) {
   const fetchData = useCallback(async () => {
     if (document.hidden) return;
 
-    // Cancel any in-flight fetch so stale results don't overwrite new ones
-    if (abortRef.current) abortRef.current.abort();
+    if (inFlightRef.current) {
+      pendingRerunRef.current = true;
+      return;
+    }
+    inFlightRef.current = true;
+
+    // Still used to cancel an in-flight request on unmount (see cleanup
+    // below) — no longer used to cancel one request in favor of another.
     const controller = new AbortController();
     abortRef.current = controller;
     const { signal } = controller;
@@ -81,10 +101,15 @@ export function usePolling(projectId, options = {}) {
       setLastUpdated(new Date());
       setError(null);
     } catch (err) {
-      if (err.name === 'AbortError') return; // stale request cancelled — ignore
+      if (err.name === 'AbortError') return; // unmounted mid-request — ignore
       setError(err.message);
     } finally {
       if (!signal.aborted) setLoading(false);
+      inFlightRef.current = false;
+      if (pendingRerunRef.current) {
+        pendingRerunRef.current = false;
+        fetchData();
+      }
     }
   }, [projectId, effectiveApiUrl, idToken]);
 

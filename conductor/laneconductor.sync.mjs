@@ -42,6 +42,7 @@ import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
+import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
@@ -1260,59 +1261,7 @@ function parseLaneStatus(content) {
 }
 
 function parseStatus(content, createQualityGate = false) {
-  // 1. Try explicit **Status** marker (high confidence)
-  const explicitStatus = content.match(/\*\*Status\*\*:\s*([a-z0-9-]+)/i);
-  if (explicitStatus) {
-    const s = explicitStatus[1].toLowerCase().trim();
-    if (LaneAliases[s]) return LaneAliases[s];
-    if (Object.values(Lanes).includes(s)) return s;
-    return s;
-  }
-
-  // 2. Try explicit **Lane** marker (high confidence)
-  const explicitLane = content.match(/\*\*Lane\*\*:\s*([a-z0-9-]+)/i);
-  if (explicitLane) {
-    const l = explicitLane[1].toLowerCase().trim();
-    if (LaneAliases[l]) return LaneAliases[l];
-    if (Object.values(Lanes).includes(l)) return l;
-    return l;
-  }
-
-  // 3. Heuristic matching (only if high-confidence markers weren't found)
-  // Use word boundaries to avoid matching "Implementation Plan" as "implement"
-  const explicitMarkers = [
-    { pattern: /\bquality-gate\b/i, status: Lanes.QUALITY_GATE },
-    { pattern: /\bdone\b/i, status: Lanes.DONE },
-    { pattern: /\bcompleted\b/i, status: Lanes.DONE },
-    { pattern: /\bsuccess\b/i, status: Lanes.DONE },
-    { pattern: /\bbacklog\b/i, status: Lanes.BACKLOG },
-    { pattern: /\bimplement\b(?!ation)/i, status: Lanes.IMPLEMENT },
-    { pattern: /\bplan(?:ning)?\b/i, status: Lanes.PLAN },
-    { pattern: /\breview\b/i, status: Lanes.REVIEW },
-  ];
-  for (const m of explicitMarkers) {
-    if (m.pattern.test(content)) return m.status;
-  }
-  const emojiMarkers = [
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*✅\s*DONE/im, status: 'done' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*✅\s*REVIEWED/im, status: createQualityGate ? 'quality-gate' : 'done' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*⏳\s*IMPLEMENT/im, status: 'implement' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*⏳\s*IN[ _]?PROGRESS/im, status: 'implement' },
-
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*🔄\s*BLOCKED/im, status: 'review' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*⚠️\s*PARTIAL/im, status: 'review' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*✅\s*COMPLETE/im, status: 'review', checkTasks: true },
-  ];
-  let bestMatch = null, lastIndex = -1;
-  for (const m of emojiMarkers) {
-    const match = m.pattern.exec(content);
-    if (match && match.index > lastIndex) {
-      if (m.checkTasks && /- \[ \]/.test(content)) continue;
-      lastIndex = match.index;
-      bestMatch = m.status;
-    }
-  }
-  return bestMatch;
+  return parseStatusPure(content, Lanes, LaneAliases, createQualityGate);
 }
 
 // Marker-only readers — return null when the field's own explicit marker is
