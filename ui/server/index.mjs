@@ -543,7 +543,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
-              t.assignee_uid, t.created_by_uid, p.owner_uid,
+              t.assignee_uid, t.created_by_uid, t.waiting_for_reply, p.owner_uid,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -556,7 +556,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS unreplied_count FROM track_comments uc
          WHERE uc.track_id = t.id
-           AND uc.author IN ('claude', 'gemini')
+           AND uc.author IN ('claude', 'gemini', 'system')
            AND uc.created_at > COALESCE(
              (SELECT MAX(created_at) FROM track_comments
               WHERE track_id = t.id AND author = 'human'),
@@ -787,7 +787,7 @@ app.get('/api/tracks', async (req, res) => {
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS unreplied_count FROM track_comments uc
          WHERE uc.track_id = t.id
-           AND uc.author IN ('claude', 'gemini')
+           AND uc.author IN ('claude', 'gemini', 'system')
            AND uc.created_at > COALESCE(
              (SELECT MAX(created_at) FROM track_comments
               WHERE track_id = t.id AND author = 'human'),
@@ -817,22 +817,43 @@ app.get('/api/inbox', async (req, res) => {
       ? `AND t.project_id = $${values.push(Number(project_id))}`
       : '';
 
+    // Track 10012: three-way bucket classification, evaluated in priority
+    // order so each row lands in exactly one section:
+    //  1. awaiting_ai   — a real unresolved human comment (unchanged from
+    //                     the pre-fix human_needs_reply heuristic; now
+    //                     correctly scoped since 'system' can no longer
+    //                     masquerade as 'human' here).
+    //  2. needs_input   — tracks.waiting_for_reply, or the most recent
+    //                     comment is a 'system' ⚠️/❌ notice, or (fallback)
+    //                     there's an unreplied claude/gemini/system message
+    //                     — the old "awaiting your reply" heuristic, kept
+    //                     for non-emoji AI comments.
+    //  3. recent_activity — most recent comment is a 'system' ✅ notice (or
+    //                     nothing else applies): informational only.
     const result = await pool.query(
       `SELECT t.id AS track_id, t.track_number, t.title, t.lane_status,
-              t.lane_action_status,
+              t.lane_action_status, t.waiting_for_reply,
               p.id AS project_id, p.name AS project_name,
               lc.author AS last_comment_author, lc.body AS last_comment_body, lc.created_at AS last_comment_at,
-              uc.unreplied_count, hr.human_needs_reply
+              uc.unreplied_count, hr.human_needs_reply,
+              CASE
+                WHEN hr.human_needs_reply THEN 'awaiting_ai'
+                WHEN t.waiting_for_reply THEN 'needs_input'
+                WHEN lc.author = 'system' AND (lc.body LIKE '⚠️%' OR lc.body LIKE '❌%') THEN 'needs_input'
+                WHEN lc.author = 'system' AND lc.body LIKE '✅%' THEN 'recent_activity'
+                WHEN COALESCE(uc.unreplied_count, 0) > 0 THEN 'needs_input'
+                ELSE 'recent_activity'
+              END AS bucket
        FROM tracks t
        JOIN projects p ON p.id = t.project_id
-       JOIN LATERAL (
+       LEFT JOIN LATERAL (
          SELECT body, author, created_at FROM track_comments
          WHERE track_id = t.id AND is_hidden = FALSE ORDER BY created_at DESC LIMIT 1
        ) lc ON true
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS unreplied_count FROM track_comments uc
          WHERE uc.track_id = t.id
-           AND uc.author IN ('claude', 'gemini')
+           AND uc.author IN ('claude', 'gemini', 'system')
            AND uc.is_hidden = FALSE
            AND uc.created_at > COALESCE(
              (SELECT MAX(created_at) FROM track_comments
@@ -845,7 +866,7 @@ app.get('/api/inbox', async (req, res) => {
            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
          ) AS human_needs_reply
        ) hr ON true
-       WHERE 1=1 ${projectFilter}
+       WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE) ${projectFilter}
        ORDER BY lc.created_at DESC`,
       values
     );
@@ -2089,6 +2110,7 @@ app.post('/track', collectorAuth, async (req, res) => {
       track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
+      waiting_for_reply,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -2167,6 +2189,9 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_threshold ?? null, kpi_window ?? null,
       kpi_snapshot ? JSON.stringify(kpi_snapshot) : null,
       kpi_measured_at ?? null, kpi_check_after ?? null, kpi_scheduled_at ?? null, kpi_maps_to ?? null,
+      // $27: waiting_for_reply — authoritative per sync (raw, possibly null so
+      // ON CONFLICT can distinguish "explicitly set" from "omitted")
+      waiting_for_reply === undefined ? null : waiting_for_reply,
     ];
 
     const qRes = await pool.query(`
@@ -2175,9 +2200,10 @@ app.post('/track', collectorAuth, async (req, res) => {
        current_phase, content_summary, phase_step, index_content, plan_content, spec_content, test_content,
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
-       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to)
+       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
+       waiting_for_reply)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false))
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2204,7 +2230,8 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_measured_at    = COALESCE(EXCLUDED.kpi_measured_at, tracks.kpi_measured_at),
       kpi_check_after    = EXCLUDED.kpi_check_after,
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
-      kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to)
+      kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
+      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply)
     RETURNING id
   `, params);
 
@@ -2259,7 +2286,8 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
   try {
     const { lane_action_status, lane_action_result, last_log_tail, active_cli,
       lane_status, progress_percent,
-      auto_planning_launched, auto_implement_launched, auto_review_launched } = req.body;
+      auto_planning_launched, auto_implement_launched, auto_review_launched,
+      waiting_for_reply } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2282,6 +2310,7 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (auto_planning_launched !== undefined) { sets.push(`auto_planning_launched = $${i++}`); params.push(auto_planning_launched); }
     if (auto_implement_launched !== undefined) { sets.push(`auto_implement_launched = $${i++}`); params.push(auto_implement_launched); }
     if (auto_review_launched !== undefined) { sets.push(`auto_review_launched = $${i++}`); params.push(auto_review_launched); }
+    if (waiting_for_reply !== undefined) { sets.push(`waiting_for_reply = $${i++}`); params.push(waiting_for_reply); }
     await pool.query(
       `UPDATE tracks SET ${sets.join(', ')} WHERE project_id = $1 AND track_number = $2`,
       params
@@ -2685,7 +2714,7 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
     const { author = 'human', body } = req.body;
     if (!body) return res.status(400).json({ error: 'body is required' });
-    const VALID_AUTHORS = ['human', 'claude', 'gemini'];
+    const VALID_AUTHORS = ['human', 'claude', 'gemini', 'system'];
     const safeAuthor = VALID_AUTHORS.includes(author) ? author : 'human';
 
     const trackRes = await pool.query(
