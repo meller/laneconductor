@@ -16,6 +16,7 @@ import { slugify, trackTemplates, appendRegressionTest } from './utils.mjs';
 import { getBuilds, getBuildById, createBuildArtifact } from './build-manager.mjs';
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 import { logger } from './logger.mjs';
+import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -404,7 +405,16 @@ app.post('/api/projects/:id/workers/start-new', async (req, res) => {
     );
     const nextNumber = (numRows[0]?.max_num || 0) + 1;
 
-    const { stdout, stderr } = await execAsync(`lc start --worker-number ${nextNumber}`, { cwd: repo_path });
+    // Track 10011: optional cli/model let the caller pick this worker's
+    // provider instead of always inheriting project.primary.cli. Omitting
+    // them keeps prior behavior unchanged. Uses execFile with an argument
+    // array (not execAsync's shell string) — cli/model are free text from
+    // the request body, same injection concern as /workers/manager/start.
+    const args = ['start', '--worker-number', String(nextNumber)];
+    if (req.body?.cli) args.push('--cli', String(req.body.cli));
+    if (req.body?.model) args.push('--model', String(req.body.model));
+
+    const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
     res.json({ ok: true, worker_number: nextNumber, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2714,8 +2724,9 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
     const { author = 'human', body } = req.body;
     if (!body) return res.status(400).json({ error: 'body is required' });
-    const VALID_AUTHORS = ['human', 'claude', 'gemini', 'system'];
-    const safeAuthor = VALID_AUTHORS.includes(author) ? author : 'human';
+    const VALID_AUTHORS = ['human', 'system', ...PROVIDER_IDS];
+    const normalizedAuthor = normalizeProviderId(author);
+    const safeAuthor = VALID_AUTHORS.includes(normalizedAuthor) ? normalizedAuthor : 'human';
 
     const trackRes = await pool.query(
       'SELECT id FROM tracks WHERE project_id = $1 AND track_number = $2',
@@ -2979,7 +2990,10 @@ app.post('/worker/register', async (req, res, next) => {
 }, async (req, res) => {
   try {
     const { hostname, pid, mode } = req.body;
-    const cli = req.body.cli || null;
+    // Normalize legacy ids (e.g. 'agy') here — this is the forward-migration
+    // point: every worker that registers stores the canonical provider id
+    // in the DB even if its local .laneconductor.json still has the old one.
+    const cli = req.body.cli ? normalizeProviderId(req.body.cli) : null;
     const model = req.body.model || null;
     const available_models = req.body.available_models ? JSON.stringify(req.body.available_models) : null;
     // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
@@ -3058,7 +3072,9 @@ app.post('/worker/register', async (req, res, next) => {
 app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
-    const { hostname, pid, status, current_task, mode, cli, model, available_models, worktrees } = req.body;
+    const { hostname, pid, status, current_task, mode, model, available_models, worktrees } = req.body;
+    // Same forward-migration normalization as /worker/register — see its comment.
+    const cli = normalizeProviderId(req.body.cli);
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     // Track 1102 F13: an explicit project_id in the BODY (including an
     // explicit null, e.g. a manager's own heartbeat) must win over
@@ -3120,9 +3136,12 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
 app.patch('/api/workers/:id/config', requireAuth, async (req, res) => {
   try {
     const workerId = req.params.id;
-    const { cli, model } = req.body;
+    const { model } = req.body;
+    // Normalize a legacy alias (e.g. 'agy') so a client that still sends
+    // it is accepted and canonicalized, not rejected.
+    const cli = req.body.cli != null ? normalizeProviderId(req.body.cli) : req.body.cli;
 
-    const VALID_CLIS = ['claude', 'gemini', 'copilot', 'antigravity'];
+    const VALID_CLIS = [...PROVIDER_IDS, 'other'];
     if (cli !== undefined && cli !== null && !VALID_CLIS.includes(cli)) {
       return res.status(400).json({ error: 'Invalid CLI engine' });
     }

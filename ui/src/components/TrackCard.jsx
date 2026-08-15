@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
+import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -123,17 +124,23 @@ function AssigneeWorkerStatusBadge({ status }) {
 
 // ── Agent badge ───────────────────────────────────────────────────────────────
 
-const AGENT_LABELS = {
-  claude: { label: 'Claude', color: 'bg-orange-900 text-orange-300' },
-  gemini: { label: 'Gemini', color: 'bg-blue-900 text-blue-300' },
-  other: { label: 'AI', color: 'bg-gray-800 text-gray-400' },
+// Color per provider is a presentation detail, not registry data — label
+// and icon come from the shared registry so Copilot/Antigravity get a real
+// badge instead of falling through to the generic "AI" label.
+const AGENT_COLORS = {
+  claude: 'bg-orange-900 text-orange-300',
+  gemini: 'bg-blue-900 text-blue-300',
+  copilot: 'bg-emerald-900 text-emerald-300',
+  antigravity: 'bg-purple-900 text-purple-300',
 };
+const AGENT_FALLBACK_COLOR = 'bg-gray-800 text-gray-400';
 
 function AgentBadge({ agent }) {
-  const style = AGENT_LABELS[agent] ?? AGENT_LABELS.other;
+  const id = normalizeProviderId(agent);
+  const color = AGENT_COLORS[id] || AGENT_FALLBACK_COLOR;
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${style.color}`}>
-      {style.label}
+    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${color}`}>
+      {providerLabel(id)}
     </span>
   );
 }
