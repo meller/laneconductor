@@ -2,7 +2,6 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Waiting for reply**: no
 **Progress**: 100%
 **Last Run**: claude/sonnet (primary)
 **Phase**: New
