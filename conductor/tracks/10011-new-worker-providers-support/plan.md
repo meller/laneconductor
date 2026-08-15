@@ -80,11 +80,9 @@ missing `copilot`/`antigravity`).
   - `discoverAvailableModels(cli)`: call `normalizeProviderId(cli)` first,
     so a legacy `'agy'`-configured project still discovers Antigravity's
     models correctly.
-  - Gemini branch (~lines 344-360): remove the `agy models` substitution.
-    Try a Gemini-specific discovery command (e.g. the same
-    `npx @google/gemini-cli --version`-style invocation already used
-    elsewhere in the codebase for reachability checks, adapted for model
-    listing) as the live-discovery path; on failure, fall back to
+  - Gemini branch (~lines 344-360): Try a Gemini-specific discovery command
+    first; on failure, query the local provider CLI (`agy models`) and filter for
+    `gemini-` prefixed models. On failure of both, fall back to
     `PROVIDERS.gemini.models` from the registry. Do not report another
     provider's live output as Gemini's under any fallback path.
   - `refreshModels()`/`cachedModels`: replace the hardcoded `clis` array
@@ -214,6 +212,7 @@ detail panel (previously silent) — now lets the user pick a provider.
       `author: 'antigravity'`/`'copilot'` is persisted as-is, a legacy
       `'agy'` author normalizes to `'antigravity'`, and a genuinely
       unrecognized author still downgrades to `'human'`.
+- [x] `conductor/tests/providers.test.mjs` (or a dedicated integration/unit test in `laneconductor.sync.mjs` test files): add coverage for `discoverAvailableModels('gemini')` falling back to `agy models` and filtering for `gemini-` prefixed models.
 - [ ] Manual verification (recorded in quality-gate, per the `implement`
       skill's real-product-check requirement): start a worker from the
       track panel's `+ New worker…` flow and confirm a provider choice is
@@ -227,29 +226,92 @@ detail panel (previously silent) — now lets the user pick a provider.
       the actual click-through is left for quality-gate, which can spin up
       its own instance.
 
-## ✅ COMPLETE
+## Phase 6: Gemini Local Provider Model Discovery Alignment
 
-All 5 phases implemented. `conductor/providers.mjs` is now the single
-source of truth for provider identity/models, consumed directly (no
-mirrored file — the Phase 1 spike proved a plain `../../../conductor/
-providers.mjs` import builds cleanly under Vite) by `bin/lc.mjs`,
-`conductor/laneconductor.sync.mjs`, `ui/server/index.mjs`, and five React
-components. Both reported symptoms are fixed at the root: a worker with an
-unrecognized/null `model` never shows another provider's model string, and
-the "+ New worker…" flow always offers a provider choice (via
-`ProvisionWorkerModal` when a manager is available, or a new inline
-picker otherwise). Legacy `'agy'` data is normalized forward at every
-write path without a migration.
+- [x] Modify `discoverAvailableModels(cli)` in `conductor/laneconductor.sync.mjs` to fetch models from the local provider CLI (`agy models`) as a fallback when direct gemini CLI queries fail, filtering for `gemini-` prefixed models.
+- [x] Verify that `discoverAvailableModels('gemini')` returns the correct live models from `agy models` by adding test assertions.
+- [x] Verify that there is no regression for `claude` or other providers.
 
-10/10 new registry unit tests pass; 295 UI vitest tests pass (same 11
-pre-existing failures as the base branch, confirmed via `git stash` —
-none are new); `local-fs-e2e` 5/5, `local-api-e2e` 5/6 (the 1 failure is
-reproduced identically on the base branch, pre-existing). `npm run build`
-is clean. See test.md for which TCs have direct automated coverage vs.
-code-review-verified (mostly the CLI-wizard/sync-worker paths that would
-need spawning a real process or mocking `child_process.exec` to automate).
+## Phase 7: Root-cause the "still not seeing gemini models" report (2026-08-15)
 
-Manual real-product click-through of the new-worker provider picker is
-deferred to quality-gate — no dev server for this worktree's code was
-safe to stand up without touching the main checkout's live session on the
-default ports (see the Phase 5 note above).
+**Problem**: after Phase 6 was marked complete, a human comment on this
+track reported still not seeing Gemini models discovered from the
+machine, and asked whether this track should be merged with track 1099
+("Dynamic Worker Model Discovery") or replanned.
+
+**Investigation (this planning session)**:
+
+- [x] Confirmed track 1099 is `done` and built the *mechanism* this track's
+      Gemini fix plugs into: worker-side `discoverAvailableModels()` /
+      `refreshModels()` / `cachedModels` in `conductor/laneconductor.sync.mjs`,
+      reported via heartbeat as `available_models` and stored on the
+      `workers` row (grep-verified: `cachedModels` feeds `available_models`
+      at lines ~892/986; consumed by `WorkerModelModal.jsx`/
+      `ProvisionWorkerModal.jsx`). Track 10011's Gemini branch is a small
+      edit *inside* that same mechanism, not a competing one — **no merge
+      with 1099 is needed**, there's nothing to reconcile.
+- [x] Reproduced both code paths for real on this dev machine (not
+      mocked): `npx @google/gemini-cli -p "..."` fails immediately with
+      `IneligibleTierError: This client is no longer supported for Gemini
+      Code Assist for individuals` — i.e. direct Gemini CLI access is
+      genuinely dead now, confirming `PROVIDERS.gemini.retired = true` is
+      accurate and the primary path in `discoverAvailableModels()` will
+      always fall through. The `agy models` fallback, run for real, DOES
+      return live `gemini-<version>` prefixed rows in the expected
+      `id\tlabel` shape (e.g. `gemini-3.7-flash-high\tGemini 3.7 Flash
+      (High)`), which the existing parser (`looksLikeModelId` +
+      `.startsWith('gemini-')`) handles correctly. **The discovery/parsing
+      logic itself is not the bug.**
+- [x] Identified the actual root cause: this track's commits only exist on
+      the `track-10011` branch/worktree
+      (`.worktrees/10011`). The live LaneConductor worker + UI the human
+      is checking against is the **main checkout**
+      (`/home/meller/Code/laneconductor`), which runs off `main` and has
+      never received any of this track's code — not Phase 1's registry,
+      not Phase 2/6's Gemini fallback, nothing. "Still not seeing gemini
+      models" is expected: there is nothing to see yet, because nothing
+      has shipped. This is a deployment-timing gap, not a code defect.
+- [x] Found an unrelated defect while investigating: commit `41eb06a`
+      ("align Gemini model discovery fallback with local provider CLI")
+      accidentally swept in ~121 unrelated files under `.claude/.claude/`
+      (a nested duplicate of skills/settings — looks like a stray
+      `git add -A` picking up a backup/scratch directory). This is noise
+      that must be removed before quality-gate; it is not part of this
+      track's scope.
+
+**Required before this track can pass quality-gate this time** (the
+Phase 5 manual-verification item was deferred once already; do not defer
+again):
+
+- [ ] Remove the accidentally-committed `.claude/.claude/` tree from this
+      branch (verify with `git log --stat` on the offending commit's
+      follow-up, or a cleanup commit) so it doesn't land on `main`.
+- [ ] After quality-gate passes and this branch merges to `main` (per the
+      standard `done:success` worktree-merge flow), **restart the live
+      worker and API** (`lc worker restart`, `lc api restart` — long-running
+      processes do not hot-reload) in the main checkout, then re-check the
+      real UI: a Gemini-configured worker's `available_models.gemini`
+      should populate within one heartbeat + refresh cycle after restart
+      (refresh runs once immediately at startup, then every 30 min), and
+      `WorkerModelModal`/`ProvisionWorkerModal` should show live discovered
+      IDs (e.g. `gemini-3.7-flash-*`), not just the 5 static
+      `PROVIDERS.gemini.models` presets.
+- [ ] Confirm `agy` is authenticated/reachable on the machine the check is
+      run from — `agy models` returning an auth error or empty output
+      (rather than a model list) would silently fall back to null →
+      presets, which would look identical to "still not working" from the
+      UI but is an environment issue, not a code issue.
+
+## ✅ COMPLETE (Reopened for Gemini discovery alignment; Phase 7 verification pending)
+
+Phases 1-6 implemented and tested. `discoverAvailableModels('gemini')` now
+falls back to querying the local provider CLI (`agy models`) for Gemini
+models, matching Claude's behavior — confirmed correct against the real
+CLI tools on this machine in Phase 7, not just the mocked test. No merge
+with track 1099 is needed; this track correctly extends the mechanism
+1099 built. The remaining gap is deployment, not logic: this branch has
+never been merged to `main`, so the live worker the human is checking
+against has none of this code yet. Track stays open until Phase 7's
+checklist (junk-file cleanup, merge, worker restart, real re-verification)
+is complete — see conversation.md for the full explanation posted back to
+the human.

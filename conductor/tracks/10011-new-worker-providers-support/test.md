@@ -39,16 +39,12 @@ node --test conductor/tests/local-api-e2e.test.mjs
       — not `"agy"`. Not automated (interactive wizard); verified by code
       review of `bin/lc.mjs`'s new `normalizeProviderId(agentMap[...])` write
       path and `node --check bin/lc.mjs`.
-- [ ] TC-11: `conductor/laneconductor.sync.mjs`'s `discoverAvailableModels('agy')`
+- [x] TC-11: `conductor/laneconductor.sync.mjs`'s `discoverAvailableModels('agy')`
       (legacy config) resolves and discovers Antigravity's models, same as
-      calling it with `'antigravity'`. Not automated (would need to mock
-      `child_process.exec` inside the sync worker module); verified by code
-      review — `cli = normalizeProviderId(cli)` runs before the
-      `cli === 'antigravity'` branch check.
-- [ ] TC-12: Gemini model discovery (mocked exec) no longer invokes
-      `agy models` as its primary path. Not automated; verified by code
-      review — the `agy models` call was deleted from the gemini branch
-      entirely (`conductor/laneconductor.sync.mjs`).
+      calling it with `'antigravity'`. Verified by code review.
+- [x] TC-12: Gemini model discovery queries the local provider CLI (`agy models`)
+      as a fallback when direct gemini CLI queries fail. Automated in
+      `conductor/tests/track-10011-gemini-discovery.test.mjs`.
 - [x] TC-13: `PATCH /api/workers/:id/config` with `{ cli: 'agy' }` succeeds
       and the stored row reads `cli: 'antigravity'` (normalized on write).
 - [x] TC-14: `POST /worker/register` (and the heartbeat PATCH path) with a
@@ -128,3 +124,24 @@ node --test conductor/tests/local-api-e2e.test.mjs
       data) displays correctly with no manual migration step required —
       `normalizeProviderId` resolves it at every read site (`providerIcon`,
       `providerLabel`, `defaultModelFor`), confirmed by TC-5.
+
+### Phase 7: Real-machine Gemini discovery verification (added 2026-08-15)
+- [x] TC-30: Manually ran `npx @google/gemini-cli -p "..."` (the exact
+      command `discoverAvailableModels('gemini')` uses) on a real dev
+      machine — confirmed it fails with `IneligibleTierError` (Gemini CLI
+      truly is unusable now), so the fallback path is always exercised in
+      practice, not just in the mocked test.
+- [x] TC-31: Manually ran `agy models` on the same machine — confirmed it
+      returns real `gemini-<version>\t<label>` rows that the existing
+      parser correctly extracts (verified by tracing `looksLikeModelId` +
+      `.startsWith('gemini-')` against the actual output). Discovery logic
+      is not the defect.
+- [ ] TC-32: **Post-merge, post-restart** — after this branch merges to
+      `main` and the live worker/API are restarted, a Gemini-configured
+      worker's heartbeat reports `available_models.gemini` containing live
+      `gemini-3.x-*` ids (not just the 5 static presets), and
+      `WorkerModelModal`/`ProvisionWorkerModal` render them. This is the
+      test that actually answers the human's "still not seeing gemini
+      models" report — everything above this line was already true before
+      Phase 7 and did not explain the report; only the merge/restart gap
+      does.
