@@ -3225,6 +3225,23 @@ app.get('/worker/:id/dispatch', collectorAuth, async (req, res) => {
   }
 });
 
+// Track 1110 Phase 6: a dispatch this worker itself claimed but never
+// reported the outcome of (its child process finished on its own after a
+// worker restart orphaned the exit handler that would have called PATCH
+// /worker-dispatch/:id). Startup reconciliation reads this to find
+// dispatches worth checking a track's worktree for completion evidence.
+app.get('/worker/:id/dispatch/claimed', collectorAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM worker_dispatch WHERE worker_id = $1 AND status = 'claimed' ORDER BY claimed_at ASC",
+      [req.params.id]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Worker-side: report a dispatch entry's outcome (claimed when it starts
 // running, done/failed once it finishes).
 app.patch('/worker-dispatch/:id', collectorAuth, async (req, res) => {
