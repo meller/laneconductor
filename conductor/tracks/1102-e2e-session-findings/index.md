@@ -419,6 +419,48 @@ transcript) was considered and deferred — the Transcript tab already
 serves that need better than a raw tail would for Claude specifically;
 non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 
+### F15 — F5's dispatch bridge only covers `/implement`; drag-to-lane and reset still strand sync-only projects 🔴 CONFIRMED & FIXED (unit-tested, not live E2E)
+Found 2026-08-15 while diagnosing why track 10011 sat at `lane_action_status:
+'queue'` indefinitely after being dragged to the Implement lane (root cause
+of *that* specific incident turned out to be unrelated — the real
+implementation was sitting on an unmerged branch — but reading the dispatch
+path to rule it out surfaced this separate, real gap).
+
+- F5's fix (confirmed in code) lives entirely inside
+  `POST /api/projects/:id/tracks/:num/implement` (`ui/server/index.mjs:1514`):
+  when a project's only live workers are `sync-only`, it inserts a
+  `worker_dispatch` row addressed to one of them instead of only setting
+  `lane_action_status: 'queue'`.
+- `PATCH /track/:num/lane` (`ui/server/index.mjs:2846`) — the endpoint the
+  Kanban board's drag-and-drop and `handleLaneChange` confirm dialog both
+  call via `PATCH /api/projects/:id/tracks/:num` — has no such bridge. It
+  only sets `lane_action_status = 'queue'`.
+- `PATCH /track/:num/reset` (`ui/server/index.mjs:2894`, used by "fix review
+  gaps" / update flows) has the same gap.
+- Net effect: on a sync-only project (the default per F5/F6), dragging a
+  card to a new lane — or any flow that calls `/reset` — sets the queue
+  flag and then nothing ever claims it, identical to F5's original symptom,
+  just via a different entry point that F5's fix didn't cover.
+
+**Fixed 2026-08-15**: extracted F5's bridge logic into a shared
+`dispatchIfSyncOnly(projectId, trackNumber)` helper (`ui/server/index.mjs`,
+right above the `/implement` route) and call it from all three sites:
+`/implement` (unchanged behavior, now via the shared helper),
+`/track/:num/lane` (only when the lane change results in
+`lane_action_status: 'queue'` — a move to `done` sets `'success'` instead,
+nothing to dispatch), and `/track/:num/reset`. TDD'd against the existing
+F5 test pattern: `ui/server/tests/track-1102-f15-lane-reset-dispatch.test.mjs`
+(5 tests — dispatches when all live workers are sync-only, does not
+dispatch when a sync+poll worker exists, does not dispatch on a move to
+`done`). Watched all 5 fail for the right reason (no `worker_dispatch`
+insert) before restoring the production code, then watched them pass.
+
+**Not proven live** the way F5 was (no real drag-and-drop against a real
+sync-only project, watching a `worker_dispatch` row appear and get
+claimed) — confirmed via unit tests exercising the same code path F5's
+tests already trust, not a live E2E walkthrough. Worth a live pass if this
+resurfaces.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
@@ -437,6 +479,7 @@ non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 - [ ] Phase 2: Fix F2 — accurate lane-action button state/tooltip
 - [ ] Phase 3: Fix F3 — one status marker, not two
 - [ ] Phase 4: Continue the walkthrough — plan run, Activity, Inbox, deploy wizard (stop before an actual deploy)
+- [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification still open)
 
 ## Depends on
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (F1 is in its create-project handler), [1084](../1084-worker-identity-and-assignment/index.md) (worker modes).
