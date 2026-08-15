@@ -169,6 +169,7 @@ CREATE TABLE "tracks" (
     "kpi_check_after" TIMESTAMP(6),
     "kpi_scheduled_at" TIMESTAMP(6),
     "kpi_maps_to" TEXT,
+    "waiting_for_reply" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "tracks_pkey" PRIMARY KEY ("id")
 );
