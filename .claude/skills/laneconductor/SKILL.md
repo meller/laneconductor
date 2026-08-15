@@ -1107,6 +1107,25 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Summary**: [text]` | `content_summary` | A one-line summary of the current work/problem. |
 | `**Waiting for reply**: [yes\|no]` | `waiting_for_reply` | Signals that a human comment needs an answer. |
 
+### Completion Comment Convention
+
+Every terminal lane-action outcome (`plan`, `implement`, `review`, `quality-gate`) appends
+**exactly one** structured comment to `conversation.md` on completion, always authored `system`
+and always leading with one of these three emoji as the very first character of the body (the
+Inbox's classification matches on this leading character — see `/api/inbox`):
+
+| Emoji | Meaning | Inbox bucket |
+|-------|---------|--------------|
+| `✅` | Success — no action needed, informational only | Recent activity |
+| `⚠️` | Needs intervention — human should look at this | Needs your input |
+| `❌` | Failed | Needs your input |
+
+Format: `> **system**: <emoji> <one-line summary>.` — e.g.
+`> **system**: ✅ Plan complete — moved to implement.` Don't double-post: if an earlier step in
+the same run already posted a `⚠️`/`❌` comment for this outcome (e.g. the fundamentals-conflict
+guardrail, or a quality-gate FAIL), that comment satisfies this convention on its own — no need
+for a second one.
+
 ### `/laneconductor qualityGate [track_number]`
 
 Verifies the implementation of a track against the project's quality standards. This command is usually invoked automatically by the worker when a track enters the `quality-gate` lane.
@@ -1294,7 +1313,12 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - This is **non-blocking** by default — the track continues through planning; a human
       reviews and decides whether to update the fundamental doc or adjust the track's approach.
 6.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
-7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`.
+7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`. Then append a completion comment to
+    `conversation.md` (see **Completion Comment Convention** below): if step 5b's
+    fundamentals-conflict guardrail fired during this run, use
+    `> **system**: ⚠️ Plan complete with a fundamentals conflict — see conversation above.`
+    (don't double-post; the guardrail's existing comment plus this one line is enough
+    context); otherwise use `> **system**: ✅ Plan complete — moved to <lane>.`
 
 **🛑 BOUNDARY ENFORCEMENT**: Your job ends here. Do NOT start implementing code. Wait for the next worker cycle to pick up the track in its new lane.
 
@@ -1405,7 +1429,14 @@ Execute implementation tasks. The Skill Worker communicates purely through files
    - Update `index.md` `**Progress**` marker to 100%.
    - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
+   - Append a completion comment to `conversation.md` (see **Completion Comment Convention**):
+     `> **system**: ✅ Implementation complete — moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`
+
+   Non-dev (supervised) tracks already set `**Waiting for reply**: yes` in step 3 — that
+   `waiting_for_reply` marker is itself the Inbox signal (see **Completion Comment
+   Convention** and `waiting_for_reply` in the marker table above), so no additional
+   completion comment is needed there.
 
 5. **Release lock and cleanup:**
    ```bash
@@ -1433,7 +1464,12 @@ Structured review of a track against its plan and product guidelines. Posts the 
 2. **Evaluate**: Check implementation against requirements and guidelines.
    - **Secrets Policy**: Ensure no secrets are hardcoded or leaked in logs. Verify use of ADC/Secret Manager as specified in `deployment-stack.md`.
    - If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.
-3. **Post Review**: Write the review results into `conductor/tracks/NNN-*/conversation.md` (append to it). Include test pass/fail summary if `test.md` was present.
+3. **Post Review**: Append the review results to `conductor/tracks/NNN-*/conversation.md` as a
+   single `> **system**: ...` comment (see **Completion Comment Convention**) — author `system`,
+   not `claude`/`gemini`, and the emoji is the literal first character of the body, e.g.
+   `> **system**: ✅ REVIEW PASSED` or `> **system**: ⚠️ REVIEW FAILED`, followed by the full
+   write-up (test pass/fail summary if `test.md` was present, gaps if any) as `>`-prefixed
+   continuation lines under that same comment — do not post the write-up as a second comment.
 4. **Auto-lane transition**:
    - Read `conductor/workflow.json`.
    - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
@@ -1456,7 +1492,6 @@ Runs automated checks and updates status files based on results.
    - If type is non-dev (`marketing`, `sales`, `support`, `other`) OR spec.md has a `## KPI` block: run `conductor/measure.mjs` for this track.
    - `node conductor/measure.mjs --track NNN`
    - Write result back to index.md: `**KPI Actual**: N` and `**KPI Snapshot**: {JSON}`
-   - Append to `conversation.md`: `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true/false`
    - **If KPI failed** (`passed: false`):
      - Append `## ❌ KPI MISS` to `plan.md`:
        ```markdown
@@ -1464,8 +1499,13 @@ Runs automated checks and updates status files based on results.
        **Target**: T | **Actual**: N | **Delta**: -D | **Window**: W
        **Snapshot**: `{raw JSON}`
        ```
+     - This is a terminal outcome (see **Completion Comment Convention**) — append to
+       `conversation.md`: `> **system**: ❌ KPI miss — actual=N, target=T, threshold=TH.`
      - Transition to `on_failure` lane. **Do NOT run code checks.**
-   - **If KPI passed**: continue to code checks below.
+   - **If KPI passed**: append to `conversation.md`:
+     `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true.` — no
+     leading emoji here (this is not yet a terminal outcome; step 4's Post Results is the
+     terminal comment for this run, and gets the emoji) — then continue to code checks below.
    - Dev tracks without a `## KPI` block: skip measurement entirely.
 2. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
    - **The checkboxes in `quality-gate.md` are NOT a report — they are a
@@ -1525,7 +1565,12 @@ Runs automated checks and updates status files based on results.
    - Re-run to confirm the test now passes.
    - You MUST commit both the test and the fix together with `fix(quality-gate): [description]`.
    - You MUST post a comment to `conversation.md` explaining what failed and what was fixed.
-4. **Post Results**: Append results to `conversation.md`.
+4. **Post Results**: Append results to `conversation.md` as a single `> **system**: ...` comment
+   (see **Completion Comment Convention**) — author `system`, and the emoji is the literal first
+   character of the body: `> **system**: ✅ QUALITY GATE PASSED` on pass, or
+   `> **system**: ❌ QUALITY GATE FAILED` (or `⚠️` if it needs human judgment rather than a
+   straightforward retry) on fail, followed by the full results write-up as `>`-prefixed
+   continuation lines under that same comment — do not post the write-up as a second comment.
 5. **Transition**:
    - Read `conductor/workflow.json`.
    - **Done-gate — a track may only reach `done` at 100% if the feature

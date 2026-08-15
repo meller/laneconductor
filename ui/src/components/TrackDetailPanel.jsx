@@ -49,6 +49,7 @@ const AUTHOR_STYLES = {
   human: { label: 'You', dot: 'bg-gray-400', body: 'bg-gray-800 text-gray-200' },
   claude: { label: 'Claude', dot: 'bg-orange-400', body: 'bg-orange-950/40 text-gray-200 border border-orange-900/50' },
   gemini: { label: 'Gemini', dot: 'bg-blue-400', body: 'bg-blue-950/40 text-gray-200 border border-blue-900/50' },
+  system: { label: 'System', dot: 'bg-purple-400', body: 'bg-purple-950/40 text-gray-200 border border-purple-900/50' },
 };
 
 function timeAgo(dateStr) {
