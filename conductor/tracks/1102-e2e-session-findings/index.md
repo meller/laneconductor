@@ -74,7 +74,7 @@ on the newly scaffolded `001-add-a-health-check-endpoint/index.md`.
 `CloudAppInner` passes `onSelect`, `ProjectSelector` accepts `onChange`.
 Split out because it can't be verified in local mode.
 
-### F5 — No UI action can run a lane action on a sync-only project 🔴 CONFIRMED
+### F5 — No UI action can run a lane action on a sync-only project 🔴 CONFIRMED & FIXED
 This is the real bug behind F1's symptom. Traced end to end:
 
 - Every project created by the New Project wizard gets a **sync-only**
@@ -132,7 +132,20 @@ them). Also relevant to `workers.type`, which today is
 `project` | `manager` — a separate axis that shouldn't be conflated with
 mode.
 
-### F7 — A wizard-created project is not a git repo, so every lane action fails 🔴 CONFIRMED
+### F7 — A wizard-created project is not a git repo, so every lane action fails 🔴 CONFIRMED & FIXED
+**Fixed** (commit `d0a5dcf`): `runCreateProject()` (`conductor/laneconductor.sync.mjs:4746`,
+run by the **manager** worker as part of handling a `create-project`
+dispatch) now `git init`s and makes an initial commit when the scaffolded
+directory isn't already a repo — narrowly, only when the directory
+contains nothing but the scaffold itself; if it finds pre-existing files
+it refuses and tells the user to `git init` themselves rather than risk
+`git add -A` committing secrets/build output. Covered by
+`conductor/tests/track-1091-create-project-worker.test.mjs`. The broader
+design question this raised — *should git-init live in the manager's
+create-project handler, or the project's own sync worker on first start,
+or `lc setup`?* — was deliberately left open and moved to
+[1103](../1103-e2e-onboarding-experience/index.md)
+rather than answered inline here.
 `create-project` scaffolds `conductor/`, `.laneconductor.json`, `.claude/`,
 `.agents/` — but never runs `git init`. `spawnCli` takes a git lock and
 creates a worktree before every lane action, so the very first plan
