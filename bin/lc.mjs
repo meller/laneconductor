@@ -8,6 +8,7 @@ import { spawn, spawnSync, execSync } from 'child_process';
 import { createInterface } from 'readline';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../conductor/constants.mjs';
+import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from '../conductor/providers.mjs';
 import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, getServicePid, enableLinger } from './systemd-user.mjs';
 import { runDeploy } from '../conductor/deploy-runner.mjs';
 import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
@@ -624,6 +625,10 @@ Worker  (per session — run from project root)
                                                         sync-and-work worker claims anything queued.
                          --once                         Exit when the --only-tracks work is done
                                                         (requires --only-tracks)
+                         --cli <id>                     Run this one worker on a different provider
+                                                        than project.primary (claude/gemini/copilot/
+                                                        antigravity/other) — doesn't change the default
+                         --model <id>                   Model to pair with --cli
   stop                 Stop the heartbeat sync worker
                        Options:
                          --manager                      Stop the global manager worker
@@ -830,36 +835,47 @@ Choice [1]: `) || '1';
         }
 
         console.log('\n🤖 Agent Configuration');
+        // Menu is built from PROVIDER_IDS (+ a trailing "other") so a new
+        // registry entry automatically appears here — no more hand-edited
+        // 4-line menu that silently drifts from the registry.
+        const agentMap = {};
+        const agentMenuLines = PROVIDER_IDS.map((id, i) => {
+            const num = String(i + 1);
+            agentMap[num] = id;
+            const provider = PROVIDERS[id];
+            const alias = provider.aliases?.[0] ? ` (${provider.aliases[0]})` : '';
+            const note = provider.retired ? ' (retired — use antigravity)' : (id === 'claude' ? '  (recommended)' : '');
+            return `  [${num}] ${id}${alias}${note}`;
+        });
+        const otherNum = String(PROVIDER_IDS.length + 1);
+        agentMap[otherNum] = 'other';
+        agentMenuLines.push(`  [${otherNum}] other`);
+        const agentMenu = agentMenuLines.join('\n');
+
         const agentChoice = await question(`
 Primary AI agent:
-  [1] claude  (recommended)
-  [2] antigravity (agy)
-  [3] gemini (retired — use antigravity)
-  [4] other
+${agentMenu}
 Choice [1]: `) || '1';
-        const agentMap = { '1': 'claude', '2': 'agy', '3': 'gemini', '4': 'other' };
-        const primaryCli = agentMap[agentChoice] || 'claude';
-        if (primaryCli === 'gemini') {
-            console.warn('⚠️  Gemini CLI was retired by Google — antigravity (agy) is now recommended.');
-            console.warn('   Continuing with gemini; switch later with: lc config project.primary.cli agy');
+        const primaryCli = normalizeProviderId(agentMap[agentChoice] || 'claude');
+        if (PROVIDERS[primaryCli]?.retired) {
+            console.warn(`⚠️  ${PROVIDERS[primaryCli].retiredMessage}`);
+            console.warn(`   Continuing with ${primaryCli}; switch later with: lc config project.primary.cli antigravity`);
         }
         const primaryModel = await question(`Primary model [default]: `) || null;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
         let secondary = null;
         if (secondaryYN.toLowerCase() !== 'n') {
-            const secAgentChoice = primaryCli === 'claude' ? '2' : '1'; // Default to antigravity if primary is claude
+            const defaultSecCli = primaryCli === 'claude' ? 'antigravity' : 'claude';
+            const defaultSecNum = Object.keys(agentMap).find(k => agentMap[k] === defaultSecCli) || '1';
             const secChoice = await question(`
 Secondary AI agent:
-  [1] claude
-  [2] antigravity (agy)
-  [3] gemini (retired — use antigravity)
-  [4] other
-Choice [${secAgentChoice}]: `) || secAgentChoice;
-            const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : (secAgentChoice === '2' ? 'agy' : 'gemini'));
-            if (secCli === 'gemini') {
-                console.warn('⚠️  Gemini CLI was retired by Google — antigravity (agy) is now recommended.');
-                console.warn('   Continuing with gemini; switch later with: lc config project.secondary.cli agy');
+${agentMenu}
+Choice [${defaultSecNum}]: `) || defaultSecNum;
+            const secCli = normalizeProviderId(agentMap[secChoice] || defaultSecCli);
+            if (PROVIDERS[secCli]?.retired) {
+                console.warn(`⚠️  ${PROVIDERS[secCli].retiredMessage}`);
+                console.warn(`   Continuing with ${secCli}; switch later with: lc config project.secondary.cli antigravity`);
             }
             const secModel = await question(`Secondary model [default]: `) || null;
             secondary = { cli: secCli, model: secModel || null };
@@ -1549,6 +1565,18 @@ Please review this, answer any questions (some fields may contain questions rath
     // value, --sync-only conflict) lives in the worker so `lc` and a directly
     // invoked sync.mjs can't disagree about what is legal.
     forwardClaimScopeFlags(args, syncArgs);
+
+    // Track 10011: --cli/--model let this one worker instance run a
+    // different provider than project.primary — sync.mjs applies these
+    // in-memory only, it never rewrites .laneconductor.json.
+    const cliFlagIdx = args.indexOf('--cli');
+    if (cliFlagIdx !== -1 && args[cliFlagIdx + 1]) {
+        syncArgs.push('--cli', normalizeProviderId(args[cliFlagIdx + 1]));
+    }
+    const modelFlagIdx = args.indexOf('--model');
+    if (modelFlagIdx !== -1 && args[modelFlagIdx + 1]) {
+        syncArgs.push('--model', args[modelFlagIdx + 1]);
+    }
 
     const worker = spawn('node', syncArgs, {
         cwd: projectRoot,

@@ -11,7 +11,7 @@ both reported symptoms.
 from both runtimes (Node processes, and the Vite-bundled browser app) before
 touching any consumer.
 
-- [ ] Create `conductor/providers.mjs` (zero dependencies, matches the
+- [x] Create `conductor/providers.mjs` (zero dependencies, matches the
       existing style of `conductor/constants.mjs`) exporting:
   - `PROVIDERS`: `{ claude, gemini, copilot, antigravity }`, each with
     `{ id, label, icon, models: [{id, label}], aliases: [], retired?, retiredMessage? }`.
@@ -32,7 +32,8 @@ touching any consumer.
     silent claude-specific fallback.
   - `defaultModelFor(id)`: first entry of that provider's `models` list, or
     `null` if the id isn't recognized (never another provider's model id).
-- [ ] Spike: from a throwaway component in `ui/src/`, `import { PROVIDERS } from '../../conductor/providers.mjs'` and run `cd ui && npm run build`.
+- [x] Spike: from a throwaway component in `ui/src/`, `import { PROVIDERS } from '../../conductor/providers.mjs'` and run `cd ui && npm run build`.
+      Builds cleanly — direct import used for all UI consumers (no mirrored file needed).
   - **If it builds cleanly**: this direct import is the approach for every
     UI consumer in Phases 3–4. Delete the throwaway component.
   - **If Vite can't resolve/serve the path** (fs.allow restriction or
@@ -44,7 +45,7 @@ touching any consumer.
     deep-equal, so any future edit to one without the other fails CI
     instead of drifting silently — this is the same failure mode that
     caused this track.
-- [ ] Delete the now-redundant preset arrays this phase makes obsolete:
+- [x] Delete the now-redundant preset arrays this phase makes obsolete:
       `conductor/laneconductor.sync.mjs`'s inline `refreshModels()` preset
       object (~lines 419-441) becomes a thin wrapper around
       `PROVIDERS[id].models`.
@@ -63,7 +64,7 @@ missing `copilot`/`antigravity`).
 
 **Solution**:
 
-- [ ] `bin/lc.mjs` setup wizard (~lines 832-866): build the "Primary AI
+- [x] `bin/lc.mjs` setup wizard (~lines 832-866): build the "Primary AI
       agent" / "Secondary AI agent" menus from `PROVIDER_IDS` (plus the
       existing `[N] other` option) instead of the hardcoded 4-line list.
       Keep the retired-provider warning, now driven by `PROVIDERS[id].retired`
@@ -75,7 +76,7 @@ missing `copilot`/`antigravity`).
     `cli === 'antigravity' || cli === 'agy'` dispatch check as-is (already
     tolerates both spellings for backward compat with pre-existing configs
     — no change needed here, it's the read side, not the write side).
-- [ ] `conductor/laneconductor.sync.mjs`:
+- [x] `conductor/laneconductor.sync.mjs`:
   - `discoverAvailableModels(cli)`: call `normalizeProviderId(cli)` first,
     so a legacy `'agy'`-configured project still discovers Antigravity's
     models correctly.
@@ -88,7 +89,7 @@ missing `copilot`/`antigravity`).
     provider's live output as Gemini's under any fallback path.
   - `refreshModels()`/`cachedModels`: replace the hardcoded `clis` array
     and inline preset object with `PROVIDER_IDS` and `PROVIDERS[id].models`.
-- [ ] `ui/server/index.mjs`:
+- [x] `ui/server/index.mjs`:
   - `VALID_CLIS` (~line 3096, `PATCH /api/workers/:id/config`): source
     from `PROVIDER_IDS` (plus `'other'`). Normalize the incoming `cli` via
     `normalizeProviderId` before validating/storing, so a client that still
@@ -118,7 +119,7 @@ maintain their own partial provider lists.
 
 **Solution**:
 
-- [ ] `ui/src/components/WorkersList.jsx`:
+- [x] `ui/src/components/WorkersList.jsx`:
   - Remove the local `CLI_ICONS` object (~lines 23-28); use
     `providerIcon(worker.cli)` from the shared registry.
   - Replace both occurrences of `worker.model || 'claude-3-5-sonnet'`
@@ -126,21 +127,21 @@ maintain their own partial provider lists.
     `defaultModelFor(worker.cli)` if the provider is recognized, else a
     neutral "not reported yet" label — never a hardcoded Claude model id
     for a non-Claude (or unrecognized) worker.
-- [ ] `ui/src/components/WorkerModelModal.jsx`: replace the locally-defined
+- [x] `ui/src/components/WorkerModelModal.jsx`: replace the locally-defined
       `MODEL_PRESETS`/`CLI_ENGINES` (~lines 7-45) with re-exports sourced
       from the shared registry (`PROVIDERS[id].models`, provider list built
       from `PROVIDER_IDS`). Keep exporting `MODEL_PRESETS`/`CLI_ENGINES`
       under their existing names so `ProvisionWorkerModal.jsx`'s existing
       `import { MODEL_PRESETS, CLI_ENGINES } from './WorkerModelModal.jsx'`
       keeps working unchanged.
-- [ ] `ui/src/components/TrackCard.jsx`: replace `AGENT_LABELS` (~lines
+- [x] `ui/src/components/TrackCard.jsx`: replace `AGENT_LABELS` (~lines
       126-130) with a lookup through `providerLabel`/`providerIcon`, so
       Copilot/Antigravity get real badges instead of falling through to a
       generic "AI" label.
-- [ ] `ui/src/components/TrackDetailPanel.jsx`: replace `AUTHOR_STYLES`
+- [x] `ui/src/components/TrackDetailPanel.jsx`: replace `AUTHOR_STYLES`
       (~lines 46-50) similarly — keep `human`/`system` as their own
       non-provider entries, resolve any provider id through the registry.
-- [ ] `ui/src/pages/ProjectConfigSettings.jsx`: replace the hardcoded
+- [x] `ui/src/pages/ProjectConfigSettings.jsx`: replace the hardcoded
       3-option `<select>` (~lines 142-161, both primary and secondary)
       with `<option>`s generated from `PROVIDER_IDS` (+ the existing
       `other` option) — adds `copilot` and `antigravity` as selectable,
@@ -164,18 +165,18 @@ same machine has no equivalent picker today.
 
 **Solution**:
 
-- [ ] `bin/lc.mjs`'s `start` command: accept `--cli <id>` and `--model <id>`
+- [x] `bin/lc.mjs`'s `start` command: accept `--cli <id>` and `--model <id>`
       flags that override `project.primary.cli`/`primary.model` for that
       one invocation only (does not rewrite `.laneconductor.json` — this
       worker instance runs a different provider than the project default,
       it doesn't change the default). Normalize the passed id via
       `normalizeProviderId` before use.
-- [ ] `ui/server/index.mjs`'s `POST /api/projects/:id/workers/start-new`:
+- [x] `ui/server/index.mjs`'s `POST /api/projects/:id/workers/start-new`:
       accept optional `cli`/`model` in the request body; when present,
       forward as `lc start --worker-number N --cli <cli> --model <model>`.
       Omitting them keeps today's behavior (project default) — this is
       additive, not a breaking change to the endpoint's contract.
-- [ ] `ui/src/components/TrackDetailPanel.jsx`: when `+ New worker…` is
+- [x] `ui/src/components/TrackDetailPanel.jsx`: when `+ New worker…` is
       selected, if `availableManagers.length > 0` (from the same worker
       list already loaded for the dropdown), open `ProvisionWorkerModal`
       (already imported by `WorkersList.jsx` elsewhere — import it here
@@ -192,26 +193,63 @@ detail panel (previously silent) — now lets the user pick a provider.
 
 ## Phase 5: Tests
 
-- [ ] `conductor/tests/providers.test.mjs`: `normalizeProviderId` alias
+- [x] `conductor/tests/providers.test.mjs`: `normalizeProviderId` alias
       resolution (`'agy'` → `'antigravity'`, unknown ids pass through),
       `PROVIDER_IDS` shape, `defaultModelFor`/`providerIcon`/`providerLabel`
-      fallback behavior for unrecognized ids.
-- [ ] (Only if Phase 1's spike required a mirrored file)
-      `conductor/tests/providers-sync.test.mjs`: asserts
-      `conductor/providers.mjs` and `ui/src/lib/providers.js` export
-      deep-equal `PROVIDERS`/`PROVIDER_IDS`.
-- [ ] `ui` Vitest: `WorkersList.jsx` renders a worker with
+      fallback behavior for unrecognized ids. 10/10 pass.
+- [x] N/A — Phase 1's spike built cleanly with a direct import; no mirrored
+      file, so `providers-sync.test.mjs` isn't needed.
+- [x] `ui` Vitest: `WorkersList.test.jsx` renders a worker with
       `{ cli: 'gemini', model: null }` and asserts the rendered model text
-      is not `'claude-3-5-sonnet'` (grid and strip layouts).
-- [ ] `ui` Vitest: `ProjectConfigSettings.jsx`'s primary/secondary CLI
+      is not `'claude-3-5-sonnet'` (grid and strip layouts), plus a
+      copilot-icon assertion. Added jsdom + @testing-library/react to
+      support component rendering tests (previously vitest.config.mjs only
+      covered `.mjs`/`.js`).
+- [x] `ui` Vitest: `ProjectConfigSettings.test.jsx`'s primary/secondary CLI
       `<select>` contains options for all four providers.
-- [ ] `ui` Vitest or supertest: `POST /api/projects/:id/workers/start-new`
-      forwards `cli`/`model` from the request body into the spawned `lc
-      start` command's args when provided.
-- [ ] `ui` Vitest or supertest: `POST /track/:num/comment` with
-      `author: 'antigravity'` is persisted as `'antigravity'`, not
-      downgraded to `'human'`.
+- [x] `ui` supertest: `server/tests/track-10011-providers.test.mjs` —
+      `POST /api/projects/:id/workers/start-new` forwards `cli`/`model`
+      into the spawned `lc start` args (and omits them when absent).
+- [x] `ui` supertest (same file): `POST /track/:num/comment` with
+      `author: 'antigravity'`/`'copilot'` is persisted as-is, a legacy
+      `'agy'` author normalizes to `'antigravity'`, and a genuinely
+      unrecognized author still downgrades to `'human'`.
 - [ ] Manual verification (recorded in quality-gate, per the `implement`
       skill's real-product-check requirement): start a worker from the
       track panel's `+ New worker…` flow and confirm a provider choice is
       actually presented before the worker starts.
+      Not done during implement: the only API/UI dev servers reachable on
+      the standard ports in this environment belong to the main checkout
+      (`/home/meller/Code/laneconductor/ui`), not this worktree — they're a
+      separate, live dev session that shouldn't be restarted or repointed
+      just to test this track's code. `npm run build` was run clean against
+      every changed component (Phases 1, 3, 4) as the available substitute;
+      the actual click-through is left for quality-gate, which can spin up
+      its own instance.
+
+## ✅ COMPLETE
+
+All 5 phases implemented. `conductor/providers.mjs` is now the single
+source of truth for provider identity/models, consumed directly (no
+mirrored file — the Phase 1 spike proved a plain `../../../conductor/
+providers.mjs` import builds cleanly under Vite) by `bin/lc.mjs`,
+`conductor/laneconductor.sync.mjs`, `ui/server/index.mjs`, and five React
+components. Both reported symptoms are fixed at the root: a worker with an
+unrecognized/null `model` never shows another provider's model string, and
+the "+ New worker…" flow always offers a provider choice (via
+`ProvisionWorkerModal` when a manager is available, or a new inline
+picker otherwise). Legacy `'agy'` data is normalized forward at every
+write path without a migration.
+
+10/10 new registry unit tests pass; 295 UI vitest tests pass (same 11
+pre-existing failures as the base branch, confirmed via `git stash` —
+none are new); `local-fs-e2e` 5/5, `local-api-e2e` 5/6 (the 1 failure is
+reproduced identically on the base branch, pre-existing). `npm run build`
+is clean. See test.md for which TCs have direct automated coverage vs.
+code-review-verified (mostly the CLI-wizard/sync-worker paths that would
+need spawning a real process or mocking `child_process.exec` to automate).
+
+Manual real-product click-through of the new-worker provider picker is
+deferred to quality-gate — no dev server for this worktree's code was
+safe to stand up without touching the main checkout's live session on the
+default ports (see the Phase 5 note above).

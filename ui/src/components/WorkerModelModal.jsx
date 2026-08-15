@@ -1,48 +1,19 @@
 import { useState } from 'react';
 import { useApi } from '../hooks/useApi.js';
+import { PROVIDERS, PROVIDER_IDS } from '../../../conductor/providers.mjs';
 
+// Re-exported under their historical names so existing imports (e.g.
+// ProvisionWorkerModal.jsx's `import { MODEL_PRESETS, CLI_ENGINES } from
+// './WorkerModelModal.jsx'`) keep working unchanged — the data itself now
+// comes from the single canonical registry instead of a local copy.
 // Fallback presets shown when a worker hasn't reported its own available models.
-// Future: workers will report `available_models` via heartbeat (per CLI/version),
-// and these presets will only be used as the "Custom" fallback list.
-export const MODEL_PRESETS = {
-  claude: [
-    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 ✨' },
-    { id: 'claude-opus-5', label: 'Claude Opus 5' },
-    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-    { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-    { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
-    { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-    { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' },
-  ],
-  gemini: [
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro ✨' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  ],
-  copilot: [
-    { id: 'gpt-4o', label: 'GPT-4o' },
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'o3', label: 'o3' },
-    { id: 'o3-mini', label: 'o3-mini' },
-    { id: 'o1', label: 'o1' },
-  ],
-  antigravity: [
-    { id: 'auto', label: 'Auto (recommended)' },
-    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-  ],
-};
+export const MODEL_PRESETS = Object.fromEntries(
+  PROVIDER_IDS.map(id => [id, PROVIDERS[id].models])
+);
 
-export const CLI_ENGINES = [
-  { id: 'claude', name: 'Claude', icon: '🤖' },
-  { id: 'gemini', name: 'Gemini', icon: '✨' },
-  { id: 'copilot', name: 'Copilot', icon: '✈️' },
-  { id: 'antigravity', name: 'Antigravity', icon: '🚀' },
-];
+export const CLI_ENGINES = PROVIDER_IDS.map(id => ({
+  id, name: PROVIDERS[id].label, icon: PROVIDERS[id].icon,
+}));
 
 export function WorkerModelModal({ worker, onClose, onUpdated }) {
   const { apiFetch } = useApi();
