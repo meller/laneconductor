@@ -48,7 +48,6 @@ import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
-let cachedMainBranch = null;
 
 function getInstallPath() {
   if (existsSync(RC_FILE)) {
@@ -3202,6 +3201,7 @@ function tailLog(logPath, lines = 100) {
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
 const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
 
+let cachedMainBranch = null;
 function getMainBranch() {
   if (cachedMainBranch) return cachedMainBranch;
   try {
