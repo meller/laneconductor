@@ -1,7 +1,7 @@
 # Track 10011: new worker providers support
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: plan
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/sonnet (primary)
 **Phase**: New
