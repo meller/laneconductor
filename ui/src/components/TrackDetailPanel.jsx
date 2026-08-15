@@ -117,6 +117,12 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [dispatching, setDispatching] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState([]);
   const [sendMode, setSendMode] = useState('send');
+  const [workersLoaded, setWorkersLoaded] = useState(false);
+  // Which track's lane we've already defaulted sendMode for — guards the
+  // effect below to fire once per track view instead of on every detail
+  // poll (detail refetches every 3s; re-defaulting on each poll would
+  // clobber a manual dropdown choice mid-conversation).
+  const sendModeDefaultedForTrackRef = useRef(null);
   const [provisioningWorker, setProvisioningWorker] = useState(false);
   // Track 10011: "+ New worker…" used to POST /workers/start-new with no
   // cli/model at all, silently inheriting whatever project.primary already
@@ -234,12 +240,32 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       apiFetch(`/api/projects/${projectId}/workers`)
         .then(r => r.ok ? r.json() : [])
         .then(setProjectWorkers)
-        .catch(() => setProjectWorkers([]));
+        .catch(() => setProjectWorkers([]))
+        .finally(() => setWorkersLoaded(true));
     };
     fetchWorkers();
     const id = setInterval(fetchWorkers, 4000);
     return () => clearInterval(id);
   }, [projectId]);
+
+  // Default the composer's action selector to "Run <lane>" for whatever
+  // lane the track is currently sitting in (plan → Run plan, implement →
+  // Run implement, etc.) instead of always landing on plain Message. Only
+  // applies once per track view — see sendModeDefaultedForTrackRef above —
+  // and only when that lane actually has a dispatchable run: option in the
+  // dropdown (DISPATCHABLE_LANES + an online worker to run it on);
+  // otherwise falls back to the previous default of "send".
+  useEffect(() => {
+    // `detail` isn't cleared on track switch, so it can still hold the
+    // PREVIOUS track's data for a moment after trackNumber changes — guard
+    // against defaulting off stale lane_status before the new track's own
+    // fetchDetail() resolves.
+    if (!detail?.lane_status || String(detail.track_number) !== String(trackNumber) || !workersLoaded) return;
+    if (sendModeDefaultedForTrackRef.current === trackNumber) return;
+    sendModeDefaultedForTrackRef.current = trackNumber;
+    const lane = detail.lane_status;
+    setSendMode(DISPATCHABLE_LANES.includes(lane) && projectWorkers.length > 0 ? `run:${lane}` : 'send');
+  }, [trackNumber, detail?.lane_status, detail?.track_number, workersLoaded, projectWorkers.length]);
 
   const fetchDispatchHistory = () => {
     if (!detail?.id) return;
