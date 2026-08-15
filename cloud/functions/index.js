@@ -121,10 +121,11 @@ async function auth(req, res, next) {
 
   try {
     if (bearer.startsWith('lc_')) {
-      // 1. Try api_tokens table (plaintext — legacy worker tokens)
+      // 1. Try api_tokens table (SHA-256 hash — legacy worker tokens)
+      const legacyHash = crypto.createHash('sha256').update(bearer).digest('hex');
       const { rows: tokenRows } = await query(
         'SELECT workspace_id FROM api_tokens WHERE token = $1',
-        [bearer]
+        [legacyHash]
       );
       if (tokenRows.length > 0) {
         req.workspace_id = tokenRows[0].workspace_id;
