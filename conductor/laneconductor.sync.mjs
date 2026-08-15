@@ -41,7 +41,8 @@ import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
-import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
+import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
+import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
@@ -141,6 +142,7 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
 // tracks may I claim" during auto-launch. Null until the first successful
 // registration (e.g. local-fs mode, where there's no DB/registration at all).
 let myWorkerId = null;
+let hasReconciledOrphanedDispatches = false;
 
 if (existsSync('.env')) {
   for (const line of readFileSync('.env', 'utf8').split('\n')) {
@@ -909,6 +911,11 @@ async function upsertWorker() {
       const res = await post(url, token, '/worker/register', registerBody);
 
       if (res.id) myWorkerId = res.id;
+
+      if (!hasReconciledOrphanedDispatches && myWorkerId) {
+        hasReconciledOrphanedDispatches = true;
+        reconcileOrphanedDispatches().catch(err => console.error('[orphan-reconcile error]:', err.message));
+      }
 
       // Store the returned machine token for next beats — in this worker's
       // OWN store, never in the shared `.laneconductor.json`. Writing it to
@@ -4062,87 +4069,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
       try {
         // ── Copy artifacts from worktree → main repo before cleanup ──────────
+        // Track 1112/1110 Phase 6: shared with the startup reconciliation
+        // pass — see copyWorktreeArtifactsToPrimary() in worktree-artifact-merge.mjs.
         if (worktreePath && existsSync(worktreePath)) {
-          const mainTracksDir = join(process.cwd(), 'conductor', 'tracks');
-          const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
-          const wtTrackDir = existsSync(wtTracksDir)
-            ? resolveTrackFolder(wtTracksDir, trackNumber)
-            : null;
-          if (wtTrackDir) {
-            mkdirSync(mainTracksDir, { recursive: true });
-            // Use the worktree dir name (preserves the slug created by the agent)
-            let mainTrackDir = existsSync(mainTracksDir)
-              ? resolveTrackFolder(mainTracksDir, trackNumber)
-              : null;
-            if (!mainTrackDir) {
-              // Planning agent created the dir inside the worktree — copy whole dir to main
-              mainTrackDir = wtTrackDir;
-              mkdirSync(join(mainTracksDir, mainTrackDir), { recursive: true });
-              console.log(`[worktree] Created track dir in main repo: ${mainTrackDir}`);
-            }
-            const destDir = join(mainTracksDir, mainTrackDir);
-            // For index.md: merge status markers into existing file (not full replace)
-            // For plan.md, spec.md, conversation.md, quality-gate.md: full replace is fine
-            const mergeOnlyArtifacts = new Set(['index.md']);
-            const artifacts = ['index.md', 'plan.md', 'spec.md', 'test.md', 'conversation.md', 'quality-gate.md'];
-            const copied = [];
-            for (const file of artifacts) {
-              const src = join(wtTracksDir, wtTrackDir, file);
-              const dest = join(destDir, file);
-              if (!existsSync(src)) continue;
-              if (mergeOnlyArtifacts.has(file) && existsSync(dest)) {
-                // Extract status markers from worktree artifact and apply onto existing file
-                const artifact = readFileSync(src, 'utf8');
-                // Track 1112 dogfood incident (2026-08-14): Lane/Lane Status were
-                // previously excluded from this merge on the theory that "the exit
-                // handler always writes the correct values after this merge" — true
-                // only when there's no worktree (workDir === process.cwd() IS the
-                // primary checkout, so the exit handler's own write already lands
-                // here directly). When there IS a worktree, the exit handler writes
-                // Lane/Lane Status into the WORKTREE's copy only — this merge is the
-                // only thing that ever reaches the primary checkout for that track,
-                // so excluding them left the primary checkout frozen at its pre-run
-                // lane for the track's entire time in the worktree, only catching up
-                // at final done-merge. Found live: track 1112's review passed and
-                // moved to quality-gate in its worktree, but main kept showing review
-                // indefinitely. See mergeIndexMarkers() for the (now unit-tested)
-                // marker list and merge behavior.
-                let existing = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact);
-                // Safety guard: If worktree artifact is suspiciously small, don't overwrite.
-                const artifactStats = statSync(src);
-                const existingStats = statSync(dest);
-                const artifactContent = readFileSync(src, 'utf8');
-                const lineCount = artifactContent.split('\n').length;
-
-                // Suspicious if < 10 lines OR < 50% of existing OR < 500 bytes for markdown files
-                const isSuspicious = (lineCount < 10) || (artifactStats.size < existingStats.size * 0.5 && existingStats.size > 100);
-
-                if (isSuspicious && !isSuccess) {
-                  console.warn(`[worktree] Skipping index.md merge: worktree version is suspiciously small/short (${lineCount} lines, ${artifactStats.size}b) and action failed.`);
-                } else {
-                  writeFileSync(dest, existing, 'utf8');
-                }
-              } else {
-                // Safety guard for full-replace artifacts too (plan.md, spec.md, etc.)
-                const srcStats = statSync(src);
-                const destStats = existsSync(dest) ? statSync(dest) : { size: 0 };
-                const isSuspicious = srcStats.size < destStats.size * 0.5 && destStats.size > 200;
-
-                if (isSuspicious && !isSuccess) {
-                  console.warn(`[worktree] Skipping ${file} copy: worktree version is suspiciously small (${srcStats.size}b vs ${destStats.size}b) and action failed.`);
-                } else {
-                  copyFileSync(src, dest);
-                }
-              }
-              copied.push(file);
-            }
-            if (copied.length) {
-              console.log(`[worktree] Copied artifacts to main repo: ${copied.join(', ')}`);
-              // Trigger sync via normal syncTrack path (which includes title)
-              const indexPath = join(destDir, 'index.md');
-              if (existsSync(indexPath)) {
-                await syncTrack(indexPath).catch(e => console.warn(`[worktree] Failed to sync artifacts to DB: ${e.message}`));
-              }
+          const { copied, destDir } = copyWorktreeArtifactsToPrimary({
+            worktreePath, trackNumber, isSuccess, primaryRoot: process.cwd(), resolveTrackFolder,
+          });
+          if (copied.length) {
+            console.log(`[worktree] Copied artifacts to main repo: ${copied.join(', ')}`);
+            const indexPath = join(destDir, 'index.md');
+            if (existsSync(indexPath)) {
+              await syncTrack(indexPath).catch(e => console.warn(`[worktree] Failed to sync artifacts to DB: ${e.message}`));
             }
           }
         }
@@ -4976,6 +4913,72 @@ async function runCreateProject(entry) {
   spawn('lc', ['worker', 'start'], { cwd: targetPath, detached: true, stdio: 'ignore' }).unref();
 
   return { ok: true, targetPath };
+}
+
+// Track 1110 Phase 6: runs once, right after this process's first
+// successful registration. Reconciles dispatches THIS worker claimed but
+// never reported an outcome for — the class of bug where the sync worker
+// process restarts while a dispatch's spawned CLI child is still running,
+// orphaning the in-memory `on('exit')` listener that would normally
+// finalize it. The child keeps running independently and finishes on its
+// own; nothing else ever notices. Detection reads the WORKTREE's own
+// index.md `**Lane Status**` marker (written by the agent doing the actual
+// lane work, independent of whether the wrapping exit-handler machinery
+// ever runs) rather than a specific commit shape — an earlier version of
+// this fix looked for the exit handler's own completion commit, which is
+// wrong: that commit is written BY the exit handler, the exact code that
+// never runs in this bug. Same semantics as reconcileActiveDispatch()'s
+// existing in-memory-only version of this idea, sourced from a
+// DB-persisted `claimed` dispatch instead of a Map that doesn't survive a
+// restart.
+async function reconcileOrphanedDispatches() {
+  if (getIsLocalFs() || !myWorkerId) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+
+  let entries;
+  try {
+    ({ entries } = await get(url, token, `/worker/${myWorkerId}/dispatch/claimed`));
+  } catch (err) {
+    console.warn(`[orphan-reconcile] Failed to fetch claimed dispatches: ${err.message}`);
+    return;
+  }
+  if (!entries || entries.length === 0) return;
+
+  for (const entry of entries) {
+    const trackNumber = entry.track_number;
+    if (!trackNumber) continue; // not track-scoped (e.g. refresh-worktrees) — nothing to reconcile from
+    const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
+    if (!existsSync(worktreePath)) continue; // no worktree left to check — genuinely nothing recoverable here
+
+    const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
+    const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
+    const wtIndexPath = wtTrackDir ? join(wtTracksDir, wtTrackDir, 'index.md') : null;
+    if (!wtIndexPath || !existsSync(wtIndexPath)) continue;
+
+    const laneStatus = readFileSync(wtIndexPath, 'utf8').match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
+    const classification = classifyOrphanedDispatch({ laneStatus });
+    if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
+
+    console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
+
+    const isSuccess = classification.status === 'done';
+    const { copied, destDir } = copyWorktreeArtifactsToPrimary({
+      worktreePath, trackNumber, isSuccess, primaryRoot: process.cwd(), resolveTrackFolder,
+    });
+    if (copied.length) {
+      console.log(`[orphan-reconcile] Copied artifacts to main repo: ${copied.join(', ')}`);
+      const indexPath = join(destDir, 'index.md');
+      if (existsSync(indexPath)) {
+        await syncTrack(indexPath).catch(e => console.warn(`[orphan-reconcile] Failed to sync artifacts to DB: ${e.message}`));
+      }
+    }
+
+    await patch(url, token, `/worker-dispatch/${entry.id}`, {
+      status: classification.status,
+      result: classification.result || `Reconciled after worker restart orphaned this dispatch — worktree's own Lane Status: "${laneStatus}"`,
+    }).catch(err => console.warn(`[orphan-reconcile] Failed to update dispatch ${entry.id}: ${err.message}`));
+  }
 }
 
 async function checkDispatchInbox() {
