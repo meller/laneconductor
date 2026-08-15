@@ -1511,6 +1511,54 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
 
 // ── Manual re-run implement ──────────────────────────────────────────────────
 
+// Track 1102 F5/F15: queueing alone only works if a sync+poll worker will
+// come along and claim it. A sync-only worker — the default for every
+// wizard-created project, meaning "sync + manual UI operations" — never
+// polls the queue; it only serves the dispatch inbox. So when a project's
+// live workers are ALL sync-only, bridge the action into a dispatch
+// addressed to one of them, or it can never run there (proven live
+// 2026-08-12 for /implement: the identical dispatch sent by hand was
+// claimed in seconds; F15 extends the same bridge to /track/:num/lane and
+// /track/:num/reset, which had the same gap).
+//
+// When a sync+poll worker exists we deliberately do NOT dispatch — its
+// queue poller will claim the track as today, and dispatching too would
+// race the same action into running twice. Managers are never candidates:
+// lane actions are project work. Caller must invoke this AFTER the track's
+// lane_status has already been written to the DB, since the dispatch
+// action is read back from there.
+async function dispatchIfSyncOnly(projectId, trackNumber) {
+  try {
+    const { rows: liveWorkers } = await pool.query(
+      `SELECT w.id, w.mode, w.type FROM workers w
+        WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'`,
+      [projectId]
+    );
+    const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
+    const hasPoller = projectWorkers.some(w => w.mode === 'sync+poll');
+    if (!hasPoller && projectWorkers.length > 0) {
+      const { rows: [track] } = await pool.query(
+        'SELECT id, lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+        [projectId, trackNumber]
+      );
+      if (track?.lane_status) {
+        await pool.query(
+          `INSERT INTO worker_dispatch(worker_id, track_number, action)
+           VALUES ($1, $2, $3)`,
+          [projectWorkers[0].id, trackNumber, track.lane_status]
+        );
+        return true;
+      }
+    }
+  } catch (dispatchErr) {
+    // The queue flag is already set; a dispatch failure shouldn't turn a
+    // partially-successful request into a 500 — but it must not be
+    // silent either (silent halfway states are track 1102 F8's lesson).
+    console.warn(`[dispatch-bridge] dispatch bridging failed for track ${trackNumber}:`, dispatchErr.message);
+  }
+  return false;
+}
+
 app.post('/api/projects/:id/tracks/:num/implement', async (req, res) => {
   try {
     await collectorWrite('PATCH', `/track/${req.params.num}/action`, {
@@ -1526,48 +1574,7 @@ app.post('/api/projects/:id/tracks/:num/implement', async (req, res) => {
       is_replied: true
     }, req.params.id);
 
-    // Track 1102 F5: queueing alone only works if a sync+poll worker will
-    // come along and claim it. A sync-only worker — the default for every
-    // wizard-created project, meaning "sync + manual UI operations" —
-    // never polls the queue; it only serves the dispatch inbox. So when
-    // this project's live workers are ALL sync-only, bridge the UI action
-    // into a dispatch addressed to one of them, or no UI action can ever
-    // run a lane action there (proven live 2026-08-12: the identical
-    // dispatch sent by hand was claimed in seconds).
-    //
-    // When a sync+poll worker exists we deliberately do NOT dispatch —
-    // its queue poller will claim the track as today, and dispatching too
-    // would race the same action into running twice. Managers are never
-    // candidates: lane actions are project work.
-    let dispatched = false;
-    try {
-      const { rows: liveWorkers } = await pool.query(
-        `SELECT w.id, w.mode, w.type FROM workers w
-          WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'`,
-        [parseInt(req.params.id)]
-      );
-      const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
-      const hasPoller = projectWorkers.some(w => w.mode === 'sync+poll');
-      if (!hasPoller && projectWorkers.length > 0) {
-        const { rows: [track] } = await pool.query(
-          'SELECT id, lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
-          [parseInt(req.params.id), req.params.num]
-        );
-        if (track?.lane_status) {
-          await pool.query(
-            `INSERT INTO worker_dispatch(worker_id, track_number, action)
-             VALUES ($1, $2, $3)`,
-            [projectWorkers[0].id, req.params.num, track.lane_status]
-          );
-          dispatched = true;
-        }
-      }
-    } catch (dispatchErr) {
-      // The queue flag is already set; a dispatch failure shouldn't turn a
-      // partially-successful request into a 500 — but it must not be
-      // silent either (silent halfway states are track 1102 F8's lesson).
-      console.warn(`[implement] dispatch bridging failed for track ${req.params.num}:`, dispatchErr.message);
-    }
+    const dispatched = await dispatchIfSyncOnly(parseInt(req.params.id), req.params.num);
 
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true, dispatched, message: dispatched ? 'Dispatched to this project\'s worker' : 'Track moved to waiting state' });
@@ -2884,6 +2891,14 @@ app.patch('/track/:num/lane', collectorAuth, async (req, res) => {
       console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)
     );
 
+    // Track 1102 F15: a lane change needs the same sync-only dispatch
+    // bridge as /implement, or a drag-to-lane on a sync-only project sits
+    // in lane_action_status='queue' forever. 'done' sets lane_action_status
+    // to 'success', not 'queue' — nothing to dispatch in that case.
+    if (nextActionStatus === 'queue') {
+      await dispatchIfSyncOnly(projectId, req.params.num);
+    }
+
     res.json(r.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2901,6 +2916,10 @@ lane_action_result = NULL, last_updated_by = $4, last_heartbeat = NOW()
      WHERE project_id = $1 AND track_number = $2`,
       [projectId, req.params.num, lane_status, last_updated_by]
     );
+
+    // Track 1102 F15: same sync-only dispatch bridge as /implement and /lane.
+    await dispatchIfSyncOnly(projectId, req.params.num);
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
