@@ -132,3 +132,18 @@ None. `workers.cli`, `workers.model`, `projects.primary_cli`,
 and canonicalization happen at the application layer via the new registry,
 not via a DB constraint (a DB CHECK/enum would need a migration every time
 a provider is added, which the app-level registry avoids).
+
+## Note (2026-08-15): "still not seeing gemini models" follow-up
+
+A human comment reported still not seeing Gemini models discovered from
+the machine after Phase 6, and asked whether to merge this track with
+1099 ("Dynamic Worker Model Discovery") or replan. Root-caused in
+plan.md's Phase 7: no merge needed — 1099 built the discovery/heartbeat
+mechanism, this track's Gemini branch correctly extends it, not competes
+with it. The actual cause is that this track's branch has never been
+merged to `main`, so the live worker the human checks against has none
+of this code yet; the discovery/parsing logic itself was verified
+correct against the real `agy`/`gemini` CLIs on this machine. REQ-8 and
+its acceptance criterion above stand as written — they describe the
+Phase 6 behavior, which is correct. See plan.md Phase 7 for the
+cleanup/merge/restart checklist gating this track's next quality-gate.
