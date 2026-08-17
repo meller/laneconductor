@@ -67,6 +67,11 @@ const server = createServer(async (req, res) => {
   }
 
   if ((params = route('POST', '/worker/register', req)) !== null) {
+    // Track 1084 Phase 8: lets a test simulate a worker whose
+    // /worker/register call never succeeds (the live 2026-08-17 incident —
+    // a race left one process's myWorkerId permanently null) without
+    // needing a real collector-side failure to reproduce.
+    if (state.failRegister) return reply(res, 500, { error: 'registration disabled for this test' });
     const id = state.nextWorkerId++;
     // One token PER WORKER — a shared 'mock-token' for every registrant is
     // exactly the bug this mock is meant to be able to catch (see the
@@ -88,6 +93,11 @@ const server = createServer(async (req, res) => {
 
   if ((params = route('GET', '/api/projects/:id/tracks', req)) !== null) {
     return reply(res, 200, Object.values(state.tracks));
+  }
+
+  if ((params = route('POST', '/_set-fail-register', req)) !== null) {
+    state.failRegister = body.fail !== false;
+    return reply(res, 200, { ok: true });
   }
 
   if ((params = route('POST', '/_set-claimable', req)) !== null) {
@@ -297,6 +307,7 @@ const server = createServer(async (req, res) => {
     state.sessionsByToken = {};
     state.comments = [];
     state.projectEnsureCalls = 0;
+    state.failRegister = false;
     return reply(res, 200, { ok: true });
   }
 

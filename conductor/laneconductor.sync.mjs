@@ -145,6 +145,20 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
 let myWorkerId = null;
 let hasReconciledOrphanedDispatches = false;
 
+// Track 1084 Phase 8 (2026-08-17 incident): heartbeat and dispatch-polling
+// turned out to have fully independent success conditions.
+// updateWorkerHeartbeat() upserts by (hostname, project_id, worker_number)
+// server-side and never reads myWorkerId at all; checkDispatchInbox()
+// silently no-ops on every single cycle — no log line, no error — for as
+// long as myWorkerId stays null. A worker whose /worker/register call
+// never resolved (observed live: two processes racing to register under
+// the same identity after a duplicate start) therefore looked completely
+// healthy — idle, heartbeating on schedule, visible in the UI — while
+// never serving a single dispatch, discovered only because a track
+// visibly got stuck in `queue` with no explanation anywhere.
+const workerStartedAt = Date.now();
+let workerIdResolvedLoggedStale = false;
+
 if (existsSync('.env')) {
   for (const line of readFileSync('.env', 'utf8').split('\n')) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
@@ -5717,6 +5731,28 @@ setInterval(() => {
 setInterval(() => {
   reconcileAutoComplete().catch(err => console.error('[auto-complete-reconcile error]:', err.message));
 }, 5000);
+
+// Track 1084 Phase 8 (2026-08-17 incident, see the comment above
+// workerStartedAt): heartbeat gives zero signal that dispatch-polling is
+// silently dead, so check for that specific condition directly instead of
+// inferring it from symptoms elsewhere. 90s is comfortably past a normal
+// registration round-trip (well under 5s in practice) plus retry — a
+// worker that's still unregistered at that point has a real, ongoing
+// problem, not a slow start.
+// Test-only overrides (LC_WORKER_ID_STALE_GRACE_MS / LC_WORKER_ID_WATCHDOG_MS)
+// — same reasoning as LC_DISPATCH_POLL_MS above: a test asserting this
+// watchdog fires shouldn't have to wait out 90s+60s of real time.
+const WORKER_ID_STALE_GRACE_MS = Number(process.env.LC_WORKER_ID_STALE_GRACE_MS) || 90000;
+setInterval(() => {
+  if (getIsLocalFs() || myWorkerId) return;
+  const ageMs = Date.now() - workerStartedAt;
+  if (ageMs < WORKER_ID_STALE_GRACE_MS) return;
+  if (!workerIdResolvedLoggedStale) {
+    workerIdResolvedLoggedStale = true;
+    console.error(`[health] No worker id resolved ${Math.round(ageMs / 1000)}s after startup — dispatch-polling has been silently no-oping this entire time (heartbeat does NOT depend on this and looks completely healthy in the meantime). Retrying registration now; will keep retrying until it succeeds.`);
+  }
+  upsertWorker().catch(err => console.error('[health] Retry registration failed:', err.message));
+}, Number(process.env.LC_WORKER_ID_WATCHDOG_MS) || 60000);
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;
