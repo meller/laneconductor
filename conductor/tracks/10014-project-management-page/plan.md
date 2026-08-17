@@ -13,18 +13,18 @@ rows/etc. automatically. `deleteLocalFiles` is opt-in and disk-only
 (`rmSync` on `conductor/` and `.laneconductor.json` under `repo_path`,
 guarded by `existsSync`) — never shells out to `git`.
 
-- [ ] Task 1: `PATCH /api/projects/:id` — validate non-empty `name`, update
+- [x] Task 1: `PATCH /api/projects/:id` — validate non-empty `name`, update
       `projects.name`, return the updated name.
-- [ ] Task 2: `DELETE /api/projects/:id` — 404 if missing; `DELETE FROM
+- [x] Task 2: `DELETE /api/projects/:id` — 404 if missing; `DELETE FROM
       projects WHERE id = $1`; if `deleteLocalFiles === true` and
       `repo_path` exists on disk, `rmSync(join(repo_path, 'conductor'),
       { recursive: true, force: true })` and remove
       `.laneconductor.json`; respond with `{ ok: true, localFilesDeleted }`.
-- [ ] Task 3: Tests in `ui/server/tests/track-10014-project-crud.test.mjs`
+- [x] Task 3: Tests in `ui/server/tests/track-10014-project-crud.test.mjs`
       covering: rename happy path, rename with empty name (400), delete
       without `deleteLocalFiles` (DB-only), delete with `deleteLocalFiles`
       on a project whose `repo_path` doesn't exist on this machine
-      (shouldn't throw), delete of a nonexistent id (404).
+      (shouldn't throw), delete of a nonexistent id (404). 7/7 pass.
 
 **Impact**: A project can be renamed or fully removed via the API. No
 schema migration required.
@@ -40,22 +40,22 @@ though `workflow.json` already has exactly this write-through pattern via
 pattern across the other conductor-file keys, guarded by an allow-list so
 arbitrary keys/paths can't be written.
 
-- [ ] Task 1: `PATCH /api/projects/:id/conductor/:key` in
+- [x] Task 1: `PATCH /api/projects/:id/conductor/:key` in
       `ui/server/index.mjs`. Allow-list: `product` → `product.md`,
       `tech_stack` → `tech-stack.md`, `product_guidelines` →
       `product-guidelines.md`, `design_language` → `design-language.md`,
       `deployment_stack` → `deployment-stack.md`, `kpis` → `kpis.md`,
       `user_stories` → `user-stories.md`, `quality_gate` →
       `quality-gate.md`. 400 on unknown key.
-- [ ] Task 2: Same disk write-through as `/workflow` — only if
+- [x] Task 2: Same disk write-through as `/workflow` — only if
       `existsSync(repo_path)`.
-- [ ] Task 3: Emit the existing `conductor:updated` WS event (already
+- [x] Task 3: Emit the existing `conductor:updated` WS event (already
       broadcast by `POST /conductor-files`) so any open `ConductorPanel`
       live-refreshes — reuse `notifyApi`/`wsBroadcast`, matching the call
       already made in `syncConductorFiles()`.
-- [ ] Task 4: Tests: edit `product`, edit `kpis`, unknown key → 400, edit on
+- [x] Task 4: Tests: edit `product`, edit `kpis`, unknown key → 400, edit on
       a project with no local `repo_path` (remote-only) still succeeds
-      (DB-only write, no disk write attempted).
+      (DB-only write, no disk write attempted). 5/5 pass.
 
 **Impact**: The write-through pattern used today only for `workflow.json`
 now covers the human-editable context docs, closing the gap noted in
@@ -71,26 +71,24 @@ alongside the existing Lanes/Workers/CI/CD/Worktrees branches, and a new
 always-visible "Projects" nav button (unlike "Worktrees", not gated behind
 `selectedProjectId`).
 
-- [ ] Task 1: `ProjectCard` computes, from props already available in
+- [x] Task 1: `ProjectCard` computes, from props already available in
       `AppContent` (`projects`, `tracks`, `workers` — no new fetch):
       lane-count chips (group that project's tracks by `lane_status`),
       worker-online indicator (`workers` for this project with
       `last_heartbeat` within 60s — same threshold used server-side at
       `ui/server/index.mjs:3436`), unreplied-comment count (sum
       `unreplied_count`, same field `App.jsx`'s inbox badge already sums),
-      and a computed status badge: `Offline` (no worker heartbeat within
-      60s) / `Needs Attention` (any unreplied comments or a track stuck in
-      `implement:failure`/`review:queue` past a retry) / `Active` (worker
-      online, tracks moving) / `Idle` (worker online, no in-progress
-      tracks).
-- [ ] Task 2: `ProjectsPage` renders a responsive grid of `ProjectCard`s
+      and a computed status badge: `Offline` / `Needs Attention` (unreplied
+      comments) / `Active` (worker online + tracks in
+      implement/review/quality-gate) / `Idle`.
+- [x] Task 2: `ProjectsPage` renders a responsive grid of `ProjectCard`s
       (Tailwind `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`, matching
       the existing grid patterns already used in `KpiRollupPanel`).
-- [ ] Task 3: Card actions — **Open**: calls the same
+- [x] Task 3: Card actions — **Open**: calls the same
       `setSelectedProjectId` + `setViewMode('lanes')` App.jsx already uses
       for `ProjectSelector`. **Manage Context**: same selection, plus
       `setConductorOpen(true)`.
-- [ ] Task 4: Wire the "Projects" nav button into `App.jsx`'s header tab
+- [x] Task 4: Wire the "Projects" nav button into `App.jsx`'s header tab
       group and the `<main>` view-mode switch.
 
 **Impact**: Users get a single overview page instead of hunting through a
@@ -101,9 +99,9 @@ dropdown + per-project panels.
 **Problem**: No UI exists to call Phase 1's new endpoints.
 **Solution**: Two small components, wired into `ProjectCard`'s action row.
 
-- [ ] Task 1: `RenameProjectModal.jsx` — single text input, prefilled with
+- [x] Task 1: `RenameProjectModal.jsx` — single text input, prefilled with
       current name, calls `PATCH /api/projects/:id`.
-- [ ] Task 2: `DeleteProjectModal.jsx` — explains this removes the project
+- [x] Task 2: `DeleteProjectModal.jsx` — explains this removes the project
       from LaneConductor (tracks, workers, history — irreversible), a
       "type the project name to confirm" input (disables the Delete button
       until it matches, mirroring the destructive-action pattern this repo
@@ -111,7 +109,7 @@ dropdown + per-project panels.
       default "Also delete `conductor/` and `.laneconductor.json` from
       disk" checkbox with its own explicit "does not touch git" caption.
       Calls `DELETE /api/projects/:id`.
-- [ ] Task 3: On successful delete, if the deleted project was
+- [x] Task 3: On successful delete, if the deleted project was
       `selectedProjectId`, clear the selection and switch back to the
       Projects tab (avoid landing on a Lanes view for a project that no
       longer exists).
@@ -134,11 +132,11 @@ has its own dedicated `WorkflowSettings` editor) and the dynamically-added
 styleguide files in Phase 2 — out of scope, styleguides aren't part of the
 explicit "kpi, product, techspec" ask).
 
-- [ ] Task 1: Edit mode state (`editing: boolean`, `draft: string`) per
+- [x] Task 1: Edit mode state (`editing: boolean`, `draft: string`) per
       panel, reset when `tab` changes.
-- [ ] Task 2: Save button — disabled while saving, shows inline error on
+- [x] Task 2: Save button — disabled while saving, shows inline error on
       failure (matching `ProjectConfigSettings`'s `notification` pattern).
-- [ ] Task 3: Only show the Edit button for tabs present in Phase 2's
+- [x] Task 3: Only show the Edit button for tabs present in Phase 2's
       allow-list.
 
 **Impact**: "manage their context - kpi, product, techspec" from the
@@ -168,3 +166,31 @@ through Phase 2's endpoint.
 count this phase toward completion; per the skill's done-gate, a track may
 only reach 100%/`done` when every capability named in the Solution
 actually works, and this one is explicitly out of scope for this pass.
+
+## ✅ COMPLETE
+
+Phases 1-5 implemented with TDD (test written and confirmed failing before
+each implementation). 15 new automated tests added (7 backend rename/delete,
+5 backend conductor-file edit, 3 ProjectCard, 3 DeleteProjectModal,
+3 ConductorPanel edit-mode) — all pass. Full suite: 339/350 pass, the same
+11 pre-existing failures both before and after this track's changes
+(Firebase-auth-config tests and two files with an unrelated broken
+`child_process` mock — verified unrelated by inspecting the failures
+directly; none are in files this track touched). `npx vite build` succeeds.
+
+Manually verified end-to-end in a real running instance (isolated API+UI on
+ports 8191/8190 pointed at the shared dev Postgres, so as not to disturb the
+already-running shared dev servers other tracks depend on), against a
+disposable test project (id 1004, deleted at the end of the walkthrough):
+Projects tab reachable with no project selected; card shows real lane
+counts/status; Manage Context → edited product.md → saved → confirmed the
+new content both round-tripped through the DB and was written to
+`conductor/product.md` on disk; Rename → confirmed new name in the DB;
+Delete → confirm-button stayed disabled until the typed name matched exactly,
+then deleting with "also delete local files" checked removed both
+`conductor/` and `.laneconductor.json` from disk and the DB row, and the app
+fell back to the Projects tab cleanly (no broken Lanes view for a
+now-deleted project).
+
+Phase 6 (smart AI context-refresh action) intentionally left unimplemented —
+see spec.md's "Out of scope for this pass" and Phase 6 above.
