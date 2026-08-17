@@ -36,14 +36,21 @@ button does nothing" report:
 
 ## Acceptance Criteria
 
-- [ ] A live (or test-harness) `refresh-worktrees` dispatch with no
+- [x] A live (or test-harness) `refresh-worktrees` dispatch with no
       `track_number` completes with `status: 'done'`, not `'failed':
-      'missing track_number'`.
-- [ ] Starting a second worker process for an identity that already has
+      'missing track_number'`. — Met by this track's own fix
+      (`conductor/laneconductor.sync.mjs`), verified by
+      `track-10015-refresh-worktrees.test.mjs`.
+- [x] Starting a second worker process for an identity that already has
       a live, heartbeating process produces a clear, loud signal
       (log at minimum; ideally also visible from the UI) instead of
-      silent dual registration.
-- [ ] Regression test(s) proving both fixes against a real spawned
+      silent dual registration. — Met by track 1084 Phase 8's
+      `myWorkerId`-stale watchdog (same incident, sharper root cause than
+      this spec's "detect duplicate PIDs" framing — see index.md's Bug 2
+      section), verified by `worker-id-watchdog.test.mjs`.
+- [x] Regression test(s) proving both fixes against a real spawned
       worker (matching this codebase's existing e2e test conventions —
       see `conductor/tests/track-1102-f8-dispatch-failure-reporting.test.mjs`
-      for the pattern).
+      for the pattern). — `track-10015-refresh-worktrees.test.mjs` and
+      `worker-id-watchdog.test.mjs`, both re-run and passing as part of
+      this quality-gate pass.
