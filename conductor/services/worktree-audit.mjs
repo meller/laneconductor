@@ -11,6 +11,8 @@
 // directory left to read from disk).
 
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 function git(args, cwd) {
   try {
@@ -108,13 +110,32 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
 // specifically change on main since the merge-base — i.e. did the track
 // genuinely progress through the lane pipeline independently, not just
 // "some byte in this directory differs."
+//
+// 3rd correction (track 10011's own incident): a `running` marker on main
+// is not, by itself, proof of live independent progress. Nothing can
+// legitimately be running a track without holding
+// conductor/locks/<trackNumber>.lock — the same invariant
+// reconcileWorktrees() already relies on to avoid merging out from under a
+// genuinely active run. An earlier, premature merge left main's own copy
+// of track 10011 stuck at quality-gate:running with its worker long since
+// gone; that stale, unlocked marker alone was enough to trip this guard
+// and permanently strand the branch's real, later done:success completion
+// as 'open' — it took a manual, out-of-band `git merge` to land it. A
+// `running` status is now only trusted as independent progress when a
+// matching lock file backs it; unlocked, it's a dead artifact.
 function mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, trackDir, trackNumber) {
   const base = git(['merge-base', branch, mainBranch], repoRoot).trim();
   if (!base) return false;
   const baseState = readTrackStateFromBranch(repoRoot, base, trackNumber);
   const mainState = readTrackStateFromBranch(repoRoot, mainBranch, trackNumber);
   if (!baseState || !mainState) return false;
-  return baseState.lane !== mainState.lane || baseState.laneStatus !== mainState.laneStatus;
+  if (baseState.lane === mainState.lane && baseState.laneStatus === mainState.laneStatus) return false;
+
+  if (mainState.laneStatus?.trim().toLowerCase() === 'running') {
+    const lockPath = join(repoRoot, '.conductor', 'locks', `${trackNumber}.lock`);
+    if (!existsSync(lockPath)) return false; // stale/orphaned — not real independent progress
+  }
+  return true;
 }
 
 function wouldConflict(repoRoot, mainBranch, branch) {
