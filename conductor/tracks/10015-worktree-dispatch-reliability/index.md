@@ -1,12 +1,11 @@
 # Track 10015: Worktree dispatch reliability — refresh-worktrees bug + duplicate worker process race
 
-**Lane**: done
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Quality gate passed — Phase 1 (refresh-worktrees fix) verified with a real spawned worker; Phase 2 (duplicate worker process race) superseded by track 1084 Phase 8, verified via its watchdog test.
+**Phase**: Phase 1 (refresh-worktrees fix) complete. Phase 2 (duplicate worker process race) superseded — same incident independently fixed same-day by track 1084 Phase 8, no separate work needed here.
 **Type**: bug
-**Summary**: Two issues found live while chasing a "can't delete worktree from the UI" report (2026-08-17): refresh-worktrees dispatches always fail with "missing track_number" (a real handler bug, fixed here), and — the…
+**Summary**: Two issues found live while chasing a "can't delete worktree from the UI" report (2026-08-17): refresh-worktrees dispatches always fail with "missing track_number" (a real handler bug), and — the…
 
 ## Problem
 

@@ -11,6 +11,7 @@
 // directory left to read from disk).
 
 import { execFileSync } from 'node:child_process';
+import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -138,16 +139,24 @@ function mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, trackDi
   return true;
 }
 
-function wouldConflict(repoRoot, mainBranch, branch) {
+// Track 1114 Phase 17: returns the conflicting paths a real `git merge`
+// would hit — `[]` means clean. `git merge-tree --write-tree` is fully
+// read-only (no working directory, index, or ref touched — required for
+// this file's read-only contract), and reports each conflict as its own
+// `CONFLICT (...): ... in <path>` line, parsed here. If git ever reports a
+// conflict in a shape this can't parse a path out of (format change, or a
+// genuinely different failure), falls back to a sentinel path that can
+// never match isTrackBookkeepingConflict's whitelist — conservative:
+// still classified 'conflicted', never silently treated as clean or
+// auto-resolvable off of an unparsed failure.
+function getConflictPaths(repoRoot, mainBranch, branch) {
   try {
-    execFileSync('git', ['merge-tree', '--write-tree', mainBranch, branch], { cwd: repoRoot, stdio: 'pipe' });
-    return false;
+    execFileSync('git', ['merge-tree', '--write-tree', mainBranch, branch], { cwd: repoRoot, stdio: 'pipe', encoding: 'utf8' });
+    return [];
   } catch (err) {
-    // merge-tree exits nonzero on a real conflict; anything else (e.g. the
-    // branch/ref genuinely can't be merge-tree'd for an unrelated reason)
-    // is treated the same way — conservative: don't call it mergeable
-    // unless we positively confirmed a clean merge.
-    return true;
+    const output = `${err.stdout || ''}${err.stderr || ''}`;
+    const paths = [...output.matchAll(/^CONFLICT \([^)]*\):.*? in (.+)$/gm)].map(m => m[1].trim());
+    return paths.length > 0 ? paths : ['__unparsed-conflict__'];
   }
 }
 
@@ -223,10 +232,11 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       classification = 'open';
     } else if (!hasWorktree) {
       classification = 'stranded';
-    } else if (wouldConflict(repoRoot, mainBranch, branch)) {
-      classification = 'conflicted';
     } else {
-      classification = 'mergeable';
+      const conflictPaths = getConflictPaths(repoRoot, mainBranch, branch);
+      const realConflict = conflictPaths.length > 0
+        && !isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, branch, conflictPaths, trackNumber });
+      classification = realConflict ? 'conflicted' : 'mergeable';
     }
 
     rows.push({
