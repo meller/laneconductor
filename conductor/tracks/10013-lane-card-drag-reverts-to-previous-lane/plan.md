@@ -139,3 +139,11 @@ fetch-abort races.
   board's lane doesn't reflect reality," but have unrelated root causes
   (merge-step field exclusion vs. marker-parsing precedence) and were found/
   fixed independently.
+
+## ✅ REVIEWED
+
+Diff (commit 820db6e) matches all three phases' descriptions. Regression
+suite `conductor/tests/track-10012-parse-status-precedence.test.mjs` 4/4
+pass. Frontend vitest suite 32/32 pass; 11 pre-existing server-side auth
+test failures confirmed unrelated (files never touched by this diff). No
+stubs or secrets introduced. See `conversation.md` for the full write-up.
