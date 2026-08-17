@@ -214,6 +214,54 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
+// Track 10014: rename a project. Just the identity — .laneconductor.json's
+// project.name is managed separately via /api/projects/:id/config.
+app.patch('/api/projects/:id', async (req, res) => {
+  try {
+    const name = req.body?.name?.trim();
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    const result = await pool.query(
+      'UPDATE projects SET name = $1 WHERE id = $2 RETURNING id, name',
+      [name, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Project not found' });
+
+    broadcast('conductor:updated', { projectId: req.params.id });
+    res.json({ ok: true, name: result.rows[0].name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10014: hard-delete a project. Every project_id FK in
+// prisma/schema.prisma is onDelete: Cascade, so this one DELETE cleans up
+// tracks/workers/comments/dispatch rows/etc. automatically — same reliance
+// on cascade already used by the DB side of track deletion above.
+// deleteLocalFiles is opt-in and disk-only; it never shells out to git.
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    const projRes = await pool.query('SELECT id, repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!projRes.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path } = projRes.rows[0];
+
+    await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
+
+    let localFilesDeleted = false;
+    if (req.body?.deleteLocalFiles && repo_path && existsSync(repo_path)) {
+      rmSync(join(repo_path, 'conductor'), { recursive: true, force: true });
+      rmSync(join(repo_path, '.laneconductor.json'), { force: true });
+      localFilesDeleted = true;
+    }
+
+    broadcast('project:deleted', { projectId: req.params.id });
+    logger.info({ projectId: req.params.id, localFilesDeleted }, '[projects] Deleted project');
+    res.json({ ok: true, localFilesDeleted });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Project Members ────────────────────────────────────────────────────────
 
 app.get('/api/projects/:id/members', async (req, res) => {
@@ -912,6 +960,47 @@ app.get('/api/projects/:id/conductor', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     res.json(result.rows[0].conductor_files ?? {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10014: generalizes the write-through pattern already used by
+// POST /api/projects/:id/workflow (conductor_files JSONB + disk write) to
+// the other human-editable context docs — closes the gap where kpis.md,
+// product.md, etc. could only be read from the UI, never edited.
+const CONDUCTOR_FILE_MAP = {
+  product: 'product.md',
+  tech_stack: 'tech-stack.md',
+  product_guidelines: 'product-guidelines.md',
+  design_language: 'design-language.md',
+  deployment_stack: 'deployment-stack.md',
+  kpis: 'kpis.md',
+  user_stories: 'user-stories.md',
+  quality_gate: 'quality-gate.md',
+};
+
+app.patch('/api/projects/:id/conductor/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const filename = CONDUCTOR_FILE_MAP[key];
+    if (!filename) return res.status(400).json({ error: `unknown conductor file key: ${key}` });
+
+    const content = req.body?.content ?? '';
+    const dbResult = await pool.query('SELECT repo_path, conductor_files FROM projects WHERE id = $1', [req.params.id]);
+    if (!dbResult.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path, conductor_files } = dbResult.rows[0];
+
+    const updatedFiles = { ...(conductor_files || {}), [key]: content };
+    await pool.query('UPDATE projects SET conductor_files = $1 WHERE id = $2', [updatedFiles, req.params.id]);
+
+    if (repo_path && existsSync(repo_path)) {
+      writeFileSync(join(repo_path, 'conductor', filename), content, 'utf8');
+    }
+
+    broadcast('conductor:updated', { projectId: req.params.id });
+    logger.info({ projectId: req.params.id, key }, '[conductor] Updated context file');
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
