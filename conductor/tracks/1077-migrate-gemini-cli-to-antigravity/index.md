@@ -1,6 +1,6 @@
 # Track 1077: Migrate Gemini CLI support to Antigravity
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Phase 4 complete — live-verified
