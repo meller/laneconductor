@@ -114,6 +114,40 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'open');
   });
 
+  it('classifies as mergeable when the only conflict is a status-header line (Progress) inside the track\'s own index.md', async () => {
+    // Track 1114 Phase 17: main and the branch both changed the SAME
+    // **Progress** line differently — a real git conflict, but confined
+    // to a known status-header field (not Problem/Solution prose), which
+    // mergeWorktreeBranch() can now auto-resolve by taking the branch's
+    // copy. Lane/Lane Status deliberately left unchanged on main (still
+    // plan/queue, same as base) so the reopened-independently guard
+    // doesn't fire — isolating this test to the conflict-classification
+    // change alone. Classification must agree with mergeWorktreeBranch's
+    // own resolution, or the 60s reconciler (which only attempts
+    // 'mergeable'/'stranded' rows) will never even try merging it.
+    setupRepo();
+    const dir = join(REPO, 'conductor/tracks/111-bookkeeping-conflict');
+    mkdirSync(dir, { recursive: true });
+    const content = (lane, laneStatus, progress) =>
+      `# Track 111: Bookkeeping Conflict\n\n**Lane**: ${lane}\n**Lane Status**: ${laneStatus}\n**Progress**: ${progress}\n\n## Problem\nSame problem text everywhere.\n`;
+    writeFileSync(join(dir, 'index.md'), content('plan', 'queue', '0%'));
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-111 .worktrees/111 HEAD');
+    writeFileSync(join(REPO, '.worktrees/111/conductor/tracks/111-bookkeeping-conflict/index.md'), content('done', 'success', '100%'));
+    git('add -A', join(REPO, '.worktrees/111'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 111 done"', join(REPO, '.worktrees/111'));
+
+    // Main bumps Progress independently — same Lane/Lane Status as base.
+    writeFileSync(join(dir, 'index.md'), content('plan', 'queue', '50%'));
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main bumped progress independently"');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '111');
+    assert.ok(row);
+    assert.equal(row.classification, 'mergeable', 'a conflict limited to a status-header line must not be reported as conflicted');
+  });
+
   it('classifies as conflicted when main edits the exact same line the branch touched, without progressing the track\'s own lane', async () => {
     // Deliberately does NOT change **Lane**/**Lane Status** on main — that
     // would trip the "reopened independently" signal (a different, correct
@@ -169,7 +203,7 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'open', 'a stale done:success snapshot must not be trusted once main has independently moved the same track');
   });
 
-  it('surfaces a dead "running" marker on main as conflicted (actionable), not silently stuck as open', async () => {
+  it('fully resolves a dead "running" marker on main to mergeable — the exact track-10011/10014 shape', async () => {
     // Reproduces this repo's own track-10011 incident: an earlier, premature
     // merge landed the track on main while it was still mid-pipeline. Main's
     // own copy then got auto-launched forward independently and got stuck at
@@ -186,14 +220,16 @@ describe('auditWorktrees()', () => {
     // is not live independent progress (nothing can legitimately be running
     // without holding that lock — the same invariant reconcileWorktrees()
     // already leans on to avoid merging out from under a genuinely active
-    // run), so it no longer blocks classification outright. It still can't
-    // be silently auto-merged here, though: main and the branch both
-    // rewrote the exact same **Lane**/**Lane Status** lines, which is a
-    // real, ordinary git conflict — merging blind could clobber either
-    // side. The fix's job is to stop hiding that behind 'open' and instead
-    // surface it as 'conflicted', so it shows up in `lc worktrees`/the UI
-    // and can be resolved (including via the existing merge-worktree
-    // --force dispatch action) instead of sitting invisibly stuck forever.
+    // run), so it no longer blocks classification outright (first fix).
+    // What's left — main and the branch both rewrote the exact same
+    // **Lane**/**Lane Status** header lines — used to still require a human
+    // (surfaced as 'conflicted') until Phase 17's content-aware check: since
+    // main's side of the conflict never touched anything but known
+    // status-header lines relative to the merge-base, it's confirmed to be
+    // the periodic sync-mirror artifact, not real content — so this now
+    // resolves all the way to 'mergeable', matching what actually happened
+    // to track 10014 (found live in this exact shape) once both fixes
+    // landed together.
     setupRepo();
     writeTrackIndex(REPO, '109', 'Stranded By Stale Running', 'review', 'queue');
     git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
@@ -211,7 +247,7 @@ describe('auditWorktrees()', () => {
     const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
     const row = rows.find(r => r.trackNumber === '109');
     assert.ok(row);
-    assert.equal(row.classification, 'conflicted', 'a dead running marker with no lock must not force this to open — it must be surfaced, not hidden');
+    assert.equal(row.classification, 'mergeable', 'a dead running marker with a header-only conflict must fully resolve, not sit as conflicted or open');
   });
 
   it('still treats a "running" marker on main as independent reopening when a real lock backs it', async () => {
