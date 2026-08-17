@@ -3605,11 +3605,21 @@ app.post('/api/dispatch/provision-worker', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'provision-worker dispatch requires a manager-type worker' });
     }
 
+    let workerNumber = payload?.worker_number;
+    if (!workerNumber && payload?.project_id) {
+      const numRes = await pool.query(
+        "SELECT COALESCE(MAX(worker_number), 0) + 1 as next_num FROM workers WHERE project_id = $1",
+        [payload.project_id]
+      );
+      workerNumber = numRes.rows[0]?.next_num || 1;
+    }
+    const finalPayload = { ...payload, worker_number: workerNumber || 1 };
+
     const { rows: [inserted] } = await pool.query(
       `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
        VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [worker_id, null, 'provision-worker', JSON.stringify(payload)]
+      [worker_id, null, 'provision-worker', JSON.stringify(finalPayload)]
     );
     res.json({ ok: true, id: inserted.id });
   } catch (err) {
