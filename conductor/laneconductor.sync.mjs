@@ -4957,22 +4957,34 @@ async function reconcileOrphanedDispatches() {
     const wtIndexPath = wtTrackDir ? join(wtTracksDir, wtTrackDir, 'index.md') : null;
     if (!wtIndexPath || !existsSync(wtIndexPath)) continue;
 
-    const laneStatus = readFileSync(wtIndexPath, 'utf8').match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
-    const classification = classifyOrphanedDispatch({ laneStatus });
+    const wtIndexContent = readFileSync(wtIndexPath, 'utf8');
+    const laneStatus = wtIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
+    const wtLane = wtIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
+    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action });
     if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
 
     console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
 
-    const isSuccess = classification.status === 'done';
-    const { copied, destDir } = copyWorktreeArtifactsToPrimary({
-      worktreePath, trackNumber, isSuccess, primaryRoot: process.cwd(), resolveTrackFolder,
-    });
-    if (copied.length) {
-      console.log(`[orphan-reconcile] Copied artifacts to main repo: ${copied.join(', ')}`);
-      const indexPath = join(destDir, 'index.md');
-      if (existsSync(indexPath)) {
-        await syncTrack(indexPath).catch(e => console.warn(`[orphan-reconcile] Failed to sync artifacts to DB: ${e.message}`));
+    // A lane/action mismatch means the worktree's markers belong to a
+    // phase EARLIER than the one this dispatch was for — copying/syncing
+    // them would regress the primary's already-more-advanced lane_status
+    // back to that stale snapshot (see classifyOrphanedDispatch's own
+    // comment). Only copy artifacts back when the worktree's own state
+    // genuinely reflects this dispatch's action having run.
+    if (!classification.skipArtifactCopy) {
+      const isSuccess = classification.status === 'done';
+      const { copied, destDir } = copyWorktreeArtifactsToPrimary({
+        worktreePath, trackNumber, isSuccess, primaryRoot: process.cwd(), resolveTrackFolder,
+      });
+      if (copied.length) {
+        console.log(`[orphan-reconcile] Copied artifacts to main repo: ${copied.join(', ')}`);
+        const indexPath = join(destDir, 'index.md');
+        if (existsSync(indexPath)) {
+          await syncTrack(indexPath).catch(e => console.warn(`[orphan-reconcile] Failed to sync artifacts to DB: ${e.message}`));
+        }
       }
+    } else {
+      console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}"; leaving the primary's own state untouched`);
     }
 
     await patch(url, token, `/worker-dispatch/${entry.id}`, {
