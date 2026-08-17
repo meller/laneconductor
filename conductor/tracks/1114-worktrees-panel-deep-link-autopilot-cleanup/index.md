@@ -1,6 +1,6 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 95%
 **Phase**: All 15 phases complete, including Phase 7 (Tests) — the last remaining gap. Extracted the force-merge lane-write decision and the armed-confirm/pending-state UI logic into pure, unit-tested modules.
@@ -224,6 +224,8 @@ total, 30 Open, 235 dirty files, and the >10 warning correctly firing.
   - `ui/src/lib/armedConfirm.js` — the two-step confirm's arm-vs-fire decision (`nextArmedState`), wired into `useArmedConfirm`; 4/4 tests (`ui/src/lib/armedConfirm.test.js`)
   - `ui/src/lib/worktreePendingKeys.js` — the row identity keys and the "which pending keys are stale given the current rows" check `fetchRows` runs every poll (`computeStaleKeys`), wired into `WorktreesPanel.jsx`; 5/5 tests (`ui/src/lib/worktreePendingKeys.test.js`), explicitly covering the class of case bug #8 depended on (a pending key whose row disappeared or merged out of the list must be identified as stale)
   - Full suite run: `node --test conductor/tests/*.test.mjs` → 222/229 pass (7 pre-existing failures, unrelated to this change — auto-launch, deploy, integration-multi-pattern, quality-gate retry, lock-unlock, session resume-failure — confirmed via `git stash` that they fail identically without this track's diff applied); `cd ui && npm test` → 291/302 pass (11 pre-existing failures, all in `auth.test.mjs`/`track-1033-worker-auth.test.mjs`, confirmed the same way — untouched by this change)
+
+## ✅ REVIEWED
 
 ## Related tracks
 - [1112](../1112-git-sync-and-worktree-visibility/index.md) — built the Worktrees panel this extends
