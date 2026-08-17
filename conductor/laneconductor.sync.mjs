@@ -5256,6 +5256,32 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    // Track 10015 Phase 1: refresh-worktrees is never track-scoped (the
+    // enqueue side, ui/server/index.mjs:3415, deliberately doesn't
+    // require a track_number for it) — but with no dedicated branch here
+    // it fell through to the generic "Lane action dispatch" fallback
+    // below, which unconditionally requires one and failed every single
+    // time with "missing track_number" (confirmed live: 7 consecutive
+    // real dispatches). Forces an immediate re-audit instead of waiting
+    // for refreshWorktreeSummaryCache()'s own 60s interval.
+    if (entry.action === 'refresh-worktrees') {
+      logger.info({ dispatchId: entry.id }, '[dispatch] refresh-worktrees');
+      updateWorkerHeartbeat('busy', `refresh-worktrees (dispatch ${entry.id})`);
+      let status, result;
+      try {
+        await refreshWorktreeSummaryCache();
+        status = 'done';
+        result = 'Worktree cache refreshed';
+      } catch (err) {
+        status = 'failed';
+        result = err.message;
+      }
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status, result })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report refresh-worktrees result'));
+      continue;
+    }
+
     // Track 1114 Phase 15: "Discard" — a track whose worktree is never
     // going to be merged (a product decision changed, e.g. dropping a
     // PayPal-integration track after moving to a different provider).
