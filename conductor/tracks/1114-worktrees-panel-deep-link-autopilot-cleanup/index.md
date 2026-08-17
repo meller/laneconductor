@@ -1,7 +1,7 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 95%
 **Phase**: Phase 7 (Tests) — the originally-scoped last gap — closed: extracted the force-merge lane-write decision and the armed-confirm/pending-state UI logic into pure, unit-tested modules. Two new gaps…
 **Type**: dev
