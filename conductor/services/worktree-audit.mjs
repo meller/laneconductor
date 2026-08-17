@@ -11,6 +11,9 @@
 // directory left to read from disk).
 
 import { execFileSync } from 'node:child_process';
+import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 function git(args, cwd) {
   try {
@@ -108,25 +111,52 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
 // specifically change on main since the merge-base — i.e. did the track
 // genuinely progress through the lane pipeline independently, not just
 // "some byte in this directory differs."
+//
+// 3rd correction (track 10011's own incident): a `running` marker on main
+// is not, by itself, proof of live independent progress. Nothing can
+// legitimately be running a track without holding
+// conductor/locks/<trackNumber>.lock — the same invariant
+// reconcileWorktrees() already relies on to avoid merging out from under a
+// genuinely active run. An earlier, premature merge left main's own copy
+// of track 10011 stuck at quality-gate:running with its worker long since
+// gone; that stale, unlocked marker alone was enough to trip this guard
+// and permanently strand the branch's real, later done:success completion
+// as 'open' — it took a manual, out-of-band `git merge` to land it. A
+// `running` status is now only trusted as independent progress when a
+// matching lock file backs it; unlocked, it's a dead artifact.
 function mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, trackDir, trackNumber) {
   const base = git(['merge-base', branch, mainBranch], repoRoot).trim();
   if (!base) return false;
   const baseState = readTrackStateFromBranch(repoRoot, base, trackNumber);
   const mainState = readTrackStateFromBranch(repoRoot, mainBranch, trackNumber);
   if (!baseState || !mainState) return false;
-  return baseState.lane !== mainState.lane || baseState.laneStatus !== mainState.laneStatus;
+  if (baseState.lane === mainState.lane && baseState.laneStatus === mainState.laneStatus) return false;
+
+  if (mainState.laneStatus?.trim().toLowerCase() === 'running') {
+    const lockPath = join(repoRoot, '.conductor', 'locks', `${trackNumber}.lock`);
+    if (!existsSync(lockPath)) return false; // stale/orphaned — not real independent progress
+  }
+  return true;
 }
 
-function wouldConflict(repoRoot, mainBranch, branch) {
+// Track 1114 Phase 17: returns the conflicting paths a real `git merge`
+// would hit — `[]` means clean. `git merge-tree --write-tree` is fully
+// read-only (no working directory, index, or ref touched — required for
+// this file's read-only contract), and reports each conflict as its own
+// `CONFLICT (...): ... in <path>` line, parsed here. If git ever reports a
+// conflict in a shape this can't parse a path out of (format change, or a
+// genuinely different failure), falls back to a sentinel path that can
+// never match isTrackBookkeepingConflict's whitelist — conservative:
+// still classified 'conflicted', never silently treated as clean or
+// auto-resolvable off of an unparsed failure.
+function getConflictPaths(repoRoot, mainBranch, branch) {
   try {
-    execFileSync('git', ['merge-tree', '--write-tree', mainBranch, branch], { cwd: repoRoot, stdio: 'pipe' });
-    return false;
+    execFileSync('git', ['merge-tree', '--write-tree', mainBranch, branch], { cwd: repoRoot, stdio: 'pipe', encoding: 'utf8' });
+    return [];
   } catch (err) {
-    // merge-tree exits nonzero on a real conflict; anything else (e.g. the
-    // branch/ref genuinely can't be merge-tree'd for an unrelated reason)
-    // is treated the same way — conservative: don't call it mergeable
-    // unless we positively confirmed a clean merge.
-    return true;
+    const output = `${err.stdout || ''}${err.stderr || ''}`;
+    const paths = [...output.matchAll(/^CONFLICT \([^)]*\):.*? in (.+)$/gm)].map(m => m[1].trim());
+    return paths.length > 0 ? paths : ['__unparsed-conflict__'];
   }
 }
 
@@ -202,10 +232,11 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       classification = 'open';
     } else if (!hasWorktree) {
       classification = 'stranded';
-    } else if (wouldConflict(repoRoot, mainBranch, branch)) {
-      classification = 'conflicted';
     } else {
-      classification = 'mergeable';
+      const conflictPaths = getConflictPaths(repoRoot, mainBranch, branch);
+      const realConflict = conflictPaths.length > 0
+        && !isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, branch, conflictPaths, trackNumber });
+      classification = realConflict ? 'conflicted' : 'mergeable';
     }
 
     rows.push({

@@ -311,3 +311,61 @@ The intersection semantics also need stating: an explicit `--only-tracks`
 allowlist should almost certainly **override** continuity (the operator asked
 for this track on this worker), but that ordering must be written down and
 tested, not left to whichever `if` happens to come first.
+
+## Phase 8: A stuck worker identity is now loud, not silent (2026-08-17 incident)
+
+**Problem**: Track 10014 sat with dispatch entries stuck `pending`
+indefinitely. Root cause: two duplicate `laneconductor.sync.mjs`
+processes ended up both claiming "worker #1" for the same project (the
+pidfile-liveness guard lives in `bin/lc.mjs`'s `worker start` wrapper,
+not the worker script itself — a direct `node laneconductor.sync.mjs`
+invocation bypassing it can orphan whatever was running before). A
+stronger, independent lock already exists for exactly this
+(`conductor/services/worker-lock.mjs`, built by track 1110) — the real,
+previously-unaddressed gap this incident exposed is different:
+`updateWorkerHeartbeat()` upserts by `(hostname, project_id,
+worker_number)` and never reads `myWorkerId`, while `checkDispatchInbox()`
+silently no-ops every cycle for as long as `myWorkerId` stays null. A
+worker whose `/worker/register` call never resolves therefore looks
+completely healthy — idle, heartbeating on schedule, visible in the UI —
+while never serving a single dispatch. Nothing anywhere logged this.
+
+**Solution**: a watchdog that checks specifically for "myWorkerId still
+null N seconds after startup" — the one condition heartbeat can never
+reveal — logs a named, specific warning the first time it fires, and
+retries registration on an interval until it succeeds.
+
+- [x] `workerStartedAt` / `workerIdResolvedLoggedStale` tracking added at
+      module scope
+- [x] `setInterval` watchdog (90s grace, then retries every 60s;
+      `LC_WORKER_ID_STALE_GRACE_MS`/`LC_WORKER_ID_WATCHDOG_MS` test-only
+      overrides) — logs once loudly, retries silently unless a retry
+      itself fails
+- [x] Self-heals without a restart if the underlying cause was transient
+      — confirmed by test, not asserted from reading the diff
+- [x] Considered and rejected: a second pidfile-liveness guard duplicating
+      `worker-lock.mjs`'s existing, stronger exclusivity — would not have
+      addressed the actual invisibility gap (heartbeat/dispatch's
+      decoupled success conditions), and two overlapping guard mechanisms
+      with different failure messages is its own confusion risk
+- [x] Considered and deferred: a per-process `instance_id` for
+      disambiguating "which physical process currently owns worker slot
+      N" in logs/UI (the "better naming than #1/#2" ask from this
+      incident's own review) — `worker-lock.mjs`'s exclusivity already
+      makes a *second* live claimant of the same slot structurally
+      impossible going forward, so the disambiguation value is lower once
+      Phase 8's watchdog also makes a *stuck* single claimant loud. Real
+      idea, not implemented here — flag as a follow-up if another
+      identity-confusion incident happens despite this phase.
+
+**Impact**: The exact symptom that made this incident hard to spot
+("everything looks idle and healthy") is now structurally impossible to
+miss — either the retry recovers silently, or the warning names the
+problem outright.
+
+Regression: `conductor/tests/worker-id-watchdog.test.mjs` — real worker
+process against a mock collector forced to fail `/worker/register`;
+asserts the warning fires and names the actual failure mode, then
+asserts recovery once registration starts succeeding again.
+Negative-controlled. 33/33 across every suite this and the same day's
+other fixes touch.

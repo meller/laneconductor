@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
-import { removeKey, mergeKey, completeKey, forceKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
+import { removeKey, mergeKey, completeKey, forceKey, discardKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -106,7 +106,7 @@ const CLASS_BADGE = {
 // the rows that need a human's attention float to the top.
 const CLASS_SORT_ORDER = { stranded: 0, conflicted: 1, mergeable: 2, detached: 3, open: 4 };
 
-function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging }) {
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding }) {
   const { armedKey, request } = useArmedConfirm();
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
   const canMerge = row.class === 'mergeable' || row.class === 'stranded';
@@ -139,11 +139,18 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   // Skips review/quality-gate's real verification entirely; distinct from
   // Complete & Merge, which runs them for real. Same `open`+track gate.
   const canForceMerge = row.class === 'open' && row.track;
-  // A row's four actions can conflict with each other (e.g. force-merging
+  // Track 1114 Phase 15: any row with a real track can be discarded —
+  // unlike Complete/Force Merge this is deliberately NOT gated to `open`;
+  // a `mergeable`/`stranded` track can just as legitimately turn out to
+  // be unwanted work someone decided not to ship. `conflicted` can be
+  // discarded too — there's nothing to resolve if it's never merging.
+  // `detached` has no track to move to backlog against.
+  const canDiscard = Boolean(row.track);
+  // A row's five actions can conflict with each other (e.g. force-merging
   // while a Complete & Merge sequence is still running) — while ANY one
   // is pending for this row, the rest are disabled too, not just the one
   // that was clicked.
-  const rowBusy = merging || removing || autoCompleting || forceMerging;
+  const rowBusy = merging || removing || autoCompleting || forceMerging || discarding;
 
   return (
     <div
@@ -249,6 +256,20 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
             Merge to main
           </span>
         )}
+        {canDiscard && (
+          <button
+            onClick={() => request(`discard:${row.track}`, () => onDiscard(row))}
+            disabled={rowBusy}
+            data-testid="discard-track-btn"
+            title="Removes the worktree (branch/commits stay recoverable) and moves this track to backlog with an abandonment note — never merges it. Use when the work is genuinely not wanted, not just paused."
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `discard:${row.track}`
+              ? 'border-slate-400 bg-slate-700/60 text-white'
+              : 'border-slate-700 bg-slate-900/40 text-slate-400 hover:bg-slate-800/50'
+              }`}
+          >
+            {discarding ? 'Discarding…' : armedKey === `discard:${row.track}` ? 'Click again to discard' : 'Discard (no merge)'}
+          </button>
+        )}
         {canRemove && (
           <button
             onClick={() => request(`remove:${row.worktree_path || row.branch}`, () => onRemove(row))}
@@ -301,12 +322,19 @@ function usePendingActions() {
   return { pendingKeys: pending, start, clear };
 }
 
-export function WorktreesPanel({ projectId, onSelectTrack }) {
+export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
   const { apiFetch } = useApi();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const { pendingKeys, start: startPending, clear: clearPending } = usePendingActions();
   const [error, setError] = useState(null);
+  // Track 1114 Phase 16: found live — a refresh failing with "no worker
+  // available for this project" left the user stuck with only an error
+  // banner, no way forward short of leaving the panel to go check worker
+  // status by hand. Distinct from `error` (which drives whether the
+  // banner renders at all) so only THIS specific failure offers the
+  // deep-link — any other refresh error just shows the plain message.
+  const [noWorkerAvailable, setNoWorkerAvailable] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchRows = useCallback(() => {
@@ -380,6 +408,7 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
 
   async function handleRefresh() {
     setError(null);
+    setNoWorkerAvailable(false);
     setRefreshing(true);
     try {
       const res = await triggerBackendRefresh();
@@ -390,6 +419,10 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
       setTimeout(() => fetchRowsRef.current(), 3000);
     } catch (err) {
       setError(`Failed to refresh: ${err.message}`);
+      // Matches the API's exact wording (ui/server/index.mjs dispatch
+      // route: "no worker available for this project to run <action> on")
+      // — the one refresh failure with an actual next step available.
+      if (err.message.includes('no worker available')) setNoWorkerAvailable(true);
     } finally {
       setTimeout(() => setRefreshing(false), 3000);
     }
@@ -460,6 +493,23 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
     }
   }
 
+  async function handleDiscard(row) {
+    if (!row.track) return;
+    setError(null);
+    startPending(discardKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'discard-track', payload: { track_number: row.track } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch discard for #${row.track}: ${err.message}`);
+      clearPending(discardKey(row));
+    }
+  }
+
   async function handleForceMerge(row) {
     if (!row.track) return;
     setError(null);
@@ -505,7 +555,18 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
           {refreshing ? 'Refreshing…' : '↻ Refresh'}
         </button>
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2 mt-3 max-w-xs">{error}</div>
+          <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2 mt-3 max-w-xs flex flex-col gap-2 items-start">
+            <span>{error}</span>
+            {noWorkerAvailable && onGoToWorkers && (
+              <button
+                onClick={onGoToWorkers}
+                data-testid="go-to-workers-btn"
+                className="text-[10px] px-2.5 py-1 border border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 rounded font-bold uppercase tracking-wider transition-colors"
+              >
+                Go to Workers →
+              </button>
+            )}
+          </div>
         )}
       </div>
     );
@@ -526,6 +587,8 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
           autoCompleting={Boolean(pendingKeys[completeKey(row)])}
           onForceMerge={handleForceMerge}
           forceMerging={Boolean(pendingKeys[forceKey(row)])}
+          onDiscard={handleDiscard}
+          discarding={Boolean(pendingKeys[discardKey(row)])}
         />
       ))}
     </div>
@@ -535,7 +598,18 @@ export function WorktreesPanel({ projectId, onSelectTrack }) {
     <div className="flex flex-col gap-6">
       <WorktreeStatsHeader rows={rows} onRefresh={handleRefresh} refreshing={refreshing} />
       {error && (
-        <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2">{error}</div>
+        <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2 flex items-center gap-3 flex-wrap">
+          <span>{error}</span>
+          {noWorkerAvailable && onGoToWorkers && (
+            <button
+              onClick={onGoToWorkers}
+              data-testid="go-to-workers-btn"
+              className="text-[10px] px-2.5 py-1 border border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 rounded font-bold uppercase tracking-wider transition-colors"
+            >
+              Go to Workers →
+            </button>
+          )}
+        </div>
       )}
       {groupByHost
         ? hosts.map(host => (

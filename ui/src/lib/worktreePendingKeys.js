@@ -13,6 +13,7 @@ export const removeKey = (row) => `remove:${row.worktree_path || row.branch}`;
 export const mergeKey = (row) => `merge:${row.track}`;
 export const completeKey = (row) => `complete:${row.track}`;
 export const forceKey = (row) => `force:${row.track}`;
+export const discardKey = (row) => `discard:${row.track}`;
 
 export function computeStillPresentKeys(rows) {
   const stillPresent = new Set();
@@ -22,6 +23,7 @@ export function computeStillPresentKeys(rows) {
       stillPresent.add(mergeKey(row));
       stillPresent.add(completeKey(row));
       stillPresent.add(forceKey(row));
+      stillPresent.add(discardKey(row));
     }
   }
   return stillPresent;

@@ -4,6 +4,7 @@ import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
 import { WorkerModelModal } from './WorkerModelModal.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
+import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -20,12 +21,12 @@ const VISIBILITY_BADGE = {
   public: { label: 'Public', icon: '🌐', className: 'text-green-400 border-green-900/50' },
 };
 
-const CLI_ICONS = {
-  claude: '🤖',
-  gemini: '✨',
-  copilot: '✈️',
-  antigravity: '🚀',
-};
+// Neutral fallback text shown when a worker hasn't reported its `model`
+// yet AND its `cli` isn't a recognized provider (never a hardcoded
+// Claude model id for a non-Claude worker — see track 10011).
+function workerModelLabel(worker) {
+  return worker.model || defaultModelFor(worker.cli) || 'model not reported yet';
+}
 
 function ProviderStatus({ providers }) {
   if (!providers || providers.length === 0) return null;
@@ -451,10 +452,10 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                     </div>
                     <div className="flex items-center justify-between bg-gray-950/60 px-2 py-1.5 rounded-lg border border-gray-800/80 my-2">
                       <div className="flex items-center gap-1.5 overflow-hidden">
-                        <span className="text-xs">{CLI_ICONS[worker.cli || 'claude'] || '🤖'}</span>
+                        <span className="text-xs">{providerIcon(worker.cli)}</span>
                         <span className="text-[11px] font-medium text-gray-300 capitalize">{worker.cli || 'claude'}</span>
                         <span className="text-[10px] font-mono text-purple-400 bg-purple-950/50 px-1.5 py-0.5 rounded border border-purple-800/40 truncate" data-testid="worker-model-badge">
-                          {worker.model || 'claude-3-5-sonnet'}
+                          {workerModelLabel(worker)}
                         </span>
                       </div>
                       <button
@@ -624,8 +625,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
               data-testid="change-worker-model-btn-strip"
               title="Click to change model"
             >
-              <span>{CLI_ICONS[worker.cli || 'claude'] || '🤖'}</span>
-              <span>{worker.model || 'claude-3-5-sonnet'}</span>
+              <span>{providerIcon(worker.cli)}</span>
+              <span>{workerModelLabel(worker)}</span>
             </button>
           </div>
         ))}

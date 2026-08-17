@@ -37,7 +37,7 @@ plan button — which is what the symptom actually was.
 Test updated to assert `mode === 'sync-only'` deliberately, so a future
 change to `lc worker start`'s default is a conscious decision.
 
-### F2 — "Plan in progress…" is shown for a track that is merely queued 🟠
+### F2 — "Plan in progress…" is shown for a track that is merely queued 🟠 CONFIRMED & FIXED (unit-tested)
 `TrackCard.jsx:245`:
 `nextBtnDisabled = track.lane_status === 'plan' && track.lane_action_status !== 'success'`
 so any `plan` track that isn't `success` gets a disabled arrow captioned
@@ -45,6 +45,23 @@ so any `plan` track that isn't `success` gets a disabled arrow captioned
 `failed`. Combined with F1 the user sees a permanently disabled button
 claiming work is happening when nothing is. Needs to distinguish
 queue / running / failed, and say what to do about it.
+
+**Fixed 2026-08-15**: the disabled *gating* (`nextBtnDisabled`) was
+already correct — a `plan`-lane track genuinely shouldn't advance until
+its plan actually succeeds — only the tooltip text was wrong, hardcoding
+"Plan in progress..." for every non-`success` state. Added
+`nextBtnDisabledReason` (`ui/src/components/TrackCard.jsx`) that
+distinguishes `running` ("Plan in progress...") from `failure`/`failed`
+("Plan failed — fix and re-run before advancing") from everything else,
+i.e. `queue` ("Plan is queued — run it before advancing"). TDD'd:
+`ui/src/components/TrackCard.test.jsx` (5 tests — queued/failed/running
+tooltip text, arrow enabled+correct-tooltip once succeeded, arrow stays
+disabled while queued). 2 of the 5 failed for the right reason (queued/
+failed cases got the stale "Plan in progress..." text) before the fix —
+the other 3 encoded already-correct behavior (running tooltip, enabled+
+correct tooltip on success, disabled-while-queued gating) and passed
+immediately, which is expected since only the tooltip text was wrong.
+All 5 pass after the fix.
 
 ### F3 — index.md carries both legacy `**Status**` and `**Lane**` markers 🟡
 The scaffold template writes `**Status**: plan` near the top; the sync
@@ -57,7 +74,7 @@ on the newly scaffolded `001-add-a-health-check-endpoint/index.md`.
 `CloudAppInner` passes `onSelect`, `ProjectSelector` accepts `onChange`.
 Split out because it can't be verified in local mode.
 
-### F5 — No UI action can run a lane action on a sync-only project 🔴 CONFIRMED
+### F5 — No UI action can run a lane action on a sync-only project 🔴 CONFIRMED & FIXED
 This is the real bug behind F1's symptom. Traced end to end:
 
 - Every project created by the New Project wizard gets a **sync-only**
@@ -115,7 +132,20 @@ them). Also relevant to `workers.type`, which today is
 `project` | `manager` — a separate axis that shouldn't be conflated with
 mode.
 
-### F7 — A wizard-created project is not a git repo, so every lane action fails 🔴 CONFIRMED
+### F7 — A wizard-created project is not a git repo, so every lane action fails 🔴 CONFIRMED & FIXED
+**Fixed** (commit `d0a5dcf`): `runCreateProject()` (`conductor/laneconductor.sync.mjs:4746`,
+run by the **manager** worker as part of handling a `create-project`
+dispatch) now `git init`s and makes an initial commit when the scaffolded
+directory isn't already a repo — narrowly, only when the directory
+contains nothing but the scaffold itself; if it finds pre-existing files
+it refuses and tells the user to `git init` themselves rather than risk
+`git add -A` committing secrets/build output. Covered by
+`conductor/tests/track-1091-create-project-worker.test.mjs`. The broader
+design question this raised — *should git-init live in the manager's
+create-project handler, or the project's own sync worker on first start,
+or `lc setup`?* — was deliberately left open and moved to
+[1103](../1103-e2e-onboarding-experience/index.md)
+rather than answered inline here.
 `create-project` scaffolds `conductor/`, `.laneconductor.json`, `.claude/`,
 `.agents/` — but never runs `git init`. `spawnCli` takes a git lock and
 creates a worktree before every lane action, so the very first plan
@@ -148,7 +178,7 @@ So the scaffolded files must be committed as part of project creation.
 For `repo_source.type: 'git'` this is moot (a clone already has history);
 it's the `path` / brand-new-project case that's exposed.
 
-### F8 — A failed lane action leaves the dispatch and track stuck forever 🔴 CONFIRMED
+### F8 — A failed lane action leaves the dispatch and track stuck forever 🔴 CONFIRMED & FIXED (unit-tested)
 When the worktree setup above threw, the worker logged
 `[dispatch error]` and moved on — but never reported the failure:
 
@@ -170,7 +200,41 @@ the error text, reset `lane_action_status`, and clear the busy heartbeat.
 This is also why the three states disagreed, which is its own debugging
 tax.
 
-### F9 — Post-run merge/sync gutted index.md, losing the whole track body 🔴 CONFIRMED
+**Fixed 2026-08-15**: wrapped the `spawnCli()` call in
+`checkDispatchInbox()`'s lane-action branch (`conductor/laneconductor.sync.mjs`,
+right after the "Lane action dispatch" comment) in a try/catch matching
+the other handlers: on failure it now PATCHes the dispatch `status:
+'failed'` with the real error, and reverts both the file's `**Lane
+Status**` marker and the DB's `lane_action_status` back to what they were
+before the attempt (previously overwritten to `running` right before the
+now-caught throw, with nothing to ever put it back). Also fixes a
+collateral bug the original write-up didn't call out: since this whole
+loop had no per-entry isolation on this branch, an uncaught throw here
+used to abort every *other* dispatch still waiting in that same poll
+tick, not just the one that failed.
+
+TDD'd in `conductor/tests/track-1102-f8-dispatch-failure-reporting.test.mjs`
+against a real spawned worker — reproduced via git-lock contention (a
+fresh lock already held by a different machine/pid), not the original
+git-repo-with-no-commits trigger, which turns out to now self-heal:
+`checkAndClaimGitLock()` commits the track's own files before
+`createWorktree()` runs, so a brand-new repo gets its first commit from
+that step before `git worktree add ... HEAD` would ever see a missing
+ref. 2 tests, watched both fail for the right reason (dispatch stuck
+`claimed` past a 20s poll timeout; file left at `Lane Status: running`)
+before the fix, then pass after. Confirmed the failure exactly matches
+F7's original error family (`git worktree add ... HEAD` / lock
+contention), not a different unrelated exception.
+
+**Not done**: the "clear the busy heartbeat" part of the fix direction
+doesn't apply as originally worded — traced the code and this branch
+never calls `updateWorkerHeartbeat('busy', ...)` in the first place
+(unlike every sibling handler), so there's no busy state to clear. That's
+a separate, smaller gap (the Activity panel has no way to show "running a
+lane action" as busy at all, success or failure) — worth its own
+follow-up, not fixed here.
+
+### F9 — Post-run merge/sync gutted index.md, losing the whole track body 🔴 CONFIRMED & PRODUCER FOUND + FIXED (unit-tested)
 Caught in the act during the first dogfooded UI-triggered plan run (track
 1104, dispatch 29):
 
@@ -213,6 +277,62 @@ from the file (fs newer). Whoever fixes this should start from the
 worker's post-dispatch index.md/DB update code and the worktree merge-back
 — one of them is regenerating index.md from row fields instead of
 preserving file content.
+
+**Producer found and fixed 2026-08-17**: `spawnCli()`'s exit handler
+("Phase 5: Update Lane Status in files and commit",
+`conductor/laneconductor.sync.mjs`, ~line 3905) READ from
+`join(process.cwd(), 'conductor', 'tracks', ...)` — the **primary**
+checkout — but WROTE the regex-patched result to
+`join(worktreePath || process.cwd(), ...)` — the **worktree** — a few
+lines later. By the time a lane action's exit handler runs, the agent's
+real work exists only in the worktree; the primary checkout is stale.
+Reading primary's stale content, patching only a few `**marker**` lines
+into it (Lane/Lane Status/Progress/Last Run — this block never touches
+body prose), and writing that hybrid *back into the worktree* silently
+clobbered the agent's actual finished work with everything else the
+worktree had (Problem, Solution, Meta, etc.) *before* the later
+worktree→primary copy-back step ever ran — so copy-back faithfully
+propagated the already-clobbered version into primary, with nothing
+anywhere logging that it happened. Confirmed live: reproduced with a
+real spawned worker, a real git worktree, and a distinguishing marker
+written directly into the worktree's `index.md` while the (mocked) CLI
+was still "running" — before the fix, the marker was completely gone
+from primary's copy after the run; after the fix, it survives intact.
+
+Fix: read from the same location this block writes to
+(`worktreePath || process.cwd()`), not unconditionally from
+`process.cwd()`. One line. Test:
+`conductor/tests/track-1102-f9-index-producer.test.mjs` — watched it
+fail (primary ends up with the stale pre-run body, agent's real work
+gone) before the fix, pass after. Full conductor suite re-run
+afterward: same 6 pre-existing flaky failures as before this change,
+no new ones.
+
+The F9 guard from 2026-08-12 stays in place as defense-in-depth (per
+this codebase's established pattern of layering a guard *and* fixing
+the producer, e.g. F7/F8) — multiple concurrent pushers can still exist,
+and the guard protects against any of them, not just this one.
+
+Note: while reproducing this, the primary's copy retained its *own*
+pre-run "Solution" paragraph rather than picking up the worktree's
+updated one — that's `mergeIndexMarkers()` (the separate copy-back
+step, `conductor/services/worktree-artifact-merge.mjs`) deliberately
+merging marker *values* from the worktree into primary while preserving
+primary's own body prose, not a bug this fix needs to address — F9's
+complaint was total body loss (title, every section, gone), which this
+fix resolves; which specific body version "wins" when both sides
+diverge is `mergeIndexMarkers`'s own, separately-designed behavior.
+
+Also noticed in the same function while fixing this, **not fixed here**
+(separate, smaller bug — flagging for its own follow-up): a few lines
+below Phase 5's write step, `execSync(... { cwd: workDir })` is called
+inside the `if (lastRunLog)` block (~line 4002) referencing `workDir`
+before it's declared (`const workDir = ...` is scoped to the *next*,
+sibling `if (updated)` block, ~line 4007) — a `ReferenceError` on every
+single run that has log output (i.e. nearly always), silently swallowed
+by that call's own empty `catch (e) {}`. Net effect: `last_run.log`
+never actually gets `git add`ed via this path (the file itself still
+gets written to disk first, just never staged here).
 
 ### F10 — Worker de-registration destroyed the row, cascading away all chat/dispatch history 🔴 CONFIRMED & FIXED
 Observed live during the dogfooded implement run: the worker vanished from
@@ -419,6 +539,48 @@ transcript) was considered and deferred — the Transcript tab already
 serves that need better than a raw tail would for Claude specifically;
 non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 
+### F15 — F5's dispatch bridge only covers `/implement`; drag-to-lane and reset still strand sync-only projects 🔴 CONFIRMED & FIXED (unit-tested, not live E2E)
+Found 2026-08-15 while diagnosing why track 10011 sat at `lane_action_status:
+'queue'` indefinitely after being dragged to the Implement lane (root cause
+of *that* specific incident turned out to be unrelated — the real
+implementation was sitting on an unmerged branch — but reading the dispatch
+path to rule it out surfaced this separate, real gap).
+
+- F5's fix (confirmed in code) lives entirely inside
+  `POST /api/projects/:id/tracks/:num/implement` (`ui/server/index.mjs:1514`):
+  when a project's only live workers are `sync-only`, it inserts a
+  `worker_dispatch` row addressed to one of them instead of only setting
+  `lane_action_status: 'queue'`.
+- `PATCH /track/:num/lane` (`ui/server/index.mjs:2846`) — the endpoint the
+  Kanban board's drag-and-drop and `handleLaneChange` confirm dialog both
+  call via `PATCH /api/projects/:id/tracks/:num` — has no such bridge. It
+  only sets `lane_action_status = 'queue'`.
+- `PATCH /track/:num/reset` (`ui/server/index.mjs:2894`, used by "fix review
+  gaps" / update flows) has the same gap.
+- Net effect: on a sync-only project (the default per F5/F6), dragging a
+  card to a new lane — or any flow that calls `/reset` — sets the queue
+  flag and then nothing ever claims it, identical to F5's original symptom,
+  just via a different entry point that F5's fix didn't cover.
+
+**Fixed 2026-08-15**: extracted F5's bridge logic into a shared
+`dispatchIfSyncOnly(projectId, trackNumber)` helper (`ui/server/index.mjs`,
+right above the `/implement` route) and call it from all three sites:
+`/implement` (unchanged behavior, now via the shared helper),
+`/track/:num/lane` (only when the lane change results in
+`lane_action_status: 'queue'` — a move to `done` sets `'success'` instead,
+nothing to dispatch), and `/track/:num/reset`. TDD'd against the existing
+F5 test pattern: `ui/server/tests/track-1102-f15-lane-reset-dispatch.test.mjs`
+(5 tests — dispatches when all live workers are sync-only, does not
+dispatch when a sync+poll worker exists, does not dispatch on a move to
+`done`). Watched all 5 fail for the right reason (no `worker_dispatch`
+insert) before restoring the production code, then watched them pass.
+
+**Not proven live** the way F5 was (no real drag-and-drop against a real
+sync-only project, watching a `worker_dispatch` row appear and get
+claimed) — confirmed via unit tests exercising the same code path F5's
+tests already trust, not a live E2E walkthrough. Worth a live pass if this
+resurfaces.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
@@ -434,9 +596,10 @@ non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 
 ## Phases
 - [ ] Phase 1: Fix F1 — decide and implement the worker mode a newly created project should get
-- [ ] Phase 2: Fix F2 — accurate lane-action button state/tooltip
+- [x] Phase 2: Fix F2 — accurate lane-action button state/tooltip (fixed, unit-tested)
 - [ ] Phase 3: Fix F3 — one status marker, not two
 - [ ] Phase 4: Continue the walkthrough — plan run, Activity, Inbox, deploy wizard (stop before an actual deploy)
+- [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification still open)
 
 ## Depends on
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (F1 is in its create-project handler), [1084](../1084-worker-identity-and-assignment/index.md) (worker modes).

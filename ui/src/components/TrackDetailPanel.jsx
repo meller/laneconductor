@@ -6,6 +6,8 @@ import { useApi } from '../hooks/useApi';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { isWorkerOffline, selectDefaultWorker } from '../lib/workerStatus.js';
+import { PROVIDER_IDS, PROVIDERS, providerLabel, defaultModelFor } from '../../../conductor/providers.mjs';
+import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
 
 const CONTENT_TABS = [
   { key: 'index', label: 'Overview' },
@@ -45,11 +47,27 @@ const SEND_MODE_HELP = {
   bug: 'Posts a bug report and appends a regression-test block to this track\'s test.md.',
 };
 
-const AUTHOR_STYLES = {
+const NON_PROVIDER_AUTHOR_STYLES = {
   human: { label: 'You', dot: 'bg-gray-400', body: 'bg-gray-800 text-gray-200' },
-  claude: { label: 'Claude', dot: 'bg-orange-400', body: 'bg-orange-950/40 text-gray-200 border border-orange-900/50' },
-  gemini: { label: 'Gemini', dot: 'bg-blue-400', body: 'bg-blue-950/40 text-gray-200 border border-blue-900/50' },
+  system: { label: 'System', dot: 'bg-gray-500', body: 'bg-gray-800/60 text-gray-300 border border-gray-700/50' },
 };
+
+// Presentation-only colors per provider — the label itself comes from the
+// shared registry, so Copilot/Antigravity comments get their own style
+// instead of silently falling through to the human default.
+const PROVIDER_AUTHOR_COLORS = {
+  claude: { dot: 'bg-orange-400', body: 'bg-orange-950/40 text-gray-200 border border-orange-900/50' },
+  gemini: { dot: 'bg-blue-400', body: 'bg-blue-950/40 text-gray-200 border border-blue-900/50' },
+  copilot: { dot: 'bg-emerald-400', body: 'bg-emerald-950/40 text-gray-200 border border-emerald-900/50' },
+  antigravity: { dot: 'bg-purple-400', body: 'bg-purple-950/40 text-gray-200 border border-purple-900/50' },
+};
+
+function authorStyle(author) {
+  if (NON_PROVIDER_AUTHOR_STYLES[author]) return NON_PROVIDER_AUTHOR_STYLES[author];
+  const colors = PROVIDER_AUTHOR_COLORS[author];
+  if (colors) return { label: providerLabel(author), ...colors };
+  return NON_PROVIDER_AUTHOR_STYLES.human;
+}
 
 function timeAgo(dateStr) {
   const s = Math.floor((Date.now() - new Date(dateStr)) / 1000);
@@ -60,7 +78,7 @@ function timeAgo(dateStr) {
 }
 
 function CommentBubble({ comment }) {
-  const style = AUTHOR_STYLES[comment.author] ?? AUTHOR_STYLES.human;
+  const style = authorStyle(comment.author);
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -99,7 +117,23 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [dispatching, setDispatching] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState([]);
   const [sendMode, setSendMode] = useState('send');
+  const [workersLoaded, setWorkersLoaded] = useState(false);
+  // Which track's lane we've already defaulted sendMode for — guards the
+  // effect below to fire once per track view instead of on every detail
+  // poll (detail refetches every 3s; re-defaulting on each poll would
+  // clobber a manual dropdown choice mid-conversation).
+  const sendModeDefaultedForTrackRef = useRef(null);
   const [provisioningWorker, setProvisioningWorker] = useState(false);
+  // Track 10011: "+ New worker…" used to POST /workers/start-new with no
+  // cli/model at all, silently inheriting whatever project.primary already
+  // was — no provider choice was ever offered. If a manager is online it
+  // can provision on a chosen machine/provider (ProvisionWorkerModal,
+  // already used for this from the Workers lane); with no manager, a small
+  // inline picker offers the same choice for a local worker #2.
+  const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [showInlinePicker, setShowInlinePicker] = useState(false);
+  const [inlineCli, setInlineCli] = useState('claude');
+  const [inlineModel, setInlineModel] = useState(defaultModelFor('claude'));
   // Track 1112 Phase 7: this track's own worktree row (if any), secondary/
   // detail-level view of the same data WorktreesPanel lists project-wide.
   const [worktreeRow, setWorktreeRow] = useState(null);
@@ -206,12 +240,32 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       apiFetch(`/api/projects/${projectId}/workers`)
         .then(r => r.ok ? r.json() : [])
         .then(setProjectWorkers)
-        .catch(() => setProjectWorkers([]));
+        .catch(() => setProjectWorkers([]))
+        .finally(() => setWorkersLoaded(true));
     };
     fetchWorkers();
     const id = setInterval(fetchWorkers, 4000);
     return () => clearInterval(id);
   }, [projectId]);
+
+  // Default the composer's action selector to "Run <lane>" for whatever
+  // lane the track is currently sitting in (plan → Run plan, implement →
+  // Run implement, etc.) instead of always landing on plain Message. Only
+  // applies once per track view — see sendModeDefaultedForTrackRef above —
+  // and only when that lane actually has a dispatchable run: option in the
+  // dropdown (DISPATCHABLE_LANES + an online worker to run it on);
+  // otherwise falls back to the previous default of "send".
+  useEffect(() => {
+    // `detail` isn't cleared on track switch, so it can still hold the
+    // PREVIOUS track's data for a moment after trackNumber changes — guard
+    // against defaulting off stale lane_status before the new track's own
+    // fetchDetail() resolves.
+    if (!detail?.lane_status || String(detail.track_number) !== String(trackNumber) || !workersLoaded) return;
+    if (sendModeDefaultedForTrackRef.current === trackNumber) return;
+    sendModeDefaultedForTrackRef.current = trackNumber;
+    const lane = detail.lane_status;
+    setSendMode(DISPATCHABLE_LANES.includes(lane) && projectWorkers.length > 0 ? `run:${lane}` : 'send');
+  }, [trackNumber, detail?.lane_status, detail?.track_number, workersLoaded, projectWorkers.length]);
 
   const fetchDispatchHistory = () => {
     if (!detail?.id) return;
@@ -330,12 +384,16 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // dispatch immediately after (Run now / Send & Run / Brainstorm, all
   // triggered by picking "+ New worker…") await this instead of relying
   // on the state update landing before their own next line runs.
-  async function handleStartNewWorker() {
+  async function handleStartNewWorker(cli, model) {
     if (!projectId) return null;
     setProvisioningWorker(true);
+    setShowInlinePicker(false);
     const knownIds = new Set(projectWorkers.map(w => w.id));
     try {
-      const r = await apiFetch(`/api/projects/${projectId}/workers/start-new`, { method: 'POST' });
+      const r = await apiFetch(`/api/projects/${projectId}/workers/start-new`, {
+        method: 'POST',
+        body: JSON.stringify(cli ? { cli, model } : {}),
+      });
       if (!r.ok) {
         const { error } = await r.json().catch(() => ({}));
         alert(`Failed to start a new worker: ${error || r.statusText}`);
@@ -365,10 +423,26 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     }
   }
 
+  // A manager can provision a worker (on any of its machines, any
+  // provider) via ProvisionWorkerModal — the same mechanism the Workers
+  // lane already uses. With no manager online, the only option is a local
+  // worker #2 on this machine, chosen via the inline picker below.
+  const availableManagers = projectWorkers.filter(w => w.type === 'manager' && !isWorkerOffline(w));
+
   // Resolves the "+ New worker…" sentinel to a real worker id before any
-  // dispatch, provisioning one on demand if that's what's selected.
+  // dispatch. Provisioning a new worker now always requires the user to
+  // pick a provider first (track 10011) — this can't happen synchronously
+  // inside a single click, so it opens the modal/picker and returns null,
+  // asking the caller to try again once a real worker exists.
   async function resolveWorkerId() {
-    if (selectedWorkerId === '__new__') return handleStartNewWorker();
+    if (selectedWorkerId === '__new__') {
+      if (availableManagers.length > 0) {
+        setShowProvisionModal(true);
+      } else {
+        setShowInlinePicker(true);
+      }
+      return null;
+    }
     return selectedWorkerId || null;
   }
 
@@ -521,7 +595,13 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       return dispatchTrackChat(text);
     }
     if (sendMode === 'bug') return openBug();
-    if (sendMode.startsWith('run:')) return sendComment(undefined, sendMode.slice(4), true, undefined, true);
+    // Track 1113 Phase 2 (TC-5): command is the target lane, not left
+    // undefined — an empty-draft Run submission (the case the removed
+    // header button used to cover: "just re-run this stage, nothing to
+    // say") falls back to `Triggering ${command}...` in sendComment's body
+    // construction, and `Triggering undefined...` would be a visibly wrong
+    // regression from that button's behavior.
+    if (sendMode.startsWith('run:')) return sendComment(undefined, sendMode.slice(4), true, sendMode.slice(4), true);
     return sendComment();
   }
 
@@ -607,7 +687,14 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                     <select
                       value={selectedWorkerId}
                       disabled={dispatching || provisioningWorker}
-                      onChange={e => e.target.value === '__new__' ? handleStartNewWorker() : setSelectedWorkerId(e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setSelectedWorkerId(val);
+                        if (val === '__new__') {
+                          if (availableManagers.length > 0) setShowProvisionModal(true);
+                          else setShowInlinePicker(true);
+                        }
+                      }}
                       className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
                     >
                       {projectWorkers.map(w => (
@@ -630,15 +717,71 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                       ))}
                       <option value="__new__">+ New worker…</option>
                     </select>
-                    <button
-                      onClick={() => dispatchRunNow(detail.lane_status)}
-                      disabled={dispatching || provisioningWorker || !selectedWorkerId || selectedWorkerUnusable}
-                      title={`Run ${detail.lane_status} now on this worker, outside the normal queue`}
-                      className="text-xs px-2 py-0.5 rounded border border-blue-800/70 text-blue-400 hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                    {/* Track 1113 Phase 2 (TC-5): the standalone "Run <lane>
+                        now" button that used to live here is gone — folded
+                        into the composer's Send & Run control below, which
+                        now accepts an empty draft for a `run:<lane>`
+                        submission (see the Send button's disabled condition
+                        and handleComposerSend's run: branch). This select
+                        still feeds `selectedWorkerId`, which both Send & Run
+                        and dispatchTrackChat (Brainstorm/plain Send) read via
+                        resolveWorkerId() — it stays. */}
+                  </div>
+                )}
+                {showInlinePicker && (
+                  <div className="mt-2 flex items-center gap-2 bg-gray-950/60 border border-gray-800 rounded-lg px-2 py-1.5" data-testid="new-worker-inline-picker">
+                    <span className="text-xs text-gray-600">New worker:</span>
+                    <select
+                      value={inlineCli}
+                      disabled={provisioningWorker}
+                      onChange={e => {
+                        const id = e.target.value;
+                        setInlineCli(id);
+                        setInlineModel(defaultModelFor(id) || '');
+                      }}
+                      className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
                     >
-                      {provisioningWorker ? 'Starting worker…' : dispatching ? 'Dispatching…' : `Run ${detail.lane_status} now`}
+                      {PROVIDER_IDS.map(id => <option key={id} value={id}>{providerLabel(id)}</option>)}
+                    </select>
+                    <select
+                      value={inlineModel}
+                      disabled={provisioningWorker}
+                      onChange={e => setInlineModel(e.target.value)}
+                      className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    >
+                      {(PROVIDERS[inlineCli]?.models || []).map(m => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleStartNewWorker(inlineCli, inlineModel)}
+                      disabled={provisioningWorker}
+                      className="text-xs px-2 py-0.5 rounded border border-blue-800/70 text-blue-400 hover:bg-blue-900/30 disabled:opacity-40"
+                    >
+                      {provisioningWorker ? 'Starting…' : 'Start Worker'}
+                    </button>
+                    <button
+                      onClick={() => setShowInlinePicker(false)}
+                      disabled={provisioningWorker}
+                      className="text-xs text-gray-500 hover:text-gray-300"
+                    >
+                      Cancel
                     </button>
                   </div>
+                )}
+                {showProvisionModal && (
+                  <ProvisionWorkerModal
+                    projectId={projectId}
+                    workers={projectWorkers}
+                    onClose={() => setShowProvisionModal(false)}
+                    onProvisioned={() => {
+                      setShowProvisionModal(false);
+                      apiFetch(`/api/projects/${projectId}/workers`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(w => w && setProjectWorkers(w))
+                        .catch(() => {});
+                    }}
+                  />
                 )}
                 {dispatchHistory.length > 0 && (
                   <div className="mt-1.5 flex flex-col gap-0.5">
@@ -798,7 +941,12 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                   </button>
                   <button
                     onClick={handleComposerSend}
-                    disabled={!draft.trim() || sending || dispatching || provisioningWorker || (needsOnlineWorker && (!selectedWorkerId || selectedWorkerUnusable))}
+                    // Track 1113 Phase 2 (TC-5): a `run:<lane>` submission no
+                    // longer requires draft text — this is what lets the
+                    // composer cover the removed header button's case
+                    // ("just re-run this stage, nothing to say"). Every
+                    // other mode still requires a non-empty message.
+                    disabled={(!sendMode.startsWith('run:') && !draft.trim()) || sending || dispatching || provisioningWorker || (needsOnlineWorker && (!selectedWorkerId || selectedWorkerUnusable))}
                     title={SEND_MODE_HELP[sendMode]}
                     className={`ml-auto px-4 py-2 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-medium shadow-lg transition-all flex items-center gap-1.5 ${sendMode.startsWith('run:')
                       ? 'bg-emerald-700 hover:bg-emerald-600 shadow-emerald-900/20'
