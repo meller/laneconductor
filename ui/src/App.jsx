@@ -9,6 +9,9 @@ import { ConductorPanel } from './components/ConductorPanel.jsx';
 import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
 import { NewProjectModal } from './components/NewProjectModal.jsx';
+import { ProjectsPage } from './components/ProjectsPage.jsx';
+import { RenameProjectModal } from './components/RenameProjectModal.jsx';
+import { DeleteProjectModal } from './components/DeleteProjectModal.jsx';
 import { WorkersList } from './components/WorkersList.jsx';
 import { WorktreesPanel } from './components/WorktreesPanel.jsx';
 import { CICDView } from './components/CICDView.jsx';
@@ -94,9 +97,11 @@ function AppContent({ user, logout }) {
   const [newTrackOpen, setNewTrackOpen] = useState(false);
   const [newTrackType, setNewTrackType] = useState('feature');
   const [newProjectOpen, setNewProjectOpen] = useState(false); // Track 1091 Phase 4
+  const [renameTarget, setRenameTarget] = useState(null); // Track 10014
+  const [deleteTarget, setDeleteTarget] = useState(null); // Track 10014
   const [managerWorkers, setManagerWorkers] = useState([]);
   const [knownHostnames, setKnownHostnames] = useState([]);
-  const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers' | 'cicd'
+  const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers' | 'cicd' | 'projects'
   const [inboxOpen, setInboxOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false); // Track 1087 Phase 5: worker activity latch
   const [accountOpen, setAccountOpen] = useState(false);
@@ -209,6 +214,16 @@ function AppContent({ user, logout }) {
     }
   }
 
+  function handleProjectDeleted(deletedProjectId) {
+    // Track 10014 Phase 4 Task 3: avoid landing on a Lanes view for a
+    // project that no longer exists.
+    if (deletedProjectId === selectedProjectId) {
+      setSelectedProjectId(null);
+      setViewMode('projects');
+    }
+    refetch();
+  }
+
   async function handleMarkPublished(track) {
     const pid = track.project_id ?? selectedProjectId;
     try {
@@ -269,6 +284,18 @@ function AppContent({ user, logout }) {
         <div className="flex items-center gap-4">
           {(selectedProject || projects.length > 0) && (
             <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5">
+              {/* Track 10014: unlike Lanes/Workers/CI/CD/Worktrees, Projects
+                  is how you PICK a project in the first place, so it must
+                  never be gated behind selectedProjectId. */}
+              <button
+                onClick={() => setViewMode('projects')}
+                className={`text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-md transition-all ${viewMode === 'projects'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
+                  }`}
+              >
+                Projects
+              </button>
               <button
                 onClick={() => setViewMode('lanes')}
                 className={`text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-md transition-all ${viewMode === 'lanes'
@@ -498,6 +525,17 @@ function AppContent({ user, logout }) {
               <code className="px-1 bg-gray-800 rounded">make lc-ui-start</code>
             </p>
           </div>
+        ) : viewMode === 'projects' ? (
+          <ProjectsPage
+            projects={projects}
+            tracks={tracks}
+            workers={workers}
+            onOpen={p => { setSelectedProjectId(p.id); setViewMode('lanes'); }}
+            onManageContext={p => { setSelectedProjectId(p.id); setConductorOpen(true); setViewMode('lanes'); }}
+            onRename={p => setRenameTarget(p)}
+            onDelete={p => setDeleteTarget(p)}
+            onNewProject={openNewProject}
+          />
         ) : viewMode === 'workers' ? (
           <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
         ) : viewMode === 'cicd' ? (
@@ -604,6 +642,22 @@ function AppContent({ user, logout }) {
           knownHostnames={knownHostnames}
           onClose={() => setNewProjectOpen(false)}
           onCreated={refetch}
+        />
+      )}
+
+      {/* Rename / Delete project modals (Track 10014) */}
+      {renameTarget && (
+        <RenameProjectModal
+          project={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onRenamed={refetch}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteProjectModal
+          project={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={handleProjectDeleted}
         />
       )}
 
