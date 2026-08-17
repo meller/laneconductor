@@ -1,6 +1,6 @@
 # Track 10015: Worktree dispatch reliability — refresh-worktrees bug + duplicate worker process race
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Phase 1 (refresh-worktrees fix) complete. Phase 2 (duplicate worker process race) superseded — same incident independently fixed same-day by track 1084 Phase 8, no separate work needed here.
