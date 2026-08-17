@@ -5582,13 +5582,18 @@ async function checkDispatchInbox() {
           : `Project "${projectName}" has no known path, and this manager has no projects directory configured — restart it with \`lc worker start --manager --projects-dir <path>\`.`;
       } else {
         try {
-          const { stdout } = await execAsync(`lc worker start --worker-number ${workerNumber}`, {
+          const cli = entry.payload?.cli;
+          const model = entry.payload?.model;
+          let cmd = `lc worker start --worker-number ${workerNumber}`;
+          if (cli) cmd += ` --cli ${cli}`;
+          if (model) cmd += ` --model ${model}`;
+          const { stdout } = await execAsync(cmd, {
             cwd: projectPath,
             timeout: 60_000,
             encoding: 'utf8',
           });
           status = 'done';
-          result = `Started worker #${workerNumber} for "${projectName}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
+          result = `Started worker #${workerNumber} for "${projectName}" with CLI "${cli || 'default'}" and Model "${model || 'default'}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
         } catch (err) {
           status = 'failed';
           const stderr = (err.stderr || '').trim();
