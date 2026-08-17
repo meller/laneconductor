@@ -15,6 +15,7 @@
 import { readFileSync, existsSync, rmSync } from 'fs';
 import { execSync } from 'child_process';
 import { join } from 'path';
+import { resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 
 const trackNumber = process.argv[2];
 
@@ -26,7 +27,8 @@ if (!trackNumber) {
 const cwd = process.cwd();
 const lockDir = join(cwd, '.conductor', 'locks');
 const lockFile = join(lockDir, `${trackNumber}.lock`);
-const worktreePath = join(cwd, '.worktrees', `${trackNumber}`);
+// Worktrees live under the PRIMARY checkout, not cwd — see lock.mjs.
+const worktreePath = join(resolvePrimaryRepoRoot(cwd), '.worktrees', `${trackNumber}`);
 
 const results = {
   unlocked: true,

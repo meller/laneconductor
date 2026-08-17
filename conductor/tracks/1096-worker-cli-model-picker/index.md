@@ -1,7 +1,7 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
 **Lane**: plan
-**Lane Status**: success
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Planning in progress
 **Type**: dev

@@ -63,8 +63,27 @@ export function useWebSocket(onMessage) {
   useEffect(() => {
     connect();
     return () => {
-      if (socketRef.current) socketRef.current.close();
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      // Detach handlers before closing: this is an intentional cleanup-close
+      // (React 18 StrictMode double-invokes this effect in dev — mount,
+      // cleanup, mount again — so it fires on every page load, not just on
+      // real unmount). Without this, the closed socket's own onclose still
+      // fires async, schedules a "reconnect" for a connection nothing wants
+      // back, and calls setConnected(false)/setConnected(true) out of band
+      // with the real (second) connection — a zombie reconnect chain that
+      // keeps flipping `connected` forever, independent of actual network
+      // state. Found live: this flapping was retriggering usePolling's
+      // fetch-abort-refetch effect fast enough that the tracks fetch never
+      // completed, leaving the board stuck on "Connecting to LaneConductor
+      // DB…".
+      if (socketRef.current) {
+        socketRef.current.onclose = null;
+        socketRef.current.onerror = null;
+        socketRef.current.onopen = null;
+        socketRef.current.onmessage = null;
+        socketRef.current.close();
+        socketRef.current = null;
+      }
     };
   }, []);
 

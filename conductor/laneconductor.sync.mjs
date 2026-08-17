@@ -13,6 +13,7 @@ import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
+import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from './providers.mjs';
 import {
   readJiraConfig,
   pollJira,
@@ -41,11 +42,13 @@ import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
-import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
+import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
 import { shouldWriteForceDoneMarker, applyDoneSuccessMarkers } from './services/force-merge-marker.mjs';
+import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
+import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
-import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
+import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -141,6 +144,21 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
 // tracks may I claim" during auto-launch. Null until the first successful
 // registration (e.g. local-fs mode, where there's no DB/registration at all).
 let myWorkerId = null;
+let hasReconciledOrphanedDispatches = false;
+
+// Track 1084 Phase 8 (2026-08-17 incident): heartbeat and dispatch-polling
+// turned out to have fully independent success conditions.
+// updateWorkerHeartbeat() upserts by (hostname, project_id, worker_number)
+// server-side and never reads myWorkerId at all; checkDispatchInbox()
+// silently no-ops on every single cycle — no log line, no error — for as
+// long as myWorkerId stays null. A worker whose /worker/register call
+// never resolved (observed live: two processes racing to register under
+// the same identity after a duplicate start) therefore looked completely
+// healthy — idle, heartbeating on schedule, visible in the UI — while
+// never serving a single dispatch, discovered only because a track
+// visibly got stuck in `queue` with no explanation anywhere.
+const workerStartedAt = Date.now();
+let workerIdResolvedLoggedStale = false;
 
 if (existsSync('.env')) {
   for (const line of readFileSync('.env', 'utf8').split('\n')) {
@@ -189,6 +207,22 @@ if (existsSync('.laneconductor.json')) {
 } else {
   const p = config.project.primary;
   console.log(`[config] .laneconductor.json not found, using mode "${config.mode}" with ${p.cli}${p.model ? '/' + p.model : ' (default model)'}`);
+}
+
+// Track 10011: --cli/--model let a single `lc start` invocation run a
+// different provider than the project's configured default — this worker
+// instance's own choice, not a change to the project default, so it's
+// applied in-memory only and never written back to .laneconductor.json.
+const cliArgIdx = process.argv.indexOf('--cli');
+const cliOverride = cliArgIdx !== -1 ? normalizeProviderId(process.argv[cliArgIdx + 1]) : null;
+const modelArgIdx = process.argv.indexOf('--model');
+const modelOverride = modelArgIdx !== -1 ? process.argv[modelArgIdx + 1] : null;
+if (cliOverride || modelOverride) {
+  config.project.primary = {
+    ...config.project.primary,
+    ...(cliOverride ? { cli: cliOverride } : {}),
+    ...(modelOverride ? { model: modelOverride } : {}),
+  };
 }
 
 // Use current config values (re-evaluated on reload)
@@ -305,6 +339,9 @@ function looksLikeModelId(s) {
  * same amount every 30-minute refresh after that.
  */
 async function discoverAvailableModels(cli) {
+  // A legacy `.laneconductor.json` may still say 'agy' — normalize before
+  // dispatching so it discovers Antigravity's models, not nothing.
+  cli = normalizeProviderId(cli);
   const TIMEOUT_MS = 10_000;
   try {
     let stdout = '';
@@ -331,7 +368,7 @@ async function discoverAvailableModels(cli) {
 
       // Also support fetching Claude models from agy models if claude CLI command fails
       try {
-        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
         const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
         if (lines.length > 0) {
           const claudeFromAgy = lines.map(l => {
@@ -344,47 +381,38 @@ async function discoverAvailableModels(cli) {
         }
       } catch { /* ignore */ }
     } else if (cli === 'gemini') {
+      // Try direct gemini CLI command first
       try {
-        // Prefer agy models since we use agy/antigravity for gemini on this system
-        try {
-          ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
-          const lines = stdout.split('\n')
-            .map(l => l.trim())
-            .filter(Boolean);
-          if (lines.length > 0) {
-            return lines.map(l => {
-              const tokens = l.split(/\s+/);
-              const id = tokens[0];
-              const label = tokens.slice(1).join(' ') || id;
-              return { id, label };
-            }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('gemini-'));
-          }
-        } catch { /* fall back to gemini command */ }
+        ({ stdout } = await execAsync(
+          'npx @google/gemini-cli -p "List the available Gemini model IDs as a plain newline-separated list, no commentary" 2>/dev/null',
+          { timeout: TIMEOUT_MS, encoding: 'utf8' }
+        ));
+        // Plain text: look for lines that are themselves a bare model id
+        // (not `.includes('gemini-')` — a conversational reply could
+        // easily contain that substring without being a model list).
+        const lines = stdout.split('\n')
+          .map(l => l.trim().split(/\s+/)[0])
+          .filter(id => looksLikeModelId(id) && id.startsWith('gemini-'));
+        if (lines.length > 0) return lines.map(id => ({ id, label: id }));
+      } catch { /* ignore and try fallback */ }
 
-        ({ stdout } = await execAsync('gemini models list 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
-        // Try to parse as JSON; otherwise extract model IDs from text lines
-        try {
-          const parsed = JSON.parse(stdout);
-          const models = Array.isArray(parsed) ? parsed : (parsed.models || []);
-          return models.map(m => {
-            const id = typeof m === 'string' ? m : (m.name || m.id || String(m));
-            // Strip 'models/' prefix if present
-            const cleanId = id.replace(/^models\//, '');
-            return { id: cleanId, label: cleanId };
-          }).filter(m => m.id);
-        } catch {
-          // Plain text: look for lines that are themselves a bare model id
-          // (not `.includes('gemini-')` — a conversational reply could
-          // easily contain that substring without being a model list).
-          const lines = stdout.split('\n')
-            .map(l => l.trim().split(/\s+/)[0])
-            .filter(id => looksLikeModelId(id) && id.startsWith('gemini-'));
-          if (lines.length > 0) return lines.map(id => ({ id, label: id }));
-        }
-      } catch { /* not available */ }
-    } else if (cli === 'antigravity' || cli === 'agy') {
+      // Also support fetching Gemini models from agy models if gemini CLI command fails
       try {
-        ({ stdout } = await execAsync('agy models 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
+        const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length > 0) {
+          const geminiFromAgy = lines.map(l => {
+            const tokens = l.split(/\s+/);
+            const id = tokens[0];
+            const label = tokens.slice(1).join(' ') || id;
+            return { id, label };
+          }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('gemini-'));
+          if (geminiFromAgy.length > 0) return geminiFromAgy;
+        }
+      } catch { /* ignore */ }
+    } else if (cli === 'antigravity') {
+      try {
+        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
         try {
           const parsed = JSON.parse(stdout);
           const models = Array.isArray(parsed) ? parsed : (parsed.models || []);
@@ -413,35 +441,11 @@ async function discoverAvailableModels(cli) {
 }
 
 async function refreshModels() {
-  const clis = ['claude', 'gemini', 'antigravity'];
+  const clis = PROVIDER_IDS.filter(id => id !== 'copilot'); // no standard listing command for copilot
   const newCached = {};
   for (const cli of clis) {
     const discovered = (await discoverAvailableModels(cli)) || [];
-    const presets = {
-      claude: [
-        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 ✨' },
-        { id: 'claude-opus-5', label: 'Claude Opus 5' },
-        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-        { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-        { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
-        { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-        { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' }
-      ],
-      gemini: [
-        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro ✨' },
-        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-        { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-        { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
-      ],
-      antigravity: [
-        { id: 'auto', label: 'Auto (recommended)' },
-        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
-        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-        { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' }
-      ]
-    }[cli] || [];
+    const presets = PROVIDERS[cli]?.models || [];
 
     const combined = [...discovered];
     for (const preset of presets) {
@@ -910,6 +914,11 @@ async function upsertWorker() {
 
       if (res.id) myWorkerId = res.id;
 
+      if (!hasReconciledOrphanedDispatches && myWorkerId) {
+        hasReconciledOrphanedDispatches = true;
+        reconcileOrphanedDispatches().catch(err => console.error('[orphan-reconcile error]:', err.message));
+      }
+
       // Store the returned machine token for next beats — in this worker's
       // OWN store, never in the shared `.laneconductor.json`. Writing it to
       // the shared config is what made every worker of a project authenticate
@@ -1261,59 +1270,7 @@ function parseLaneStatus(content) {
 }
 
 function parseStatus(content, createQualityGate = false) {
-  // 1. Try explicit **Status** marker (high confidence)
-  const explicitStatus = content.match(/\*\*Status\*\*:\s*([a-z0-9-]+)/i);
-  if (explicitStatus) {
-    const s = explicitStatus[1].toLowerCase().trim();
-    if (LaneAliases[s]) return LaneAliases[s];
-    if (Object.values(Lanes).includes(s)) return s;
-    return s;
-  }
-
-  // 2. Try explicit **Lane** marker (high confidence)
-  const explicitLane = content.match(/\*\*Lane\*\*:\s*([a-z0-9-]+)/i);
-  if (explicitLane) {
-    const l = explicitLane[1].toLowerCase().trim();
-    if (LaneAliases[l]) return LaneAliases[l];
-    if (Object.values(Lanes).includes(l)) return l;
-    return l;
-  }
-
-  // 3. Heuristic matching (only if high-confidence markers weren't found)
-  // Use word boundaries to avoid matching "Implementation Plan" as "implement"
-  const explicitMarkers = [
-    { pattern: /\bquality-gate\b/i, status: Lanes.QUALITY_GATE },
-    { pattern: /\bdone\b/i, status: Lanes.DONE },
-    { pattern: /\bcompleted\b/i, status: Lanes.DONE },
-    { pattern: /\bsuccess\b/i, status: Lanes.DONE },
-    { pattern: /\bbacklog\b/i, status: Lanes.BACKLOG },
-    { pattern: /\bimplement\b(?!ation)/i, status: Lanes.IMPLEMENT },
-    { pattern: /\bplan(?:ning)?\b/i, status: Lanes.PLAN },
-    { pattern: /\breview\b/i, status: Lanes.REVIEW },
-  ];
-  for (const m of explicitMarkers) {
-    if (m.pattern.test(content)) return m.status;
-  }
-  const emojiMarkers = [
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*✅\s*DONE/im, status: 'done' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*✅\s*REVIEWED/im, status: createQualityGate ? 'quality-gate' : 'done' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*⏳\s*IMPLEMENT/im, status: 'implement' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*⏳\s*IN[ _]?PROGRESS/im, status: 'implement' },
-
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*🔄\s*BLOCKED/im, status: 'review' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*⚠️\s*PARTIAL/im, status: 'review' },
-    { pattern: /(?:#+|status:?|[\*]*status[\*]*:?)\s*✅\s*COMPLETE/im, status: 'review', checkTasks: true },
-  ];
-  let bestMatch = null, lastIndex = -1;
-  for (const m of emojiMarkers) {
-    const match = m.pattern.exec(content);
-    if (match && match.index > lastIndex) {
-      if (m.checkTasks && /- \[ \]/.test(content)) continue;
-      lastIndex = match.index;
-      bestMatch = m.status;
-    }
-  }
-  return bestMatch;
+  return parseStatusPure(content, Lanes, LaneAliases, createQualityGate);
 }
 
 // Marker-only readers — return null when the field's own explicit marker is
@@ -2493,7 +2450,7 @@ setInterval(pullTracksMetadataFromDB, 5000);
 
 // ── Heartbeat intervals ───────────────────────────────────────────────────────
 
-setInterval(() => updateWorkerHeartbeat(), 10000);
+setInterval(() => updateWorkerHeartbeat(), Number(process.env.LC_HEARTBEAT_INTERVAL_MS) || 10000);
 
 setInterval(async () => {
   try {
@@ -3387,18 +3344,26 @@ async function checkAndClaimGitLock(trackNumber) {
 // conductor/services/worktree-merge.mjs can reuse the identical check
 // without importing this file (which has setInterval/chokidar side effects
 // at module load).
-function validatePathIsolation(trackNumber, proposedPath) {
-  return sharedValidatePathIsolation(trackNumber, proposedPath, process.cwd());
+function validatePathIsolation(trackNumber, proposedPath, projectRoot) {
+  return sharedValidatePathIsolation(trackNumber, proposedPath, projectRoot ?? process.cwd());
 }
 
 async function createWorktree(trackNumber) {
-  const worktreePath = join(process.cwd(), '.worktrees', `${trackNumber}`);
-  const parentDir = join(process.cwd(), '.worktrees');
+  // Resolve the PRIMARY checkout, not just process.cwd() — a worker's cwd
+  // can itself be inside a linked worktree (e.g. running track 1112's own
+  // work from .worktrees/1112). Building the path off cwd directly nests
+  // the new worktree inside the current one (.worktrees/1112/.worktrees/9998)
+  // instead of the repo root's .worktrees/9998. Once the parent worktree is
+  // later removed, the nested one is orphaned: prunable, detached HEAD,
+  // reappearing on every worktree scan. See conductor/tests/track-1112-worktree-audit.test.mjs:172.
+  const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+  const worktreePath = join(repoRoot, '.worktrees', `${trackNumber}`);
+  const parentDir = join(repoRoot, '.worktrees');
   const lifecycle = getWorktreeLifecycle();
 
   try {
     // Validate path isolation before proceeding
-    validatePathIsolation(trackNumber, worktreePath);
+    validatePathIsolation(trackNumber, worktreePath, repoRoot);
     // Ensure parent directory exists
     if (!existsSync(parentDir)) {
       mkdirSync(parentDir, { recursive: true });
@@ -3464,7 +3429,7 @@ async function createWorktree(trackNumber) {
     // file_sync_queue.md is written by API/humans but never committed — copy so planning agents see it
     const configs = ['.laneconductor.json', 'conductor/workflow.json', 'conductor/tracks/file_sync_queue.md'];
     for (const cfg of configs) {
-      const src = join(process.cwd(), cfg);
+      const src = join(repoRoot, cfg);
       const dest = join(worktreePath, cfg);
       if (existsSync(src)) {
         try {
@@ -3477,7 +3442,7 @@ async function createWorktree(trackNumber) {
     }
 
     // Copy .claude directory for skills
-    const claudeSrc = join(process.cwd(), '.claude');
+    const claudeSrc = join(repoRoot, '.claude');
     const claudeDest = join(worktreePath, '.claude');
     if (existsSync(claudeSrc)) {
       try {
@@ -3521,7 +3486,8 @@ async function releaseGitLock(trackNumber) {
 }
 
 async function removeWorktree(trackNumber) {
-  const worktreePath = join(process.cwd(), '.worktrees', `${trackNumber}`);
+  const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+  const worktreePath = join(repoRoot, '.worktrees', `${trackNumber}`);
 
   try {
     if (!existsSync(worktreePath)) {
@@ -3938,8 +3904,24 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     };
 
     // Phase 5: Update Lane Status in files and commit (always execute)
+    //
+    // Track 1102 F9: this block used to READ from `process.cwd()` (the
+    // PRIMARY checkout) but WRITE the result to `worktreePath ||
+    // process.cwd()` below — an asymmetric read/write location. By this
+    // point in a worktree run, the agent's own edits exist ONLY in the
+    // worktree; the primary checkout is stale. Reading primary's stale
+    // content, regex-patching just a few markers into it, and writing
+    // that hybrid BACK INTO THE WORKTREE clobbered the agent's actual
+    // finished work before the later worktree→primary copy-back step
+    // ever ran — so copy-back faithfully propagated the clobbered
+    // (stale body + patched markers) version into primary, discarding
+    // real work with no error anywhere. Confirmed live via
+    // conductor/tests/track-1102-f9-index-producer.test.mjs before this
+    // fix (a distinguishing marker written into the worktree's index.md
+    // was completely gone from primary's copy after the run). Reading
+    // from the same location this block writes to fixes it.
     try {
-      const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+      const tracksDir = join(worktreePath || process.cwd(), 'conductor', 'tracks');
       const trackDir = resolveTrackFolder(tracksDir, trackNumber);
       if (trackDir) {
         const indexPath = join(tracksDir, trackDir, 'index.md');
@@ -4105,87 +4087,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
       try {
         // ── Copy artifacts from worktree → main repo before cleanup ──────────
+        // Track 1112/1110 Phase 6: shared with the startup reconciliation
+        // pass — see copyWorktreeArtifactsToPrimary() in worktree-artifact-merge.mjs.
         if (worktreePath && existsSync(worktreePath)) {
-          const mainTracksDir = join(process.cwd(), 'conductor', 'tracks');
-          const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
-          const wtTrackDir = existsSync(wtTracksDir)
-            ? resolveTrackFolder(wtTracksDir, trackNumber)
-            : null;
-          if (wtTrackDir) {
-            mkdirSync(mainTracksDir, { recursive: true });
-            // Use the worktree dir name (preserves the slug created by the agent)
-            let mainTrackDir = existsSync(mainTracksDir)
-              ? resolveTrackFolder(mainTracksDir, trackNumber)
-              : null;
-            if (!mainTrackDir) {
-              // Planning agent created the dir inside the worktree — copy whole dir to main
-              mainTrackDir = wtTrackDir;
-              mkdirSync(join(mainTracksDir, mainTrackDir), { recursive: true });
-              console.log(`[worktree] Created track dir in main repo: ${mainTrackDir}`);
-            }
-            const destDir = join(mainTracksDir, mainTrackDir);
-            // For index.md: merge status markers into existing file (not full replace)
-            // For plan.md, spec.md, conversation.md, quality-gate.md: full replace is fine
-            const mergeOnlyArtifacts = new Set(['index.md']);
-            const artifacts = ['index.md', 'plan.md', 'spec.md', 'test.md', 'conversation.md', 'quality-gate.md'];
-            const copied = [];
-            for (const file of artifacts) {
-              const src = join(wtTracksDir, wtTrackDir, file);
-              const dest = join(destDir, file);
-              if (!existsSync(src)) continue;
-              if (mergeOnlyArtifacts.has(file) && existsSync(dest)) {
-                // Extract status markers from worktree artifact and apply onto existing file
-                const artifact = readFileSync(src, 'utf8');
-                // Track 1112 dogfood incident (2026-08-14): Lane/Lane Status were
-                // previously excluded from this merge on the theory that "the exit
-                // handler always writes the correct values after this merge" — true
-                // only when there's no worktree (workDir === process.cwd() IS the
-                // primary checkout, so the exit handler's own write already lands
-                // here directly). When there IS a worktree, the exit handler writes
-                // Lane/Lane Status into the WORKTREE's copy only — this merge is the
-                // only thing that ever reaches the primary checkout for that track,
-                // so excluding them left the primary checkout frozen at its pre-run
-                // lane for the track's entire time in the worktree, only catching up
-                // at final done-merge. Found live: track 1112's review passed and
-                // moved to quality-gate in its worktree, but main kept showing review
-                // indefinitely. See mergeIndexMarkers() for the (now unit-tested)
-                // marker list and merge behavior.
-                let existing = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact);
-                // Safety guard: If worktree artifact is suspiciously small, don't overwrite.
-                const artifactStats = statSync(src);
-                const existingStats = statSync(dest);
-                const artifactContent = readFileSync(src, 'utf8');
-                const lineCount = artifactContent.split('\n').length;
-
-                // Suspicious if < 10 lines OR < 50% of existing OR < 500 bytes for markdown files
-                const isSuspicious = (lineCount < 10) || (artifactStats.size < existingStats.size * 0.5 && existingStats.size > 100);
-
-                if (isSuspicious && !isSuccess) {
-                  console.warn(`[worktree] Skipping index.md merge: worktree version is suspiciously small/short (${lineCount} lines, ${artifactStats.size}b) and action failed.`);
-                } else {
-                  writeFileSync(dest, existing, 'utf8');
-                }
-              } else {
-                // Safety guard for full-replace artifacts too (plan.md, spec.md, etc.)
-                const srcStats = statSync(src);
-                const destStats = existsSync(dest) ? statSync(dest) : { size: 0 };
-                const isSuspicious = srcStats.size < destStats.size * 0.5 && destStats.size > 200;
-
-                if (isSuspicious && !isSuccess) {
-                  console.warn(`[worktree] Skipping ${file} copy: worktree version is suspiciously small (${srcStats.size}b vs ${destStats.size}b) and action failed.`);
-                } else {
-                  copyFileSync(src, dest);
-                }
-              }
-              copied.push(file);
-            }
-            if (copied.length) {
-              console.log(`[worktree] Copied artifacts to main repo: ${copied.join(', ')}`);
-              // Trigger sync via normal syncTrack path (which includes title)
-              const indexPath = join(destDir, 'index.md');
-              if (existsSync(indexPath)) {
-                await syncTrack(indexPath).catch(e => console.warn(`[worktree] Failed to sync artifacts to DB: ${e.message}`));
-              }
+          const { copied, destDir } = copyWorktreeArtifactsToPrimary({
+            worktreePath, trackNumber, isSuccess, primaryRoot: process.cwd(), resolveTrackFolder,
+          });
+          if (copied.length) {
+            console.log(`[worktree] Copied artifacts to main repo: ${copied.join(', ')}`);
+            const indexPath = join(destDir, 'index.md');
+            if (existsSync(indexPath)) {
+              await syncTrack(indexPath).catch(e => console.warn(`[worktree] Failed to sync artifacts to DB: ${e.message}`));
             }
           }
         }
@@ -4339,9 +4251,16 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   const prompt = customPrompt || `/${skill} ${skillCommand} ${trackNumber}`;
 
   if (chosenCli === 'gemini') {
-    const args = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${contextMsg}${prompt}`];
+    // Track 1077 Phase 4: Gemini CLI is retired (Google no longer supports
+    // this tier for individual accounts — `npx @google/gemini-cli` fails
+    // every dispatch with IneligibleTierError, confirmed live against
+    // track 10014). Antigravity is the supported successor and is already
+    // what discoverAvailableModels() falls back to for gemini's model
+    // list; route actual execution there too. `chosenCli` stays 'gemini'
+    // in the returned tuple — only the spawned command changes.
+    const args = ['--dangerously-skip-permissions', '-p', `${contextMsg}${prompt}`];
     if (chosenModel) args.push('--model', chosenModel);
-    return ['npx', args, chosenCli, chosenModel || 'default', chosenTier];
+    return ['agy', args, chosenCli, chosenModel || 'default', chosenTier];
   }
   if (chosenCli === 'antigravity' || chosenCli === 'agy') {
     const args = ['--dangerously-skip-permissions', '-p', `${contextMsg}${prompt}`];
@@ -5021,6 +4940,84 @@ async function runCreateProject(entry) {
   return { ok: true, targetPath };
 }
 
+// Track 1110 Phase 6: runs once, right after this process's first
+// successful registration. Reconciles dispatches THIS worker claimed but
+// never reported an outcome for — the class of bug where the sync worker
+// process restarts while a dispatch's spawned CLI child is still running,
+// orphaning the in-memory `on('exit')` listener that would normally
+// finalize it. The child keeps running independently and finishes on its
+// own; nothing else ever notices. Detection reads the WORKTREE's own
+// index.md `**Lane Status**` marker (written by the agent doing the actual
+// lane work, independent of whether the wrapping exit-handler machinery
+// ever runs) rather than a specific commit shape — an earlier version of
+// this fix looked for the exit handler's own completion commit, which is
+// wrong: that commit is written BY the exit handler, the exact code that
+// never runs in this bug. Same semantics as reconcileActiveDispatch()'s
+// existing in-memory-only version of this idea, sourced from a
+// DB-persisted `claimed` dispatch instead of a Map that doesn't survive a
+// restart.
+async function reconcileOrphanedDispatches() {
+  if (getIsLocalFs() || !myWorkerId) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+
+  let entries;
+  try {
+    ({ entries } = await get(url, token, `/worker/${myWorkerId}/dispatch/claimed`));
+  } catch (err) {
+    console.warn(`[orphan-reconcile] Failed to fetch claimed dispatches: ${err.message}`);
+    return;
+  }
+  if (!entries || entries.length === 0) return;
+
+  for (const entry of entries) {
+    const trackNumber = entry.track_number;
+    if (!trackNumber) continue; // not track-scoped (e.g. refresh-worktrees) — nothing to reconcile from
+    const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
+    if (!existsSync(worktreePath)) continue; // no worktree left to check — genuinely nothing recoverable here
+
+    const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
+    const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
+    const wtIndexPath = wtTrackDir ? join(wtTracksDir, wtTrackDir, 'index.md') : null;
+    if (!wtIndexPath || !existsSync(wtIndexPath)) continue;
+
+    const wtIndexContent = readFileSync(wtIndexPath, 'utf8');
+    const laneStatus = wtIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
+    const wtLane = wtIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
+    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action });
+    if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
+
+    console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
+
+    // A lane/action mismatch means the worktree's markers belong to a
+    // phase EARLIER than the one this dispatch was for — copying/syncing
+    // them would regress the primary's already-more-advanced lane_status
+    // back to that stale snapshot (see classifyOrphanedDispatch's own
+    // comment). Only copy artifacts back when the worktree's own state
+    // genuinely reflects this dispatch's action having run.
+    if (!classification.skipArtifactCopy) {
+      const isSuccess = classification.status === 'done';
+      const { copied, destDir } = copyWorktreeArtifactsToPrimary({
+        worktreePath, trackNumber, isSuccess, primaryRoot: process.cwd(), resolveTrackFolder,
+      });
+      if (copied.length) {
+        console.log(`[orphan-reconcile] Copied artifacts to main repo: ${copied.join(', ')}`);
+        const indexPath = join(destDir, 'index.md');
+        if (existsSync(indexPath)) {
+          await syncTrack(indexPath).catch(e => console.warn(`[orphan-reconcile] Failed to sync artifacts to DB: ${e.message}`));
+        }
+      }
+    } else {
+      console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}"; leaving the primary's own state untouched`);
+    }
+
+    await patch(url, token, `/worker-dispatch/${entry.id}`, {
+      status: classification.status,
+      result: classification.result || `Reconciled after worker restart orphaned this dispatch — worktree's own Lane Status: "${laneStatus}"`,
+    }).catch(err => console.warn(`[orphan-reconcile] Failed to update dispatch ${entry.id}: ${err.message}`));
+  }
+}
+
 async function checkDispatchInbox() {
   if (getIsLocalFs() || !myWorkerId) return;
   const { url, token } = primaryCollector();
@@ -5275,6 +5272,113 @@ async function checkDispatchInbox() {
         status: result.removed ? 'done' : 'failed',
         result: resultText,
       }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report remove-worktree result'));
+      continue;
+    }
+
+    // Track 10015 Phase 1: refresh-worktrees is never track-scoped (the
+    // enqueue side, ui/server/index.mjs:3415, deliberately doesn't
+    // require a track_number for it) — but with no dedicated branch here
+    // it fell through to the generic "Lane action dispatch" fallback
+    // below, which unconditionally requires one and failed every single
+    // time with "missing track_number" (confirmed live: 7 consecutive
+    // real dispatches). Forces an immediate re-audit instead of waiting
+    // for refreshWorktreeSummaryCache()'s own 60s interval.
+    if (entry.action === 'refresh-worktrees') {
+      logger.info({ dispatchId: entry.id }, '[dispatch] refresh-worktrees');
+      updateWorkerHeartbeat('busy', `refresh-worktrees (dispatch ${entry.id})`);
+      let status, result;
+      try {
+        await refreshWorktreeSummaryCache();
+        status = 'done';
+        result = 'Worktree cache refreshed';
+      } catch (err) {
+        status = 'failed';
+        result = err.message;
+      }
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status, result })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report refresh-worktrees result'));
+      continue;
+    }
+
+    // Track 1114 Phase 15: "Discard" — a track whose worktree is never
+    // going to be merged (a product decision changed, e.g. dropping a
+    // PayPal-integration track after moving to a different provider).
+    // Removes the worktree exactly like Remove Worktree (branch/commits
+    // stay recoverable) and moves the track's Lane to `backlog` with an
+    // explicit note, so the board stops showing it as active work
+    // awaiting its turn. Deliberately NEVER writes done:success — that
+    // would misrepresent abandoned work as shipped and risk being merged
+    // by something else (Complete & Merge, Force Merge) later.
+    if (entry.action === 'discard-track') {
+      const trackNumber = entry.payload?.track_number;
+      const reason = (entry.payload?.reason && String(entry.payload.reason).trim()) || 'Discarded via Worktrees panel — not merging.';
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] discard-track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `discard-track ${trackNumber} (dispatch ${entry.id})`);
+
+      const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+      let result;
+      try {
+        const rows = await auditWorktrees({ repoRoot, mainBranch: getMainBranch() });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+
+        let removedWorktree = false;
+        if (row?.hasWorktree && row.worktreePath) {
+          gitExec(`git worktree remove --force "${row.worktreePath}"`, repoRoot);
+          removedWorktree = true;
+        }
+
+        const tracksDir = join(repoRoot, 'conductor', 'tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (!trackDirName) {
+          result = { discarded: false, reason: 'track-not-found' };
+        } else {
+          const indexPath = join(tracksDir, trackDirName, 'index.md');
+          const content = readFileSync(indexPath, 'utf8');
+          const updateHeader = (c, h, v) => {
+            const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+            return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+          };
+          let updated = updateHeader(content, 'Lane', 'backlog');
+          updated = updateHeader(updated, 'Lane Status', 'queue');
+          updated = updateHeader(updated, 'Summary', reason);
+          writeFileSync(indexPath, updated, 'utf8');
+          gitExec(`git add "${indexPath}"`, repoRoot);
+          gitExec(`git commit -m "Track ${trackNumber}: discarded (${reason})" --quiet`, repoRoot);
+
+          await patch(url, token, `/track/${trackNumber}/action`, {
+            project_id: (getProject())?.id, lane_status: 'backlog', lane_action_status: 'queue',
+          }).catch(err => logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, '[dispatch] discard-track: failed to sync backlog lane to DB'));
+
+          result = { discarded: true, removedWorktree, branch: row?.branch ?? `track-${trackNumber}` };
+        }
+      } catch (err) {
+        result = { discarded: false, reason: 'error', error: err.message };
+      }
+      updateWorkerHeartbeat('idle', null);
+
+      const resultText = result.discarded
+        ? `Discarded track ${trackNumber}${result.removedWorktree ? ' (worktree removed, branch kept)' : ' (no live worktree)'} — moved to backlog, not merged`
+        : `Not discarded: ${result.reason}${result.error ? `: ${result.error}` : ''}`;
+
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.discarded ? 'done' : 'failed',
+        result: resultText,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report discard-track result'));
+
+      try {
+        const tracksDir = join(repoRoot, 'conductor', 'tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (trackDirName) {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+        }
+      } catch (err) {
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post discard-track conversation comment');
+      }
       continue;
     }
 
@@ -5549,13 +5653,18 @@ async function checkDispatchInbox() {
           : `Project "${projectName}" has no known path, and this manager has no projects directory configured — restart it with \`lc worker start --manager --projects-dir <path>\`.`;
       } else {
         try {
-          const { stdout } = await execAsync(`lc worker start --worker-number ${workerNumber}`, {
+          const cli = entry.payload?.cli;
+          const model = entry.payload?.model;
+          let cmd = `lc worker start --worker-number ${workerNumber}`;
+          if (cli) cmd += ` --cli ${cli}`;
+          if (model) cmd += ` --model ${model}`;
+          const { stdout } = await execAsync(cmd, {
             cwd: projectPath,
             timeout: 60_000,
             encoding: 'utf8',
           });
           status = 'done';
-          result = `Started worker #${workerNumber} for "${projectName}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
+          result = `Started worker #${workerNumber} for "${projectName}" with CLI "${cli || 'default'}" and Model "${model || 'default'}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
         } catch (err) {
           status = 'failed';
           const stderr = (err.stderr || '').trim();
@@ -5587,6 +5696,8 @@ async function checkDispatchInbox() {
     const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
     const lane_status = laneMatch?.[1]?.trim();
     const laneConfig = workflowConfig?.lanes?.[lane_status] ?? {};
+    const laneStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+    const originalLaneActionStatus = laneStatusMatch?.[1]?.trim() || 'queue';
 
     const cliArgs = await buildCliArgs('laneconductor', entry.action, trackNumber, null, laneConfig);
     if (!cliArgs) {
@@ -5603,9 +5714,26 @@ async function checkDispatchInbox() {
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
 
     const proj = getProject();
-    const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
-    console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
-    activeDispatch.set(trackNumber, entry.id);
+    try {
+      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
+      console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
+      activeDispatch.set(trackNumber, entry.id);
+    } catch (err) {
+      // Track 1102 F8: every other dispatch handler (chat, deploy,
+      // create-project, provision-worker) wraps its work and reports
+      // status: 'failed' with the real error; this branch didn't — a
+      // spawnCli failure (git-lock contention, worktree setup, etc.) left
+      // the dispatch permanently 'claimed' and the Lane Status marker
+      // stuck on the 'running' just written above, with nothing to ever
+      // revert either. Report failure the same way the others do, and put
+      // the file/DB status back to what it was before this attempt.
+      logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, `[dispatch] spawnCli failed for ${entry.action}`);
+      writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: err.message })
+        .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
+      await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: originalLaneActionStatus, lane_action_result: err.message })
+        .catch(e => logger.warn({ trackNumber, err: e.message }, '[dispatch] Failed to reset track lane_action_status after spawn failure'));
+    }
   }
 }
 
@@ -5660,6 +5788,28 @@ setInterval(() => {
 setInterval(() => {
   reconcileAutoComplete().catch(err => console.error('[auto-complete-reconcile error]:', err.message));
 }, 5000);
+
+// Track 1084 Phase 8 (2026-08-17 incident, see the comment above
+// workerStartedAt): heartbeat gives zero signal that dispatch-polling is
+// silently dead, so check for that specific condition directly instead of
+// inferring it from symptoms elsewhere. 90s is comfortably past a normal
+// registration round-trip (well under 5s in practice) plus retry — a
+// worker that's still unregistered at that point has a real, ongoing
+// problem, not a slow start.
+// Test-only overrides (LC_WORKER_ID_STALE_GRACE_MS / LC_WORKER_ID_WATCHDOG_MS)
+// — same reasoning as LC_DISPATCH_POLL_MS above: a test asserting this
+// watchdog fires shouldn't have to wait out 90s+60s of real time.
+const WORKER_ID_STALE_GRACE_MS = Number(process.env.LC_WORKER_ID_STALE_GRACE_MS) || 90000;
+setInterval(() => {
+  if (getIsLocalFs() || myWorkerId) return;
+  const ageMs = Date.now() - workerStartedAt;
+  if (ageMs < WORKER_ID_STALE_GRACE_MS) return;
+  if (!workerIdResolvedLoggedStale) {
+    workerIdResolvedLoggedStale = true;
+    console.error(`[health] No worker id resolved ${Math.round(ageMs / 1000)}s after startup — dispatch-polling has been silently no-oping this entire time (heartbeat does NOT depend on this and looks completely healthy in the meantime). Retrying registration now; will keep retrying until it succeeds.`);
+  }
+  upsertWorker().catch(err => console.error('[health] Retry registration failed:', err.message));
+}, Number(process.env.LC_WORKER_ID_WATCHDOG_MS) || 60000);
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;

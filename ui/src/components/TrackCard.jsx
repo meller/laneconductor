@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
+import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -123,17 +124,23 @@ function AssigneeWorkerStatusBadge({ status }) {
 
 // ── Agent badge ───────────────────────────────────────────────────────────────
 
-const AGENT_LABELS = {
-  claude: { label: 'Claude', color: 'bg-orange-900 text-orange-300' },
-  gemini: { label: 'Gemini', color: 'bg-blue-900 text-blue-300' },
-  other: { label: 'AI', color: 'bg-gray-800 text-gray-400' },
+// Color per provider is a presentation detail, not registry data — label
+// and icon come from the shared registry so Copilot/Antigravity get a real
+// badge instead of falling through to the generic "AI" label.
+const AGENT_COLORS = {
+  claude: 'bg-orange-900 text-orange-300',
+  gemini: 'bg-blue-900 text-blue-300',
+  copilot: 'bg-emerald-900 text-emerald-300',
+  antigravity: 'bg-purple-900 text-purple-300',
 };
+const AGENT_FALLBACK_COLOR = 'bg-gray-800 text-gray-400';
 
 function AgentBadge({ agent }) {
-  const style = AGENT_LABELS[agent] ?? AGENT_LABELS.other;
+  const id = normalizeProviderId(agent);
+  const color = AGENT_COLORS[id] || AGENT_FALLBACK_COLOR;
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${style.color}`}>
-      {style.label}
+    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${color}`}>
+      {providerLabel(id)}
     </span>
   );
 }
@@ -243,6 +250,15 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
   const showNextBtn = nextLane && track.lane_status !== 'done';
   const nextBtnDisabled = track.lane_status === 'plan' && track.lane_action_status !== 'success';
+  // Track 1102 F2: the gating above is correct (don't let a plan-lane track
+  // advance until its plan actually succeeded) — only the tooltip was wrong,
+  // unconditionally claiming "in progress" for queue/failure states too,
+  // where nothing is running.
+  const nextBtnDisabledReason = track.lane_action_status === 'failure' || track.lane_action_status === 'failed'
+    ? 'Plan failed — fix and re-run before advancing'
+    : track.lane_action_status === 'running'
+      ? 'Plan in progress...'
+      : 'Plan is queued — run it before advancing';
 
   return (
     <div
@@ -481,7 +497,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                   ? 'border-gray-800 text-gray-600 bg-gray-950 cursor-not-allowed'
                   : 'border-blue-800/70 text-blue-400 hover:bg-blue-900/30'
                   }`}
-                title={nextBtnDisabled ? 'Plan in progress...' : `Move this card to the ${NEXT_LANE_LABEL[nextLane]} lane`}
+                title={nextBtnDisabled ? nextBtnDisabledReason : `Move this card to the ${NEXT_LANE_LABEL[nextLane]} lane`}
               >
                 →
               </button>
