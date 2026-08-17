@@ -60,4 +60,47 @@ what `lc setup` actually does today.
       4-option primary/secondary menus, `agy --version` reachability check, `agy` model-input
       fallback, `local-api` example JSON now shows `"agy"` as the example secondary.
 
+## Phase 4: Route actual gemini execution through agy (2026-08-17 reopen)
+
+**Problem**: Phases 1-3 deliberately left `runAIAgent`/`callLLMConversational`
+(`bin/lc.mjs`) and `buildCliArgs` (`conductor/laneconductor.sync.mjs`)
+untouched — their `cli === 'gemini'` branches still spawn
+`npx @google/gemini-cli`. Confirmed live against track 10014
+(2026-08-17, dispatch 674): every real dispatch to a gemini-configured
+worker fails in ~4s with `Error authenticating: IneligibleTierError: This
+client is no longer supported for Gemini Code Assist for individuals.`
+`PROVIDERS.gemini.retired = true` and `discoverAvailableModels()` already
+treat gemini-cli as dead and fall back to `agy`; execution never got the
+same treatment, so a "Gemini" worker can show correct model names (via
+track 10011's fix) but can never actually run anything.
+
+**Solution**: the `antigravity`/`agy` branch immediately beside each of
+these already builds working `agy` args from the same `model`/`prompt`
+inputs — reuse that shape for the `gemini` branch instead of the dead
+`npx` invocation, in all three spots. Not deleting the `gemini` case
+entirely (keeps `cli: 'gemini'` a valid, recognized value in
+`.laneconductor.json`/DB for backward compat — old configs, DB rows, and
+providers.mjs's alias handling all still say `'gemini'`) — just changing
+what it dispatches to under the hood.
+
+- [x] `conductor/laneconductor.sync.mjs` `buildCliArgs()` (~line 4236):
+      `chosenCli === 'gemini'` now builds the same `agy` args as the
+      `antigravity`/`agy` branch (`['--dangerously-skip-permissions', '-p', ...]`),
+      returns `['agy', args, chosenCli, ...]` — `chosenCli` itself stays
+      `'gemini'` in the returned tuple (used elsewhere for
+      labeling/model-lookup), only the spawned command/args change.
+- [x] `bin/lc.mjs` `callLLMConversational()` (~line 278): same substitution
+      — `cmd = 'agy'`, `cmdArgs` built the antigravity way.
+- [x] `bin/lc.mjs` `runAIAgent()` (~line 350): same substitution, keeping
+      the existing `skillContext` prefix behavior (unlike the
+      `buildCliArgs`/`callLLMConversational` sites, this one prepends
+      `skillContext` — preserved as-is, only `cmd`/base `cmdArgs` change).
+- [x] Live-verified: re-dispatched implement on track 10014 (a real
+      gemini-configured worker) after the fix — ran without the
+      IneligibleTierError this time.
+
+**Impact**: a `cli: 'gemini'` worker actually executes real work now,
+routed through the only Gemini access path that still works on Google's
+current tier structure — closing the gap Phases 1-3 explicitly deferred.
+
 ## ✅ COMPLETE

@@ -276,8 +276,10 @@ async function callLLMConversational(cfg, prompt) {
 
     let cmd, cmdArgs;
     if (cli === 'gemini') {
-        cmd = 'npx';
-        cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', prompt];
+        // Track 1077 Phase 4: gemini-cli is retired — route through agy
+        // (Antigravity), the only Gemini access path that still works.
+        cmd = 'agy';
+        cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
         if (model) cmdArgs.push('--model', model);
     } else if (cli === 'antigravity' || cli === 'agy') {
         cmd = 'agy';
@@ -348,9 +350,10 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
             cmdArgs = ['--dangerously-skip-permissions', '-p', slashCmd];
             if (model) cmdArgs.push('--model', model);
         } else if (cli === 'gemini') {
-            cmd = 'npx';
-            // Prepend skill instructions directly to prompt for Gemini to avoid workspace/symlink restriction issues
-            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
+            // Track 1077 Phase 4: gemini-cli is retired — route through agy
+            // (Antigravity), the only Gemini access path that still works.
+            cmd = 'agy';
+            cmdArgs = ['--dangerously-skip-permissions', '-p', `${skillContext}${slashCmd}`];
             if (model) cmdArgs.push('--model', model);
         } else if (cli === 'antigravity' || cli === 'agy') {
             cmd = 'agy';
