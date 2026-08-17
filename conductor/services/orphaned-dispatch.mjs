@@ -17,9 +17,29 @@
 // existing in-memory-only version of the same idea (laneconductor.sync.mjs)
 // — same semantics, just sourced from a DB-persisted `claimed` dispatch
 // instead of a Map that doesn't survive a restart.
-export function classifyOrphanedDispatch({ laneStatus }) {
+export function classifyOrphanedDispatch({ laneStatus, lane, action }) {
   const status = laneStatus?.trim();
   if (!status || status.toLowerCase() === 'running') return { orphaned: false };
+
+  // track 10014's own incident: the worktree's Lane Status can be a real,
+  // terminal-looking value (success/failure/queue) while still belonging
+  // to an EARLIER lane than the one this dispatch was actually for — a
+  // worker restart can orphan a dispatch before its own action ever wrote
+  // anything, leaving only the prior phase's markers on disk. Trusting
+  // that status as this dispatch's own outcome, and copying/syncing the
+  // worktree's index.md on the strength of it, silently regresses the
+  // primary's more-advanced lane_status back to the worktree's stale
+  // snapshot (main went implement:queue -> plan:success). Only compared
+  // when both are supplied, so existing call sites that don't pass them
+  // keep today's behavior unchanged.
+  if (action && lane && lane.trim().toLowerCase() !== action.trim().toLowerCase()) {
+    return {
+      orphaned: true,
+      status: 'failed',
+      skipArtifactCopy: true,
+      result: `Worker restart interrupted this before "${action}" made any recorded progress — worktree still shows lane "${lane}" (status "${status}"), not "${action}". Re-run the ${action} action.`,
+    };
+  }
 
   // Same ambiguity reconcileActiveDispatch() already lives with: a lane
   // with a configured on_success/on_failure transition can land on 'queue'
