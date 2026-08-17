@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: gemini/gemini-3.7-flash-medium (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Quality gate passed
 **Type**: dev
 **Summary**: Gemini CLI setup-time UX deprecated + runtime dispatch (buildCliArgs, runAIAgent, callLLMConversational) rerouted through agy — closes the gap Phases 1-3 deliberately left. Live-verified against track 10014; quality gate passed 2026-08-17.
