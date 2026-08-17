@@ -3903,8 +3903,24 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     };
 
     // Phase 5: Update Lane Status in files and commit (always execute)
+    //
+    // Track 1102 F9: this block used to READ from `process.cwd()` (the
+    // PRIMARY checkout) but WRITE the result to `worktreePath ||
+    // process.cwd()` below — an asymmetric read/write location. By this
+    // point in a worktree run, the agent's own edits exist ONLY in the
+    // worktree; the primary checkout is stale. Reading primary's stale
+    // content, regex-patching just a few markers into it, and writing
+    // that hybrid BACK INTO THE WORKTREE clobbered the agent's actual
+    // finished work before the later worktree→primary copy-back step
+    // ever ran — so copy-back faithfully propagated the clobbered
+    // (stale body + patched markers) version into primary, discarding
+    // real work with no error anywhere. Confirmed live via
+    // conductor/tests/track-1102-f9-index-producer.test.mjs before this
+    // fix (a distinguishing marker written into the worktree's index.md
+    // was completely gone from primary's copy after the run). Reading
+    // from the same location this block writes to fixes it.
     try {
-      const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+      const tracksDir = join(worktreePath || process.cwd(), 'conductor', 'tracks');
       const trackDir = resolveTrackFolder(tracksDir, trackNumber);
       if (trackDir) {
         const indexPath = join(tracksDir, trackDir, 'index.md');
@@ -4234,9 +4250,16 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   const prompt = customPrompt || `/${skill} ${skillCommand} ${trackNumber}`;
 
   if (chosenCli === 'gemini') {
-    const args = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${contextMsg}${prompt}`];
+    // Track 1077 Phase 4: Gemini CLI is retired (Google no longer supports
+    // this tier for individual accounts — `npx @google/gemini-cli` fails
+    // every dispatch with IneligibleTierError, confirmed live against
+    // track 10014). Antigravity is the supported successor and is already
+    // what discoverAvailableModels() falls back to for gemini's model
+    // list; route actual execution there too. `chosenCli` stays 'gemini'
+    // in the returned tuple — only the spawned command changes.
+    const args = ['--dangerously-skip-permissions', '-p', `${contextMsg}${prompt}`];
     if (chosenModel) args.push('--model', chosenModel);
-    return ['npx', args, chosenCli, chosenModel || 'default', chosenTier];
+    return ['agy', args, chosenCli, chosenModel || 'default', chosenTier];
   }
   if (chosenCli === 'antigravity' || chosenCli === 'agy') {
     const args = ['--dangerously-skip-permissions', '-p', `${contextMsg}${prompt}`];
