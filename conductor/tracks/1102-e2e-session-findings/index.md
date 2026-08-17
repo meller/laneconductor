@@ -234,7 +234,7 @@ a separate, smaller gap (the Activity panel has no way to show "running a
 lane action" as busy at all, success or failure) — worth its own
 follow-up, not fixed here.
 
-### F9 — Post-run merge/sync gutted index.md, losing the whole track body 🔴 CONFIRMED
+### F9 — Post-run merge/sync gutted index.md, losing the whole track body 🔴 CONFIRMED & PRODUCER FOUND + FIXED (unit-tested)
 Caught in the act during the first dogfooded UI-triggered plan run (track
 1104, dispatch 29):
 
@@ -277,6 +277,62 @@ from the file (fs newer). Whoever fixes this should start from the
 worker's post-dispatch index.md/DB update code and the worktree merge-back
 — one of them is regenerating index.md from row fields instead of
 preserving file content.
+
+**Producer found and fixed 2026-08-17**: `spawnCli()`'s exit handler
+("Phase 5: Update Lane Status in files and commit",
+`conductor/laneconductor.sync.mjs`, ~line 3905) READ from
+`join(process.cwd(), 'conductor', 'tracks', ...)` — the **primary**
+checkout — but WROTE the regex-patched result to
+`join(worktreePath || process.cwd(), ...)` — the **worktree** — a few
+lines later. By the time a lane action's exit handler runs, the agent's
+real work exists only in the worktree; the primary checkout is stale.
+Reading primary's stale content, patching only a few `**marker**` lines
+into it (Lane/Lane Status/Progress/Last Run — this block never touches
+body prose), and writing that hybrid *back into the worktree* silently
+clobbered the agent's actual finished work with everything else the
+worktree had (Problem, Solution, Meta, etc.) *before* the later
+worktree→primary copy-back step ever ran — so copy-back faithfully
+propagated the already-clobbered version into primary, with nothing
+anywhere logging that it happened. Confirmed live: reproduced with a
+real spawned worker, a real git worktree, and a distinguishing marker
+written directly into the worktree's `index.md` while the (mocked) CLI
+was still "running" — before the fix, the marker was completely gone
+from primary's copy after the run; after the fix, it survives intact.
+
+Fix: read from the same location this block writes to
+(`worktreePath || process.cwd()`), not unconditionally from
+`process.cwd()`. One line. Test:
+`conductor/tests/track-1102-f9-index-producer.test.mjs` — watched it
+fail (primary ends up with the stale pre-run body, agent's real work
+gone) before the fix, pass after. Full conductor suite re-run
+afterward: same 6 pre-existing flaky failures as before this change,
+no new ones.
+
+The F9 guard from 2026-08-12 stays in place as defense-in-depth (per
+this codebase's established pattern of layering a guard *and* fixing
+the producer, e.g. F7/F8) — multiple concurrent pushers can still exist,
+and the guard protects against any of them, not just this one.
+
+Note: while reproducing this, the primary's copy retained its *own*
+pre-run "Solution" paragraph rather than picking up the worktree's
+updated one — that's `mergeIndexMarkers()` (the separate copy-back
+step, `conductor/services/worktree-artifact-merge.mjs`) deliberately
+merging marker *values* from the worktree into primary while preserving
+primary's own body prose, not a bug this fix needs to address — F9's
+complaint was total body loss (title, every section, gone), which this
+fix resolves; which specific body version "wins" when both sides
+diverge is `mergeIndexMarkers`'s own, separately-designed behavior.
+
+Also noticed in the same function while fixing this, **not fixed here**
+(separate, smaller bug — flagging for its own follow-up): a few lines
+below Phase 5's write step, `execSync(... { cwd: workDir })` is called
+inside the `if (lastRunLog)` block (~line 4002) referencing `workDir`
+before it's declared (`const workDir = ...` is scoped to the *next*,
+sibling `if (updated)` block, ~line 4007) — a `ReferenceError` on every
+single run that has log output (i.e. nearly always), silently swallowed
+by that call's own empty `catch (e) {}`. Net effect: `last_run.log`
+never actually gets `git add`ed via this path (the file itself still
+gets written to disk first, just never staged here).
 
 ### F10 — Worker de-registration destroyed the row, cascading away all chat/dispatch history 🔴 CONFIRMED & FIXED
 Observed live during the dogfooded implement run: the worker vanished from
