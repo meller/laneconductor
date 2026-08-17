@@ -1,8 +1,9 @@
 # Track 1077: Migrate Gemini CLI support to Antigravity
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Phase 4 complete — live-verified
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Quality gate passed
 **Type**: dev
-**Summary**: Reopened (2026-08-17) to close the gap Phases 1-3 deliberately left: `buildCliArgs` (laneconductor.sync.mjs) and `bin/lc.mjs`'s `runAIAgent`/`callLLMConversational` all shelled out to the dead `npx…
+**Summary**: Gemini CLI setup-time UX deprecated + runtime dispatch (buildCliArgs, runAIAgent, callLLMConversational) rerouted through agy — closes the gap Phases 1-3 deliberately left. Live-verified against track 10014; quality gate passed 2026-08-17.
