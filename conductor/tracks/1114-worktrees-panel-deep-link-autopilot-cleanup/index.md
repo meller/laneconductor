@@ -2,7 +2,8 @@
 
 **Lane**: quality-gate
 **Lane Status**: queue
-**Progress**: 95%
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: All 15 phases complete, including Phase 7 (Tests) — the last remaining gap. Extracted the force-merge lane-write decision and the armed-confirm/pending-state UI logic into pure, unit-tested modules.
 **Type**: dev
 **Waiting for reply**: no
