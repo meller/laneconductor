@@ -12,5 +12,5 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Summary**: we are missing a project management page in which we can see all project (probably as cards), manage their context - kpi, product, techspec etc (i guess it will be api->db and sync to fs) and able…
