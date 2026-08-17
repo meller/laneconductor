@@ -3,6 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: gemini/gemini-3.7-flash-medium (primary)
 **Phase**: Phase 1 (refresh-worktrees fix) complete. Phase 2 (duplicate worker process race) superseded — same incident independently fixed same-day by track 1084 Phase 8, no separate work needed here.
 **Type**: bug
 **Summary**: Two issues found live while chasing a "can't delete worktree from the UI" report (2026-08-17): refresh-worktrees dispatches always fail with "missing track_number" (a real handler bug), and — the…
