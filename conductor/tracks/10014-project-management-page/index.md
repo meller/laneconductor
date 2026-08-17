@@ -1,6 +1,6 @@
 # Track 10014: Project management page
 
-**Status**: done
+**Status**: plan
 **Progress**: 100%
 **Last Run**: gemini/gemini-3.7-flash-medium (primary)
 
@@ -11,7 +11,7 @@ we are missing a project management page in which we can see all project (probab
 To be defined.
 
 ## Phases
-- [x] Phase 1: Implementation
+- [ ] Phase 1: Implementation
 **Lane**: done
 **Lane Status**: success
 **Summary**: we are missing a project management page in which we can see all project (probably as cards), manage their context - kpi, product, techspec etc (i guess it will be api->db and sync to fs) and able…
