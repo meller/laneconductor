@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
 import { WorkflowGraph } from '../components/WorkflowGraph.jsx';
 import { useApi } from '../hooks/useApi';
-import { PROVIDERS, PROVIDER_IDS } from '../../../conductor/providers.mjs';
-import { getDefaultProviderModel } from '../lib/defaultModel.js';
-import { modelsForProvider, guessProviderForModel } from '../lib/modelOptions.js';
 
-export function WorkflowSettings({ projectId, project, workers = [], onClose }) {
+export function WorkflowSettings({ projectId, onClose }) {
   const { apiFetch } = useApi();
   const [activeTab, setActiveTab] = useState('visual');
   const [selectedLane, setSelectedLane] = useState(null);
-  const [selectedProvider, setSelectedProvider] = useState(null);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -72,10 +68,6 @@ export function WorkflowSettings({ projectId, project, workers = [], onClose }) 
 
   function handleNodeClick(event, node) {
     setSelectedLane(node.id);
-    const existingModel = config?.lanes?.[node.id]?.primary_model;
-    setSelectedProvider(
-      guessProviderForModel(existingModel, workers) || getDefaultProviderModel(project, workers).cli
-    );
   }
 
   function updateLaneProp(prop, val) {
@@ -143,46 +135,8 @@ export function WorkflowSettings({ projectId, project, workers = [], onClose }) 
               <div className="w-64 bg-gray-950 border border-gray-800 rounded p-4 flex flex-col gap-3 overflow-y-auto">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-800">
                   <h3 className="text-white text-sm font-bold uppercase tracking-wider">{selectedLane}</h3>
-                  <button onClick={() => { setSelectedLane(null); setSelectedProvider(null); }} className="text-gray-500 hover:text-white transition-colors">✕</button>
+                  <button onClick={() => setSelectedLane(null)} className="text-gray-500 hover:text-white transition-colors">✕</button>
                 </div>
-
-                {(() => {
-                  const effectiveProvider = selectedProvider || getDefaultProviderModel(project, workers).cli;
-                  const modelOptions = modelsForProvider(effectiveProvider, workers);
-                  const currentModel = config.lanes[selectedLane]?.primary_model || '';
-                  return (
-                    <>
-                      <div>
-                        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Provider</label>
-                        <select
-                          value={effectiveProvider}
-                          onChange={e => setSelectedProvider(e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                          data-testid="lane-provider-select"
-                        >
-                          {PROVIDER_IDS.map(id => (
-                            <option key={id} value={id}>{PROVIDERS[id].label}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Model</label>
-                        <select
-                          value={currentModel}
-                          onChange={e => updateLaneProp('primary_model', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                          data-testid="lane-model-select"
-                        >
-                          <option value="">— use project default —</option>
-                          {modelOptions.map(m => (
-                            <option key={m.id} value={m.id}>{m.label} ({m.id})</option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  );
-                })()}
 
                 <div>
                   <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Parallel Limit</label>
@@ -259,9 +213,6 @@ export function WorkflowSettings({ projectId, project, workers = [], onClose }) 
             <li><code>on_success</code>: Lane after success — plain lane (<code>"implement"</code>) or <code>"lane:status"</code> (e.g. <code>"plan:success"</code> to stay in plan and mark done)</li>
             <li><code>on_failure</code>: Lane after max retries — same format (e.g. <code>"backlog"</code> or <code>"plan:queue"</code>)</li>
             <li><code>parallel_limit</code>: Max concurrent tracks in this lane</li>
-            <li><code>Provider</code>/<code>Model</code>: which model this lane's automated runs use — <code>Provider</code> only narrows the Model list (the CLI itself stays fixed project-wide, per Project Configuration, so session `--resume` continuity isn't broken mid-track); saving writes the selected model id into this lane's <code>primary_model</code>. "— use project default —" clears it.</li>
-            <li>A track's own <code>**Model**</code> marker (set on the track detail panel) beats this lane's model, which beats the project default.</li>
-            <li>Model selection only applies in worker mode (local-fs / local-api / remote-api) — skill-only sessions with no worker have nothing to apply it to. Matching is best-effort: an unavailable model fails that run and falls back to normal retry handling, rather than being blocked ahead of time.</li>
           </ul>
         </div>
       </div>
