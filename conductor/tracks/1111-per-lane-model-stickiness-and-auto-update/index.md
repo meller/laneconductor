@@ -5,7 +5,7 @@
 **Progress**: 100%
 **Phase**: All 6 phases complete
 **Type**: dev
-**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness detection/logging, and (Phase 6) opt-in same-tier auto-update triggered by that same staleness check, auditable via git commit.
+**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness…
 
 ## Problem
 
