@@ -46,7 +46,8 @@ import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/wo
 import { shouldWriteForceDoneMarker, applyDoneSuccessMarkers } from './services/force-merge-marker.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
-import { parseMergeModeMarker } from './services/merge-mode.mjs';
+import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
+import { checkGhAuth, createTrackPr, pollTrackPr, resolvePrStatus, mergeTrackPr } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
@@ -3530,6 +3531,88 @@ async function removeWorktree(trackNumber) {
 // per-track worktree itself now (not this function) — it has to happen
 // before branch deletion, not after; see that function's doc comment for
 // the real bug (silently-undeleted branches) that ordering caused.
+// Track 10018: reads a track's merge_mode straight from its own index.md
+// (rather than the DB) so this decision works identically in local-fs mode
+// (no DB/collector at all) and never races the file→DB sync. Self-contained
+// on purpose — deliberately doesn't reuse any `content`/`trackDir` variable
+// from the caller's outer scope, since those are declared deep inside a
+// sibling try-block whose scope this function must not depend on. Defaults
+// to 'pr' (the safe default) on any read failure, same as resolveMergeMode.
+function readTrackMergeMode(root, trackNumber) {
+  try {
+    const tracksDir = join(root, 'conductor', 'tracks');
+    const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+    if (!trackDir) return 'pr';
+    const indexPath = join(tracksDir, trackDir, 'index.md');
+    if (!existsSync(indexPath)) return 'pr';
+    const idx = readFileSync(indexPath, 'utf8');
+    return resolveMergeMode({ merge_mode: parseMergeModeMarker(idx) });
+  } catch {
+    return 'pr';
+  }
+}
+
+// Track 10018 Phase 2: the PR-mode counterpart to mergeAndRemoveWorktree —
+// pushes the branch and opens a PR instead of merging locally, and leaves
+// the worktree/branch fully intact (the reconcile loop's PR poller, not
+// this function, is what eventually cleans up once GitHub reports MERGED).
+// Never falls back to a local merge on failure — per spec, a `gh`
+// precondition failure must be loud (a track comment + pr_status note),
+// not a silent divergence from the mode the track asked for.
+async function openTrackPrOnDone(trackNumber, worktreePath) {
+  const mainBranch = getMainBranch();
+  const primaryRoot = resolvePrimaryRepoRoot(worktreePath);
+
+  const auth = checkGhAuth({ cwd: worktreePath });
+  if (!auth.ok) {
+    const msg = `gh CLI is not authenticated — cannot open a PR for track ${trackNumber} (merge_mode: pr). Run 'gh auth login' on this machine. Branch and worktree left in place; track NOT merged.`;
+    console.error(`[pr-flow] ${msg}`);
+    await postToCollectors(`/track/${trackNumber}/comment`, { author: 'system', body: `⚠️ ${msg}` }).catch(() => {});
+    await patchTrackPrFields(trackNumber, { pr_status: 'error' });
+    return;
+  }
+
+  const tracksDir = join(worktreePath, 'conductor', 'tracks');
+  const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+  const titleMatch = trackDir && readIfExists(join(tracksDir, trackDir, 'index.md'))?.match(/^#\s*(.+)$/m);
+  const title = titleMatch ? titleMatch[1].trim() : `Track ${trackNumber}`;
+
+  try {
+    const { number, url } = createTrackPr({
+      repoRoot: worktreePath, trackNumber, mainBranch, title,
+      body: `Opened automatically by LaneConductor on quality-gate pass (merge_mode: pr).`,
+    });
+    console.log(`[pr-flow] Opened PR #${number} for track ${trackNumber}: ${url}`);
+    // Written to the file too (not just the DB via patchTrackPrFields below)
+    // so reconcilePrTracks — which only ever reads files, exactly like
+    // local-fs mode's every other worker-side decision — can find the PR
+    // number to poll without needing a DB round-trip.
+    if (trackDir) {
+      const indexPath = join(tracksDir, trackDir, 'index.md');
+      writeIndexMarker(indexPath, 'PR Number', number);
+      writeIndexMarker(indexPath, 'PR URL', url);
+      writeIndexMarker(indexPath, 'PR Status', 'open');
+    }
+    await patchTrackPrFields(trackNumber, { pr_number: number, pr_url: url, pr_status: 'open' });
+    await postToCollectors(`/track/${trackNumber}/comment`, {
+      author: 'system', body: `⚠️ Opened PR #${number} for review: ${url}`,
+    }).catch(() => {});
+  } catch (err) {
+    const msg = `Failed to open a PR for track ${trackNumber}: ${err.message}. Branch and worktree left in place; track NOT merged.`;
+    console.error(`[pr-flow] ${msg}`);
+    await postToCollectors(`/track/${trackNumber}/comment`, { author: 'system', body: `⚠️ ${msg}` }).catch(() => {});
+    await patchTrackPrFields(trackNumber, { pr_status: 'error' });
+  }
+}
+
+async function patchTrackPrFields(trackNumber, fields) {
+  if (getIsLocalFs()) return; // no collector to report to
+  const { url, token } = primaryCollector();
+  if (!url) return;
+  await patch(url, token, `/track/${trackNumber}/action`, fields)
+    .catch(err => console.error(`[pr-flow] CRITICAL: failed to persist PR fields for track ${trackNumber}: ${err.message}`));
+}
+
 async function mergeAndRemoveWorktree(trackNumber) {
   const mainBranch = getMainBranch();
 
@@ -3576,6 +3659,11 @@ async function reconcileWorktrees() {
     if (row.classification !== 'mergeable' && row.classification !== 'stranded') continue;
     if (!row.trackNumber) continue;
     if (existsSync(join(lockDir, `${row.trackNumber}.lock`))) continue; // actively claimed — never merge out from under a running worker
+    // Track 10018 (TC-2.5): this safety net must never locally merge a
+    // pr-mode track's branch — that's exactly the "parked, awaiting human
+    // approval" state the mode exists to create. reconcilePrTracks() below
+    // is the pr-mode equivalent of this loop.
+    if (readTrackMergeMode(process.cwd(), row.trackNumber) === 'pr') continue;
 
     const result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: row.trackNumber, mainBranch });
     if (result.merged) {
@@ -3586,11 +3674,111 @@ async function reconcileWorktrees() {
   }
 }
 
+// Track 10018 Phase 3: the pr-mode counterpart to reconcileWorktrees — polls
+// every open-PR track via `gh pr view` and drives its pr_status, converging
+// to the same local cleanup reconcileWorktrees uses once GitHub reports the
+// PR merged. Deliberately does NOT run a local git merge on MERGED — by
+// then the merge commit already exists on the remote; bringing it into the
+// local primary checkout is the existing git-divergence safe-pull
+// mechanism's job (see checkAndPullDivergence below), not this function's.
+// Tolerates `gh` transient failures by simply leaving state untouched
+// (pollTrackPr/resolvePrStatus both return null on failure — see TC-3.5).
+async function reconcilePrTracks() {
+  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+  if (!existsSync(tracksDir)) return;
+
+  const mainBranch = getMainBranch();
+  const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+
+  for (const dirName of readdirSync(tracksDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
+    const trackNumberMatch = dirName.match(/^(\d+)-/);
+    if (!trackNumberMatch) continue;
+    const trackNumber = trackNumberMatch[1];
+    const indexPath = join(tracksDir, dirName, 'index.md');
+    if (!existsSync(indexPath)) continue;
+
+    let content;
+    try { content = readFileSync(indexPath, 'utf8'); } catch { continue; }
+    if (resolveMergeMode({ merge_mode: parseMergeModeMarker(content) }) !== 'pr') continue;
+
+    const prNumberMatch = content.match(/\*\*PR Number\*\*:\s*(\d+)/i);
+    if (!prNumberMatch) continue; // no PR opened yet for this track — nothing to poll
+    const currentStatusMatch = content.match(/\*\*PR Status\*\*:\s*(\S+)/i);
+    if (currentStatusMatch && ['merged', 'closed'].includes(currentStatusMatch[1].toLowerCase())) continue; // terminal — nothing left to poll
+
+    const prNumber = parseInt(prNumberMatch[1], 10);
+    const poll = pollTrackPr({ repoRoot, prNumber });
+    const newStatus = resolvePrStatus(poll);
+    if (!newStatus) continue; // transient gh failure — leave state exactly as-is (TC-3.5)
+
+    if (currentStatusMatch?.[1]?.toLowerCase() !== newStatus) {
+      console.log(`[reconcile-pr] track ${trackNumber} PR #${prNumber}: ${currentStatusMatch?.[1] || '(none)'} → ${newStatus}`);
+      writeIndexMarker(indexPath, 'PR Status', newStatus);
+      await patchTrackPrFields(trackNumber, { pr_status: newStatus });
+    }
+
+    if (newStatus === 'merged') {
+      await cleanupMergedPrTrack(trackNumber, mainBranch, repoRoot);
+    }
+  }
+}
+
+// Small, self-contained marker writer (mirrors updateHeader's pattern used
+// elsewhere in this file) — kept local rather than exported since it's only
+// ever called against a file this function just read moments ago.
+function writeIndexMarker(indexPath, marker, value) {
+  try {
+    let content = readFileSync(indexPath, 'utf8');
+    const regex = new RegExp(`\\*\\*${marker}\\*\\*:\\s*[^\\n]+`, 'i');
+    content = regex.test(content)
+      ? content.replace(regex, `**${marker}**: ${value}`)
+      : content.trim() + `\n**${marker}**: ${value}\n`;
+    writeFileSync(indexPath, content, 'utf8');
+  } catch (err) {
+    console.warn(`[reconcile-pr] Failed to write **${marker}** marker to ${indexPath}: ${err.message}`);
+  }
+}
+
+// Track 10018 Phase 3: local cleanup once GitHub reports a track's PR
+// merged. Only deletes the local track-N branch once its commits are
+// provably already reachable from local mainBranch — never races ahead of
+// the git-divergence safe-pull that's responsible for actually bringing the
+// merge commit into the local primary checkout. Worktree removal is always
+// safe regardless (it never touches the branch ref).
+async function cleanupMergedPrTrack(trackNumber, mainBranch, repoRoot) {
+  const branch = `track-${trackNumber}`;
+  let isAncestor = false;
+  try {
+    gitExec(`git merge-base --is-ancestor ${branch} ${mainBranch}`, repoRoot);
+    isAncestor = true;
+  } catch { /* not an ancestor yet (or one of the refs isn't local yet) */ }
+
+  await removeWorktree(trackNumber);
+
+  if (isAncestor) {
+    try {
+      gitExec(`git branch -D ${branch}`, repoRoot);
+      console.log(`[reconcile-pr] Deleted local branch ${branch} (merged into ${mainBranch} via GitHub PR)`);
+    } catch (err) {
+      console.warn(`[reconcile-pr] Failed to delete local branch ${branch}: ${err.message}`);
+    }
+  } else {
+    console.log(`[reconcile-pr] track ${trackNumber}: PR merged on GitHub but ${branch} isn't an ancestor of local ${mainBranch} yet — worktree removed, branch left for a later pass once the merge commit is pulled locally`);
+  }
+}
+
 // Track 1112 Phase 3: runs on every worker regardless of mode (local-fs
 // included — worktrees are a git-local concept, not a DB one) so the RC-B
 // safety net applies no matter how a track reached done:success.
 setInterval(() => {
   reconcileWorktrees().catch(err => console.error('[reconcile error]:', err.message));
+}, 60000);
+
+// Track 10018 Phase 3: same cadence as reconcileWorktrees — the pr-mode
+// tracks this polls are a strict subset of what that function already scans
+// (both walk conductor/tracks), so there's no reason for a different period.
+setInterval(() => {
+  reconcilePrTracks().catch(err => console.error('[reconcile-pr error]:', err.message));
 }, 60000);
 
 // Track 1112 Phase 5 (REQ-8...REQ-11): a third-party `git push` straight to
@@ -4126,9 +4314,20 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         if (worktreePath) {
           const lifecycle = getWorktreeLifecycle();
           if (lifecycle === 'per-cycle' && targetLane === 'done' && isSuccess) {
-            // Per-cycle: Merge and remove worktree on done:success
-            console.log(`[worktree] Per-cycle mode: Merging track ${trackNumber} and cleaning up`);
-            await mergeAndRemoveWorktree(trackNumber);
+            // Track 10018: fork on this track's own merge_mode before ever
+            // touching main. 'direct' keeps today's behavior byte-for-byte;
+            // 'pr' (the default) opens a PR instead and leaves the branch/
+            // worktree alone — see openTrackPrOnDone's own doc comment for
+            // why it never falls back to a local merge on failure.
+            const mergeMode = readTrackMergeMode(worktreePath, trackNumber);
+            if (mergeMode === 'direct') {
+              // Per-cycle: Merge and remove worktree on done:success
+              console.log(`[worktree] Per-cycle mode: Merging track ${trackNumber} and cleaning up`);
+              await mergeAndRemoveWorktree(trackNumber);
+            } else {
+              console.log(`[worktree] Per-cycle mode: merge_mode=pr for track ${trackNumber} — opening PR instead of merging`);
+              await openTrackPrOnDone(trackNumber, worktreePath);
+            }
           } else if (lifecycle === 'per-lane') {
             // Per-lane: Always remove after each run
             await removeWorktree(trackNumber);
