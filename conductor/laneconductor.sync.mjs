@@ -44,6 +44,7 @@ import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
+import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
@@ -143,7 +144,17 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
   // worker-lock.mjs's own DEFAULT_STALE_MS) so a SIGKILL-recovery test
   // doesn't have to wait out the full production staleness window.
   const staleMsOverride = process.env.LC_WORKER_LOCK_STALE_MS ? parseInt(process.env.LC_WORKER_LOCK_STALE_MS, 10) : undefined;
-  const release = await acquireWorkerLock(lockPath, staleMsOverride ? { staleMs: staleMsOverride } : {});
+  // Track 1117 Bug 4: on a compromised lock (background refresh failed),
+  // de-register from the collector before exiting — same clean shutdown the
+  // SIGTERM/SIGINT handlers use — rather than falling through to the
+  // generic uncaughtException handler's undifferentiated exit.
+  const release = await acquireWorkerLock(lockPath, {
+    ...(staleMsOverride ? { staleMs: staleMsOverride } : {}),
+    onCompromised: (err) => {
+      console.error(`[worker-lock] Lock compromised (${err.message}) — de-registering and exiting cleanly.`);
+      removeWorker().finally(() => process.exit(1));
+    },
+  });
   if (!release) {
     console.error(`[LaneConductor] Another live worker already holds this identity's lock (${lockPath}) — refusing to start a duplicate.`);
     process.exit(1);
@@ -458,12 +469,12 @@ async function refreshModels() {
     const discovered = (await discoverAvailableModels(cli)) || [];
     const presets = PROVIDERS[cli]?.models || [];
 
-    const combined = [...discovered];
-    for (const preset of presets) {
-      if (!combined.some(m => m.id === preset.id)) {
-        combined.push(preset);
-      }
-    }
+    // Track 1117 Bug 3: presets are a FALLBACK for when discovery itself
+    // failed/returned nothing — not a permanent overlay on a successful
+    // result. A successful discovery that omits an id is itself the signal
+    // that model is gone; unconditionally re-adding it back overrode that
+    // signal (see model-discovery-merge.mjs).
+    const combined = mergeDiscoveredWithPresets(discovered, presets);
 
     if (combined.length > 0) {
       newCached[cli] = combined;
@@ -5094,7 +5105,7 @@ async function reconcileOrphanedDispatches() {
     const wtIndexContent = readFileSync(wtIndexPath, 'utf8');
     const laneStatus = wtIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
     const wtLane = wtIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
-    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action });
+    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action, workflowConfig });
     if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
 
     console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
@@ -5119,6 +5130,23 @@ async function reconcileOrphanedDispatches() {
       }
     } else {
       console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}"; leaving the primary's own state untouched`);
+      // Track 1117 Bug 2 (REQ-4): a mismatch that ISN'T a recognized
+      // workflow.json transition is a genuine anomaly, not routine — surface
+      // it to a human rather than letting it sit as a console-only warning.
+      if (classification.flagForHuman) {
+        try {
+          const tracksDir = 'conductor/tracks';
+          const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+          if (trackDirName) {
+            appendFileSync(
+              join(tracksDir, trackDirName, 'conversation.md'),
+              `\n> **system**: ⚠️ Orphan-reconcile skipped artifact copy for this dispatch — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}" and isn't a recognized workflow.json transition. Please review the worktree manually.\n`,
+            );
+          }
+        } catch (err) {
+          console.warn(`[orphan-reconcile] Failed to post mismatch flag to conversation.md: ${err.message}`);
+        }
+      }
     }
 
     await patch(url, token, `/worker-dispatch/${entry.id}`, {
