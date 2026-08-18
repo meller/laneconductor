@@ -602,6 +602,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
               t.assignee_uid, t.created_by_uid, t.waiting_for_reply, p.owner_uid,
+              t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -1470,6 +1471,19 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       ) || (`**Progress**: ${progressStr}\n` + content);
     }
 
+    // Track 10018: only write a marker when a value was actually set — a
+    // null merge_mode (explicitly clearing back to "unspecified") removes
+    // the marker rather than writing "**Merge Mode**: null".
+    if (updates.merge_mode !== undefined) {
+      if (updates.merge_mode === null) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Merge Mode\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+$/m, `**Merge Mode**: ${updates.merge_mode}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Merge Mode**: ${updates.merge_mode}`) || content;
+      }
+    }
+
     // Write back to file
     writeFileSync(trackIndexPath, content, 'utf8');
 
@@ -2241,6 +2255,9 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
       waiting_for_reply,
+      // Track 10018: per-track merge mode marker (null = unspecified, kept
+      // distinct from 'pr' so resolveMergeMode's default stays overridable)
+      merge_mode,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -2322,6 +2339,10 @@ app.post('/track', collectorAuth, async (req, res) => {
       // $27: waiting_for_reply — authoritative per sync (raw, possibly null so
       // ON CONFLICT can distinguish "explicitly set" from "omitted")
       waiting_for_reply === undefined ? null : waiting_for_reply,
+      // $28: merge_mode — raw (possibly null/absent from the file), COALESCEd
+      // below so an unspecified file never clobbers an explicit DB value
+      // (e.g. one set via the track detail panel's toggle).
+      merge_mode ?? null,
     ];
 
     const qRes = await pool.query(`
@@ -2331,9 +2352,9 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply)
+       waiting_for_reply, merge_mode)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false))
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), $28)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2361,7 +2382,8 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_check_after    = EXCLUDED.kpi_check_after,
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
       kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
-      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply)
+      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
+      merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode)
     RETURNING id
   `, params);
 
@@ -2417,7 +2439,9 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     const { lane_action_status, lane_action_result, last_log_tail, active_cli,
       lane_status, progress_percent,
       auto_planning_launched, auto_implement_launched, auto_review_launched,
-      waiting_for_reply } = req.body;
+      waiting_for_reply,
+      // Track 10018: merge mode + PR tracking fields
+      merge_mode, pr_number, pr_url, pr_status } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2441,6 +2465,15 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (auto_implement_launched !== undefined) { sets.push(`auto_implement_launched = $${i++}`); params.push(auto_implement_launched); }
     if (auto_review_launched !== undefined) { sets.push(`auto_review_launched = $${i++}`); params.push(auto_review_launched); }
     if (waiting_for_reply !== undefined) { sets.push(`waiting_for_reply = $${i++}`); params.push(waiting_for_reply); }
+    if (merge_mode !== undefined) {
+      if (merge_mode !== null && !['pr', 'direct'].includes(merge_mode)) {
+        return res.status(400).json({ error: `Invalid merge_mode: "${merge_mode}". Must be "pr" or "direct".` });
+      }
+      sets.push(`merge_mode = $${i++}`); params.push(merge_mode);
+    }
+    if (pr_number !== undefined) { sets.push(`pr_number = $${i++}`); params.push(pr_number); }
+    if (pr_url !== undefined) { sets.push(`pr_url = $${i++}`); params.push(pr_url); }
+    if (pr_status !== undefined) { sets.push(`pr_status = $${i++}`); params.push(pr_status); }
     await pool.query(
       `UPDATE tracks SET ${sets.join(', ')} WHERE project_id = $1 AND track_number = $2`,
       params
@@ -2451,6 +2484,7 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (lane_status !== undefined) syncUpdates.lane_status = lane_status;
     if (lane_action_status !== undefined) syncUpdates.lane_action_status = lane_action_status;
     if (progress_percent !== undefined) syncUpdates.progress_percent = progress_percent;
+    if (merge_mode !== undefined) syncUpdates.merge_mode = merge_mode;
     if (Object.keys(syncUpdates).length > 0) {
       syncTrackToFile(projectId, req.params.num, syncUpdates).catch(err =>
         console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)
