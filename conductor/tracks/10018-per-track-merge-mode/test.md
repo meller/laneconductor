@@ -54,11 +54,22 @@ make test 2>/dev/null || npm test
 ### Phase 6: Migration + E2E
 - [ ] TC-6.1: **Not done** — re-scoped, see plan.md (10000-series folders are live external canary artifacts, not this codebase's fixtures)
 - [x] TC-6.2: `local-api-e2e.test.mjs` re-run after every phase — steady at 5/6 (1 pre-existing, unrelated flake confirmed on unmodified `main`)
-- [ ] TC-6.3: **Not done — genuine gap.** No subprocess-level E2E through the real spawned worker process. See plan.md for why and what mitigates it.
+- [ ] TC-6.3: **Still not done — genuine gap, unchanged by Phase 8.** No subprocess-level E2E through the real spawned worker process (`openTrackPrOnDone`/`reconcilePrTracks`). Phase 8 below closes the UI-layer gap (badges, dispatch buttons) via DB-seeded fixtures against the real running app — a different, cheaper layer than a spawned-worker test, deliberately scoped that way per plan.md Phase 8. See plan.md for why and what mitigates it.
 - [ ] TC-6.4: N/A — no fixture generator found in this codebase to stamp (see TC-6.1)
+
+### Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge — ✅ covered (`conductor/tests/playwright/track-10018-pr-worktree-panel.spec.js`, 5/5 pass, fast tier, ~11s)
+- [x] TC-8.1 (plan.md Task 1): pr-open row renders the `merge-mode-badge` ("PR"), `pr-open`/"PR Open" classification, `pr-link` (href + `PR #501` text), and `pr-status-badge` ("Checks pending") — asserted against real DOM elements, not code review
+- [x] TC-8.2 (plan.md Task 2): clicking the armed "Merge PR" button twice (arm, then confirm) on a `pr_status: 'open'` row produces a real `worker_dispatch` row with `action='merge-pr'` and the seeded `track_number`, polled via direct DB query
+- [x] TC-8.3 (plan.md Task 3): clicking "Create PR" on a pr-open row with no `pr_number` yet produces a real `worker_dispatch` row with `action='create-pr'`; also asserts no `pr-link` renders when there's no PR number
+- [x] TC-8.4 (plan.md Task 4): rows seeded with `pr_status: 'checks-failed'` and `'conflicted'` each show the matching `pr-status-badge` text and have zero `merge-pr-btn` elements (the disabled, non-interactive span renders instead) — both variants covered explicitly, not just one
+- [x] TC-8.5 (plan.md Task 5): a `done`-lane track whose track_number matches a seeded `mergeable`-class worktree row shows the "Unmerged" badge on its Kanban card (found via the search box, scoped via the new `track-card` testid); a second `done`-lane track with no matching worktree row shows neither "Unmerged" nor "Conflict" — both the presence and the absence case are asserted, not just one
+- [x] TC-8.6 (plan.md Task 6): confirmed no `playwright.config.js` change needed — filename doesn't match `SLOW_SPECS`, runs in `fast` by default
+- Stability: run 3x consecutively, 5/5 green every time; DB state confirmed fully restored after each run (no leftover `tracks` rows, `worker_dispatch` rows, or `worktrees` JSONB)
+- **Found during implementation, not a pre-existing test case**: `track-1112-worktree-panel.spec.js`'s own worker-selection strategy (`ORDER BY last_heartbeat DESC LIMIT 1`) is flaky in this repo's own live dev environment, where multiple real heartbeat workers for project 1 are normally running concurrently — confirmed by running that unmodified file alone, independent of any change in this track. Not touched/fixed here (out of scope); this track's own new spec avoids the same trap by targeting a dedicated `pw-e2e-worker` DB fixture instead. See plan.md Phase 8 for detail.
 
 ## Acceptance Criteria
 - [x] All unit + integration tests pass (70 new/updated tests across 6 files, all green; see per-phase notes above for exactly what each covers vs. code-review-only)
 - [x] Existing merge/worktree E2E suites pass unchanged (direct-mode guarantee) — 11/11 worktree-merge, 13/13 worktree-audit, 5/6 local-api-e2e (pre-existing flake)
+- [x] New Playwright E2E for the PR-mode Worktrees panel + done-lane badge (Phase 8) — 5/5 pass, verified against the real running app, not code review
 - [ ] Manual: one real PR opened + merged via panel on a throwaway track — **not done**, deliberately avoided touching real GitHub/the live fleet during implementation; recommend as a manual smoke test before shipping
 - [x] No regressions in WorktreesPanel existing actions (abandon/remove/refresh) — confirmed via diff review; existing action code paths untouched by this track's edits

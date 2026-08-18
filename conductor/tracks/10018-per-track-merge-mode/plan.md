@@ -82,17 +82,37 @@
 
 **Impact**: `vite build` clean. No automated test (matches this file's existing convention — `TrackCard.jsx` has none today).
 
-## Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge
+## Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge ✅ COMPLETE
 
 **Problem**: Phase 6 flagged a genuine gap — no automated test exercises the PR-mode UI (badges, Create PR/Merge PR dispatch, the new done-lane unmerged badge) against the real running app. This repo already has an established, documented pattern for exactly this: `conductor/tests/playwright/track-1112-worktree-panel.spec.js` seeds a real `workers.worktrees` JSONB row via direct DB write (the same shape the heartbeat reports), drives the real UI at `localhost:8090`/API at `localhost:8091`, and asserts on real `worker_dispatch` rows created by clicking real buttons — fast tier, deterministic, no LLM calls.
 
-**Solution**: A new spec following that exact pattern, seeding a `pr-open` row (with `merge_mode`, `pr_number`, `pr_url`, `pr_status` fields) plus a `done`-lane track whose worktree row is still unmerged, and asserting:
+**Solution**: `conductor/tests/playwright/track-10018-pr-worktree-panel.spec.js`, following that exact pattern — seeds 4 `pr-open` rows (covering ready/needs-PR/checks-failed/conflicted) plus a `done`-lane track whose worktree row is still unmerged and one with no matching row, and asserts:
 
-- [ ] Task 1: Worktrees panel renders the PR badge, `pr-open` classification, PR link, and status indicator for a seeded pr-open row
-- [ ] Task 2: Clicking "Merge PR" on a seeded `pr_status: 'open'` row creates a real `worker_dispatch` row with `action='merge-pr'` and the right `track_number` payload
-- [ ] Task 3: Clicking "Create PR" on a seeded pr-open row with no `pr_number` creates a `worker_dispatch` row with `action='create-pr'`
-- [ ] Task 4: "Merge PR" is NOT clickable/enabled on a seeded row with `pr_status: 'checks-failed'` or `'conflicted'`
-- [ ] Task 5: A `done`-lane track (seeded via a direct `tracks` row update, `lane_status='done'`) whose track_number also appears in the seeded `workers.worktrees` JSONB (as `class: 'mergeable'`) shows the "Unmerged" badge on its Kanban card; a `done`-lane track with NO matching worktree row shows no badge at all
-- [ ] Task 6: Register the new spec filename in `playwright.config.js` if it needs the `slow` tier (it shouldn't — no LLM/worker-claim dependency, same as the existing 1112 spec)
+- [x] Task 1: Worktrees panel renders the PR badge, `pr-open` classification, PR link, and status indicator for a seeded pr-open row
+- [x] Task 2: Clicking "Merge PR" on a seeded `pr_status: 'open'` row creates a real `worker_dispatch` row with `action='merge-pr'` and the right `track_number` payload
+- [x] Task 3: Clicking "Create PR" on a seeded pr-open row with no `pr_number` creates a `worker_dispatch` row with `action='create-pr'`
+- [x] Task 4: "Merge PR" is NOT clickable/enabled on a seeded row with `pr_status: 'checks-failed'` or `'conflicted'`
+- [x] Task 5: A `done`-lane track (seeded via a direct `tracks` row insert, `lane_status='done'`) whose track_number also appears in the seeded `workers.worktrees` JSONB (as `class: 'mergeable'`) shows the "Unmerged" badge on its Kanban card; a `done`-lane track with NO matching worktree row shows no badge at all
+- [x] Task 6: No `playwright.config.js` change needed — the filename doesn't match `SLOW_SPECS`, so it lands in `fast` by default, confirmed by the run (11s, no LLM/worker-claim dependency)
 
-**Impact**: Closes Phase 6's documented E2E gap using this repo's own established, lower-cost pattern (DB-seeded fixture + real UI) rather than a full subprocess-spawned worker test — deterministic, fast, no `gh` mocking needed since the panel only ever dispatches, never calls `gh` directly itself.
+**Found and fixed during implementation, not part of the original task list**:
+- **`TrackCard.jsx` had no stable per-card selector** — needed for Task 5's assertions to scope to one card among dozens on this project's own live board. Added `data-testid="track-card"` to the root element (matches this repo's existing `data-testid` convention used throughout `WorktreesPanel.jsx`).
+- **Worker-selection race**: this repo's own live dev environment normally runs multiple real heartbeat workers for project 1 concurrently (dogfooding). `track-1112-worktree-panel.spec.js`'s pattern of picking `ORDER BY last_heartbeat DESC LIMIT 1` picks whichever real worker most recently beat — and that worker's own heartbeat cycle overwrites the seeded fixture within seconds, racing the test. Discovered a pre-existing fixture for exactly this (`workers` row with `hostname='pw-e2e-worker'`, `pid=999999`, nothing alive to overwrite it) and targeted it explicitly, falling back to "most recent" only if that fixture doesn't exist. **This is a pre-existing flake in `track-1112-worktree-panel.spec.js` itself** (confirmed: fails the same way run alone, on an unmodified copy of that file, whenever real live workers are heartbeating for project 1) — out of this track's scope to fix, noted here and in test.md.
+- **Dev server was serving stale code during verification**: the shared local UI/API (ports 8090/8091) were running from the primary checkout (`main`), which obviously lacks this branch's changes. Restarted both from this worktree to actually exercise the code under test (`ui/` had no `node_modules` in the worktree — ran `npm install`), then restored the primary checkout's UI/API afterward. Separately hit and cleaned up an unrelated pre-existing orphaned `vite` process (running since the prior day, outlived its own `make ui-stop`) that was squatting port 8090 the whole time.
+
+**Impact**: Closes Phase 6's documented E2E gap using this repo's own established, lower-cost pattern (DB-seeded fixture + real UI) rather than a full subprocess-spawned worker test — deterministic, fast (~11s), no `gh` mocking needed since the panel only ever dispatches, never calls `gh` directly itself. 5/5 new tests pass, run 3x consecutively with no flakes. Verified cleanup leaves zero DB residue (tracks rows, `worker_dispatch` rows, and the fixture worker's `worktrees` column all confirmed restored).
+
+## Phase 9: Merge/PR action buttons directly on done-lane Kanban cards
+
+**Problem** (direct human feedback on Phase 7): the `UnmergedBadge` tells you a done-lane card isn't really shipped yet, but it's read-only — acting on it (merge, approve the PR, retry a failed PR open) still requires leaving the card and finding the same track's row in the separate Worktrees panel. The status and the action for it should be in the same place.
+
+**Solution**: Extend `TrackCard.jsx`'s done-lane badge area with the same dispatch actions `WorktreesPanel.jsx` already has for a matching `worktree_class`/`worktree_pr_status` — reuse the existing `/api/projects/:id/dispatch` actions (`merge-worktree`, `create-pr`, `merge-pr`) verbatim, no new backend work. Mirrors the panel's own gating logic exactly (same "no known blocker" rule for Merge PR, same armed two-click confirm for destructive/high-consequence actions) so the two surfaces never disagree about what's safe to click.
+
+- [ ] Task 1: `mergeable`/`stranded`-class done cards (`direct` mode) get a compact "Merge to main" button — dispatches `merge-worktree` with `{track_number}`, same armed-confirm pattern as the panel's own button
+- [ ] Task 2: `pr-open`-class done cards get "Create PR" (no `pr_number` yet) or "Merge PR" (no known blocker — `pr_status: 'open'`) — dispatches `create-pr`/`merge-pr` respectively, same gating as `WorktreesPanel.jsx`'s `canCreatePr`/`canMergePr`
+- [ ] Task 3: `conflicted`-class done cards show the action as disabled with the same "resolve manually" explanation the panel uses — never a silently-broken button
+- [ ] Task 4: Dispatch pending-state (button shows "Merging…"/"Opening…" and disables) using the same identity-key pattern as `worktreePendingKeys.js`, extended for card-scoped use — a card and its Worktrees-panel row must never show contradictory pending states for the same underlying dispatch
+- [ ] Task 5: Clicking through from the card must not require navigating away first — actions fire in place, the card's own badge updates on the next poll once the dispatch resolves (same polling cadence `usePolling` already drives the rest of the board with)
+- [ ] Task 6: Playwright coverage extending `track-10018-pr-worktree-panel.spec.js` (or a sibling spec) — clicking each new card-level action produces the same real `worker_dispatch` row the panel's equivalent button does, for at least one case per class (mergeable, pr-open ready, pr-open needs-create, conflicted-disabled)
+
+**Non-goals**: no new backend endpoints, no new dispatch actions, no change to `WorktreesPanel.jsx`'s own behavior — this is purely a second, convenient entry point to actions that already exist.
