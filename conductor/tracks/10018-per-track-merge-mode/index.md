@@ -2,7 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 98%
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 9 complete — merge/PR action buttons on done-lane Kanban cards, 9/9 tests passing (Phases 1-9 complete; Phase 6's two documented gaps remain)
 **Type**: dev
 **Merge Mode**: direct
