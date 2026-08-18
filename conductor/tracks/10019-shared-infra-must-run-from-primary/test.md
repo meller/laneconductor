@@ -120,6 +120,43 @@ the real function, assert on real paths.
 
 ---
 
+## Known pre-existing suite flakiness (not this track's regression)
+
+Running the full `node --test conductor/tests/*.test.mjs` glob from inside
+this worktree, on this dev machine, fails ~20-23 suites regardless of any
+change in this track — confirmed by running the identical subset against
+the unmodified base commit (`2a88bf4`) in a throwaway detached worktree at
+`/tmp/lc-baseline-check`: `worker-mode`, `lock-unlock`,
+`track-1084-worker-identity` (x3), and `conv-sync-multi-worker-race` all
+already fail there, 9/14 failing on baseline. Root causes, none introduced
+by this track:
+- Tests that spawn the real `laneconductor.sync.mjs` into a throwaway
+  non-git `testDir` collide with this machine's real, live worker
+  processes (multiple `--sync-only` workers genuinely running against the
+  primary checkout during this session) once any cwd/lock resolution walks
+  up to the primary — `lock.mjs`/`unlock.mjs`'s pre-existing (S4, already
+  "SAFE") `resolvePrimaryRepoRoot()` call already does this independent of
+  anything in this track.
+- `.gitignore` already ignores `.conductor/` at HEAD, so `git add
+  .conductor/locks/...` (also pre-existing, in `lock.mjs`) fails with
+  "ignored by .gitignore" whenever run against the primary checkout.
+- Some failures are flaky under this suite's full parallel load on a
+  resource-constrained shared dev machine — `worker-id-watchdog` failed in
+  the full run, passed cleanly twice in isolation.
+- `auto-launch.test.mjs` is a Vitest spec (per tech-stack.md, belongs under
+  `cd ui && npm test`), not `node --test` — included only because this
+  investigation's glob was too broad; not a real failure.
+
+`LC_SKIP_CWD_NORMALIZATION=1` (added this track, see
+`conductor/laneconductor.sync.mjs`) is a test-only escape hatch for
+exactly the first bullet's class where MY new REQ-1 code is the trigger
+(3 suites fixed by setting it: `remote-api mode (explicit config)`,
+`Track 1110 Phase 3: API-mode claim atomicity`, `runDeploy`) — it does not
+and should not attempt to paper over the other, pre-existing causes above.
+Fixing those (isolating each throwaway `testDir` as its own git repo, or
+running the suite from the primary checkout) is test-hermeticity debt
+unrelated to this track's scope; not fixed here.
+
 ## Acceptance Criteria
 
 - [ ] `node --test conductor/tests/` passes with no regressions (AC-12)

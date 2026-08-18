@@ -1,6 +1,18 @@
-SKILL_DIR  := $(shell pwd)/.claude/skills/laneconductor
+# Track 10019 (REQ-2/REQ-3): resolve the PRIMARY checkout rather than
+# `$(shell pwd)` — running any of these targets from inside a linked
+# worktree (`.worktrees/<n>/`, itself a full checkout) used to serve that
+# worktree's own `ui/` on the project's expected port (confirmed live,
+# conductor/tracks/10019-*/spec.md S6), and `install`/`install-cli` would
+# write worktree paths into machine-wide, persistent state (~/.laneconductorrc,
+# /usr/local/bin/lc). `--git-common-dir` is the one git query that always
+# resolves to the PRIMARY checkout's `.git`, from any worktree's cwd —
+# same primitive resolvePrimaryRepoRoot() uses in the JS code. Falls back
+# to plain `pwd` outside any git repo (e.g. a stripped release tarball).
+GIT_COMMON_DIR := $(shell git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+PRIMARY_ROOT   := $(if $(GIT_COMMON_DIR),$(patsubst %/.git,%,$(GIT_COMMON_DIR)),$(shell pwd))
+SKILL_DIR  := $(PRIMARY_ROOT)/.claude/skills/laneconductor
 RC_FILE    := $(HOME)/.laneconductorrc
-UI_DIR     := $(shell pwd)/ui
+UI_DIR     := $(PRIMARY_ROOT)/ui
 
 .DEFAULT_GOAL := help
 
@@ -30,8 +42,22 @@ help:
 	@echo "From a project repo, use: lc help"
 	@echo ""
 
+# Track 10019 (REQ-3): install/install-cli write machine-wide, persistent
+# state (~/.laneconductorrc, /usr/local/bin/lc) — a silent auto-correct
+# here would be surprising for something this consequential, so refuse
+# with a clear message instead (unlike UI_DIR above, which just corrects
+# quietly).
+define require-primary-checkout
+	@if [ "$(shell pwd)" != "$(PRIMARY_ROOT)" ]; then \
+	  echo "❌ Refusing to run from $(shell pwd) — this is not the primary checkout."; \
+	  echo "   Run this from: $(PRIMARY_ROOT)"; \
+	  exit 1; \
+	fi
+endef
+
 ## Install LaneConductor (run once after cloning)
 install: ui-install install-cli
+	$(call require-primary-checkout)
 	@echo "$(SKILL_DIR)" > $(RC_FILE)
 	@echo "✅ Installed → $(RC_FILE)"
 	@echo "   Skill path: $(SKILL_DIR)"
@@ -41,8 +67,9 @@ install: ui-install install-cli
 
 ## Install global 'lc' command
 install-cli:
+	$(call require-primary-checkout)
 	@echo "📦 Installing global 'lc' command to /usr/local/bin/lc..."
-	@sudo ln -sf $(PWD)/bin/lc.mjs /usr/local/bin/lc
+	@sudo ln -sf $(PRIMARY_ROOT)/bin/lc.mjs /usr/local/bin/lc
 	@sudo chmod +x /usr/local/bin/lc
 	@echo "✅ 'lc' command ready"
 

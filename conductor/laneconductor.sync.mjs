@@ -51,6 +51,7 @@ import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkfl
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
+import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -111,6 +112,44 @@ const workerNumber = workerNumberArgIdx !== -1
 // --worker-number is meaningless here (machine-level singleton, not
 // multi-instance) and deliberately not read in this branch.
 const isManager = process.argv.includes('--manager');
+
+// Track 10019 (REQ-1): normalize this process's cwd to the PRIMARY checkout
+// before anything below reads process.cwd() relatively — ~60 sites
+// throughout this file (.env load, HARDCODED_DEFAULTS.repo_path, chokidar
+// watch roots, .conductor/locks, the tracks dir, conductor/logs, the 60s
+// reconcile/summary ticks, the git-sync check). Correctness for all of them
+// previously depended entirely on the launcher happening to pass
+// `cwd: workerRoot` (true for `lc start`, untrue for a direct `node
+// conductor/laneconductor.sync.mjs` run from inside a linked worktree) —
+// the exact structural hole F16/F17 (track 1102) each patched at one call
+// site. This closes the class instead of the next one being found by
+// accident. `--manager` is a machine-level singleton not scoped to any
+// project checkout, and a cwd outside any git repo (tests, CI fixtures)
+// has no primary to resolve to — both intentionally degrade to "leave cwd
+// alone" rather than crashing the worker over this (REQ-1a).
+//
+// LC_SKIP_CWD_NORMALIZATION: test-only, same shape as LC_SKIP_WORKER_LOCK
+// below. Many existing tests spawn this file with `cwd` set to a throwaway
+// sandbox directory that is a plain, non-git subdirectory of wherever the
+// test suite itself happens to run from — never its own repo. If that
+// happens to be inside a linked worktree (as it is for dogfooded
+// development on THIS track, from THIS worktree), those sandboxes get
+// correctly-per-REQ-1 redirected to the real enclosing primary checkout,
+// which is not what those tests intend (they intend an isolated sandbox,
+// decoupled from wherever the suite runs from) and can collide with a
+// real, live worker already holding that identity's lock there. Opt-in
+// only — off by default, so real deployments always get REQ-1's
+// protection; a test that wants to exercise this normalization itself
+// uses resolvePrimaryCwdDecision() directly (see
+// conductor/tests/primary-root-normalization.test.mjs) rather than a real
+// spawned process.
+if (!process.env.LC_SKIP_CWD_NORMALIZATION) {
+  const cwdDecision = resolvePrimaryCwdDecision({ cwd: process.cwd(), isManager, resolvePrimaryRepoRoot });
+  if (cwdDecision.shouldChdir) {
+    process.chdir(cwdDecision.primaryRoot);
+    console.warn(`[LaneConductor] Launched from ${cwdDecision.launchCwd}, which is not the primary checkout — running from ${cwdDecision.primaryRoot} instead.`);
+  }
+}
 
 // Track 1110 Phase 2, Task 6: exclusivity independent of the pidfile
 // bin/lc.mjs's start/stop read and write — confirmed live, twice, that a

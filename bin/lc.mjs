@@ -58,7 +58,22 @@ function getInstallPath() {
         // we need to reach the repo root where /ui lives.
         return resolve(skillPath, '../../..');
     }
-    return resolve(__dirname, '..');
+    // Track 10019 (REQ-4 / S9): __dirname is this exact script FILE's
+    // location — if it's being run as a linked worktree's own copy of
+    // bin/lc.mjs (e.g. someone invokes `.worktrees/10019/bin/lc.mjs`
+    // directly, or `/usr/local/bin/lc` was ever symlinked at a worktree's
+    // copy — S8), this fallback would otherwise resolve `ui`, pidfiles and
+    // logs to that worktree instead of the primary checkout no rc file
+    // exists to override it. Route through resolvePrimaryRepoRoot() so a
+    // worktree-resident invocation still lands on the primary; a
+    // legitimate standalone clone (not inside any worktree) is unaffected
+    // since resolvePrimaryRepoRoot() is a no-op there.
+    const scriptRoot = resolve(__dirname, '..');
+    try {
+        return resolvePrimaryRepoRoot(scriptRoot);
+    } catch {
+        return scriptRoot; // not inside a git repo — nothing to correct
+    }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
