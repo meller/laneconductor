@@ -1,9 +1,9 @@
 # Track 1117: Fix unscoped worker-startup reset + backwards orphan-reconcile guard
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Progress**: 100%
+**Phase**: Phase 5: Full regression pass
 **Type**: dev
 **Summary**: Four compounding bugs, found and root-caused live during track 1116's dogfood run through implement/review/quality-gate, silently stranding successful work with no automatic recovery: (1) unscoped…
 
