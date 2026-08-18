@@ -151,6 +151,29 @@ if (!process.env.LC_SKIP_CWD_NORMALIZATION) {
   }
 }
 
+// Track 10019 (REQ-6): one-line startup provenance, printed every run
+// (not just when REQ-1 above corrects something) — defense in depth for
+// whatever this track's audit doesn't structurally rule out. When the
+// next incident in this class turns up, this is the first thing to check
+// instead of /proc archaeology. Computed AFTER REQ-1's own chdir so it
+// reports the checkout actually being served, not the launch cwd.
+{
+  const servingRoot = process.cwd();
+  let isPrimary = null; // null = "not inside a git repo, primary status unknown" (tests/CI fixtures)
+  if (!isManager) {
+    try { isPrimary = resolvePrimaryRepoRoot(servingRoot) === servingRoot; } catch { /* leave null */ }
+  }
+  const provenanceMsg = isManager
+    ? `[LaneConductor] Manager worker starting from ${servingRoot} — not scoped to any project checkout.`
+    : isPrimary === null
+      ? `[LaneConductor] Serving from ${servingRoot} (not inside a git repo — primary status unknown).`
+      : isPrimary
+        ? `[LaneConductor] Serving from ${servingRoot} (primary checkout).`
+        : `[LaneConductor] ⚠️  Serving from ${servingRoot} — this is NOT the primary checkout.`;
+  console.log(provenanceMsg);
+  logger.info({ servingRoot, isManager, isPrimary }, provenanceMsg);
+}
+
 // Track 1110 Phase 2, Task 6: exclusivity independent of the pidfile
 // bin/lc.mjs's start/stop read and write — confirmed live, twice, that a
 // pidfile alone isn't enough (see conductor/tracks/1110-*/plan.md). The
