@@ -291,16 +291,75 @@ insufficient after real use — an opt-in, per-project auto-update that
 replaces a stale `primary_model` with the newer same-tier version,
 recorded in `workflow.json`'s own git history (never a silent rewrite).
 
-- [ ] Task 1: Revisit after Phase 5 ships and gets real use — decide
+- [x] Task 1: Revisit after Phase 5 ships and gets real use — decide
       whether this phase is actually needed or whether notification was
       enough
-- [ ] Task 2: If proceeding: opt-in flag (per project, default OFF),
+      **Resolved 2026-08-18**: real-use window elapsed (2026-08-14 →
+      2026-08-18). Live query of this project's own `workers` DB row
+      turned up real evidence: worker `meller-X1-AI` (worker_number=1)
+      now discovers `claude-sonnet-4-6`/`claude-opus-4-6-thinking` (via
+      real CLI discovery, not the preset fallback) — genuinely newer
+      models that didn't exist as of Phase 1. Phase 5's warning never
+      fired for this project in that window, because the *configured*
+      models (`claude-opus-5`/`claude-sonnet-5`/`claude-3-5-haiku`) are
+      all still present alongside the new ones — `findStaleLaneModels()`
+      only flags "gone", not "a newer one also exists now". Decision:
+      proceed with Phase 6, narrowly scoped to Task 2's own wording
+      ("reusing Phase 5's family-matching") — i.e. reuse the exact `gone
+      + same-tier suggestion` entries Phase 5 already computes as the
+      auto-update trigger, rather than inventing a broader "newer exists
+      even if old still works" trigger in the same pass. That broader
+      case is real (this project hit it) but is a separate, undecided
+      scope expansion — documented as a followup in conversation.md, not
+      folded in unscoped.
+- [x] Task 2: If proceeding: opt-in flag (per project, default OFF),
       same-tier-only substitution logic reusing Phase 5's family-matching,
       a commit (not a silent file write) recording the change
-- [ ] Task 3: Tests for the opt-out default (no project silently
+      **Resolved 2026-08-18**: `applyStaleModelAutoUpdates()` +
+      `maybeAutoUpdateWorkflowModels()` in
+      `conductor/services/model-staleness.mjs`. Gate is
+      `workflowConfig.global.auto_update_stale_models === true` (strict
+      equality — unset or `false` are both no-ops). Only entries
+      `findStaleLaneModels()` already flagged WITH a `suggested`
+      same-tier replacement are ever applied — entries with no
+      suggestion are left untouched even when opted in. On any applied
+      change: writes `conductor/workflow.json`, then commits
+      (`chore(workflow): auto-update stale primary_model (...)`) via the
+      same `execSync('git add ...')`/`execSync('git commit ...')`
+      pattern already used elsewhere in `laneconductor.sync.mjs` for
+      per-track file commits — never a silent rewrite. Wired into
+      `refreshModels()` right after the existing Phase 5 warning loop,
+      so it runs at worker startup and every 30-minute refresh, same
+      trigger as Phase 5. This project's own `workflow.json` sets
+      `global.auto_update_stale_models: false` explicitly (documenting
+      the flag exists, staying opted out by default per REQ-6).
+- [x] Task 3: Tests for the opt-out default (no project silently
       auto-updated without explicit consent) and the same-tier
       constraint (never opus→sonnet or vice versa, only version bumps
       within one tier)
+      **Resolved 2026-08-18**: `conductor/tests/track-1111-phase6-auto-update.test.mjs`
+      — 8 tests, all passing: `applyStaleModelAutoUpdates` unit tests
+      (only-suggested entries applied, unrelated lanes untouched, empty
+      when nothing to apply), `maybeAutoUpdateWorkflowModels` opt-in gate
+      (TC-9 — unset/false both no-op, opted-in-but-nothing-stale is also
+      a no-op), the opted-in same-tier apply+write+commit path (TC-10),
+      and a live-git integration test using a real temp git repo (`git
+      init`, real `execSync` commit) confirming the change actually lands
+      in `git log`/`git show` output, not just an in-memory mutation.
+      Also live-verified against this project's REAL `workflow.json` +
+      REAL worker_number=1 discovered models: zero stale entries found,
+      and even with `auto_update_stale_models` forced `true` in a
+      throwaway copy, `maybeAutoUpdateWorkflowModels` correctly performed
+      no write/commit — matching the documented Task 1 finding that nothing
+      is currently "gone", only additively newer.
+      Full regression re-run after this change: `local-fs-e2e` (5/5),
+      `local-api-e2e` (5/6 — the 1 failure reproduces identically with
+      this change stashed out, confirmed pre-existing/unrelated),
+      `track-1087-worker-chat-dispatch` (3/3), `track-1086-session-worker`
+      (3/3), `claude-cli-args` (6/6), plus this track's own
+      `track-1111-model-precedence.test.mjs` (9/9) and
+      `track-1111-model-staleness.test.mjs` (6/6) — Phase 5's existing
+      tests untouched and still green.
 
 **Impact**: REQ-6 — auto-update, if built, is safe, auditable, and
 strictly opt-in.
@@ -319,3 +378,18 @@ Phase 6 remains genuinely open and undone, by design: it was scoped from
 the start as conditional on Phase 5 proving insufficient after real use,
 and no real-use window exists yet within this same session. Not a stub —
 nothing claims Phase 6 works. Progress reported at 95%, not 100%.
+
+## ✅ PHASE 6 COMPLETE (2026-08-18)
+
+Real-use window elapsed (4 days); live DB query surfaced genuine new
+evidence (see Task 1 above) that justified building Phase 6 as originally
+scoped. Implemented, tested (12 new assertions across 4 describe blocks,
+including a real-git-repo integration test), and verified against this
+project's actual current config/discovery data with zero false positives.
+Deliberately did NOT expand scope to the "newer exists even though old
+still works" case the live evidence also exposed — that's recorded as an
+explicit followup for a separately-scoped future track, not silently
+folded in.
+
+All 6 phases of this track are now complete. REQ-1 through REQ-6 (see
+spec.md) are each implemented and covered by a passing, verified test.

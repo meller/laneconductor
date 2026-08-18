@@ -54,3 +54,54 @@ export function formatStaleLaneModelWarning({ lane, cli, model, suggested }) {
     ? `[workflow] lane '${lane}' configures primary_model '${model}' (${cli}), which is not in the currently discovered available_models — a same-tier newer model IS available: '${suggested}'. Consider updating conductor/workflow.json.`
     : `[workflow] lane '${lane}' configures primary_model '${model}' (${cli}), which is not in the currently discovered available_models, and no same-tier replacement was found either — verify this model ID is still valid.`;
 }
+
+// Track 1111 Phase 6 (REQ-6): opt-in, same-tier-only auto-update.
+// Deliberately reuses `stale` entries findStaleLaneModels already computed
+// and tested (Phase 5) rather than inventing a broader "a newer version
+// exists even though the configured one still works" trigger — providers
+// add new model IDs long before (if ever) removing old ones, so that
+// broader trigger would fire far more often and wasn't part of what this
+// pass scoped/tested. Only entries with a `suggested` same-tier
+// replacement are ever applied; an entry with no suggestion (ambiguous —
+// could be a typo or a discovery gap, see conversation.md's haiku-4.5
+// example) is left as log-only, opted in or not.
+export function applyStaleModelAutoUpdates(workflowConfig, staleEntries) {
+  const applied = [];
+  for (const entry of staleEntries) {
+    if (!entry.suggested) continue;
+    const laneConfig = workflowConfig?.lanes?.[entry.lane];
+    if (!laneConfig) continue;
+    laneConfig.primary_model = entry.suggested;
+    applied.push({ lane: entry.lane, from: entry.model, to: entry.suggested });
+  }
+  return applied;
+}
+
+// Track 1111 Phase 6: the opt-in gate + apply + persist step, as one
+// testable function with injected `writeFile`/`commit`/`logInfo` side
+// effects — laneconductor.sync.mjs's refreshModels() calls this with real
+// fs/git effects; tests inject fakes so the opt-out default (TC-9) and the
+// same-tier-only, auditable-via-commit behavior (TC-10) can be verified
+// without a real worker process. Default is OFF: `global.
+// auto_update_stale_models` must be exactly `true` in workflow.json — a
+// project that never sets it, or sets it false, is never auto-updated
+// (REQ-6). A change is never a silent file rewrite: `commit` is always
+// called alongside `writeFile` when anything was applied, so the change
+// lands in workflow.json's own git history.
+export function maybeAutoUpdateWorkflowModels({
+  workflowConfig,
+  staleEntries,
+  writeFile = () => {},
+  commit = () => {},
+  logInfo = () => {},
+} = {}) {
+  if (workflowConfig?.global?.auto_update_stale_models !== true) return [];
+  const applied = applyStaleModelAutoUpdates(workflowConfig, staleEntries);
+  if (applied.length === 0) return applied;
+
+  writeFile(JSON.stringify(workflowConfig, null, 2) + '\n');
+  const summary = applied.map(a => `${a.lane}: ${a.from} → ${a.to}`).join(', ');
+  commit(`chore(workflow): auto-update stale primary_model (${summary})`);
+  logInfo(applied, summary);
+  return applied;
+}
