@@ -143,28 +143,48 @@ human chat messages (D3).
 `mergeIndexMarkers()` unchanged in behavior, driven from the existing 60s
 tick, with `conversation.md` removed from its artifact set entirely.
 
-- [ ] Task 4.1 (REQ-10) — **first, independently committable**: remove
-      `'conversation.md'` from `ARTIFACTS` in
-      `conductor/services/worktree-artifact-merge.mjs`, with a comment
-      explaining the D3 loss mechanism and that `.conv-cursor` owns that
-      file. Write the failing test (TC-4.1) before the change.
-- [ ] Task 4.2 (REQ-8): add a periodic doc-sync pass invoked from the
-      existing `refreshWorktreeSummaryCache()` 60s tick (it already
-      enumerates live worktrees via `auditWorktrees`, so the worktree list
-      is free). For each row with `hasWorktree`, call
-      `copyWorktreeArtifactsToPrimary({ ..., isSuccess: false })` —
-      `isSuccess: false` deliberately keeps the shrink guards armed for
-      mid-run copies.
-- [ ] Task 4.3 (REQ-9): mtime/size compare per file before reading or
-      writing; skip untouched files entirely.
-- [ ] Task 4.4 (REQ-12): skip tracks with no live worktree; make the pass
-      re-entrant and cheap enough that overlapping with an exit-handler
-      copy is harmless (both write the same content from the same source).
-- [ ] Task 4.5: after a successful `index.md` merge, push it to the DB via
-      the existing `syncTrack(indexPath)` call so the board reflects it —
-      same call the exit handler already makes.
-- [ ] Task 4.6: `[doc-sync]`-prefixed log line only when something was
-      actually copied (no per-tick spam on a quiet repo).
+- [x] Task 4.1 (REQ-10): removed `'conversation.md'` from `ARTIFACTS` in
+      `conductor/services/worktree-artifact-merge.mjs`. TDD: wrote the
+      failing test first
+      (`track-1110-copy-worktree-artifacts.test.mjs`: "never touches
+      conversation.md — a human comment in the primary copy must survive a
+      run-end copy"), confirmed it failed against the unfixed code, then
+      applied the fix and confirmed green.
+- [x] Task 4.2 (REQ-8): **deviated from the plan's own suggestion**
+      (`refreshWorktreeSummaryCache`) — that function early-returns under
+      `getIsLocalFs()`, which would have silently made doc-sync a no-op in
+      local-fs mode, contradicting REQ-12/AC-11's "any live worktree"
+      scope and `reconcileWorktrees()`'s own explicit "runs regardless of
+      mode" precedent right next to it. Also, `auditWorktrees()` itself
+      turned out to be the wrong data source entirely: it drops any
+      track-* branch that hasn't diverged from main yet
+      (`isAncestor(...) continue`) — exactly a freshly-created worktree
+      with only uncommitted edits, i.e. the most common case early in any
+      run and precisely what doc-sync exists to keep fresh. Found live in
+      a sandbox repro before it could ship as a silent gap. Added a new,
+      narrow `listTrackWorktrees()` in `worktree-audit.mjs` (one
+      `git worktree list --porcelain` call, no branch/commit walking) and
+      built `syncWorktreeDocsToPrimary()` on its own 60s `setInterval`
+      next to `reconcileWorktrees()`'s, calling
+      `copyWorktreeArtifactsToPrimary({ ..., isSuccess: false,
+      skipUnchanged: true })` per live worktree.
+- [x] Task 4.3 (REQ-9): added a `skipUnchanged` param to
+      `copyWorktreeArtifactsToPrimary()` (default `false` — existing
+      exit-handler/orphan-reconcile callers unaffected) that mtime-compares
+      source vs dest per file and skips entirely (no read, no write) when
+      the worktree copy isn't newer. Verified live: a real sandbox
+      worktree's uncommitted `plan.md` edit propagated to primary on the
+      first pass; an unchanged second pass touched nothing (confirmed via
+      mtime).
+- [x] Task 4.4 (REQ-12): `listTrackWorktrees()` naturally returns nothing
+      for a track with no live worktree, so the loop is a no-op for it;
+      re-entrancy is inherited from `copyWorktreeArtifactsToPrimary()`'s
+      own idempotent behavior (same source, same guards, safe to overlap
+      with an exit-handler copy).
+- [x] Task 4.5: on a successful `index.md` copy, `syncTrack(indexPath)` is
+      called exactly as the exit handler already does.
+- [x] Task 4.6: `[doc-sync]` log lines only emitted when `copied.length` or
+      `skipped.length` is non-zero for that track.
 
 **Impact**: the board, DB and chat show a track's real state within ~60s
 of the agent writing it, instead of at run end.
@@ -177,14 +197,21 @@ of the agent writing it, instead of at run end.
 that is known to be stale, silently (D4).
 **Solution**: log it, and mark the track so the board can say so.
 
-- [ ] Task 5.1 (REQ-11): log every guard skip with track, file, incoming
-      size, existing size, and which threshold tripped.
-- [ ] Task 5.2 (REQ-11): record the skip on the track (marker or DB field
-      — decide during implementation; prefer whatever the board already
-      reads rather than adding a new column) so the UI can show "docs may
-      be stale".
-- [ ] Task 5.3: surface it in the UI wherever the track's freshness is
-      already displayed; clear it on the next successful sync.
+- [x] Task 5.1 (REQ-11): `copyWorktreeArtifactsToPrimary()` now returns a
+      `skipped` array (`{ file, reason, incomingSize, existingSize }` per
+      declined artifact); `syncWorktreeDocsToPrimary()` logs every entry.
+- [x] Task 5.2 (REQ-11): **decided against a new marker/DB field** — per
+      the plan's own "prefer whatever the board already reads" guidance,
+      reused the existing conversation.md → Inbox pipeline instead of
+      inventing new plumbing: a `⚠️` `system` comment posted to the
+      track's `conversation.md` on the transition into "stale" is picked
+      up by the existing Inbox classification (leading-emoji convention,
+      documented in this skill's "Completion Comment Convention") with no
+      new UI/DB work needed.
+- [x] Task 5.3: de-duplicated via an in-memory `staleDocSignal` Map keyed
+      `${trackNumber}:${file}` — warns once per stale transition, not
+      every 60s tick the guard keeps declining; cleared the moment that
+      file syncs successfully again.
 
 **Impact**: a stale primary copy is visible instead of indistinguishable
 from a fresh one.

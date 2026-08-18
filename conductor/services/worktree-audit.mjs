@@ -186,6 +186,29 @@ function getConflictPaths(repoRoot, mainBranch, branch) {
  * Fully merged branches are omitted — nothing to report.
  * Read-only: never merges, deletes, or checks anything out.
  */
+// Track 10019 (Phase 4): every currently-existing track worktree,
+// regardless of merge/branch-divergence state — deliberately NOT
+// auditWorktrees() above, whose `isAncestor(...) continue` (line ~211)
+// drops any track-* branch that hasn't diverged from `mainBranch` yet.
+// That's correct for auditWorktrees' own purpose (nothing to merge until
+// there's a commit to merge) but wrong for this one: a freshly-created
+// worktree with uncommitted, in-progress edits — exactly the case doc-sync
+// exists to keep fresh — has a branch that's still a plain ancestor of
+// main until the agent's first commit, and would otherwise be silently
+// invisible to doc-sync for the entire early part of a run. One
+// `git worktree list --porcelain` call, no branch/commit walking.
+export function listTrackWorktrees({ repoRoot }) {
+  const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
+  const results = [];
+  for (const [path] of worktreesByPath) {
+    if (path === primaryPath) continue;
+    const trackNumber = path.match(/\.worktrees[\\/](\d+)$/)?.[1];
+    if (!trackNumber) continue; // not a track worktree (scratch/merge worktree, etc.)
+    results.push({ trackNumber, worktreePath: path });
+  }
+  return results;
+}
+
 export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
   const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
   const branchToWorktree = new Map();
