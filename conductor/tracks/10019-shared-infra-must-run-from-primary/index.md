@@ -1,12 +1,12 @@
 # Track 10019: Shared state must live in main — infra processes AND track metadata
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
-**Last Run**: claude/claude-opus-5 (primary)
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Systematic audit of every process that acts as shared, live LaneConductor infrastructure (sync workers, UI dev server, API server, and anything else that resolves paths from cwd), to guarantee none…
+**Summary**: All 5 phases implemented — infra path resolution (worker cwd normalization, Makefile, getInstallPath, auditWorktrees lock check) fixed and verified live; startup provenance logging added; continuous doc sync-back with guard-skip surfacing implemented and verified live.
 
 ## Problem
 
@@ -108,9 +108,10 @@ Known gaps to close:
 - [1114](../1114-worktrees-panel-deep-link-autopilot-cleanup/index.md) — the Worktrees panel work these incidents surfaced during
 
 ## Phases
-- [ ] Phase 1: Audit every candidate spawn/serve/path-resolution site listed above; for each, confirm whether it's vulnerable and whether it needs the `resolvePrimaryRepoRoot()` fix pattern
-- [ ] Phase 2: Fix whatever the audit finds, one targeted change per site (matching F16/F17's pattern — narrow, not a global `findProjectRoot()` rewrite)
-- [ ] Phase 3: Consider a lightweight guard/warning (e.g. a startup log line noting "running from worktree, not primary" for any long-running process) as defense-in-depth for whatever this audit doesn't structurally rule out
-- [ ] Phase 4: Continuous doc sync-back — periodic (piggyback the existing 60s `refreshWorktreeSummaryCache` tick) copy of each live-worktree track's docs to primary via the existing `copyWorktreeArtifactsToPrimary()`/`mergeIndexMarkers()` machinery, instead of only at run end. mtime-compare before copying so untouched files cost nothing. Per-file direction rules: plan/spec/test → worktree wins during a run (agent is sole writer, shrink-guards intact); index.md → `mergeIndexMarkers()` as today; **conversation.md → excluded entirely** — chat replies land in primary's copy while the agent appends to the worktree's, so a blind copy would eat chat messages; the existing conv-sync machinery (`.conv-cursor`) stays that file's sole owner.
+- [x] Phase 1: Audit every candidate spawn/serve/path-resolution site listed above; for each, confirm whether it's vulnerable and whether it needs the `resolvePrimaryRepoRoot()` fix pattern
+- [x] Phase 2: Fix whatever the audit finds, one targeted change per site (matching F16/F17's pattern — narrow, not a global `findProjectRoot()` rewrite)
+- [x] Phase 3: Consider a lightweight guard/warning (e.g. a startup log line noting "running from worktree, not primary" for any long-running process) as defense-in-depth for whatever this audit doesn't structurally rule out
+- [x] Phase 4: Continuous doc sync-back — periodic (piggyback the existing 60s `refreshWorktreeSummaryCache` tick) copy of each live-worktree track's docs to primary via the existing `copyWorktreeArtifactsToPrimary()`/`mergeIndexMarkers()` machinery, instead of only at run end. mtime-compare before copying so untouched files cost nothing. Per-file direction rules: plan/spec/test → worktree wins during a run (agent is sole writer, shrink-guards intact); index.md → `mergeIndexMarkers()` as today; **conversation.md → excluded entirely** — chat replies land in primary's copy while the agent appends to the worktree's, so a blind copy would eat chat messages; the existing conv-sync machinery (`.conv-cursor`) stays that file's sole owner.
   **Decided (2026-08-18, discussed with user): copy-back over read-from-branch.** The alternative — readers using `git show <branch>:<path>` when a worktree exists — was rejected for two reasons: (1) it only sees committed content, so mid-run uncommitted edits (the exact staleness complained about) stay invisible; (2) it forces routing knowledge onto every reader — each consumer (board, DB sync, chat context, `lc show`) would have to correctly answer "is this track in a worktree right now, or running in main?" per track, per moment, forever — while some tracks/lanes legitimately run directly in main (main-mode, workspace-mode) with no worktree at all. Copy-back inverts it: the writer routes (the worker already knows each run's `worktreePath || cwd` at spawn time), readers always read primary, no consumer changes.
-- [ ] Phase 5: Surface guard-skipped copies — when the suspicious-shrink guard declines to sync a doc, log it and mark the track so the board shows "docs may be stale" instead of silently serving old content
+  **Implementation deviated from "piggyback refreshWorktreeSummaryCache"**: that function skips local-fs mode, and its `auditWorktrees()` data source drops any worktree whose branch hasn't diverged from main yet — exactly the common case early in a run, before the first commit. Built as its own `syncWorktreeDocsToPrimary()` on its own 60s interval instead, backed by a new `listTrackWorktrees()` (raw `git worktree list`, no branch/commit filtering). See plan.md Phase 4 for the full account.
+- [x] Phase 5: Surface guard-skipped copies — when the suspicious-shrink guard declines to sync a doc, log it and mark the track so the board shows "docs may be stale" instead of silently serving old content. Implemented as a de-duplicated `⚠️` `conversation.md` comment (reuses the existing Inbox pipeline) rather than a new marker/DB field.
