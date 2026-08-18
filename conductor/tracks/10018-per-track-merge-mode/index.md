@@ -3,6 +3,7 @@
 **Lane**: implement
 **Lane Status**: queue
 **Progress**: 98%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 11 queued — subprocess-level E2E for the real worker-side PR flow, TDD (Phases 1-10 complete and tested)
 **Type**: dev
 **Merge Mode**: direct
