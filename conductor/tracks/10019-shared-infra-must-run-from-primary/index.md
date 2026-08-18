@@ -1,7 +1,7 @@
 # Track 10019: Shared state must live in main — infra processes AND track metadata
 
-**Lane**: implement
-**Lane Status**: running
+**Lane**: plan
+**Lane Status**: queue
 **Progress**: 0%
 **Type**: dev
 **Waiting for reply**: no
