@@ -46,6 +46,7 @@ import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/wo
 import { shouldWriteForceDoneMarker, applyDoneSuccessMarkers } from './services/force-merge-marker.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
+import { parseMergeModeMarker } from './services/merge-mode.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
@@ -1357,6 +1358,15 @@ function parseTrackType(content) {
   return ['dev', 'marketing', 'sales', 'support', 'other'].includes(val) ? val : 'dev';
 }
 
+// Marker-only reader — returns null (not a default) when **Merge Mode** is
+// absent or invalid, so the FS→DB payload only pushes a value when the file
+// actually says one, letting COALESCE on the DB side preserve whatever the
+// column already holds. Track 10018 — see services/merge-mode.mjs for the
+// NULL→'pr' resolution this deliberately does NOT do here.
+function parseMergeMode(content) {
+  return parseMergeModeMarker(content);
+}
+
 function parseKpiTarget(content) {
   const match = content.match(/\*\*KPI Target\*\*:\s*([^\n]+)/i);
   return match ? parseInt(match[1].trim(), 10) || null : null;
@@ -1602,6 +1612,12 @@ function updateIndexMDFromDB(trackFolder, dbTrack) {
     }
     if (dbTrack.content_summary) {
       content = updateMarker(content, 'Summary', dbTrack.content_summary);
+    }
+    // Track 10018: only write the marker when the DB explicitly has a value —
+    // an absent/NULL merge_mode means "unspecified", which resolveMergeMode()
+    // treats as 'pr' without ever needing the marker to say so in the file.
+    if (dbTrack.merge_mode) {
+      content = updateMarker(content, 'Merge Mode', dbTrack.merge_mode);
     }
 
     writeFileSync(indexPath, content, 'utf8');
@@ -1967,6 +1983,9 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       waiting_for_reply: waitingForReply,
       index_content: indexContent, plan_content: planContent, spec_content: specContent, test_content: testContent,
       log_content: logContent,
+      // Track 10018: per-track merge mode marker (null when unspecified —
+      // resolveMergeMode() on the read side is where NULL becomes 'pr')
+      merge_mode: parseMergeMode(stateContent),
       // KPI fields
       track_type: trackType,
       kpi_target: parseKpiTarget(stateContent),
