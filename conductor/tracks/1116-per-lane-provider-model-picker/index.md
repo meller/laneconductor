@@ -1,6 +1,6 @@
 # Track 1116: Per-lane provider + live-model picker in Workflow Settings
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-3-5-haiku (primary)

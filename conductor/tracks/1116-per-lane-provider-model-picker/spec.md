@@ -138,34 +138,34 @@ resolver the other five should have been using, and updates them to use it.
   `conductor/workflow.md`'s model-overrides section so users aren't surprised.
 
 ## Acceptance Criteria
-- [ ] Opening the per-lane panel in Workflow Settings shows a Provider dropdown and
+- [x] Opening the per-lane panel in Workflow Settings shows a Provider dropdown and
       a Model dropdown, not a free-text field.
-- [ ] Selecting a provider with a worker actively reporting `available_models`
+- [x] Selecting a provider with a worker actively reporting `available_models`
       shows that worker's live model list in the Model dropdown, not just the
       static presets.
-- [ ] Selecting a provider with no worker reporting live models falls back to the
+- [x] Selecting a provider with no worker reporting live models falls back to the
       static preset list from `conductor/providers.mjs` without erroring.
-- [ ] A lane with no `primary_model` set defaults the Model dropdown to whatever
+- [x] A lane with no `primary_model` set defaults the Model dropdown to whatever
       `getDefaultProviderModel()` returns for the project (Claude /
       `claude-sonnet-5` under today's registry, verified — not hardcoded in the
       component itself).
-- [ ] All 5 previously-hardcoded `'claude'` fallback sites call the shared
+- [x] All 5 previously-hardcoded `'claude'` fallback sites call the shared
       resolver and behave identically to before for projects that already have
       `primary_cli` configured (no behavior change for the common case — only
       the "nothing configured at all" fallback path changes).
-- [ ] Saving persists the selected model string into `workflow.json`'s
+- [x] Saving persists the selected model string into `workflow.json`'s
       `lanes.<lane>.primary_model`, matching the existing (already-shipped) field
       name and precedence logic — no schema change to the config file.
-- [ ] A lane with a pre-existing `primary_model` value (e.g. `claude-opus-5` from
+- [x] A lane with a pre-existing `primary_model` value (e.g. `claude-opus-5` from
       1111's population) opens with that value correctly pre-selected, not reset
       to the default.
-- [ ] A track with a `**Model**: <id>` marker in its `index.md` spawns its lane
+- [x] A track with a `**Model**: <id>` marker in its `index.md` spawns its lane
       actions with that model, beating both the lane's `primary_model` and the
       project default (REQ-7) — verified via the resolver's unit tests plus one
       end-to-end spawn assertion (mock CLI argv contains the track's model).
-- [ ] A track-level `primary_cli`/provider override is stripped with a warning,
+- [x] A track-level `primary_cli`/provider override is stripped with a warning,
       never honored (REQ-7's provider-stays-fixed rule).
-- [ ] The worker-mode-only + best-effort caveats (REQ-8) appear in the Workflow
+- [x] The worker-mode-only + best-effort caveats (REQ-8) appear in the Workflow
       Settings help box and `conductor/workflow.md`.
 
 ## API / Data Models
