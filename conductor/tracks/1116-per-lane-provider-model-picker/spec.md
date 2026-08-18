@@ -1,14 +1,18 @@
 # Spec: Per-lane provider + live-model picker in Workflow Settings
 
 ## Problem Statement
-`WorkflowSettings.jsx`'s Visual Editor has a per-lane "Primary Model" field (added
-this session) that is a free-text input with a static autocomplete list drawn from
-`conductor/providers.mjs`'s hardcoded Claude presets. This is inconsistent with
-`WorkerModelModal.jsx` (the worker "Change Model" dialog), which already shows a
-**provider (CLI) picker** and a **model picker**, and prefers the worker's own
-live-reported `available_models` (track 1099) over the static preset list when
-available. The per-lane picker in Workflow Settings should follow that same
-established pattern instead of being a lesser, static-only version of it.
+`WorkflowSettings.jsx`'s per-lane panel has no way to set a lane's `primary_model`
+at all today — `workflow.json` already supports the field (track 1111 populates
+and honors it) but the UI has no control for it. (This spec was originally
+written to *replace* a free-text "Primary Model" input added earlier in the same
+session; verified at implementation time that the field never actually landed on
+`main` — see plan.md Phase 1. The gap this track closes is the same either way:
+add the picker.) `WorkerModelModal.jsx` (the worker "Change Model" dialog)
+already solves the equivalent problem for workers — it shows a **provider (CLI)
+picker** and a **model picker**, and prefers the worker's own live-reported
+`available_models` (track 1099) over the static preset list when available. The
+new per-lane picker in Workflow Settings should follow that same established
+pattern rather than reinventing it.
 
 **Second, related problem found while scoping the above**: the literal string
 `'claude'` is independently hardcoded as a "no default set" fallback in at least
@@ -75,11 +79,17 @@ resolver the other five should have been using, and updates them to use it.
   lane, same as today; the Provider dropdown is UI-only, used to pick which
   provider's models to browse, seeded from the project's configured `primary.cli`.
 - **REQ-5**: Since `available_models` is reported per-*worker*, not per-project, and
-  `WorkflowSettings.jsx` isn't bound to a specific worker: fetch the project's
-  workers (existing `GET /api/projects/:id/workers`-style endpoint, confirm exact
-  route at implementation time) and use the first one currently reporting
-  `available_models` for the selected provider. No live data available → fall back
-  to static presets (REQ-2), never block the picker on worker availability.
+  `WorkflowSettings.jsx` isn't bound to a specific worker: reuse the project's
+  workers list — already fetched by `App.jsx`'s `usePolling` hook via
+  `GET /api/projects/:id/workers` and passed down as a `workers` prop, same as
+  `WorkersList`/`ProjectCard` — and **merge `available_models` across all of the
+  project's workers** for the selected provider (resolved at implementation
+  time: merging beats "first worker reporting" because a project can have
+  workers on different CLIs, and array order shouldn't hide a second worker's
+  live models). No live data available → fall back to static presets (REQ-2),
+  never block the picker on worker availability. No new network fetch — this
+  is a new `workers` (and `project`) prop threaded from `App.jsx`, not a fetch
+  inside `WorkflowSettings.jsx` itself.
 - **REQ-6**: No regression to existing behavior — a lane with `primary_model`
   already set (e.g. from track 1111's population) must show that value correctly
   pre-selected in the new Model dropdown, and clearing it back to "use project
@@ -173,11 +183,16 @@ response shape used by `WorkersList.jsx`/`WorkerModelModal.jsx` at implementatio
 time) — reused to source live `available_models`, not a new endpoint unless the
 existing one proves insufficient for this use case (e.g. doesn't scope by project).
 
-## Open Questions (resolve during planning, not here)
-1. Exact endpoint/shape for fetching a project's workers' `available_models` from
-   `WorkflowSettings.jsx` (which currently only calls `/api/projects/:id/workflow`).
-2. Whether to pick "first worker reporting for this provider" or merge
-   `available_models` across all of a project's workers for that provider.
-3. Whether REQ-4's "provider is project-fixed, not per-lane" assumption still holds
-   verbatim once 1111 is merged, or whether 1111 introduced any per-lane provider
-   capability that changes this track's scope.
+## Open Questions — resolved during implementation (2026-08-18)
+1. **Resolved**: no new endpoint needed. `App.jsx` already fetches
+   `GET /api/projects/:id/workers` via `usePolling` for other components;
+   `WorkflowSettings.jsx` gets it as a new `workers` prop instead of its own fetch.
+2. **Resolved**: merge `available_models` across all of a project's workers
+   (not "first worker reporting") — see REQ-5.
+3. **Resolved**: REQ-4's assumption holds verbatim on `main` post-1111 —
+   `chosenCli` is still project-fixed, never per-lane (verified against
+   `buildCliArgs`/`resolveLaneCliAndModel`, see plan.md Phase 1 findings).
+   Separately (not this question, but found during the same verification):
+   the "Primary Model" free-text field this spec was written to *replace*
+   does not actually exist on `main` — this track adds the Provider+Model
+   picker fresh rather than replacing an existing input.
