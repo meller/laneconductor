@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: running
 **Progress**: 100%
-**Phase**: Planning in progress
+**Phase**: Plan refined — spec.md updated with Phase 6 provider-switch confirmation requirement; ready for implement
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
