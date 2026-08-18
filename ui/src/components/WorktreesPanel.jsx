@@ -130,7 +130,7 @@ const MERGE_MODE_BADGE = {
   direct: { label: 'DIRECT', className: 'bg-gray-900 text-gray-400 border-gray-800' },
 };
 
-function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onCreatePr, creatingPr, onMergePr, mergingPr }) {
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onCreatePr, creatingPr, onMergePr, mergingPr, onPreview, isPreviewing, previewLoading }) {
   const { armedKey, request } = useArmedConfirm();
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
   const canMerge = row.class === 'mergeable' || row.class === 'stranded';
@@ -173,6 +173,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   // about the row visually signals there's nothing left to remove.
   // worktree_path alone is the real signal.
   const canRemove = Boolean(row.worktree_path);
+  const hasWorktreeToPreview = Boolean(row.worktree_path);
   // Complete & Merge is for rows still genuinely mid-pipeline (`open`
   // with a real track) — mergeable/stranded already have their own
   // direct "Merge to main"; conflicted needs manual resolution first;
@@ -384,15 +385,36 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
         {canRemove && (
           <button
             onClick={() => request(`remove:${row.worktree_path || row.branch}`, () => onRemove(row))}
-            disabled={rowBusy}
+            disabled={rowBusy || isPreviewing}
             data-testid="remove-worktree-btn"
-            title="Discards this worktree's uncommitted changes — the branch/commits (if any) are not deleted"
+            title={isPreviewing
+              ? 'This worktree is currently being previewed by the dev server — return to main first'
+              : "Discards this worktree's uncommitted changes — the branch/commits (if any) are not deleted"}
             className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `remove:${row.worktree_path || row.branch}`
               ? 'border-red-500 bg-red-800/60 text-white'
               : 'border-red-900/60 bg-red-950/20 text-red-400 hover:bg-red-900/30'
               }`}
           >
             {removing ? 'Removing…' : armedKey === `remove:${row.worktree_path || row.branch}` ? 'Click again to remove' : 'Remove worktree'}
+          </button>
+        )}
+        {/* Track 10018 Phase 5: swaps the project's single dev server to
+            run against this worktree instead of the primary checkout —
+            "shift, test, approve" from the Worktrees panel. */}
+        {hasWorktreeToPreview && (
+          <button
+            onClick={() => onPreview(row)}
+            disabled={rowBusy || previewLoading || isPreviewing}
+            data-testid="preview-btn"
+            title={isPreviewing
+              ? 'The dev server is already running this worktree'
+              : 'Stops the current dev server and restarts it pointed at this worktree, so you can test the branch before approving it'}
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isPreviewing
+              ? 'border-purple-500 bg-purple-900/40 text-purple-300'
+              : 'border-purple-800/60 bg-purple-950/20 text-purple-400 hover:bg-purple-900/30'
+              }`}
+          >
+            {isPreviewing ? '● Previewing' : previewLoading ? 'Starting…' : 'Preview'}
           </button>
         )}
       </div>
@@ -493,6 +515,64 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Track 10018 Phase 5: separate, simple poll for dev-server preview
+  // state — deliberately NOT folded into fetchRows' interval above, whose
+  // ref-indirection exists to work around a specific pendingKeys
+  // stale-closure bug that has nothing to do with this endpoint; keeping
+  // this poll independent avoids re-risking that same bug class here.
+  const [previewTrack, setPreviewTrack] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  useEffect(() => {
+    if (!projectId) return;
+    const fetchPreview = () => {
+      apiFetch(`/api/projects/${projectId}/dev-server/status`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => setPreviewTrack(data?.preview_track ?? null))
+        .catch(() => { });
+    };
+    fetchPreview();
+    const id = setInterval(fetchPreview, 5000);
+    return () => clearInterval(id);
+  }, [projectId, apiFetch]);
+
+  async function handlePreview(row) {
+    if (!row.worktree_path) return;
+    setError(null);
+    setPreviewLoading(true);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dev-server/start`, {
+        method: 'POST',
+        body: JSON.stringify({ preview_cwd: row.worktree_path, preview_track: row.track }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      const data = await res.json();
+      setPreviewTrack(data.preview_track ?? row.track);
+    } catch (err) {
+      setError(`Failed to start preview for #${row.track}: ${err.message}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleReturnToMain() {
+    setError(null);
+    setPreviewLoading(true);
+    try {
+      // No preview_cwd → the endpoint falls back to the project's own
+      // repo_path, exactly the "swap back to primary" half of the design.
+      const res = await apiFetch(`/api/projects/${projectId}/dev-server/start`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      setPreviewTrack(null);
+    } catch (err) {
+      setError(`Failed to return to main: ${err.message}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   // Fire-and-forget: creates a refresh-worktrees dispatch, doesn't wait for
   // the worker to actually claim/run it. Shared by the manual button
@@ -738,6 +818,9 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
           creatingPr={Boolean(pendingKeys[createPrKey(row)])}
           onMergePr={handleMergePr}
           mergingPr={Boolean(pendingKeys[mergePrKey(row)])}
+          onPreview={handlePreview}
+          isPreviewing={Boolean(row.track) && String(row.track) === String(previewTrack)}
+          previewLoading={previewLoading}
         />
       ))}
     </div>
@@ -746,6 +829,25 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
   return (
     <div className="flex flex-col gap-6">
       <WorktreeStatsHeader rows={rows} onRefresh={handleRefresh} refreshing={refreshing} />
+      {/* Track 10018 Phase 5: always visible while a preview is active, so
+          it's impossible to forget the dev server isn't pointed at main
+          right now — the whole point of the persistent badge/banner pair. */}
+      {previewTrack && (
+        <div
+          className="text-xs text-purple-300 bg-purple-950/30 border border-purple-800/60 rounded px-3 py-2 flex items-center justify-between gap-3"
+          data-testid="preview-banner"
+        >
+          <span>🔬 Dev server is running track #{previewTrack}'s worktree</span>
+          <button
+            onClick={handleReturnToMain}
+            disabled={previewLoading}
+            data-testid="return-to-main-btn"
+            className="text-[10px] px-2.5 py-1 border border-purple-700/60 bg-purple-900/40 text-purple-300 hover:bg-purple-800/50 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold uppercase tracking-wider transition-colors shrink-0"
+          >
+            {previewLoading ? 'Switching…' : 'Return to main'}
+          </button>
+        </div>
+      )}
       {error && (
         <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded px-3 py-2 flex items-center gap-3 flex-wrap">
           <span>{error}</span>

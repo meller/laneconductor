@@ -100,7 +100,13 @@ const server = createServer(app);
 initWebSocket(server);
 
 // ── Dev Servers (per project) ────────────────────────────────────────────────
-// Map: projectId -> { proc, pid, url }
+// Map: projectId -> { proc, pid, url, previewCwd, previewTrack }
+// Track 10018 Phase 5: previewCwd/previewTrack are set only when the server
+// was last started pointed at a track's worktree instead of the primary
+// checkout (repo_path) — the "single dev server, swapped between
+// checkouts" preview design. In-memory only, same as pid already is; an
+// API-server restart naturally clears back to "no preview active", which
+// is the correct, honest state (nothing is running yet either way).
 const devServers = new Map();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -1876,7 +1882,21 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     const { dev_command, dev_url, repo_path } = projResult.rows[0];
     if (!dev_command) return res.status(400).json({ error: 'No dev_command configured for this project' });
 
-    // Kill existing dev server if any
+    // Track 10018 Phase 5: an optional preview target — when provided, the
+    // dev server runs against that worktree's directory instead of the
+    // primary checkout, so you can test an unmerged (typically pr-mode)
+    // track's branch before approving it. `preview_cwd` is trusted as-is
+    // from the client (same trust level as every other worktree_path this
+    // API already accepts from the Worktrees panel, e.g. remove-worktree's
+    // dispatch payload) — it's always one of the paths the panel itself
+    // just displayed, sourced from this project's own git worktree list.
+    const { preview_cwd, preview_track } = req.body || {};
+    const targetCwd = preview_cwd || repo_path;
+
+    // Kill existing dev server if any — this IS the "stop current, swap"
+    // behavior: starting fresh (whether at the primary checkout or a
+    // preview target) always tears down whatever was running first, so
+    // there is only ever one dev server for this project at a time.
     if (devServers.has(projectId)) {
       const existing = devServers.get(projectId);
       if (existing.proc) {
@@ -1892,12 +1912,15 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
 
     // Spawn new dev server
     const proc = spawn('sh', ['-c', dev_command], {
-      cwd: repo_path,
+      cwd: targetCwd,
       detached: true,
       stdio: 'ignore'
     });
 
-    devServers.set(projectId, { proc, pid: proc.pid, url: dev_url });
+    devServers.set(projectId, {
+      proc, pid: proc.pid, url: dev_url,
+      previewCwd: preview_cwd || null, previewTrack: preview_cwd ? (preview_track ?? null) : null,
+    });
 
     // Save PID to DB
     await pool.query(
@@ -1906,7 +1929,7 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     );
 
     broadcast('conductor:updated', { projectId });
-    res.json({ running: true, pid: proc.pid, url: dev_url });
+    res.json({ running: true, pid: proc.pid, url: dev_url, preview_track: preview_cwd ? (preview_track ?? null) : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1984,6 +2007,7 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
     // Check if process in Map is still alive
     let running = false;
     let pid = null;
+    let previewTrack = null;
 
     if (entry?.pid) {
       try {
@@ -1991,6 +2015,11 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
         kill(entry.pid, 0);
         running = true;
         pid = entry.pid;
+        // Track 10018 Phase 5: only meaningful when the live entry is the
+        // one we spawned this process from — a DB-PID fallback (below) has
+        // no way to know whether that process was ever a preview at all,
+        // so it correctly stays null rather than guessing.
+        previewTrack = entry.previewTrack ?? null;
       } catch (e) {
         // Process is dead
         devServers.delete(projectId);
@@ -2018,7 +2047,8 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
       running,
       pid,
       url: devUrl,
-      dev_command: devCommand
+      dev_command: devCommand,
+      preview_track: previewTrack,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
