@@ -13,7 +13,7 @@ import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, 
 import { runDeploy } from '../conductor/deploy-runner.mjs';
 import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
-import { mergeWorktreeBranch } from '../conductor/services/worktree-merge.mjs';
+import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
@@ -1504,6 +1504,19 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
+    // F17 (track 1102): findProjectRoot() walks up from cwd looking for a
+    // conductor/ dir — a linked worktree satisfies that just as well as
+    // the primary checkout, so `lc worker start` run from inside one spawns
+    // a worker pointed at THAT worktree's own (possibly very stale) copy of
+    // laneconductor.sync.mjs, with its pidfile/logfile scattered there too.
+    // Confirmed live: a worker spawned this way was still running its
+    // worktree's pre-fix code hours later, silently recreating the exact
+    // nested-worktree bug fixed earlier the same day. Every artifact this
+    // command creates (pidfile, logfile, the spawned process's own cwd, the
+    // script it runs) must agree on ONE root regardless of where `lc` was
+    // invoked from — same fix pattern as createWorktree/removeWorktree.
+    const workerRoot = resolvePrimaryRepoRoot(projectRoot);
+
     // Track 1091 Phase 2: --manager is a machine-level singleton — checked
     // against a global pidfile, not the per-project/per-worker-number one
     // below, and --worker-number is meaningless for it (there's only ever
@@ -1511,10 +1524,10 @@ Please review this, answer any questions (some fields may contain questions rath
     const isManager = args.includes('--manager');
 
     const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
-    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
     const logFile = isManager
-        ? join(projectRoot, 'conductor', '.manager.log')
-        : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
+        ? join(workerRoot, 'conductor', '.manager.log')
+        : join(workerRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
 
     const existingPid = getRunningWorkerPid(pidFile);
     if (existingPid) {
@@ -1547,7 +1560,7 @@ Please review this, answer any questions (some fields may contain questions rath
         }
     }
 
-    const { syncScript, error } = resolveSyncScript(projectRoot);
+    const { syncScript, error } = resolveSyncScript(workerRoot);
     if (error) {
         console.error(error);
         process.exit(1);
@@ -1582,7 +1595,7 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     const worker = spawn('node', syncArgs, {
-        cwd: projectRoot,
+        cwd: workerRoot,
         detached: true,
         stdio: ['ignore', logFd, logFd]
     });
@@ -1619,9 +1632,14 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
+    // F17 (track 1102): must agree with `start`/`restart` on where the
+    // pidfile lives, or `lc stop` run from a linked worktree silently
+    // looks in the wrong place and reports "no heartbeat running" for a
+    // worker that's very much alive.
+    const workerRoot = resolvePrimaryRepoRoot(projectRoot);
     const isManager = args.includes('--manager');
     const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
-    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
     if (!existsSync(pidFile)) {
         console.log(`⚠️  No heartbeat running (no ${pidFile.split('/').pop()} found)`);
         process.exit(0);
@@ -1647,12 +1665,16 @@ Please review this, answer any questions (some fields may contain questions rath
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
         process.exit(1);
     }
+    // F17 (track 1102): same fix as `start` — resolve the primary checkout
+    // once, use it for every artifact this command touches, regardless of
+    // which directory (possibly a linked worktree) `lc` was invoked from.
+    const workerRoot = resolvePrimaryRepoRoot(projectRoot);
     const isManager = args.includes('--manager');
     const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
-    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
     const logFile = isManager
-        ? join(projectRoot, 'conductor', '.manager.log')
-        : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
+        ? join(workerRoot, 'conductor', '.manager.log')
+        : join(workerRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
 
     // Resolve the entry script BEFORE touching the running worker — killing it
@@ -1661,7 +1683,7 @@ Please review this, answer any questions (some fields may contain questions rath
     // (Track 1074: this used to hardcode the per-project path with no
     // canonical fallback, so it always crashed here for projects without a
     // local sync-script copy).
-    const { syncScript, error } = resolveSyncScript(projectRoot);
+    const { syncScript, error } = resolveSyncScript(workerRoot);
     if (error) {
         console.error(error);
         process.exit(1);
@@ -1702,7 +1724,7 @@ Please review this, answer any questions (some fields may contain questions rath
     // value, --sync-only conflict) lives in the worker so `lc` and a directly
     // invoked sync.mjs can't disagree about what is legal.
     forwardClaimScopeFlags(args, syncArgs);
-    const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
+    const worker = spawn('node', syncArgs, { cwd: workerRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
     console.log(`✅ Worker restarted (PID: ${worker.pid})`);
@@ -1738,7 +1760,9 @@ Please review this, answer any questions (some fields may contain questions rath
             console.error('Usage: lc worker run <track> [<track> ...]\n\nRuns a worker scoped to those tracks in the foreground and exits when they are done.');
             process.exit(2);
         }
-        const { syncScript, error } = resolveSyncScript(projectRoot);
+        // F17 (track 1102): same fix as start/restart/stop.
+        const workerRoot = resolvePrimaryRepoRoot(projectRoot);
+        const { syncScript, error } = resolveSyncScript(workerRoot);
         if (error) { console.error(error); process.exit(1); }
         const runArgs = [syncScript, '--only-tracks', tracks.join(','), '--once'];
         const workerNumber = resolveWorkerNumber(subArgs);
@@ -1747,14 +1771,18 @@ Please review this, answer any questions (some fields may contain questions rath
         // cold-start the agent context every time (track 1086 / 1084 Phase 0).
         if (workerNumber !== 1) runArgs.push('--worker-number', String(workerNumber));
         console.log(`🚀 Running worker scoped to track(s) ${tracks.join(', ')} — will exit when done.`);
-        const r = spawnSync('node', runArgs, { cwd: projectRoot, stdio: 'inherit' });
+        const r = spawnSync('node', runArgs, { cwd: workerRoot, stdio: 'inherit' });
         process.exit(r.status ?? 0);
     }
     if (sub === 'status') {
         if (!projectRoot) { process.exit(1); }
+        // F17 (track 1102): must agree with start/restart/stop on where the
+        // pidfile lives, or this misreports a live worker as stopped when
+        // run from inside a linked worktree.
+        const workerRoot = resolvePrimaryRepoRoot(projectRoot);
         const isManager = subArgs.includes('--manager');
         const workerNumber = isManager ? 1 : resolveWorkerNumber(subArgs);
-        const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+        const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
         let running = false;
         let pid = null;
         if (existsSync(pidFile)) {
