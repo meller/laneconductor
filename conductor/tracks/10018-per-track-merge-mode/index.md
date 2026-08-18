@@ -2,7 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 99%
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 10 complete — branch name (or "main") on every Kanban card, 10/10 tests passing (Phases 1-10 complete; Phase 6's two documented gaps remain)
 **Type**: dev
 **Merge Mode**: direct
