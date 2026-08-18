@@ -1,9 +1,9 @@
 # Track 1116: Per-lane provider + live-model picker in Workflow Settings
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: Planned — spec.md/plan.md/test.md written, awaiting move to implement
+**Progress**: 100%
+**Phase**: Implementation complete — all 6 phases done, 4 test files (18 unit/E2E cases) passing
 **Type**: dev
 **Summary**: Replace WorkflowSettings.jsx's static Claude-only "Primary Model" text input with a Provider dropdown + live-discovered Model dropdown (sourced the same way WorkerModelModal.jsx does via track…
 
