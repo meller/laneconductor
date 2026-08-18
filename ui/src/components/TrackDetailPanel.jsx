@@ -7,6 +7,8 @@ import { useWebSocket } from '../hooks/useWebSocket.js';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { isWorkerOffline, selectDefaultWorker } from '../lib/workerStatus.js';
 import { PROVIDER_IDS, PROVIDERS, providerLabel, defaultModelFor } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
+import { modelsForProvider } from '../lib/modelOptions.js';
 import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
 
 const CONTENT_TABS = [
@@ -217,6 +219,21 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       if (r.ok) fetchDetail();
     } catch { }
     setAssigneeSaving(false);
+  }
+
+  // Track 1116 REQ-7: per-track model override — beats the lane's
+  // primary_model and the project default. Empty = inherit (unchanged).
+  const [modelOverrideSaving, setModelOverrideSaving] = useState(false);
+  async function setModelOverride(model) {
+    setModelOverrideSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/model-override`, {
+        method: 'PATCH',
+        body: JSON.stringify({ model_override: model || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setModelOverrideSaving(false);
   }
 
   // Track 1085 Phase 4: workers registered to this project, for the "Run on
@@ -679,6 +696,25 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                       {detail.assignee_uid ?? detail.created_by_uid ?? 'unassigned'}
                     </span>
                   )}
+                </div>
+                {/* Track 1116 REQ-7: per-track model override — beats the
+                    lane's primary_model and the project default. Provider
+                    isn't selectable here — it stays fixed project-wide
+                    (REQ-3/REQ-7's session-continuity rule) — this only picks
+                    which model to use within that fixed provider. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600" title="Beats this track's lane model and the project default. Applies in worker mode only (local-fs/local-api/remote-api) — best-effort, an unavailable model fails that run.">Model override:</span>
+                  <select
+                    value={detail.model_override ?? ''}
+                    disabled={modelOverrideSaving}
+                    onChange={e => setModelOverride(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                  >
+                    <option value="">(inherit lane/project default)</option>
+                    {modelsForProvider(getDefaultProviderModel(null, projectWorkers).cli, projectWorkers).map(m => (
+                      <option key={m.id} value={m.id}>{m.label} ({m.id})</option>
+                    ))}
+                  </select>
                 </div>
                 {/* Track 1085 Phase 4: manual dispatch — "Run on worker" */}
                 {DISPATCHABLE_LANES.includes(detail.lane_status) && projectWorkers.length > 0 && (

@@ -71,6 +71,51 @@ describe('resolveLaneCliAndModel (unit)', () => {
     });
     assert.equal(cli, 'claude');
   });
+
+  // Track 1116 REQ-7: track-level tier
+  it('TC-10: a track model wins over BOTH the lane primary_model and the project default', () => {
+    const { model } = resolveLaneCliAndModel({
+      track: { model: 'claude-opus-4-5' },
+      laneConfig: { primary_model: 'claude-opus-5' },
+      proj: { primary: { cli: 'claude', model: 'claude-sonnet-5' } },
+    });
+    assert.equal(model, 'claude-opus-4-5');
+  });
+
+  it('TC-11: with no track model, behaves exactly as before (lane ?? project) — no regression to 1111 precedence', () => {
+    const withLane = resolveLaneCliAndModel({
+      laneConfig: { primary_model: 'claude-opus-5' },
+      proj: { primary: { cli: 'claude', model: 'claude-sonnet-5' } },
+    });
+    assert.equal(withLane.model, 'claude-opus-5');
+
+    const withoutLane = resolveLaneCliAndModel({
+      laneConfig: {},
+      proj: { primary: { cli: 'claude', model: 'claude-3-5-haiku' } },
+    });
+    assert.equal(withoutLane.model, 'claude-3-5-haiku');
+
+    // Omitting `track` entirely (as every pre-1116 call site does) must not throw.
+    assert.doesNotThrow(() => resolveLaneCliAndModel({ laneConfig: {}, proj: {} }));
+  });
+
+  it('track.model set to undefined (no override) falls through to lane/project, same as omitting track', () => {
+    const { model } = resolveLaneCliAndModel({
+      track: { model: undefined },
+      laneConfig: { primary_model: 'claude-opus-5' },
+      proj: { primary: { cli: 'claude', model: 'claude-sonnet-5' } },
+    });
+    assert.equal(model, 'claude-opus-5');
+  });
+
+  it('a track model still cannot change the provider — cli stays project-fixed (REQ-7)', () => {
+    const { cli } = resolveLaneCliAndModel({
+      track: { model: 'claude-opus-4-5' },
+      laneConfig: {},
+      proj: { primary: { cli: 'claude', model: 'claude-sonnet-5' } },
+    });
+    assert.equal(cli, 'claude');
+  });
 });
 
 describe('stripLanePrimaryCli (unit, TC-2b)', () => {
@@ -132,7 +177,7 @@ function setupProject({ manualModelOverride = null } = {}) {
   }, null, 2));
 }
 
-function createTrack(tracksDir, num, lane) {
+function createTrack(tracksDir, num, lane, extraMarkers = []) {
   const dir = join(tracksDir, `${num}-test-track-${num}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.md'), [
@@ -141,6 +186,7 @@ function createTrack(tracksDir, num, lane) {
     `**Lane**: ${lane}`,
     '**Lane Status**: queue',
     '**Progress**: 0%',
+    ...extraMarkers,
     '',
     '## Problem', 'Test problem.', '',
     '## Solution', 'Test solution.',
@@ -154,6 +200,12 @@ function startWorker(recordFile, env = {}) {
       ...process.env,
       PATH: `${BIN}:${process.env.PATH}`,
       FAKE_CLAUDE_RECORD_FILE: recordFile,
+      // This test's project.id (1) collides with whatever real project a
+      // live dev-machine worker may already be running under — without
+      // this, the spawned test worker refuses to start ("Another live
+      // worker already holds this identity's lock"), same reasoning
+      // track-1110/1091's E2E suites already skip it for.
+      LC_SKIP_WORKER_LOCK: '1',
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -233,6 +285,56 @@ describe('LaneConductor per-lane model dispatch (E2E, real worker + substitute c
       await poll(() => readRecords(recordFile).length >= 1, { timeout: 20000 });
       const [record] = readRecords(recordFile);
       assert.equal(record.model, 'claude-3-5-sonnet', 'must fall back to the manual override when the lane has no primary_model');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
+  // Track 1116 REQ-7
+  it('TC-12: a **Model** marker on the track reaches the spawn, beating the lane primary_model; a sibling track without the marker still uses the lane model', async () => {
+    setupProject({ manualModelOverride: null });
+    const tracksDir = join(TMP, 'conductor/tracks');
+    // implement lane's primary_model is claude-sonnet-5 — the marker below must win.
+    createTrack(tracksDir, '4001', 'implement', ['**Model**: claude-opus-4-5']);
+    createTrack(tracksDir, '4002', 'implement'); // no marker — must use the lane's claude-sonnet-5
+    const recordFile = join(TMP, 'records-tc12.jsonl');
+
+    const worker = startWorker(recordFile);
+    try {
+      await poll(() => readRecords(recordFile).length >= 2, { timeout: 25000 });
+      const records = readRecords(recordFile);
+      const withMarker = records.find(r => r.model === 'claude-opus-4-5');
+      const withoutMarker = records.find(r => r.model === 'claude-sonnet-5');
+      assert.ok(withMarker, 'track with **Model** marker must dispatch with claude-opus-4-5');
+      assert.ok(withoutMarker, 'sibling track without the marker must still dispatch with the lane model claude-sonnet-5');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
+  it('TC-13: a stray **Provider** marker on a track is stripped/warned, never changes the spawned CLI', async () => {
+    setupProject({ manualModelOverride: null });
+    const tracksDir = join(TMP, 'conductor/tracks');
+    createTrack(tracksDir, '5001', 'implement', ['**Model**: claude-opus-4-5', '**Provider**: gemini']);
+    const recordFile = join(TMP, 'records-tc13.jsonl');
+
+    // The logger (conductor/services/logger.mjs) writes to stdout, not
+    // stderr — capture both to be safe against either.
+    let output = '';
+    const worker = startWorker(recordFile);
+    worker.stdout.on('data', d => { output += d.toString(); });
+    worker.stderr.on('data', d => { output += d.toString(); });
+    try {
+      await poll(() => readRecords(recordFile).length >= 1, { timeout: 20000 });
+      const [record] = readRecords(recordFile);
+      // The fake-claude-recorder is invoked as 'claude' regardless — what
+      // matters is the model still reflects the (honored) **Model** marker,
+      // proving the stray provider marker had no effect on dispatch at all.
+      assert.equal(record.model, 'claude-opus-4-5', 'Model marker still applies even with a stray Provider marker present');
+      await poll(() => output.length > 0, { timeout: 5000 }).catch(() => {});
+      assert.match(output, /track index\.md has a \*\*Provider\*\* marker/i, 'must warn about the stray Provider marker');
     } finally {
       worker.kill('SIGTERM');
       await sleep(500);
