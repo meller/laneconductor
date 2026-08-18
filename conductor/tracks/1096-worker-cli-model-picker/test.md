@@ -21,6 +21,19 @@
    - Confirm worker table updated.
    - Confirm a `set_model` action is created in `worker_dispatch` for worker.
 
+### Test File: `ui/src/components/WorkerModelModal.test.jsx` (Phase 6)
+
+5. **TC-P6-1**: Changing only the model (same CLI as `worker.cli`) shows no
+   provider-switch warning and `Save Configuration` stays enabled.
+6. **TC-P6-2**: Selecting a different CLI shows the warning banner naming
+   both providers, and disables `Save Configuration` until the
+   confirmation checkbox is ticked — ticking it re-enables Save.
+7. **TC-P6-3**: Switching the CLI selection back to the worker's original
+   CLI clears the warning and re-enables Save without requiring the
+   checkbox.
+8. **TC-P6-4**: Confirming a switch, then picking a *different* new CLI,
+   requires re-confirmation — Save is disabled again.
+
 ---
 
 ## Manual & UI Verification Steps
@@ -35,3 +48,20 @@
    - Select `claude-3-5-haiku` (or custom model string).
    - Click "Save Model Assignment".
    - Confirm modal closes and worker badge updates immediately to `claude-3-5-haiku`.
+
+3. **Provider Switch Confirmation (Phase 6)**:
+   - Click "Change Model" on a worker currently set to Claude.
+   - Click the Gemini CLI button — confirm an amber warning appears
+     naming Claude and Gemini, and "Save Configuration" is disabled.
+   - Tick "I understand — switch this worker to Gemini" — confirm Save
+     becomes enabled.
+   - Click Claude again — confirm the warning disappears and Save is
+     enabled without re-ticking anything.
+
+## Known Gaps
+
+- Task 4.2 (browser E2E of the original model-picker flow) remains
+  **partial** — rate-limited during the original implementation pass, not
+  re-attempted here since Phase 6 is UI-logic-only (covered by the new
+  Vitest component tests above) and doesn't change the modal's network
+  calls.
