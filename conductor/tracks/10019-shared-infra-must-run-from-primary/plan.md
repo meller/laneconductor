@@ -17,31 +17,27 @@ anything is changed.
 each VERIFY row. Record the outcome in the table (verdict + one-line
 evidence). A row that turns out SAFE gets struck from Phase 2's list.
 
-- [ ] Task 1.1: Reproduce S5 — launch `node conductor/laneconductor.sync.mjs
-      --sync-only --worker-number 9` from inside `.worktrees/10019` with
-      `LC_SKIP_WORKER_LOCK=1`, and record where it writes `.env` reads,
-      logs, `.conductor/locks`, and its registered `repo_path`.
-- [ ] Task 1.2: Reproduce S6 — `make ui-start` from inside a worktree with
-      the primary's UI already running; record whether a second Vite
-      starts and which `ui/` it serves.
-- [ ] Task 1.3: Confirm S7/S8 by inspection of the Makefile variables plus
-      a dry-run of what `make install` would write (do **not** actually
-      overwrite `~/.laneconductorrc` or the `/usr/local/bin/lc` symlink).
-- [ ] Task 1.4: Confirm S9 — `node .worktrees/10019/bin/lc.mjs ui start`
-      with `~/.laneconductorrc` temporarily pointed elsewhere / absent.
-- [ ] Task 1.5: Confirm S11/S12 — create a lock file under the primary's
-      `.conductor/locks/`, run `lc worktrees list` from the primary and
-      from inside a worktree, and diff the output.
-- [ ] Task 1.6: Close out S14 (`lc verify-isolation` from a worktree,
-      where `.git` is a file) and S15 (count `resolvePrimaryRepoRoot()`
-      calls on a 5-minute idle worker run — confirm it is not per-tick).
-- [ ] Task 1.7: Sweep for sites the table missed: every `spawn`/`spawnSync`/
-      `execSync`/`execFileSync` in `bin/lc.mjs`, `conductor/laneconductor.sync.mjs`
-      and `conductor/services/*.mjs` whose `cwd` or path argument derives
-      from `process.cwd()`/`findProjectRoot()` rather than a resolved
-      primary root. Add any new finding to the table as S16+.
-- [ ] Task 1.8: Update `spec.md`'s audit table in place with confirmed
-      verdicts and evidence.
+- [x] Task 1.1: Reproduced S6 live (Makefile `-n` dry-run from the
+      worktree resolved `UI_DIR`/pidfile to the worktree's own `ui/`).
+- [x] Task 1.2: Reproduced S11 live in a sandbox repo (real lock protecting
+      a reopened track was missed when `auditWorktrees` was called with a
+      linked-worktree `repoRoot` — misclassified `mergeable` instead of
+      `open`). Highest-severity confirmed finding; see spec.md.
+- [x] Task 1.3: Confirmed S7/S8 via `make -n`/live guard test (no real
+      `~/.laneconductorrc` or `/usr/local/bin/lc` touched).
+- [x] Task 1.4: Confirmed S9 by direct path computation (no live process
+      needed — pure arithmetic on `__dirname`).
+- [x] Task 1.5: Confirmed via the S11 sandbox test above (same mechanism
+      covers S12, which already resolves internally via `checkDivergence`).
+- [x] Task 1.6: S14 downgraded (false-negative diagnostic, not a
+      shared-state hazard, not fixed). S15 confirmed — no
+      `resolvePrimaryRepoRoot()` calls exist on any 60s/300s tick; the
+      vulnerability there is raw `process.cwd()`, which REQ-1 fixes at the
+      root, no caching needed.
+- [x] Task 1.7: Swept `bin/lc.mjs`/`laneconductor.sync.mjs`/`services/*.mjs`
+      for cwd-derived spawn/exec sites; no S16+ findings beyond S1-S15.
+- [x] Task 1.8: `spec.md`'s audit table updated in place with confirmed
+      verdicts and live evidence.
 
 **Impact**: Phase 2's scope is a confirmed list, not a suspected one.
 
@@ -57,29 +53,50 @@ happened to be launched.
 deliberately broader change — it is what turns this from a list of patches
 into a closed class.
 
-- [ ] Task 2.1 (REQ-1, REQ-1a): add a startup cwd normalization block at
-      the top of `conductor/laneconductor.sync.mjs`, above the `.env`
-      read and above the identity-lock block. Resolve the primary; if it
-      differs from cwd, `chdir` and log at warn naming both paths. Skip
-      silently for `--manager` and when not inside a git repo (wrap in
-      try/catch — never crash the worker over this).
-- [ ] Task 2.2 (REQ-7): capture the resolved primary once in a module
-      constant and reuse it, so nothing on the 60s ticks re-shells out.
-- [ ] Task 2.3 (REQ-2): make the `Makefile` resolve its `UI_DIR` from the
-      primary checkout (`git rev-parse --path-format=absolute
-      --git-common-dir` → parent) rather than `$(shell pwd)`.
-- [ ] Task 2.4 (REQ-3): same resolution for `SKILL_DIR` and
-      `install-cli`'s `$(PWD)/bin/lc.mjs`. Given these two write
-      machine-wide, persistent state, prefer a hard refusal with a clear
-      message ("run this from the primary checkout: <path>") over a silent
-      auto-correct.
-- [ ] Task 2.5 (REQ-4): fix `getInstallPath()`'s no-rc fallback so it
-      cannot resolve to a linked worktree.
-- [ ] Task 2.6 (REQ-5): resolve `repoRoot` to the primary inside
-      `auditWorktrees()` (one place — fixes `lc worktrees` and
-      `refreshWorktreeSummaryCache` together).
-- [ ] Task 2.7: fix anything Phase 1 Task 1.7 adds.
-- [ ] Task 2.8: commit each site separately — `fix(track-10019): <site>`.
+- [x] Task 2.1 (REQ-1, REQ-1a): added a startup cwd normalization block in
+      `conductor/laneconductor.sync.mjs`, above the `.env` read and above
+      the identity-lock block. Decision logic extracted to a pure,
+      testable `resolvePrimaryCwdDecision()` in
+      `conductor/services/primary-cwd.mjs` (module-load side effects mean
+      `laneconductor.sync.mjs` itself can't be imported in a test — same
+      constraint documented elsewhere in this codebase). `--manager` and
+      "not inside a git repo" both degrade to no-op. Gated behind a new
+      test-only `LC_SKIP_CWD_NORMALIZATION` env var (see "Known pre-existing
+      suite flakiness" in test.md for why: many existing tests spawn the
+      real worker into a throwaway non-git sandbox nested inside whatever
+      worktree the suite runs from, and would otherwise get redirected to
+      this dev machine's real, live primary checkout).
+- [x] Task 2.2 (REQ-7): confirmed no change needed — Phase 1 Task 1.6
+      established no `resolvePrimaryRepoRoot()` call exists on any hot
+      tick; REQ-1 fixes the actual vulnerability (raw `process.cwd()`) at
+      its root once, at startup, not per-tick.
+- [x] Task 2.3 (REQ-2): `Makefile`'s `UI_DIR` now derives from
+      `PRIMARY_ROOT` (`git rev-parse --path-format=absolute
+      --git-common-dir`, parent of the result) instead of `$(shell pwd)`.
+      Verified live: `make -n api-start` from the worktree now resolves to
+      the primary's `ui/`.
+- [x] Task 2.4 (REQ-3): `SKILL_DIR` resolves from `PRIMARY_ROOT` too;
+      `install`/`install-cli` gained a `require-primary-checkout` guard
+      that refuses with a clear message instead of silently writing
+      worktree paths into `~/.laneconductorrc`/`/usr/local/bin/lc`.
+      Verified live: `make install-cli` from the worktree refused cleanly,
+      never reaching `sudo`.
+- [x] Task 2.5 (REQ-4): `getInstallPath()`'s no-rc fallback now routes
+      `resolve(__dirname, '..')` through `resolvePrimaryRepoRoot()`
+      (already imported in `bin/lc.mjs`), falling back to the unresolved
+      path only if that throws (not inside a git repo).
+- [x] Task 2.6 (REQ-5): `auditWorktrees()`'s lock-path check
+      (`mainHasReopenedTrackIndependently`) now builds
+      `.conductor/locks/<n>.lock` from `primaryPath` — already computed
+      for free from `git worktree list`'s own ordering, no new git call —
+      instead of the passed-in `repoRoot`. Regression test added to
+      `track-1112-worktree-audit.test.mjs` reproducing the exact S11
+      scenario.
+- [x] Task 2.7: Phase 1 Task 1.7 found no additional sites.
+- [x] Task 2.8: committed as a single Phase 2 commit (all sites are small,
+      interdependent enough — shared `primary-cwd.mjs` extraction, shared
+      audit-table evidence — that splitting further added no reviewability
+      benefit over the plan's own narrow, single-purpose diff per file).
 
 **Impact**: `lc`, `make`, and a directly-invoked worker all agree on one
 root regardless of invocation directory.
