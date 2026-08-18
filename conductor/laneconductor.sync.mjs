@@ -5447,6 +5447,80 @@ async function checkDispatchInbox() {
       continue;
     }
 
+    // Track 10018: the Worktrees panel's "Create PR" button — the rescue
+    // path for a pr-mode track that's already done:success (via
+    // auditWorktrees, same precondition style as merge-worktree above) but
+    // has no PR yet (e.g. openTrackPrOnDone's own gh-auth/push failure, or
+    // a stranded branch someone wants under PR review after the fact).
+    // Reuses openTrackPrOnDone directly — no second copy of the PR-opening
+    // logic.
+    if (entry.action === 'create-pr') {
+      const trackNumber = entry.payload?.track_number;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] create-pr track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `create-pr track ${trackNumber} (dispatch ${entry.id})`);
+
+      let resultText;
+      try {
+        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        if (!row || !row.hasWorktree) {
+          resultText = 'Not opened: no live worktree found for this track';
+        } else if (row.lane !== 'done' || row.laneStatus !== 'success') {
+          resultText = `Not opened: track is at ${row.lane || '?'}:${row.laneStatus || '?'}, not done:success`;
+        } else if (row.prNumber) {
+          resultText = `PR #${row.prNumber} already exists — nothing to do`;
+        } else {
+          await openTrackPrOnDone(trackNumber, row.worktreePath);
+          resultText = 'PR create dispatched — see track conversation for the result';
+        }
+      } catch (err) {
+        resultText = `Error: ${err.message}`;
+      }
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'done', result: resultText })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report create-pr result'));
+      continue;
+    }
+
+    // Track 10018: the Worktrees panel's "Merge PR" button — merges
+    // through GitHub (never a local git merge), so branch protection and
+    // required checks stay authoritative. Actual local cleanup (worktree
+    // removal, branch deletion, lane transition bookkeeping) happens on
+    // reconcilePrTracks()'s next poll once GitHub reports the merge, same
+    // as a merge done directly in the GitHub UI — this handler's only job
+    // is to trigger it.
+    if (entry.action === 'merge-pr') {
+      const trackNumber = entry.payload?.track_number;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] merge-pr track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `merge-pr track ${trackNumber} (dispatch ${entry.id})`);
+
+      let resultText;
+      try {
+        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        if (!row?.prNumber) {
+          resultText = 'Not merged: no open PR number recorded for this track';
+        } else {
+          mergeTrackPr({ repoRoot: resolvePrimaryRepoRoot(process.cwd()), prNumber: parseInt(row.prNumber, 10) });
+          resultText = `Merge requested for PR #${row.prNumber} — GitHub will process it; cleanup follows on the next reconcile pass`;
+        }
+      } catch (err) {
+        resultText = `Error: ${err.message}`;
+      }
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: resultText.startsWith('Error') || resultText.startsWith('Not merged') ? 'failed' : 'done', result: resultText })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-pr result'));
+      continue;
+    }
+
     // Track 1114: "Remove Worktree" for detached/orphaned scratch
     // worktrees the panel had no cleanup path for. Deliberately only
     // discards the worktree's own uncommitted changes (`git worktree
