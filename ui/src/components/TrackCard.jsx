@@ -165,6 +165,56 @@ function TrackTypeBadge({ trackType }) {
   );
 }
 
+// ── Unmerged-branch badge (Track 10018) ──────────────────────────────────────
+//
+// A track at lane_status='done' means the lane ACTION finished — it does not
+// mean the code shipped. worktree_class (see GET /api/projects/:id/tracks,
+// cross-referenced against the same live worktree data the Worktrees panel
+// uses) is null exactly when there's no live unmerged branch left for this
+// track — either it never had one, or it's already fully merged. Anything
+// else means "still sitting unmerged," regardless of whether that's a plain
+// direct-mode mergeable/stranded/conflicted branch or a pr-mode PR still
+// awaiting approval — this card is not the full truth without it.
+const UNMERGED_BADGE = {
+  mergeable: { label: 'Unmerged', icon: '⏳', color: 'bg-gray-800 text-gray-400 border-gray-700' },
+  stranded: { label: 'Unmerged', icon: '🔴', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  conflicted: { label: 'Conflict', icon: '⚠️', color: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
+  open: { label: 'Unmerged', icon: '⏳', color: 'bg-gray-800 text-gray-400 border-gray-700' },
+};
+const UNMERGED_PR_BADGE = {
+  open: { label: 'PR open', icon: '🔵', color: 'bg-blue-950/40 text-blue-300 border-blue-800/80' },
+  'checks-failed': { label: 'PR checks failed', icon: '❌', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  conflicted: { label: 'PR conflict', icon: '🟠', color: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
+  closed: { label: 'PR closed', icon: '🚫', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  merged: { label: 'Merging…', icon: '✅', color: 'bg-green-950/40 text-green-300 border-green-800/80' },
+  error: { label: 'PR failed to open', icon: '⚠️', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+};
+
+function UnmergedBadge({ worktreeClass, prStatus, prUrl }) {
+  if (!worktreeClass) return null; // no live unmerged branch — this really is done
+  const style = worktreeClass === 'pr-open'
+    ? (UNMERGED_PR_BADGE[prStatus] ?? UNMERGED_PR_BADGE.open)
+    : (UNMERGED_BADGE[worktreeClass] ?? UNMERGED_BADGE.open);
+
+  const content = (
+    <span
+      className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${style.color}`}
+      title={worktreeClass === 'pr-open'
+        ? 'This track is marked done, but its PR has not merged yet — see the Worktrees panel'
+        : 'This track is marked done, but its branch has not merged into main yet — see the Worktrees panel'}
+    >
+      <span>{style.icon}</span>
+      <span>{style.label}</span>
+    </span>
+  );
+
+  return worktreeClass === 'pr-open' && prUrl ? (
+    <a href={prUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
+      {content}
+    </a>
+  ) : content;
+}
+
 // ── KPI window countdown ─────────────────────────────────────────────────────
 
 function KpiWindowCountdown({ kpiCheckAfter }) {
@@ -296,6 +346,13 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}>
             {track.lane_status}
           </span>
+          {track.lane_status === 'done' && (
+            <UnmergedBadge
+              worktreeClass={track.worktree_class}
+              prStatus={track.worktree_pr_status}
+              prUrl={track.worktree_pr_url}
+            />
+          )}
           <AssigneeWorkerStatusBadge status={track.assignee_worker_status} />
           {track.retry_count > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 bg-red-950/40 text-red-500 border border-red-900/40 rounded leading-none" title="Automated retries since last human message">
