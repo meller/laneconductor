@@ -1,15 +1,133 @@
-# Tests: Track 10019 — Shared Infra Must Run From Primary
+# Tests: Track 10019 — Shared state must live in main
 
 ## Test Commands
+
 ```bash
-# Run all tests
-npm test
+# Worker / service tests (node:test, zero deps — anything touching real
+# processes or the filesystem lives here)
+node --test conductor/tests/
+
+# Targeted new suites for this track
+node --test conductor/tests/primary-root-normalization.test.mjs
+node --test conductor/tests/worktree-doc-sync.test.mjs
+
+# UI + API unit/integration tests
+cd ui && npm test
 ```
+
+New suites follow the existing `conductor/tests/worktree-create-path-resolution.test.mjs`
+pattern: build a throwaway repo + linked worktree in a temp dir, exercise
+the real function, assert on real paths.
+
+---
 
 ## Test Cases
 
-(Test cases to be added)
+### Phase 1 — audit (manual/live; evidence recorded in conversation.md)
+
+- [ ] TC-1.1: worker launched from `.worktrees/<n>` (pre-fix) — expected:
+      it reads `.env`/config and writes logs/locks under the **worktree**.
+      This is the reproduction that justifies REQ-1; record the paths.
+- [ ] TC-1.2: `make ui-start` from a worktree with the primary UI already
+      up — expected (pre-fix): a second Vite starts, serving the
+      worktree's `ui/`, with its own pidfile.
+- [ ] TC-1.3: `lc worktrees list` from primary vs from a worktree with a
+      live lock present — expected (pre-fix): outputs differ in
+      lock-awareness.
+- [ ] TC-1.4: `lc verify-isolation` from inside a worktree (where `.git`
+      is a file, not a directory) — expected: records whether it errors,
+      silently reports nothing, or works.
+- [ ] TC-1.5: idle worker for 5 minutes — expected: `resolvePrimaryRepoRoot()`
+      is not called on the 60s ticks (S15 / REQ-7 baseline).
+
+### Phase 2 — path resolution (automated)
+
+- [ ] TC-2.1: `normalizePrimaryCwd()` (or equivalent) called with cwd
+      inside a linked worktree — expected: returns the primary root and
+      `process.cwd()` afterwards equals it.
+- [ ] TC-2.2: same, called from the primary — expected: no chdir, no warn
+      line, cwd unchanged.
+- [ ] TC-2.3: called from a directory outside any git repo — expected: no
+      throw, cwd unchanged (REQ-1a).
+- [ ] TC-2.4: `--manager` startup outside a project — expected: no chdir,
+      worker starts normally (REQ-1a).
+- [ ] TC-2.5 (integration, real process): spawn `laneconductor.sync.mjs
+      --sync-only --once` with `cwd` set to a linked worktree — expected:
+      the run's logs/locks/track reads all land under the primary, and the
+      registered `repo_path` is the primary path.
+- [ ] TC-2.6: with a worker already running from the primary under worker
+      number 1, launching a second one from a worktree under worker number
+      1 — expected: exits non-zero with the identity-lock message (AC-1).
+- [ ] TC-2.7: Makefile `UI_DIR` resolution evaluated from a worktree —
+      expected: equals the primary's `ui/` (AC-3).
+- [ ] TC-2.8: `make install` / `install-cli` invoked from a worktree —
+      expected: refuses with a message naming the primary; `~/.laneconductorrc`
+      and `/usr/local/bin/lc` untouched (AC-4). Run against a temp
+      `HOME`/prefix — never against the real machine state.
+- [ ] TC-2.9: `getInstallPath()` with no rc file and `__dirname` inside a
+      worktree — expected: resolves to the primary, not the worktree.
+- [ ] TC-2.10: `auditWorktrees({ repoRoot: <linked worktree> })` with a
+      lock file present under the primary's `.conductor/locks/` — expected:
+      identical rows (including lock-driven classification) to the same
+      call with `repoRoot: <primary>` (AC-5).
+
+### Phase 3 — provenance (automated where possible)
+
+- [ ] TC-3.1: worker started from the primary — expected: exactly one
+      startup line naming the checkout, marked as primary (AC-6).
+- [ ] TC-3.2: worker started from a worktree — expected: the line flags
+      the non-primary launch and names both paths.
+- [ ] TC-3.3: API server startup log contains the same shape of line.
+- [ ] TC-3.4 (manual): `lc ui start` — observed startup output names the
+      checkout being served.
+
+### Phase 4 — continuous doc sync-back
+
+- [ ] TC-4.1 (**write first — fails today, D3/AC-8**): primary's
+      `conversation.md` has a human comment the worktree's copy lacks; run
+      `copyWorktreeArtifactsToPrimary({ isSuccess: true })` — expected:
+      the human comment still present in primary afterwards.
+- [ ] TC-4.2: `ARTIFACTS` no longer contains `conversation.md` and the
+      function never writes that file, in either the merge or copy branch.
+- [ ] TC-4.3: worktree `plan.md` newer than primary's — expected: periodic
+      pass copies it; primary's content matches the worktree's.
+- [ ] TC-4.4: worktree `index.md` has new `**Progress**`/`**Lane**`
+      markers, primary has extra body sections — expected: markers
+      updated, primary's body preserved (`mergeIndexMarkers()` semantics
+      unchanged).
+- [ ] TC-4.5 (REQ-9/AC-9): no files touched since last pass — expected:
+      zero writes (assert via mtime unchanged on every primary doc).
+- [ ] TC-4.6 (REQ-12/AC-11): track with no live worktree — expected: pass
+      is a complete no-op, no log line.
+- [ ] TC-4.7: worktree `plan.md` truncated to 10% of primary's, mid-run
+      (`isSuccess: false`) — expected: copy declined, primary unchanged
+      (shrink guard still armed under the periodic path).
+- [ ] TC-4.8: after a successful `index.md` merge — expected:
+      `syncTrack(indexPath)` is invoked once for that track.
+- [ ] TC-4.9 (integration/live, AC-7): during a real run in a worktree,
+      edit `plan.md` inside the worktree; within ~60s the same change is
+      readable in the primary's `plan.md`. Record the observation — a unit
+      test does not satisfy this criterion.
+
+### Phase 5 — guard-skip surfacing
+
+- [ ] TC-5.1: shrink guard declines a copy — expected: one log line naming
+      track, file, incoming size, existing size, tripped threshold.
+- [ ] TC-5.2 (AC-10): after a declined copy, the track carries the
+      stale-docs signal; the board/API response exposes it.
+- [ ] TC-5.3: next successful sync of that file — expected: signal
+      cleared.
+
+---
 
 ## Acceptance Criteria
-- [ ] All unit tests pass
-- [ ] No regressions in related features
+
+- [ ] `node --test conductor/tests/` passes with no regressions (AC-12)
+- [ ] `cd ui && npm test` passes with no regressions (AC-12)
+- [ ] TC-2.5, TC-2.6, TC-2.10 pass — infra resolves to primary from any cwd
+- [ ] TC-4.1 passes — no human comment is lost across a run (AC-8)
+- [ ] TC-4.5 passes — quiet repo does zero per-tick writes (AC-9)
+- [ ] Live checks TC-1.x, TC-2.8, TC-3.4, TC-4.9 performed with observed
+      output recorded in `conversation.md`
+- [ ] Long-running processes (worker, API) restarted before any live
+      verification — a stale process is a false pass
