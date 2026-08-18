@@ -718,6 +718,35 @@ button. Layering/layout bug in the board card + transcript strip
 (`TrackCard`/`TranscriptView`); also worth asking why a finished (killed)
 run's transcript still renders as if live.
 
+### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 CONFIRMED (not fixed)
+Hit live on track 10019's implement run (dispatch 1516, 2026-08-18): the
+agent finished Phases 1-2 worth of real work (new
+`conductor/services/primary-cwd.mjs`, a new 19-test suite it had watched
+pass, fixes across `laneconductor.sync.mjs`/`bin/lc.mjs`/
+`worktree-audit.mjs`), then launched the full conductor regression suite
+as a **background task** — and the `claude -p` session terminated right
+there. Process exit 0, so the exit handler treated it as a clean end;
+the worktree's `index.md` still said `implement: running / 0%`, so the
+handler could call it neither success nor failure and reset
+`lane_action_status` to `queue`. All the work sat uncommitted in the
+worktree; the board showed a quietly re-queued implement with no signal
+anything had happened. The transcript's literal last event is
+`task_started: "Run full conductor test suite"` followed by nothing.
+
+Recoverable by design (worktree lifecycle reuses the directory; session
+continuity resumes the same conversation), so a re-run continues where
+it left off — but nothing *tells* anyone that's needed.
+
+Fix directions:
+- Exit handler: exit 0 + index still at `running` + dirty worktree is a
+  distinguishable state — surface it as its own outcome ("ended
+  mid-work, re-run to resume") in the dispatch result/conversation.md
+  instead of the generic queue reset.
+- Prompt/SKILL guidance: lane agents should not END their final turn on
+  a just-launched background command — either wait for it or run it
+  foreground; the harness kills background children when the session
+  process exits.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
