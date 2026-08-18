@@ -123,15 +123,21 @@
 
 **Impact**: `vite build` clean, existing vitest suite unaffected (28/28 pass). New spec: 9/9 tests pass (5 from Phase 8 + 4 new), run 3x consecutively with no flakes. Full fast-tier Playwright suite: 20/20 pass (6 skipped, unrelated — no Firebase auth configured in this environment), including `track-1112-worktree-panel.spec.js` passing cleanly this run (its pre-existing live-multi-worker flake, documented in Phase 8, is non-deterministic and didn't reproduce here — not something this phase touched or needed to fix).
 
-## Phase 10: Branch name (or "main") on every Kanban card
+## Phase 10: Branch name (or "main") on every Kanban card ✅ COMPLETE
 
 **Problem** (direct human feedback): cards only ever show lane/progress — nothing tells you whether a track is working on its own branch or still on `main`. Two reasons this matters beyond the `done`-lane badges Phases 7/9 already added: (1) a branch only exists from `implement` onward — a card in `plan`/`backlog` has no branch yet, and today gives no hint of that; (2) branching is not universal even once a track is running — track 1115 (workspace mode: `main`-direct vs `branch`-per-track, not yet implemented) will let some tracks work directly on `main` with no worktree/branch at all, by project or per-track configuration.
 
-**Solution**: The data already exists — `fetchWorktreeRows()` (Phase 7) returns each live row's `branch` field, just not surfaced yet. Attach it as `worktree_branch` alongside the existing `worktree_class` enrichment in `GET /api/projects/:id/tracks`, and show it on every card (all lanes, not just `done`): the real branch name (`track-10018`) when a matching worktree row exists, "main" otherwise. This needs no special-casing for 1115's future main-direct mode — a track that never creates a worktree simply never appears in the worktrees map, so it already, correctly, falls through to "main" today, and will continue to once 1115 ships.
+**Solution**: The data already existed — `fetchWorktreeRows()` (Phase 7) returns each live row's `branch` field, just wasn't surfaced. Attached it as `worktree_branch` alongside the existing `worktree_class` enrichment in `GET /api/projects/:id/tracks`, and a new `BranchIndicator` in `TrackCard.jsx` shows it on every card (all lanes, not just `done`): the real branch name (`⌥ track-10018`) when a matching worktree row exists, `⌥ main` otherwise.
 
-- [ ] Task 1: `worktree_branch` added to the same `worktreeByTrack` enrichment Phase 7 built in `GET /api/projects/:id/tracks` (one field, same map, same request — no new query)
-- [ ] Task 2: `TrackCard.jsx` renders a small monospace branch indicator (e.g. `⌥ main` / `⌥ track-10018`) — visible on every lane, not gated to `done` like `UnmergedBadge` is, since the "what am I working on" question applies from `plan` onward
-- [ ] Task 3: A track with `lane_status` in `plan`/`backlog` (no worktree could exist yet regardless of config) always shows "main" — confirms Task 1's data naturally covers the "branch happens after planning" half of the problem statement, not just the "not always" half
-- [ ] Task 4: Playwright coverage in the same `track-10018-pr-worktree-panel.spec.js` — a seeded worktree row's `branch` shows on its card; a `plan`-lane track with no worktree row shows "main"
+- [x] Task 1: `worktree_branch` added to the same `worktreeByTrack` enrichment Phase 7 built in `GET /api/projects/:id/tracks` (`ui/server/index.mjs`) — one field, same map, same request, no new query
+- [x] Task 2: `TrackCard.jsx`'s new `BranchIndicator` component renders `⌥ {branch}` in monospace, placed in the card header next to `TrackTypeBadge` — visible on every lane, not gated to `done` like `UnmergedBadge` is
+- [x] Task 3: verified directly — a `plan`-lane seeded track with no worktree row renders `⌥ main`, confirming `worktree_branch` is correctly `null` for the "hasn't started yet" case with zero special-casing needed
+- [x] Task 4: `track-10018-pr-worktree-panel.spec.js` extended with one more test: a seeded worktree row's real `branch` (`track-19989`) shows on its card, and a plan-lane track with no worktree row shows `⌥ main`
 
-**Non-goals**: no interaction — this is a label, not a link or action (Phase 9 already covers the actions; this is purely "which checkout am I looking at," matching the same "main for UX visibility" principle this session's own retroactive main-sync commits were about, just applied to card display instead of file sync).
+**No deviation from plan this phase** — implemented exactly as scoped, including the "no special-casing for 1115" claim: `worktree_branch` is `null` whenever a track has no live worktree row, for any reason (not yet past `plan`, worktree already cleaned up, or — once track 1115's main-direct mode ships — deliberately configured to skip branching entirely), and the frontend's fallback to "main" handles all three identically without knowing which case it is.
+
+**Non-goals held**: no interaction — this is a label, not a link or action; confirmed via diff review, `BranchIndicator` has no `onClick`/dispatch of its own.
+
+**Impact**: `vite build` clean, existing vitest suite unaffected (28/28). Extended spec: 10/10 pass (9 from Phases 8-9 + 1 new), run 3x consecutively with no flakes. Full fast-tier suite: 20/20 pass, 6 skipped (unrelated), `track-1112-worktree-panel.spec.js`'s already-documented pre-existing flake (Phase 8) reproduced once this run — consistent with its known non-determinism, not a regression from this phase (only `ui/server/index.mjs`, `TrackCard.jsx`, and the test spec changed; `local-api-e2e.test.mjs` still 5/6 with the same pre-existing, unrelated failure documented since Phase 8).
+
+## ✅ COMPLETE

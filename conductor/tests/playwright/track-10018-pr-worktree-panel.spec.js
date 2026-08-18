@@ -2,7 +2,8 @@
 // E2E test: Track 10018 Phase 8 — the PR-mode Worktrees panel (badges, PR
 // link/status, Create PR/Merge PR dispatch) and the done-lane "Unmerged"
 // Kanban card badge — plus Phase 9, the same merge/PR actions surfaced
-// directly on the done-lane card itself. Follows the exact pattern
+// directly on the done-lane card itself, and Phase 10, a branch-name
+// indicator on every card regardless of lane. Follows the exact pattern
 // established by track-1112-worktree-panel.spec.js: seeds a real
 // worker.worktrees JSONB row via direct DB write (the heartbeat payload's
 // own shape — see refreshWorktreeSummaryCache() in
@@ -37,6 +38,7 @@ const T_CONFLICTED = '19990'; // pr-open, pr_status conflicted → Merge PR NOT 
 const T_DONE_UNMERGED = '19989'; // real `done`-lane track row + a matching mergeable worktree row → Unmerged badge
 const T_DONE_FULLY_MERGED = '19988'; // real `done`-lane track row, NO worktree row → no badge
 const T_DONE_CONFLICTED = '19987'; // real `done`-lane track row + a matching conflicted (direct-mode) worktree row → disabled card action
+const T_PLAN_NO_BRANCH = '19986'; // real `plan`-lane track row, NO worktree row → branch indicator shows "main"
 
 test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane badge', () => {
   let pool;
@@ -91,7 +93,7 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
         },
         {
           track: T_DONE_UNMERGED, title: 'PW Test Done Unmerged', lane: 'done', lane_status: 'success',
-          ahead: 1, behind: 0, dirty: 0, class: 'mergeable',
+          ahead: 1, behind: 0, dirty: 0, class: 'mergeable', branch: `track-${T_DONE_UNMERGED}`,
           merge_mode: 'direct', pr_number: null, pr_url: null, pr_status: null,
         },
         {
@@ -121,6 +123,16 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
        ON CONFLICT (project_id, track_number) DO UPDATE SET lane_status = 'done', title = EXCLUDED.title`,
       [PROJECT_ID, T_DONE_UNMERGED, T_DONE_FULLY_MERGED, T_DONE_CONFLICTED, T_MERGE_PR_READY, T_CREATE_PR]
     );
+
+    // Phase 10: a plan-lane track with no worktree row at all — a branch
+    // only exists from `implement` onward, so this is the "hasn't started
+    // yet" half of the branch-indicator problem statement.
+    await pool.query(
+      `INSERT INTO tracks (project_id, track_number, title, lane_status, lane_action_status)
+       VALUES ($1, $2, 'PW Test Plan No Branch', 'plan', 'success')
+       ON CONFLICT (project_id, track_number) DO UPDATE SET lane_status = 'plan', title = EXCLUDED.title`,
+      [PROJECT_ID, T_PLAN_NO_BRANCH]
+    );
   });
 
   test.afterAll(async () => {
@@ -134,7 +146,7 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
     );
     await pool.query(`DELETE FROM tracks WHERE project_id = $1 AND track_number = ANY($2)`, [
       PROJECT_ID,
-      [T_DONE_UNMERGED, T_DONE_FULLY_MERGED, T_DONE_CONFLICTED, T_MERGE_PR_READY, T_CREATE_PR],
+      [T_DONE_UNMERGED, T_DONE_FULLY_MERGED, T_DONE_CONFLICTED, T_MERGE_PR_READY, T_CREATE_PR, T_PLAN_NO_BRANCH],
     ]);
     await pool.end();
   });
@@ -357,5 +369,29 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
     // isConflicted case.
     await expect(card.getByTestId('card-merge-to-main-btn')).toHaveCount(0);
     await expect(card.getByText('Merge to main', { exact: true })).toBeVisible();
+  });
+
+  // ── Phase 10: branch name (or "main") on every Kanban card ───────────────
+
+  test('Kanban card: shows the real branch name from a live worktree row, and "main" when none exists (Task 4)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('combobox').first().selectOption('1');
+
+    const search = page.getByPlaceholder('Search by title or track #…');
+
+    // A track with a live worktree row shows its real branch name.
+    await search.fill(T_DONE_UNMERGED);
+    const branchCard = page.locator('[data-testid="track-card"]', { hasText: `#${T_DONE_UNMERGED}` });
+    await expect(branchCard).toBeVisible({ timeout: 15000 });
+    await expect(branchCard.getByText(`⌥ track-${T_DONE_UNMERGED}`, { exact: true })).toBeVisible();
+
+    // A plan-lane track has no worktree yet — falls through to "main",
+    // same signal a future main-direct-mode track (track 1115) will also
+    // naturally produce without any special-casing.
+    await search.fill(T_PLAN_NO_BRANCH);
+    const planCard = page.locator('[data-testid="track-card"]', { hasText: `#${T_PLAN_NO_BRANCH}` });
+    await expect(planCard).toBeVisible({ timeout: 15000 });
+    await expect(planCard.getByText('⌥ main', { exact: true })).toBeVisible();
   });
 });
