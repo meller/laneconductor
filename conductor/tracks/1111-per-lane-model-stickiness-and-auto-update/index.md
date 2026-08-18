@@ -1,11 +1,11 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
 **Progress**: 100%
-**Phase**: New — grounded by code inspection 2026-08-13, not yet planned in detail
+**Phase**: All 6 phases complete
 **Type**: dev
-**Summary**: The mechanism for "different model per lane, same provider" already exists in code (`workflow.json`'s per-lane `primary_model`) but is configured nowhere — verified live, this project's own…
+**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness detection/logging, and (Phase 6) opt-in same-tier auto-update triggered by that same staleness check, auditable via git commit.
 
 ## Problem
 
