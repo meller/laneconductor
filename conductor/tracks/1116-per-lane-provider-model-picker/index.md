@@ -1,6 +1,6 @@
 # Track 1116: Per-lane provider + live-model picker in Workflow Settings
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete — all 6 phases done, 4 test files (18 unit/E2E cases) passing
