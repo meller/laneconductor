@@ -43,6 +43,7 @@ import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
+import { shouldWriteForceDoneMarker, applyDoneSuccessMarkers } from './services/force-merge-marker.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
@@ -5180,16 +5181,11 @@ async function checkDispatchInbox() {
           // in-progress work); if none exists, falls through to a plain
           // git-only force merge exactly like before, with the branch's
           // own lane state left as-is.
-          if (!isDoneSuccess && force && row.hasWorktree && row.worktreePath) {
+          if (shouldWriteForceDoneMarker({ isDoneSuccess, force, hasWorktree: row.hasWorktree, worktreePath: row.worktreePath })) {
             const wtIndexPath = join(row.worktreePath, 'conductor', 'tracks', resolveTrackFolder(join(row.worktreePath, 'conductor', 'tracks'), trackNumber) || '', 'index.md');
             if (existsSync(wtIndexPath)) {
               const wtContent = readFileSync(wtIndexPath, 'utf8');
-              const updateHeader = (c, h, v) => {
-                const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
-                return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
-              };
-              let updated = updateHeader(wtContent, 'Lane', 'done');
-              updated = updateHeader(updated, 'Lane Status', 'success');
+              const updated = applyDoneSuccessMarkers(wtContent);
               writeFileSync(wtIndexPath, updated, 'utf8');
               try {
                 gitExec(`git add "${wtIndexPath}"`, row.worktreePath);
