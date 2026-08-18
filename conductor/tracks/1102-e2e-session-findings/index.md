@@ -692,7 +692,7 @@ Fix directions (pick at least one):
   reassigned to another live worker (also covers real workers dying
   post-assignment — a gap independent of phantoms).
 
-### F19 — The only one-click path out of Backlog skips the Plan lane entirely 🟡 CONFIRMED (design question, not fixed)
+### F19 — The only one-click path out of Backlog skips the Plan lane entirely 🟡 CONFIRMED & FIXED (unit-tested)
 Hit live dispatching track 10019: the backlog card's `→` arrow (titled
 "Move this card to the Start lane") moved it straight to **implement** —
 `NEXT_LANE = { backlog: 'implement', ... }` in
