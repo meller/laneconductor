@@ -69,3 +69,30 @@
 - [ ] **Task 3: NOT done — genuine gap.** A true subprocess-level E2E test (spawn a real worker against a scratch repo + mock collector, drive a track to quality-gate pass, observe a mocked `gh` invoked for real through `openTrackPrOnDone`, then through `reconcilePrTracks`' actual 60s-interval poll to MERGED→cleanup) was not written. Reason: `reconcilePrTracks`'s interval is hardcoded (no test-only override, unlike `LC_SKIP_GIT_LOCK`), making a fast, non-flaky version of this test nontrivial within this session's scope. **Mitigated, not equivalent to, by**: 18 unit tests exercising `pr-flow.mjs`'s exact `gh` argv/parsing against an injected fake exec, and 13 tests exercising `worktree-audit.mjs`'s classification against *real* git repos (not mocked) — the two halves of the flow are each solidly covered; only their live wiring through a real spawned worker process is unverified by an automated test.
 
 **Impact**: The default flip (unspecified → `pr`) is real and ships with this track. Rollout risk for existing in-flight tracks in **this** repo is real and explicitly called out in SKILL.md and here — a human decision, not something this track should make unilaterally by rewriting other people's tracks.
+
+## Phase 7: Unmerged-branch status on done-lane Kanban cards ✅ COMPLETE
+
+**Problem** (direct human feedback): a track at `lane_status='done'` only signals the lane *action* finished — it says nothing about whether the branch actually merged. Worktrees/PRs waiting for approval "aren't really done," but the board gave zero indication of that outside the separate Worktrees panel.
+
+**Solution**: `GET /api/projects/:id/tracks` now cross-references the same live, git-derived worktree data the Worktrees panel already consumes (extracted `fetchWorktreeRows()`, shared by both endpoints) and attaches `worktree_class`/`worktree_pr_status`/`worktree_pr_url`/`worktree_pr_number` per track. `null` exactly when there's no live unmerged branch left for that track — `auditWorktrees()` omits fully-merged branches entirely, so absence here **is** the "really done" signal. `TrackCard.jsx` renders a badge next to the lane pill whenever `lane_status === 'done'` and `worktree_class` is non-null: "Unmerged"/"Conflict" for direct-mode tracks (a pre-existing gap this also happened to close), or the live PR status (open/checks-failed/conflicted/closed/merged/error) with a link to the PR for pr-mode tracks.
+
+- [x] Task 1: `fetchWorktreeRows()` extracted from the `/worktrees` endpoint, reused by `/tracks`
+- [x] Task 2: `/tracks` response enriched with `worktree_class`/`worktree_pr_status`/`worktree_pr_url`/`worktree_pr_number`
+- [x] Task 3: `UnmergedBadge` component in `TrackCard.jsx`, rendered only on `done`-lane cards with a non-null `worktree_class`
+
+**Impact**: `vite build` clean. No automated test (matches this file's existing convention — `TrackCard.jsx` has none today).
+
+## Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge
+
+**Problem**: Phase 6 flagged a genuine gap — no automated test exercises the PR-mode UI (badges, Create PR/Merge PR dispatch, the new done-lane unmerged badge) against the real running app. This repo already has an established, documented pattern for exactly this: `conductor/tests/playwright/track-1112-worktree-panel.spec.js` seeds a real `workers.worktrees` JSONB row via direct DB write (the same shape the heartbeat reports), drives the real UI at `localhost:8090`/API at `localhost:8091`, and asserts on real `worker_dispatch` rows created by clicking real buttons — fast tier, deterministic, no LLM calls.
+
+**Solution**: A new spec following that exact pattern, seeding a `pr-open` row (with `merge_mode`, `pr_number`, `pr_url`, `pr_status` fields) plus a `done`-lane track whose worktree row is still unmerged, and asserting:
+
+- [ ] Task 1: Worktrees panel renders the PR badge, `pr-open` classification, PR link, and status indicator for a seeded pr-open row
+- [ ] Task 2: Clicking "Merge PR" on a seeded `pr_status: 'open'` row creates a real `worker_dispatch` row with `action='merge-pr'` and the right `track_number` payload
+- [ ] Task 3: Clicking "Create PR" on a seeded pr-open row with no `pr_number` creates a `worker_dispatch` row with `action='create-pr'`
+- [ ] Task 4: "Merge PR" is NOT clickable/enabled on a seeded row with `pr_status: 'checks-failed'` or `'conflicted'`
+- [ ] Task 5: A `done`-lane track (seeded via a direct `tracks` row update, `lane_status='done'`) whose track_number also appears in the seeded `workers.worktrees` JSONB (as `class: 'mergeable'`) shows the "Unmerged" badge on its Kanban card; a `done`-lane track with NO matching worktree row shows no badge at all
+- [ ] Task 6: Register the new spec filename in `playwright.config.js` if it needs the `slow` tier (it shouldn't — no LLM/worker-claim dependency, same as the existing 1112 spec)
+
+**Impact**: Closes Phase 6's documented E2E gap using this repo's own established, lower-cost pattern (DB-seeded fixture + real UI) rather than a full subprocess-spawned worker test — deterministic, fast, no `gh` mocking needed since the panel only ever dispatches, never calls `gh` directly itself.
