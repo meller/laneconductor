@@ -1,11 +1,11 @@
-# Track 10019: Shared infra processes must always run from the primary checkout, never a worktree
+# Track 10019: Shared state must live in main — infra processes AND track metadata
 
 **Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Systematic audit of every process that acts as shared, live LaneConductor infrastructure (sync workers, UI dev server, API server, and anything else that resolves paths from cwd), to guarantee none of them can ever accidentally run from a linked worktree's own divergent copy of the code. Two confirmed live incidents already fixed piecemeal (F16, F17 in track 1102) — this track is the systematic follow-through instead of waiting for each remaining instance to bite.
+**Summary**: Systematic audit of every process that acts as shared, live LaneConductor infrastructure (sync workers, UI dev server, API server, and anything else that resolves paths from cwd), to guarantee none…
 
 ## Problem
 
@@ -57,6 +57,41 @@ and can it be closed off structurally instead of one incident at a time?**
   out to git on every call — fine for occasional CLI commands, worth
   checking it's not called somewhere hot/frequent).
 
+## Problem 2 — track metadata (index/plan/spec/conversation) must be continuously visible in main, not just at run end
+
+Raised directly by the user while looking at track 10018's PR-mode work:
+*"plan md, spec md and track info should be seen in main as all the
+conversation happens there."* The distinction that matters:
+
+- A track's **code** is supposed to diverge in its worktree until merge —
+  that's the isolation model working as designed. (The PR feature existing
+  only in `.worktrees/10018` until it merges is correct.)
+- A track's **docs** (`index.md`, `plan.md`, `spec.md`, `test.md`,
+  `conversation.md`) are NOT feature code — they're the shared
+  conversation surface. The board, the DB, the chat, and the human all
+  operate against main's copies. If those lag the worktree's, the user is
+  conversing with a stale picture of the track's own state.
+
+What already exists (don't rebuild it — close its gaps):
+`copyWorktreeArtifactsToPrimary()` (`conductor/services/worktree-artifact-merge.mjs`)
+copies the track's docs from the worktree back to the primary at the end
+of every run, with `mergeIndexMarkers()` for index.md and
+suspicious-shrink guards (the F9 lineage). The orphan-reconcile path
+(1110 Phase 6) retries it for runs whose parent worker died. So the
+invariant is half-enforced, event-driven, best-effort.
+
+Known gaps to close:
+- **Mid-run staleness**: a real run takes 20-30+ minutes; the agent
+  updates plan.md/index.md inside the worktree as it works, but main (and
+  therefore the board/DB/conversation) only catches up at run end.
+  Direction: a periodic doc-sync during runs (the heartbeat already ticks
+  every 10s and already owns the merge/guard logic), not just at exit.
+- **No run, no sync**: docs edited in a worktree outside a managed run (a
+  human, or an agent between runs) reach main only at final merge, or
+  never if the branch is discarded.
+- **Guard-skipped copies are silent**: when the suspicious-shrink guard
+  declines to copy, nothing surfaces that main's copy is now known-stale.
+
 ## Non-goals
 
 - NOT trying to make every worktree's copy of infra code identical to
@@ -75,3 +110,5 @@ and can it be closed off structurally instead of one incident at a time?**
 - [ ] Phase 1: Audit every candidate spawn/serve/path-resolution site listed above; for each, confirm whether it's vulnerable and whether it needs the `resolvePrimaryRepoRoot()` fix pattern
 - [ ] Phase 2: Fix whatever the audit finds, one targeted change per site (matching F16/F17's pattern — narrow, not a global `findProjectRoot()` rewrite)
 - [ ] Phase 3: Consider a lightweight guard/warning (e.g. a startup log line noting "running from worktree, not primary" for any long-running process) as defense-in-depth for whatever this audit doesn't structurally rule out
+- [ ] Phase 4: Continuous doc sync-back — periodic (heartbeat-tick) copy of a running track's docs from its worktree to primary via the existing `copyWorktreeArtifactsToPrimary()`/`mergeIndexMarkers()` machinery, instead of only at run end; decide behavior for the no-run case (docs edited in a worktree between runs)
+- [ ] Phase 5: Surface guard-skipped copies — when the suspicious-shrink guard declines to sync a doc, log it and mark the track so the board shows "docs may be stale" instead of silently serving old content
