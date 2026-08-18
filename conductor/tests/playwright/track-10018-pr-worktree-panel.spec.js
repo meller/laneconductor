@@ -1,13 +1,14 @@
 // conductor/tests/playwright/track-10018-pr-worktree-panel.spec.js
 // E2E test: Track 10018 Phase 8 — the PR-mode Worktrees panel (badges, PR
 // link/status, Create PR/Merge PR dispatch) and the done-lane "Unmerged"
-// Kanban card badge. Follows the exact pattern established by
-// track-1112-worktree-panel.spec.js: seeds a real worker.worktrees JSONB
-// row via direct DB write (the heartbeat payload's own shape — see
-// refreshWorktreeSummaryCache() in conductor/laneconductor.sync.mjs), plus
-// (for the done-lane badge half) real `tracks` rows, then drives the real
-// UI and asserts on real worker_dispatch rows created by clicking real
-// buttons.
+// Kanban card badge — plus Phase 9, the same merge/PR actions surfaced
+// directly on the done-lane card itself. Follows the exact pattern
+// established by track-1112-worktree-panel.spec.js: seeds a real
+// worker.worktrees JSONB row via direct DB write (the heartbeat payload's
+// own shape — see refreshWorktreeSummaryCache() in
+// conductor/laneconductor.sync.mjs), plus (for the done-lane badge/card
+// half) real `tracks` rows, then drives the real UI and asserts on real
+// worker_dispatch rows created by clicking real buttons.
 //
 // Deterministic: no LLM calls, no dependence on a live heartbeat worker
 // claiming a lane action, no `gh` calls (the panel only ever dispatches —
@@ -35,6 +36,7 @@ const T_CHECKS_FAILED = '19991'; // pr-open, pr_status checks-failed → Merge P
 const T_CONFLICTED = '19990'; // pr-open, pr_status conflicted → Merge PR NOT clickable
 const T_DONE_UNMERGED = '19989'; // real `done`-lane track row + a matching mergeable worktree row → Unmerged badge
 const T_DONE_FULLY_MERGED = '19988'; // real `done`-lane track row, NO worktree row → no badge
+const T_DONE_CONFLICTED = '19987'; // real `done`-lane track row + a matching conflicted (direct-mode) worktree row → disabled card action
 
 test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane badge', () => {
   let pool;
@@ -92,20 +94,32 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
           ahead: 1, behind: 0, dirty: 0, class: 'mergeable',
           merge_mode: 'direct', pr_number: null, pr_url: null, pr_status: null,
         },
+        {
+          track: T_DONE_CONFLICTED, title: 'PW Test Done Conflicted', lane: 'done', lane_status: 'success',
+          ahead: 2, behind: 3, dirty: 0, class: 'conflicted',
+          merge_mode: 'direct', pr_number: null, pr_url: null, pr_status: null,
+        },
       ]),
       workerId,
     ]);
 
-    // Real `tracks` rows for the done-lane badge half (Task 5) — the
-    // Kanban board renders from the `tracks` table, not the worktrees
-    // JSONB alone; GET /api/projects/:id/tracks cross-references the two
-    // by track_number (see ui/server/index.mjs's worktreeByTrack map).
+    // Real `tracks` rows — the Kanban board renders from the `tracks`
+    // table, not the worktrees JSONB alone; GET /api/projects/:id/tracks
+    // cross-references the two by track_number (see ui/server/index.mjs's
+    // worktreeByTrack map). Phase 8's Task 5 only needed two of these
+    // (unmerged/fully-merged); Phase 9's card-action tests reuse the two
+    // pr-open rows already seeded above for the panel tests, plus the new
+    // conflicted row, so every class the card renders an action for has a
+    // real Kanban card to click on.
     await pool.query(
       `INSERT INTO tracks (project_id, track_number, title, lane_status, lane_action_status)
        VALUES ($1, $2, 'PW Test Done Unmerged', 'done', 'success'),
-              ($1, $3, 'PW Test Done Fully Merged', 'done', 'success')
+              ($1, $3, 'PW Test Done Fully Merged', 'done', 'success'),
+              ($1, $4, 'PW Test Done Conflicted', 'done', 'success'),
+              ($1, $5, 'PW Test PR Ready', 'done', 'success'),
+              ($1, $6, 'PW Test Needs PR', 'done', 'success')
        ON CONFLICT (project_id, track_number) DO UPDATE SET lane_status = 'done', title = EXCLUDED.title`,
-      [PROJECT_ID, T_DONE_UNMERGED, T_DONE_FULLY_MERGED]
+      [PROJECT_ID, T_DONE_UNMERGED, T_DONE_FULLY_MERGED, T_DONE_CONFLICTED, T_MERGE_PR_READY, T_CREATE_PR]
     );
   });
 
@@ -115,12 +129,12 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
       workerId,
     ]);
     await pool.query(
-      `DELETE FROM worker_dispatch WHERE action IN ('merge-pr', 'create-pr') AND track_number = ANY($1)`,
-      [[T_MERGE_PR_READY, T_CREATE_PR]]
+      `DELETE FROM worker_dispatch WHERE action IN ('merge-pr', 'create-pr', 'merge-worktree') AND track_number = ANY($1)`,
+      [[T_MERGE_PR_READY, T_CREATE_PR, T_DONE_UNMERGED]]
     );
     await pool.query(`DELETE FROM tracks WHERE project_id = $1 AND track_number = ANY($2)`, [
       PROJECT_ID,
-      [T_DONE_UNMERGED, T_DONE_FULLY_MERGED],
+      [T_DONE_UNMERGED, T_DONE_FULLY_MERGED, T_DONE_CONFLICTED, T_MERGE_PR_READY, T_CREATE_PR],
     ]);
     await pool.end();
   });
@@ -250,5 +264,98 @@ test.describe.serial('Track 10018 Phase 8: PR-mode Worktrees panel + done-lane b
     await expect(mergedCard).toBeVisible({ timeout: 15000 });
     await expect(mergedCard.getByText('Unmerged', { exact: true })).toHaveCount(0);
     await expect(mergedCard.getByText('Conflict', { exact: true })).toHaveCount(0);
+  });
+
+  // ── Phase 9: merge/PR action buttons directly on done-lane Kanban cards ──
+
+  test('Done-lane card: "Merge to main" on a mergeable card dispatches a real worker_dispatch row (Task 1)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('combobox').first().selectOption('1');
+
+    const search = page.getByPlaceholder('Search by title or track #…');
+    await search.fill(T_DONE_UNMERGED);
+    const card = page.locator('[data-testid="track-card"]', { hasText: `#${T_DONE_UNMERGED}` });
+    await expect(card).toBeVisible({ timeout: 15000 });
+
+    const mergeBtn = card.getByTestId('card-merge-to-main-btn');
+    await expect(mergeBtn).toBeEnabled();
+    // Matches WorktreesPanel's own "Merge to main" button — single click,
+    // no arming (see TrackCard.jsx's DoneLaneMergeActions comment).
+    await mergeBtn.click();
+
+    await expect(async () => {
+      const { rows } = await pool.query(
+        `SELECT id FROM worker_dispatch WHERE action = 'merge-worktree' AND track_number = $1`,
+        [T_DONE_UNMERGED]
+      );
+      expect(rows.length).toBeGreaterThan(0);
+    }).toPass({ timeout: 10000 });
+  });
+
+  test('Done-lane card: "Merge PR" on a pr-open ready card dispatches a real worker_dispatch row (Task 2)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('combobox').first().selectOption('1');
+
+    const search = page.getByPlaceholder('Search by title or track #…');
+    await search.fill(T_MERGE_PR_READY);
+    const card = page.locator('[data-testid="track-card"]', { hasText: `#${T_MERGE_PR_READY}` });
+    await expect(card).toBeVisible({ timeout: 15000 });
+
+    const mergePrBtn = card.getByTestId('card-merge-pr-btn');
+    await expect(mergePrBtn).toBeEnabled();
+    // Armed two-click confirm, matching WorktreesPanel's own "Merge PR" button.
+    await mergePrBtn.click();
+    await expect(mergePrBtn).toHaveText(/Click again to merge PR/);
+    await mergePrBtn.click();
+
+    await expect(async () => {
+      const { rows } = await pool.query(
+        `SELECT id FROM worker_dispatch WHERE action = 'merge-pr' AND track_number = $1`,
+        [T_MERGE_PR_READY]
+      );
+      expect(rows.length).toBeGreaterThan(0);
+    }).toPass({ timeout: 10000 });
+  });
+
+  test('Done-lane card: "Create PR" on a pr-open needs-create card dispatches a real worker_dispatch row (Task 2)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('combobox').first().selectOption('1');
+
+    const search = page.getByPlaceholder('Search by title or track #…');
+    await search.fill(T_CREATE_PR);
+    const card = page.locator('[data-testid="track-card"]', { hasText: `#${T_CREATE_PR}` });
+    await expect(card).toBeVisible({ timeout: 15000 });
+
+    const createPrBtn = card.getByTestId('card-create-pr-btn');
+    await expect(createPrBtn).toBeEnabled();
+    await createPrBtn.click();
+
+    await expect(async () => {
+      const { rows } = await pool.query(
+        `SELECT id FROM worker_dispatch WHERE action = 'create-pr' AND track_number = $1`,
+        [T_CREATE_PR]
+      );
+      expect(rows.length).toBeGreaterThan(0);
+    }).toPass({ timeout: 10000 });
+  });
+
+  test('Done-lane card: conflicted card shows a disabled, non-interactive action (Task 3)', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('combobox').first().selectOption('1');
+
+    const search = page.getByPlaceholder('Search by title or track #…');
+    await search.fill(T_DONE_CONFLICTED);
+    const card = page.locator('[data-testid="track-card"]', { hasText: `#${T_DONE_CONFLICTED}` });
+    await expect(card).toBeVisible({ timeout: 15000 });
+
+    // No clickable button at all — DoneLaneMergeActions renders a disabled
+    // span for the conflicted class, same as WorktreeRow.jsx's own
+    // isConflicted case.
+    await expect(card.getByTestId('card-merge-to-main-btn')).toHaveCount(0);
+    await expect(card.getByText('Merge to main', { exact: true })).toBeVisible();
   });
 });
