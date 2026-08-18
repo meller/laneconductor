@@ -3,6 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 17 complete — live-verified
 **Type**: dev
 **Waiting for reply**: no
