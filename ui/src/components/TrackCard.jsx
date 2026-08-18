@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
 import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
+import { useApi } from '../hooks/useApi';
+import { mergeKey, createPrKey, mergePrKey } from '../lib/worktreePendingKeys.js';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -215,6 +217,148 @@ function UnmergedBadge({ worktreeClass, prStatus, prUrl }) {
   ) : content;
 }
 
+// ── Done-lane merge/PR actions (Track 10018 Phase 9) ─────────────────────────
+//
+// Direct human feedback on Phase 7's read-only badge: "status and the
+// action for it should be in the same place" — acting on an unmerged
+// done-lane card shouldn't require leaving it to find the same track's row
+// in the Worktrees panel. Reuses the exact same dispatch actions
+// (merge-worktree/create-pr/merge-pr) and gating WorktreesPanel.jsx already
+// has for a matching class, so the two surfaces never disagree about what's
+// safe to click — no new backend work.
+//
+// Click behavior deliberately matches the PANEL'S ACTUAL code, not plan.md
+// Phase 9 Task 1's "armed-confirm" wording verbatim: WorktreeRow's own
+// "Merge to main"/"Create PR" buttons are single-click (no arming) — only
+// "Merge PR" is armed two-click there. Matching the real panel behavior is
+// what "never disagree about what's safe to click" actually requires;
+// mirrored here exactly rather than following the plan text over the code.
+const PENDING_TIMEOUT_MS = 3 * 60 * 1000;
+const CARD_ACTION_BTN = 'text-[9px] px-1.5 py-0.5 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+function DoneLaneMergeActions({ projectId, track }) {
+  const { apiFetch } = useApi();
+  const [pendingKey, setPendingKey] = useState(null);
+  const [armed, setArmed] = useState(false);
+  const pendingTimerRef = useRef(null);
+  const armTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    clearTimeout(pendingTimerRef.current);
+    clearTimeout(armTimerRef.current);
+  }, []);
+
+  const worktreeClass = track.worktree_class;
+  if (!worktreeClass) return null;
+
+  // Same identity-key pattern worktreePendingKeys.js uses for the panel's
+  // own pending state — card-scoped (this component's own local state, not
+  // shared React state with the panel), but keyed identically so the two
+  // surfaces are never contradictory about which underlying dispatch a
+  // pending state refers to.
+  const row = { track: track.track_number };
+  const isPrOpen = worktreeClass === 'pr-open';
+  const canMerge = worktreeClass === 'mergeable' || worktreeClass === 'stranded';
+  const isConflicted = worktreeClass === 'conflicted';
+  const canCreatePr = isPrOpen && !track.worktree_pr_number;
+  const canMergePr = isPrOpen && track.worktree_pr_number && track.worktree_pr_status === 'open';
+  const busy = pendingKey !== null;
+
+  async function dispatch(action, key) {
+    setPendingKey(key);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action, payload: { track_number: track.track_number } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+    } catch (err) {
+      console.error(`[TrackCard] Failed to dispatch ${action} for #${track.track_number}:`, err.message);
+    }
+    clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = setTimeout(() => setPendingKey(null), PENDING_TIMEOUT_MS);
+  }
+
+  if (canMerge) {
+    const key = mergeKey(row);
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); dispatch('merge-worktree', key); }}
+        disabled={busy}
+        data-testid="card-merge-to-main-btn"
+        title="Merge this track's branch into main"
+        className={`${CARD_ACTION_BTN} border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40`}
+      >
+        {pendingKey === key ? 'Merging…' : 'Merge to main'}
+      </button>
+    );
+  }
+
+  if (isConflicted) {
+    return (
+      <span
+        className={`${CARD_ACTION_BTN} border-gray-800 text-gray-600 cursor-not-allowed`}
+        title="This branch conflicts with main — resolve manually (lc worktrees merge for details)"
+      >
+        Merge to main
+      </span>
+    );
+  }
+
+  if (canCreatePr) {
+    const key = createPrKey(row);
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); dispatch('create-pr', key); }}
+        disabled={busy}
+        data-testid="card-create-pr-btn"
+        title={track.worktree_pr_status === 'error' ? 'A previous attempt to open a PR failed — retry' : 'Push this branch and open a PR for review'}
+        className={`${CARD_ACTION_BTN} border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40`}
+      >
+        {pendingKey === key ? 'Opening…' : 'Create PR'}
+      </button>
+    );
+  }
+
+  if (canMergePr) {
+    const key = mergePrKey(row);
+    return (
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          clearTimeout(armTimerRef.current);
+          if (armed) {
+            setArmed(false);
+            dispatch('merge-pr', key);
+          } else {
+            setArmed(true);
+            armTimerRef.current = setTimeout(() => setArmed(false), 4000);
+          }
+        }}
+        disabled={busy}
+        data-testid="card-merge-pr-btn"
+        title="Merges PR through GitHub (gh pr merge) — branch protection and required checks still apply"
+        className={`${CARD_ACTION_BTN} ${armed ? 'border-green-500 bg-green-800/60 text-white' : 'border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40'}`}
+      >
+        {pendingKey === key ? 'Merging…' : armed ? 'Click again to merge PR' : 'Merge PR'}
+      </button>
+    );
+  }
+
+  if (isPrOpen) {
+    return (
+      <span
+        className={`${CARD_ACTION_BTN} border-gray-800 text-gray-600 cursor-not-allowed`}
+        title={track.worktree_pr_status === 'merged' ? 'PR merged — cleanup runs on the next reconcile pass' : 'Resolve on GitHub before this can merge (checks failing, conflicts, or closed unmerged)'}
+      >
+        Merge PR
+      </span>
+    );
+  }
+
+  return null;
+}
+
 // ── KPI window countdown ─────────────────────────────────────────────────────
 
 function KpiWindowCountdown({ kpiCheckAfter }) {
@@ -278,8 +422,15 @@ function KpiProgressBar({ kpiActual, kpiTarget }) {
 
 // ── TrackCard ─────────────────────────────────────────────────────────────────
 
-export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
+export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
   const styles = LANE_STYLES[track.lane_status] ?? LANE_STYLES.backlog;
+  // Track 10018 Phase 9: GET /api/projects/:id/tracks doesn't select
+  // t.project_id (single-project scoped response, so every row already
+  // implies the project) — same fallback App.jsx's own handlers already
+  // use everywhere else (track.project_id ?? selectedProjectId), needed
+  // here because DoneLaneMergeActions makes its own direct API calls
+  // rather than delegating to an App-level handler.
+  const resolvedProjectId = track.project_id ?? projectId;
 
   let nextLane = NEXT_LANE[track.lane_status];
   // Logic for Quality Gate detour
@@ -347,12 +498,15 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}>
             {track.lane_status}
           </span>
-          {track.lane_status === 'done' && (
-            <UnmergedBadge
-              worktreeClass={track.worktree_class}
-              prStatus={track.worktree_pr_status}
-              prUrl={track.worktree_pr_url}
-            />
+          {track.lane_status === 'done' && track.worktree_class && (
+            <div className="flex items-center gap-1">
+              <UnmergedBadge
+                worktreeClass={track.worktree_class}
+                prStatus={track.worktree_pr_status}
+                prUrl={track.worktree_pr_url}
+              />
+              <DoneLaneMergeActions projectId={resolvedProjectId} track={track} />
+            </div>
           )}
           <AssigneeWorkerStatusBadge status={track.assignee_worker_status} />
           {track.retry_count > 0 && (
@@ -481,7 +635,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
           {/* Dev server button — visible on review and in-progress lanes */}
           {(track.lane_status === 'review' || track.lane_status === 'implement') && (
-            <DevServerButton projectId={track.project_id} devUrl={track.dev_url} />
+            <DevServerButton projectId={resolvedProjectId} devUrl={track.dev_url} />
           )}
 
           <div className="flex items-center gap-1 shrink-0">
