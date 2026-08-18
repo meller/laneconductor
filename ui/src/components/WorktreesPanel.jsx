@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
-import { removeKey, mergeKey, completeKey, forceKey, discardKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
+import { removeKey, mergeKey, completeKey, forceKey, discardKey, aiResolveKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -106,7 +106,55 @@ const CLASS_BADGE = {
 // the rows that need a human's attention float to the top.
 const CLASS_SORT_ORDER = { stranded: 0, conflicted: 1, mergeable: 2, detached: 3, open: 4 };
 
-function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding }) {
+// Track 1114 Phase 18a: Phase 17's getConflictPaths() already computes
+// this list to decide the `conflicted` classification — was discarded
+// right after. Surfacing it here is the only new data; resolving is left
+// to the human (or Phase 18b's AI-resolve action) — this block never
+// mutates anything itself. Once genuinely resolved and pushed, the next
+// audit cycle reclassifies the row `mergeable` on its own; no separate
+// "I'm done" action needed.
+function ConflictDetails({ row }) {
+  const [copied, setCopied] = useState(false);
+  const paths = row.conflict_paths || [];
+  const snippet = [
+    `cd "${row.worktree_path || `.worktrees/${row.track}`}"`,
+    'git fetch origin',
+    'git merge origin/main',
+    '# resolve the conflicts below, then:',
+    'git add -A && git commit',
+    `git push origin ${row.branch || `track-${row.track}`}`,
+  ].join('\n');
+
+  return (
+    <div className="text-[11px] bg-amber-950/10 border border-amber-900/40 rounded-lg p-2.5 flex flex-col gap-1.5">
+      <span className="text-amber-400 font-bold uppercase tracking-wider text-[10px]">
+        Conflicts with main {paths.length > 0 ? `(${paths.length} file${paths.length === 1 ? '' : 's'})` : ''}
+      </span>
+      {paths.length > 0 ? (
+        <ul className="font-mono text-gray-400 leading-relaxed max-h-20 overflow-y-auto">
+          {paths.map(p => <li key={p} className="truncate">{p}</li>)}
+        </ul>
+      ) : (
+        <span className="text-gray-500">File list unavailable — restart the worker or wait for the next refresh to pick up Phase 18a.</span>
+      )}
+      <button
+        onClick={() => {
+          navigator.clipboard?.writeText(snippet).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          });
+        }}
+        data-testid="copy-resolve-commands-btn"
+        title="Copies a git command sequence to check out the worktree, merge main, and resolve locally"
+        className="self-start text-[10px] px-2 py-0.5 border border-gray-700 bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-gray-200 rounded font-bold uppercase tracking-wider transition-colors"
+      >
+        {copied ? 'Copied!' : 'Copy resolve commands'}
+      </button>
+    </div>
+  );
+}
+
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onAiResolve, aiResolving }) {
   const { armedKey, request } = useArmedConfirm();
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
   const canMerge = row.class === 'mergeable' || row.class === 'stranded';
@@ -146,11 +194,16 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   // discarded too — there's nothing to resolve if it's never merging.
   // `detached` has no track to move to backlog against.
   const canDiscard = Boolean(row.track);
+  // Track 1114 Phase 18b: only a real content conflict with a live
+  // worktree to run the merge in — Phase 17 already auto-resolves the
+  // bookkeeping-only case, so a `conflicted` row reaching here is
+  // genuinely one AI resolution could help with.
+  const canAiResolve = isConflicted && row.track && row.worktree_path;
   // A row's five actions can conflict with each other (e.g. force-merging
   // while a Complete & Merge sequence is still running) — while ANY one
   // is pending for this row, the rest are disabled too, not just the one
   // that was clicked.
-  const rowBusy = merging || removing || autoCompleting || forceMerging || discarding;
+  const rowBusy = merging || removing || autoCompleting || forceMerging || discarding || aiResolving;
 
   return (
     <div
@@ -209,6 +262,10 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
         </div>
       </div>
 
+      {isConflicted && (
+        <ConflictDetails row={row} />
+      )}
+
       <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800/50 flex-wrap">
         {canAutoComplete && (
           <button
@@ -251,10 +308,24 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
         {isConflicted && (
           <span
             className="text-[10px] px-2.5 py-1 border border-gray-800 text-gray-600 rounded font-bold uppercase tracking-wider cursor-not-allowed"
-            title="This branch conflicts with main — resolve manually (lc worktrees merge for details)"
+            title="This branch conflicts with main — resolve locally (see the file list above) or try AI resolve"
           >
             Merge to main
           </span>
+        )}
+        {canAiResolve && (
+          <button
+            onClick={() => request(`ai-resolve:${row.track}`, () => onAiResolve(row))}
+            disabled={rowBusy}
+            data-testid="ai-resolve-conflict-btn"
+            title="Runs a real merge in this worktree and has an AI session resolve the conflict markers, then merges — review the resulting merge commit afterward, this is not guaranteed correct."
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `ai-resolve:${row.track}`
+              ? 'border-purple-400 bg-purple-800/60 text-white'
+              : 'border-purple-800/60 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40'
+              }`}
+          >
+            {aiResolving ? 'Resolving…' : armedKey === `ai-resolve:${row.track}` ? 'Click again — review after' : 'AI resolve conflict'}
+          </button>
         )}
         {canDiscard && (
           <button
@@ -510,6 +581,28 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
     }
   }
 
+  async function handleAiResolve(row) {
+    if (!row.track) return;
+    setError(null);
+    startPending(aiResolveKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ai-resolve-conflict', payload: { track_number: row.track } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      // Runs a real merge + a full Claude turn inside the worktree — can
+      // take minutes, not seconds. Same bounded-pending pattern as
+      // Complete & Merge; the row's own class flips once the next audit
+      // cycle sees the outcome (merged → drops out, still conflicted →
+      // stays, unchanged).
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch AI-resolve for #${row.track}: ${err.message}`);
+      clearPending(aiResolveKey(row));
+    }
+  }
+
   async function handleForceMerge(row) {
     if (!row.track) return;
     setError(null);
@@ -589,6 +682,8 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
           forceMerging={Boolean(pendingKeys[forceKey(row)])}
           onDiscard={handleDiscard}
           discarding={Boolean(pendingKeys[discardKey(row)])}
+          onAiResolve={handleAiResolve}
+          aiResolving={Boolean(pendingKeys[aiResolveKey(row)])}
         />
       ))}
     </div>
