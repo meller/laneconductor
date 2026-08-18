@@ -6,7 +6,7 @@
 // computation itself correctly identifies stale keys when given real,
 // current inputs (i.e. what should happen once the closure is fixed).
 import { describe, it, expect } from 'vitest';
-import { computeStillPresentKeys, computeStaleKeys, removeKey, mergeKey, completeKey, forceKey, discardKey } from './worktreePendingKeys.js';
+import { computeStillPresentKeys, computeStaleKeys, removeKey, mergeKey, completeKey, forceKey, discardKey, aiResolveKey } from './worktreePendingKeys.js';
 
 describe('computeStillPresentKeys', () => {
   it('includes the remove key for every row, track-scoped keys only when a track exists', () => {
@@ -20,9 +20,11 @@ describe('computeStillPresentKeys', () => {
     expect(present.has(completeKey(rows[0]))).toBe(true);
     expect(present.has(forceKey(rows[0]))).toBe(true);
     expect(present.has(discardKey(rows[0]))).toBe(true);
+    expect(present.has(aiResolveKey(rows[0]))).toBe(true);
     expect(present.has(removeKey(rows[1]))).toBe(true);
     expect(present.has(mergeKey(rows[1]))).toBe(false);
     expect(present.has(discardKey(rows[1]))).toBe(false);
+    expect(present.has(aiResolveKey(rows[1]))).toBe(false);
   });
 });
 
@@ -54,6 +56,13 @@ describe('computeStaleKeys', () => {
     const pendingKeys = { [discardKey(row)]: 1 };
     const stale = computeStaleKeys(pendingKeys, []);
     expect(stale).toEqual([discardKey(row)]);
+  });
+
+  it('clears an ai-resolve pending key once the row resolves (mergeable/merged rows change key or drop out)', () => {
+    const row = { worktree_path: '/repo/.worktrees/1065', track: '1065' };
+    const pendingKeys = { [aiResolveKey(row)]: 1 };
+    const stale = computeStaleKeys(pendingKeys, []);
+    expect(stale).toEqual([aiResolveKey(row)]);
   });
 
   it('leaves unrelated pending keys alone when only some rows disappear', () => {

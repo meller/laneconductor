@@ -43,7 +43,6 @@ import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
-import { shouldWriteForceDoneMarker, applyDoneSuccessMarkers } from './services/force-merge-marker.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
@@ -122,9 +121,19 @@ const isManager = process.argv.includes('--manager');
 // reproduce OTHER bugs (e.g. track 1110's own claim-race repro) — none of
 // those tests are exercising this lock itself.
 if (!process.env.LC_SKIP_WORKER_LOCK) {
+  // Resolve the PRIMARY checkout, not just process.cwd() — a worker
+  // process can be spawned with cwd inside a linked worktree (or any cwd
+  // other than the primary checkout). Since the lock path is derived from
+  // cwd, two processes meant to hold the SAME identity's lock could
+  // compute DIFFERENT lock paths and never actually collide — silently
+  // defeating this exact exclusivity guard (confirmed live 2026-08-17:
+  // 4 simultaneous default-identity `--sync-only` processes, none
+  // matching the tracked pidfile, none refusing to start). Same fix
+  // pattern as createWorktree/removeWorktree above.
+  const repoRootForLock = isManager ? null : resolvePrimaryRepoRoot(process.cwd());
   const lockDir = isManager
     ? join(os.homedir(), '.laneconductor')
-    : join(process.cwd(), 'conductor');
+    : join(repoRootForLock, 'conductor');
   const lockPath = isManager
     ? join(lockDir, 'manager.lock-target')
     : join(lockDir, workerNumber === 1 ? '.sync.lock-target' : `.sync-${workerNumber}.lock-target`);
@@ -959,6 +968,10 @@ async function refreshWorktreeSummaryCache() {
       // detached rows have no `track` number at all, so branch/path are
       // the only handles available for them.
       branch: r.branch, worktree_path: r.worktreePath,
+      // Track 1114 Phase 18a: auditWorktrees() already computes this to
+      // decide the `conflicted` classification (Phase 17) — was discarded
+      // right after. Only ever non-empty when class is 'conflicted'.
+      conflict_paths: r.conflictPaths ?? [],
     }));
   } catch (err) {
     console.error('[worktree-summary error]:', err.message);
@@ -5181,11 +5194,16 @@ async function checkDispatchInbox() {
           // in-progress work); if none exists, falls through to a plain
           // git-only force merge exactly like before, with the branch's
           // own lane state left as-is.
-          if (shouldWriteForceDoneMarker({ isDoneSuccess, force, hasWorktree: row.hasWorktree, worktreePath: row.worktreePath })) {
+          if (!isDoneSuccess && force && row.hasWorktree && row.worktreePath) {
             const wtIndexPath = join(row.worktreePath, 'conductor', 'tracks', resolveTrackFolder(join(row.worktreePath, 'conductor', 'tracks'), trackNumber) || '', 'index.md');
             if (existsSync(wtIndexPath)) {
               const wtContent = readFileSync(wtIndexPath, 'utf8');
-              const updated = applyDoneSuccessMarkers(wtContent);
+              const updateHeader = (c, h, v) => {
+                const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
+                return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
+              };
+              let updated = updateHeader(wtContent, 'Lane', 'done');
+              updated = updateHeader(updated, 'Lane Status', 'success');
               writeFileSync(wtIndexPath, updated, 'utf8');
               try {
                 gitExec(`git add "${wtIndexPath}"`, row.worktreePath);
@@ -5378,6 +5396,125 @@ async function checkDispatchInbox() {
         }
       } catch (err) {
         logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post discard-track conversation comment');
+      }
+      continue;
+    }
+
+    // Track 1114 Phase 18b: "AI resolve conflict" — for `conflicted` rows
+    // Phase 17's bookkeeping-only auto-resolve doesn't cover (a real
+    // content conflict). Deliberately NOT built on spawnCli — that
+    // machinery is lane-workflow-shaped (creates its own worktree, moves
+    // Lane/Lane Status through workflow.json, git-locks) and this is a
+    // one-off remediation, not a lane. Runs a REAL `git merge` (not the
+    // dry-run `merge-tree` check auditWorktrees uses for classification)
+    // directly in the track's existing worktree, spawns a scoped one-shot
+    // Claude session to resolve the resulting conflict markers (same raw
+    // spawn pattern as the `track_chat`/`worker_adhoc_chat` handler
+    // above — a single prompt/response turn, no lane semantics), then
+    // verifies nothing is left unresolved before ever committing anything.
+    // Explicitly conservative: if verification doesn't clearly show a
+    // clean, agent-staged resolution, this aborts the merge and reports
+    // failure rather than guessing — same philosophy as
+    // mergeWorktreeBranch's own "never call it mergeable without
+    // positively confirming a clean merge."
+    if (entry.action === 'ai-resolve-conflict') {
+      const trackNumber = entry.payload?.track_number;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] ai-resolve-conflict ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `ai-resolve-conflict ${trackNumber} (dispatch ${entry.id})`);
+
+      const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+      const mainBranch = getMainBranch();
+      let result;
+      try {
+        const rows = await auditWorktrees({ repoRoot, mainBranch });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+
+        if (!row?.hasWorktree || !row.worktreePath) {
+          result = { resolved: false, reason: 'no-worktree — a live worktree is required to run the merge in' };
+        } else {
+          const worktreePath = row.worktreePath;
+          let hadConflict = false;
+          try {
+            gitExec(`git merge "${mainBranch}" --no-edit`, worktreePath);
+          } catch (mergeErr) {
+            hadConflict = true; // `git merge` exits non-zero when it leaves real conflict markers
+          }
+
+          if (!hadConflict) {
+            // State moved on since classification (e.g. someone else already
+            // fixed it) — merged cleanly with no AI involvement needed.
+            const mergeResult = await mergeWorktreeBranch({ repoRoot, trackNumber: String(trackNumber), mainBranch });
+            result = { resolved: true, aiInvolved: false, merged: mergeResult.merged, mergeCommit: mergeResult.mergeCommit };
+          } else {
+            const prompt = `You are resolving a real git merge conflict. The current directory is a git worktree mid-merge (\`git merge ${mainBranch}\` was just run and produced conflicts). Run \`git status\` to see which files conflict. Open each one, resolve the conflict markers by understanding BOTH sides' intent — this branch's own changes AND ${mainBranch}'s changes — do not blindly prefer one side. Do not drop functionality from either side unless it is genuinely redundant or superseded. Once every file is resolved, stage them with \`git add\`. Do NOT run \`git commit\` yourself — leave the merge staged; a separate step finalizes it. If you cannot confidently resolve a conflict, leave it unresolved (unstaged) and say why in your final message instead of guessing.`;
+
+            const { stdout: agentOutput } = await new Promise((resolvePromise) => {
+              const proc = spawn('claude', ['--dangerously-skip-permissions', '-p', prompt], { cwd: worktreePath, stdio: ['ignore', 'pipe', 'pipe'] });
+              let out = '';
+              proc.stdout.on('data', d => { out += d.toString(); });
+              proc.stderr.on('data', d => { out += d.toString(); });
+              proc.on('exit', () => resolvePromise({ stdout: out }));
+              proc.on('error', e => resolvePromise({ stdout: e.message }));
+            });
+
+            // A linked worktree's `.git` is a FILE pointing at the real
+            // gitdir (`.git/worktrees/<name>/`), not a directory — joining
+            // `worktreePath, '.git', 'MERGE_HEAD'` directly resolves to a
+            // path that can never exist, silently reporting "no merge in
+            // progress" even when one genuinely is (found live verifying
+            // this very fixture: a real agent-resolved merge would have
+            // been misreported as failed). `git rev-parse` resolves refs
+            // correctly from any worktree's cwd regardless of this layout.
+            let mergeHeadExists = true;
+            try { gitExec('git rev-parse -q --verify MERGE_HEAD', worktreePath); } catch { mergeHeadExists = false; }
+            const statusLines = gitExec('git status --porcelain', worktreePath).toString().split('\n').filter(Boolean);
+            const stillUnmerged = statusLines.some(l => /^(UU|AA|DD|AU|UA|UD|DU) /.test(l));
+
+            if (!mergeHeadExists || stillUnmerged) {
+              // Either the agent committed/aborted on its own (unexpected —
+              // instructed not to) or real conflicts remain either way, too
+              // ambiguous to trust silently. Abort if a merge is still
+              // genuinely in progress; otherwise leave state as the agent
+              // left it for a human to inspect.
+              if (mergeHeadExists) gitExec('git merge --abort', worktreePath);
+              result = { resolved: false, reason: stillUnmerged ? 'unresolved-conflicts-remain' : 'agent-did-not-leave-a-clean-staged-merge', agentOutput: agentOutput.slice(-2000) };
+            } else {
+              gitExec('git commit --no-edit', worktreePath);
+              const mergeResult = await mergeWorktreeBranch({ repoRoot, trackNumber: String(trackNumber), mainBranch });
+              result = mergeResult.merged
+                ? { resolved: true, aiInvolved: true, merged: true, mergeCommit: mergeResult.mergeCommit }
+                : { resolved: true, aiInvolved: true, merged: false, reason: mergeResult.reason, note: 'conflict resolved and committed on the branch, but the merge-into-main step itself failed — branch left in its resolved state for manual merge' };
+            }
+          }
+        }
+      } catch (err) {
+        result = { resolved: false, reason: 'error', error: err.message };
+      }
+      updateWorkerHeartbeat('idle', null);
+
+      const resultText = result.resolved
+        ? (result.merged
+          ? `AI-resolved and merged track-${trackNumber} into ${mainBranch}${result.aiInvolved ? '' : ' (no real conflict encountered)'} (${result.mergeCommit}) — review the merge commit`
+          : `AI resolved the conflict on track-${trackNumber}'s branch, but merging into ${mainBranch} still failed: ${result.reason}`)
+        : `Not resolved: ${result.reason}${result.error ? `: ${result.error}` : ''}`;
+
+      await patch(url, token, `/worker-dispatch/${entry.id}`, {
+        status: result.resolved ? 'done' : 'failed',
+        result: resultText,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report ai-resolve-conflict result'));
+
+      try {
+        const tracksDir = join(repoRoot, 'conductor', 'tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (trackDirName) {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+        }
+      } catch (err) {
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post ai-resolve-conflict conversation comment');
       }
       continue;
     }

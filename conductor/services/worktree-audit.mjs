@@ -228,21 +228,23 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       ? mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, state.trackDir, trackNumber)
       : false;
     let classification;
+    let conflictPaths = [];
     if (!isDoneSuccess || superseded) {
       classification = 'open';
     } else if (!hasWorktree) {
       classification = 'stranded';
     } else {
-      const conflictPaths = getConflictPaths(repoRoot, mainBranch, branch);
+      conflictPaths = getConflictPaths(repoRoot, mainBranch, branch);
       const realConflict = conflictPaths.length > 0
         && !isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, branch, conflictPaths, trackNumber });
       classification = realConflict ? 'conflicted' : 'mergeable';
+      if (!realConflict) conflictPaths = []; // only meaningful to callers when the row is actually `conflicted`
     }
 
     rows.push({
       trackNumber, branch, worktreePath, hasWorktree, ahead, behind, dirtyCount,
       lane: state?.lane ?? null, laneStatus: state?.laneStatus ?? null, title: state?.title ?? null,
-      classification,
+      classification, conflictPaths,
     });
   }
 

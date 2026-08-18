@@ -14,6 +14,7 @@ export const mergeKey = (row) => `merge:${row.track}`;
 export const completeKey = (row) => `complete:${row.track}`;
 export const forceKey = (row) => `force:${row.track}`;
 export const discardKey = (row) => `discard:${row.track}`;
+export const aiResolveKey = (row) => `ai-resolve:${row.track}`;
 
 export function computeStillPresentKeys(rows) {
   const stillPresent = new Set();
@@ -24,6 +25,7 @@ export function computeStillPresentKeys(rows) {
       stillPresent.add(completeKey(row));
       stillPresent.add(forceKey(row));
       stillPresent.add(discardKey(row));
+      stillPresent.add(aiResolveKey(row));
     }
   }
   return stillPresent;
