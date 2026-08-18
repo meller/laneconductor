@@ -1,12 +1,12 @@
 # Track 10018: Per-Track Merge Mode (PR vs Direct) with Worktrees Approval Workflow
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 97%
 **Phase**: Phase 10 queued — branch name (or "main") on every Kanban card (Phases 1-9 complete and tested)
 **Type**: dev
 **Merge Mode**: direct
-**Summary**: Per-track merge_mode (pr|direct, default pr): completed tracks open a GitHub PR for human review instead of auto-merging. Worktrees panel is the approval station; done-lane Kanban cards show an unmerged/PR-status badge (Phase 7) with the same merge/PR actions inline (Phase 9). Phase 10 (branch name on every card) queued — direct human feedback, also connects to track 1115's future main-direct workspace mode.
+**Summary**: Per-track merge_mode (pr|direct, default pr): completed tracks open a GitHub PR for human review instead of auto-merging. Worktrees panel is the approval station; done-lane Kanban cards show an…
 
 ## Problem
 When a track reaches done, the sync worker auto-merges its branch straight into main — no human review gate, no CI gating, and no way to test the worktree's build before it lands. Separately: a `done`-lane card gave no signal when the underlying branch/PR hadn't actually merged yet.
