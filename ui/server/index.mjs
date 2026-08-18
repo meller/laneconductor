@@ -2720,17 +2720,28 @@ app.get('/track/:num/retry-count', collectorAuth, async (req, res) => {
 app.post('/tracks/reset-stuck-actions', collectorAuth, async (req, res) => {
   try {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
-    // immediate=true: reset ALL running tracks (used on worker startup — worker starts fresh, owns no running tracks)
-    // default: only reset tracks stuck for more than 2 minutes
+    // immediate=true: this worker just started and owns no running tracks —
+    // release only ITS OWN prior claims (claimed_by = its own machine_token).
+    // Track 1117 Bug 1: this used to reset every running/queued track for the
+    // whole project, stomping sibling workers' still-live tracks whenever any
+    // one worker restarted. If this caller has no resolvable machine_token
+    // (e.g. global-token/anonymous auth has no per-worker identity to scope
+    // by), reset nothing rather than falling back to the old project-wide
+    // behavior.
+    // default: only reset tracks stuck for more than 2 minutes (heartbeat-staleness — unaffected by this fix, applies regardless of owner)
     const immediate = req.body?.immediate === true;
+    if (immediate && !req.machine_token) {
+      return res.json({ reset: [] });
+    }
     const whereClause = immediate
-      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by IS NOT NULL`
+      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by = $2`
       : `project_id = $1 AND lane_action_status = 'running' AND last_heartbeat < NOW() - INTERVAL '2 minutes'`;
+    const params = immediate ? [projectId, req.machine_token] : [projectId];
     const r = await pool.query(
       `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = 'stuck_timeout', claimed_by = NULL
        WHERE ${whereClause}
        RETURNING track_number`,
-      [projectId]
+      params
     );
     res.json({ reset: r.rows.map(r => r.track_number) });
   } catch (err) {
