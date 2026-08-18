@@ -111,6 +111,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // Track 1084 Phase 4: assignee control
   const [members, setMembers] = useState([]);
   const [assigneeSaving, setAssigneeSaving] = useState(false);
+  const [mergeModeSaving, setMergeModeSaving] = useState(false);
   // Track 1085 Phase 4: manual dispatch — "Run on worker" control + history
   const [projectWorkers, setProjectWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
@@ -217,6 +218,22 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       if (r.ok) fetchDetail();
     } catch { }
     setAssigneeSaving(false);
+  }
+
+  // Track 10018 (REQ-9): writes through the same track-update path lane
+  // changes already use — PATCH .../tracks/:num forwards to the collector's
+  // /track/:num/action, which the sync worker's Phase 1 marker sync then
+  // reflects back into the track's own **Merge Mode** marker in index.md.
+  async function setMergeMode(mode) {
+    setMergeModeSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ merge_mode: mode || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setMergeModeSaving(false);
   }
 
   // Track 1085 Phase 4: workers registered to this project, for the "Run on
@@ -679,6 +696,22 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                       {detail.assignee_uid ?? detail.created_by_uid ?? 'unassigned'}
                     </span>
                   )}
+                </div>
+                {/* Track 10018 (REQ-9): merge-mode toggle — unspecified/null
+                    shows as "pr" (resolveMergeMode's default), matching what
+                    the Worktrees panel's badge would show for this track. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Merge mode:</span>
+                  <select
+                    value={detail.merge_mode ?? 'pr'}
+                    disabled={mergeModeSaving}
+                    onChange={e => setMergeMode(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    title="pr: opens a GitHub PR on done, pauses for approval. direct: auto-merges on done (today's behavior)."
+                  >
+                    <option value="pr">PR (review required)</option>
+                    <option value="direct">Direct (auto-merge)</option>
+                  </select>
                 </div>
                 {/* Track 1085 Phase 4: manual dispatch — "Run on worker" */}
                 {DISPATCHABLE_LANES.includes(detail.lane_status) && projectWorkers.length > 0 && (
