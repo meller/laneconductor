@@ -1,12 +1,13 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
+**Waiting for reply**: no
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: All 6 phases complete
 **Type**: dev
-**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness detection/logging, and (Phase 6) opt-in same-tier auto-update triggered by that same staleness check, auditable via git commit.
+**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness detection/logging, and (Phase 6) opt-in same-tier auto-update triggered by that same staleness check, auditable via git commit. Quality gate passed 2026-08-18.
 
 ## Problem
 
@@ -106,4 +107,3 @@ Opened directly from a user request with four numbered asks; this index
 restates each against verified current code behavior (file:line
 references above) rather than assumed behavior, per this session's
 established practice of confirming before planning fixes.
-**Waiting for reply**: yes
