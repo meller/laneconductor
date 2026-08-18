@@ -1,10 +1,10 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/sonnet (primary)
-**Phase**: Planning in progress
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Plan refined — spec.md updated with Phase 6 provider-switch confirmation requirement; ready for implement
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -26,25 +26,16 @@ no UI path to:
 
 ## Plan Checklist
 
-### Phase 1: Database Migration & API Server Support
-- [ ] Task 1.1: Create database migration adding `cli` and `model` columns to `workers` table.
-- [ ] Task 1.2: Update `POST /worker/register` and `PATCH /worker/heartbeat` in `ui/server/index.mjs` to receive, validate, and store `cli` and `model`.
-- [ ] Task 1.3: Update `GET /api/workers` and `GET /api/projects/:id/workers` queries in `ui/server/index.mjs` to include `w.cli` and `w.model`.
-- [ ] Task 1.4: Implement `PATCH /api/workers/:id/config` endpoint in `ui/server/index.mjs` to update worker config and dispatch `set_model` action to `worker_dispatch`.
+Full phase-by-phase task detail lives in `plan.md` (source of truth —
+keep this summary in sync with it, don't duplicate task text here).
 
-### Phase 2: Worker Daemon Sync Engine
-- [ ] Task 2.1: Update worker heartbeat payload in `conductor/laneconductor.sync.mjs` to include CLI engine name and active model.
-- [ ] Task 2.2: Add dispatch action handler for `set_model` in `conductor/laneconductor.sync.mjs` to update in-memory active model without process restart.
-
-### Phase 3: UI Components & Model Picker Modal
-- [ ] Task 3.1: Create `WorkerModelSelectorModal.jsx` component offering selectable model options per provider (Claude, Gemini, Copilot, Antigravity) + custom model text input.
-- [ ] Task 3.2: Update `WorkersList.jsx` card (grid) and pill (strip) layouts to render CLI icon/badge and model tag.
-- [ ] Task 3.3: Add "Change Model" button to worker cards in `WorkersList.jsx` to launch `WorkerModelSelectorModal`.
-- [ ] Task 3.4: Connect modal submit to `PATCH /api/workers/:id/config` with WebSocket refresh broadcast.
-
-### Phase 4: Integration Testing & Verification
-- [ ] Task 4.1: Write integration test suite `ui/server/tests/track-1096-worker-model-picker.test.mjs` testing register, heartbeat, patch config, and GET worker routes.
-- [ ] Task 4.2: Perform browser verification of Workers View model selector UI and live state updates.
+- [x] Phase 1: Database Migration & API Server Support
+- [x] Phase 2: Worker Daemon Sync Engine
+- [x] Phase 3: UI Components & Model Picker Modal
+- [x] Phase 4: Integration Testing & Verification — all automated tests
+      pass; Task 4.2 (browser E2E) remains **partial**, see plan.md.
+- [x] Phase 5: UX Fixes (post-implementation)
+- [x] Phase 6: Provider vs. model — session continuity constraint
 
 ## Depends on
 
