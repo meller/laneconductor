@@ -3544,7 +3544,7 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
     // single track (a detached worktree has no track-* branch to resolve
     // an assignee from; a cache refresh isn't track-scoped at all), so
     // both always fall straight to "any live worker for the project."
-    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track') && !worker_id) {
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'ai-resolve-conflict') && !worker_id) {
       const trackNumber = payload?.track_number;
       if (action !== 'remove-worktree' && action !== 'refresh-worktrees' && !trackNumber) {
         return res.status(400).json({ error: `payload.track_number is required for ${action}` });
