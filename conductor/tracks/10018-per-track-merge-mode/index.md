@@ -1,12 +1,12 @@
 # Track 10018: Per-Track Merge Mode (PR vs Direct) with Worktrees Approval Workflow
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 97%
-**Phase**: Phase 10 queued — branch name (or "main") on every Kanban card (Phases 1-9 complete and tested)
+**Progress**: 99%
+**Phase**: Phase 10 complete — branch name (or "main") on every Kanban card, 10/10 tests passing (Phases 1-10 complete; Phase 6's two documented gaps remain)
 **Type**: dev
 **Merge Mode**: direct
-**Summary**: Per-track merge_mode (pr|direct, default pr): completed tracks open a GitHub PR for human review instead of auto-merging. Worktrees panel is the approval station; done-lane Kanban cards show an unmerged/PR-status badge (Phase 7) with the same merge/PR actions inline (Phase 9). Phase 10 (branch name on every card) queued — direct human feedback, also connects to track 1115's future main-direct workspace mode.
+**Summary**: Per-track merge_mode (pr|direct, default pr): completed tracks open a GitHub PR for human review instead of auto-merging. Worktrees panel is the approval station; done-lane Kanban cards show an unmerged/PR-status badge (Phase 7) with the same merge/PR actions inline (Phase 9); every card now also shows its branch name or "main" (Phase 10).
 
 ## Problem
 When a track reaches done, the sync worker auto-merges its branch straight into main — no human review gate, no CI gating, and no way to test the worktree's build before it lands. Separately: a `done`-lane card gave no signal when the underlying branch/PR hadn't actually merged yet.
@@ -24,11 +24,11 @@ Per-track `**Merge Mode**` marker (FS) + `merge_mode` column (DB), unspecified �
 - [x] Phase 7: Unmerged-branch status on done-lane Kanban cards (direct human feedback)
 - [x] Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge — 5/5 tests passing against the real running app, see plan.md for what was covered plus two things found and fixed along the way (a missing `track-card` testid, and a pre-existing flake in `track-1112-worktree-panel.spec.js`, unrelated to this track, left as-is)
 - [x] Phase 9: Merge/PR action buttons directly on done-lane Kanban cards (direct human feedback on Phase 7 — status and the action for it should be in the same place) — done, 9/9 Playwright tests passing (4 new), see plan.md for a real pre-existing bug found and fixed along the way (`track.project_id` was never populated by `GET /tracks`, silently breaking every card-level dispatch until fixed)
-- [ ] Phase 10: Branch name (or "main") on every Kanban card (direct human feedback — a branch only exists from `implement` onward, and not always even then, depending on track 1115's future workspace-mode config) — queued, see plan.md for the exact task list
+- [x] Phase 10: Branch name (or "main") on every Kanban card (direct human feedback — a branch only exists from `implement` onward, and not always even then, depending on track 1115's future workspace-mode config) — done, 10/10 Playwright tests passing (1 new); no new bugs found, `worktree_branch` reused Phase 7's existing enrichment convention cleanly
 
 ## Human review needed before this merges
 1. **Phase 2's lane-state deviation** — `pr_status` carries approval state instead of a new `done:pr-open` lane value. Confirm this is acceptable, or ask for the literal spec.md behavior.
 2. **Rollout**: default flips to `pr` for every track without an explicit marker, including tracks already in flight in this repo. Decide which in-flight tracks (if any) should be stamped `direct` before this ships.
-3. **Still no subprocess-level test** of the real `openTrackPrOnDone`/`reconcilePrTracks` worker-side flow (see plan.md Phase 6 Task 3) — Phase 8/9's Playwright specs close the UI-layer gap only (badges, dispatch buttons, card actions), by design; that worker-process gap is unchanged and remains open.
-4. **Pre-existing test flake found, not fixed**: `conductor/tests/playwright/track-1112-worktree-panel.spec.js` (untouched by this track) is flaky whenever this repo's own live dev environment has multiple real heartbeat workers running for project 1 concurrently — its worker-selection query races a real worker's own heartbeat cycle. Out of this track's scope; flagged for a separate fix.
-5. **Merge to main is queued behind Phase 10** — same pattern as before: merge happens once the branch-name card indicator lands, as one combined change covering all 10 phases.
+3. **Still no subprocess-level test** of the real `openTrackPrOnDone`/`reconcilePrTracks` worker-side flow (see plan.md Phase 6 Task 3) — Phase 8/9/10's Playwright specs close the UI-layer gap only (badges, dispatch buttons, card actions, branch label), by design; that worker-process gap is unchanged and remains open.
+4. **Pre-existing test flake found, not fixed**: `conductor/tests/playwright/track-1112-worktree-panel.spec.js` (untouched by this track) is flaky whenever this repo's own live dev environment has multiple real heartbeat workers running for project 1 concurrently — its worker-selection query races a real worker's own heartbeat cycle. Reproduced again this phase, consistent with its known non-determinism. Out of this track's scope; flagged for a separate fix.
+5. **All 10 phases are now complete** — per your instruction, merge to main was sequenced behind Phase 10 landing; that condition is now met. This is at `review`, not `done`, so the merge (or a request for further changes) is your call to make next.

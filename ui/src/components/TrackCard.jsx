@@ -167,6 +167,29 @@ function TrackTypeBadge({ trackType }) {
   );
 }
 
+// ── Branch indicator (Track 10018 Phase 10) ──────────────────────────────────
+//
+// Direct human feedback: cards only ever showed lane/progress — nothing
+// told you whether a track is on its own branch or still on `main`. Shown
+// on every lane, not gated to `done` like UnmergedBadge — the "what am I
+// working on" question applies from `plan` onward, since a branch only
+// exists from `implement` onward (and, once track 1115's main-direct
+// workspace mode ships, not even always then). `worktree_branch` is null
+// for exactly those cases (see GET /api/projects/:id/tracks) — falls
+// through to "main" here, which is already correct today and needs no
+// change once 1115 ships.
+function BranchIndicator({ branch }) {
+  const label = branch || 'main';
+  return (
+    <span
+      className="text-[10px] font-mono text-gray-600 truncate max-w-[8rem]"
+      title={branch ? `Working on branch ${branch}` : 'No branch yet — working on main'}
+    >
+      ⌥ {label}
+    </span>
+  );
+}
+
 // ── Unmerged-branch badge (Track 10018) ──────────────────────────────────────
 //
 // A track at lane_status='done' means the lane ACTION finished — it does not
@@ -480,6 +503,7 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
               </span>
             )}
             <TrackTypeBadge trackType={track.track_type} />
+            <BranchIndicator branch={track.worktree_branch} />
             {(track.human_needs_reply || track.unreplied_count > 0) && (
               <span
                 className={`flex items-center gap-0.5 text-[10px] px-1 rounded ${track.human_needs_reply ? 'bg-amber-900/40 text-amber-400 border border-amber-800/40' : 'bg-blue-900/40 text-blue-400 border border-blue-800/40'

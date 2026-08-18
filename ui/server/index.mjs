@@ -707,6 +707,13 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
         worktree_pr_status: wt?.pr_status ?? null,
         worktree_pr_url: wt?.pr_url ?? null,
         worktree_pr_number: wt?.pr_number ?? null,
+        // Track 10018 Phase 10: null exactly when there's no live worktree
+        // row for this track (not yet past `plan`, or — once track 1115's
+        // main-direct workspace mode ships — a track configured to work
+        // directly on main with no branch at all). The frontend renders
+        // "main" for that null case; this stays the raw signal, same
+        // convention as worktree_class above.
+        worktree_branch: wt?.branch ?? null,
       };
     }));
   } catch (err) {
