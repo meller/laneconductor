@@ -3,6 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 5: Full regression pass
 **Type**: dev
 **Summary**: Four compounding bugs, found and root-caused live during track 1116's dogfood run through implement/review/quality-gate, silently stranding successful work with no automatic recovery: (1) unscoped…
