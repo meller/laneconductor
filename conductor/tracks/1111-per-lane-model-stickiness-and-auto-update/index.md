@@ -1,6 +1,6 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: All 6 phases complete
