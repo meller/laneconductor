@@ -46,6 +46,8 @@ import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/wo
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
+import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
+import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
@@ -471,6 +473,41 @@ async function refreshModels() {
   if (Object.keys(newCached).length > 0) {
     cachedModels = newCached;
   }
+
+  // Track 1111 Phase 5 (REQ-5): re-check workflow.json's configured
+  // per-lane models against what's actually discovered every time that
+  // discovery refreshes (worker startup, then every 30 minutes) — the
+  // minimum-viable "surfaced somewhere a human will actually see it"
+  // version is this log line; a UI badge is a possible follow-up, not
+  // built here (see plan.md Phase 5 Task 1).
+  try {
+    const staleEntries = findStaleLaneModels({ workflowConfig, proj: getProject(), cachedModels });
+    for (const entry of staleEntries) {
+      logger.warn(entry, formatStaleLaneModelWarning(entry));
+    }
+
+    // Track 1111 Phase 6 (REQ-6): opt-in, same-tier-only auto-update.
+    // Default OFF — only runs when this project's own workflow.json sets
+    // `global.auto_update_stale_models: true`. Never a silent rewrite: a
+    // git commit is made alongside the file write, so the change is
+    // visible in workflow.json's own history.
+    maybeAutoUpdateWorkflowModels({
+      workflowConfig, staleEntries,
+      writeFile: (content) => writeFileSync('conductor/workflow.json', content),
+      commit: (message) => {
+        try {
+          execSync('git add conductor/workflow.json', { cwd: process.cwd(), stdio: 'pipe' });
+          execSync(`git commit -m ${JSON.stringify(message)}`, { cwd: process.cwd(), stdio: 'pipe' });
+        } catch (err) {
+          logger.warn({ err: err.message }, '[workflow] auto-update commit failed');
+        }
+      },
+      logInfo: (applied, summary) => logger.info({ applied }, `[workflow] auto-updated stale primary_model: ${summary}`),
+    });
+  } catch (err) {
+    logger.warn({ err: err.message }, '[workflow] stale-model check failed');
+  }
+
   // Schedule next refresh in 30 minutes
   setTimeout(refreshModels, 30 * 60 * 1000);
 }
@@ -1123,7 +1160,7 @@ function readIfExists(filepath) {
 function loadWorkflowConfig() {
   // 1. Try project-local workflow.json (canonical per-project source)
   if (existsSync('conductor/workflow.json')) {
-    try { return JSON.parse(readFileSync('conductor/workflow.json', 'utf8')); }
+    try { return stripLanePrimaryCli(JSON.parse(readFileSync('conductor/workflow.json', 'utf8'))); }
     catch (err) { console.error('[config] Failed to parse conductor/workflow.json:', err.message); }
   }
 
@@ -1132,7 +1169,7 @@ function loadWorkflowConfig() {
   if (installPath) {
     const globalWf = join(installPath, 'conductor', 'workflow.json');
     if (existsSync(globalWf)) {
-      try { return JSON.parse(readFileSync(globalWf, 'utf8')); }
+      try { return stripLanePrimaryCli(JSON.parse(readFileSync(globalWf, 'utf8'))); }
       catch (err) { console.error('[config] Failed to parse global workflow.json:', err.message); }
     }
   }
@@ -1142,7 +1179,7 @@ function loadWorkflowConfig() {
   if (!content) return null;
   const match = content.match(/## Workflow Configuration\n```json\n([\s\S]*?)\n```/);
   if (!match) return null;
-  try { return JSON.parse(match[1]); }
+  try { return stripLanePrimaryCli(JSON.parse(match[1])); }
   catch (err) { console.error('[config] Failed to parse workflow.md config:', err.message); return null; }
 }
 
@@ -4222,8 +4259,10 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
   }
   const proj = getProject();
-  const primary = laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude';
-  const primaryModel = laneConfig.primary_model ?? proj.primary?.model;
+  // Track 1111: cli stays project-wide fixed (REQ-3); only model varies
+  // per lane (REQ-2's precedence — lane's primary_model wins over any
+  // manual override in proj.primary.model).
+  const { cli: primary, model: primaryModel } = resolveLaneCliAndModel({ laneConfig, proj });
   const secondary = proj.secondary?.cli;
   const secondaryModel = proj.secondary?.model;
 
@@ -5633,17 +5672,36 @@ async function checkDispatchInbox() {
       // otherwise the question has nothing to ground itself in. On a resumed
       // session that context is already in the conversation, so re-injecting
       // it every turn is the exact waste REQ-5 exists to remove.
+      //
+      // Merge note (1111 → main): track-1111 branched before REQ-5's
+      // `resumingChat` context-skip existed, so its patch unconditionally
+      // recomputed context on every turn — that would have silently
+      // reintroduced the exact waste REQ-5 removed. `chatTrackLane` (Track
+      // 1111 Phase 2 — track_chat follows its track's current lane's
+      // primary_model instead of always defaulting to the project's model)
+      // is needed on EVERY turn regardless of resume state, since model
+      // selection isn't a session-continuity concern — only the full
+      // multi-file context injection is. Split accordingly: lane lookup
+      // (cheap, index.md only) always runs when chatTrack is set;
+      // full context injection stays gated by `!resumingChat`.
       let fullPrompt = String(prompt);
-      if (chatTrack && !resumingChat) {
+      let chatTrackLane = null;
+      if (chatTrack) {
         const trackDirName = resolveTrackFolder('conductor/tracks', chatTrack);
         if (trackDirName) {
           const trackPath = join('conductor/tracks', trackDirName);
-          let ctx = '';
-          for (const name of ['index.md', 'spec.md', 'plan.md', 'conversation.md']) {
-            const content = readIfExists(join(trackPath, name));
-            if (content) ctx += `\n<track_context file="${name}">\n${content}\n</track_context>\n`;
+          const indexContent = readIfExists(join(trackPath, 'index.md'));
+          if (indexContent) {
+            chatTrackLane = indexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
           }
-          if (ctx) fullPrompt = `${ctx}\nThe user asks about track ${chatTrack}:\n${prompt}`;
+          if (!resumingChat) {
+            let ctx = '';
+            for (const name of ['index.md', 'spec.md', 'plan.md', 'conversation.md']) {
+              const content = name === 'index.md' ? indexContent : readIfExists(join(trackPath, name));
+              if (content) ctx += `\n<track_context file="${name}">\n${content}\n</track_context>\n`;
+            }
+            if (ctx) fullPrompt = `${ctx}\nThe user asks about track ${chatTrack}:\n${prompt}`;
+          }
         }
       }
 
@@ -5662,8 +5720,19 @@ async function checkDispatchInbox() {
           // and its raw JSONL is unreadable as a chat reply (verified
           // live: the first working version returned hook/system events as
           // the "answer"). A chat turn just needs the text back.
+          // Merge note (1111 → main): track-1111 branched before Track 1113
+          // Phase 3's `chatSessionArgs` (chat session resume) existed, so
+          // its patch dropped `...chatSessionArgs` — restored here alongside
+          // 1111's own per-lane model resolution, since the two are
+          // unrelated (session-resume args vs. which model runs the turn).
           cliArgs = ['--dangerously-skip-permissions', ...chatSessionArgs, '-p', fullPrompt];
-          if (cmd === 'claude' && proj.primary?.model) cliArgs.push('--model', proj.primary.model);
+          // Track 1111 Phase 2: chatTrackLane's primary_model (if the lane
+          // has one configured) wins over the project default — same
+          // precedence rule buildCliArgs uses for lane actions (REQ-2),
+          // via the same shared resolver.
+          const chatLaneConfig = chatTrackLane ? (workflowConfig?.lanes?.[chatTrackLane] ?? {}) : {};
+          const { model: chatModel } = resolveLaneCliAndModel({ laneConfig: chatLaneConfig, proj });
+          if (cmd === 'claude' && chatModel) cliArgs.push('--model', chatModel);
         }
 
         const { stdout, code } = await new Promise((resolvePromise) => {
