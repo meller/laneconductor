@@ -1106,6 +1106,7 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Phase**: [text]` | `current_phase` | Names the current phase being worked on. |
 | `**Summary**: [text]` | `content_summary` | A one-line summary of the current work/problem. |
 | `**Waiting for reply**: [yes\|no]` | `waiting_for_reply` | Signals that a human comment needs an answer. |
+| `**Merge Mode**: [pr\|direct]` | `merge_mode` | Track 10018: how a completed branch integrates. `pr` (default when absent) opens a GitHub PR and pauses for approval; `direct` auto-merges on done:success, same as pre-10018 behavior. See `## Per-Track Merge Mode (PR vs Direct)` below. |
 
 ### Completion Comment Convention
 
@@ -1903,6 +1904,21 @@ CREATE TABLE IF NOT EXISTS tracks (
 | (none in DB, explicitly backlog) | `backlog`         |
 
 Note: `✅ COMPLETE` with all checkboxes ticked moves to `review` (ready for review). Only `✅ REVIEWED` (added automatically by the review skill on PASS) moves to `done`. New tracks created via `/laneconductor newTrack` or the UI land in `planning` (staging area) — drag to `in-progress` to start auto-implement, or drag to `backlog` to defer.
+
+---
+
+## Per-Track Merge Mode (PR vs Direct)
+
+Track 10018: each track independently controls how its completed branch integrates into main, via the `**Merge Mode**` marker (default `pr` when the marker is absent — see `conductor/services/merge-mode.mjs`'s `resolveMergeMode()`, the single place that default lives).
+
+- **`pr`** (default): on quality-gate pass, the worker pushes `track-N` and opens a GitHub PR (`openTrackPrOnDone`) instead of merging locally. The branch/worktree stay intact; a reconcile pass (`reconcilePrTracks`, same 60s cadence as the existing worktree reconciler) polls the PR via `gh pr view` and only runs local cleanup once GitHub reports it merged — never a local `git merge`. Requires `gh` to be authenticated on the machine running the worker; if it isn't, the track posts a `⚠️` comment and does **not** silently fall back to a local merge.
+- **`direct`**: unchanged from pre-10018 behavior — auto-merges on `done:success`, same `mergeAndRemoveWorktree()` path as always.
+
+**Approving a PR-mode track**: the Worktrees panel is the approval station. A `pr`-mode track that's reached `done:success` shows as a `pr-open` row (never `mergeable` — that classification is reserved for `direct`-mode tracks, so the ordinary local-merge button can never bypass PR review). The row shows the PR link and its status (checks pending/passing/failing, conflicts, closed); "Merge PR" merges through `gh pr merge` (GitHub enforces branch protection/required checks, never bypassed locally); "Create PR" rescues a track whose PR never opened (a `gh` auth failure, or a stranded branch switched into `pr` mode after the fact). A "Preview" button on any row with a live worktree swaps the project's single dev server to run from that worktree instead of the primary checkout, so you can test the branch before approving — the panel shows a persistent banner while a preview is active, and "Remove worktree" is disabled on whichever row is currently being previewed.
+
+**Setting the mode**: drop `**Merge Mode**: direct` (or `pr`) into a track's `index.md`, or use the toggle in the track detail panel — both write through the same sync path lane changes already use.
+
+**Rollout note**: because the default is `pr`, any track that doesn't explicitly say `**Merge Mode**: direct` will pause for PR review the first time it reaches `done:success` after this ships — including tracks already in flight. If you want a track to keep today's auto-merge behavior, stamp it `direct` before it next completes.
 
 ---
 
