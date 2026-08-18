@@ -99,7 +99,9 @@ const INBOX_QUERY = `
        SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
      ) AS human_needs_reply
    ) hr ON true
-   WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE) AND t.project_id = $1
+   WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE)
+     AND NOT (t.dismissed_at IS NOT NULL AND t.dismissed_at >= COALESCE(lc.created_at, t.dismissed_at))
+     AND t.project_id = $1
    ORDER BY lc.created_at DESC
 `;
 
@@ -125,6 +127,10 @@ async function bucketFor(trackNumber) {
   return row?.bucket;
 }
 
+async function dismiss(trackId) {
+  await pool.query('UPDATE tracks SET dismissed_at = NOW() WHERE id = $1', [trackId]);
+}
+
 describe.skipIf(!dbAvailable)('GET /api/inbox — bucket classification (Track 10012)', () => {
   it('TC-7: a system ✅ notice as the latest comment lands in recent_activity', async () => {
     const id = await makeTrack('bucket-7');
@@ -145,6 +151,42 @@ describe.skipIf(!dbAvailable)('GET /api/inbox — bucket classification (Track 1
   it('TC-9: waiting_for_reply=true with zero comments still appears, in needs_input', async () => {
     await makeTrack('bucket-9', { waitingForReply: true });
     expect(await bucketFor('bucket-9')).toBe('needs_input');
+  });
+
+  it('a dismissed track with waiting_for_reply=true and no comments stops reappearing (track-8002 live incident)', async () => {
+    // Reproduces this repo's own live incident: a stale brainstorm fixture
+    // (track 8002) has waiting_for_reply=true and no comments at all — the
+    // one condition "Dismiss from inbox" (which only ever hid comments)
+    // could never actually clear, so it reappeared on every single poll no
+    // matter how many times it was dismissed. waiting_for_reply itself is
+    // re-asserted from the track's own index.md marker on every sync
+    // cycle, so a dismiss that tried to flip it false would just get
+    // silently overwritten back to true moments later — dismissed_at has
+    // to be an independent signal, not a fight over the same flag.
+    const id = await makeTrack('bucket-dismiss-1', { waitingForReply: true });
+    expect(await bucketFor('bucket-dismiss-1')).toBe('needs_input');
+
+    await dismiss(id);
+    const { rows } = await pool.query(INBOX_QUERY, [projectId]);
+    expect(rows.find(r => r.track_number === 'bucket-dismiss-1')).toBeUndefined();
+  });
+
+  it('a dismissed track reappears once a genuinely NEW comment arrives after dismissal', async () => {
+    const id = await makeTrack('bucket-dismiss-2');
+    await comment(id, 'human', 'first question', { isReplied: true });
+    await dismiss(id);
+    expect(await bucketFor('bucket-dismiss-2')).toBeUndefined();
+
+    await comment(id, 'claude', 'here is the answer');
+    expect(await bucketFor('bucket-dismiss-2')).toBe('needs_input');
+  });
+
+  it('a dismissed track with a comment OLDER than the dismissal stays hidden, even with waiting_for_reply still true', async () => {
+    const id = await makeTrack('bucket-dismiss-3', { waitingForReply: true });
+    await comment(id, 'gemini', 'stale message from before dismissal');
+    await dismiss(id);
+    const { rows } = await pool.query(INBOX_QUERY, [projectId]);
+    expect(rows.find(r => r.track_number === 'bucket-dismiss-3')).toBeUndefined();
   });
 
   it('TC-10: an unresolved real human comment lands in awaiting_ai', async () => {
