@@ -1,7 +1,7 @@
 # Track 10018: Per-Track Merge Mode (PR vs Direct) with Worktrees Approval Workflow
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 92%
 **Phase**: Phase 8 queued — Playwright E2E for the PR-mode panel + done-lane badge (Phases 1-7 complete and tested)
 **Type**: dev
