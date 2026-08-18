@@ -316,6 +316,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
       draggable
       onDragStart={startDrag}
       onClick={onClick}
+      data-testid="track-card"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
