@@ -888,6 +888,11 @@ app.get('/api/inbox', async (req, res) => {
     //                     for non-emoji AI comments.
     //  3. recent_activity — most recent comment is a 'system' ✅ notice (or
     //                     nothing else applies): informational only.
+    // A row is excluded entirely (before bucketing) once dismissed_at is at
+    // least as new as its latest visible comment — POST .../dismiss sets
+    // it, and it's automatically superseded the moment a genuinely new
+    // comment arrives, without needing to touch waiting_for_reply (which a
+    // later sync cycle would just re-assert from the track's own file).
     const result = await pool.query(
       `SELECT t.id AS track_id, t.track_number, t.title, t.lane_status,
               t.lane_action_status, t.waiting_for_reply,
@@ -924,7 +929,9 @@ app.get('/api/inbox', async (req, res) => {
            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
          ) AS human_needs_reply
        ) hr ON true
-       WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE) ${projectFilter}
+       WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE)
+         AND NOT (t.dismissed_at IS NOT NULL AND t.dismissed_at >= COALESCE(lc.created_at, t.dismissed_at))
+         ${projectFilter}
        ORDER BY lc.created_at DESC`,
       values
     );
@@ -941,6 +948,23 @@ app.post('/api/projects/:id/tracks/:num/dismiss', async (req, res) => {
 
     await pool.query(
       'UPDATE track_comments SET is_hidden = TRUE WHERE track_id = $1',
+      [trackId]
+    );
+    // Track 10012-follow-up: hiding comments alone doesn't stop a row from
+    // reappearing on the next poll when it qualifies via
+    // tracks.waiting_for_reply — that flag is authoritative-per-sync
+    // (re-asserted from the track's own index.md marker every sync cycle,
+    // see parseWaitingForReply() in laneconductor.sync.mjs), so setting it
+    // false here would just get overwritten back to true on the next sync
+    // for a track that's genuinely still waiting (found live: track 8002,
+    // a stale brainstorm fixture, kept reappearing after every dismiss).
+    // dismissed_at sidesteps that fight entirely — GET /api/inbox excludes
+    // a track once dismissed_at is at least as new as its latest visible
+    // comment, and automatically re-includes it the moment a genuinely
+    // NEW comment arrives, without this endpoint needing to touch
+    // waiting_for_reply at all.
+    await pool.query(
+      'UPDATE tracks SET dismissed_at = NOW() WHERE id = $1',
       [trackId]
     );
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
