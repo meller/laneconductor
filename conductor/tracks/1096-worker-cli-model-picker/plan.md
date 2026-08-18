@@ -54,16 +54,38 @@ had.
 Today the UI presents both dropdowns identically, with no indication that
 one is lossy.
 
-- [ ] Task 6.1: Decide the rule — most likely: model is freely changeable
-      on an existing worker; provider is either disabled outright for a
-      worker with existing sessions, or requires an explicit confirm that
-      names the consequence ("this worker's conversation history can't be
-      resumed under a different provider — it will start fresh").
-- [ ] Task 6.2: Implement in `WorkerModelModal.jsx`, and make the same
-      distinction wherever else provider is selectable for an *existing*
-      worker.
-- [ ] Task 6.3: Confirm the actual behavior first rather than assuming —
-      check whether `resolveTrackSession`/`spawnCli` already handle a
-      provider switch gracefully (e.g. by discarding the stale session id
-      and starting fresh) or whether it errors. The UI wording depends on
-      which it is.
+- [x] Task 6.1: Decided the rule — model is freely changeable on an
+      existing worker with no extra confirmation (session ids are
+      CLI-specific, so a same-provider model change never breaks
+      `--resume`). Provider changes require an explicit confirm that
+      names the consequence ("starts a new conversation ... history isn't
+      deleted, it's available again if you switch back").
+- [x] Task 6.2: Implemented in `WorkerModelModal.jsx` — `isProviderSwitch`
+      compares `selectedCli` against the CLI the worker had when the modal
+      opened (`originalCli`). When it differs: an amber warning banner
+      names both providers and the consequence, a checkbox
+      ("I understand — switch this worker to X") must be ticked, and
+      `Save Configuration` is disabled until it is. Re-picking a different
+      CLI resets the checkbox, so a stale confirmation can't cover a later
+      choice. Model-only changes (`selectedCli === originalCli`) never
+      show the banner and Save stays enabled throughout.
+      `ProvisionWorkerModal.jsx` was checked and confirmed out of scope —
+      it only configures brand-new workers, which have no prior session to
+      lose.
+- [x] Task 6.3: Confirmed by reading `buildCliArgs`
+      (`conductor/laneconductor.sync.mjs` ~4143-4233) — it already handles
+      a provider switch gracefully, by construction, not by luck. Session
+      resolution (`resolveTrackSession`) always runs before the CLI is
+      chosen, but the resolved `session` is only included in the tuple
+      `buildCliArgs` returns for the `claude` branch (and the
+      `LC_MOCK_CLI` test branch) — the `gemini`/`antigravity`/default
+      branches return 5-element arrays with no `session` element at all.
+      Downstream in `spawnCli`'s exit handler, `if (session)
+      persistTrackSession(...)` is therefore only ever true for an actual
+      claude spawn. Switching a worker to a non-claude provider never
+      calls `persistTrackSession`, so it can't overwrite or clobber the
+      track's stored `claude_session_id`; switching back to claude later
+      resolves and resumes that same untouched session. No backend change
+      was needed — this finding is what the UI copy above is based on
+      ("isn't deleted... available again if you switch back"), instead of
+      the more alarmist wording originally guessed at in Task 6.1's draft.
