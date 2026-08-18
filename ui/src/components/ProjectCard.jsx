@@ -1,4 +1,5 @@
 import React from 'react';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 const LANE_ORDER = ['plan', 'backlog', 'implement', 'review', 'quality-gate', 'done'];
 const LANE_COLORS = {
@@ -44,6 +45,7 @@ export function ProjectCard({ project, tracks, workers, onOpen, onManageContext,
   const unrepliedCount = projectTracks.reduce((sum, t) => sum + (t.unreplied_count ?? 0), 0);
   const status = computeStatus({ isOnline, unrepliedCount, laneCounts });
   const badge = STATUS_BADGE[status];
+  const { cli: defaultCli, model: defaultModel } = getDefaultProviderModel(project, projectWorkers);
 
   return (
     <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 hover:border-gray-700 transition-colors">
@@ -76,7 +78,7 @@ export function ProjectCard({ project, tracks, workers, onOpen, onManageContext,
       </div>
 
       <div className="flex items-center gap-3 text-[10px] text-gray-500">
-        <span>{project.primary_cli || 'claude'}{project.primary_model ? ` · ${project.primary_model}` : ''}</span>
+        <span>{project.primary_cli || defaultCli}{(project.primary_model || defaultModel) ? ` · ${project.primary_model || defaultModel}` : ''}</span>
         {unrepliedCount > 0 && (
           <span data-testid="project-unreplied-count" className="text-orange-400 font-bold">
             {unrepliedCount} unreplied
