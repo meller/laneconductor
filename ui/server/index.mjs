@@ -1251,7 +1251,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              active_cli, assignee_uid, created_by_uid, model_override
+              active_cli, assignee_uid, created_by_uid
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1283,7 +1283,6 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       last_log_tail: t.last_log_tail,
       assignee_uid: t.assignee_uid, // Track 1084
       created_by_uid: t.created_by_uid, // Track 1084
-      model_override: t.model_override, // Track 1116 REQ-7
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1469,19 +1468,6 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         /^\*\*Progress\*\*:\s*.+$/m,
         `**Progress**: ${progressStr}`
       ) || (`**Progress**: ${progressStr}\n` + content);
-    }
-
-    // Track 1116 REQ-7: null/empty removes the marker line entirely (no
-    // stray "**Model**: " left behind) — unlike Lane/Progress, which always
-    // have a value, an override is meant to be absent most of the time.
-    if (updates.model_override !== undefined) {
-      if (updates.model_override) {
-        content = /^\*\*Model\*\*:.*$/m.test(content)
-          ? content.replace(/^\*\*Model\*\*:.*$/m, `**Model**: ${updates.model_override}`)
-          : content.trim() + `\n**Model**: ${updates.model_override}\n`;
-      } else {
-        content = content.replace(/^\*\*Model\*\*:.*\n?/m, '');
-      }
     }
 
     // Write back to file
@@ -2065,7 +2051,7 @@ function gitGlobalId(gitRemote) {
 
 // ── Exports (for testing) ───────────────────────────────────────────────────
 
-export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus, syncTrackToFile };
+export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus };
 
 // Load Firebase Admin config (verifies tokens in remote mode)
 import { TEST_MODE as AUTH_TEST_MODE } from './auth.mjs';
@@ -2255,8 +2241,6 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
       waiting_for_reply,
-      // Track 1116 REQ-7: per-track model override, from index.md's **Model** marker
-      model_override,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -2338,10 +2322,6 @@ app.post('/track', collectorAuth, async (req, res) => {
       // $27: waiting_for_reply — authoritative per sync (raw, possibly null so
       // ON CONFLICT can distinguish "explicitly set" from "omitted")
       waiting_for_reply === undefined ? null : waiting_for_reply,
-      // $28: model_override — same COALESCE-on-null convention as the KPI
-      // fields above (an omitted/empty marker in the file can't force-clear
-      // the DB value via this path; use PATCH .../model-override for that).
-      model_override ?? null,
     ];
 
     const qRes = await pool.query(`
@@ -2351,9 +2331,9 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply, model_override)
+       waiting_for_reply)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), $28)
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false))
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2381,8 +2361,7 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_check_after    = EXCLUDED.kpi_check_after,
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
       kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
-      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
-      model_override     = COALESCE($28, tracks.model_override)
+      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply)
     RETURNING id
   `, params);
 
@@ -4201,32 +4180,6 @@ app.patch('/api/projects/:id/tracks/:num/assignee', async (req, res) => {
       [assignee_uid, req.params.id, req.params.num]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
-    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Track 1116 REQ-7: per-track model override, beats the lane's primary_model
-// and the project default (see conductor/services/lane-model-resolver.mjs).
-// Unlike /assignee (DB-only, no marker table entry), this also writes the
-// **Model** marker into index.md — the resolver reads the file directly,
-// not the DB, so local-fs projects (no DB at all) still honor it.
-app.patch('/api/projects/:id/tracks/:num/model-override', async (req, res) => {
-  try {
-    const { model_override } = req.body;
-    if (model_override !== null && typeof model_override !== 'string') {
-      return res.status(400).json({ error: 'model_override must be a string or null' });
-    }
-    const { rowCount } = await pool.query(
-      'UPDATE tracks SET model_override = $1 WHERE project_id = $2 AND track_number = $3',
-      [model_override || null, req.params.id, req.params.num]
-    );
-    if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
-    syncTrackToFile(req.params.id, req.params.num, { model_override: model_override || null }).catch(err =>
-      console.warn(`[sync-to-file] Failed to sync model_override for track ${req.params.num}:`, err.message)
-    );
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
   } catch (err) {
