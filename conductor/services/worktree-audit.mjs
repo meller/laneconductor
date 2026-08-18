@@ -87,7 +87,14 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
   const lane = indexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
   const laneStatus = indexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
   const title = indexContent.match(/^#\s*Track\s+\S+:\s*(.+)$/mi)?.[1]?.trim() ?? null;
-  return { lane, laneStatus, title, trackDir: dirName };
+  // Track 10018: read straight off the branch tip, same as lane/laneStatus
+  // above — works identically whether or not a worktree currently exists.
+  const mergeModeRaw = indexContent.match(/\*\*Merge Mode\*\*:\s*([a-z]+)/i)?.[1]?.trim().toLowerCase() ?? null;
+  const mergeMode = ['pr', 'direct'].includes(mergeModeRaw) ? mergeModeRaw : 'pr'; // resolveMergeMode's default, inlined to avoid a cross-module import cycle here
+  const prNumber = indexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+  const prUrl = indexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null;
+  const prStatus = indexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null;
+  return { lane, laneStatus, title, trackDir: dirName, mergeMode, prNumber, prUrl, prStatus };
 }
 
 // Track 1112 Phase 2, corrected twice during implementation:
@@ -227,9 +234,19 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     const superseded = state?.trackDir
       ? mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, state.trackDir, trackNumber)
       : false;
+    // Track 10018: a pr-mode track must NEVER classify as 'mergeable' —
+    // that's the classification that drives the plain, local-merge "Merge
+    // to main" button, which would silently defeat the whole point of
+    // pausing for PR review/approval. 'pr-open' is its own classification
+    // so the panel can render PR-specific actions instead (Phase 4 UI).
+    // Still subject to the same isDoneSuccess/superseded gate as
+    // mergeable/stranded — a pr-mode track that isn't done yet is still
+    // just 'open', same as today.
     let classification;
     if (!isDoneSuccess || superseded) {
       classification = 'open';
+    } else if (state?.mergeMode === 'pr') {
+      classification = 'pr-open';
     } else if (!hasWorktree) {
       classification = 'stranded';
     } else {
@@ -243,6 +260,8 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       trackNumber, branch, worktreePath, hasWorktree, ahead, behind, dirtyCount,
       lane: state?.lane ?? null, laneStatus: state?.laneStatus ?? null, title: state?.title ?? null,
       classification,
+      mergeMode: state?.mergeMode ?? 'pr',
+      prNumber: state?.prNumber ?? null, prUrl: state?.prUrl ?? null, prStatus: state?.prStatus ?? null,
     });
   }
 
