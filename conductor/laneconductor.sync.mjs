@@ -1157,6 +1157,20 @@ function readIfExists(filepath) {
   catch { return null; }
 }
 
+// Track 1113 REQ-8 fix: the server's POST /track/:num/comment coerces any
+// author outside ['human', 'system', ...PROVIDER_IDS] to 'human' — so a
+// raw cli id has to actually resolve to a real provider before it reaches
+// there, or an AI-authored reply silently gets misattributed to the human
+// several layers away from this decision. normalizeProviderId resolves
+// known aliases ('agy' -> 'antigravity'); a genuinely unrecognized cli id
+// (a typo, a custom/local CLI name, anything not in PROVIDER_IDS) falls
+// back to 'claude' — a valid, correctly-AI-attributed default — rather
+// than silently becoming 'human'.
+export function normalizeAuthorForComment(cli) {
+  const normalized = normalizeProviderId(cli || 'claude');
+  return PROVIDER_IDS.includes(normalized) ? normalized : 'claude';
+}
+
 function loadWorkflowConfig() {
   // 1. Try project-local workflow.json (canonical per-project source)
   if (existsSync('conductor/workflow.json')) {
@@ -5797,7 +5811,19 @@ async function checkDispatchInbox() {
         const trackDirName = resolveTrackFolder('conductor/tracks', chatTrack);
         if (trackDirName) {
           const proj = getProject();
-          const author = process.env.LC_MOCK_CLI ? 'worker' : (proj?.primary?.cli || 'claude');
+          // Track 1113 REQ-8 fix (found live 2026-08-18): the server's
+          // POST /track/:num/comment silently coerces any author outside
+          // ['human', 'system', ...PROVIDER_IDS] to 'human' — a raw
+          // proj.primary.cli value that isn't an exact PROVIDER_IDS entry
+          // (an alias like 'agy', or any non-standard configured CLI id)
+          // got mislabeled as human-authored in the Conversation tab,
+          // misattributing the AI's own reply to the person it was
+          // replying to. normalizeProviderId resolves known aliases
+          // ('agy' -> 'antigravity') to what the server actually expects;
+          // an unrecognized cli still falls back to 'claude' — a valid,
+          // correctly-AI-attributed default — rather than silently
+          // becoming 'human' several layers away from here.
+          const author = process.env.LC_MOCK_CLI ? 'worker' : normalizeAuthorForComment(proj?.primary?.cli);
           const quoted = result.split('\n').map(line => line ? `> ${line}` : '>').join('\n');
           try {
             appendFileSync(join('conductor/tracks', trackDirName, 'conversation.md'), `\n> **${author}**: ${quoted.slice(2)}\n`, 'utf8');
