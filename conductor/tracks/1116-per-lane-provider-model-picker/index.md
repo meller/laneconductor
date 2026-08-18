@@ -3,7 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-3-5-haiku (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — all 6 phases done, 4 test files (18 unit/E2E cases) passing
 **Type**: dev
 **Summary**: Replace WorkflowSettings.jsx's static Claude-only "Primary Model" text input with a Provider dropdown + live-discovered Model dropdown (sourced the same way WorkerModelModal.jsx does via track…
