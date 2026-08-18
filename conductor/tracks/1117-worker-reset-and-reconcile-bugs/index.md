@@ -1,6 +1,6 @@
 # Track 1117: Fix unscoped worker-startup reset + backwards orphan-reconcile guard
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
