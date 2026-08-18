@@ -53,3 +53,21 @@ describe('TrackCard — F2 plan-lane next-arrow tooltip accuracy', () => {
     expect(screen.getByText('→').disabled).toBe(true);
   });
 });
+
+describe('TrackCard — F19 backlog arrow must route through plan, not skip to implement', () => {
+  // Track 1102 F19 (hit live on track 10019): backlog's one-click arrow
+  // went straight to implement, dispatching a real implement agent against
+  // a track with no plan.md/spec.md/test.md at all. Backlog's next lane is
+  // plan — the planning skill is what produces those artifacts.
+  it("a backlog card's arrow targets the Plan lane", () => {
+    const calls = [];
+    render(<TrackCard
+      track={baseTrack({ lane_status: 'backlog', lane_action_status: 'queue' })}
+      onLaneChange={(track, lane) => calls.push(lane)}
+    />);
+    const arrow = screen.getByText('→');
+    expect(arrow.title).toBe('Move this card to the Plan lane');
+    arrow.click();
+    expect(calls).toEqual(['plan']);
+  });
+});
