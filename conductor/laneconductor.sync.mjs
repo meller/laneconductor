@@ -961,6 +961,9 @@ async function refreshWorktreeSummaryCache() {
       // detached rows have no `track` number at all, so branch/path are
       // the only handles available for them.
       branch: r.branch, worktree_path: r.worktreePath,
+      // Track 10018: merge mode + PR fields, same snake_case convention as
+      // the rest of this row shape.
+      merge_mode: r.mergeMode, pr_number: r.prNumber, pr_url: r.prUrl, pr_status: r.prStatus,
     }));
   } catch (err) {
     console.error('[worktree-summary error]:', err.message);
