@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../hooks/useApi';
 import { PROVIDER_IDS } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 export function ProjectConfigSettings({ projectId, onClose }) {
   const { idToken } = useAuth() ?? {};
@@ -14,6 +15,10 @@ export function ProjectConfigSettings({ projectId, onClose }) {
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState(null);
   const [keySaving, setKeySaving] = useState(false);
+  // REQ-3b: source for the resolver's live-discovery tier — this is the
+  // config editor for `primary.cli` itself, so it can never use its own
+  // (by definition unset, whenever this fallback matters) value as tier 1.
+  const [workers, setWorkers] = useState([]);
 
   useEffect(() => {
     if (notification) {
@@ -24,6 +29,7 @@ export function ProjectConfigSettings({ projectId, onClose }) {
 
   useEffect(() => {
     fetchConfig();
+    fetchWorkers();
   }, [projectId]);
 
   // Guard against auth race — only fetch keys when token is ready
@@ -80,6 +86,13 @@ export function ProjectConfigSettings({ projectId, onClose }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchWorkers() {
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/workers`);
+      if (r.ok) setWorkers(await r.json());
+    } catch { /* non-critical — resolver falls back to the static registry */ }
   }
 
   async function handleSave() {
@@ -141,7 +154,7 @@ export function ProjectConfigSettings({ projectId, onClose }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Primary CLI</label>
-              <select value={config?.primary?.cli || 'claude'} onChange={e => set('primary.cli', e.target.value)} className={inputCls}>
+              <select value={config?.primary?.cli || getDefaultProviderModel(config, workers).cli} onChange={e => set('primary.cli', e.target.value)} className={inputCls}>
                 {PROVIDER_IDS.map(id => <option key={id} value={id}>{id}</option>)}
                 <option value="other">other</option>
               </select>

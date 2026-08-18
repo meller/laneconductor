@@ -1414,6 +1414,28 @@ function parseWaitingForReply(content) {
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
 }
 
+// Track 1116 REQ-7: per-track model override, same marker convention as
+// **Lane**/**Progress**/**Summary**. Mirrors parseSummaryMarker — null (not
+// deriving a fallback) when the marker is absent or empty, so callers can
+// tell "no override" apart from an explicitly-cleared one.
+function parseModelOverrideMarker(content) {
+  const m = content.match(/\*\*Model\*\*:[ \t]*([^\n]*)/i);
+  if (!m) return null;
+  const value = m[1].trim();
+  return value || null;
+}
+
+// Track 1116 REQ-7 (provider-stays-fixed guard, mirrors stripLanePrimaryCli):
+// a track's index.md was never meant to carry a provider override — there's
+// no marker table entry for one — but if a stray `**Provider**:` marker
+// shows up anyway (hand-edited file, copy-paste from elsewhere), detect and
+// warn rather than silently ignoring it with no trace.
+function parseTrackProviderMarkerForWarning(content) {
+  const m = content.match(/\*\*Provider\*\*:[ \t]*([^\n]*)/i);
+  if (!m) return null;
+  return m[1].trim() || null;
+}
+
 function parseTrackType(content) {
   const match = content.match(/\*\*Type\*\*:\s*([^\n]+)/i);
   if (!match) return 'dev';
@@ -2039,6 +2061,8 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       kpi_check_after: kpiCheckAfter && !isNaN(kpiCheckAfter) ? kpiCheckAfter.toISOString() : null,
       kpi_scheduled_at: kpiScheduledAt && !isNaN(kpiScheduledAt) ? kpiScheduledAt.toISOString() : null,
       ...kpiSpec,
+      // Track 1116 REQ-7: per-track model override marker
+      model_override: parseModelOverrideMarker(stateContent),
     };
     if (laneActionStatus) payload.lane_action_status = laneActionStatus;
     else if (laneActionStatusFromFile) payload.lane_action_status = laneActionStatusFromFile;
@@ -4273,10 +4297,30 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
   }
   const proj = getProject();
+  // Track 1116 REQ-7: a track's own **Model** marker beats the lane's
+  // primary_model. Read directly off the track's index.md (not the DB) so
+  // this works identically in local-fs mode, same reasoning buildCliArgs
+  // already uses for everything else here — the worker has no DB dependency
+  // by design. A stray **Provider** marker is detected and warned about,
+  // never honored (provider stays project-fixed — same rule as lanes).
+  let trackModel = null;
+  if (!process.env.LC_MOCK_CLI) {
+    const tracksDir = 'conductor/tracks';
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+    const trackIndexContent = trackDirName ? readIfExists(join(tracksDir, trackDirName, 'index.md')) : null;
+    if (trackIndexContent) {
+      trackModel = parseModelOverrideMarker(trackIndexContent);
+      const strayProvider = parseTrackProviderMarkerForWarning(trackIndexContent);
+      if (strayProvider) {
+        logger.warn({ trackNumber, strayProvider }, '[config] track index.md has a **Provider** marker — provider must stay fixed project-wide (REQ-7). Ignoring it.');
+      }
+    }
+  }
   // Track 1111: cli stays project-wide fixed (REQ-3); only model varies
   // per lane (REQ-2's precedence — lane's primary_model wins over any
-  // manual override in proj.primary.model).
-  const { cli: primary, model: primaryModel } = resolveLaneCliAndModel({ laneConfig, proj });
+  // manual override in proj.primary.model), now with Track 1116's
+  // track-level tier taking priority over both.
+  const { cli: primary, model: primaryModel } = resolveLaneCliAndModel({ laneConfig, proj, track: { model: trackModel } });
   const secondary = proj.secondary?.cli;
   const secondaryModel = proj.secondary?.model;
 

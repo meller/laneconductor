@@ -1,8 +1,9 @@
 # Track 1116: Per-lane provider + live-model picker in Workflow Settings
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — all 6 phases done, 4 test files (18 unit/E2E cases) passing
 **Type**: dev
 **Summary**: Replace WorkflowSettings.jsx's static Claude-only "Primary Model" text input with a Provider dropdown + live-discovered Model dropdown (sourced the same way WorkerModelModal.jsx does via track…
@@ -38,21 +39,22 @@ pattern instead of staying static-Claude-only.
   hardcoded `'claude'` fallbacks found while scoping this track
   (`ProjectConfigSettings.jsx`, `ProjectCard.jsx`, `WorkersList.jsx`,
   `WorkerModelModal.jsx` ×2) — see spec.md REQ-3/REQ-3b/REQ-3c.
-- **Provider vs. per-lane storage**: confirm at implementation time whether the
-  Provider field is purely a UI filter (picks which provider's models to list,
-  since the sync worker's `chosenCli` is fixed at the project level per track
-  1111's finding — never per-lane) or whether it should actually be written
-  into `workflow.json` per lane. Do not assume; verify against
-  `conductor/laneconductor.sync.mjs`'s current `buildCliArgs` behavior on
-  `main` post-1111-merge before finalizing the data shape (plan.md Phase 1).
+- **Provider vs. per-lane storage — confirmed**: verified against `main` post-1111
+  merge (plan.md Phase 1) that `buildCliArgs`/`resolveLaneCliAndModel` still
+  resolve `chosenCli` from the project only, never per-lane. The Provider field
+  is UI-only (picks which provider's models to list); only `primary_model`
+  (a plain string) is written to `workflow.json` per lane, unchanged from today.
+  Also found while verifying: the "Primary Model" free-text field this track was
+  originally scoped to *replace* never actually landed on `main` — the per-lane
+  panel has no model control at all today, so this track adds the picker fresh.
 
 ## Phases
-- [ ] Phase 1: Verify current state on `main` post-1111 merge
-- [ ] Phase 2: Locate and confirm the live-model-source endpoint
-- [ ] Phase 2b: Shared default-provider/model resolver
-- [ ] Phase 3: Provider + Model dropdown UI
-- [ ] Phase 3b: Per-track model override + documented worker-mode/best-effort limitations
-- [ ] Phase 4: Tests
+- [x] Phase 1: Verify current state on `main` post-1111 merge
+- [x] Phase 2: Locate and confirm the live-model-source endpoint
+- [x] Phase 2b: Shared default-provider/model resolver
+- [x] Phase 3: Provider + Model dropdown UI
+- [x] Phase 3b: Per-track model override + documented worker-mode/best-effort limitations
+- [x] Phase 4: Tests
 
 ## Depends on
 [1111](../1111-per-lane-model-stickiness-and-auto-update/index.md) — must merge to `main` first; this track's provider/model UI sits on top of its `primary_model` field and precedence logic.
