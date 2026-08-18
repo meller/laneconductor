@@ -48,7 +48,7 @@ import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
 import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
-import { auditWorktrees } from './services/worktree-audit.mjs';
+import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
@@ -3698,6 +3698,79 @@ async function reconcileWorktrees() {
 // safety net applies no matter how a track reached done:success.
 setInterval(() => {
   reconcileWorktrees().catch(err => console.error('[reconcile error]:', err.message));
+}, 60000);
+
+// Track 10019 (Phase 4/REQ-8, REQ-9, REQ-12): the board/DB/chat only ever
+// saw a live-worktree track's docs (plan.md/spec.md/test.md/index.md) at
+// the START of a run and again at the END, via copyWorktreeArtifactsToPrimary()
+// — a real run takes 20-30+ minutes, so for nearly all of it, main's copy
+// is stale. This closes that gap: same machinery, same safety guards,
+// just also run periodically WHILE a track is live. Deliberately does NOT
+// gate on getIsLocalFs() (unlike refreshWorktreeSummaryCache) — worktrees
+// and their docs are a git-local concept, independent of DB mode, same
+// reasoning as reconcileWorktrees() above. Deliberately does NOT skip
+// actively-locked tracks (unlike reconcileWorktrees) — a running, locked
+// track is exactly the case this exists to keep fresh; only the merge
+// path needs to avoid touching a live run.
+const staleDocSignal = new Map(); // `${trackNumber}:${file}` -> true, while a guard-skip is unresolved (REQ-11)
+async function syncWorktreeDocsToPrimary() {
+  let worktrees;
+  try {
+    worktrees = listTrackWorktrees({ repoRoot: process.cwd() });
+  } catch (err) {
+    console.error(`[doc-sync] Listing worktrees failed: ${err.message}`);
+    return;
+  }
+
+  for (const { trackNumber, worktreePath } of worktrees) {
+    const { copied, skipped } = copyWorktreeArtifactsToPrimary({
+      worktreePath, trackNumber, isSuccess: false,
+      primaryRoot: process.cwd(), resolveTrackFolder, skipUnchanged: true,
+    });
+
+    if (copied.length) {
+      console.log(`[doc-sync] track-${trackNumber}: synced ${copied.join(', ')} from worktree to primary`);
+      if (copied.includes('index.md')) {
+        const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+        const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+        if (trackDir) {
+          await syncTrack(join(tracksDir, trackDir, 'index.md'))
+            .catch(err => console.warn(`[doc-sync] Failed to sync index.md to DB for track ${trackNumber}: ${err.message}`));
+        }
+      }
+    }
+
+    // Track 10019 (Phase 5/REQ-11): surface guard-skipped copies instead
+    // of silently serving a primary copy known to be behind. Only warns
+    // on the transition INTO stale (not every tick the guard keeps
+    // declining) — the periodic pass runs every 60s and would otherwise
+    // spam conversation.md for as long as the underlying shrink persists.
+    for (const skip of skipped) {
+      const key = `${trackNumber}:${skip.file}`;
+      console.warn(`[doc-sync] track-${trackNumber}: declined to sync ${skip.file} (${skip.reason}: incoming ${skip.incomingSize}b vs existing ${skip.existingSize}b)`);
+      if (staleDocSignal.has(key)) continue;
+      staleDocSignal.set(key, true);
+      try {
+        const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+        const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+        if (trackDir) {
+          const convPath = join(tracksDir, trackDir, 'conversation.md');
+          if (existsSync(convPath)) {
+            appendFileSync(convPath,
+              `\n> **system**: ⚠️ Docs may be stale — ${skip.file} did not sync from the live worktree (incoming ${skip.incomingSize}b looked suspiciously smaller than the existing ${skip.existingSize}b copy). Will retry automatically as the track continues.\n`,
+              'utf8');
+          }
+        }
+      } catch (err) {
+        console.warn(`[doc-sync] Failed to post stale-docs notice for track ${trackNumber}: ${err.message}`);
+      }
+    }
+    // Clear the signal for any file that just synced successfully again.
+    for (const file of copied) staleDocSignal.delete(`${trackNumber}:${file}`);
+  }
+}
+setInterval(() => {
+  syncWorktreeDocsToPrimary().catch(err => console.error('[doc-sync error]:', err.message));
 }, 60000);
 
 // Track 1112 Phase 5 (REQ-8...REQ-11): a third-party `git push` straight to
