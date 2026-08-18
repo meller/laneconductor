@@ -14,6 +14,9 @@ export const mergeKey = (row) => `merge:${row.track}`;
 export const completeKey = (row) => `complete:${row.track}`;
 export const forceKey = (row) => `force:${row.track}`;
 export const discardKey = (row) => `discard:${row.track}`;
+// Track 10018: same identity-key pattern for the pr-mode actions.
+export const createPrKey = (row) => `create-pr:${row.track}`;
+export const mergePrKey = (row) => `merge-pr:${row.track}`;
 
 export function computeStillPresentKeys(rows) {
   const stillPresent = new Set();
@@ -24,6 +27,8 @@ export function computeStillPresentKeys(rows) {
       stillPresent.add(completeKey(row));
       stillPresent.add(forceKey(row));
       stillPresent.add(discardKey(row));
+      stillPresent.add(createPrKey(row));
+      stillPresent.add(mergePrKey(row));
     }
   }
   return stillPresent;

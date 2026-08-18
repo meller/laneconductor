@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
-import { removeKey, mergeKey, completeKey, forceKey, discardKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
+import { removeKey, mergeKey, completeKey, forceKey, discardKey, createPrKey, mergePrKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -11,8 +11,21 @@ const REC_STYLE = {
 };
 const REC_ICON = { warning: '⚠', action: '→', info: 'ℹ' };
 
-const CLASS_LABEL = { stranded: 'Stranded', conflicted: 'Conflicted', mergeable: 'Mergeable', open: 'Open', detached: 'Detached' };
-const CLASS_DOT = { stranded: 'bg-red-500', conflicted: 'bg-amber-500', mergeable: 'bg-green-500', open: 'bg-gray-500', detached: 'bg-purple-500' };
+const CLASS_LABEL = { stranded: 'Stranded', conflicted: 'Conflicted', mergeable: 'Mergeable', open: 'Open', detached: 'Detached', 'pr-open': 'PR Open' };
+const CLASS_DOT = { stranded: 'bg-red-500', conflicted: 'bg-amber-500', mergeable: 'bg-green-500', open: 'bg-gray-500', detached: 'bg-purple-500', 'pr-open': 'bg-blue-500' };
+
+// Track 10018: pr_status -> a small checks indicator shown on pr-open rows.
+// Deliberately separate from CLASS_BADGE (which is about the row's overall
+// classification) — this is specifically "what is GitHub telling us about
+// this PR right now."
+const PR_STATUS_BADGE = {
+  open: { label: 'Checks pending', icon: '⏳', className: 'bg-gray-900 text-gray-400 border-gray-800' },
+  'checks-failed': { label: 'Checks failed', icon: '❌', className: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  conflicted: { label: 'Conflicts with main', icon: '🟠', className: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
+  closed: { label: 'Closed unmerged', icon: '🚫', className: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  merged: { label: 'Merged — cleanup pending', icon: '✅', className: 'bg-green-950/40 text-green-300 border-green-800/80' },
+  error: { label: 'Failed to open', icon: '⚠️', className: 'bg-red-950/40 text-red-300 border-red-800/80' },
+};
 
 function WorktreeStatsHeader({ rows, onRefresh, refreshing }) {
   const stats = computeWorktreeStats(rows);
@@ -100,17 +113,47 @@ const CLASS_BADGE = {
   mergeable: { label: 'Mergeable', icon: '🟢', className: 'bg-green-950/40 text-green-300 border-green-800/80' },
   open: { label: 'Open', icon: '⚪', className: 'bg-gray-900 text-gray-400 border-gray-800' },
   detached: { label: 'Detached', icon: '🟣', className: 'bg-purple-950/40 text-purple-300 border-purple-800/80' },
+  'pr-open': { label: 'PR Open', icon: '🔵', className: 'bg-blue-950/40 text-blue-300 border-blue-800/80' },
 };
 
-// stranded -> conflicted -> mergeable -> open, per the design decision —
-// the rows that need a human's attention float to the top.
-const CLASS_SORT_ORDER = { stranded: 0, conflicted: 1, mergeable: 2, detached: 3, open: 4 };
+// stranded -> conflicted -> pr-open -> mergeable -> open, per the design
+// decision — the rows that need a human's attention float to the top.
+// pr-open sits just below stranded/conflicted since an open PR is
+// specifically parked awaiting a human decision, same spirit as those two.
+const CLASS_SORT_ORDER = { stranded: 0, conflicted: 1, 'pr-open': 2, mergeable: 3, detached: 4, open: 5 };
 
-function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding }) {
+// Track 10018: mode badge shown on every row regardless of classification —
+// lets you tell at a glance which rows will fly through on auto-merge vs
+// pause for PR review, without needing to click into the track.
+const MERGE_MODE_BADGE = {
+  pr: { label: 'PR', className: 'bg-blue-950/40 text-blue-300 border-blue-800/60' },
+  direct: { label: 'DIRECT', className: 'bg-gray-900 text-gray-400 border-gray-800' },
+};
+
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onCreatePr, creatingPr, onMergePr, mergingPr }) {
   const { armedKey, request } = useArmedConfirm();
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
   const canMerge = row.class === 'mergeable' || row.class === 'stranded';
   const isConflicted = row.class === 'conflicted';
+  // Track 10018: the pr-mode approval station. A pr-open row already
+  // reached done:success (see auditWorktrees) but is deliberately excluded
+  // from `canMerge` above — approval here always goes through GitHub.
+  const isPrOpen = row.class === 'pr-open';
+  const modeBadge = MERGE_MODE_BADGE[row.merge_mode] || MERGE_MODE_BADGE.pr;
+  const prStatusBadge = row.pr_status ? PR_STATUS_BADGE[row.pr_status] : null;
+  // "Create PR" rescues a pr-open row whose PR creation failed earlier
+  // (pr_status: 'error') or never ran (no pr_number yet, e.g. a rescued
+  // stranded branch someone just switched to pr mode).
+  const canCreatePr = isPrOpen && !row.pr_number;
+  // Disabled for every known blocker (conflicted/checks-failed/closed/
+  // merged) — 'open' also covers "checks still pending" (pr_status is
+  // deliberately coarse; see services/pr-flow.mjs's resolvePrStatus), so a
+  // click here while checks are still running is possible. That's safe:
+  // the actual `gh pr merge` call is what GitHub enforces branch
+  // protection/required-checks against, never bypassed locally (REQ-5) —
+  // a premature click is simply rejected by GitHub, surfaced as a failed
+  // dispatch result, not a silent bad merge.
+  const canMergePr = isPrOpen && row.pr_number && row.pr_status === 'open';
   // Track 1114: initially scoped to `detached` only, widened after
   // finding real backlog-lane rows in this repo's own data — they turned
   // out to be leftover test fixtures from this project's own concurrency/
@@ -150,7 +193,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   // while a Complete & Merge sequence is still running) — while ANY one
   // is pending for this row, the rest are disabled too, not just the one
   // that was clicked.
-  const rowBusy = merging || removing || autoCompleting || forceMerging || discarding;
+  const rowBusy = merging || removing || autoCompleting || forceMerging || discarding || creatingPr || mergingPr;
 
   return (
     <div
@@ -184,11 +227,46 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
           </div>
           {row.title && <span className="text-xs text-gray-400 truncate">{row.title}</span>}
         </div>
-        <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${badge.className}`}>
-          <span>{badge.icon}</span>
-          <span>{badge.label}</span>
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Track 10018: shown on every row, not just pr-open — lets you
+              tell at a glance which rows will auto-merge vs pause for
+              review without clicking in. */}
+          <span
+            className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${modeBadge.className}`}
+            title={row.merge_mode === 'direct' ? 'Auto-merges on done:success' : 'Opens a PR for review on done:success'}
+            data-testid="merge-mode-badge"
+          >
+            {modeBadge.label}
+          </span>
+          <span className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badge.className}`}>
+            <span>{badge.icon}</span>
+            <span>{badge.label}</span>
+          </span>
+        </div>
       </div>
+
+      {isPrOpen && row.pr_number && (
+        <div className="flex items-center gap-2 -mt-1">
+          <a
+            href={row.pr_url || undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-blue-400 hover:text-blue-300 hover:underline font-mono"
+            data-testid="pr-link"
+          >
+            PR #{row.pr_number} ↗
+          </a>
+          {prStatusBadge && (
+            <span
+              className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${prStatusBadge.className}`}
+              data-testid="pr-status-badge"
+            >
+              <span>{prStatusBadge.icon}</span>
+              <span>{prStatusBadge.label}</span>
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-2 text-center">
         <div className="flex flex-col">
@@ -254,6 +332,39 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
             title="This branch conflicts with main — resolve manually (lc worktrees merge for details)"
           >
             Merge to main
+          </span>
+        )}
+        {canCreatePr && (
+          <button
+            onClick={() => onCreatePr(row)}
+            disabled={rowBusy}
+            data-testid="create-pr-btn"
+            title={row.pr_status === 'error' ? 'A previous attempt to open a PR failed — retry' : 'Push this branch and open a PR for review'}
+            className="text-[10px] px-2.5 py-1 border border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold uppercase tracking-wider transition-colors"
+          >
+            {creatingPr ? 'Opening…' : 'Create PR'}
+          </button>
+        )}
+        {canMergePr && (
+          <button
+            onClick={() => request(`merge-pr:${row.track}`, () => onMergePr(row))}
+            disabled={rowBusy}
+            data-testid="merge-pr-btn"
+            title="Merges PR through GitHub (gh pr merge) — branch protection and required checks still apply. Cleanup (worktree/branch removal) follows automatically once GitHub reports it merged."
+            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `merge-pr:${row.track}`
+              ? 'border-green-500 bg-green-800/60 text-white'
+              : 'border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40'
+              }`}
+          >
+            {mergingPr ? 'Merging…' : armedKey === `merge-pr:${row.track}` ? 'Click again to merge PR' : 'Merge PR'}
+          </button>
+        )}
+        {isPrOpen && !canCreatePr && !canMergePr && (
+          <span
+            className="text-[10px] px-2.5 py-1 border border-gray-800 text-gray-600 rounded font-bold uppercase tracking-wider cursor-not-allowed"
+            title={row.pr_status === 'merged' ? 'PR merged — cleanup runs on the next reconcile pass' : 'Resolve on GitHub before this can merge (checks failing, conflicts, or closed unmerged)'}
+          >
+            Merge PR
           </span>
         )}
         {canDiscard && (
@@ -527,6 +638,40 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
     }
   }
 
+  async function handleCreatePr(row) {
+    if (!row.track) return;
+    setError(null);
+    startPending(createPrKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'create-pr', payload: { track_number: row.track } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch create-pr for #${row.track}: ${err.message}`);
+      clearPending(createPrKey(row));
+    }
+  }
+
+  async function handleMergePr(row) {
+    if (!row.track) return;
+    setError(null);
+    startPending(mergePrKey(row));
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'merge-pr', payload: { track_number: row.track } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      fetchRows();
+    } catch (err) {
+      setError(`Failed to dispatch merge-pr for #${row.track}: ${err.message}`);
+      clearPending(mergePrKey(row));
+    }
+  }
+
   const sorted = [...rows].sort((a, b) => (CLASS_SORT_ORDER[a.class] ?? 9) - (CLASS_SORT_ORDER[b.class] ?? 9));
   const hosts = [...new Set(rows.map(r => r.host).filter(Boolean))];
   const groupByHost = hosts.length > 1;
@@ -589,6 +734,10 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
           forceMerging={Boolean(pendingKeys[forceKey(row)])}
           onDiscard={handleDiscard}
           discarding={Boolean(pendingKeys[discardKey(row)])}
+          onCreatePr={handleCreatePr}
+          creatingPr={Boolean(pendingKeys[createPrKey(row)])}
+          onMergePr={handleMergePr}
+          mergingPr={Boolean(pendingKeys[mergePrKey(row)])}
         />
       ))}
     </div>
