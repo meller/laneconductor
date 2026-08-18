@@ -1907,7 +1907,19 @@ Please review this, answer any questions (some fields may contain questions rath
             } catch (e) { /* stale */ }
         }
 
-        console.log('🚀 Starting Vite UI...');
+        // Track 10019 (REQ-6): `uiDir` already resolves to the primary
+        // checkout's `ui/` via getInstallPath()'s REQ-4 fix — verified
+        // here rather than assumed, so a future incident's first question
+        // ("which checkout is this actually serving?") has a real answer
+        // instead of a hopeful comment.
+        try {
+            const isPrimary = resolvePrimaryRepoRoot(uiDir) === resolve(uiDir);
+            console.log(isPrimary
+                ? `🚀 Starting Vite UI from ${uiDir} (primary checkout)...`
+                : `🚀 ⚠️  Starting Vite UI from ${uiDir} — this is NOT the primary checkout.`);
+        } catch {
+            console.log(`🚀 Starting Vite UI from ${uiDir}...`);
+        }
         const logFd = openSync(uiLogFile, 'a');
         const ui = spawn('npx', ['vite'], {
             cwd: uiDir,

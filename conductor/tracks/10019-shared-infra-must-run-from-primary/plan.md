@@ -112,14 +112,23 @@ archaeology.
 **Solution**: one startup line per long-running process, flagged when it
 is not the primary.
 
-- [ ] Task 3.1 (REQ-6): sync worker — log resolved primary, launch cwd,
-      and whether they differed (i.e. whether REQ-1 corrected it).
-- [ ] Task 3.2 (REQ-6): API server (`ui/server/index.mjs`) — log the
-      checkout it was started from and whether it is the primary.
-- [ ] Task 3.3 (REQ-6): Vite UI — same line at start (from `lc ui start`
-      / the Makefile target, whichever actually owns the spawn).
-- [ ] Task 3.4: use the existing Pino `logger` where available rather than
-      `console.*` (per the project's dev-logging convention).
+- [x] Task 3.1 (REQ-6): sync worker logs one provenance line every startup
+      (after REQ-1's own chdir, so it reports the checkout actually being
+      served) via both `console.log` and `logger.info` — verified live
+      both ways: from a non-git sandbox ("primary status unknown") and
+      from inside this worktree ("Launched from .../.worktrees/10019 ...
+      running from /home/meller/Code/laneconductor instead" followed by
+      "Serving from /home/meller/Code/laneconductor (primary checkout)").
+- [x] Task 3.2 (REQ-6): API server (`ui/server/index.mjs`) logs the same
+      shape of line in its `listen()` callback, via `logger.info`.
+- [x] Task 3.3 (REQ-6): `lc ui start` (`bin/lc.mjs`) and the Makefile's
+      `ui-start`/`api-start` targets each print a startup line — the
+      Makefile targets are unconditionally primary by construction
+      (REQ-2's `UI_DIR` fix), `lc ui start` verifies it live via
+      `resolvePrimaryRepoRoot()` rather than assuming.
+- [x] Task 3.4: used the existing Pino `logger` (worker, API) alongside
+      `console.log`/`echo` (CLI/Makefile, which have no logger instance)
+      per the project's dev-logging convention.
 
 **Impact**: a non-primary launch is visible in the first line of the log.
 
