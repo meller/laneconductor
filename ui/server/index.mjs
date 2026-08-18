@@ -355,23 +355,33 @@ app.get('/api/projects/:id/workers', async (req, res) => {
 // an identical list. DISTINCT ON (hostname) dedupes to the freshest report
 // per host; each row is tagged with `host` so the UI can group by host only
 // when more than one has actually reported (the common case is exactly one).
+//
+// Track 10018: extracted so GET /tracks (below) can reuse the exact same
+// data to answer "is this done-lane track's branch actually merged yet?" —
+// a track can sit at lane_status='done' while its branch is still
+// mergeable/stranded/conflicted/pr-open; the Kanban card needs the same
+// live, git-derived truth the Worktrees panel already has, not a second,
+// possibly-stale copy of it.
+async function fetchWorktreeRows(projectId) {
+  const result = await pool.query(
+    `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
+     FROM workers
+     WHERE project_id = $1 AND worktrees IS NOT NULL
+       AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+     ORDER BY hostname, last_heartbeat DESC`,
+    [projectId]
+  );
+  const rows = [];
+  for (const hostRow of result.rows) {
+    const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
+    for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
+  }
+  return rows;
+}
+
 app.get('/api/projects/:id/worktrees', async (req, res) => {
   try {
-    const projectId = req.params.id;
-    const result = await pool.query(
-      `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
-       FROM workers
-       WHERE project_id = $1 AND worktrees IS NOT NULL
-         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-       ORDER BY hostname, last_heartbeat DESC`,
-      [projectId]
-    );
-
-    const rows = [];
-    for (const hostRow of result.rows) {
-      const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
-      for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
-    }
+    const rows = await fetchWorktreeRows(req.params.id);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -674,10 +684,31 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
       }, new Map());
     }
 
-    res.json(result.rows.map(t => ({
-      ...t,
-      assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
-    })));
+    // Track 10018: a track can sit at lane_status='done' while its branch
+    // is still mergeable/stranded/conflicted/pr-open — "done" on the board
+    // otherwise silently means "the lane action finished," not "this
+    // shipped." Cross-reference the same live, git-derived worktree state
+    // the panel uses, keyed by track_number, so the Kanban card can show
+    // the truth. Absence here (the common case) means either the track
+    // never had a branch (non-dev work, or nothing to merge) or it's
+    // already fully merged — auditWorktrees omits fully-merged branches
+    // entirely, so "not in this map" IS the "really done" signal.
+    const worktreeRows = await fetchWorktreeRows(req.params.id);
+    const worktreeByTrack = new Map(worktreeRows.filter(r => r.track).map(r => [String(r.track), r]));
+
+    res.json(result.rows.map(t => {
+      const wt = worktreeByTrack.get(String(t.track_number));
+      return {
+        ...t,
+        assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
+        // null when there's no live unmerged branch for this track at all
+        // (nothing to show — the common, actually-shipped case).
+        worktree_class: wt?.class ?? null,
+        worktree_pr_status: wt?.pr_status ?? null,
+        worktree_pr_url: wt?.pr_url ?? null,
+        worktree_pr_number: wt?.pr_number ?? null,
+      };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
