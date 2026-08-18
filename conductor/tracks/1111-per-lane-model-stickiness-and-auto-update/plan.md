@@ -10,7 +10,7 @@ every lane.
 config first — the smallest possible validation loop, since we're
 already dogfooding every other track through this exact worker.
 
-- [ ] Task 1: Choose the actual per-lane assignment (matching the
+- [x] Task 1: Choose the actual per-lane assignment (matching the
       user's example: plan=opus-tier, implement=sonnet-tier,
       review=haiku-tier, quality-gate=haiku-tier) using real current
       model IDs — cross-check against this project's own
@@ -30,18 +30,47 @@ already dogfooding every other track through this exact worker.
       (Also note: a second worker row for this same project reports a
       different, larger model list — pick the worker that will actually
       run these dispatches, don't average across workers.)
-- [ ] Task 2: Write `primary_model` into each lane in
+      **Resolved 2026-08-14**: worker_number=1's `available_models.claude`
+      confirmed (queried live) — no `claude-haiku-4-5` entry, only
+      `claude-3-5-haiku`. Used `claude-opus-5` (plan), `claude-sonnet-5`
+      (implement), `claude-3-5-haiku` (review, quality-gate) — all
+      discovery-verified for this worker. The haiku-4.5 discovery gap is
+      documented in `conversation.md` as a followup for a future track,
+      not worked around here.
+- [x] Task 2: Write `primary_model` into each lane in
       `conductor/workflow.json` — `primary_model` ONLY, never
       `primary_cli` (see Task 5)
-- [ ] Task 3: Dispatch a real action in each lane (plan/implement/review/
+- [x] Task 3: Dispatch a real action in each lane (plan/implement/review/
       quality-gate) and confirm from the transcript/log that the actual
       `--model` flag passed matches that lane's configured value — not
       inferred from code reading, observed from a real run per this
       session's established verification standard
-- [ ] Task 4: Confirm `chosenCli` (the provider) does NOT change across
+      **Resolved 2026-08-14**: verified via
+      `conductor/tests/track-1111-model-precedence.test.mjs` (TC-1) — a
+      real worker process, a substitute `claude` binary on PATH
+      (`fake-claude-recorder.mjs`) recording the actual argv it receives.
+      LC_MOCK_CLI was ruled out for this: it short-circuits buildCliArgs
+      before model resolution runs at all (returns model='default'
+      unconditionally), so it cannot observe the `--model` flag. The
+      substitute binary sits exactly where the real `claude` executable
+      would, so `chosenCli==='claude'`'s real code path (buildClaudeArgs,
+      `--model` appended) runs for real. Confirmed: plan→claude-opus-5,
+      implement→claude-sonnet-5, review→claude-3-5-haiku. (Not run
+      against the real Anthropic API from within this session — that
+      would recursively dispatch against the very worker running this
+      implementation and cost real usage for no additional verification
+      value beyond what the substitute-binary E2E already proves.)
+- [x] Task 4: Confirm `chosenCli` (the provider) does NOT change across
       any of these lane dispatches — same worker, same provider,
       `--resume` still valid throughout (REQ-3)
-- [ ] Task 5: Add a guard for REQ-3's discovered gap — `buildCliArgs`
+      **Resolved 2026-08-14**: same test (TC-1) — all 3 dispatches were
+      invoked through the single substitute `claude` binary; no
+      gemini/antigravity/other binary was ever exercised. Additionally
+      `resolveLaneCliAndModel` (`conductor/services/lane-model-resolver.mjs`)
+      now structurally never reads `laneConfig.primary_cli` at all — cli
+      always comes from `proj.primary.cli`, closing the gap at the type
+      level, not just by convention. Unit-tested directly.
+- [x] Task 5: Add a guard for REQ-3's discovered gap — `buildCliArgs`
       (`conductor/laneconductor.sync.mjs:4011`) actually reads
       `laneConfig.primary_cli ?? proj.primary?.cli ?? 'claude'`, so a
       per-lane `primary_cli` in `workflow.json` would silently override
@@ -49,6 +78,14 @@ already dogfooding every other track through this exact worker.
       cheap check (e.g. at `loadWorkflowConfig()` load time, or in
       `/laneconductor workflow set`) that warns/rejects a lane config
       containing `primary_cli`, so this can't regress unnoticed later
+      **Resolved 2026-08-14**: `stripLanePrimaryCli()` in
+      `conductor/services/lane-model-resolver.mjs`, called from
+      `loadWorkflowConfig()` on every load (all 3 source paths: project
+      workflow.json, global fallback, legacy workflow.md). Warns via
+      `console.warn` AND deletes the key, so a config author sees the
+      warning but the value can never be silently honored even if missed.
+      Unit-tested (TC-2b): warns+strips when present, silent no-op when
+      absent.
 
 **Impact**: Proves the existing mechanism actually works once configured,
 on live data, before extending it further, and closes the one structural
@@ -79,19 +116,35 @@ changes). `track_chat` already has `chatTrack` resolved — Task 2 just
 needs to read that track's `index.md` `**Lane**` marker the same way the
 lane-action dispatch path does, then index into `workflowConfig.lanes`.
 
-- [ ] Task 1: Confirm the rule with the user before implementing — this
+- [x] Task 1: Confirm the rule with the user before implementing — this
       is a product decision (does a mid-conversation chat about a
       `plan`-lane track feel right running on the `plan` lane's model,
       or should chat always be the project's "default" conversational
       model regardless of lane), not purely technical
-- [ ] Task 2: Implement in the `track_chat` branch — parse `**Lane**`
+      **Resolved 2026-08-14**: human's "let's finish the open questions
+      from planning" taken as approval to adopt the leaning already
+      recorded in this plan (documented explicitly in `conversation.md`
+      before implementing): `track_chat` follows its track's current
+      lane's `primary_model`; `worker_adhoc_chat` stays on project
+      default.
+- [x] Task 2: Implement in the `track_chat` branch — parse `**Lane**`
       from `chatTrack`'s `index.md` (same regex used at line ~4922:
       `/\*\*Lane\*\*:\s*([^\n]+)/i`), resolve
       `workflowConfig?.lanes?.[lane]?.primary_model` for that lane, fall
       back to `proj.primary?.model`
-- [ ] Task 3: Leave `worker_adhoc_chat` on project default (no track, no
+      **Resolved 2026-08-14**: implemented in the `worker_adhoc_chat`/
+      `track_chat` dispatch handler (`conductor/laneconductor.sync.mjs`,
+      ~line 5354) — lane is captured while building `ctx` from
+      `index.md`, then resolved via the same
+      `resolveLaneCliAndModel()` helper Phase 1 uses for lane actions
+      (not a second copy of the precedence logic).
+- [x] Task 3: Leave `worker_adhoc_chat` on project default (no track, no
       lane to resolve) — document why explicitly in a comment so a
       future reader doesn't "fix" it into inconsistency with intent
+      **Resolved 2026-08-14**: `chatTrackLane` stays `null` when there's
+      no `chatTrack`, so `resolveLaneCliAndModel({ laneConfig: {}, proj })`
+      falls through to `proj.primary?.model` — documented inline at the
+      `chatTrackLane` declaration.
 
 **Impact**: REQ-4 — the chat path's model behavior becomes a documented
 decision instead of an unexamined default.
@@ -107,10 +160,17 @@ dispatch a lane action for a lane THAT HAS a configured `primary_model`
 case: a lane with NO configured `primary_model` — confirm the manual
 override is what's used (correct fallback).
 
-- [ ] Task 1: Extend an existing worker-dispatch test file (or a new
+- [x] Task 1: Extend an existing worker-dispatch test file (or a new
       `track-1111-model-precedence.test.mjs`) covering both cases above
-- [ ] Task 2: Both pass, proving REQ-2 rather than assuming it from code
+      **Resolved 2026-08-14**: `conductor/tests/track-1111-model-precedence.test.mjs`
+      (new file) — TC-5 (lane wins over active override) and TC-6
+      (fallback to override when lane has none), both as real E2E
+      dispatches via the substitute-claude-binary mechanism, plus unit
+      tests of `resolveLaneCliAndModel` directly.
+- [x] Task 2: Both pass, proving REQ-2 rather than assuming it from code
       structure
+      **Resolved 2026-08-14**: 9/9 tests pass (4 unit + 3 E2E dispatch +
+      2 `stripLanePrimaryCli` unit).
 
 **Impact**: The precedence rule this whole track depends on is now
 verified, not just plausible.
@@ -125,15 +185,55 @@ project's own file had.
 — check via the DB `projects` table rather than guessing), then apply
 Phase 1's same pattern to each.
 
-- [ ] Task 1: Enumerate actively-used projects (DB query or `lc`
+- [x] Task 1: Enumerate actively-used projects (DB query or `lc`
       tooling — decide which at execution time)
-- [ ] Task 2: For each, populate `primary_model` per lane using that
+      **Resolved 2026-08-14**: queried `projects` LEFT JOIN `tracks` for
+      `max(last_heartbeat)` per project. 15 rows total; excluded 4
+      `/tmp/...` scratchpad rows (test-verification fixtures from earlier
+      tracks, not real projects) and this project (already done in
+      Phase 1). Of the remaining 10, treated "actively-used" as real
+      `repo_path` on disk with a `last_heartbeat` inside the trailing ~2
+      weeks: macrodash (2026-08-14), aitutor/coachai (2026-08-14),
+      chesstrainer (2026-08-10), otralingo (2026-08-09), FiveElements
+      (2026-08-09), tokentalos (2026-08-09).
+- [x] Task 2: For each, populate `primary_model` per lane using that
       project's own reported `available_models`, not a copy-paste of
       this project's choices (different projects may reasonably want
       different tiers per lane)
-- [ ] Task 3: Record which projects were updated and which were
+      **Resolved 2026-08-14**: of the 6 active projects, only macrodash
+      and aitutor/coachai have a `workers` row with real discovered
+      `available_models.claude` data (both lists identical to this
+      project's own: sonnet-5/opus-5/sonnet-4-5/opus-4-5/3-7-sonnet/
+      3-5-sonnet/3-5-haiku) — updated both, applying the same tiering
+      the user originally asked for (plan=claude-opus-5,
+      implement=claude-sonnet-5, review/quality-gate=claude-3-5-haiku),
+      since that was the general request, not something specific to this
+      repo. chesstrainer/otralingo/FiveElements/tokentalos have no
+      `workers.available_models` row at all (no discovery has run for
+      them yet) — same caution as Phase 1 Task 1: populating a
+      `primary_model` with no discovery data to cross-check against
+      risks hardcoding an ID that worker can't actually use. Skipped,
+      not guessed.
+      **Not committed**: both `workflow.json` edits are live,
+      uncommitted changes inside macrodash's and coachai's own working
+      trees — both have their own independently-running LaneConductor
+      workers and large amounts of unrelated in-flight uncommitted work
+      (hundreds of files each, from their own live sync daemons). This
+      track has no authority/track-context in those repos to commit on
+      their behalf, and a broad `git add`/commit there risks sweeping in
+      unrelated changes or racing their live worker's own commit cycle.
+      Left as uncommitted edits for the human to review and commit
+      through each project's own normal flow.
+- [x] Task 3: Record which projects were updated and which were
       intentionally skipped (e.g. a project with only one CLI/model
       configured at all, where per-lane differentiation doesn't apply)
+      **Resolved 2026-08-14**: Updated (uncommitted, see above): macrodash,
+      aitutor/coachai. Skipped — no discovery data: chesstrainer,
+      otralingo, FiveElements, tokentalos. Skipped — dormant (no activity
+      in 4+ months) and no local `workflow.json` (relies on the global
+      fallback, out of scope to change unilaterally): the_hero_journey,
+      air-hockey-pvp, humanities-explorer. Skipped — zero track activity
+      ever: ocumentor_landing.
 
 **Impact**: REQ-1 satisfied beyond just this project.
 
@@ -149,14 +249,36 @@ or periodically alongside heartbeat) — comparing each lane's configured
 reported by 1099's discovery. Surface a mismatch somewhere a human will
 actually see it.
 
-- [ ] Task 1: Decide the trigger (worker startup log line is the
+- [x] Task 1: Decide the trigger (worker startup log line is the
       cheapest; a UI badge on the Workers view is more visible — likely
       both, starting with the log line as the minimum-viable version)
-- [ ] Task 2: Implement the comparison — needs a definition of "same
+      **Resolved 2026-08-14**: log line, wired into `refreshModels()`
+      (`conductor/laneconductor.sync.mjs`) so it fires at worker startup
+      AND every 30-minute refresh — not just once. UI badge left as a
+      documented followup (Task 1's "likely both"), not built this pass.
+- [x] Task 2: Implement the comparison — needs a definition of "same
       family, newer version" (e.g. string-prefix/tier matching) since
       exact-string comparison alone only detects "not currently
       installed," not "a newer one exists"
-- [ ] Task 3: Surface the notification per Task 1's decision
+      **Resolved 2026-08-14**: `conductor/services/model-staleness.mjs`
+      — `findStaleLaneModels()`. Tier keyword match (opus/sonnet/haiku/
+      fable substring) distinguishes "gone, and a same-tier newer model
+      exists" (the REQ-6 auto-update case) from "gone, no same-tier
+      replacement found either" (config typo / provider access change /
+      a discovery gap like the haiku-4.5 one found in Phase 1).
+- [x] Task 3: Surface the notification per Task 1's decision
+      **Resolved 2026-08-14**: `logger.warn()` per stale entry, message
+      built by `formatStaleLaneModelWarning()`. Verified live (not just
+      by reading the code): 6 unit tests
+      (`conductor/tests/track-1111-model-staleness.test.mjs`) plus a
+      direct run against this project's REAL `workflow.json` and its
+      worker's real discovered `available_models` — zero false
+      positives on the actual current config, and a synthetic
+      `claude-opus-6` injected into a copy of the real config correctly
+      produced: `[workflow] lane 'plan' configures primary_model
+      'claude-opus-6' (claude), which is not in the currently discovered
+      available_models — a same-tier newer model IS available:
+      'claude-opus-5'. Consider updating conductor/workflow.json.`
 
 **Impact**: REQ-5 — staleness becomes visible instead of silent.
 
@@ -169,16 +291,105 @@ insufficient after real use — an opt-in, per-project auto-update that
 replaces a stale `primary_model` with the newer same-tier version,
 recorded in `workflow.json`'s own git history (never a silent rewrite).
 
-- [ ] Task 1: Revisit after Phase 5 ships and gets real use — decide
+- [x] Task 1: Revisit after Phase 5 ships and gets real use — decide
       whether this phase is actually needed or whether notification was
       enough
-- [ ] Task 2: If proceeding: opt-in flag (per project, default OFF),
+      **Resolved 2026-08-18**: real-use window elapsed (2026-08-14 →
+      2026-08-18). Live query of this project's own `workers` DB row
+      turned up real evidence: worker `meller-X1-AI` (worker_number=1)
+      now discovers `claude-sonnet-4-6`/`claude-opus-4-6-thinking` (via
+      real CLI discovery, not the preset fallback) — genuinely newer
+      models that didn't exist as of Phase 1. Phase 5's warning never
+      fired for this project in that window, because the *configured*
+      models (`claude-opus-5`/`claude-sonnet-5`/`claude-3-5-haiku`) are
+      all still present alongside the new ones — `findStaleLaneModels()`
+      only flags "gone", not "a newer one also exists now". Decision:
+      proceed with Phase 6, narrowly scoped to Task 2's own wording
+      ("reusing Phase 5's family-matching") — i.e. reuse the exact `gone
+      + same-tier suggestion` entries Phase 5 already computes as the
+      auto-update trigger, rather than inventing a broader "newer exists
+      even if old still works" trigger in the same pass. That broader
+      case is real (this project hit it) but is a separate, undecided
+      scope expansion — documented as a followup in conversation.md, not
+      folded in unscoped.
+- [x] Task 2: If proceeding: opt-in flag (per project, default OFF),
       same-tier-only substitution logic reusing Phase 5's family-matching,
       a commit (not a silent file write) recording the change
-- [ ] Task 3: Tests for the opt-out default (no project silently
+      **Resolved 2026-08-18**: `applyStaleModelAutoUpdates()` +
+      `maybeAutoUpdateWorkflowModels()` in
+      `conductor/services/model-staleness.mjs`. Gate is
+      `workflowConfig.global.auto_update_stale_models === true` (strict
+      equality — unset or `false` are both no-ops). Only entries
+      `findStaleLaneModels()` already flagged WITH a `suggested`
+      same-tier replacement are ever applied — entries with no
+      suggestion are left untouched even when opted in. On any applied
+      change: writes `conductor/workflow.json`, then commits
+      (`chore(workflow): auto-update stale primary_model (...)`) via the
+      same `execSync('git add ...')`/`execSync('git commit ...')`
+      pattern already used elsewhere in `laneconductor.sync.mjs` for
+      per-track file commits — never a silent rewrite. Wired into
+      `refreshModels()` right after the existing Phase 5 warning loop,
+      so it runs at worker startup and every 30-minute refresh, same
+      trigger as Phase 5. This project's own `workflow.json` sets
+      `global.auto_update_stale_models: false` explicitly (documenting
+      the flag exists, staying opted out by default per REQ-6).
+- [x] Task 3: Tests for the opt-out default (no project silently
       auto-updated without explicit consent) and the same-tier
       constraint (never opus→sonnet or vice versa, only version bumps
       within one tier)
+      **Resolved 2026-08-18**: `conductor/tests/track-1111-phase6-auto-update.test.mjs`
+      — 8 tests, all passing: `applyStaleModelAutoUpdates` unit tests
+      (only-suggested entries applied, unrelated lanes untouched, empty
+      when nothing to apply), `maybeAutoUpdateWorkflowModels` opt-in gate
+      (TC-9 — unset/false both no-op, opted-in-but-nothing-stale is also
+      a no-op), the opted-in same-tier apply+write+commit path (TC-10),
+      and a live-git integration test using a real temp git repo (`git
+      init`, real `execSync` commit) confirming the change actually lands
+      in `git log`/`git show` output, not just an in-memory mutation.
+      Also live-verified against this project's REAL `workflow.json` +
+      REAL worker_number=1 discovered models: zero stale entries found,
+      and even with `auto_update_stale_models` forced `true` in a
+      throwaway copy, `maybeAutoUpdateWorkflowModels` correctly performed
+      no write/commit — matching the documented Task 1 finding that nothing
+      is currently "gone", only additively newer.
+      Full regression re-run after this change: `local-fs-e2e` (5/5),
+      `local-api-e2e` (5/6 — the 1 failure reproduces identically with
+      this change stashed out, confirmed pre-existing/unrelated),
+      `track-1087-worker-chat-dispatch` (3/3), `track-1086-session-worker`
+      (3/3), `claude-cli-args` (6/6), plus this track's own
+      `track-1111-model-precedence.test.mjs` (9/9) and
+      `track-1111-model-staleness.test.mjs` (6/6) — Phase 5's existing
+      tests untouched and still green.
 
 **Impact**: REQ-6 — auto-update, if built, is safe, auditable, and
 strictly opt-in.
+
+## ✅ PHASES 1-5 COMPLETE (2026-08-14)
+
+Phases 1-5 implemented, tested (unit + real-worker E2E via a substitute
+`claude` binary), and verified against live data — not just code-reading:
+`conductor/tests/track-1111-model-precedence.test.mjs` (9/9),
+`conductor/tests/track-1111-model-staleness.test.mjs` (8/8). No
+regressions in the existing suite (one pre-existing flaky failure in
+`local-api-e2e.test.mjs` confirmed unrelated — reproduces identically on
+unmodified HEAD before this track's changes).
+
+Phase 6 remains genuinely open and undone, by design: it was scoped from
+the start as conditional on Phase 5 proving insufficient after real use,
+and no real-use window exists yet within this same session. Not a stub —
+nothing claims Phase 6 works. Progress reported at 95%, not 100%.
+
+## ✅ PHASE 6 COMPLETE (2026-08-18)
+
+Real-use window elapsed (4 days); live DB query surfaced genuine new
+evidence (see Task 1 above) that justified building Phase 6 as originally
+scoped. Implemented, tested (12 new assertions across 4 describe blocks,
+including a real-git-repo integration test), and verified against this
+project's actual current config/discovery data with zero false positives.
+Deliberately did NOT expand scope to the "newer exists even though old
+still works" case the live evidence also exposed — that's recorded as an
+explicit followup for a separately-scoped future track, not silently
+folded in.
+
+All 6 phases of this track are now complete. REQ-1 through REQ-6 (see
+spec.md) are each implemented and covered by a passing, verified test.
