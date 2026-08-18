@@ -2,7 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 96%
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 8 complete — Playwright E2E for the PR-mode panel + done-lane badge, 5/5 passing (Phase 6's Task 1/3/4 gaps remain, see plan.md)
 **Type**: dev
 **Merge Mode**: direct
