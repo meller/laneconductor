@@ -44,7 +44,7 @@ import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers } from './services/worktree-artifact-merge.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
-import { findStaleLaneModels, formatStaleLaneModelWarning } from './services/model-staleness.mjs';
+import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
 import { auditWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
@@ -467,9 +467,29 @@ async function refreshModels() {
   // version is this log line; a UI badge is a possible follow-up, not
   // built here (see plan.md Phase 5 Task 1).
   try {
-    for (const entry of findStaleLaneModels({ workflowConfig, proj: getProject(), cachedModels })) {
+    const staleEntries = findStaleLaneModels({ workflowConfig, proj: getProject(), cachedModels });
+    for (const entry of staleEntries) {
       logger.warn(entry, formatStaleLaneModelWarning(entry));
     }
+
+    // Track 1111 Phase 6 (REQ-6): opt-in, same-tier-only auto-update.
+    // Default OFF — only runs when this project's own workflow.json sets
+    // `global.auto_update_stale_models: true`. Never a silent rewrite: a
+    // git commit is made alongside the file write, so the change is
+    // visible in workflow.json's own history.
+    maybeAutoUpdateWorkflowModels({
+      workflowConfig, staleEntries,
+      writeFile: (content) => writeFileSync('conductor/workflow.json', content),
+      commit: (message) => {
+        try {
+          execSync('git add conductor/workflow.json', { cwd: process.cwd(), stdio: 'pipe' });
+          execSync(`git commit -m ${JSON.stringify(message)}`, { cwd: process.cwd(), stdio: 'pipe' });
+        } catch (err) {
+          logger.warn({ err: err.message }, '[workflow] auto-update commit failed');
+        }
+      },
+      logInfo: (applied, summary) => logger.info({ applied }, `[workflow] auto-updated stale primary_model: ${summary}`),
+    });
   } catch (err) {
     logger.warn({ err: err.message }, '[workflow] stale-model check failed');
   }

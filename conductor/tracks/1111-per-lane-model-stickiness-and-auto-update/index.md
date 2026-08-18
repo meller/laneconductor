@@ -2,10 +2,10 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 95%
-**Phase**: Phases 1-5 implemented and verified; Phase 6 (auto-update) deliberately deferred pending real use of Phase 5
+**Progress**: 100%
+**Phase**: All 6 phases complete
 **Type**: dev
-**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, and added model-staleness detection/logging. Phase 6 (auto-update) left conditional per plan.
+**Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness detection/logging, and (Phase 6) opt-in same-tier auto-update triggered by that same staleness check, auditable via git commit.
 
 ## Problem
 
@@ -92,7 +92,7 @@ assumed:
 - [x] Phase 3: Test coverage for manual-override-vs-per-lane-model precedence (#2's second gap) — currently unverified
 - [x] Phase 4: Audit + populate `workflow.json` across other LaneConductor-managed projects (#3) — scope the actual list at planning time
 - [x] Phase 5: Model-version staleness detection + notification, built on 1099's `available_models` (#4)
-- [ ] Phase 6: Intelligent same-family auto-update (opt-in/opt-out per project), if Phase 5's notification approach alone isn't judged sufficient — **deliberately deferred**: plan.md's own Task 1 says to revisit only after Phase 5 gets real use; no real-use window exists yet within this same session, so building it now would be speculative rather than judged necessary
+- [x] Phase 6: Intelligent same-family auto-update (opt-in/opt-out per project) — real-use window elapsed (2026-08-14 → 2026-08-18); live evidence justified building it, scoped exactly per plan.md (opt-in, same-tier-only, reuses Phase 5's exact "gone + suggestion" trigger, auditable via git commit)
 
 ## Depends on
 [1096](../1096-worker-cli-model-picker/index.md) — the manual override mechanism (`set_model` dispatch) this track's precedence work interacts with; its own Phase 6 (provider vs. model / session continuity) is the reasoning this track's stickiness requirement is built on.

@@ -1,6 +1,7 @@
 {
   "global": {
-    "total_parallel_limit": 3
+    "total_parallel_limit": 3,
+    "auto_update_stale_models": false
   },
   "defaults": {
     "parallel_limit": 1,
