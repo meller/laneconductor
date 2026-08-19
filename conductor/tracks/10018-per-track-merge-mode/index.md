@@ -1,8 +1,9 @@
 # Track 10018: Per-Track Merge Mode (PR vs Direct) with Worktrees Approval Workflow
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: All 11 phases complete and tested. Phase 6's canary-stamping re-scope is the only remaining documented (not a gap — see plan.md) item.
 **Type**: dev
 **Merge Mode**: direct
