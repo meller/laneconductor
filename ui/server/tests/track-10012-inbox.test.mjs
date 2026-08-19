@@ -104,7 +104,9 @@ describe('POST /track — waiting_for_reply persistence (Track 10012)', () => {
     const upsert = queryCalls().find(([sql]) => /INSERT INTO tracks/i.test(sql));
     expect(upsert).toBeTruthy();
     expect(upsert[0]).toContain('waiting_for_reply');
-    expect(upsert[1][upsert[1].length - 1]).toBe(true);
+    // $27 is waiting_for_reply — track 1116 appended $28 (model_override)
+    // after it, so it's no longer the last param.
+    expect(upsert[1][26]).toBe(true);
   });
 
   it('TC-3: waiting_for_reply omitted sends null (COALESCE preserves the existing DB value, not false)', async () => {
@@ -113,7 +115,7 @@ describe('POST /track — waiting_for_reply persistence (Track 10012)', () => {
     const upsert = queryCalls().find(([sql]) => /INSERT INTO tracks/i.test(sql));
     expect(upsert).toBeTruthy();
     expect(upsert[0]).toContain('COALESCE($27, tracks.waiting_for_reply)');
-    expect(upsert[1][upsert[1].length - 1]).toBeNull();
+    expect(upsert[1][26]).toBeNull();
   });
 });
 

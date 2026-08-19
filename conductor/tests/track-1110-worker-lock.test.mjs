@@ -110,4 +110,89 @@ describe('worker-lock.mjs', () => {
     await releaseA();
     await releaseB();
   });
+
+  describe('onCompromised handling (Track 1117 Bug 4)', () => {
+    it('TC-11: a custom onCompromised fires with the underlying error, and no uncaughtException propagates, when the lock is compromised externally', async () => {
+      rmSync(TMP, { recursive: true, force: true });
+      mkdirSync(TMP, { recursive: true });
+      const lockPath = join(TMP, 'worker-1.lock-target');
+      const staleMs = 2000; // proper-lockfile's own minimum; update interval = staleMs/2 = 1000ms
+
+      let compromisedErr = null;
+      let uncaughtFired = false;
+      const onUncaught = (err) => { uncaughtFired = true; };
+      process.once('uncaughtException', onUncaught);
+
+      const release = await acquireWorkerLock(lockPath, {
+        staleMs,
+        onCompromised: (err) => { compromisedErr = err; },
+      });
+      assert.ok(release, 'initial acquire should succeed');
+
+      // Compromise it externally: proper-lockfile's lock marker is a
+      // directory at `${lockPath}.lock` (confirmed in lockfile.js) — delete
+      // it out from under the active hold so the next mtime-refresh tick
+      // finds it gone (ENOENT) rather than touching lockPath itself.
+      rmSync(`${lockPath}.lock`, { recursive: true, force: true });
+
+      // Wait past one refresh interval (1000ms) with margin.
+      await sleep(2000);
+
+      process.removeListener('uncaughtException', onUncaught);
+
+      assert.ok(compromisedErr, 'the injected onCompromised handler must have fired');
+      assert.match(compromisedErr.message, /stale threshold|ENOENT|no such file/i);
+      assert.equal(uncaughtFired, false, 'a handled compromise must not also propagate as an uncaughtException');
+    });
+
+    it('TC-12: normal acquisition/release is unaffected when onCompromised is supplied but never triggered', async () => {
+      rmSync(TMP, { recursive: true, force: true });
+      mkdirSync(TMP, { recursive: true });
+      const lockPath = join(TMP, 'worker-1.lock-target');
+
+      let compromisedFired = false;
+      const release = await acquireWorkerLock(lockPath, {
+        onCompromised: () => { compromisedFired = true; },
+      });
+      assert.ok(release, 'acquire should succeed exactly as without onCompromised');
+      await sleep(200);
+      await release();
+
+      assert.equal(compromisedFired, false, 'the happy path must never invoke onCompromised');
+
+      // And the lock must be normally re-acquirable afterward, same as the
+      // no-onCompromised-supplied tests above.
+      const release2 = await acquireWorkerLock(lockPath);
+      assert.ok(release2);
+      await release2();
+    });
+
+    it('TC-11 (regression, real process): the DEFAULT onCompromised handler exits cleanly with a dedicated log line, not an Uncaught Exception trace', async () => {
+      rmSync(TMP, { recursive: true, force: true });
+      mkdirSync(TMP, { recursive: true });
+      const lockPath = join(TMP, 'worker-1.lock-target');
+      const staleMs = 2000;
+
+      const holder = spawn('node', [FAKE_HOLDER, lockPath, String(staleMs)]);
+      let stdout = '';
+      let stderr = '';
+      holder.stdout.on('data', d => { stdout += d; });
+      holder.stderr.on('data', d => { stderr += d; });
+
+      try {
+        await waitForStdout(holder, 'LOCK_HELD');
+        rmSync(`${lockPath}.lock`, { recursive: true, force: true });
+
+        const exitCode = await new Promise((resolvePromise) => {
+          holder.on('exit', (code) => resolvePromise(code));
+        });
+
+        assert.equal(exitCode, 1, 'the default onCompromised handler exits with code 1');
+        assert.match(stderr, /\[worker-lock\] Lock compromised/, 'must log the dedicated worker-lock line');
+        assert.doesNotMatch(stderr, /Uncaught Exception/, 'must NOT fall through to a generic uncaught-exception crash trace');
+      } finally {
+        try { holder.kill('SIGKILL'); } catch { /* already gone */ }
+      }
+    });
+  });
 });

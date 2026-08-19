@@ -415,7 +415,7 @@ structural fix; the per-lane-override / keepalive design question above
 is still open for whoever picks it up.
 
 
-### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED
+### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED & FIXED (unit-tested)
 Found while dogfooding track 1104's UI walkthrough on a fresh project
 (`Walkthrough Test Project 1104`, project 925, track 001). This is a
 **different** trigger than F7/F8 above — it happens on a project that
@@ -480,6 +480,59 @@ in 1102").
 **Filed as F12** (renumbered from the worktree's own "F9" — that slot was already taken in main's committed history by a different, unrelated finding: the gutted-index-content guard. Two independent processes — this dogfooded implement agent working inside `.worktrees/1104`, and my own manual session — each picked "F9" as the next free number without seeing the other's concurrent edit, since the worktree's copy of this file diverged from main the moment the worktree was created. Content preserved exactly as the agent wrote it; only the heading number and this note changed.)
 
 **Directly relevant to [1112](../1112-git-sync-and-worktree-visibility/index.md)**, opened the same day: this finding IS the worktree-merge-back failure 1112 exists to fix, caught in the act rather than inferred from branch-count alone.
+
+**Root-caused and fixed 2026-08-18**, via live reproduction rather than
+guessing — two hypotheses tested, one falsified before the real fix:
+
+- **Hypothesis 1 (falsified)**: "the worker-restart-orphans-a-dispatch
+  scenario" — already covered by Track 1110 Phase 6's startup
+  reconciler (`conductor/services/orphaned-dispatch.mjs`), which post-dates
+  this finding. Not F12's actual gap.
+- **Hypothesis 2 (falsified)**: "the direct completion PATCH
+  (`PATCH /track/:num/action`) fails" — reproduced with a real spawned
+  worker + real git worktree, failing only that one endpoint. Did NOT
+  reproduce a stuck track: copy-back's own independent `syncTrack()` call
+  (a different endpoint, `POST /track`) self-healed it regardless.
+- **Hypothesis 3 (confirmed)**: a genuine full outage — every write the
+  collector receives failing for a window covering the *entire* exit
+  handler (completion PATCH, conversation.md comment sync, copy-back's
+  own DB sync, all of it) — reliably reproduced the exact stuck state:
+  `lane_action_status` frozen at `running`, `progress_percent: 0`, still
+  stuck many reconcile cycles later. The code's own comment at the
+  completion-PATCH call site had already predicted this exact gap
+  ("DB will show stale state until reconciled" — with no actual
+  reconciliation step existing for this specific failure mode).
+
+**Fixed**: `reconcileActiveDispatch()` (`conductor/laneconductor.sync.mjs`,
+already polling every 5s for exactly this class of thing — checking
+whether an in-flight dispatch's track file shows a terminal status) now
+also re-pushes the track's file state to the DB via `syncTrack()`, and —
+critically — only removes the track from its `activeDispatch` tracking
+map once that push actually succeeds, so a transient outage gets retried
+on the next 5s tick instead of being abandoned after one failed attempt.
+
+Caught a real bug in the *first* draft of this exact fix before it ever
+committed: `syncTrack()` deliberately catches its own internal
+`postToCollectors()` failure and returns the boolean `collectorSynced`
+rather than rejecting — the first draft used
+`.then(() => true).catch(...)`, which maps *any* resolution (including
+one that resolved to `false`) to `true`, silently defeating the retry
+logic while looking correct. Only caught because the regression test's
+first run passed unexpectedly fast and a `grep` for repeated
+`reconcileActiveDispatch` log lines showed only one attempt ever
+happened. Fixed by using the returned value directly.
+
+Tested: `conductor/tests/track-1102-f12-stuck-running.test.mjs`, against
+a real spawned worker and real git worktree, using a new test-only
+failure-injection endpoint added to `conductor/tests/mock-collector.mjs`
+(`/_set-fail-all-writes`, time-window-based rather than a request-count
+budget — a count-based budget was tried first and proved unreliable,
+since unrelated background traffic like file-sync polling shares the
+same pool and can consume it before the exit handler's own calls ever
+arrive). Watched it fail (never recovers, even 15s+ after the outage
+clears) before the fix, pass after. Full conductor suite re-run: 7
+pre-existing flaky failures both before and after (same set, confirmed
+via stash-compare), no new failures.
 
 ### F13 — A manager co-located with a project shares (and clobbers) that project's auth token 🔴 CONFIRMED & FIXED
 Caught live while dogfooding track 1112's own dispatch: `GET
@@ -581,6 +634,229 @@ claimed) — confirmed via unit tests exercising the same code path F5's
 tests already trust, not a live E2E walkthrough. Worth a live pass if this
 resurfaces.
 
+### F16 — Worker identity lock silently stopped protecting against duplicates when cwd wasn't the primary checkout 🔴 CONFIRMED & FIXED
+Found live (2026-08-17) chasing a "can't delete worktree from the UI"
+report: 4 separate `node conductor/laneconductor.sync.mjs --sync-only`
+processes were running simultaneously, all under the same default
+identity (project 1, no `--worker-number`), none matching the tracked
+`.sync.pid`. Same failure family as F10/F11 — but this time the
+exclusivity lock built in [1110](../1110-worker-separation-and-claim-race-safety/index.md)
+Phase 2 (`conductor/services/worker-lock.mjs`, acquired at
+`laneconductor.sync.mjs` startup) was already in place and *should* have
+made this impossible.
+
+Root cause: the lock's own path was computed as
+`join(process.cwd(), 'conductor', '.sync.lock-target')`
+(`laneconductor.sync.mjs`, right before `acquireWorkerLock()` is called).
+Exact same bug class as the nested-worktree issue fixed earlier the same
+day in `createWorktree()`/`removeWorktree()` — a worker process spawned
+with cwd anywhere other than the primary checkout (a linked worktree, a
+stale cwd from whatever spawned it) computes a *different* lock path than
+a "normal" worker for the identical identity, so the two never actually
+contend for the same lock file. The mkdir-based exclusivity is real and
+correct; it just wasn't being asked to guard the same resource every
+time.
+
+**Fixed**: lock path now resolves through `resolvePrimaryRepoRoot(process.cwd())`
+(the same primitive `createWorktree`/`removeWorktree` already use) before
+joining `conductor/.sync*.lock-target`, so every process meant to hold one
+identity's lock computes the identical path regardless of its own cwd.
+Manager lock path (`~/.laneconductor/manager.lock-target`) was already
+cwd-independent, unaffected.
+
+**Verified live**: killed all 4 duplicate processes, cleared the stale
+pidfile, restarted a single worker — confirmed exactly one process running
+under the default identity afterward. Not yet verified under the specific
+repro condition (deliberately starting a worker from inside a linked
+worktree and confirming it now refuses to start a duplicate) — worth doing
+if this resurfaces.
+
+### F17 — `lc worker start`/`restart` can spawn a worker pointed at a linked worktree's own stale copy of the sync script 🔴 CONFIRMED & FIXED (live-verified)
+Found live (2026-08-18) while restarting workers to pick up Phase 18
+changes: two of the running processes were executing
+`.worktrees/1111/conductor/laneconductor.sync.mjs` and
+`.worktrees/10018/conductor/laneconductor.sync.mjs` — old, worktree-local
+copies of the sync script, not the primary checkout's. `.worktrees/1111`
+is 143 commits behind main, so that process was running code from long
+before today's F16 fix (and everything since) — including a pre-fix
+worker-lock path computation, meaning it could sit as an undetected
+duplicate identity indefinitely. Neither process was even visible in
+`GET /api/workers` (same "registration silently never resolves" shape as
+F8/1084 Phase 8).
+
+Root cause: `resolveSyncScript(projectRoot)` (`bin/lc.mjs:254`) joins
+`projectRoot` + `conductor/laneconductor.sync.mjs` directly, and
+`projectRoot` itself comes from `findProjectRoot(process.cwd())` — a
+walk-up that stops at the first directory containing a `conductor/` dir,
+which a linked worktree satisfies just as well as the primary checkout
+(same class of ambiguity `mergeWorktreeBranch()`'s own doc comment
+already calls out). Running `lc worker start`/`restart` with cwd inside a
+worktree spawns the worker with `cwd: projectRoot` = that worktree, and
+loads *that worktree's own* (possibly very stale) copy of the script.
+
+**Fixed (2026-08-18, same day, after the bug bit for real)**: user reported
+"so many detached [worktrees] are still appearing" a few hours later — the
+nested `.worktrees/1111/.worktrees/9998,9999` shape from F16's original
+fix had come back, created at 11:35 that morning by exactly this stale
+process. Deliberately did NOT touch `findProjectRoot()`/`projectRoot`
+globally (used throughout `lc.mjs` for many other commands, several of
+which may legitimately want the worktree-local directory) — instead
+resolved a scoped `workerRoot = resolvePrimaryRepoRoot(projectRoot)`
+right after each command's own `!projectRoot` guard, and used it for
+*every* artifact that command touches (pidfile, logfile, `resolveSyncScript()`,
+the spawned process's own `cwd`): `start`, `restart`, `stop`, `worker run`,
+and `worker status` — the last two found while fixing the first three,
+same class of bug (`worker status` queried from a worktree would look for
+the pidfile in the wrong place and misreport a live worker as stopped).
+
+**Live-verified against the exact real trigger**: ran `lc start
+--worker-number 199` from inside `.worktrees/1111` itself — confirmed via
+`ps` the spawned process executes the **primary** checkout's
+`conductor/laneconductor.sync.mjs`, with its pidfile/lockfile/logfile all
+correctly anchored under primary too (not the worktree). `lc worker status`
+queried from the worktree and `lc stop` run from primary both correctly
+found and controlled the same process. Cleaned up the leftover nested
+worktrees and throwaway test artifacts afterward.
+
+### F18 — A phantom test worker (pid 999999) absorbs real dispatches, which then sit pending forever 🔴 CONFIRMED & FIXED (unit-tested)
+Hit live (2026-08-18) dispatching track 10019's plan through the UI:
+the dispatch was created correctly but sat `pending` past every polling
+window. `worker_dispatch.worker_id` pointed at worker **1013 — pid
+999999, worker_number 99** — the Playwright fixture worker F9's
+forensics already identified ("a phantom test worker heartbeating pid
+999999 from the sibling agent's Playwright fixtures"). Some test run was
+actively heartbeating it at that moment (last_heartbeat seconds old), so
+the dispatch route's "any live worker for the project" fallback
+(`ui/server/index.mjs`, the same resolution added in 1112 D7/1114)
+selected it — `ORDER BY id LIMIT 1` picks the LOWEST worker id among
+live ones, and the phantom (id 1013) beats every real worker (1112,
+1259). A phantom heartbeats but never polls a dispatch inbox → the
+dispatch starves silently, no error anywhere. Unblocked manually
+(`UPDATE worker_dispatch SET worker_id=<real>`).
+
+Fix directions (pick at least one):
+- Make Playwright fixtures unmistakable: register test workers with a
+  reserved marker the dispatch resolver excludes (e.g. `mode: 'test'`,
+  or visibility flag) instead of looking identical to real workers.
+- Same-host pid liveness check in the fallback query — pid 999999 never
+  exists; the server can't check remote hosts but CAN skip workers whose
+  claimed pid is dead on its own host.
+- A claim-timeout: a dispatch still `pending` after N minutes gets
+  reassigned to another live worker (also covers real workers dying
+  post-assignment — a gap independent of phantoms).
+
+**Fixed 2026-08-18**: went with a targeted variant of the first
+direction rather than repurposing `mode` (already has real,
+worker-behavior semantics — sync-only vs sync+poll — overloading it for
+"is this fake" risked breaking that) or same-host pid liveness (unsafe
+in general: a remote-api worker's pid legitimately doesn't exist on the
+collector server's host, so a blanket liveness check would wrongly
+exclude every real remote worker). Instead, excluded the two concrete,
+already-established fixture signatures this codebase's own Playwright
+specs use — pid `0` (`track-1033-e2e.spec.js`; never a real process,
+reserved for the kernel scheduler on Linux) and hostname prefix
+`pw-e2e-` (`worker-identity.spec.js`, pid 999999) — from every "any live
+worker for this project" fallback query. Found and fixed **three** call
+sites sharing the identical unguarded pattern, not just the one this
+finding named: `POST /api/projects/:id/dispatch`'s fallback,
+`POST /api/projects/:id/worktrees/refresh`'s fallback (both
+`ui/server/index.mjs`), and `dispatchIfSyncOnly()` — F5/F8/F15's own
+sync-only dispatch bridge, which had the same gap via an *unordered*
+`projectWorkers[0]` (now `ORDER BY w.id ASC` explicitly, plus the same
+exclusion). A claim-timeout (this finding's third direction) is still
+worth doing independently — it also covers a *real* worker dying
+mid-flight, which exclusion-by-signature can't — tracked as a possible
+follow-up, not implemented here.
+
+Tested: `ui/server/tests/track-1102-f18-phantom-worker.test.mjs` — 3
+tests against a mocked pool that only filters candidates when the real
+SQL text sent by the app actually contains the exclusion clause (so a
+future regression that drops the filter fails these tests, not just a
+dedicated SQL-string check). Watched all 3 fail for the right reason
+(phantom id 1013 wins over real id 1259) against the pre-fix code,
+pass after. `track-1102-f5-ui-dispatch.test.mjs` (dispatchIfSyncOnly's
+own existing suite) re-run alongside — still 4/4. Full `ui/server`
+suite re-run: 7 files / 20 tests failing both before and after this
+change (confirmed via stash-compare, not just eyeballing) — all
+pre-existing/unrelated (mostly an in-progress track 1116 test expecting
+an export that hasn't landed yet).
+
+### F19 — The only one-click path out of Backlog skips the Plan lane entirely 🟡 CONFIRMED & FIXED (unit-tested)
+Hit live dispatching track 10019: the backlog card's `→` arrow (titled
+"Move this card to the Start lane") moved it straight to **implement** —
+`NEXT_LANE = { backlog: 'implement', ... }` in
+`ui/src/components/TrackCard.jsx:14`, with implement literally labeled
+"Start". Combined with F15's bridge, one click dispatched a real
+implement agent against a track with **no plan.md/spec.md/test.md at
+all** (caught by the user: "it means we didn't plan with laneconductor
+skill"; the run was killed and re-routed through plan by hand-editing
+the lane marker — there is no UI affordance to move backlog → plan).
+Either backlog's next lane should be plan, or the arrow should offer a
+choice, or at minimum moving to implement with no plan artifacts should
+warn.
+
+### F20 — A dead run's transcript strip overlays the card's own action buttons and silently swallows clicks 🟠 CONFIRMED (not fixed)
+Hit live: after killing track 10019's implement agent, its stale
+transcript strip stayed rendered under the card — and
+`document.elementFromPoint` confirmed it sat ON TOP of the card's "Run
+plan action" button. Two real clicks landed on the transcript div and
+did nothing: no POST, no error, no feedback — the same "clicking does
+nothing" presentation as 1114's window.confirm bug and F18 above, each
+with a completely different cause. Collapsing the transcript freed the
+button. Layering/layout bug in the board card + transcript strip
+(`TrackCard`/`TranscriptView`); also worth asking why a finished (killed)
+run's transcript still renders as if live.
+
+### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 CONFIRMED (not fixed)
+Hit live on track 10019's implement run (dispatch 1516, 2026-08-18): the
+agent finished Phases 1-2 worth of real work (new
+`conductor/services/primary-cwd.mjs`, a new 19-test suite it had watched
+pass, fixes across `laneconductor.sync.mjs`/`bin/lc.mjs`/
+`worktree-audit.mjs`), then launched the full conductor regression suite
+as a **background task** — and the `claude -p` session terminated right
+there. Process exit 0, so the exit handler treated it as a clean end;
+the worktree's `index.md` still said `implement: running / 0%`, so the
+handler could call it neither success nor failure and reset
+`lane_action_status` to `queue`. All the work sat uncommitted in the
+worktree; the board showed a quietly re-queued implement with no signal
+anything had happened. The transcript's literal last event is
+`task_started: "Run full conductor test suite"` followed by nothing.
+
+Recoverable by design (worktree lifecycle reuses the directory; session
+continuity resumes the same conversation), so a re-run continues where
+it left off — but nothing *tells* anyone that's needed.
+
+Fix directions:
+- Exit handler: exit 0 + index still at `running` + dirty worktree is a
+  distinguishable state — surface it as its own outcome ("ended
+  mid-work, re-run to resume") in the dispatch result/conversation.md
+  instead of the generic queue reset.
+- Prompt/SKILL guidance: lane agents should not END their final turn on
+  a just-launched background command — either wait for it or run it
+  foreground; the harness kills background children when the session
+  process exits.
+
+**Escalated 2026-08-19 — worse and systematic, not a turn-end anomaly.**
+Both the review AND quality-gate runs on the same track showed a more
+serious variant: the dispatch row was marked `done` (with the generic
+"lane status: queue" result) and the DB lane reset to `queue` **while
+the spawned agent was still alive and actively working** — confirmed
+both times by finding the live `claude` process (with its Playwright MCP
+session) still running inside `.worktrees/10019`, git lock legitimately
+held, minutes after the dispatch had already been closed out. Fallout
+chain observed live: the premature `queue` made the UI offer "Run
+review" again → clicking it created a second dispatch → the second
+dispatch failed on the (correctly held) git lock with "Track locked by
+…" — which reads like an error but is actually the only thing that
+PREVENTED a duplicate concurrent review. So the lock layer is sound;
+the dispatch/exit bookkeeping is closing runs it should still be
+watching. Whoever picks this up should start from what marks a
+lane-action dispatch `done` + resets lane status *while the child
+process it spawned is still alive* — likely the same early-close path
+in both observations (reconcile logic or a mis-attributed exit event),
+NOT the agent's own behavior (unlike the original F21 case above, these
+agents were mid-flight and healthy).
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
@@ -600,6 +876,7 @@ resurfaces.
 - [ ] Phase 3: Fix F3 — one status marker, not two
 - [ ] Phase 4: Continue the walkthrough — plan run, Activity, Inbox, deploy wizard (stop before an actual deploy)
 - [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification still open)
+- [x] Phase 6: Fix F16 — worker identity lock path now resolves the primary checkout instead of trusting cwd directly; fixed and live-verified (killed 4 real duplicate processes, confirmed exactly one survives a clean restart)
 
 ## Depends on
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (F1 is in its create-project handler), [1084](../1084-worker-identity-and-assignment/index.md) (worker modes).
