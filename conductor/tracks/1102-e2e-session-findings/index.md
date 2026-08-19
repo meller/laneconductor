@@ -415,7 +415,7 @@ structural fix; the per-lane-override / keepalive design question above
 is still open for whoever picks it up.
 
 
-### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED
+### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED & FIXED (unit-tested)
 Found while dogfooding track 1104's UI walkthrough on a fresh project
 (`Walkthrough Test Project 1104`, project 925, track 001). This is a
 **different** trigger than F7/F8 above — it happens on a project that
@@ -480,6 +480,59 @@ in 1102").
 **Filed as F12** (renumbered from the worktree's own "F9" — that slot was already taken in main's committed history by a different, unrelated finding: the gutted-index-content guard. Two independent processes — this dogfooded implement agent working inside `.worktrees/1104`, and my own manual session — each picked "F9" as the next free number without seeing the other's concurrent edit, since the worktree's copy of this file diverged from main the moment the worktree was created. Content preserved exactly as the agent wrote it; only the heading number and this note changed.)
 
 **Directly relevant to [1112](../1112-git-sync-and-worktree-visibility/index.md)**, opened the same day: this finding IS the worktree-merge-back failure 1112 exists to fix, caught in the act rather than inferred from branch-count alone.
+
+**Root-caused and fixed 2026-08-18**, via live reproduction rather than
+guessing — two hypotheses tested, one falsified before the real fix:
+
+- **Hypothesis 1 (falsified)**: "the worker-restart-orphans-a-dispatch
+  scenario" — already covered by Track 1110 Phase 6's startup
+  reconciler (`conductor/services/orphaned-dispatch.mjs`), which post-dates
+  this finding. Not F12's actual gap.
+- **Hypothesis 2 (falsified)**: "the direct completion PATCH
+  (`PATCH /track/:num/action`) fails" — reproduced with a real spawned
+  worker + real git worktree, failing only that one endpoint. Did NOT
+  reproduce a stuck track: copy-back's own independent `syncTrack()` call
+  (a different endpoint, `POST /track`) self-healed it regardless.
+- **Hypothesis 3 (confirmed)**: a genuine full outage — every write the
+  collector receives failing for a window covering the *entire* exit
+  handler (completion PATCH, conversation.md comment sync, copy-back's
+  own DB sync, all of it) — reliably reproduced the exact stuck state:
+  `lane_action_status` frozen at `running`, `progress_percent: 0`, still
+  stuck many reconcile cycles later. The code's own comment at the
+  completion-PATCH call site had already predicted this exact gap
+  ("DB will show stale state until reconciled" — with no actual
+  reconciliation step existing for this specific failure mode).
+
+**Fixed**: `reconcileActiveDispatch()` (`conductor/laneconductor.sync.mjs`,
+already polling every 5s for exactly this class of thing — checking
+whether an in-flight dispatch's track file shows a terminal status) now
+also re-pushes the track's file state to the DB via `syncTrack()`, and —
+critically — only removes the track from its `activeDispatch` tracking
+map once that push actually succeeds, so a transient outage gets retried
+on the next 5s tick instead of being abandoned after one failed attempt.
+
+Caught a real bug in the *first* draft of this exact fix before it ever
+committed: `syncTrack()` deliberately catches its own internal
+`postToCollectors()` failure and returns the boolean `collectorSynced`
+rather than rejecting — the first draft used
+`.then(() => true).catch(...)`, which maps *any* resolution (including
+one that resolved to `false`) to `true`, silently defeating the retry
+logic while looking correct. Only caught because the regression test's
+first run passed unexpectedly fast and a `grep` for repeated
+`reconcileActiveDispatch` log lines showed only one attempt ever
+happened. Fixed by using the returned value directly.
+
+Tested: `conductor/tests/track-1102-f12-stuck-running.test.mjs`, against
+a real spawned worker and real git worktree, using a new test-only
+failure-injection endpoint added to `conductor/tests/mock-collector.mjs`
+(`/_set-fail-all-writes`, time-window-based rather than a request-count
+budget — a count-based budget was tried first and proved unreliable,
+since unrelated background traffic like file-sync polling shares the
+same pool and can consume it before the exit handler's own calls ever
+arrive). Watched it fail (never recovers, even 15s+ after the outage
+clears) before the fix, pass after. Full conductor suite re-run: 7
+pre-existing flaky failures both before and after (same set, confirmed
+via stash-compare), no new failures.
 
 ### F13 — A manager co-located with a project shares (and clobbers) that project's auth token 🔴 CONFIRMED & FIXED
 Caught live while dogfooding track 1112's own dispatch: `GET
