@@ -58,7 +58,22 @@ function getInstallPath() {
         // we need to reach the repo root where /ui lives.
         return resolve(skillPath, '../../..');
     }
-    return resolve(__dirname, '..');
+    // Track 10019 (REQ-4 / S9): __dirname is this exact script FILE's
+    // location — if it's being run as a linked worktree's own copy of
+    // bin/lc.mjs (e.g. someone invokes `.worktrees/10019/bin/lc.mjs`
+    // directly, or `/usr/local/bin/lc` was ever symlinked at a worktree's
+    // copy — S8), this fallback would otherwise resolve `ui`, pidfiles and
+    // logs to that worktree instead of the primary checkout no rc file
+    // exists to override it. Route through resolvePrimaryRepoRoot() so a
+    // worktree-resident invocation still lands on the primary; a
+    // legitimate standalone clone (not inside any worktree) is unaffected
+    // since resolvePrimaryRepoRoot() is a no-op there.
+    const scriptRoot = resolve(__dirname, '..');
+    try {
+        return resolvePrimaryRepoRoot(scriptRoot);
+    } catch {
+        return scriptRoot; // not inside a git repo — nothing to correct
+    }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1892,7 +1907,19 @@ Please review this, answer any questions (some fields may contain questions rath
             } catch (e) { /* stale */ }
         }
 
-        console.log('🚀 Starting Vite UI...');
+        // Track 10019 (REQ-6): `uiDir` already resolves to the primary
+        // checkout's `ui/` via getInstallPath()'s REQ-4 fix — verified
+        // here rather than assumed, so a future incident's first question
+        // ("which checkout is this actually serving?") has a real answer
+        // instead of a hopeful comment.
+        try {
+            const isPrimary = resolvePrimaryRepoRoot(uiDir) === resolve(uiDir);
+            console.log(isPrimary
+                ? `🚀 Starting Vite UI from ${uiDir} (primary checkout)...`
+                : `🚀 ⚠️  Starting Vite UI from ${uiDir} — this is NOT the primary checkout.`);
+        } catch {
+            console.log(`🚀 Starting Vite UI from ${uiDir}...`);
+        }
         const logFd = openSync(uiLogFile, 'a');
         const ui = spawn('npx', ['vite'], {
             cwd: uiDir,

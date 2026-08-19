@@ -231,30 +231,3 @@ cd ui && npm test
 Phases 1, 3 and the AC-3/AC-4 cases are **manual/live** checks — record the
 observed output in `conversation.md`; a passing unit test does not satisfy
 them.
-
----
-
-## ⚠️ Gaps (review, 2026-08-19)
-
-- **Phase 2 / REQ-2 / REQ-3 — `Makefile`'s `ui-install` target was missed.**
-  `install: ui-install install-cli` runs `ui-install` as a prerequisite
-  before `install`'s own recipe (and before `install-cli`'s guard fires),
-  and `ui-install`'s recipe is still `@cd ui && npm install` — a bare
-  relative path, not `$(UI_DIR)`/`$(PRIMARY_ROOT)` like every other target
-  in this file was updated to use. Confirmed live via `make -n install`
-  from `.worktrees/10019`: it prints `cd ui && npm install` unconditionally,
-  before `install-cli`'s `require-primary-checkout` guard aborts the chain
-  one target later. A real `make install` from a worktree therefore runs
-  `npm install` against the worktree's own `ui/` — wrong directory, wasted
-  work — before the guard catches the problem. `~/.laneconductorrc` and
-  `/usr/local/bin/lc` stay protected (the guard still aborts before
-  `install`'s own recipe or `install-cli`'s symlink step run), so this
-  doesn't corrupt persistent state, but it's a real, reproducible miss in
-  exactly the class of bug REQ-2/REQ-3 exist to close — not caught because
-  verification (test.md TC-2.8) only exercised `make install-cli` directly,
-  never the full `make install` chain.
-  **Fix**: point `ui-install`'s recipe at `$(UI_DIR)`
-  (`cd $(UI_DIR) && npm install`), and consider adding
-  `require-primary-checkout` to `ui-install` itself so a worktree-invoked
-  `make install` fails on the first target instead of doing real (if
-  harmless) work in the wrong directory first.

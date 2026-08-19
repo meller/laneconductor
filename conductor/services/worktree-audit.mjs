@@ -124,7 +124,7 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
 // as 'open' — it took a manual, out-of-band `git merge` to land it. A
 // `running` status is now only trusted as independent progress when a
 // matching lock file backs it; unlocked, it's a dead artifact.
-function mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, trackDir, trackNumber) {
+function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, trackDir, trackNumber) {
   const base = git(['merge-base', branch, mainBranch], repoRoot).trim();
   if (!base) return false;
   const baseState = readTrackStateFromBranch(repoRoot, base, trackNumber);
@@ -133,7 +133,16 @@ function mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, trackDi
   if (baseState.lane === mainState.lane && baseState.laneStatus === mainState.laneStatus) return false;
 
   if (mainState.laneStatus?.trim().toLowerCase() === 'running') {
-    const lockPath = join(repoRoot, '.conductor', 'locks', `${trackNumber}.lock`);
+    // Track 10019 (REQ-5 / S11): locks always live under the PRIMARY
+    // checkout's .conductor/locks/, never a linked worktree's — building
+    // this path from `repoRoot` silently missed real, live locks whenever
+    // this function was called with a worktree path (e.g.
+    // reconcileWorktrees() running from a worktree, S5), misclassifying an
+    // actively-claimed track as safe to auto-merge (confirmed live,
+    // conductor/tracks/10019-*/spec.md). `primaryPath` is already known —
+    // auditWorktrees() derives it for free from `git worktree list`'s own
+    // ordering, no extra git call needed.
+    const lockPath = join(primaryPath, '.conductor', 'locks', `${trackNumber}.lock`);
     if (!existsSync(lockPath)) return false; // stale/orphaned — not real independent progress
   }
   return true;
@@ -177,6 +186,29 @@ function getConflictPaths(repoRoot, mainBranch, branch) {
  * Fully merged branches are omitted — nothing to report.
  * Read-only: never merges, deletes, or checks anything out.
  */
+// Track 10019 (Phase 4): every currently-existing track worktree,
+// regardless of merge/branch-divergence state — deliberately NOT
+// auditWorktrees() above, whose `isAncestor(...) continue` (line ~211)
+// drops any track-* branch that hasn't diverged from `mainBranch` yet.
+// That's correct for auditWorktrees' own purpose (nothing to merge until
+// there's a commit to merge) but wrong for this one: a freshly-created
+// worktree with uncommitted, in-progress edits — exactly the case doc-sync
+// exists to keep fresh — has a branch that's still a plain ancestor of
+// main until the agent's first commit, and would otherwise be silently
+// invisible to doc-sync for the entire early part of a run. One
+// `git worktree list --porcelain` call, no branch/commit walking.
+export function listTrackWorktrees({ repoRoot }) {
+  const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
+  const results = [];
+  for (const [path] of worktreesByPath) {
+    if (path === primaryPath) continue;
+    const trackNumber = path.match(/\.worktrees[\\/](\d+)$/)?.[1];
+    if (!trackNumber) continue; // not a track worktree (scratch/merge worktree, etc.)
+    results.push({ trackNumber, worktreePath: path });
+  }
+  return results;
+}
+
 export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
   const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
   const branchToWorktree = new Map();
@@ -225,7 +257,7 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
 
     const isDoneSuccess = state?.lane === 'done' && state?.laneStatus === 'success';
     const superseded = state?.trackDir
-      ? mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, state.trackDir, trackNumber)
+      ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber)
       : false;
     let classification;
     let conflictPaths = [];
