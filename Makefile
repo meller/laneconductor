@@ -75,8 +75,9 @@ install-cli:
 
 ## Install UI dependencies
 ui-install:
+	$(call require-primary-checkout)
 	@echo "📦 Installing UI dependencies..."
-	@cd ui && npm install
+	@cd $(UI_DIR) && npm install
 	@echo "✅ UI ready"
 
 ## Start the Express API
