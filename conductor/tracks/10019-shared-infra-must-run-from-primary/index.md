@@ -1,11 +1,11 @@
 # Track 10019: Shared state must live in main — infra processes AND track metadata
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Systematic audit of every process that acts as shared, live LaneConductor infrastructure (sync workers, UI dev server, API server, and anything else that resolves paths from cwd), to guarantee none…
+**Summary**: REVIEW FAILED — one gap found: Makefile's `ui-install` target (a prerequisite of `install`) still resolves `ui` relative to `pwd` instead of `$(UI_DIR)`, so `make install` from a worktree runs `npm…
 
 ## Problem
 

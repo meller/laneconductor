@@ -665,7 +665,7 @@ queried from the worktree and `lc stop` run from primary both correctly
 found and controlled the same process. Cleaned up the leftover nested
 worktrees and throwaway test artifacts afterward.
 
-### F18 — A phantom test worker (pid 999999) absorbs real dispatches, which then sit pending forever 🔴 CONFIRMED, NOT FIXED
+### F18 — A phantom test worker (pid 999999) absorbs real dispatches, which then sit pending forever 🔴 CONFIRMED & FIXED (unit-tested)
 Hit live (2026-08-18) dispatching track 10019's plan through the UI:
 the dispatch was created correctly but sat `pending` past every polling
 window. `worker_dispatch.worker_id` pointed at worker **1013 — pid
@@ -691,6 +691,42 @@ Fix directions (pick at least one):
 - A claim-timeout: a dispatch still `pending` after N minutes gets
   reassigned to another live worker (also covers real workers dying
   post-assignment — a gap independent of phantoms).
+
+**Fixed 2026-08-18**: went with a targeted variant of the first
+direction rather than repurposing `mode` (already has real,
+worker-behavior semantics — sync-only vs sync+poll — overloading it for
+"is this fake" risked breaking that) or same-host pid liveness (unsafe
+in general: a remote-api worker's pid legitimately doesn't exist on the
+collector server's host, so a blanket liveness check would wrongly
+exclude every real remote worker). Instead, excluded the two concrete,
+already-established fixture signatures this codebase's own Playwright
+specs use — pid `0` (`track-1033-e2e.spec.js`; never a real process,
+reserved for the kernel scheduler on Linux) and hostname prefix
+`pw-e2e-` (`worker-identity.spec.js`, pid 999999) — from every "any live
+worker for this project" fallback query. Found and fixed **three** call
+sites sharing the identical unguarded pattern, not just the one this
+finding named: `POST /api/projects/:id/dispatch`'s fallback,
+`POST /api/projects/:id/worktrees/refresh`'s fallback (both
+`ui/server/index.mjs`), and `dispatchIfSyncOnly()` — F5/F8/F15's own
+sync-only dispatch bridge, which had the same gap via an *unordered*
+`projectWorkers[0]` (now `ORDER BY w.id ASC` explicitly, plus the same
+exclusion). A claim-timeout (this finding's third direction) is still
+worth doing independently — it also covers a *real* worker dying
+mid-flight, which exclusion-by-signature can't — tracked as a possible
+follow-up, not implemented here.
+
+Tested: `ui/server/tests/track-1102-f18-phantom-worker.test.mjs` — 3
+tests against a mocked pool that only filters candidates when the real
+SQL text sent by the app actually contains the exclusion clause (so a
+future regression that drops the filter fails these tests, not just a
+dedicated SQL-string check). Watched all 3 fail for the right reason
+(phantom id 1013 wins over real id 1259) against the pre-fix code,
+pass after. `track-1102-f5-ui-dispatch.test.mjs` (dispatchIfSyncOnly's
+own existing suite) re-run alongside — still 4/4. Full `ui/server`
+suite re-run: 7 files / 20 tests failing both before and after this
+change (confirmed via stash-compare, not just eyeballing) — all
+pre-existing/unrelated (mostly an in-progress track 1116 test expecting
+an export that hasn't landed yet).
 
 ### F19 — The only one-click path out of Backlog skips the Plan lane entirely 🟡 CONFIRMED & FIXED (unit-tested)
 Hit live dispatching track 10019: the backlog card's `→` arrow (titled
