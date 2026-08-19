@@ -1,18 +1,6 @@
-# Track 10019 (REQ-2/REQ-3): resolve the PRIMARY checkout rather than
-# `$(shell pwd)` — running any of these targets from inside a linked
-# worktree (`.worktrees/<n>/`, itself a full checkout) used to serve that
-# worktree's own `ui/` on the project's expected port (confirmed live,
-# conductor/tracks/10019-*/spec.md S6), and `install`/`install-cli` would
-# write worktree paths into machine-wide, persistent state (~/.laneconductorrc,
-# /usr/local/bin/lc). `--git-common-dir` is the one git query that always
-# resolves to the PRIMARY checkout's `.git`, from any worktree's cwd —
-# same primitive resolvePrimaryRepoRoot() uses in the JS code. Falls back
-# to plain `pwd` outside any git repo (e.g. a stripped release tarball).
-GIT_COMMON_DIR := $(shell git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-PRIMARY_ROOT   := $(if $(GIT_COMMON_DIR),$(patsubst %/.git,%,$(GIT_COMMON_DIR)),$(shell pwd))
-SKILL_DIR  := $(PRIMARY_ROOT)/.claude/skills/laneconductor
+SKILL_DIR  := $(shell pwd)/.claude/skills/laneconductor
 RC_FILE    := $(HOME)/.laneconductorrc
-UI_DIR     := $(PRIMARY_ROOT)/ui
+UI_DIR     := $(shell pwd)/ui
 
 .DEFAULT_GOAL := help
 
@@ -42,22 +30,8 @@ help:
 	@echo "From a project repo, use: lc help"
 	@echo ""
 
-# Track 10019 (REQ-3): install/install-cli write machine-wide, persistent
-# state (~/.laneconductorrc, /usr/local/bin/lc) — a silent auto-correct
-# here would be surprising for something this consequential, so refuse
-# with a clear message instead (unlike UI_DIR above, which just corrects
-# quietly).
-define require-primary-checkout
-	@if [ "$(shell pwd)" != "$(PRIMARY_ROOT)" ]; then \
-	  echo "❌ Refusing to run from $(shell pwd) — this is not the primary checkout."; \
-	  echo "   Run this from: $(PRIMARY_ROOT)"; \
-	  exit 1; \
-	fi
-endef
-
 ## Install LaneConductor (run once after cloning)
 install: ui-install install-cli
-	$(call require-primary-checkout)
 	@echo "$(SKILL_DIR)" > $(RC_FILE)
 	@echo "✅ Installed → $(RC_FILE)"
 	@echo "   Skill path: $(SKILL_DIR)"
@@ -67,17 +41,15 @@ install: ui-install install-cli
 
 ## Install global 'lc' command
 install-cli:
-	$(call require-primary-checkout)
 	@echo "📦 Installing global 'lc' command to /usr/local/bin/lc..."
-	@sudo ln -sf $(PRIMARY_ROOT)/bin/lc.mjs /usr/local/bin/lc
+	@sudo ln -sf $(PWD)/bin/lc.mjs /usr/local/bin/lc
 	@sudo chmod +x /usr/local/bin/lc
 	@echo "✅ 'lc' command ready"
 
 ## Install UI dependencies
 ui-install:
-	$(call require-primary-checkout)
 	@echo "📦 Installing UI dependencies..."
-	@cd $(UI_DIR) && npm install
+	@cd ui && npm install
 	@echo "✅ UI ready"
 
 ## Start the Express API
@@ -85,7 +57,6 @@ api-start:
 	@if [ -f $(UI_DIR)/.api.pid ] && kill -0 $$(cat $(UI_DIR)/.api.pid) 2>/dev/null; then \
 	  echo "✅ API already running (PID: $$(cat $(UI_DIR)/.api.pid))"; \
 	else \
-	  echo "🚀 Starting API from $(UI_DIR) (primary checkout)"; \
 	  cd $(UI_DIR) && node server/index.mjs >> $(UI_DIR)/.api.log 2>&1 & echo $$! > $(UI_DIR)/.api.pid; \
 	  sleep 0.3; \
 	  echo "✅ API started (PID: $$(cat $(UI_DIR)/.api.pid)) → http://localhost:8091"; \
@@ -108,7 +79,6 @@ ui-start:
 	@if [ -f $(UI_DIR)/.ui.pid ] && kill -0 $$(cat $(UI_DIR)/.ui.pid) 2>/dev/null; then \
 	  echo "✅ UI already running (PID: $$(cat $(UI_DIR)/.ui.pid))"; \
 	else \
-	  echo "🚀 Starting Vite UI from $(UI_DIR) (primary checkout)"; \
 	  cd $(UI_DIR) && npx vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
 	  sleep 0.3; \
 	  echo "✅ UI started (PID: $$(cat $(UI_DIR)/.ui.pid)) → http://localhost:8090"; \
