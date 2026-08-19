@@ -1,11 +1,11 @@
 # Track 10019: Shared state must live in main — infra processes AND track metadata
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: All 5 phases implemented — infra path resolution (worker cwd normalization, Makefile, getInstallPath, auditWorktrees lock check) fixed and verified live; startup provenance logging added; continuous…
+**Summary**: REVIEW FAILED — one gap found: Makefile's `ui-install` target (a prerequisite of `install`) still resolves `ui` relative to `pwd` instead of `$(UI_DIR)`, so `make install` from a worktree runs `npm…
 
 ## Problem
 
