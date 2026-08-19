@@ -1,9 +1,8 @@
 # Track 1117: Fix unscoped worker-startup reset + backwards orphan-reconcile guard
 
-**Lane**: done
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 5: Full regression pass
 **Type**: dev
 **Summary**: Four compounding bugs, found and root-caused live during track 1116's dogfood run through implement/review/quality-gate, silently stranding successful work with no automatic recovery: (1) unscoped…
@@ -151,11 +150,11 @@ to notice and restart.
   would normally be supervised.
 
 ## Phases
-- [x] Phase 1: Scope the unscoped stuck-reset (Bug 1)
-- [x] Phase 2: Fix the backwards orphan-reconcile mismatch guard (Bug 2)
-- [x] Phase 3: Stop static presets from overriding live model discovery (Bug 3)
-- [x] Phase 4: Fix the uncaught lock-refresh exception that crashes the whole worker (Bug 4)
-- [x] Phase 5: Full regression pass
+- [ ] Phase 1: Scope the unscoped stuck-reset (Bug 1)
+- [ ] Phase 2: Fix the backwards orphan-reconcile mismatch guard (Bug 2)
+- [ ] Phase 3: Stop static presets from overriding live model discovery (Bug 3)
+- [ ] Phase 4: Fix the uncaught lock-refresh exception that crashes the whole worker (Bug 4)
+- [ ] Phase 5: Full regression pass
 
 ## Depends on
 None — self-contained sync-engine fix.

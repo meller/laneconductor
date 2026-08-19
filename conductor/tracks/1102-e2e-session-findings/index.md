@@ -783,6 +783,27 @@ Fix directions:
   foreground; the harness kills background children when the session
   process exits.
 
+**Escalated 2026-08-19 — worse and systematic, not a turn-end anomaly.**
+Both the review AND quality-gate runs on the same track showed a more
+serious variant: the dispatch row was marked `done` (with the generic
+"lane status: queue" result) and the DB lane reset to `queue` **while
+the spawned agent was still alive and actively working** — confirmed
+both times by finding the live `claude` process (with its Playwright MCP
+session) still running inside `.worktrees/10019`, git lock legitimately
+held, minutes after the dispatch had already been closed out. Fallout
+chain observed live: the premature `queue` made the UI offer "Run
+review" again → clicking it created a second dispatch → the second
+dispatch failed on the (correctly held) git lock with "Track locked by
+…" — which reads like an error but is actually the only thing that
+PREVENTED a duplicate concurrent review. So the lock layer is sound;
+the dispatch/exit bookkeeping is closing runs it should still be
+watching. Whoever picks this up should start from what marks a
+lane-action dispatch `done` + resets lane status *while the child
+process it spawned is still alive* — likely the same early-close path
+in both observations (reconcile logic or a mis-attributed exit event),
+NOT the agent's own behavior (unlike the original F21 case above, these
+agents were mid-flight and healthy).
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
