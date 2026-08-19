@@ -1,7 +1,7 @@
 # Track 1117: Fix unscoped worker-startup reset + backwards orphan-reconcile guard
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 5: Full regression pass
