@@ -3596,6 +3596,28 @@ async function openTrackPrOnDone(trackNumber, worktreePath) {
       writeIndexMarker(indexPath, 'PR URL', url);
       writeIndexMarker(indexPath, 'PR Status', 'open');
     }
+    // Track 10018 Phase 11 (found live by the subprocess E2E test, not code
+    // review): the writes above land ONLY in the worktree's own copy of
+    // index.md. reconcilePrTracks() — the function whose entire job is to
+    // poll this PR — only ever reads the PRIMARY checkout's copy (same as
+    // every other worker-side file read), and the exit handler's generic
+    // artifact-copy already ran earlier in this same run, before these
+    // markers existed to copy. Without this, primary's index.md never gets
+    // a **PR Number**, reconcilePrTracks finds nothing to poll, and a
+    // pr-mode track's PR silently never converges no matter what GitHub
+    // reports — confirmed live: the E2E test hung forever waiting for
+    // pr_status to reach 'merged'. writeIndexMarker() (unlike the shared
+    // mergeIndexMarkers() used for Lane/Progress/etc.) already injects a
+    // missing marker rather than skipping it, so this is correct on a
+    // track's very first PR just as much as on a later status change.
+    const primaryTracksDir = join(primaryRoot, 'conductor', 'tracks');
+    const primaryTrackDir = resolveTrackFolder(primaryTracksDir, trackNumber);
+    if (primaryTrackDir) {
+      const primaryIndexPath = join(primaryTracksDir, primaryTrackDir, 'index.md');
+      writeIndexMarker(primaryIndexPath, 'PR Number', number);
+      writeIndexMarker(primaryIndexPath, 'PR URL', url);
+      writeIndexMarker(primaryIndexPath, 'PR Status', 'open');
+    }
     await patchTrackPrFields(trackNumber, { pr_number: number, pr_url: url, pr_status: 'open' });
     await postToCollectors(`/track/${trackNumber}/comment`, {
       author: 'system', body: `⚠️ Opened PR #${number} for review: ${url}`,
@@ -3770,19 +3792,28 @@ async function cleanupMergedPrTrack(trackNumber, mainBranch, repoRoot) {
   }
 }
 
+// Track 10018 Phase 11: test-only override for BOTH reconcile loops below,
+// same pattern as LC_HEARTBEAT_INTERVAL_MS above — a real subprocess test
+// exercising reconcilePrTracks (push → gh pr create → poll → cleanup)
+// would otherwise need to wait a full 60s per assertion, or poll flakily.
+// Kept as a single shared constant so the two loops can't drift apart —
+// Phase 3 Task 4's "same cadence" invariant applies to the override too,
+// not just the production default.
+const RECONCILE_INTERVAL_MS = Number(process.env.LC_RECONCILE_INTERVAL_MS) || 60000;
+
 // Track 1112 Phase 3: runs on every worker regardless of mode (local-fs
 // included — worktrees are a git-local concept, not a DB one) so the RC-B
 // safety net applies no matter how a track reached done:success.
 setInterval(() => {
   reconcileWorktrees().catch(err => console.error('[reconcile error]:', err.message));
-}, 60000);
+}, RECONCILE_INTERVAL_MS);
 
 // Track 10018 Phase 3: same cadence as reconcileWorktrees — the pr-mode
 // tracks this polls are a strict subset of what that function already scans
 // (both walk conductor/tracks), so there's no reason for a different period.
 setInterval(() => {
   reconcilePrTracks().catch(err => console.error('[reconcile-pr error]:', err.message));
-}, 60000);
+}, RECONCILE_INTERVAL_MS);
 
 // Track 1112 Phase 5 (REQ-8...REQ-11): a third-party `git push` straight to
 // `origin/<main>` — bypassing LaneConductor entirely — was previously
