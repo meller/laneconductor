@@ -1,7 +1,7 @@
 # Track 10018: Per-Track Merge Mode (PR vs Direct) with Worktrees Approval Workflow
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: All 11 phases complete and tested. Phase 6's canary-stamping re-scope is the only remaining documented (not a gap — see plan.md) item.
 **Type**: dev
