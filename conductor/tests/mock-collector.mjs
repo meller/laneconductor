@@ -60,6 +60,25 @@ const server = createServer(async (req, res) => {
   const bearerToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
   let params;
 
+  // Track 1102 F12: simulate a genuine full outage window — every write
+  // (any non-GET) fails until a deadline, regardless of endpoint.
+  // Time-based rather than a request-count budget: unrelated background
+  // traffic (file-sync polling, other periodic POSTs) shares whatever
+  // pool a count-based budget would use and can consume it before the
+  // exit handler's own calls ever arrive, making a count non-deterministic.
+  // Distinct from /_set-fail-track-action (one specific endpoint only) —
+  // this is for reproducing "the network/DB was down for a moment"
+  // across every call a run's exit handler makes, not just its direct
+  // completion PATCH. The /_set-fail-* control endpoints themselves are
+  // exempt so a test can always turn this off.
+  if (req.method !== 'GET' && !req.url.startsWith('/_') && state.failAllWritesUntil && Date.now() < state.failAllWritesUntil) {
+    return reply(res, 500, { error: 'simulated full outage (test-injected)' });
+  }
+  if ((params = route('POST', '/_set-fail-all-writes', req)) !== null) {
+    state.failAllWritesUntil = Number(body.durationMs) > 0 ? Date.now() + Number(body.durationMs) : 0;
+    return reply(res, 200, { ok: true });
+  }
+
   // ── Startup ────────────────────────────────────────────────────────────────
   if ((params = route('POST', '/project/ensure', req)) !== null) {
     state.projectEnsureCalls++;
@@ -97,6 +116,15 @@ const server = createServer(async (req, res) => {
 
   if ((params = route('POST', '/_set-fail-register', req)) !== null) {
     state.failRegister = body.fail !== false;
+    return reply(res, 200, { ok: true });
+  }
+
+  // Track 1102 F12: fail the next N PATCH /track/:num/action calls (the
+  // exit handler's "run finished" report), so a test can reproduce a
+  // transient network/DB outage at that exact moment and prove whether
+  // anything ever retries it.
+  if ((params = route('POST', '/_set-fail-track-action', req)) !== null) {
+    state.failTrackActionCount = Number(body.count) || 0;
     return reply(res, 200, { ok: true });
   }
 
@@ -204,6 +232,10 @@ const server = createServer(async (req, res) => {
 
   // ── Action status update ───────────────────────────────────────────────────
   if ((params = route('PATCH', '/track/:num/action', req)) !== null) {
+    if (state.failTrackActionCount > 0) {
+      state.failTrackActionCount -= 1;
+      return reply(res, 500, { error: 'simulated outage (test-injected)' });
+    }
     const { num } = params;
     const { lane_action_status, lane_action_result, lane_status, progress_percent, last_log_tail, active_cli } = body;
     if (!state.tracks[num]) state.tracks[num] = { track_number: num, fail_count: 0 };
@@ -308,6 +340,8 @@ const server = createServer(async (req, res) => {
     state.comments = [];
     state.projectEnsureCalls = 0;
     state.failRegister = false;
+    state.failTrackActionCount = 0;
+    state.failAllWritesUntil = 0;
     return reply(res, 200, { ok: true });
   }
 

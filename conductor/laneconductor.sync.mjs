@@ -6062,6 +6062,33 @@ async function reconcileActiveDispatch() {
     const status = statusMatch?.[1]?.trim();
     if (status === 'running') continue; // still going
 
+    // Track 1102 F12: the exit handler's own completion PATCH (and
+    // copy-back's own DB sync right after it) can both fail — a
+    // transient network/DB outage covering the whole exit handler
+    // leaves tracks.lane_action_status frozen at 'running' forever,
+    // since nothing else ever retries pushing this file's now-terminal
+    // state to the DB (confirmed live:
+    // conductor/tests/track-1102-f12-stuck-running.test.mjs — a
+    // narrower version that only broke the direct completion PATCH did
+    // NOT reproduce a stuck track, since copy-back's independent
+    // syncTrack() call self-healed it; only a full outage covering both
+    // does). Re-push the track here too, and keep retrying (don't
+    // delete from activeDispatch) until it actually lands, so a
+    // transient outage self-heals on a later 5s tick instead of staying
+    // stuck forever with no automatic recovery.
+    //
+    // syncTrack() catches its own postToCollectors() failure internally
+    // and returns the boolean `collectorSynced` rather than rejecting —
+    // must check the RETURNED value, not just whether the call resolved
+    // (a naive `.then(() => true)` here would treat every call as
+    // successful regardless of what actually happened, which is exactly
+    // what let this fix's own first draft slip through unnoticed).
+    const trackSynced = await syncTrack(indexPath).catch(err => {
+      console.warn(`[dispatch] Failed to re-sync track ${trackNumber} to DB (will retry): ${err.message}`);
+      return false;
+    });
+    if (!trackSynced) continue; // retry next tick — leave activeDispatch entry in place
+
     // resolveTransition() means the value here isn't always a clean
     // success/failure literal: a lane with a configured on_success/
     // on_failure transition can land on 'queue' either because the action
