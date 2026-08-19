@@ -1,9 +1,9 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Not started — design captured from live discussion 2026-08-14
+**Lane Status**: success
+**Progress**: 15%
+**Phase**: Phase 1 complete — spec.md written (D1–D10, REQ-1..REQ-12); Phases 2–6 ready to implement
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: LaneConductor implicitly assumes ALL work is branch-per-track worktree work; an entire live pairing session (tracks 1112-1114's bug fixes) happened directly on main because fixing self-hosted…
@@ -148,19 +148,40 @@ planning phase:
    all-branch world); this track's Phase 1 design finalization then
    resolves the default-mode question with option (d) on the table.
 
-## Open questions for planning
-- Does `merge-worktree`/`auto-complete-track` (1114) need a main-mode
-  variant, or is "already on main" trivially the merged state? (Likely
-  the latter — done:success in main mode needs no merge step at all.)
-- Should main mode refuse to start if the primary checkout is dirty
-  beyond some threshold, to avoid entangling an agent run with unrelated
-  human WIP? (This session's checkout routinely had 50+ ambient dirty
-  files — an agent committing on main must not sweep those up.)
-- Reconciler interaction: main-mode tracks must be excluded from
-  worktree reconciliation entirely.
+## Open questions for planning — RESOLVED 2026-08-19
+
+All three resolved in `spec.md`; kept here with their answers for
+context.
+
+- ~~Does `merge-worktree`/`auto-complete-track` (1114) need a main-mode
+  variant?~~ → **D8**: no merge step at all. "Already on main" *is* the
+  merged state. `finishAutoCompleteWithMerge()` skips
+  `mergeWorktreeBranch()` and reports success instead of surfacing
+  `{ merged: false, reason: 'no-branch' }` as a failure.
+- ~~Should main mode refuse to start on a dirty checkout?~~ → **D10**:
+  yes. Any dirty path outside the track's own
+  `conductor/tracks/{NNN}-*/` folder blocks the spawn, leaves the track
+  at `queue`, and **does not consume a retry**. The track's own folder is
+  excluded because the worker itself dirties it (writing `**Lane
+  Status**: running`) immediately before spawning.
+- ~~Reconciler interaction: main-mode tracks must be excluded from
+  worktree reconciliation.~~ → **D9**: already true by construction, and
+  verified against `worktree-audit.mjs:180-215` rather than assumed —
+  rows are enumerated from `listTrackBranches()` + `git worktree list`,
+  and a main-mode track creates neither, so it is never enumerated. No
+  code change needed; REQ-9 locks it with a test.
+
+**Also resolved — the "honest tension" above** (options a/b/c): **D1**
+takes option (b), with one refinement — the *type-derived* default
+(bug→main) does not survive an unattended auto-claim, but an *explicit*
+`**Workspace**: main` marker does, because forcing a branch on a track
+explicitly marked main produces a wrong run rather than a safe one (an
+infra track can't dogfood a fix from a branch the runner isn't running).
+Option (d) from track 10018 was considered and deferred — see D1; it
+would be simpler and should be reopened if 10018 lands before Phase 2.
 
 ## Phases
-- [ ] Phase 1: Design finalization — resolve the unattended-bug-run tension (options a/b/c above), decide config surface and the dirty-checkout guard; write spec.md with REQs
+- [x] Phase 1: Design finalization — resolve the unattended-bug-run tension (options a/b/c above), decide config surface and the dirty-checkout guard; write spec.md with REQs
 - [ ] Phase 2: Worker — plan lane always main-direct; worktree created lazily at first implement, honoring the track's resolved mode (skip worktree/branch for main mode, keep the git lock, keep exit-handler file/DB writes pointed at cwd); inject track-reference commit convention into agent instructions
 - [ ] Phase 3: Skill + CLI — `/laneconductor plan` classifies bug-vs-feature when type is missing (writes it to index.md, reasoning to conversation.md); `lc new --type bug|feature` flag
 - [ ] Phase 4: UI — mode visible on track card/detail; type already selectable at creation (existing feature/Bug selector drives the default); project default in Config
