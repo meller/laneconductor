@@ -1,6 +1,6 @@
 # Track 1117: Fix unscoped worker-startup reset + backwards orphan-reconcile guard
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Phase 5: Full regression pass
