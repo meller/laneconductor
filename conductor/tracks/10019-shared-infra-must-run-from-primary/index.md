@@ -1,12 +1,12 @@
 # Track 10019: Shared state must live in main — infra processes AND track metadata
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: REVIEW FAILED — one gap found: Makefile's `ui-install` target (a prerequisite of `install`) still resolves `ui` relative to `pwd` instead of `$(UI_DIR)`, so `make install` from a worktree runs `npm install` in the wrong directory before `install-cli`'s guard aborts. Everything else (REQ-1 through REQ-12) verified correct on re-review.
+**Summary**: Quality gate passed. All 5 phases implemented and verified live; the one gap review found (Makefile's `ui-install` still resolving `ui` relative to `pwd`) was self-healed during quality-gate, verified live, and committed (3a112cd). REQ-1 through REQ-12 all hold; no new test regressions vs. baseline.
 
 ## Problem
 
