@@ -25,6 +25,45 @@ Legend: **SAFE** = already resolves to primary, or is structurally
 immune. **VULNERABLE** = resolves from `cwd`/`pwd` and can land on a
 worktree. **VERIFY** = needs a live check in Phase 1.
 
+**Phase 1 live-confirmation results** (sandbox repo + linked worktree,
+zero touches to real machine state):
+- **S6/S7/S8 confirmed live**: `make -n api-start` run with cwd set to a
+  linked worktree resolves `UI_DIR` to `<worktree>/ui` — the dry-run
+  printed `cd <worktree>/ui && node server/index.mjs >> <worktree>/ui/.api.log`
+  and a worktree-local `.api.pid`, which would run a second API process
+  against that worktree's own code, invisible to and non-colliding with a
+  primary instance already on :8091's pidfile.
+- **S11 confirmed live** (highest severity — silent data-loss potential):
+  built a real repo with track 101 at `done:success`, a worktree holding
+  an unmerged commit on `track-101` (so the branch is not yet merged), and
+  a lock file at `<primary>/.conductor/locks/101.lock` recording that
+  `main` independently reopened the track (now `plan:running`, protected).
+  `auditWorktrees({ repoRoot: <primary> })` correctly classified it `open`
+  (protected). `auditWorktrees({ repoRoot: <worktree> })` — the exact call
+  `reconcileWorktrees()` makes if the sync worker's own cwd is ever a
+  worktree (S5) — misclassified the same state as `mergeable`, because the
+  lock-file existence check built its path from the passed-in `repoRoot`
+  instead of the primary. Chained with S5, this is a real path to
+  `reconcileWorktrees()`'s 60s tick auto-merging a track's branch out from
+  under a running, locked worker.
+- **S9 confirmed** by direct computation (no live process needed — pure
+  path arithmetic): `getInstallPath()`'s fallback is
+  `resolve(__dirname, '..')`; `__dirname` for a worktree-resident
+  `bin/lc.mjs` is `<worktree>/bin`, so the fallback resolves to
+  `<worktree>`, not the primary, whenever no rc file is present.
+- **S14 verified, downgraded**: from inside a linked worktree, `.git` is a
+  *file* (gitdir pointer), not a directory, so `verify-isolation`'s Test 1
+  (`<root>/.git/worktrees` exists) fails — but this is a **false negative**
+  in a read-only diagnostic command, not a shared-state hazard (it reports
+  `❌`, it doesn't silently serve wrong state to anything). Left out of the
+  REQ list below; not a fix target for this track.
+- **S15 confirmed**: `resolvePrimaryRepoRoot()` does not appear anywhere in
+  `reconcileWorktrees()`, `refreshWorktreeSummaryCache()`, or
+  `checkOutOfBandGitSync()` — those three 60s/300s-tick functions call
+  `process.cwd()` directly (S5's exact shape, not a `resolvePrimaryRepoRoot()`
+  cost problem). REQ-1's cwd normalization removes the vulnerability at its
+  root; no separate caching work is needed.
+
 | # | Site | How it resolves today | Verdict |
 |---|------|----------------------|---------|
 | S1 | `lc start` / `stop` / `restart` (`bin/lc.mjs:1518,1639,1671`) | `resolvePrimaryRepoRoot(projectRoot)` | SAFE (F17 fix) |
