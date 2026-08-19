@@ -470,7 +470,7 @@ function AppContent({ user, logout }) {
         </div>
       </header>
 
-      {viewMode === 'lanes' && <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} onSelectTrack={handleInboxSelect} />}
+      {viewMode === 'lanes' && <WorkersList projectId={selectedProjectId} project={selectedProject} workers={workers} providers={providers} waitingTracks={waitingTracks} onSelectTrack={handleInboxSelect} />}
 
       {/* Conductor context panel */}
       {conductorOpen && selectedProject && (
@@ -485,6 +485,8 @@ function AppContent({ user, logout }) {
         <div className="fixed inset-y-0 right-0 z-40 flex shadow-2xl">
           <WorkflowSettings
             projectId={selectedProject.id}
+            project={selectedProject}
+            workers={workers}
             onClose={() => setWorkflowOpen(false)}
           />
         </div>
@@ -537,7 +539,7 @@ function AppContent({ user, logout }) {
             onNewProject={openNewProject}
           />
         ) : viewMode === 'workers' ? (
-          <WorkersList projectId={selectedProjectId} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
+          <WorkersList projectId={selectedProjectId} project={selectedProject} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
         ) : viewMode === 'worktrees' ? (
@@ -867,7 +869,7 @@ function CloudAppInner() {
             <div className="text-center py-12 text-gray-400">Select a project to view tracks</div>
           )
         ) : (
-          <WorkersList projectId={selectedProjectId} workers={workers} />
+          <WorkersList projectId={selectedProjectId} project={selectedProject} workers={workers} />
         )}
       </div>
 

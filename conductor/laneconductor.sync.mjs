@@ -44,6 +44,7 @@ import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
+import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
@@ -205,7 +206,17 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
   // worker-lock.mjs's own DEFAULT_STALE_MS) so a SIGKILL-recovery test
   // doesn't have to wait out the full production staleness window.
   const staleMsOverride = process.env.LC_WORKER_LOCK_STALE_MS ? parseInt(process.env.LC_WORKER_LOCK_STALE_MS, 10) : undefined;
-  const release = await acquireWorkerLock(lockPath, staleMsOverride ? { staleMs: staleMsOverride } : {});
+  // Track 1117 Bug 4: on a compromised lock (background refresh failed),
+  // de-register from the collector before exiting — same clean shutdown the
+  // SIGTERM/SIGINT handlers use — rather than falling through to the
+  // generic uncaughtException handler's undifferentiated exit.
+  const release = await acquireWorkerLock(lockPath, {
+    ...(staleMsOverride ? { staleMs: staleMsOverride } : {}),
+    onCompromised: (err) => {
+      console.error(`[worker-lock] Lock compromised (${err.message}) — de-registering and exiting cleanly.`);
+      removeWorker().finally(() => process.exit(1));
+    },
+  });
   if (!release) {
     console.error(`[LaneConductor] Another live worker already holds this identity's lock (${lockPath}) — refusing to start a duplicate.`);
     process.exit(1);
@@ -520,12 +531,12 @@ async function refreshModels() {
     const discovered = (await discoverAvailableModels(cli)) || [];
     const presets = PROVIDERS[cli]?.models || [];
 
-    const combined = [...discovered];
-    for (const preset of presets) {
-      if (!combined.some(m => m.id === preset.id)) {
-        combined.push(preset);
-      }
-    }
+    // Track 1117 Bug 3: presets are a FALLBACK for when discovery itself
+    // failed/returned nothing — not a permanent overlay on a successful
+    // result. A successful discovery that omits an id is itself the signal
+    // that model is gone; unconditionally re-adding it back overrode that
+    // signal (see model-discovery-merge.mjs).
+    const combined = mergeDiscoveredWithPresets(discovered, presets);
 
     if (combined.length > 0) {
       newCached[cli] = combined;
@@ -1476,6 +1487,28 @@ function parseWaitingForReply(content) {
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
 }
 
+// Track 1116 REQ-7: per-track model override, same marker convention as
+// **Lane**/**Progress**/**Summary**. Mirrors parseSummaryMarker — null (not
+// deriving a fallback) when the marker is absent or empty, so callers can
+// tell "no override" apart from an explicitly-cleared one.
+function parseModelOverrideMarker(content) {
+  const m = content.match(/\*\*Model\*\*:[ \t]*([^\n]*)/i);
+  if (!m) return null;
+  const value = m[1].trim();
+  return value || null;
+}
+
+// Track 1116 REQ-7 (provider-stays-fixed guard, mirrors stripLanePrimaryCli):
+// a track's index.md was never meant to carry a provider override — there's
+// no marker table entry for one — but if a stray `**Provider**:` marker
+// shows up anyway (hand-edited file, copy-paste from elsewhere), detect and
+// warn rather than silently ignoring it with no trace.
+function parseTrackProviderMarkerForWarning(content) {
+  const m = content.match(/\*\*Provider\*\*:[ \t]*([^\n]*)/i);
+  if (!m) return null;
+  return m[1].trim() || null;
+}
+
 function parseTrackType(content) {
   const match = content.match(/\*\*Type\*\*:\s*([^\n]+)/i);
   if (!match) return 'dev';
@@ -2101,6 +2134,8 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       kpi_check_after: kpiCheckAfter && !isNaN(kpiCheckAfter) ? kpiCheckAfter.toISOString() : null,
       kpi_scheduled_at: kpiScheduledAt && !isNaN(kpiScheduledAt) ? kpiScheduledAt.toISOString() : null,
       ...kpiSpec,
+      // Track 1116 REQ-7: per-track model override marker
+      model_override: parseModelOverrideMarker(stateContent),
     };
     if (laneActionStatus) payload.lane_action_status = laneActionStatus;
     else if (laneActionStatusFromFile) payload.lane_action_status = laneActionStatusFromFile;
@@ -4408,10 +4443,30 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
   }
   const proj = getProject();
+  // Track 1116 REQ-7: a track's own **Model** marker beats the lane's
+  // primary_model. Read directly off the track's index.md (not the DB) so
+  // this works identically in local-fs mode, same reasoning buildCliArgs
+  // already uses for everything else here — the worker has no DB dependency
+  // by design. A stray **Provider** marker is detected and warned about,
+  // never honored (provider stays project-fixed — same rule as lanes).
+  let trackModel = null;
+  if (!process.env.LC_MOCK_CLI) {
+    const tracksDir = 'conductor/tracks';
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+    const trackIndexContent = trackDirName ? readIfExists(join(tracksDir, trackDirName, 'index.md')) : null;
+    if (trackIndexContent) {
+      trackModel = parseModelOverrideMarker(trackIndexContent);
+      const strayProvider = parseTrackProviderMarkerForWarning(trackIndexContent);
+      if (strayProvider) {
+        logger.warn({ trackNumber, strayProvider }, '[config] track index.md has a **Provider** marker — provider must stay fixed project-wide (REQ-7). Ignoring it.');
+      }
+    }
+  }
   // Track 1111: cli stays project-wide fixed (REQ-3); only model varies
   // per lane (REQ-2's precedence — lane's primary_model wins over any
-  // manual override in proj.primary.model).
-  const { cli: primary, model: primaryModel } = resolveLaneCliAndModel({ laneConfig, proj });
+  // manual override in proj.primary.model), now with Track 1116's
+  // track-level tier taking priority over both.
+  const { cli: primary, model: primaryModel } = resolveLaneCliAndModel({ laneConfig, proj, track: { model: trackModel } });
   const secondary = proj.secondary?.cli;
   const secondaryModel = proj.secondary?.model;
 
@@ -5185,7 +5240,7 @@ async function reconcileOrphanedDispatches() {
     const wtIndexContent = readFileSync(wtIndexPath, 'utf8');
     const laneStatus = wtIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
     const wtLane = wtIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
-    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action });
+    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action, workflowConfig });
     if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
 
     console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
@@ -5210,6 +5265,23 @@ async function reconcileOrphanedDispatches() {
       }
     } else {
       console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}"; leaving the primary's own state untouched`);
+      // Track 1117 Bug 2 (REQ-4): a mismatch that ISN'T a recognized
+      // workflow.json transition is a genuine anomaly, not routine — surface
+      // it to a human rather than letting it sit as a console-only warning.
+      if (classification.flagForHuman) {
+        try {
+          const tracksDir = 'conductor/tracks';
+          const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+          if (trackDirName) {
+            appendFileSync(
+              join(tracksDir, trackDirName, 'conversation.md'),
+              `\n> **system**: ⚠️ Orphan-reconcile skipped artifact copy for this dispatch — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}" and isn't a recognized workflow.json transition. Please review the worktree manually.\n`,
+            );
+          }
+        } catch (err) {
+          console.warn(`[orphan-reconcile] Failed to post mismatch flag to conversation.md: ${err.message}`);
+        }
+      }
     }
 
     await patch(url, token, `/worker-dispatch/${entry.id}`, {
@@ -6124,6 +6196,33 @@ async function reconcileActiveDispatch() {
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     const status = statusMatch?.[1]?.trim();
     if (status === 'running') continue; // still going
+
+    // Track 1102 F12: the exit handler's own completion PATCH (and
+    // copy-back's own DB sync right after it) can both fail — a
+    // transient network/DB outage covering the whole exit handler
+    // leaves tracks.lane_action_status frozen at 'running' forever,
+    // since nothing else ever retries pushing this file's now-terminal
+    // state to the DB (confirmed live:
+    // conductor/tests/track-1102-f12-stuck-running.test.mjs — a
+    // narrower version that only broke the direct completion PATCH did
+    // NOT reproduce a stuck track, since copy-back's independent
+    // syncTrack() call self-healed it; only a full outage covering both
+    // does). Re-push the track here too, and keep retrying (don't
+    // delete from activeDispatch) until it actually lands, so a
+    // transient outage self-heals on a later 5s tick instead of staying
+    // stuck forever with no automatic recovery.
+    //
+    // syncTrack() catches its own postToCollectors() failure internally
+    // and returns the boolean `collectorSynced` rather than rejecting —
+    // must check the RETURNED value, not just whether the call resolved
+    // (a naive `.then(() => true)` here would treat every call as
+    // successful regardless of what actually happened, which is exactly
+    // what let this fix's own first draft slip through unnoticed).
+    const trackSynced = await syncTrack(indexPath).catch(err => {
+      console.warn(`[dispatch] Failed to re-sync track ${trackNumber} to DB (will retry): ${err.message}`);
+      return false;
+    });
+    if (!trackSynced) continue; // retry next tick — leave activeDispatch entry in place
 
     // resolveTransition() means the value here isn't always a clean
     // success/failure literal: a lane with a configured on_success/

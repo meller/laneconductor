@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 95%
-**Phase**: Phase 9 queued — merge/PR action buttons directly on done-lane Kanban cards (Phases 1-8 complete and tested)
+**Progress**: 98%
+**Phase**: Phase 11 queued — subprocess-level E2E for the real worker-side PR flow, TDD (Phases 1-10 complete and tested)
 **Type**: dev
 **Merge Mode**: direct
 **Summary**: Per-track merge_mode (pr|direct, default pr): completed tracks open a GitHub PR for human review instead of auto-merging. Worktrees panel is the approval station; done-lane Kanban cards show an…
@@ -23,11 +23,12 @@ Per-track `**Merge Mode**` marker (FS) + `merge_mode` column (DB), unspecified �
 - [ ] Phase 6: Migration of existing tracks + E2E — SKILL.md docs done; mass-stamping other in-flight tracks deferred, see plan.md for why
 - [x] Phase 7: Unmerged-branch status on done-lane Kanban cards (direct human feedback)
 - [x] Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge — 5/5 tests passing against the real running app, see plan.md for what was covered plus two things found and fixed along the way (a missing `track-card` testid, and a pre-existing flake in `track-1112-worktree-panel.spec.js`, unrelated to this track, left as-is)
-- [ ] Phase 9: Merge/PR action buttons directly on done-lane Kanban cards (direct human feedback on Phase 7 — status and the action for it should be in the same place) — queued, see plan.md for the exact task list
+- [x] Phase 9: Merge/PR action buttons directly on done-lane Kanban cards (direct human feedback on Phase 7 — status and the action for it should be in the same place) — done, 9/9 Playwright tests passing (4 new), see plan.md for a real pre-existing bug found and fixed along the way (`track.project_id` was never populated by `GET /tracks`, silently breaking every card-level dispatch until fixed)
+- [x] Phase 10: Branch name (or "main") on every Kanban card (direct human feedback — a branch only exists from `implement` onward, and not always even then, depending on track 1115's future workspace-mode config) — done, 10/10 Playwright tests passing (1 new); no new bugs found, `worktree_branch` reused Phase 7's existing enrichment convention cleanly
+- [ ] Phase 11: Subprocess-level E2E for the real worker-side PR flow, TDD (direct human feedback — the wiring is implemented and unit-tested, but never exercised as a real running process) — queued, see plan.md for the exact TDD task sequence
 
 ## Human review needed before this merges
 1. **Phase 2's lane-state deviation** — `pr_status` carries approval state instead of a new `done:pr-open` lane value. Confirm this is acceptable, or ask for the literal spec.md behavior.
 2. **Rollout**: default flips to `pr` for every track without an explicit marker, including tracks already in flight in this repo. Decide which in-flight tracks (if any) should be stamped `direct` before this ships.
-3. **Still no subprocess-level test** of the real `openTrackPrOnDone`/`reconcilePrTracks` worker-side flow (see plan.md Phase 6 Task 3) — Phase 8's Playwright spec closes the UI-layer gap only (badges, dispatch buttons), by design; that worker-process gap is unchanged and remains open.
-4. **Pre-existing test flake found, not fixed**: `conductor/tests/playwright/track-1112-worktree-panel.spec.js` (untouched by this track) is flaky whenever this repo's own live dev environment has multiple real heartbeat workers running for project 1 concurrently — its worker-selection query races a real worker's own heartbeat cycle. Out of this track's scope; flagged for a separate fix.
-5. **Merge to main is queued behind Phase 9** — per your instruction, merging happens once the card-level actions land, as one combined change covering all 9 phases.
+3. **Pre-existing test flake found, not fixed**: `conductor/tests/playwright/track-1112-worktree-panel.spec.js` (untouched by this track) is flaky whenever this repo's own live dev environment has multiple real heartbeat workers running for project 1 concurrently — its worker-selection query races a real worker's own heartbeat cycle. Out of this track's scope; flagged for a separate fix.
+4. **Merge to main is queued behind Phase 11** — same pattern as before: merge happens once the subprocess E2E test lands, as one combined change covering all 11 phases.
