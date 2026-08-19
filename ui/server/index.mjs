@@ -17,6 +17,7 @@ import { getBuilds, getBuildById, createBuildArtifact } from './build-manager.mj
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 import { logger } from './logger.mjs';
 import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
+import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -4361,6 +4362,25 @@ if (process.env.NODE_ENV !== 'test') {
     // console.log('[LaneConductor API] Auth: configured via auth module');
     // ensureGitGlobalId() is removed or needs an explicit project DB poll if needed, better skip for now since it's collector specific
     console.log(`[LaneConductor API] http://localhost:${PORT}/api/health`);
+
+    // Track 10019 (REQ-6): one-line startup provenance — this server has
+    // no cwd-derived state of its own to correct (S13: per-project ops use
+    // `repo_path` from the DB, not process.cwd()), but it inherits
+    // whatever cwd its launcher passed (the Makefile's UI_DIR / lc api
+    // start's uiDir — both now resolve to the primary per REQ-2/REQ-4).
+    // Logged so a future incident's first question ("which checkout is
+    // this actually serving?") has an answer without /proc archaeology.
+    try {
+      const servingRoot = process.cwd();
+      const isPrimary = resolvePrimaryRepoRoot(servingRoot) === servingRoot;
+      const provenanceMsg = isPrimary
+        ? `[LaneConductor API] Serving from ${servingRoot} (primary checkout).`
+        : `[LaneConductor API] ⚠️  Serving from ${servingRoot} — this is NOT the primary checkout.`;
+      console.log(provenanceMsg);
+      logger.info({ servingRoot, isPrimary }, provenanceMsg);
+    } catch {
+      // Not inside a git repo (e.g. a stripped deployment) — nothing to report.
+    }
   });
 }
 

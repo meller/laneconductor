@@ -36,7 +36,17 @@ export function mergeIndexMarkers(existingContent, artifactContent) {
 }
 
 const MERGE_ONLY_ARTIFACTS = new Set(['index.md']);
-const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'conversation.md', 'quality-gate.md'];
+// Track 10019 (REQ-10 / D3): conversation.md is deliberately NOT in this
+// list. It has two independent writers — the UI/human posts comments
+// straight into the PRIMARY's copy, while the agent appends its own turns
+// to the WORKTREE's copy — so a blind copy in either direction eats
+// whichever side wrote more recently. This was a live data-loss bug: a
+// human comment posted mid-run was silently overwritten by the worktree's
+// (comment-less) copy at run end, and the shrink guard never caught it
+// (one lost line stays well above its size thresholds). The existing
+// `.conv-cursor` machinery (see laneconductor.sync.mjs's conversation
+// sync) is this file's sole owner; nothing in this module may touch it.
+const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'quality-gate.md'];
 
 // Copies a worktree's track-doc artifacts back onto the primary checkout's
 // copy of the same track — index.md via mergeIndexMarkers() (status markers
@@ -56,11 +66,24 @@ const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'conversation.md
 // laneconductor.sync.mjs and depends on that module's own track-metadata
 // state (ambiguous-folder quarantining), which this module has no business
 // knowing about.
-export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder }) {
+//
+// `skipUnchanged` (track 10019 / REQ-9, default false — existing
+// exit-handler and orphan-reconcile callers keep their exact prior
+// behavior: always attempt every artifact that exists). The periodic
+// mid-run sync pass (syncWorktreeDocsToprimary, below) passes `true` so a
+// quiet repo with N live worktrees costs zero reads/writes for files
+// nobody touched since the last pass — mtime comparison, source strictly
+// newer than dest to copy.
+//
+// `skipped` (track 10019 / REQ-11) records every artifact the shrink guard
+// declined, with enough detail (file, reason, both sizes) for a caller to
+// log it and mark the track's docs as possibly stale — see Phase 5's
+// syncWorktreeDocsToprimary usage.
+export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder, skipUnchanged = false }) {
   const mainTracksDir = join(primaryRoot, 'conductor', 'tracks');
   const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
   const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
-  if (!wtTrackDir) return { copied: [], destDir: null };
+  if (!wtTrackDir) return { copied: [], destDir: null, skipped: [] };
 
   mkdirSync(mainTracksDir, { recursive: true });
   let mainTrackDir = existsSync(mainTracksDir) ? resolveTrackFolder(mainTracksDir, trackNumber) : null;
@@ -71,11 +94,18 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
   }
   const destDir = join(mainTracksDir, mainTrackDir);
   const copied = [];
+  const skipped = [];
 
   for (const file of ARTIFACTS) {
     const src = join(wtTracksDir, wtTrackDir, file);
     const dest = join(destDir, file);
     if (!existsSync(src)) continue;
+
+    if (skipUnchanged && existsSync(dest)) {
+      const srcMtime = statSync(src).mtimeMs;
+      const destMtime = statSync(dest).mtimeMs;
+      if (srcMtime <= destMtime) continue; // untouched since the last pass — no read, no write
+    }
 
     if (MERGE_ONLY_ARTIFACTS.has(file) && existsSync(dest)) {
       const artifact = readFileSync(src, 'utf8');
@@ -87,18 +117,24 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
       // Suspicious if < 10 lines OR < 50% of existing OR < 500 bytes for markdown files
       const isSuspicious = (lineCount < 10) || (artifactStats.size < existingStats.size * 0.5 && existingStats.size > 100);
 
-      if (isSuspicious && !isSuccess) continue;
+      if (isSuspicious && !isSuccess) {
+        skipped.push({ file, reason: 'suspicious-shrink', incomingSize: artifactStats.size, existingSize: existingStats.size });
+        continue;
+      }
       writeFileSync(dest, merged, 'utf8');
     } else {
       const srcStats = statSync(src);
       const destStats = existsSync(dest) ? statSync(dest) : { size: 0 };
       const isSuspicious = srcStats.size < destStats.size * 0.5 && destStats.size > 200;
 
-      if (isSuspicious && !isSuccess) continue;
+      if (isSuspicious && !isSuccess) {
+        skipped.push({ file, reason: 'suspicious-shrink', incomingSize: srcStats.size, existingSize: destStats.size });
+        continue;
+      }
       copyFileSync(src, dest);
     }
     copied.push(file);
   }
 
-  return { copied, destDir };
+  return { copied, destDir, skipped };
 }
