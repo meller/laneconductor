@@ -161,3 +161,11 @@
 **Impact**: The last standing gap from Phase 6 is closed with a real, passing, 3x-verified subprocess test — not a unit-level substitute. Regression check: 32/32 (`merge-mode`+`pr-flow` unit suites), 23/23 (`worktree-merge`+`worktree-audit`), `local-api-e2e.test.mjs` unchanged at 5/6 (same pre-existing, unrelated flake documented since the very first pass). `node --check` clean on every touched file.
 
 **Non-goals held**: did not re-cover every `pr_status` branch (checks-failed/conflicted/closed) — `resolvePrStatus`'s unit tests already do that exhaustively; this test's job was proving the real wiring end to end at least once, which it now does.
+
+## ⚠️ Gaps — Review (2026-08-19)
+
+**Not a defect in this track's own implementation** — all 11 phases hold up under direct re-verification (unit tests, the Phase 11 subprocess E2E run 3x, `vite build`, frontend vitest, and direct code reading of every claimed fix all confirmed as described).
+
+**Blocking**: this branch is 73 commits behind `main` (diverged 2026-08-18, main now at 2026-08-19), with 9 of those commits touching `ui/server/index.mjs` and 14 touching `conductor/laneconductor.sync.mjs` — the two files this track modified most heavily. No textual merge conflict today, but none of this track's extensive test suite has ever run against the current `main` (tracks 1102 F12/F17/F18/F21, 1115, 1116, 1117, 10019 all landed on `main` after this branch forked and are absent here). Per-cycle worktrees don't auto-resync with an advancing main mid-flight, so this needs to happen explicitly.
+
+**Next implement pass**: merge/rebase current `main` into this branch, check the overlapping commits in `laneconductor.sync.mjs`/`index.mjs` for real semantic interaction (not just that git's auto-merge is clean), then re-run: this track's own test suites (`track-10018-merge-mode`, `track-10018-pr-flow`, `track-10018-pr-flow-e2e`, `track-1112-worktree-audit`, `track-1112-worktree-merge` + `track-10015-refresh-worktrees`, `track-1114-worktrees-panel-scope`), `local-api-e2e.test.mjs`, `cd ui && npx vite build`, and `cd ui && npx vitest run src/`. Return to review once green.
