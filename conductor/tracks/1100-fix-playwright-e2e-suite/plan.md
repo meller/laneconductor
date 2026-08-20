@@ -336,3 +336,76 @@ Fixed test-first, against a deliberately dirty starting state:
 The tier now recovers from dirty state on its own, which is the property
 that was missing. Gap 2 (slow tier) and Gap 3 (`make start-all` not named in
 `quality-gate.md`) remain open.
+
+## ✅ Gap 3 resolved — 2026-08-20 (implement pass 3)
+
+`quality-gate.md`'s E2E section now names the exact command
+(`make start-all`, plus `make api-start`/`make ui-start` for one service and
+a `lc worker status` / `curl` check to avoid starting a second copy) instead
+of just asserting the UI and API must be "up".
+
+## Gap 2 — investigated further, still open, and now understood to be two separable problems
+
+**This machine right now**: `ps aux` shows two ambient `--sync-only`
+workers (`worker-number 2`, `worker-number 3`) plus live Vite/API instances
+for several other worktrees (10018, and others) — i.e. genuinely busy,
+multiple tracks in flight concurrently on shared infrastructure. That's not
+a hypothetical risk, it's the observed state right now, which is exactly why
+this needs a human call rather than a judgment call made unilaterally
+inside an autonomous `implement` run.
+
+Read all three slow specs closely (not just re-run them) to find what
+`--only-tracks` (track 1109's claim-time allowlist, verified in
+`conductor/laneconductor.sync.mjs` — genuinely enforced at claim, not just
+documentation) would need to be scoped safely:
+
+| Spec | How it gets a track number | Safely scopable with `--only-tracks` today? |
+|---|---|---|
+| `brainstorm-concurrency-v2.spec.js` | Hardcoded `991`/`992`, written straight to `conductor/tracks/` on disk | **Yes** — numbers are known before the worker starts |
+| `brainstorm-concurrency.spec.js` (v1) | Clicks "New Track" in the live UI; number comes back from the POST response, so it's whatever the app's next-available counter assigns | **No** — can't pass `--only-tracks` before the number exists |
+| `new-track-plan.spec.js` | Same UI-driven creation as v1 | **No** — same problem |
+
+So Gap 2 is actually two different things, not one:
+
+1. **v2 could be run safely today** (`lc worker start --sync-and-work
+   --only-tracks 991,992 --once`) — the scoping mechanism genuinely can't
+   touch tracks 10003–10007 or anything else queued. But even this "safe"
+   path is not side-effect-free: it spawns a real Claude Code CLI planning
+   run against a fake test track, in the same live `conductor/tracks/`
+   directory the actual dashboard renders, and costs real API time. That's
+   a shared/visible/costed action on the user's live system on their
+   behalf — not something to trigger from an unattended `implement` pass
+   without asking, even though it's provably scoped.
+2. **v1 and `new-track-plan` can't be scoped at all as currently written.**
+   The fix would be real — teach them to read back the created track number
+   and spawn their own throwaway `--only-tracks <n> --once` worker rather
+   than depending on an ambient `--sync-and-work` worker that has to be
+   started externally. That's a legitimate design (turns "needs a
+   pre-existing sync+poll worker" into "each spec brings its own scoped
+   one," which would also make the slow tier runnable in CI). It's also a
+   nontrivial rewrite of test control flow that's worth scoping and
+   reviewing on its own, not something to improvise inside this pass.
+
+**Not doing either without asking first** — both because of the review's
+explicit "needs a human decision" and because independently I found this
+touches real running Claude sessions and a live shared dashboard, which is
+exactly the class of action this project's own operating guidance says to
+confirm before taking. Recommendation, for whoever makes this call:
+(a) approve running v2's already-scoped path as a one-off to at least prove
+the worker/spec mechanics work at all, and/or (b) approve the v1/
+`new-track-plan` self-scoping rewrite as its own reviewed change. Left open
+either way — see conversation.md.
+
+## track-1033-sharing.spec.js (6 skipped tests) — same shape of blocker, traced further
+
+Enabling this tier requires the **live** `ui/server/index.mjs` — the same
+process serving `:8091` for every other in-flight track on this machine
+right now — to be restarted with `PW_TEST_MODE=true`
+(`ui/server/auth.mjs:16`: `TEST_MODE = process.env.PW_TEST_MODE === 'true'`).
+That flag makes the shared server accept mock bearer tokens; it is an
+auth-bypass mode on infrastructure other people's work currently depends
+on, for the duration of the test run. Not something to toggle unilaterally
+on a shared instance. The clean fix is a dedicated `PW_TEST_MODE` server on
+its own port for this one test file, not flipping the shared one — but
+that's new infrastructure, and belongs in its own track rather than a
+quiet addition here. Recorded, not built.
