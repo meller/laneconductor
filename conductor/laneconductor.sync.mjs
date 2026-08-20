@@ -6183,6 +6183,12 @@ async function checkDispatchInbox() {
       return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
     };
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
+    // Mirrors the failure branch's own DB write below (originalLaneActionStatus) —
+    // without this, lane_action_status stays 'queue' in the DB (and thus the UI)
+    // for the whole run, even though the file and the actual CLI process both
+    // agree the track is running.
+    await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: 'running' })
+      .catch(e => logger.warn({ dispatchId: entry.id, trackNumber, err: e.message }, '[dispatch] Failed to mark lane_action_status running'));
 
     const proj = getProject();
     try {
