@@ -1,23 +1,19 @@
 
 
-## Track Creation Requests
-
-
 ## Completed Queue
 
-### Track 1083: Showcase Migrated Lab Projects on LaneConductor Landing Page
+### Track 10020: Bug fixes round 2
 **Status**: processed
 **Type**: track-create
-**Created**: 2026-08-07T10:51:33.000Z
-**Title**: Showcase Migrated Lab Projects on LaneConductor Landing Page
-**Description**: See spec.md in conductor/tracks/1083-showcase-migrated-lab-projects-on-landing-page/
-**Processed**: 2026-08-07T10:51:37.821Z
+**Created**: 2026-08-20T10:30:23.819Z
+**Title**: Bug fixes round 2
+**Description**: Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
 
+1. reconcileOrphanedDispatches() (conductor/services/orphaned-dispatch.mjs, wired via conductor/laneconductor.sync.mjs:1034) only runs ONCE per sync-worker process, gated by hasReconciledOrphanedDispatches, right after that worker registers at startup. If a worker restarts WHILE a dispatched lane action is still genuinely running (worktree index.md still says Lane Status: running), the one-time check correctly finds nothing to reconcile and never runs again for that process. If the CLI process then finishes minutes later, nothing is left to notice: spawnCli's own proc.on(exit) handler lived in the memory of the now-replaced worker process, so it never fires either. The dispatch, the DB lane_action_status, and primary's index.md all stay frozen at their pre-run values indefinitely, even though the worktree's own index.md correctly shows the finished done/success state and is fully committed.
 
-### Track 10004: E2E Test 1786033297689
-**Status**: processed
-**Type**: track-create
-**Created**: 2026-08-06T16:21:39.459Z
-**Title**: E2E Test 1786033297689
-**Description**: Automated Playwright e2e — verifies new track flows to worker and back
-**Processed**: 2026-08-06T16:21:43.707Z
+   Reproduced live: track 10018's quality-gate dispatch (worker_dispatch id 1588, worker_id 998) finished successfully (worktree index.md: Lane: done, Lane Status: success, committed) but sat stuck at quality-gate:queue in DB/primary for 5+ minutes with zero live process tracking it, because worker 998's process had been replaced sometime between claiming the dispatch and the CLI actually exiting.
+
+   Fix direction: make reconcileOrphanedDispatches() (or an equivalent check) run periodically (e.g. alongside the existing 5s reconcileActiveDispatch tick) instead of only once at startup, so it can catch a dispatch that becomes orphaned mid-run, not just ones already orphaned when a worker boots.
+
+2. (Already fixed directly on main, included here for reference/context only — no further action needed) checkDispatchInbox()'s lane-action dispatch branch wrote Lane Status: running to the track's local index.md when spawning a dispatched CLI, but never PATCHed the DB's lane_action_status to match (only the failure path patched DB, reverting it). Result: the UI showed a dispatched track as queued for its entire run. Fixed in commit 0abfcf8 by adding the missing PATCH /track/:num/action lane_action_status=running call, mirroring the failure branch and how claimQueuedTracks() already does this for the other auto-launch path.
+**Processed**: 2026-08-20T10:30:24.529Z
