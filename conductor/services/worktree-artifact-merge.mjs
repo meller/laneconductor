@@ -12,10 +12,24 @@ import { join } from 'node:path';
 // the only thing that ever reaches the primary checkout for that track, so
 // excluding them left the primary checkout frozen at its pre-run lane for
 // the track's entire time in that worktree.
-export function mergeIndexMarkers(existingContent, artifactContent) {
+//
+// `skipStatusMarkers` (Track 1102 F21, 2026-08-20): a reused per-cycle
+// worktree's Lane/Lane Status stays at whatever the PREVIOUS cycle's exit
+// handler last wrote until THIS cycle's own exit handler runs — nothing
+// updates it mid-run. A caller merging mid-run (the periodic doc-sync pass,
+// as opposed to the exit handler or a restart-orphan reconciliation, both of
+// which only ever run once a run has genuinely ended) must not let that
+// stale value overwrite the dispatcher's freshly-written "running" marker
+// on primary — confirmed live on track 10019's review and quality-gate
+// dispatches, both closed out by reconcileActiveDispatch() reading a
+// clobbered "success" while the real agent process was still alive. Every
+// other marker (Progress/Phase/Summary/Waiting for reply) has no such
+// hazard — nothing treats those as a completion signal — so they still flow
+// through for mid-run freshness, which is the whole point of that pass.
+export function mergeIndexMarkers(existingContent, artifactContent, { skipStatusMarkers = false } = {}) {
   const markerPatterns = [
-    { re: /\*\*Lane\*\*:\s*[^\n]+/i },
-    { re: /\*\*Lane Status\*\*:\s*[^\n]+/i },
+    { re: /\*\*Lane\*\*:\s*[^\n]+/i, isStatusMarker: true },
+    { re: /\*\*Lane Status\*\*:\s*[^\n]+/i, isStatusMarker: true },
     { re: /\*\*Progress\*\*:\s*[^\n]+/i },
     { re: /\*\*Phase\*\*:\s*[^\n]+/i },
     { re: /\*\*Summary\*\*:\s*[^\n]+/i },
@@ -23,7 +37,8 @@ export function mergeIndexMarkers(existingContent, artifactContent) {
   ];
 
   let merged = existingContent;
-  for (const { re } of markerPatterns) {
+  for (const { re, isStatusMarker } of markerPatterns) {
+    if (isStatusMarker && skipStatusMarkers) continue;
     const m = artifactContent.match(re);
     if (!m) continue;
     if (re.test(merged)) {
@@ -79,7 +94,7 @@ const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'quality-gate.md
 // declined, with enough detail (file, reason, both sizes) for a caller to
 // log it and mark the track's docs as possibly stale — see Phase 5's
 // syncWorktreeDocsToprimary usage.
-export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder, skipUnchanged = false }) {
+export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder, skipUnchanged = false, skipStatusMarkers = false }) {
   const mainTracksDir = join(primaryRoot, 'conductor', 'tracks');
   const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
   const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
@@ -109,7 +124,7 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
 
     if (MERGE_ONLY_ARTIFACTS.has(file) && existsSync(dest)) {
       const artifact = readFileSync(src, 'utf8');
-      const merged = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact);
+      const merged = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact, { skipStatusMarkers });
 
       const artifactStats = statSync(src);
       const existingStats = statSync(dest);

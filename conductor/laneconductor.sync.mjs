@@ -3756,9 +3756,17 @@ async function syncWorktreeDocsToPrimary() {
   }
 
   for (const { trackNumber, worktreePath } of worktrees) {
+    // Track 1102 F21: skipStatusMarkers — a reused per-cycle worktree's
+    // Lane/Lane Status is frozen at the PREVIOUS cycle's terminal value
+    // until this cycle's own exit handler runs; letting it flow through
+    // here clobbers the "running" marker the dispatcher just wrote onto
+    // primary, and reconcileActiveDispatch()'s next tick then closes the
+    // dispatch out while the real child process is still alive (confirmed
+    // live on track 10019's review and quality-gate dispatches). Every
+    // other marker this copies is safe to keep live-syncing.
     const { copied, skipped } = copyWorktreeArtifactsToPrimary({
       worktreePath, trackNumber, isSuccess: false,
-      primaryRoot: process.cwd(), resolveTrackFolder, skipUnchanged: true,
+      primaryRoot: process.cwd(), resolveTrackFolder, skipUnchanged: true, skipStatusMarkers: true,
     });
 
     if (copied.length) {
@@ -3802,9 +3810,13 @@ async function syncWorktreeDocsToPrimary() {
     for (const file of copied) staleDocSignal.delete(`${trackNumber}:${file}`);
   }
 }
+// LC_DOC_SYNC_INTERVAL_MS: test-only override (default stays 60s) — same
+// reasoning as LC_DISPATCH_POLL_MS above: a test proving something survives
+// (or is clobbered by) several doc-sync ticks shouldn't have to wait out
+// real minutes to observe it.
 setInterval(() => {
   syncWorktreeDocsToPrimary().catch(err => console.error('[doc-sync error]:', err.message));
-}, 60000);
+}, Number(process.env.LC_DOC_SYNC_INTERVAL_MS) || 60000);
 
 // Track 1112 Phase 5 (REQ-8...REQ-11): a third-party `git push` straight to
 // `origin/<main>` — bypassing LaneConductor entirely — was previously
