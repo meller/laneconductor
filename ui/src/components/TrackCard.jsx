@@ -15,12 +15,18 @@ const LANE_STYLES = {
 
 const NEXT_LANE = {
   plan: 'implement',
-  backlog: 'implement',
+  // Track 1102 F19 (hit live on track 10019): this was 'implement',
+  // making the ONLY one-click path out of backlog skip the plan lane
+  // entirely — one click dispatched a real implement agent against a
+  // track with no plan.md/spec.md/test.md at all. Backlog's next stop is
+  // planning; implement is reachable from plan once the plan succeeds.
+  backlog: 'plan',
   implement: 'review',
   review: 'done',
 };
 
 const NEXT_LANE_LABEL = {
+  plan: 'Plan',
   implement: 'Start',
   review: 'Review lane',
   'quality-gate': 'Quality Gate',

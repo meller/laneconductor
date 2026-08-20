@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { PROVIDERS, PROVIDER_IDS } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 // Re-exported under their historical names so existing imports (e.g.
 // ProvisionWorkerModal.jsx's `import { MODEL_PRESETS, CLI_ENGINES } from
@@ -15,14 +16,19 @@ export const CLI_ENGINES = PROVIDER_IDS.map(id => ({
   id, name: PROVIDERS[id].label, icon: PROVIDERS[id].icon,
 }));
 
-export function WorkerModelModal({ worker, onClose, onUpdated }) {
+export function WorkerModelModal({ worker, project, workers, onClose, onUpdated }) {
   const { apiFetch } = useApi();
-  const [selectedCli, setSelectedCli] = useState(worker.cli || 'claude');
+  // REQ-3b: 'claude' (and MODEL_PRESETS.claude[0]) were previously hardcoded
+  // as the "worker hasn't reported cli/model yet" fallback — resolve from
+  // the project's actual configured default (live discovery / registry
+  // recommendation) instead, same as every other former hardcoded-claude site.
+  const projectDefault = getDefaultProviderModel(project, workers);
+  const [selectedCli, setSelectedCli] = useState(worker.cli || projectDefault.cli);
   // Falls back to the first preset (the current recommended model), not a
   // hardcoded id — a pinned id silently rots to an old model as presets
   // are updated (this was stuck on claude-3-5-sonnet).
   const [selectedModel, setSelectedModel] = useState(
-    worker.model || (MODEL_PRESETS[worker.cli || 'claude'] || MODEL_PRESETS.claude)[0].id
+    worker.model || (MODEL_PRESETS[worker.cli || projectDefault.cli] || MODEL_PRESETS.claude)[0].id
   );
   const [customModel, setCustomModel] = useState('');
   const [isCustom, setIsCustom] = useState(false);
