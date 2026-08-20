@@ -95,6 +95,9 @@ async function setupProject(collectorPort, mode = 'local-api') {
   }, null, 2));
 }
 
+// Track 10017: auto_run defaults to true — this suite tests local/remote-api
+// sync behavior, not the auto-run gate itself (which has its own dedicated
+// coverage in local-fs-e2e.test.mjs and track-10017-auto-run.test.mjs).
 function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
   const dir = join(tracksDir, `${num}-test-track-${num}`);
   mkdirSync(dir, { recursive: true });
@@ -110,6 +113,7 @@ function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
     '',
     '## Solution',
     'Test solution.',
+    '**Auto Run**: yes',
   ].join('\n'));
 }
 
