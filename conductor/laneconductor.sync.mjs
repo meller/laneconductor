@@ -1349,6 +1349,11 @@ function parseWaitingForReply(content) {
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
 }
 
+function parseAutoRun(content) {
+  const match = content.match(/\*\*Auto Run\*\*:\s*([^\n]+)/i);
+  return match ? match[1].trim().toLowerCase() === 'yes' : false;
+}
+
 function parseTrackType(content) {
   const match = content.match(/\*\*Type\*\*:\s*([^\n]+)/i);
   if (!match) return 'dev';
@@ -1925,6 +1930,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     let laneStatus = parseStatus(stateContent, qualityGateEnabled);
     let laneActionStatusFromFile = parseLaneStatus(stateContent);
     let waitingForReply = parseWaitingForReply(stateContent);
+    const autoRun = parseAutoRun(stateContent);
 
     // If index.md exists but has no status yet, fallback to EXISTING DB state
     // rather than guessing from content which might contain "Implementation" etc.
@@ -1964,6 +1970,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       progress_percent: progress, current_phase: currentPhase,
       content_summary: summary, phase_step: phaseStep,
       waiting_for_reply: waitingForReply,
+      auto_run: autoRun,
       index_content: indexContent, plan_content: planContent, spec_content: specContent, test_content: testContent,
       log_content: logContent,
       // KPI fields
@@ -4397,6 +4404,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const track_number = trackNumMatch[1];
 
     const waitingForReply = parseWaitingForReply(content);
+    const autoRun = parseAutoRun(content);
 
     // ── Supervised implement: "done" reply transitions to quality-gate with scheduling ──
     if (waitingForReply && lane_status === 'implement') {
@@ -4469,7 +4477,11 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // same predicate, but it NARROWS ONLY and is NOT bypassed for
     // waitingForReply — see claim-scope.mjs for why that asymmetry is
     // deliberate.
-    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply })) continue;
+    //
+    // Track 10017: a track's own `**Auto Run**` marker (default false) is a
+    // second, independent gate in the same predicate — a queued track is not
+    // auto-picked unless it opts in, bypassed only for waitingForReply.
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
 
     // Passive lanes should not trigger auto-automation actions
     if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;

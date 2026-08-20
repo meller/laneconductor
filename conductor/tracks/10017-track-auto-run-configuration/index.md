@@ -26,5 +26,5 @@ the worker's own decision loop.
 - [ ] Phase 3: Enforcement — claim-scope gate in auto-launch
 - [ ] Phase 4: API surface — expose + toggle `auto_run`, DB→FS sync-back
 - [ ] Phase 5: UI toggle + SKILL.md docs
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running

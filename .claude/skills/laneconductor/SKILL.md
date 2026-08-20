@@ -114,7 +114,17 @@ make install-cli
 - `lc worker start [--sync-and-work] [--only-tracks <n,n>] [--once]`: Start the
   heartbeat worker in the background. `--only-tracks` restricts what it may
   claim — it narrows only, and can never widen a server-side permission
-  decision; `--once` exits when that scoped work is finished.
+  decision; `--once` exits when that scoped work is finished. A second,
+  independent gate sits alongside `--only-tracks` and the assignee gate: a
+  track's own `**Auto Run**` marker (default no — see the marker table
+  above) must also be `yes` before `autoLaunchLocalFs`'s auto-launch loop
+  will pick it up from the queue. `--only-tracks` naming a track does NOT
+  bypass `auto_run: false` — it can only narrow further, never force a run;
+  use `lc worker run <track>` for that. Like the assignee gate, this is
+  bypassed for a track that's mid-conversation (`waiting_for_reply: true`),
+  and never applies to `lc worker run <track>` or explicit dispatch
+  (`worker_dispatch`), which are direct human/manager instructions, not
+  auto-picking from the open queue. (Track 10017)
 - `lc worker stop`: Stop the background heartbeat worker.
 - `lc worker restart`: Restart the background heartbeat worker.
 - `lc worker status`: Check the health and PID of the local worker.
@@ -1106,6 +1116,7 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Phase**: [text]` | `current_phase` | Names the current phase being worked on. |
 | `**Summary**: [text]` | `content_summary` | A one-line summary of the current work/problem. |
 | `**Waiting for reply**: [yes\|no]` | `waiting_for_reply` | Signals that a human comment needs an answer. |
+| `**Auto Run**: [yes\|no]` | `auto_run` | Whether a non-sync-only worker's auto-launch loop may claim this track from the queue. Default no — absent marker means not auto-picked (track 10017). |
 
 ### Completion Comment Convention
 
