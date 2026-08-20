@@ -4260,18 +4260,29 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
           updated = true;
 
+          // Track 1102 F9b: workDir used to be declared inside the sibling
+          // `if (updated)` block below, so the `git add` for last_run.log
+          // (which runs before that block) referenced it out of scope —
+          // ReferenceError, swallowed by that call's own empty catch, so
+          // last_run.log was written to disk but never staged. Both blocks
+          // now share this one declaration.
+          const workDir = worktreePath || process.cwd();
+
           // 4. Write last run log to the track folder for worker context
           const lastRunLog = tailLog(logPath, 100);
           if (lastRunLog) {
             const lastRunLogPath = join(tracksDir, trackDir, 'last_run.log');
             writeFileSync(lastRunLogPath, lastRunLog, 'utf8');
             const relLogPath = join('conductor', 'tracks', trackDir, 'last_run.log');
-            try { execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' }); } catch (e) { }
+            try {
+              execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' });
+            } catch (e) {
+              console.warn(`[${label}] Failed to stage last_run.log: ${e.message}`);
+            }
           }
 
           // 5. Write changes and commit to git
           if (updated) {
-            const workDir = worktreePath || process.cwd();
             const relIndexPath = join('conductor', 'tracks', trackDir, 'index.md');
             const targetIndexPath = join(workDir, relIndexPath);
 
