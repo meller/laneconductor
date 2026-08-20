@@ -129,22 +129,42 @@ is a different mechanism and is still open.
 **Solution**: Make "exit 0 + index still `running`" its own recognised
 outcome, and steer agents away from producing it.
 
-- [ ] Task 1: Write a failing test — spawn a real worker with a mock CLI
+**Correction while implementing**: empirical reproduction (real worker,
+real worktree, mock CLI that never touches `index.md`) showed current
+code actually **advances the lane forward** with `Progress: 100%` on
+exit 0 — not "reset to queue" as this phase's Problem statement assumed.
+Same underlying defect (a run that never finished reported as a clean
+pass), different specific symptom; fix targets what was actually found.
+
+- [x] Task 1: Write a failing test — spawn a real worker with a mock CLI
       that exits 0 without moving `index.md` off `running`; assert the
-      outcome is the new distinguishable state, not a bare `queue`
-- [ ] Task 2: Detect the state in the exit handler (exit 0, index still
-      `running`, worktree dirty) before the generic reset
-- [ ] Task 3: Report it — dispatch result plus a `> **system**: ⚠️ …` comment
-      in `conversation.md` saying the run ended mid-work and re-running
-      resumes it (the worktree and session both persist)
+      outcome is the new distinguishable state
+      (`conductor/tests/track-1102-f21-exit-zero-mid-work.test.mjs`)
+- [x] Task 2: Detect the state in the exit handler (exit 0, index still
+      `running`) before the lane-advance/100%-progress writes — gated on
+      `cli !== 'mock'` after a real regression
+      (`track-1102-f11-progress-keepalive.test.mjs`, 2/2 → 1/2) showed
+      every mock-cli-driven test looks like "ended mid-work" without the
+      gate, since mock-cli never simulates a real agent's own
+      self-transition write
+- [x] Task 3: Report it — dispatch result (`ended_mid_work`) plus a
+      `> **system**: ⚠️ …` comment in `conversation.md` saying the run
+      ended mid-work and re-running resumes it
 - [ ] Task 4: Confirm the recovery claim by actually re-running and watching
-      the work continue, rather than asserting it
+      the work continue, rather than asserting it (deferred — needs a real
+      Claude agent run, not the mock-cli reproduction; live verification,
+      not unit-testable)
 - [ ] Task 5: Add SKILL guidance — a lane agent must not end its final turn
       on a just-launched background command; the harness kills background
-      children when the session process exits
+      children when the session process exits (still open — this phase
+      only made the aftermath visible/non-destructive, doesn't prevent it)
 
-**Impact**: A mid-work exit becomes visible and actionable instead of a
-silent re-queue.
+**Impact**: A mid-work exit becomes visible and actionable — lane no
+longer silently advances forward as if the work were verified complete,
+and the dispatch/comment record says explicitly what happened and how to
+recover. Confirmed no regressions across the shared exit-handler code
+path: F8, F9, F9b, F11, F12, F21-escalated, and the 1112
+worktree-artifact-merge suite all re-run clean.
 
 ---
 
@@ -310,10 +330,13 @@ symptom (pid flapping); the deeper cause is explicitly deferred.
 
 **Solution**: File it properly — do not fix it here.
 
-- [ ] Task 1: Create the track (manager persists its own `machine_token` in
+- [x] Task 1: Create the track ([1118](../1118-manager-worker-credential-storage/index.md)
+      — manager persists its own `machine_token` in
       `~/.laneconductor/manager-config.json`, alongside `projectsDir`)
-- [ ] Task 2: Carry over F13's traced evidence so it is not re-derived
-- [ ] Task 3: Link it from F13's body and this track's Depends-on
+- [x] Task 2: Carry over F13's traced evidence so it is not re-derived
+- [x] Task 3: Link it from F13's body and this track's Depends-on (added a
+      new "Spawned tracks" section since Depends-on is for the other
+      direction)
 
 **Impact**: The remaining risk is owned by a track instead of a paragraph.
 
