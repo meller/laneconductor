@@ -1,9 +1,10 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 20%
-**Phase**: Walking the full new-user path in the real UI, fixing what breaks
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Planned — 11 phases open (F3, F6, F9b, F13-filing, F18b, F19, F20, F21, F10c, walkthrough, live E2E)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -957,12 +958,31 @@ outcome, plus SKILL guidance against backgrounding a final-turn command).
   untouched.
 
 ## Phases
-- [ ] Phase 1: Fix F1 — decide and implement the worker mode a newly created project should get
+
+Phase numbers are stable — done phases are never renumbered, because the
+finding write-ups above reference them. New work is appended as Phases 7+.
+Full task breakdown in `plan.md`; test cases in `test.md`.
+
+- [x] Phase 1: F1 — worker mode for a newly created project. Closed as **not a bug**: `sync-only` is the intended default ("sync + manual UI operations"); the real symptom was F5. Decision locked in by a test asserting `mode === 'sync-only'` deliberately
 - [x] Phase 2: Fix F2 — accurate lane-action button state/tooltip (fixed, unit-tested)
-- [ ] Phase 3: Fix F3 — one status marker, not two
-- [ ] Phase 4: Continue the walkthrough — plan run, Activity, Inbox, deploy wizard (stop before an actual deploy)
-- [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification still open)
+- [ ] Phase 3: Fix F3 — one status marker, not two (`ui/server/utils.mjs:35,41` still bakes in the legacy `**Status**`; `parse-status.mjs` is the workaround)
+- [ ] Phase 4: Continue the walkthrough — Activity, Inbox, deploy wizard (stop before an actual deploy); new findings land as F22+
+- [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification is now Phase 15)
 - [x] Phase 6: Fix F16 — worker identity lock path now resolves the primary checkout instead of trusting cwd directly; fixed and live-verified (killed 4 real duplicate processes, confirmed exactly one survives a clean restart)
+- [ ] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` must be a distinguishable "ended mid-work, re-run to resume" outcome, not a silent reset to `queue`; plus SKILL guidance against ending a turn on a backgrounded command
+- [ ] Phase 8: Fix F9b — `workDir` TDZ `ReferenceError` at `laneconductor.sync.mjs:4269` (declared at 4274 in a sibling block), swallowed by an empty catch, so `last_run.log` is never staged
+- [ ] Phase 9: Fix F20 — transcript drawer overlays a card's action buttons and swallows clicks; a killed run's transcript still renders as live
+- [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
+- [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
+- [ ] Phase 12: F18 follow-up — dispatch claim-timeout, covering a *real* worker that dies after assignment (which signature-exclusion cannot catch)
+- [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL` so a manual row deletion can't erase dispatch/chat history
+- [ ] Phase 14: F13 deeper cause — file as its own track (manager needs its own `~/.laneconductor/manager-config.json` credential storage instead of borrowing a co-located project's `machine_token`); not fixed here
+- [ ] Phase 15: F15 — live E2E verification of the drag-to-lane / reset dispatch bridge, the way F5 was proven
+
+**Verified closed while planning** (contradicting an earlier write-up): F8's
+"clear the busy heartbeat" follow-up needs no phase — `spawnCli()` does call
+`updateWorkerHeartbeat('busy', …)` at `laneconductor.sync.mjs:3984`, so lane
+actions do report as busy.
 
 ## Depends on
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (F1 is in its create-project handler), [1084](../1084-worker-identity-and-assignment/index.md) (worker modes).
