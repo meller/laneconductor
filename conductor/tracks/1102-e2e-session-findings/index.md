@@ -866,7 +866,7 @@ implement with no plan artifacts additionally warning is still an open,
 separate UX decision — not required for the regression-safety goal this
 finding was actually about.
 
-### F20 — A dead run's transcript strip overlays the card's own action buttons and silently swallows clicks 🟠 CONFIRMED (not fixed)
+### F20 — A dead run's transcript strip overlays the card's own action buttons and silently swallows clicks 🟡 DOES NOT REPRODUCE (investigated 2026-08-20, not fixed — nothing to fix found)
 Hit live: after killing track 10019's implement agent, its stale
 transcript strip stayed rendered under the card — and
 `document.elementFromPoint` confirmed it sat ON TOP of the card's "Run
@@ -877,6 +877,41 @@ with a completely different cause. Collapsing the transcript freed the
 button. Layering/layout bug in the board card + transcript strip
 (`TrackCard`/`TranscriptView`); also worth asking why a finished (killed)
 run's transcript still renders as if live.
+
+**Investigated 2026-08-20, live, against the real running board** (not
+static code reading): found a genuinely stuck `running` track (#001,
+"Walkthrough Test Project 1104", stale 8715+ minutes — the same class of
+permanently-running card F12 documents) and ran the exact same
+`document.elementFromPoint` reproduction technique this finding used.
+
+- At the Playwright default viewport (925px wide, 6 lane columns
+  squeezed to ~130px each), a real overlap DID appear —
+  `elementFromPoint` on the `→` arrow's own coordinates returned a
+  *different, adjacent track card* instead of the button. But this
+  turned out to be a pure viewport-width artifact, not the bug this
+  finding describes: at a realistic desktop width (1600px), the exact
+  same check on the exact same stuck card returns `arrowIsTarget: true`
+  — the click correctly lands on the button.
+- Also checked the `TrackDetailPanel`'s own transcript drawer (the
+  "collapsible transcript drawer, docked to its left" — the more literal
+  reading of "transcript strip" than the board card's inline running
+  indicator) at 1600px: its own collapse button is also correctly
+  clickable, no overlap.
+- No code changes made — there is neither a reliable current reproduction
+  nor a specific line to point a fix at. Plausible explanations, none
+  confirmed: fixed as a side effect of F2's rework of the button-rendering
+  conditionals (both are mutually-exclusive on `lane_action_status`,
+  so they were never simultaneously in the DOM to begin with in current
+  code), the original incident's browser window was genuinely narrow,
+  or the original incident's exact DOM state (a specific `lane_action_status`
+  value now handled differently) no longer occurs.
+
+**Left open**: if this resurfaces, capture the exact viewport width and
+a screenshot at the moment of failure — this investigation's biggest
+uncertainty is whether the original report was at an unusually narrow
+window, which would make this a responsive-design gap worth its own
+(much narrower) finding rather than the layering bug as originally
+framed.
 
 ### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 FIXED (both variants unit-tested; SKILL-guidance follow-up still open)
 Hit live on track 10019's implement run (dispatch 1516, 2026-08-18): the
@@ -1033,7 +1068,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [x] Phase 6: Fix F16 — worker identity lock path now resolves the primary checkout instead of trusting cwd directly; fixed and live-verified (killed 4 real duplicate processes, confirmed exactly one survives a clean restart)
 - [x] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` is now a distinguishable `ended_mid_work` outcome (lane stays put, no forced 100%, ⚠️ comment posted), fixed and unit-tested; SKILL guidance against ending a turn on a backgrounded command still open
 - [ ] Phase 8: Fix F9b — `workDir` TDZ `ReferenceError` at `laneconductor.sync.mjs:4269` (declared at 4274 in a sibling block), swallowed by an empty catch, so `last_run.log` is never staged
-- [ ] Phase 9: Fix F20 — transcript drawer overlays a card's action buttons and swallows clicks; a killed run's transcript still renders as live
+- [x] Phase 9: F20 — investigated live against a real stuck-running card; does not reproduce at realistic viewport width (925px artifact, not a real overlap bug); no fix needed, documented for future reference if it resurfaces
 - [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
 - [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
 - [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
