@@ -1,7 +1,7 @@
 # Track 10017: track auto run configuration
 
 **Status**: plan
-**Progress**: 0%
+**Progress**: 100%
 
 ## Problem
 lets have a configuration per track (both FS and DB) if they could be picked by workers that are not sync only - default no (backward compatibily for workers - if no indicator - dont pick it up)
@@ -11,5 +11,6 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
+**Summary**: There's no persisted place to store the per-track auto-run flag.
