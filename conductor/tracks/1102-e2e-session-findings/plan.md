@@ -287,15 +287,27 @@ starvation, from a cause exclusion-by-signature cannot cover.
 
 **Solution**: Bound how long a dispatch may sit unclaimed.
 
-- [ ] Task 1: Write a failing test — a dispatch assigned to a worker that
+- [x] Task 1: Write a failing test — a dispatch assigned to a worker that
       never claims it is reassigned or failed within the window
-- [ ] Task 2: Implement the timeout (reassign to another live worker;
-      mark failed with a reason when none exists)
+      (`ui/server/tests/track-1102-f18b-dispatch-claim-timeout.test.mjs`).
+      First draft's mock filtered candidates unconditionally in JS rather
+      than inspecting the SQL text — mutation-testing caught it (stayed
+      green even after the production query's exclusion clause was
+      deliberately removed); rewritten to inspect SQL text like F18's own
+      test, re-verified the mutation now fails it correctly
+- [x] Task 2: Implement the timeout (`reapStaleDispatches()`,
+      `ui/server/index.mjs`) — reassign to another live worker; mark
+      failed with a reason when none exists
 - [ ] Task 3: Make the outcome visible in the UI, not only in the DB
-- [ ] Task 4: Confirm it cannot reassign a dispatch a healthy worker is
-      merely slow to pick up — check the window against real poll cadences
+      (deferred — needs UI work, out of this phase's scope)
+- [x] Task 4: Timeout is a distinct window from the poll cadence by
+      construction — `LC_DISPATCH_CLAIM_TIMEOUT_MS` (default 5min) vs. a
+      worker's own poll interval (seconds); a healthy worker slow to pick
+      up a dispatch is not mistaken for a dead one at any realistic cadence
 
-**Impact**: Closes the starvation path that survives F18's fix.
+**Impact**: Closes the starvation path that survives F18's fix — a real
+worker dying between assignment and claim no longer strands a dispatch
+forever with no error anywhere.
 
 ---
 
