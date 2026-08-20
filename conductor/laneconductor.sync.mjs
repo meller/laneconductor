@@ -35,7 +35,7 @@ import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
-import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from './stream-json-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
@@ -4328,11 +4328,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
 
     const isSuccess = code === 0;
+    const logContent = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
 
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
-    if (!isSuccess && existsSync(logPath)) {
-      const logContent = readFileSync(logPath, 'utf8');
+    if (!isSuccess && logContent) {
       isExhausted = isProviderExhausted(logContent, cli);
       if (isExhausted) {
         console.log(`[${label}] Provider ${cli} quota exhausted — re-queuing track ${trackNumber} without consuming retry`);
@@ -4349,6 +4349,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         console.log(`[${label}] Detected resume failure for track ${trackNumber} (session ${session.claude_session_id}) — invalidating stored session`);
         await invalidateTrackSession(trackNumber);
       }
+    }
+
+    // Track 10020: a dispatched lane action can end its turn on a genuine
+    // blocking question (post_turn_summary status_category === 'blocked')
+    // instead of finishing the work — e.g. "should I apply this DB
+    // migration?". Left undetected, that question is stranded in the raw
+    // transcript: never posted to conversation.md/track_comments (the only
+    // path a human reply flows through), so the Inbox's comment-driven
+    // bucket logic confidently reports nothing's wrong. Detected here,
+    // regardless of exit code, since a clean stop on a question is a
+    // normal end_turn (isSuccess === true).
+    const blockedQuestion = extractBlockedQuestion(logContent);
+    const isBlockedTurn = !!blockedQuestion;
+    if (isBlockedTurn) {
+      console.log(`[${label}] Track ${trackNumber}: ended its turn on a blocking question — flagging for human input instead of transitioning lanes`);
     }
 
     // 1. Check retry count using latest config (in case workflow.json reloaded)
@@ -4392,8 +4407,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // 2. Resolve target lane and status
     // Conversation/brainstorm runs (local-fs-answer) must not trigger workflow lane transitions
+    // — nor must a blocked turn: advancing the lane on a question that was
+    // never actually answered would misrepresent the track as further along
+    // than it really is (Track 10020).
     const isConversationRun = label === 'local-fs-answer';
-    const transitionValue = isConversationRun
+    const transitionValue = (isConversationRun || isBlockedTurn)
       ? null
       : (isSuccess
         ? (currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success)
@@ -4472,8 +4490,8 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
           // 3. Update Progress if success (skip for conversation runs — don't force 100%)
 
-          // 3. Update Progress if success (skip for conversation runs — don't force 100%)
-          if (isSuccess && !isConversationRun) {
+          // 3. Update Progress if success (skip for conversation runs and blocked turns — don't force 100% on unfinished work)
+          if (isSuccess && !isConversationRun && !isBlockedTurn) {
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
@@ -4487,6 +4505,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
               content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: no`);
             }
             patchData.waiting_for_reply = false;
+            updated = true;
+          }
+
+          // 3c. Track 10020: a blocked turn is the opposite of 3b — SET
+          // waitingForReply so the Inbox (comment-driven bucket logic) and
+          // the existing conversation-reply resume path (autoLaunchLocalFs's
+          // waitingForReply handling) both pick this up correctly, exactly
+          // as they already do for a real human-asked question.
+          if (isBlockedTurn) {
+            if (content.match(/\*\*Waiting for reply\*\*:\s*[^\n]+/i)) {
+              content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: yes`);
+            } else {
+              content = content.trim() + `\n**Waiting for reply**: yes\n`;
+            }
+            patchData.waiting_for_reply = true;
             updated = true;
           }
           // 4. Update Last Run
@@ -4574,6 +4607,27 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         }
       } catch (err) {
         console.warn(`[${label}] Failed to append session-turn entry to conversation.md: ${err.message}`);
+      }
+    }
+
+    // Track 10020: post the blocked question itself as a real claude-authored
+    // conversation.md entry — independent of the `session` gate above, since
+    // a track without a persisted session can still hit a blocking question.
+    // This is what actually closes the gap: once this is a real comment,
+    // the Inbox's existing bucket logic (driven entirely by track_comments)
+    // correctly classifies the track as needing your input, the same way it
+    // already does for any other unresolved claude/gemini comment.
+    if (isBlockedTurn) {
+      try {
+        const tracksDirForBlock = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForBlock = resolveTrackFolder(tracksDirForBlock, trackNumber);
+        if (trackDirForBlock) {
+          const convPath = join(tracksDirForBlock, trackDirForBlock, 'conversation.md');
+          const quoted = blockedQuestion.split('\n').map(l => `> ${l}`).join('\n');
+          appendFileSync(convPath, `\n> **claude**: ⏸️ Needs your input before continuing:\n${quoted}\n`, 'utf8');
+        }
+      } catch (err) {
+        console.warn(`[${label}] Failed to append blocked-question entry to conversation.md: ${err.message}`);
       }
     }
 
@@ -6548,7 +6602,22 @@ async function reconcileActiveDispatch() {
   if (!url) return;
   const tracksDir = 'conductor/tracks';
 
+  // Track 10020: reconcileActiveDispatch used to trust the file's current
+  // Lane Status text alone — but the agent doing the actual work can
+  // transiently write a non-"running" value mid-session (e.g. while
+  // investigating something unrelated) without having actually exited.
+  // Caught live: a dispatch got marked done and DB pushed to a stale
+  // resolved state while the underlying CLI process (confirmed via live
+  // PID) kept working for minutes afterward. runningTrackMap is
+  // authoritative here — spawnCli's own proc.on('exit') handler is the
+  // ONLY thing that ever removes an entry from it, so if this process's
+  // own spawned child for a track is still in there, the CLI genuinely
+  // hasn't exited yet, regardless of what the file currently says.
+  const stillRunningTracks = new Set(runningTrackMap.values());
+
   for (const [trackNumber, dispatchId] of activeDispatch) {
+    if (stillRunningTracks.has(trackNumber)) continue;
+
     const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
     const indexPath = trackDirName ? join(tracksDir, trackDirName, 'index.md') : null;
     if (!indexPath || !existsSync(indexPath)) {
@@ -6559,7 +6628,7 @@ async function reconcileActiveDispatch() {
     const content = readFileSync(indexPath, 'utf8');
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     const status = statusMatch?.[1]?.trim();
-    if (status === 'running') continue; // still going
+    if (status === 'running') continue; // belt-and-braces, in case runningTrackMap ever missed it
 
     // Track 1102 F12: the exit handler's own completion PATCH (and
     // copy-back's own DB sync right after it) can both fail — a
@@ -6612,9 +6681,12 @@ async function reconcileActiveDispatch() {
 setInterval(() => {
   checkDispatchInbox().catch(err => console.error('[dispatch error]:', err.message));
 }, Number(process.env.LC_DISPATCH_POLL_MS) || 10000);
+// LC_RECONCILE_ACTIVE_POLL_MS: test-only override (default stays 5s) —
+// Track 10020's regression test needs several reconcile ticks inside a
+// short-lived transient blip to prove the fix doesn't finalize on them.
 setInterval(() => {
   reconcileActiveDispatch().catch(err => console.error('[dispatch-reconcile error]:', err.message));
-}, 5000);
+}, Number(process.env.LC_RECONCILE_ACTIVE_POLL_MS) || 5000);
 setInterval(() => {
   reconcileAutoComplete().catch(err => console.error('[auto-complete-reconcile error]:', err.message));
 }, 5000);
