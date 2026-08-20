@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TranscriptView } from './TranscriptView.jsx';
 import { DeployLogView } from './DeployLogView.jsx';
+import { CreateProjectDispatchView } from './CreateProjectDispatchView.jsx';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { useApi } from '../hooks/useApi.js';
@@ -93,6 +94,11 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
                       <span className="font-medium text-gray-300 truncate">
                         {w.hostname}{w.project_name ? ` · ${w.project_name}` : ''}
                       </span>
+                      {w.type === 'manager' && (
+                        <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-emerald-900/40 text-emerald-400 border-emerald-800/50 shrink-0">
+                          MANAGER
+                        </span>
+                      )}
                     </div>
                     <div className="text-gray-500 truncate mt-0.5 pl-3">
                       {offline
@@ -124,6 +130,11 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
             <>
               <div className="text-xs text-gray-500 mb-3">Deploy — dispatch #{selectedTask.dispatchId}</div>
               <DeployLogView projectId={selectedProjectId} dispatchId={selectedTask.dispatchId} />
+            </>
+          ) : selectedTask?.kind === 'create-project' ? (
+            <>
+              <div className="text-xs text-gray-500 mb-3">Create Project — dispatch #{selectedTask.dispatchId}</div>
+              <CreateProjectDispatchView dispatchId={selectedTask.dispatchId} />
             </>
           ) : (
             <p className="text-gray-600 text-sm italic pt-4">{selectedWorker.hostname} is idle.</p>
