@@ -1,10 +1,10 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 67%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: 10 of 15 phases done (F3, F19, F6, F13-filing, F9b, F21). Remaining: F10c live-DB apply (pending user confirmation), F18b claim-timeout, F20 transcript overlay, walkthrough + F15 live verification (both need a running app + browser)
+**Phase**: Reclaimed — previous turn ended and the LIVE production worker (running pre-fix code from the primary checkout, not this branch) advanced the lane to review/100% via the exact bug F21 fixes; that fix isn't merged yet so it couldn't apply here. Continuing remaining phases: F18b claim-timeout, F20 transcript overlay, walkthrough + F15 live verification, F10c live-DB apply (still pending user confirmation)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
