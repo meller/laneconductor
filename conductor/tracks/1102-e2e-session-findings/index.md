@@ -1,7 +1,7 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 87%
 **Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both…
 **Type**: bug
