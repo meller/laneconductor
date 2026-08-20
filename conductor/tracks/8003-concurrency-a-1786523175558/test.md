@@ -2,14 +2,21 @@
 
 ## Test Commands
 ```bash
-# Run all tests
-npm test
+# Playwright E2E that created and drives this fixture track
+npx playwright test conductor/tests/playwright/brainstorm-concurrency.spec.js
 ```
 
 ## Test Cases
 
-(Test cases to be added)
+### Feature: Plan-lane concurrency limit
+- [ ] TC-1: While this track holds `plan:running`, a second queued track
+      (`Brainstorm B`) does not also enter `plan:running` — expected:
+      `lanes.plan.parallel_limit: 1` in `conductor/workflow.json` is
+      respected.
+- [ ] TC-2: This track reaches `plan:success` without manual
+      intervention — expected: worker frees the slot and the second track
+      is then allowed to start.
 
 ## Acceptance Criteria
-- [ ] All unit tests pass
+- [ ] Playwright spec `brainstorm-concurrency.spec.js` passes
 - [ ] No regressions in related features
