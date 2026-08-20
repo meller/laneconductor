@@ -310,10 +310,13 @@ symptom (pid flapping); the deeper cause is explicitly deferred.
 
 **Solution**: File it properly — do not fix it here.
 
-- [ ] Task 1: Create the track (manager persists its own `machine_token` in
+- [x] Task 1: Create the track ([1118](../1118-manager-worker-credential-storage/index.md)
+      — manager persists its own `machine_token` in
       `~/.laneconductor/manager-config.json`, alongside `projectsDir`)
-- [ ] Task 2: Carry over F13's traced evidence so it is not re-derived
-- [ ] Task 3: Link it from F13's body and this track's Depends-on
+- [x] Task 2: Carry over F13's traced evidence so it is not re-derived
+- [x] Task 3: Link it from F13's body and this track's Depends-on (added a
+      new "Spawned tracks" section since Depends-on is for the other
+      direction)
 
 **Impact**: The remaining risk is owned by a track instead of a paragraph.
 

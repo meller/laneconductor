@@ -610,7 +610,9 @@ fixed, only its most damaging symptom. A manager should plausibly persist
 its own `machine_token` in `~/.laneconductor/manager-config.json`
 (alongside the existing `projectsDir` setting) rather than ever reading
 `collectors[].machine_token` from whatever directory it happens to be
-started in. Worth its own track.
+started in. **Filed as
+[1118](../1118-manager-worker-credential-storage/index.md)** — not fixed
+here.
 
 ### F14 — The Logs tab is silently empty for every Claude-cli run, by design nobody documented in the UI 🟡 CONFIRMED & FIXED (UX only)
 Noticed live: track 1112's Transcript tab showed the live implement run
@@ -986,7 +988,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
 - [ ] Phase 12: F18 follow-up — dispatch claim-timeout, covering a *real* worker that dies after assignment (which signature-exclusion cannot catch)
 - [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL` so a manual row deletion can't erase dispatch/chat history
-- [ ] Phase 14: F13 deeper cause — file as its own track (manager needs its own `~/.laneconductor/manager-config.json` credential storage instead of borrowing a co-located project's `machine_token`); not fixed here
+- [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
 - [ ] Phase 15: F15 — live E2E verification of the drag-to-lane / reset dispatch bridge, the way F5 was proven
 
 **Verified closed while planning** (contradicting an earlier write-up): F8's
@@ -996,3 +998,6 @@ actions do report as busy.
 
 ## Depends on
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (F1 is in its create-project handler), [1084](../1084-worker-identity-and-assignment/index.md) (worker modes).
+
+## Spawned tracks
+[1118](../1118-manager-worker-credential-storage/index.md) — F13's deeper cause (manager credential storage), filed 2026-08-20 rather than fixed inline.
