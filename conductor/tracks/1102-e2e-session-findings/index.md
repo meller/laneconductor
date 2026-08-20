@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 27%
+**Progress**: 67%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Implementing open phases (F3, F6, F9b, F13-filing, F18b, F19, F20, F21, F10c, walkthrough, live E2E)
+**Phase**: 10 of 15 phases done (F3, F19, F6, F13-filing, F9b, F21). Remaining: F10c live-DB apply (pending user confirmation), F18b claim-timeout, F20 transcript overlay, walkthrough + F15 live verification (both need a running app + browser)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
