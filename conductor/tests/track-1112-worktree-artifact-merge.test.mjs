@@ -60,4 +60,31 @@ describe('mergeIndexMarkers', () => {
     assert.equal((merged.match(/\*\*Lane\*\*: quality-gate/g) || []).length, 1);
     assert.equal((merged.match(/\*\*Lane Status\*\*: queue/g) || []).length, 1);
   });
+
+  // Track 1102 F21 (2026-08-20): { skipStatusMarkers: true } is what the
+  // periodic mid-run doc-sync pass uses — a reused per-cycle worktree's
+  // Lane/Lane Status is frozen at the PREVIOUS cycle's terminal value until
+  // this cycle's own exit handler runs, so merging it mid-run clobbers the
+  // dispatcher's freshly-written "running" marker on primary and causes
+  // reconcileActiveDispatch() to close the dispatch out while the real
+  // agent process is still alive (live: track 10019's review and
+  // quality-gate dispatches). Every other marker has no such hazard and
+  // must keep flowing through — that's the whole point of the mid-run pass.
+  it('with skipStatusMarkers: true, leaves Lane/Lane Status untouched but still merges Progress/Phase/Summary', () => {
+    const existing = '**Lane**: plan\n**Lane Status**: running\n**Progress**: 0%\n**Phase**: old\n**Summary**: old\n';
+    const artifact = '**Lane**: plan\n**Lane Status**: success\n**Progress**: 40%\n**Phase**: new\n**Summary**: new\n';
+    const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
+    assert.match(merged, /\*\*Lane\*\*: plan/);
+    assert.match(merged, /\*\*Lane Status\*\*: running/, 'Lane Status must stay at the primary\'s own value, not the stale worktree one');
+    assert.match(merged, /\*\*Progress\*\*: 40%/);
+    assert.match(merged, /\*\*Phase\*\*: new/);
+    assert.match(merged, /\*\*Summary\*\*: new/);
+  });
+
+  it('without skipStatusMarkers (default), Lane Status still merges as before — the flag is opt-in, not a behavior change for existing callers', () => {
+    const existing = '**Lane**: plan\n**Lane Status**: running\n';
+    const artifact = '**Lane**: plan\n**Lane Status**: success\n';
+    const merged = mergeIndexMarkers(existing, artifact);
+    assert.match(merged, /\*\*Lane Status\*\*: success/);
+  });
 });

@@ -845,7 +845,7 @@ button. Layering/layout bug in the board card + transcript strip
 (`TrackCard`/`TranscriptView`); also worth asking why a finished (killed)
 run's transcript still renders as if live.
 
-### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 CONFIRMED (not fixed)
+### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 PARTIALLY FIXED (escalated variant fixed & unit-tested; original turn-end variant still open)
 Hit live on track 10019's implement run (dispatch 1516, 2026-08-18): the
 agent finished Phases 1-2 worth of real work (new
 `conductor/services/primary-cwd.mjs`, a new 19-test suite it had watched
@@ -894,6 +894,54 @@ process it spawned is still alive* — likely the same early-close path
 in both observations (reconcile logic or a mis-attributed exit event),
 NOT the agent's own behavior (unlike the original F21 case above, these
 agents were mid-flight and healthy).
+
+**Root cause found & fixed 2026-08-20 (escalated variant only).** Traced to
+`syncWorktreeDocsToPrimary()` (`conductor/laneconductor.sync.mjs`, added by
+track 10019 Phase 4) — it runs every 60s for every live worktree,
+deliberately including actively-locked ones, and merges the worktree's own
+`index.md` markers (Lane/Lane Status included, per track 1112's fix) onto
+primary's copy via `copyWorktreeArtifactsToPrimary()` →
+`mergeIndexMarkers()`. For a **reused** per-cycle worktree (the normal case
+for a track's 2nd+ lane action — review, then quality-gate, both against the
+same worktree, exactly track 10019's shape), the worktree's Lane/Lane Status
+stays frozen at whatever the *previous* cycle's exit handler last wrote
+until *this* cycle's own exit handler runs — nothing updates it mid-run.
+`copyWorktreeArtifactsToPrimary`'s `skipUnchanged` staleness guard (mtime
+comparison) normally protects against syncing a stale worktree file, but any
+ordinary mid-run edit an agent makes to its own `index.md` — e.g. bumping
+`**Progress**`, which agents routinely do and which never touches `**Lane
+Status**` — bumps the worktree file's mtime past the guard, letting the
+merge through and carrying the still-stale Lane Status along with it. That
+clobbers the "running" marker `checkDispatchInbox()` had just written onto
+primary, and the very next `reconcileActiveDispatch()` tick (5s cadence)
+sees a non-"running" status and closes the dispatch as done — while the real
+agent process is still alive. Reproduced live end-to-end (real git
+worktree, real dispatch lifecycle, simulated one ordinary mid-run Progress
+edit) in
+`conductor/tests/track-1102-f21-mid-run-doc-sync-clobber.test.mjs`: RED
+against the unfixed code (dispatch closed out mid-run), GREEN after the fix
+(dispatch stays `claimed` through several doc-sync ticks, then completes
+normally once the run actually finishes).
+
+Fix: `mergeIndexMarkers()`/`copyWorktreeArtifactsToPrimary()` gained an
+opt-in `skipStatusMarkers` option (default `false` — every existing caller,
+i.e. the exit handler and orphan-reconcile, is unaffected) that excludes
+Lane/Lane Status from what gets merged. `syncWorktreeDocsToPrimary()` now
+passes `skipStatusMarkers: true` — mid-run syncs still keep Progress/Phase/
+Summary/Waiting-for-reply live (the whole point of that pass), just without
+the one marker whose staleness has a completion-detection side effect.
+Also added `LC_DOC_SYNC_INTERVAL_MS` (test-only override, default stays
+60s) so this is testable without a real 60s wait, matching the existing
+`LC_DISPATCH_POLL_MS`/`LC_WORKER_ID_WATCHDOG_MS` pattern. 8 unit tests in
+`conductor/tests/track-1112-worktree-artifact-merge.test.mjs` cover the new
+option directly (2 new, 6 pre-existing all still pass unmodified).
+
+**Still open:** the *original* (non-escalated) F21 case above — an agent
+that itself backgrounds a long command and lets its own turn end mid-work —
+is a different mechanism (the exit handler sees a clean `exit 0` against a
+still-`running` index.md and generically resets to `queue`) and needs its
+own fix per the "Fix directions" above (a distinguishable "ended mid-work"
+outcome, plus SKILL guidance against backgrounding a final-turn command).
 
 ## What worked (verified live, not assumed)
 
