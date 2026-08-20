@@ -3980,19 +3980,41 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // timeout killer, which reads like a real failure (bitten live on the
   // 1104 walkthrough: 90 turns of work, SIGTERM at 15min, terse FAIL line).
   let killedByTimeout = false;
-  const killer = setTimeout(async () => {
-    if (runningPids.has(proc.pid)) {
-      killedByTimeout = true;
-      console.log(`[timeout] killing PID ${proc.pid} after ${timeoutMs}ms`);
-      process.kill(-proc.pid, 'SIGTERM');
-      await patch(url, token, `/track/${trackNumber}/action`, {
-        project_id: projectId,
-        lane_action_status: 'failure', lane_action_result: 'timeout',
-        auto_planning_launched: null, auto_implement_launched: null, auto_review_launched: null,
-        last_log_tail: tailLog(logPath), active_cli: cli,
-      }).catch(() => { });
+  // Track 1102 F11: a single setTimeout(timeoutMs) killed a genuinely
+  // progressing run just because Phase 1 took longer than the configured
+  // window — the log was growing the entire time (90 productive turns),
+  // so it wasn't the hang this mechanism exists to catch. Poll for
+  // genuine staleness instead of a fixed deadline: track when the log
+  // file last grew, and only kill once it's been quiet for the FULL
+  // timeout window, not merely "timeoutMs since spawn." A run that's
+  // actively producing output gets to keep running as long as it keeps
+  // producing it. Checked at timeoutMs/10 (clamped 5-30s) rather than a
+  // fixed cadence, so a short test timeout still gets several checks in.
+  let lastLogSize = 0;
+  let lastProgressAt = Date.now();
+  const livenessCheckMs = Math.min(30000, Math.max(1000, Math.floor(timeoutMs / 10)));
+  const killer = setInterval(async () => {
+    if (!runningPids.has(proc.pid)) { clearInterval(killer); return; }
+    let currentSize = 0;
+    try { currentSize = statSync(logPath).size; } catch { /* log not written yet — no progress to report */ }
+    if (currentSize > lastLogSize) {
+      lastLogSize = currentSize;
+      lastProgressAt = Date.now();
+      return; // still producing output — not stalled
     }
-  }, timeoutMs);
+    if (Date.now() - lastProgressAt < timeoutMs) return; // quiet, but not for the full window yet
+
+    clearInterval(killer);
+    killedByTimeout = true;
+    console.log(`[timeout] killing PID ${proc.pid} — no log growth for ${timeoutMs}ms (genuinely stalled)`);
+    process.kill(-proc.pid, 'SIGTERM');
+    await patch(url, token, `/track/${trackNumber}/action`, {
+      project_id: projectId,
+      lane_action_status: 'failure', lane_action_result: 'timeout',
+      auto_planning_launched: null, auto_implement_launched: null, auto_review_launched: null,
+      last_log_tail: tailLog(logPath), active_cli: cli,
+    }).catch(() => { });
+  }, livenessCheckMs);
 
   // Track 1087 Phase 2: for claude spawns (stream-json output, Phase 1),
   // the old 5s raw-text last_log_tail PATCH is replaced by incremental
@@ -4033,7 +4055,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   if (session) persistTrackSession(trackNumber, session.claude_session_id);
   proc.on('exit', async (code) => {
     console.log(`[${label}] EXIT EVENT TRIGGERED: PID ${proc.pid}, Code: ${code}`);
-    clearTimeout(killer);
+    clearInterval(killer);
     clearInterval(tailInterval);
     clearInterval(streamTailInterval);
     runningPids.delete(proc.pid);

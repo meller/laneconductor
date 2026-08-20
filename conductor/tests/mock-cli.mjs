@@ -19,6 +19,15 @@
 //                               dispatch to fail and a later one to
 //                               succeed — the test creates/deletes the file
 //                               between dispatches instead.
+//   MOCK_CLI_PROGRESS_INTERVAL_MS=<n>   Track 1102 F11: if set, print a
+//                               new output line every <n>ms throughout
+//                               the full MOCK_CLI_DELAY_MS instead of
+//                               going silent after the first line —
+//                               simulates a genuinely-progressing run
+//                               (log file still growing) so a test can
+//                               tell a real hang apart from a run that's
+//                               just taking a while but producing output
+//                               the whole time.
 //   MOCK_CLI_CLAIM_MARKER=<path>   Track 1110 Phase 1: if set, append
 //                               "<pid>\n" to the file at <path> on every
 //                               invocation. Lets a test with TWO worker
@@ -68,6 +77,15 @@ if (resumeFailure) {
   console.log(`[mock-cli] ${command} track=${trackNumber} → exit ${exitCode} after ${delay}ms`);
 }
 
+const progressIntervalMs = parseInt(process.env.MOCK_CLI_PROGRESS_INTERVAL_MS ?? '0');
+let progressTimer = null;
+if (progressIntervalMs > 0 && !resumeFailure) {
+  progressTimer = setInterval(() => {
+    console.log(`[mock-cli] ${command} track=${trackNumber} → still working at ${Date.now()}`);
+  }, progressIntervalMs);
+}
+
 setTimeout(() => {
+  if (progressTimer) clearInterval(progressTimer);
   process.exit(exitCode);
 }, delay);
