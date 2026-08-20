@@ -1106,7 +1106,6 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Phase**: [text]` | `current_phase` | Names the current phase being worked on. |
 | `**Summary**: [text]` | `content_summary` | A one-line summary of the current work/problem. |
 | `**Waiting for reply**: [yes\|no]` | `waiting_for_reply` | Signals that a human comment needs an answer. |
-| `**Merge Mode**: [pr\|direct]` | `merge_mode` | Track 10018: how a completed branch integrates. `pr` (default when absent) opens a GitHub PR and pauses for approval; `direct` auto-merges on done:success, same as pre-10018 behavior. See `## Per-Track Merge Mode (PR vs Direct)` below. |
 
 ### Completion Comment Convention
 
@@ -1314,9 +1313,17 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - This is **non-blocking** by default — the track continues through planning; a human
       reviews and decides whether to update the fundamental doc or adjust the track's approach.
 6.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
-7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`. Then append a completion comment to
-    `conversation.md` (see **Completion Comment Convention** below): if step 5b's
-    fundamentals-conflict guardrail fired during this run, use
+7.  **Transition**: **First re-read `index.md`'s current `**Lane**` marker.** If it is no
+    longer `plan` (a human moved the card to a different lane on the board while this run
+    was in progress — e.g. dragged straight to `implement` or `done`), do **not** overwrite
+    it: leave `**Lane**` and `**Lane Status**` exactly as they are, skip the rest of this
+    step, and append `> **system**: ℹ️ Plan finished, but the track had already been moved
+    to <current lane> — leaving it there.` to `conversation.md` instead of the comment
+    below. The human's manual move always wins over this run's own stale intent. Otherwise
+    (still `plan`, the normal case): read `conductor/workflow.json` and set `**Lane**` in
+    `index.md` to exactly what is defined in `lanes.plan.on_success`. Then append a
+    completion comment to `conversation.md` (see **Completion Comment Convention** below): if
+    step 5b's fundamentals-conflict guardrail fired during this run, use
     `> **system**: ⚠️ Plan complete with a fundamentals conflict — see conversation above.`
     (don't double-post; the guardrail's existing comment plus this one line is enough
     context); otherwise use `> **system**: ✅ Plan complete — moved to <lane>.`
@@ -1428,7 +1435,12 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 5. **Dev track: On complete** (skip for non-dev tracks):
    - Same verification bar as step 4, for the track as a whole, before writing `## ✅ COMPLETE`.
    - Update `index.md` `**Progress**` marker to 100%.
-   - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
+   - **Transition**: First re-read `index.md`'s current `**Lane**` marker. If it is no
+     longer `implement` (a human moved the card elsewhere while this run was in progress),
+     do **not** overwrite it — leave `**Lane**`/`**Lane Status**` as-is and note in the
+     completion comment below that the lane was left untouched because it had already moved.
+     Otherwise: read `conductor/workflow.json` and set `**Lane**` in `index.md` to exactly
+     what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
    - Append a completion comment to `conversation.md` (see **Completion Comment Convention**):
      `> **system**: ✅ Implementation complete — moved to <lane>.`
@@ -1472,6 +1484,11 @@ Structured review of a track against its plan and product guidelines. Posts the 
    write-up (test pass/fail summary if `test.md` was present, gaps if any) as `>`-prefixed
    continuation lines under that same comment — do not post the write-up as a second comment.
 4. **Auto-lane transition**:
+   - First re-read `index.md`'s current `**Lane**` marker. If it is no longer `review` (a
+     human moved the card elsewhere while this run was in progress), do **not** overwrite
+     it — leave `**Lane**`/`**Lane Status**` as-is, still post the review comment from step 3
+     (the review itself is still valid information), and note there that the lane transition
+     was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
    - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
@@ -1573,6 +1590,11 @@ Runs automated checks and updates status files based on results.
    straightforward retry) on fail, followed by the full results write-up as `>`-prefixed
    continuation lines under that same comment — do not post the write-up as a second comment.
 5. **Transition**:
+   - First re-read `index.md`'s current `**Lane**` marker. If it is no longer
+     `quality-gate` (a human moved the card elsewhere while this run was in progress), do
+     **not** overwrite it — leave `**Lane**`/`**Lane Status**` as-is, still keep the results
+     comment posted in step 4 (it's still valid information), and note there that the lane
+     transition was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
    - **Done-gate — a track may only reach `done` at 100% if the feature
      actually works end to end.** Before setting a `done` lane, confirm
@@ -1904,21 +1926,6 @@ CREATE TABLE IF NOT EXISTS tracks (
 | (none in DB, explicitly backlog) | `backlog`         |
 
 Note: `✅ COMPLETE` with all checkboxes ticked moves to `review` (ready for review). Only `✅ REVIEWED` (added automatically by the review skill on PASS) moves to `done`. New tracks created via `/laneconductor newTrack` or the UI land in `planning` (staging area) — drag to `in-progress` to start auto-implement, or drag to `backlog` to defer.
-
----
-
-## Per-Track Merge Mode (PR vs Direct)
-
-Track 10018: each track independently controls how its completed branch integrates into main, via the `**Merge Mode**` marker (default `pr` when the marker is absent — see `conductor/services/merge-mode.mjs`'s `resolveMergeMode()`, the single place that default lives).
-
-- **`pr`** (default): on quality-gate pass, the worker pushes `track-N` and opens a GitHub PR (`openTrackPrOnDone`) instead of merging locally. The branch/worktree stay intact; a reconcile pass (`reconcilePrTracks`, same 60s cadence as the existing worktree reconciler) polls the PR via `gh pr view` and only runs local cleanup once GitHub reports it merged — never a local `git merge`. Requires `gh` to be authenticated on the machine running the worker; if it isn't, the track posts a `⚠️` comment and does **not** silently fall back to a local merge.
-- **`direct`**: unchanged from pre-10018 behavior — auto-merges on `done:success`, same `mergeAndRemoveWorktree()` path as always.
-
-**Approving a PR-mode track**: the Worktrees panel is the approval station. A `pr`-mode track that's reached `done:success` shows as a `pr-open` row (never `mergeable` — that classification is reserved for `direct`-mode tracks, so the ordinary local-merge button can never bypass PR review). The row shows the PR link and its status (checks pending/passing/failing, conflicts, closed); "Merge PR" merges through `gh pr merge` (GitHub enforces branch protection/required checks, never bypassed locally); "Create PR" rescues a track whose PR never opened (a `gh` auth failure, or a stranded branch switched into `pr` mode after the fact). A "Preview" button on any row with a live worktree swaps the project's single dev server to run from that worktree instead of the primary checkout, so you can test the branch before approving — the panel shows a persistent banner while a preview is active, and "Remove worktree" is disabled on whichever row is currently being previewed.
-
-**Setting the mode**: drop `**Merge Mode**: direct` (or `pr`) into a track's `index.md`, or use the toggle in the track detail panel — both write through the same sync path lane changes already use.
-
-**Rollout note**: because the default is `pr`, any track that doesn't explicitly say `**Merge Mode**: direct` will pause for PR review the first time it reaches `done:success` after this ships — including tracks already in flight. If you want a track to keep today's auto-merge behavior, stamp it `direct` before it next completes.
 
 ---
 

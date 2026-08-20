@@ -1,7 +1,7 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Plan refined — spec.md updated with Phase 6 provider-switch confirmation requirement; ready for implement
 **Type**: dev

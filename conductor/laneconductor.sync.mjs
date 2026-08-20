@@ -36,6 +36,7 @@ import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from './stream-json-tail.mjs';
+import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
@@ -4195,6 +4196,33 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       // Fallback to last arg if no -p found (custom CLIs)
       const originalPrompt = args[args.length - 1];
       args[args.length - 1] = `${contextPrompt}\n\nGOAL: ${originalPrompt}`;
+    }
+  } else if (session && session.isFresh === false) {
+    // Track 10020: a resumed session skips the full reload above by
+    // design, but that leaves it with no reliable way to learn a human
+    // posted something new since its last turn — it only finds out if it
+    // happens to re-check conversation.md on its own initiative, which is
+    // exactly the inconsistency observed live on track 1102 (some resumed
+    // turns caught a new note, most didn't, including one that explicitly
+    // said "nothing new" while the human's message sat unread). Inject
+    // just the trailing unanswered human message(s), not the whole file —
+    // a small, targeted addition, not the redundant-reload cost this
+    // track exists to avoid.
+    try {
+      const tracksDirForTail = join(worktreePath || process.cwd(), 'conductor', 'tracks');
+      const trackDirForTail = resolveTrackFolder(tracksDirForTail, trackNumber);
+      const convPathForTail = trackDirForTail ? join(tracksDirForTail, trackDirForTail, 'conversation.md') : null;
+      const unansweredTail = convPathForTail ? extractUnansweredHumanTail(readIfExists(convPathForTail)) : null;
+      if (unansweredTail) {
+        const pIndex = args.indexOf('-p');
+        const injectAt = pIndex !== -1 && pIndex + 1 < args.length ? pIndex + 1 : args.length - 1;
+        if (injectAt >= 0) {
+          const originalPrompt = args[injectAt];
+          args[injectAt] = `UNANSWERED MESSAGE(S) FROM THE HUMAN SINCE YOUR LAST TURN — address this before anything else:\n\n${unansweredTail}\n\nGOAL: ${originalPrompt}`;
+        }
+      }
+    } catch (err) {
+      console.warn(`[context] Failed to check for unanswered human messages: ${err.message}`);
     }
   }
 

@@ -105,6 +105,9 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState('');
   const bottomRef = useRef(null);
+  const conversationScrollRef = useRef(null);
+  const prevConversationTabRef = useRef(false);
+  const prevCommentCountRef = useRef(0);
   const logsEndRef = useRef(null);
   const pollRef = useRef(null);
   const detailPollRef = useRef(null);
@@ -520,10 +523,33 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     return () => clearInterval(pollRef.current);
   }, [projectId, trackNumber]);
 
-  // Scroll to bottom when comments change and Conversation tab is active
+  // Track 1094: auto-scroll to bottom on first opening the Conversation tab
+  // (a sensible "jump to latest" default) and when a genuinely new comment
+  // arrives while the user is already near the bottom — but never on a
+  // plain 2s poll tick with no new content, and never while the user has
+  // deliberately scrolled up to read history. Comments polls every 2s via
+  // fetchComments() above, and setComments(data) always produces a fresh
+  // array reference even when nothing changed, so gating on comments.length
+  // (rather than the array reference alone) is what actually stops this
+  // effect from re-firing — and therefore re-yanking the scroll position —
+  // on every single poll tick.
   useEffect(() => {
-    if (tab === 'conversation') {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (tab !== 'conversation') {
+      prevConversationTabRef.current = false;
+      return;
+    }
+
+    const justOpened = !prevConversationTabRef.current;
+    const grew = comments.length > prevCommentCountRef.current;
+    prevConversationTabRef.current = true;
+    prevCommentCountRef.current = comments.length;
+
+    if (!justOpened && !grew) return; // no new content — leave the user's scroll position alone
+
+    const el = conversationScrollRef.current;
+    const nearBottom = justOpened || !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    if (nearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: justOpened ? 'auto' : 'smooth' });
     }
   }, [comments, tab]);
 
@@ -952,7 +978,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
         {tab === 'conversation' ? (
           <div className="flex flex-col flex-1 min-h-0">
             {/* Comment list */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div ref={conversationScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {comments.length === 0 ? (
                 <p className="text-gray-600 text-sm italic text-center pt-8">
                   No messages yet. Start the conversation below.
