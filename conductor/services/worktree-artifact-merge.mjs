@@ -33,19 +33,36 @@ export function mergeIndexMarkers(existingContent, artifactContent, { skipStatus
     { re: /\*\*Progress\*\*:\s*[^\n]+/i },
     { re: /\*\*Phase\*\*:\s*[^\n]+/i },
     { re: /\*\*Summary\*\*:\s*[^\n]+/i },
-    { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i },
+    // Track 10020: unlike the other markers, a track can legitimately go
+    // its whole life without ever needing "Waiting for reply" until the
+    // moment it first does (e.g. a dispatched lane action hitting a
+    // genuine blocking question for the first time) — "not already present
+    // in primary" is the NORMAL case for that first occurrence, not a sign
+    // of reshaping the file. Silently dropping it here undid the exit
+    // handler's own correctly-written marker and the DB patch that
+    // depended on it: caught live on track 1102, where the marker landed
+    // in the worktree's copy and the worker_dispatch completion PATCH
+    // correctly included waiting_for_reply: true, but this merge step
+    // dropped it from primary's copy, and the very next syncTrack() call —
+    // reading primary's now marker-less file — overwrote the DB back to
+    // waiting_for_reply: false, silently undoing the Inbox fix.
+    { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i, alwaysInject: true },
   ];
 
   let merged = existingContent;
-  for (const { re, isStatusMarker } of markerPatterns) {
+  for (const { re, isStatusMarker, alwaysInject } of markerPatterns) {
     if (isStatusMarker && skipStatusMarkers) continue;
     const m = artifactContent.match(re);
     if (!m) continue;
     if (re.test(merged)) {
       merged = merged.replace(re, m[0]);
+    } else if (alwaysInject) {
+      merged = merged.trim() + `\n${m[0]}\n`;
     }
-    // If the marker isn't present in the existing file, don't inject it —
-    // preserve the file's own structure rather than reshaping it.
+    // Every other marker: if it isn't present in the existing file, don't
+    // inject it — preserve the file's own structure rather than reshaping
+    // it. (Lane/Lane Status/Progress/Phase/Summary are set at track
+    // creation, so this gap essentially never applies to them.)
   }
   return merged;
 }
