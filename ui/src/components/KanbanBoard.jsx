@@ -20,7 +20,7 @@ export const LANE_STATUS_CONFIG = {
 
 const LANE_EXPAND_THRESHOLD = 5;
 
-export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane }) {
+export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane }) {
   const [dragOverLane, setDragOverLane] = useState(null);
 
   const byLane = Object.fromEntries(
@@ -107,6 +107,7 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
                       {tracks.map(track => (
                         <TrackCard
                           key={track.id}
+                          projectId={projectId}
                           track={track}
                           onClick={() => onTrackClick?.(track)}
                           onLaneChange={onLaneChange}

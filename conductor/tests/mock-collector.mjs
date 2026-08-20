@@ -237,7 +237,8 @@ const server = createServer(async (req, res) => {
       return reply(res, 500, { error: 'simulated outage (test-injected)' });
     }
     const { num } = params;
-    const { lane_action_status, lane_action_result, lane_status, progress_percent, last_log_tail, active_cli } = body;
+    const { lane_action_status, lane_action_result, lane_status, progress_percent, last_log_tail, active_cli,
+      pr_number, pr_url, pr_status, merge_mode } = body;
     if (!state.tracks[num]) state.tracks[num] = { track_number: num, fail_count: 0 };
     const t = state.tracks[num];
     if (lane_action_status !== undefined) t.lane_action_status = lane_action_status;
@@ -249,6 +250,14 @@ const server = createServer(async (req, res) => {
     // non-claude CLIs (Phase 2 Task 4's "no regression" claim).
     if (last_log_tail !== undefined) t.last_log_tail = last_log_tail;
     if (active_cli !== undefined) t.active_cli = active_cli;
+    // Track 10018 Phase 11: patchTrackPrFields() PATCHes this same endpoint
+    // with these fields (see laneconductor.sync.mjs) — needed so a
+    // subprocess test can assert the worker actually synced PR state to
+    // the collector, not just to the local index.md marker.
+    if (pr_number !== undefined) t.pr_number = pr_number;
+    if (pr_url !== undefined) t.pr_url = pr_url;
+    if (pr_status !== undefined) t.pr_status = pr_status;
+    if (merge_mode !== undefined) t.merge_mode = merge_mode;
     return reply(res, 200, { ok: true });
   }
 
