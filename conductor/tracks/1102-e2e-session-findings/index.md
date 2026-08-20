@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 73%
+**Progress**: 80%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: 11 of 15 phases done. Remaining: F20 transcript overlay (needs browser), walkthrough + F15 live verification (needs running app + browser), F10c live-DB apply (still pending user confirmation)
+**Phase**: 12 of 15 phases done (F20 investigated live, doesn't reproduce — no fix needed). Remaining: Phase 4 walkthrough continuation (Activity/Inbox/deploy wizard), F15 live E2E verification (both need driving the real app), F10c live-DB apply (still pending user confirmation)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
