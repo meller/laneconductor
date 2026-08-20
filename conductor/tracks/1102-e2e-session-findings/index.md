@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 67%
+**Progress**: 73%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Reclaimed — previous turn ended and the LIVE production worker (running pre-fix code from the primary checkout, not this branch) advanced the lane to review/100% via the exact bug F21 fixes; that fix isn't merged yet so it couldn't apply here. Continuing remaining phases: F18b claim-timeout, F20 transcript overlay, walkthrough + F15 live verification, F10c live-DB apply (still pending user confirmation)
+**Phase**: 11 of 15 phases done. Remaining: F20 transcript overlay (needs browser), walkthrough + F15 live verification (needs running app + browser), F10c live-DB apply (still pending user confirmation)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -809,6 +809,26 @@ worth doing independently — it also covers a *real* worker dying
 mid-flight, which exclusion-by-signature can't — tracked as a possible
 follow-up, not implemented here.
 
+**Claim-timeout follow-up fixed 2026-08-20** (track 1102's own implement
+phase, Phase 12): `reapStaleDispatches(pool)` (`ui/server/index.mjs`)
+finds dispatches still `pending` past `LC_DISPATCH_CLAIM_TIMEOUT_MS`
+(default 5min) and either reassigns them to another live worker for the
+same project (same phantom-exclusion rules as above) or marks them
+`failed` with an explicit reason when none exists. Wired to a
+`setInterval` near `server.listen()` (`LC_DISPATCH_REAP_INTERVAL_MS`,
+default 60s) — this file had no prior background-timer precedent, so
+the reaper is a plain exported function for testability, with the
+interval confined to the production listen() block. 5 tests
+(`ui/server/tests/track-1102-f18b-dispatch-claim-timeout.test.mjs`),
+mocked-pool pattern matching this finding's own test file — an earlier
+draft's mock filtered candidates unconditionally in JS rather than
+inspecting the actual SQL text, and mutation-testing caught it (it kept
+passing even after the production query's phantom-exclusion clause was
+deliberately removed); rewritten to inspect the SQL text, same as this
+finding's own test does, then re-verified the mutation now correctly
+fails it. Not done: surfacing the reap outcome in the UI beyond the DB
+result field.
+
 Tested: `ui/server/tests/track-1102-f18-phantom-worker.test.mjs` — 3
 tests against a mocked pool that only filters candidates when the real
 SQL text sent by the app actually contains the exclusion clause (so a
@@ -1016,7 +1036,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [ ] Phase 9: Fix F20 — transcript drawer overlays a card's action buttons and swallows clicks; a killed run's transcript still renders as live
 - [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
 - [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
-- [ ] Phase 12: F18 follow-up — dispatch claim-timeout, covering a *real* worker that dies after assignment (which signature-exclusion cannot catch)
+- [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
 - [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL` so a manual row deletion can't erase dispatch/chat history
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
 - [ ] Phase 15: F15 — live E2E verification of the drag-to-lane / reset dispatch bridge, the way F5 was proven
