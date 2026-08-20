@@ -191,9 +191,14 @@ CREATE TABLE "users" (
 -- auto-launch queue. track_number is null for project-level actions
 -- (e.g. deploy); payload is a generic per-action parameter bag so future
 -- action types don't need their own dedicated column.
+-- Track 1102 F10c: worker_id is nullable and its FK is ON DELETE SET NULL
+-- (not CASCADE) so deleting a workers row — F10's soft de-registration
+-- normally avoids this, but a manual row deletion can still happen — never
+-- again erases this table's history, including all worker_adhoc_chat the
+-- Activity panel reads through it.
 CREATE TABLE "worker_dispatch" (
     "id" SERIAL NOT NULL,
-    "worker_id" INTEGER NOT NULL,
+    "worker_id" INTEGER,
     "track_number" TEXT,
     "action" TEXT NOT NULL,
     "payload" JSONB,
@@ -354,7 +359,7 @@ ALTER TABLE "track_sessions" ADD CONSTRAINT "track_sessions_worker_id_fkey" FORE
 ALTER TABLE "tracks" ADD CONSTRAINT "tracks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "worker_dispatch" ADD CONSTRAINT "worker_dispatch_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "worker_dispatch" ADD CONSTRAINT "worker_dispatch_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "workers" ADD CONSTRAINT "workers_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
