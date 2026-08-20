@@ -77,10 +77,13 @@ requirement.
 - [ ] **E2E fast tier — REQUIRED: `npx playwright test --project=fast`**
       — not run for track 1117, see scope note above.
 
-      Run from the repo root, with the UI (`:8090`) and API (`:8091`) up.
-      Deterministic: UI + collector API only, no LLM calls, no dependence on
-      a live worker claiming a lane action. Run the EXISTING specs — adding
-      one trivial passing test does NOT satisfy this.
+      Run from the repo root, with the UI (`:8090`) and API (`:8091`) up —
+      `make start-all` brings up both (`lc worker status` / `curl -s
+      localhost:8091/api/projects` first, to avoid starting a second copy
+      if they're already running). Deterministic: UI + collector API only,
+      no LLM calls, no dependence on a live worker claiming a lane action.
+      Run the EXISTING specs — adding one trivial passing test does NOT
+      satisfy this.
 
       **Measured baseline, 2026-08-12** (timed, not estimated):
       **10 passed, 6 skipped, 0 failed in ~15s wall.** 16 tests across 3
