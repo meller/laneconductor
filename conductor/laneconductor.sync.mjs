@@ -4088,6 +4088,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     const isSuccess = code === 0;
 
+    // Track 1102 F21 (original variant, distinct from the escalated
+    // mid-run-doc-sync-clobber one already fixed): an agent that
+    // backgrounds a long command and lets its own final turn end exits 0
+    // — a clean CLI-session termination — even though the actual coding
+    // work never reached its own completion marker. `isSuccess` alone
+    // can't tell this apart from a genuine pass; the agent's own last
+    // word (the WORKTREE's index.md, read here BEFORE anything below
+    // patches it) can — but ONLY for a real CLI that follows the SKILL's
+    // self-transition protocol ("Transition: ... set **Lane** ... to
+    // exactly what is defined in lanes.X.on_success", written by the
+    // agent itself as its own last action). `cli === 'mock'` is this
+    // codebase's universal test sentinel (see buildCliArgs / the
+    // 'LaneConductor Collectors' log line comment) — mock-cli.mjs never
+    // simulates that self-transition by design, relying entirely on this
+    // exit handler's own Phase 5 write instead, same as every other test
+    // in this suite. Without this gate, EVERY dispatch-driven mock-cli
+    // test would misread as "ended mid-work" (caught via a real
+    // regression: track-1102-f11-progress-keepalive.test.mjs went from
+    // 2/2 to 1/2 before this gate was added).
+    let endedMidWork = false;
+    if (isSuccess && cli !== 'mock') {
+      try {
+        const midWorkCheckDir = worktreePath || process.cwd();
+        const midWorkTrackDir = resolveTrackFolder(join(midWorkCheckDir, 'conductor', 'tracks'), trackNumber);
+        if (midWorkTrackDir) {
+          const rawIndexContent = readFileSync(join(midWorkCheckDir, 'conductor', 'tracks', midWorkTrackDir, 'index.md'), 'utf8');
+          endedMidWork = /\*\*Lane Status\*\*:\s*running/i.test(rawIndexContent);
+        }
+      } catch (e) { /* best-effort detection only — never block the exit handler on it */ }
+    }
+
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
     if (!isSuccess && existsSync(logPath)) {
@@ -4158,14 +4189,23 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         ? (currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success)
         : (isMaxRetries ? (currentLaneConfig?.on_failure || workflowConfig?.defaults?.on_failure) : null));
 
-    const { lane: targetLane, status: nextActionStatus } = resolveTransition(transitionValue, laneStatus, isSuccess, isMaxRetries);
+    let { lane: targetLane, status: nextActionStatus } = resolveTransition(transitionValue, laneStatus, isSuccess, isMaxRetries);
 
-    console.log(`[${label}] Track ${trackNumber}: ${isSuccess ? 'PASS' : 'FAIL'} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
+    // F21: never advance the lane or report success on an ended-mid-work
+    // exit — stay put, re-queue, so the next claim resumes (worktree +
+    // session both persist) instead of moving forward as if the work were
+    // actually verified complete.
+    if (endedMidWork) {
+      targetLane = laneStatus;
+      nextActionStatus = 'queue';
+    }
+
+    console.log(`[${label}] Track ${trackNumber}: ${endedMidWork ? 'ENDED MID-WORK' : (isSuccess ? 'PASS' : 'FAIL')} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
 
     const patchData = {
       project_id: projectId,
       lane_action_status: nextActionStatus,
-      lane_action_result: isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`)),
+      lane_action_result: endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`))),
       last_log_tail: tailLog(logPath), active_cli: cli,
     };
 
@@ -4231,8 +4271,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
           // 3. Update Progress if success (skip for conversation runs — don't force 100%)
 
-          // 3. Update Progress if success (skip for conversation runs — don't force 100%)
-          if (isSuccess && !isConversationRun) {
+          // 3. Update Progress if success (skip for conversation runs — don't
+          // force 100%; also skip for F21's ended-mid-work case — nothing was
+          // actually verified complete, forcing 100% would be a false signal)
+          if (isSuccess && !isConversationRun && !endedMidWork) {
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
@@ -4302,6 +4344,32 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     } catch (err) {
       console.warn(`[${label}] Error updating filesystem for track ${trackNumber}: ${err.message}`);
+    }
+
+    // Track 1102 F21: surface an ended-mid-work exit as its own distinct,
+    // human-visible outcome — not gated on `session` (unlike the audit-trail
+    // block below) so this shows up regardless of CLI/provider, and leads
+    // with ⚠️ per the Completion Comment Convention so the Inbox buckets it
+    // as "needs your input" rather than "recent activity".
+    if (endedMidWork) {
+      try {
+        const tracksDirForMidWork = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForMidWork = resolveTrackFolder(tracksDirForMidWork, trackNumber);
+        if (trackDirForMidWork) {
+          const convPathForMidWork = join(tracksDirForMidWork, trackDirForMidWork, 'conversation.md');
+          appendFileSync(
+            convPathForMidWork,
+            `\n> **system**: ⚠️ Run ended mid-work — the process exited cleanly (code 0) but ` +
+            `the agent's own completion marker was never written (likely a backgrounded ` +
+            `command still running when its final turn ended). Nothing was lost: the ` +
+            `worktree and session both persist. Re-run this lane action to resume where ` +
+            `it left off.\n`,
+            'utf8'
+          );
+        }
+      } catch (e) {
+        console.warn(`[${label}] Failed to post ended-mid-work comment for track ${trackNumber}: ${e.message}`);
+      }
     }
 
     // Track 1086 Phase 4 Task 2: append a lightweight, auto-derived
@@ -4483,7 +4551,15 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     // track-1086-session-worker.test.mjs, which asserts on mock-collector's
     // session state and on context-injection (PRODUCT_MD_MARKER) presence,
     // not on argv content.
-    return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
+    // Track 1102 F21: normally hardcoded 'mock' (the universal test
+    // sentinel other code already relies on — see the LaneConductor
+    // Collectors log line above). LC_MOCK_CLI_REPORTED_CLI lets a test
+    // that specifically needs to exercise cli-identity-gated behavior
+    // (e.g. the F21 ended-mid-work check, which only applies to real CLIs
+    // that follow the SKILL's self-transition protocol) report a
+    // different identity while still running the mock binary.
+    const reportedCli = process.env.LC_MOCK_CLI_REPORTED_CLI || 'mock';
+    return [cmd, [...rest, command, trackNumber], reportedCli, 'default', 'primary', session];
   }
   const proj = getProject();
   // Track 1116 REQ-7: a track's own **Model** marker beats the lane's
