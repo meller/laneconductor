@@ -1,9 +1,9 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 20%
-**Phase**: Walking the full new-user path in the real UI, fixing what breaks
+**Progress**: 100%
+**Phase**: Planned — 11 phases open (F3, F6, F9b, F13-filing, F18b, F19, F20, F21, F10c, walkthrough, live E2E)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
