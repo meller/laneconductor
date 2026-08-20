@@ -634,13 +634,17 @@ Worker  (per session — run from project root)
                        "start", it cannot claim any other queued track.
                        Example: lc worker run 1100
   start                Start the heartbeat sync worker
+                       Two worker modes — MANUAL (syncs + does what you
+                       explicitly ask from the UI) vs AUTOMATIC (also
+                       picks up queued work by itself):
                        Options:
                          --manager                      Start as machine-level global manager worker
                          --projects-dir <path>          (With --manager) Directory where projects are cloned
-                         --sync-and-work                Also poll database queue (default is sync-only)
+                         --sync-and-work                AUTOMATIC mode: also poll database queue
+                                                        (default is MANUAL / --sync-only)
                          --worker-number <N>            Start multiple workers for a project (default: 1)
-                         --only-tracks <n,n>            Claim ONLY these tracks. Without it a
-                                                        sync-and-work worker claims anything queued.
+                         --only-tracks <n,n>            Claim ONLY these tracks. Without it an
+                                                        AUTOMATIC worker claims anything queued.
                          --once                         Exit when the --only-tracks work is done
                                                         (requires --only-tracks)
                          --cli <id>                     Run this one worker on a different provider
@@ -654,7 +658,7 @@ Worker  (per session — run from project root)
   restart              Restart the heartbeat sync worker
                        Options:
                          --manager                      Restart the global manager worker
-                         --sync-and-work                Also poll database queue
+                         --sync-and-work                AUTOMATIC mode: also poll database queue
                          --worker-number <N>            Restart specific project worker
   worker [run|start|stop|restart|status|logs|sync]
                        Manage the sync worker (supports options above)
@@ -1582,7 +1586,7 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
-    console.log(`🚀 Starting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
+    console.log(`🚀 Starting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (AUTOMATIC / sync-and-work mode)' : ' (MANUAL / sync-only mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
@@ -1716,7 +1720,7 @@ Please review this, answer any questions (some fields may contain questions rath
         }
     }
 
-    console.log(`🚀 Restarting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
+    console.log(`🚀 Restarting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (AUTOMATIC / sync-and-work mode)' : ' (MANUAL / sync-only mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     if (existsSync(pidFile)) {
         const pid = readFileSync(pidFile, 'utf8').trim();
@@ -1806,6 +1810,23 @@ Please review this, answer any questions (some fields may contain questions rath
         }
         console.log(`\n👷 Worker Status${isManager ? ' [MANAGER]' : (workerNumber !== 1 ? ` (#${workerNumber})` : '')}: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
         if (pid && running) console.log(`   PID: ${pid}`);
+        // Track 1102 F6: MANUAL/AUTOMATIC is the user-facing vocabulary
+        // (matches WorkersList.jsx in the UI); sync-only/sync+poll is the
+        // on-the-wire mechanism name, unchanged. Reflects `worker.mode` from
+        // .laneconductor.json — the CONFIGURED default, same fallback the
+        // sync worker itself uses (getWorkerModeConfig() in
+        // laneconductor.sync.mjs: unset → 'sync+poll'). A running process
+        // started with an explicit --sync-and-work/--sync-only override can
+        // differ from this at runtime; this is a best-effort display, not a
+        // live query of the process's own resolved mode.
+        if (!isManager) {
+            try {
+                const modeCfg = JSON.parse(readFileSync(join(workerRoot, '.laneconductor.json'), 'utf8'));
+                const configuredMode = modeCfg.worker?.mode === 'sync-only' ? 'sync-only' : 'sync+poll';
+                const label = configuredMode === 'sync-only' ? 'MANUAL' : 'AUTOMATIC';
+                console.log(`   Mode: ${label} (${configuredMode})`);
+            } catch (e) { /* best-effort display only */ }
+        }
         const relativeLog = isManager
             ? 'conductor/.manager.log'
             : (workerNumber === 1 ? 'conductor/.sync.log' : `conductor/.sync-${workerNumber}.log`);
