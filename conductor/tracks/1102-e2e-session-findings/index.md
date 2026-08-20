@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 80%
+**Progress**: 87%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: 12 of 15 phases done (F20 investigated live, doesn't reproduce — no fix needed). Remaining: Phase 4 walkthrough continuation (Activity/Inbox/deploy wizard), F15 live E2E verification (both need driving the real app), F10c live-DB apply (still pending user confirmation)
+**Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both deferred, same reason: this board is the real live shared system, so both need an explicit go-ahead (or a disposable scratch project for F15) rather than being done autonomously
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -1053,6 +1053,25 @@ outcome, plus SKILL guidance against backgrounding a final-turn command).
 - Worker chat (track 1087 Phase 8): real reply round-trip.
 - Per-worker Stop (track 1084 Phase 6): stopped one worker, manager
   untouched.
+- **Activity panel (2026-08-20)**: opened against the real live board —
+  showed 3 real workers, correctly distinguished busy vs idle, and
+  clicking the busy one (which happened to be this very session's own
+  dispatch) streamed a real live tool-call-by-tool-call transcript with a
+  working chat input at the bottom. This is the F8/1087 finding
+  re-confirmed on a materially different board state (36 real inbox items,
+  multiple concurrent live workers) than when it was first verified.
+- **Inbox (2026-08-20)**: opened against the real board — 36 items
+  correctly split into "NEEDS YOUR INPUT" / "AWAITING AI" buckets with
+  real, varied content (brainstorm replies, KPI windows, a system ⚠️ about
+  a stale-docs guard firing on track #9997 — the F9-family gutted-index
+  guard working correctly in production, caught incidentally while
+  walking this).
+- **Deploy wizard / CI-CD tab (2026-08-20)**: selected the `laneconductor`
+  project, reached the Release tab — real environment/worker selectors,
+  Build New / Build & Deploy / Deploy to production controls all
+  rendered, and a live "Deployment Dispatch History" showed real recent
+  REFRESH-WORKTREES entries with timestamps and per-entry logs. **Stopped
+  here, before any actual deploy action** — per this phase's own scope.
 
 ## Phases
 
@@ -1063,7 +1082,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [x] Phase 1: F1 — worker mode for a newly created project. Closed as **not a bug**: `sync-only` is the intended default ("sync + manual UI operations"); the real symptom was F5. Decision locked in by a test asserting `mode === 'sync-only'` deliberately
 - [x] Phase 2: Fix F2 — accurate lane-action button state/tooltip (fixed, unit-tested)
 - [ ] Phase 3: Fix F3 — one status marker, not two (`ui/server/utils.mjs:35,41` still bakes in the legacy `**Status**`; `parse-status.mjs` is the workaround)
-- [ ] Phase 4: Continue the walkthrough — Activity, Inbox, deploy wizard (stop before an actual deploy); new findings land as F22+
+- [x] Phase 4: Continue the walkthrough — Activity, Inbox, deploy wizard walked live against the real board, all working correctly, no new findings; stopped before any actual deploy per scope
 - [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification is now Phase 15)
 - [x] Phase 6: Fix F16 — worker identity lock path now resolves the primary checkout instead of trusting cwd directly; fixed and live-verified (killed 4 real duplicate processes, confirmed exactly one survives a clean restart)
 - [x] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` is now a distinguishable `ended_mid_work` outcome (lane stays put, no forced 100%, ⚠️ comment posted), fixed and unit-tested; SKILL guidance against ending a turn on a backgrounded command still open
@@ -1074,7 +1093,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
 - [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL` so a manual row deletion can't erase dispatch/chat history
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
-- [ ] Phase 15: F15 — live E2E verification of the drag-to-lane / reset dispatch bridge, the way F5 was proven
+- [ ] Phase 15: F15 — live E2E verification of the drag-to-lane / reset dispatch bridge, the way F5 was proven. Deferred: this board is the real live shared system — every drag would dispatch a real lane action against someone's real project, the same risk class as F10c's pending DB confirmation. Needs an explicit go-ahead or a disposable scratch project, not attempted
 
 **Verified closed while planning** (contradicting an earlier write-up): F8's
 "clear the busy heartbeat" follow-up needs no phase — `spawnCli()` does call

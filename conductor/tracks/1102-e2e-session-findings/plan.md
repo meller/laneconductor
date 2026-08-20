@@ -83,16 +83,28 @@ there is still undiscovered.
 is trivial and local; file anything larger as a new finding (F22+) in
 `index.md` rather than expanding this phase.
 
-- [ ] Task 1: Activity panel — worker states, chat round-trip, per-worker stop
-- [ ] Task 2: Inbox — classification of ✅ / ⚠️ / ❌ completion comments,
-      "needs your input" vs "recent activity" buckets
-- [ ] Task 3: Deploy wizard — walk it end to end, **stop before an actual
-      deploy**
-- [ ] Task 4: Record each observation (screenshot or real API/DB response)
-- [ ] Task 5: File new findings as F22+ with the same evidence standard
+- [x] Task 1: Activity panel — opened live, 3 real workers shown, busy vs
+      idle correctly distinguished, clicked into the busy one (this
+      session's own dispatch) and got a real streaming tool-call
+      transcript with a working chat box. Per-worker stop not
+      re-exercised this pass (already verified in a prior session, see
+      "What worked") — no reason found to re-test it
+- [x] Task 2: Inbox — opened live, 36 real items correctly split into
+      NEEDS YOUR INPUT / AWAITING AI, varied real content including a
+      system ⚠️ (the F9-family stale-docs guard firing correctly on a
+      real track, caught incidentally)
+- [x] Task 3: Deploy wizard — reached the Release tab for the
+      `laneconductor` project, real controls and a real, populated
+      Deployment Dispatch History. **Stopped before any actual deploy
+      action**, per scope
+- [x] Task 4: Recorded via screenshots (Activity, Inbox, deploy wizard) —
+      see "What worked" section in index.md for the write-up
+- [x] Task 5: No new findings surfaced this pass — everything walked
+      rendered correctly against real data; nothing rose to F22+
 
-**Impact**: The remaining two-thirds of the new-user path get the same
-treatment the first third got.
+**Impact**: The remaining two-thirds of the new-user path got the same
+live-driven treatment the first third got — and, unlike the original
+walkthrough, found nothing broken this time.
 
 ---
 
@@ -379,12 +391,26 @@ whole track exists to distrust.
 
 **Solution**: Prove it on a real sync-only project.
 
+**Deferred, not attempted**: this live board (`localhost:8090`) is the
+real, shared, currently-running system — every project/track on it is
+someone's actual work, not disposable test data. Dragging a real card to
+trigger this verification would dispatch a real lane action (spawning an
+actual Claude session, consuming real tokens, potentially mutating a real
+project's files) as a side effect of a *verification* step — the same
+risk category as F10c's live-DB-apply question, which is already
+sitting on an explicit, still-unanswered confirmation request. Doing
+this without asking first would be worse: F10c at least asked before
+touching anything; this would touch something first and explain after.
+
 - [ ] Task 1: Real sync-only project, real card, real drag to a new lane
+      — needs either an explicit go-ahead to use a real project/track for
+      this, or a disposable scratch project created specifically for it
 - [ ] Task 2: Observe the `worker_dispatch` row appear and get claimed
 - [ ] Task 3: Repeat for the `/reset` path
 - [ ] Task 4: Record the observation in F15's body
 
-**Impact**: The bridge is verified the way F5 was, not one level weaker.
+**Impact**: Still not verified live — F15's fix remains unit-tested only,
+one level weaker than F5. Genuinely open, not silently dropped.
 
 ---
 
