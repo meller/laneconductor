@@ -1,8 +1,10 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
+**Waiting for reply**: no
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: All 6 phases complete
 **Type**: dev
 **Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness…
@@ -87,12 +89,12 @@ assumed:
   `workflow.json`'s configured strings and acting/notifying.
 
 ## Phases
-- [ ] Phase 1: Populate `primary_model` per lane in this project's own `workflow.json`, using it to validate the existing precedence logic end-to-end (confirms #1/#2 actually work once configured, not just in theory)
-- [ ] Phase 2: Decide + implement the chat-dispatch model question (#2's open design point)
-- [ ] Phase 3: Test coverage for manual-override-vs-per-lane-model precedence (#2's second gap) — currently unverified
-- [ ] Phase 4: Audit + populate `workflow.json` across other LaneConductor-managed projects (#3) — scope the actual list at planning time
-- [ ] Phase 5: Model-version staleness detection + notification, built on 1099's `available_models` (#4)
-- [ ] Phase 6: Intelligent same-family auto-update (opt-in/opt-out per project), if Phase 5's notification approach alone isn't judged sufficient
+- [x] Phase 1: Populate `primary_model` per lane in this project's own `workflow.json`, using it to validate the existing precedence logic end-to-end (confirms #1/#2 actually work once configured, not just in theory)
+- [x] Phase 2: Decide + implement the chat-dispatch model question (#2's open design point)
+- [x] Phase 3: Test coverage for manual-override-vs-per-lane-model precedence (#2's second gap) — currently unverified
+- [x] Phase 4: Audit + populate `workflow.json` across other LaneConductor-managed projects (#3) — scope the actual list at planning time
+- [x] Phase 5: Model-version staleness detection + notification, built on 1099's `available_models` (#4)
+- [x] Phase 6: Intelligent same-family auto-update (opt-in/opt-out per project) — real-use window elapsed (2026-08-14 → 2026-08-18); live evidence justified building it, scoped exactly per plan.md (opt-in, same-tier-only, reuses Phase 5's exact "gone + suggestion" trigger, auditable via git commit)
 
 ## Depends on
 [1096](../1096-worker-cli-model-picker/index.md) — the manual override mechanism (`set_model` dispatch) this track's precedence work interacts with; its own Phase 6 (provider vs. model / session continuity) is the reasoning this track's stickiness requirement is built on.
@@ -105,4 +107,3 @@ Opened directly from a user request with four numbered asks; this index
 restates each against verified current code behavior (file:line
 references above) rather than assumed behavior, per this session's
 established practice of confirming before planning fixes.
-**Waiting for reply**: yes

@@ -119,6 +119,35 @@ Don't resolve this silently — it's the crux of the default question.
   `lc new` gains a `--type bug|feature` flag for callers who already
   know.
 
+## Interaction with track 10018 (per-track merge mode) — added 2026-08-18
+
+Track [10018](../10018-per-track-merge-mode/index.md) adds a per-track
+`**Merge Mode**: pr|direct` (default `pr`) governing how a track *branch*
+integrates: auto-merge vs GitHub PR with human approval. Together the two
+tracks form one three-way strategy per track: `main-direct` |
+`branch + direct merge` | `branch + PR`. Consequences for this track's
+planning phase:
+
+1. **New option (d) for the unattended-bug tension above:** bug tracks
+   stay **branch-mode with `merge_mode: direct`** — fast integration, no
+   PR ceremony, but still quarantined on a branch — and main-direct is
+   reserved for the cases that genuinely need it: self-hosted infra
+   dogfooding (#1) and live human pairing (#2). Motivation #3 (worktree
+   overhead on tiny fixes) is mostly answered by branch+direct.
+2. **10018's dev-server preview (its Phase 5) overlaps motivation #1:**
+   it runs the dev server *from a branch's worktree*. If preview is
+   extended to also swap the sync worker (recorded as an open item in
+   10018's spec), the infra-dogfood case shrinks and this track's
+   irreducible core becomes live-pairing/attribution (#2).
+3. **Shared conventions:** ship sibling markers (`**Workspace**:
+   main|branch`, `**Merge Mode**: direct|pr`) resolved by one shared
+   resolution service; main-mode tracks are excluded from 10018's PR
+   machinery entirely (no branch → no PR, no preview row, `merge_mode`
+   N/A — consistent with 1114's "no worktree → not in the panel").
+4. **Sequencing:** 10018 lands first (planned, applies to today's
+   all-branch world); this track's Phase 1 design finalization then
+   resolves the default-mode question with option (d) on the table.
+
 ## Open questions for planning
 - Does `merge-worktree`/`auto-complete-track` (1114) need a main-mode
   variant, or is "already on main" trivially the merged state? (Likely
@@ -139,6 +168,7 @@ Don't resolve this silently — it's the crux of the default question.
 - [ ] Phase 6: Docs — SKILL.md + workflow.md guidance on when each mode is appropriate
 
 ## Related tracks
+- [10018](../10018-per-track-merge-mode/index.md) — per-track merge mode (pr vs direct); the integration end of the same axis, see interaction section above
 - [1112](../1112-git-sync-and-worktree-visibility/index.md) / [1114](../1114-worktrees-panel-deep-link-autopilot-cleanup/index.md) — the worktree machinery this adds an alternative to; 1114's panel scoping already behaves correctly for main-mode tracks (nothing to show)
 - [1113](../1113-conversation-worker-interaction-consolidation/index.md) — its planning agent's "Send & Run doesn't exist" false-negative is this track's problem statement in miniature
 - [1110](../1110-worker-separation-and-claim-race-safety/index.md) — the lock/claim machinery main mode leans on for serialization

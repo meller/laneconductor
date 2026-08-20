@@ -17,6 +17,7 @@ import { getBuilds, getBuildById, createBuildArtifact } from './build-manager.mj
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 import { logger } from './logger.mjs';
 import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
+import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -1700,9 +1701,16 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
 // action is read back from there.
 async function dispatchIfSyncOnly(projectId, trackNumber) {
   try {
+    // Track 1102 F18: same phantom-worker exclusion as the /dispatch and
+    // /worktrees/refresh fallbacks — a Playwright fixture worker
+    // (hostname 'pw-e2e-worker' / pid 999999, or pid 0) heartbeating
+    // during a test run looks like a real live worker to this query and
+    // its low id would otherwise win.
     const { rows: liveWorkers } = await pool.query(
       `SELECT w.id, w.mode, w.type FROM workers w
-        WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'`,
+        WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+          AND w.pid != 0 AND (w.hostname IS NULL OR w.hostname NOT LIKE 'pw-e2e-%')
+        ORDER BY w.id ASC`,
       [projectId]
     );
     const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
@@ -2822,17 +2830,28 @@ app.get('/track/:num/retry-count', collectorAuth, async (req, res) => {
 app.post('/tracks/reset-stuck-actions', collectorAuth, async (req, res) => {
   try {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
-    // immediate=true: reset ALL running tracks (used on worker startup — worker starts fresh, owns no running tracks)
-    // default: only reset tracks stuck for more than 2 minutes
+    // immediate=true: this worker just started and owns no running tracks —
+    // release only ITS OWN prior claims (claimed_by = its own machine_token).
+    // Track 1117 Bug 1: this used to reset every running/queued track for the
+    // whole project, stomping sibling workers' still-live tracks whenever any
+    // one worker restarted. If this caller has no resolvable machine_token
+    // (e.g. global-token/anonymous auth has no per-worker identity to scope
+    // by), reset nothing rather than falling back to the old project-wide
+    // behavior.
+    // default: only reset tracks stuck for more than 2 minutes (heartbeat-staleness — unaffected by this fix, applies regardless of owner)
     const immediate = req.body?.immediate === true;
+    if (immediate && !req.machine_token) {
+      return res.json({ reset: [] });
+    }
     const whereClause = immediate
-      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by IS NOT NULL`
+      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by = $2`
       : `project_id = $1 AND lane_action_status = 'running' AND last_heartbeat < NOW() - INTERVAL '2 minutes'`;
+    const params = immediate ? [projectId, req.machine_token] : [projectId];
     const r = await pool.query(
       `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = 'stuck_timeout', claimed_by = NULL
        WHERE ${whereClause}
        RETURNING track_number`,
-      [projectId]
+      params
     );
     res.json({ reset: r.rows.map(r => r.track_number) });
   } catch (err) {
@@ -3628,8 +3647,9 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
     // Track 10018: create-pr/merge-pr are the pr-mode siblings of
     // merge-worktree — same worker-resolution treatment (a track-scoped
     // git/gh operation, not something the client should be picking a
-    // worker for).
-    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'create-pr' || action === 'merge-pr') && !worker_id) {
+    // worker for). ai-resolve-conflict (Track 1114) gets the same
+    // treatment for the same reason.
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'create-pr' || action === 'merge-pr' || action === 'ai-resolve-conflict') && !worker_id) {
       const trackNumber = payload?.track_number;
       if (action !== 'remove-worktree' && action !== 'refresh-worktrees' && !trackNumber) {
         return res.status(400).json({ error: `payload.track_number is required for ${action}` });
@@ -3651,8 +3671,21 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
         }
       }
       if (!resolvedWorkerId) {
+        // Track 1102 F18: a Playwright fixture worker (hostname
+        // 'pw-e2e-worker', pid 999999 — worker-identity.spec.js; or pid 0,
+        // hostname 'e2e-test-host' — track-1033-e2e.spec.js) heartbeating
+        // during a test run looks identical to a real worker to this
+        // query, and its low id (created early in that run) wins
+        // `ORDER BY id LIMIT 1` over every real worker. A phantom
+        // heartbeats but never polls a dispatch inbox, so the dispatch
+        // starves silently forever. pid 0 is never a real process (reserved
+        // for the kernel scheduler) and the 'pw-e2e-' hostname prefix is
+        // this codebase's own established fixture-naming convention —
+        // excluding both is safe for real remote-api workers, which use
+        // neither.
         const { rows: any } = await pool.query(
-          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
           [req.params.id]
         );
         resolvedWorkerId = any[0]?.id ?? null;
@@ -3723,8 +3756,11 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
 // refresh-worktrees, since this action is never track-scoped.
 app.post('/api/projects/:id/worktrees/refresh', async (req, res) => {
   try {
+    // Track 1102 F18: same phantom-worker exclusion as the /dispatch
+    // fallback above — see that comment for the full explanation.
     const { rows: any } = await pool.query(
-      `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+      `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+       AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
       [req.params.id]
     );
     const workerId = any[0]?.id ?? null;
@@ -4433,6 +4469,25 @@ if (process.env.NODE_ENV !== 'test') {
     // console.log('[LaneConductor API] Auth: configured via auth module');
     // ensureGitGlobalId() is removed or needs an explicit project DB poll if needed, better skip for now since it's collector specific
     console.log(`[LaneConductor API] http://localhost:${PORT}/api/health`);
+
+    // Track 10019 (REQ-6): one-line startup provenance — this server has
+    // no cwd-derived state of its own to correct (S13: per-project ops use
+    // `repo_path` from the DB, not process.cwd()), but it inherits
+    // whatever cwd its launcher passed (the Makefile's UI_DIR / lc api
+    // start's uiDir — both now resolve to the primary per REQ-2/REQ-4).
+    // Logged so a future incident's first question ("which checkout is
+    // this actually serving?") has an answer without /proc archaeology.
+    try {
+      const servingRoot = process.cwd();
+      const isPrimary = resolvePrimaryRepoRoot(servingRoot) === servingRoot;
+      const provenanceMsg = isPrimary
+        ? `[LaneConductor API] Serving from ${servingRoot} (primary checkout).`
+        : `[LaneConductor API] ⚠️  Serving from ${servingRoot} — this is NOT the primary checkout.`;
+      console.log(provenanceMsg);
+      logger.info({ servingRoot, isPrimary }, provenanceMsg);
+    } catch {
+      // Not inside a git repo (e.g. a stripped deployment) — nothing to report.
+    }
   });
 }
 

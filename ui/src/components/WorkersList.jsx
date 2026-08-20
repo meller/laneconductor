@@ -5,6 +5,7 @@ import { WorkerModelModal } from './WorkerModelModal.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -123,9 +124,14 @@ function WaitingQueue({ tracks, onPriorityChange }) {
   );
 }
 
-export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh, onSelectTrack }) {
+export function WorkersList({ projectId, project, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh, onSelectTrack }) {
   const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
+  // REQ-3b: 'claude' was previously hardcoded here as the "cli not
+  // reported" fallback — resolve it from the project's actual configured
+  // default (falling back through live discovery / registry recommendation)
+  // instead, same as every other former hardcoded-claude site.
+  const defaultCli = getDefaultProviderModel(project, workers).cli;
   // Track 1084 Phase 6: "does this project have a worker of its own?" is a
   // different question from "what workers are visible here". A manager is
   // deliberately included in a project's worker list (the provisioning and
@@ -453,7 +459,7 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                     <div className="flex items-center justify-between bg-gray-950/60 px-2 py-1.5 rounded-lg border border-gray-800/80 my-2">
                       <div className="flex items-center gap-1.5 overflow-hidden">
                         <span className="text-xs">{providerIcon(worker.cli)}</span>
-                        <span className="text-[11px] font-medium text-gray-300 capitalize">{worker.cli || 'claude'}</span>
+                        <span className="text-[11px] font-medium text-gray-300 capitalize">{worker.cli || defaultCli}</span>
                         <span className="text-[10px] font-mono text-purple-400 bg-purple-950/50 px-1.5 py-0.5 rounded border border-purple-800/40 truncate" data-testid="worker-model-badge">
                           {workerModelLabel(worker)}
                         </span>
@@ -525,6 +531,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
         {configWorker && (
           <WorkerModelModal
             worker={configWorker}
+            project={project}
+            workers={workers}
             onClose={() => setConfigWorker(null)}
             onUpdated={() => {
               onRefresh?.();
@@ -665,6 +673,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
       {configWorker && (
         <WorkerModelModal
           worker={configWorker}
+          project={project}
+          workers={workers}
           onClose={() => setConfigWorker(null)}
           onUpdated={() => {
             onRefresh?.();

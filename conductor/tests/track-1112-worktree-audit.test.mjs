@@ -370,6 +370,40 @@ describe('auditWorktrees()', () => {
     assert.equal(primaryRow, undefined, 'the primary checkout must never be reported as its own row');
   });
 
+  it('resolves the lock-file check against the PRIMARY checkout even when called with a linked worktree repoRoot (track 10019 / S11)', async () => {
+    // Real bug found live (track 10019): mainHasReopenedTrackIndependently()
+    // built its `.conductor/locks/<n>.lock` path from whatever `repoRoot`
+    // was passed in — correct only when the caller runs from the primary.
+    // reconcileWorktrees() calls auditWorktrees({ repoRoot: process.cwd() })
+    // on a 60s tick; if the worker's own cwd is ever a linked worktree
+    // (the exact class this track exists to close), the lock check misses
+    // a real, live lock and misclassifies an actively-reopened,
+    // still-locked track as `mergeable` — safe to auto-merge out from
+    // under a running worker.
+    setupRepo();
+    writeTrackIndex(REPO, '109', 'Reopened Track', 'done', 'success');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "track 109 done"');
+    git('worktree add -q -B track-109 .worktrees/109 HEAD');
+    // Branch must have its own unmerged commit, or it's just an ancestor of
+    // main and auditWorktrees skips it entirely as "fully merged".
+    writeTrackIndex(join(REPO, '.worktrees/109'), '109', 'Reopened Track', 'done', 'success', 'Worktree-only commit.');
+    git('add -A', join(REPO, '.worktrees/109'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "worktree unrelated commit"', join(REPO, '.worktrees/109'));
+
+    mkdirSync(join(REPO, '.conductor/locks'), { recursive: true });
+    writeFileSync(join(REPO, '.conductor/locks/109.lock'), '{"track_number":"109"}');
+    writeTrackIndex(REPO, '109', 'Reopened Track', 'plan', 'running');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main reopened track 109 (locked)"');
+
+    const fromPrimary = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const fromWorktree = await auditWorktrees({ repoRoot: join(REPO, '.worktrees/109'), mainBranch: 'main' });
+
+    assert.equal(fromPrimary.find(r => r.trackNumber === '109')?.classification, 'open',
+      'sanity check: a live lock protects the track when called from the primary');
+    assert.equal(fromWorktree.find(r => r.trackNumber === '109')?.classification, 'open',
+      'must still see the live lock — and refuse to classify as mergeable — when called with a linked worktree repoRoot');
+  });
+
   it('does not merge, delete, or otherwise mutate anything — read-only', async () => {
     setupRepo();
     writeTrackIndex(REPO, '105', 'Readonly Track', 'plan', 'queue');
