@@ -1,9 +1,9 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 100%
-**Phase**: 10 of 15 phases done (F3, F19, F6, F13-filing, F9b, F21). Remaining: F10c live-DB apply (pending user confirmation), F18b claim-timeout, F20 transcript overlay, walkthrough + F15 live verification…
+**Lane Status**: queue
+**Progress**: 87%
+**Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both…
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
