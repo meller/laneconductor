@@ -563,6 +563,7 @@ function AppContent({ user, logout }) {
               </div>
             ) : boardMode === 'lane' ? (
               <LaneFocusView
+                projectId={selectedProjectId}
                 tracks={displayTracks}
                 focusedLane={focusedLane}
                 onFocusLane={setFocusedLane}
@@ -576,6 +577,7 @@ function AppContent({ user, logout }) {
               />
             ) : (
               <KanbanBoard
+                projectId={selectedProjectId}
                 tracks={displayTracks}
                 onTrackClick={handleTrackClick}
                 onLaneChange={handleLaneChange}
@@ -857,6 +859,7 @@ function CloudAppInner() {
         ) : viewMode === 'lanes' ? (
           selectedProject ? (
             <KanbanBoard
+              projectId={selectedProjectId}
               tracks={tracks.filter(t => t.project_id === selectedProjectId)}
               onTrackClick={handleTrackClick}
               onLaneChange={(track, targetLane) => setPendingAction({ track, targetLane })}
