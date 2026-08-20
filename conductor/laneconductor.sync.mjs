@@ -450,20 +450,18 @@ async function discoverAvailableModels(cli) {
         } catch { /* not available */ }
       }
 
-      // Also support fetching Claude models from agy models if claude CLI command fails
-      try {
-        ({ stdout } = await execAsync('agy models < /dev/null 2>/dev/null', { timeout: TIMEOUT_MS, encoding: 'utf8' }));
-        const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length > 0) {
-          const claudeFromAgy = lines.map(l => {
-            const tokens = l.split(/\s+/);
-            const id = tokens[0];
-            const label = tokens.slice(1).join(' ') || id;
-            return { id, label };
-          }).filter(m => looksLikeModelId(m.id) && m.id.startsWith('claude-'));
-          if (claudeFromAgy.length > 0) return claudeFromAgy;
-        }
-      } catch { /* ignore */ }
+      // Deliberately no agy-models fallback here: agy (Antigravity) is a
+      // different provider with its own proxy catalog and its own naming
+      // for the Claude models it routes to (e.g. 'claude-sonnet-4-6') —
+      // those labels are Antigravity's, not Anthropic's, and are not
+      // guaranteed to be valid model ids for the real `claude` CLI/API.
+      // Filtering its output for a 'claude-' prefix and relabeling it as
+      // "the claude CLI's available models" silently borrowed a different
+      // vendor's catalog, which is how a real, directly-available model
+      // (Haiku) went missing from discovery: Antigravity's catalog just
+      // doesn't carry it. Return null instead and let refreshModels() fall
+      // back to the static PROVIDERS preset, same as any other discovery
+      // failure.
     } else if (cli === 'gemini') {
       // Try direct gemini CLI command first
       try {
