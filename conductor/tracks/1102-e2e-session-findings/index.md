@@ -1,10 +1,10 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 27%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — 11 phases open (F3, F6, F9b, F13-filing, F18b, F19, F20, F21, F10c, walkthrough, live E2E)
+**Phase**: Implementing open phases (F3, F6, F9b, F13-filing, F18b, F19, F20, F21, F10c, walkthrough, live E2E)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -833,6 +833,16 @@ the lane marker — there is no UI affordance to move backlog → plan).
 Either backlog's next lane should be plan, or the arrow should offer a
 choice, or at minimum moving to implement with no plan artifacts should
 warn.
+
+**Fixed**: `NEXT_LANE.backlog` is `'plan'` in `TrackCard.jsx:21` (the
+comment there explains why), guarded by
+`ui/src/components/TrackCard.test.jsx`'s `"TrackCard — F19 backlog arrow
+must route through plan, not skip to implement"` test — verified live
+during track 1102's implement phase by mutating `NEXT_LANE.backlog` back
+to `'implement'` and confirming the test fails, then reverting. Moving to
+implement with no plan artifacts additionally warning is still an open,
+separate UX decision — not required for the regression-safety goal this
+finding was actually about.
 
 ### F20 — A dead run's transcript strip overlays the card's own action buttons and silently swallows clicks 🟠 CONFIRMED (not fixed)
 Hit live: after killing track 10019's implement agent, its stale
