@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 27%
-**Phase**: Implementing open phases (F3, F6, F9b, F13-filing, F18b, F19, F20, F21, F10c, walkthrough, live E2E)
+**Progress**: 100%
+**Phase**: 10 of 15 phases done (F3, F19, F6, F13-filing, F9b, F21). Remaining: F10c live-DB apply (pending user confirmation), F18b claim-timeout, F20 transcript overlay, walkthrough + F15 live verification…
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
