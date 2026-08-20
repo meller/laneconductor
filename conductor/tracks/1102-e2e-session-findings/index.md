@@ -858,7 +858,7 @@ button. Layering/layout bug in the board card + transcript strip
 (`TrackCard`/`TranscriptView`); also worth asking why a finished (killed)
 run's transcript still renders as if live.
 
-### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 PARTIALLY FIXED (escalated variant fixed & unit-tested; original turn-end variant still open)
+### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 FIXED (both variants unit-tested; SKILL-guidance follow-up still open)
 Hit live on track 10019's implement run (dispatch 1516, 2026-08-18): the
 agent finished Phases 1-2 worth of real work (new
 `conductor/services/primary-cwd.mjs`, a new 19-test suite it had watched
@@ -886,6 +886,36 @@ Fix directions:
   a just-launched background command — either wait for it or run it
   foreground; the harness kills background children when the session
   process exits.
+
+**Original variant fixed 2026-08-20** (track 1102's own implement phase).
+Empirically reproduced first, rather than trusting this write-up's exact
+description — a real spawned worker + real git worktree with a mock CLI
+that (like a real agent cut off mid-work) never touches `index.md`
+showed the **current** code actually **advances the lane forward**
+(`implement` → `review:queue`, `Progress` forced to `100%`) on exit 0,
+not merely "reset to queue" as originally written above — either way, a
+run that never finished was being reported as a clean success. Fix: the
+exit handler now reads the worktree's own `index.md` *before* patching
+it; if `**Lane Status**: running` is still there on an otherwise-`isSuccess`
+exit, the run is treated as `ended_mid_work` instead — lane stays put,
+`Progress` isn't forced to `100%`, and a `⚠️ Run ended mid-work...`
+comment is posted explaining that a re-run resumes (worktree + session
+both persist). Gated on `cli !== 'mock'`: mock-cli.mjs never simulates
+the SKILL's own self-transition protocol (a real agent writing its own
+terminal marker), so without the gate every mock-cli-driven dispatch test
+misreads as ended-mid-work — caught via a real regression
+(`track-1102-f11-progress-keepalive.test.mjs` went 2/2 → 1/2) before the
+gate was added. `LC_MOCK_CLI_REPORTED_CLI` added so a test can still
+exercise the gated path against the mock binary. Tested:
+`conductor/tests/track-1102-f21-exit-zero-mid-work.test.mjs`, watched
+fail for the right reason before the fix, pass after; adjacent
+exit-handler tests (F8, F9, F9b, F11, F12, F21-escalated, the 1112
+worktree-artifact-merge suite) all re-run clean.
+
+**Still open**: the SKILL-guidance fix direction (don't end a turn on a
+just-launched background command) — this phase only made the *aftermath*
+visible and non-destructive; it doesn't prevent the harness from cutting
+the background command off in the first place.
 
 **Escalated 2026-08-19 — worse and systematic, not a turn-end anomaly.**
 Both the review AND quality-gate runs on the same track showed a more
@@ -981,7 +1011,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [ ] Phase 4: Continue the walkthrough — Activity, Inbox, deploy wizard (stop before an actual deploy); new findings land as F22+
 - [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification is now Phase 15)
 - [x] Phase 6: Fix F16 — worker identity lock path now resolves the primary checkout instead of trusting cwd directly; fixed and live-verified (killed 4 real duplicate processes, confirmed exactly one survives a clean restart)
-- [ ] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` must be a distinguishable "ended mid-work, re-run to resume" outcome, not a silent reset to `queue`; plus SKILL guidance against ending a turn on a backgrounded command
+- [x] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` is now a distinguishable `ended_mid_work` outcome (lane stays put, no forced 100%, ⚠️ comment posted), fixed and unit-tested; SKILL guidance against ending a turn on a backgrounded command still open
 - [ ] Phase 8: Fix F9b — `workDir` TDZ `ReferenceError` at `laneconductor.sync.mjs:4269` (declared at 4274 in a sibling block), swallowed by an empty catch, so `last_run.log` is never staged
 - [ ] Phase 9: Fix F20 — transcript drawer overlays a card's action buttons and swallows clicks; a killed run's transcript still renders as live
 - [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
