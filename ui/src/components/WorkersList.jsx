@@ -277,6 +277,11 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                         <div className="flex flex-col">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-gray-200">{worker.hostname}</span>
+                            {worker.type === 'manager' && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm bg-emerald-600/20 text-emerald-400 border-emerald-500/50">
+                                MANAGER
+                              </span>
+                            )}
                             {worker.mode ? (
                               <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm ${worker.mode === 'sync-only'
                                 ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
@@ -403,6 +408,11 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
             <span className={`text-[11px] font-medium transition-colors ${worker.status === 'busy' ? 'text-amber-200' : 'text-gray-300'}`}>
               {worker.hostname}
             </span>
+            {worker.type === 'manager' && (
+              <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-emerald-900/40 text-emerald-400 border-emerald-800/50">
+                MANAGER
+              </span>
+            )}
             {worker.mode ? (
               <span className={`text-[8px] font-bold uppercase tracking-wider px-1 rounded border ${worker.mode === 'sync-only'
                 ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
