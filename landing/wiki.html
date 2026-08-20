@@ -581,10 +581,14 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                 </p>
                 <pre><code>{
   "lanes": {
-    "plan": { "model": "haiku" },
-    "implement": { "model": "sonnet" }
+    "plan": { "primary_model": "claude-opus-5" },
+    "implement": { "primary_model": "claude-sonnet-5" },
+    "review": { "primary_model": "claude-3-5-haiku" }
   }
 }</code></pre>
+                <p>The key is <code>primary_model</code> — a lane's setting wins over the project default for that
+                    lane's automated runs. The provider (CLI) stays fixed project-wide; only the model varies per
+                    lane, which preserves session continuity across lane transitions.</p>
             </section>
 
             </section>
@@ -655,6 +659,38 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                 <h3>3. Remote API (Team)</h3>
                 <p>For teams. Local workers sync to a shared remote collector. This allows project managers and
                     teammates to see agent progress across the entire organization in a unified view.</p>
+
+                <h3>Skill-Only vs Worker Modes — Feature Comparison</h3>
+                <p>Before any of the three modes above, there's a zero-install on-ramp: <strong>skill-only</strong>.
+                    An AI session (Claude Desktop, an interactive CLI chat) drives the <code>conductor/</code>
+                    files directly through the <code>/laneconductor</code> skill — no worker process, no database,
+                    nothing to install. Everything degrades gracefully to it. The table below is the honest upgrade
+                    path: each column to the right is a reason to install more.</p>
+                <table>
+                    <thead><tr><th>Feature</th><th>Skill-only</th><th>Worker (local-fs)</th><th>Full stack (local-api)</th><th>Cloud (remote-api)</th></tr></thead>
+                    <tbody>
+                        <tr><td>Track scaffolding, plan/implement/review via markdown</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Git lock + worktree isolation</td><td>✅ manual</td><td>✅ automatic</td><td>✅ automatic</td><td>✅ automatic</td></tr>
+                        <tr><td>Auto-launch of queued lane actions</td><td>❌ human invokes each step</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Retry / on-failure lane automation (<code>workflow.json</code>)</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td><strong>Per-lane model</strong> (<code>primary_model</code> per lane)</td><td>❌ session model is whatever the human runs</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td><strong>Per-track model override</strong> (planned)</td><td>❌ same reason</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Provider exhaustion fallback (primary → secondary CLI)</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Session continuity across lane actions (<code>--resume</code>)</td><td>n/a (one human session)</td><td>✅</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Live model discovery from the machine (heartbeat)</td><td>❌</td><td>❌ no collector to report to</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Kanban dashboard, Inbox, conversation UI</td><td>❌</td><td>❌</td><td>✅ <code>localhost:8090</code></td><td>✅ cloud URL</td></tr>
+                        <tr><td>Worker dispatch ("run this on that worker")</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td></tr>
+                        <tr><td>Multi-machine / team coordination, worker identity</td><td>❌</td><td>git locks only</td><td>✅ single machine</td><td>✅ full</td></tr>
+                    </tbody>
+                </table>
+                <div class="callout">
+                    <div class="callout-title">Model selection is a worker feature — and best-effort</div>
+                    <p>Per-lane and per-track model settings are resolved by the <strong>worker at spawn time</strong>
+                        (it passes <code>--model</code> to the CLI it launches). In skill-only mode there is nothing to
+                        spawn, so the model is simply whatever session you're running. Matching is best-effort: the
+                        model id is not validated against the executing machine's installed models — a mismatch fails
+                        that run (normal retry handling applies) rather than being blocked up front.</p>
+                </div>
             </section>
 
             <section id="project-status">

@@ -1,9 +1,9 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Not started — design captured from live discussion 2026-08-14
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Phase 1 complete — spec.md written (D1–D10, REQ-1..REQ-12); Phases 2–6 ready to implement
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: LaneConductor implicitly assumes ALL work is branch-per-track worktree work; an entire live pairing session (tracks 1112-1114's bug fixes) happened directly on main because fixing self-hosted…
@@ -172,3 +172,4 @@ planning phase:
 - [1112](../1112-git-sync-and-worktree-visibility/index.md) / [1114](../1114-worktrees-panel-deep-link-autopilot-cleanup/index.md) — the worktree machinery this adds an alternative to; 1114's panel scoping already behaves correctly for main-mode tracks (nothing to show)
 - [1113](../1113-conversation-worker-interaction-consolidation/index.md) — its planning agent's "Send & Run doesn't exist" false-negative is this track's problem statement in miniature
 - [1110](../1110-worker-separation-and-claim-race-safety/index.md) — the lock/claim machinery main mode leans on for serialization
+**Merge Mode**: pr

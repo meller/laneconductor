@@ -12,5 +12,5 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: implement
-**Lane Status**: running
+**Lane Status**: queue
 **Summary**: There's no persisted place to store the per-track auto-run flag.

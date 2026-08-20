@@ -57,7 +57,7 @@ api-start:
 	@if [ -f $(UI_DIR)/.api.pid ] && kill -0 $$(cat $(UI_DIR)/.api.pid) 2>/dev/null; then \
 	  echo "✅ API already running (PID: $$(cat $(UI_DIR)/.api.pid))"; \
 	else \
-	  cd $(UI_DIR) && node server/index.mjs >> $(UI_DIR)/.api.log 2>&1 & echo $$! > $(UI_DIR)/.api.pid; \
+	  cd $(UI_DIR) && nohup node server/index.mjs >> $(UI_DIR)/.api.log 2>&1 & echo $$! > $(UI_DIR)/.api.pid; \
 	  sleep 0.3; \
 	  echo "✅ API started (PID: $$(cat $(UI_DIR)/.api.pid)) → http://localhost:8091"; \
 	fi
@@ -79,7 +79,7 @@ ui-start:
 	@if [ -f $(UI_DIR)/.ui.pid ] && kill -0 $$(cat $(UI_DIR)/.ui.pid) 2>/dev/null; then \
 	  echo "✅ UI already running (PID: $$(cat $(UI_DIR)/.ui.pid))"; \
 	else \
-	  cd $(UI_DIR) && npx vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
+	  cd $(UI_DIR) && nohup npx vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
 	  sleep 0.3; \
 	  echo "✅ UI started (PID: $$(cat $(UI_DIR)/.ui.pid)) → http://localhost:8090"; \
 	fi

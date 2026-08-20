@@ -1,4 +1,4 @@
-# Track 10001: Brainstorm B 1786522127837
+# Track 10000: Concurrency A 1786523242589
 
 **Status**: plan
 **Progress**: 0%
@@ -12,5 +12,5 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: plan
-**Lane Status**: running
-**Waiting for reply**: yes
+**Lane Status**: queue
+**Summary**: Test description

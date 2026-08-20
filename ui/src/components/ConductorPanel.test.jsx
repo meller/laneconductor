@@ -1,7 +1,7 @@
 // Track 10014 Phase 5: ConductorPanel gains an Edit/Save/Cancel mode for
 // allow-listed tabs (matches the PATCH /api/projects/:id/conductor/:key
-// allow-list added in Phase 2), while `workflow` and dynamically-added
-// `sg_*` styleguide tabs must NOT get an Edit button (TC-20).
+// allow-list added in Phase 2), while dynamically-added `sg_*` styleguide
+// tabs must NOT get an Edit button (TC-20).
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ConductorPanel } from './ConductorPanel.jsx';
@@ -48,15 +48,14 @@ describe('ConductorPanel — edit mode', () => {
     ));
   });
 
-  it('TC-20: workflow tab has no Edit button (excluded from the allow-list)', async () => {
+  it('does not render a Workflow tab (superseded by the dedicated WorkflowSettings editor)', async () => {
     mockApiFetch.mockReset();
-    mockApiFetch.mockResolvedValueOnce(mockFilesResponse({ workflow_json: '{}' }));
+    mockApiFetch.mockResolvedValueOnce(mockFilesResponse({ product: 'doc', workflow_json: '{}' }));
 
     render(<ConductorPanel project={project} onClose={() => {}} />);
     await waitFor(() => expect(screen.queryByText('Loading context files…')).not.toBeInTheDocument());
 
-    fireEvent.click(screen.getByText('Workflow'));
-    expect(screen.queryByTestId('conductor-edit-btn')).not.toBeInTheDocument();
+    expect(screen.queryByText('Workflow')).not.toBeInTheDocument();
   });
 
   it('TC-20: styleguide (sg_*) tabs have no Edit button', async () => {

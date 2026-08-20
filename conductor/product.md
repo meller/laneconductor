@@ -41,6 +41,36 @@ LaneConductor supports **Multi-Target Synchronization**. You no longer select a 
 
 The project runs in **local-fs** mode if zero enabled collectors are configured.
 
+## Feature Availability — Skill-Only vs Worker Modes
+
+"Skill-only" means no worker process at all: an AI session (Claude Desktop, an
+interactive CLI session) drives the `conductor/` files directly via the
+`/laneconductor` skill. It's the zero-install on-ramp — everything degrades
+gracefully to it — but the automation and model-control features are what the
+worker (and, further, the full local/cloud stack) exist for. This table is the
+honest upgrade path: each column to the right is a reason to install more.
+
+| Feature | Skill-only | Worker (local-fs) | Full stack (local-api) | Cloud (remote-api) |
+|---------|-----------|-------------------|------------------------|--------------------|
+| Track scaffolding, plan/implement/review via markdown | ✅ | ✅ | ✅ | ✅ |
+| Git lock + worktree isolation (`lock`/`unlock`) | ✅ manual | ✅ automatic | ✅ automatic | ✅ automatic |
+| Auto-launch of queued lane actions | ❌ human invokes each step | ✅ | ✅ | ✅ |
+| Retry / on_failure lane automation (`workflow.json`) | ❌ | ✅ | ✅ | ✅ |
+| **Per-lane model** (`lanes.<lane>.primary_model`) | ❌ session model is whatever the human runs | ✅ | ✅ | ✅ |
+| **Per-track model override** (planned, track 1116) | ❌ same reason | ✅ | ✅ | ✅ |
+| Provider exhaustion fallback (primary → secondary CLI) | ❌ | ✅ | ✅ | ✅ |
+| Session continuity across lane actions (`--resume`) | n/a (one human session) | ✅ | ✅ | ✅ |
+| Live model discovery from the machine (heartbeat) | ❌ | ❌ no collector to report to | ✅ | ✅ |
+| Kanban dashboard, Inbox, conversation UI | ❌ | ❌ | ✅ `localhost:8090` | ✅ cloud URL |
+| Worker dispatch / manual "run this on that worker" | ❌ | ❌ | ✅ | ✅ |
+| Multi-machine / team coordination, worker identity | ❌ | git locks only | ✅ single machine | ✅ full |
+
+Caveat that applies to every model-control row: model selection is resolved by
+the **worker at spawn time** (`--model` on the CLI it launches) and is
+**best-effort** — it is not validated against the executing machine's actually
+installed models; a mismatch fails that run (normal retry handling applies)
+rather than being blocked at claim time.
+
 ### Worker & Target Management
 Registration and synchronization are managed via the unified `lc` CLI:
 - `lc worker <start|stop|restart|status|logs|sync>`: Manage the background heartbeat daemon.

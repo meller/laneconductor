@@ -548,3 +548,31 @@ and 1102 — so this isn't specific to track 1100. Flagging because it means
 an AI-authored comment can be silently lost before a human ever sees it,
 which undercuts the human-in-the-loop mechanism Gap 2's resolution depends
 on. Out of scope to fix from review; worth its own track.
+
+## ❌ Quality Gate — 2026-08-20 (FAIL, same blocker as review)
+
+Invoked directly on the track while it sat in `implement:queue` after
+Review #3's FAIL. Ran the required checks for real rather than trusting
+prior marks:
+
+- Fast tier (required): **3 consecutive runs, 11 passed / 0 failed / 6
+  skipped each, ~19-20s wall**, with no concurrent Playwright process
+  running against the shared instance this time. This confirms Gap 4's
+  correction — the earlier flakiness during review was two concurrent
+  review passes colliding on one shared hardcoded fixture identity, not a
+  standing defect in the tier itself. With that contention removed, the
+  tier is clean and fast, comfortably under the ~2min target.
+- Stub/deferred-work scan on this track's files: no hits.
+- Slow tier: not run. No sync+poll worker running (`lc worker status`:
+  stopped in this worktree); starting one would claim and begin executing
+  this machine's real queued tracks, which is precisely the side-effecting
+  action still awaiting your decision. Not taken unilaterally here either.
+
+**Verdict: FAIL**, via the done-gate. spec.md's own acceptance criterion —
+"the slow tier still runs and passes when explicitly invoked" — has never
+been observed true. That's a stated requirement for this specific track,
+not a deferred nice-to-have, so a clean fast tier alone can't clear the
+gate. Per `workflow.json`'s `quality-gate.on_failure`, transitioned to
+`plan:queue`. Substance is unchanged from Review #3: the only forward
+motion available is the human decision on Gap 2 already requested twice
+in `conversation.md`.
