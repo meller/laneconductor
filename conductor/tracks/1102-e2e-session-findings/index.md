@@ -367,7 +367,7 @@ Still open from this finding: (a) the pre-fix history is unrecoverable;
 (c) whether `worker_dispatch`'s CASCADE should become SET NULL as
 belt-and-braces for manual row deletions.
 
-### F11 — Spawn timeout killed the dogfooded walkthrough; the FAIL line hid why 🟠 PARTIALLY FIXED
+### F11 — Spawn timeout killed the dogfooded walkthrough; the FAIL line hid why 🟠 CONFIRMED & FIXED (unit-tested)
 The 1104 implement run (the walkthrough executing itself) was SIGTERM'd by
 the worker's own `spawn_timeout_ms` (15min for this project) mid-Phase-1,
 after 90 productive turns — and conversation.md recorded only
@@ -413,6 +413,44 @@ so the dogfooded 1104 implement run — the one this finding is about —
 could be retried and actually complete. This is a config value, not the
 structural fix; the per-lane-override / keepalive design question above
 is still open for whoever picks it up.
+
+**Structural fix landed 2026-08-19**: went with the keepalive direction
+over a per-lane timeout override — a static per-lane number still just
+moves the same guessing problem to a different knob, while a keepalive
+directly measures the thing that actually matters (is the run still
+doing something) instead of guessing how long any given lane *should*
+take. `spawnCli()`'s kill timer (`conductor/laneconductor.sync.mjs`) is
+no longer a single `setTimeout(timeoutMs)` fired unconditionally after
+spawn — it's now a `setInterval` (checked every `timeoutMs/10`, clamped
+1-30s) that tracks the spawn log file's size and only kills once it's
+seen **no growth for the full `timeoutMs` window**, not merely
+"`timeoutMs` since spawn." A run that's still producing output — exactly
+the 1104 case, 90 turns, log growing the whole time — now keeps running
+for as long as it keeps producing output; a genuinely silent/hung run is
+still killed after being quiet for the full window, preserving the
+mechanism's actual purpose.
+
+Tested:
+`conductor/tests/track-1102-f11-progress-keepalive.test.mjs` — two
+real-spawned-worker cases. (1) A mock CLI writing output every 500ms for
+7s against a 2.5s configured timeout survives past the original deadline
+and finishes successfully — asserted both via the DB's terminal status
+*and* directly via the worker's own stdout never containing a kill-log
+line, since the killer's `lane_action_result: 'timeout'` tag turned out
+to be immediately overwritten by the exit handler's own generic
+`error (code N)` PATCH that runs right after it (pre-existing behavior,
+unrelated to this fix — found while writing the test, when an assertion
+on that DB field alone gave a false negative). (2) A mock CLI producing
+no further output for the same 2.5s window is still killed, confirmed
+via the new `no log growth for Nms (genuinely stalled)` log line —
+proving the real-hang case this mechanism exists for still works.
+`mock-cli.mjs` gained a `MOCK_CLI_PROGRESS_INTERVAL_MS` option to
+support case (1) (periodic output throughout the delay, instead of one
+line then silence). Watched both cases fail for the right reason against
+the pre-fix code (case 1's run got killed at the original deadline
+despite active output; case 2's kill-log line didn't exist in the old
+message format) before the fix, pass after. Full conductor suite re-run:
+same pre-existing flaky baseline, no new failures.
 
 
 ### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED & FIXED (unit-tested)
