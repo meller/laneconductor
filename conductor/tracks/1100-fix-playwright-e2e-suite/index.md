@@ -1,7 +1,7 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 85%
 **Phase**: Gap 1 fixed; blocked on slow-tier worker decision
 **Type**: dev
