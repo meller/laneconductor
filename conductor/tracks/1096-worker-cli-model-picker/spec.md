@@ -51,13 +51,25 @@ Add endpoint `PATCH /api/workers/:id/config`:
 
 ### 3.2 Model Selector Dialog / Modal
 When clicking "Change Model" on a worker card:
-- Displays modal/popover with options grouped by provider:
-  - **Claude**: `claude-3-5-sonnet`, `claude-3-5-haiku`, `claude-3-opus`
-  - **Gemini**: `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash`
-  - **Copilot / OpenAI**: `gpt-4o`, `gpt-4o-mini`, `o1-preview`
-  - **Antigravity**: `auto`, `default`
+- Displays modal/popover with options grouped by provider — model lists are
+  sourced from the canonical registry (`conductor/providers.mjs`, mirrored
+  for the browser bundle at `ui/src/lib/providers.js`), not hardcoded per
+  component, so a new model only needs to be added in one place.
   - **Custom Model**: Input field for arbitrary model identifier strings.
 - **Submit**: Sends `PATCH /api/workers/:id/config` and updates UI with optimistic loading indicator.
+- **Provider-switch confirmation** (session continuity — see plan.md Phase 6):
+  a *model* change within the worker's current CLI is applied immediately, no
+  extra confirmation, because CLI session ids (e.g. Claude's
+  `claude_session_id`) are provider-specific and unaffected by a same-provider
+  model change. A *CLI/provider* change is different: it starts the worker on
+  a fresh conversation under the new provider, so the dialog shows an amber
+  warning naming both providers and requires an explicit
+  "I understand — switch this worker to X" checkbox before `Save
+  Configuration` is enabled. Re-selecting a different CLI resets that
+  checkbox so a stale confirmation can't cover a later choice, and
+  re-selecting the worker's original CLI clears the warning entirely. The
+  prior provider's session id is never deleted by a switch — it resolves and
+  resumes normally if the worker is switched back.
 
 ### 3.3 Worker Launch Picker
 - Update worker start action (`handleWorkerAction('start')` or Start Modal) to allow selecting initial CLI & Model prior to launching.
