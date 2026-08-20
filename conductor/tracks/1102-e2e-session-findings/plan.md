@@ -50,16 +50,23 @@ present at plan time.
 **Solution**: Stop emitting `**Status**` for new tracks; keep the parser's
 legacy fallback for tracks already on disk.
 
-- [ ] Task 1: Write a failing test — a track scaffolded by
+- [x] Task 1: Write a failing test — a track scaffolded by
       `trackTemplates()` contains `**Lane**` and no `**Status**`
-- [ ] Task 2: Remove `**Status**` from both templates in `ui/server/utils.mjs`;
-      ensure `**Lane**` + `**Lane Status**` are what the template emits
-- [ ] Task 3: Keep `parseStatus()`'s step-2 legacy `**Status**` branch, and
+      (`ui/server/tests/track-1102-f3-single-status-marker.test.mjs`, 5
+      tests, watched all 5 fail for the right reason before the fix)
+- [x] Task 2: Remove `**Status**` from both templates in `ui/server/utils.mjs`;
+      emit `**Lane**: <laneStatus>` + `**Lane Status**: queue` instead,
+      matching the sync worker's own `handleTrackCreate()` template
+- [x] Task 3: Keep `parseStatus()`'s step-2 legacy `**Status**` branch, and
       annotate it as back-compat-only (unreachable for new tracks)
-- [ ] Task 4: Re-run `conductor/tests/track-10012-parse-status-precedence.test.mjs`
-      unchanged — the drift-precedence guarantee must survive
+- [x] Task 4: Re-run `conductor/tests/track-10012-parse-status-precedence.test.mjs`
+      unchanged — 4/4 still pass, drift-precedence guarantee survives
 - [ ] Task 5: Verify live — create a track in the UI, grep the file, drag
-      the card between lanes and confirm it does not revert
+      the card between lanes and confirm it does not revert (deferred to
+      Phase 4's walkthrough pass — needs a running local-api stack + browser)
+
+**Status**: code fixed and unit-tested; live verification (Task 5) deferred
+to Phase 4.
 
 **Impact**: New tracks carry one marker; the 10012 revert bug loses its
 underlying cause instead of only its symptom.
@@ -230,11 +237,22 @@ with no plan artifacts.
 
 **Solution**: Add the missing regression test and correct the write-up.
 
-- [ ] Task 1: Add a test asserting a backlog card's next lane is `plan`
-- [ ] Task 2: Confirm it fails if `NEXT_LANE.backlog` is changed back
-- [ ] Task 3: Write the fix note into F19's body in `index.md`
+**Correction while implementing**: the regression test already existed —
+`ui/src/components/TrackCard.test.jsx`'s `"TrackCard — F19 backlog arrow
+must route through plan, not skip to implement"` describe block, added
+alongside the code fix. Missed during planning because only `TrackCard.jsx`
+was grepped, not its test file. No new test needed; verified it's real by
+mutating `NEXT_LANE.backlog` back to `'implement'` and confirming the test
+fails, then reverting.
+
+- [x] Task 1: Add a test asserting a backlog card's next lane is `plan`
+      (already existed — see correction above)
+- [x] Task 2: Confirm it fails if `NEXT_LANE.backlog` is changed back
+      (mutated live, confirmed failure, reverted)
+- [x] Task 3: Write the fix note into F19's body in `index.md`
 - [ ] Task 4: Decide and record whether moving to implement with no
-      plan artifacts should additionally warn
+      plan artifacts should additionally warn (deferred — separate UX
+      decision, not required for this phase's regression-safety goal)
 
 **Impact**: The fix is enforced by a test rather than by a comment.
 
