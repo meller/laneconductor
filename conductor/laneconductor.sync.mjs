@@ -4172,6 +4172,16 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     console.warn(`[context] Failed to gather rich context: ${ctxErr.message}`);
   }
 
+  // Track 10020: the moment conversation.md's content was actually read
+  // into contextPrompt above — this run's own knowledge of the human's
+  // side of the conversation is frozen as of here, for however long the
+  // run then takes (seconds to many minutes). Compared against
+  // conversation.md's own mtime in the exit handler below, to detect a
+  // human message that arrived DURING the run and was therefore never
+  // seen by it — not a millisecond race, a deterministic architectural
+  // gap: nothing re-reads this file once the run has started.
+  const contextFrozenAt = Date.now();
+
   // Inject context into the prompt (usually follows -p) — skipped on a
   // resumed session (track 1086): Claude already has this loaded from
   // earlier in the same session, re-injecting it every call is exactly the
@@ -4366,6 +4376,30 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       console.log(`[${label}] Track ${trackNumber}: ended its turn on a blocking question — flagging for human input instead of transitioning lanes`);
     }
 
+    // Track 10020: a human can post a conversation.md message any time
+    // after this run's context was frozen (contextFrozenAt, captured right
+    // when conversation.md was read into the prompt) — not a millisecond
+    // race, a deterministic gap: nothing re-reads this file for the rest of
+    // the run, however long it takes. If conversation.md's mtime is newer
+    // than that, this run genuinely never saw it, regardless of what it
+    // concluded ("nothing new has arrived" can be true from the run's own
+    // frozen view and still be wrong by the time it finishes). Don't let
+    // this run's outcome stand as final — force it back to 'queue' at the
+    // same lane so the very next dispatch starts with fresh context that
+    // DOES include the message, instead of silently losing it for a full
+    // cycle or longer.
+    let isStaleAgainstNewMessage = false;
+    try {
+      const convPath = join(worktreePath || process.cwd(), 'conductor', 'tracks',
+        resolveTrackFolder(join(worktreePath || process.cwd(), 'conductor', 'tracks'), trackNumber) || '', 'conversation.md');
+      if (existsSync(convPath) && statSync(convPath).mtimeMs > contextFrozenAt) {
+        isStaleAgainstNewMessage = true;
+        console.log(`[${label}] Track ${trackNumber}: conversation.md changed after this run's context was frozen — re-queuing instead of finalizing so the next run sees it`);
+      }
+    } catch (err) {
+      console.warn(`[${label}] Failed to check conversation.md freshness for track ${trackNumber}: ${err.message}`);
+    }
+
     // 1. Check retry count using latest config (in case workflow.json reloaded)
     const currentLaneConfig = workflowConfig?.lanes?.[laneStatus] || laneConfig;
     let failCountBefore = 0;
@@ -4411,13 +4445,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // never actually answered would misrepresent the track as further along
     // than it really is (Track 10020).
     const isConversationRun = label === 'local-fs-answer';
-    const transitionValue = (isConversationRun || isBlockedTurn)
+    const transitionValue = (isConversationRun || isBlockedTurn || isStaleAgainstNewMessage)
       ? null
       : (isSuccess
         ? (currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success)
         : (isMaxRetries ? (currentLaneConfig?.on_failure || workflowConfig?.defaults?.on_failure) : null));
 
-    const { lane: targetLane, status: nextActionStatus } = resolveTransition(transitionValue, laneStatus, isSuccess, isMaxRetries);
+    let { lane: targetLane, status: nextActionStatus } = resolveTransition(transitionValue, laneStatus, isSuccess, isMaxRetries);
+    // Force straight back to 'queue' (not resolveTransition's default
+    // 'success' for a same-lane stay) — this run's outcome is genuinely
+    // stale, not a normal success sitting still.
+    if (isStaleAgainstNewMessage) nextActionStatus = 'queue';
 
     console.log(`[${label}] Track ${trackNumber}: ${isSuccess ? 'PASS' : 'FAIL'} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
 
@@ -4491,7 +4529,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           // 3. Update Progress if success (skip for conversation runs — don't force 100%)
 
           // 3. Update Progress if success (skip for conversation runs and blocked turns — don't force 100% on unfinished work)
-          if (isSuccess && !isConversationRun && !isBlockedTurn) {
+          if (isSuccess && !isConversationRun && !isBlockedTurn && !isStaleAgainstNewMessage) {
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
