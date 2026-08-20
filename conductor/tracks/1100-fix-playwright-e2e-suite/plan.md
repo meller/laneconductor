@@ -409,3 +409,52 @@ on a shared instance. The clean fix is a dedicated `PW_TEST_MODE` server on
 its own port for this one test file, not flipping the shared one — but
 that's new infrastructure, and belongs in its own track rather than a
 quiet addition here. Recorded, not built.
+
+## ⚠️ Review #3 — 2026-08-20 (FAIL, one criterion, unchanged since review #2)
+
+Re-verified everything re-verifiable in code rather than trusting prior
+marks:
+
+- Fast tier: **11 passed, 6 skipped, 0 failed**, 3 consecutive runs
+  (~19-23s each). Count moved 10→11 since review #2 because track 1112
+  later added `track-1112-worktree-panel.spec.js`, which defaulted into
+  `fast` per `playwright.config.js`'s own stated design ("new spec matching
+  neither list lands in fast by default") — not a regression from this
+  track.
+- Gap 1 (`seedWorker()` visibility): fix confirmed present
+  (`worker-identity.spec.js`, `PATCH /api/workers/:id/visibility` call) and
+  holding.
+- Gap 3 (`make start-all` in `quality-gate.md`): confirmed present.
+- TC-14 negative test re-run: **first attempt was a false pass** — broke
+  the testid in this worktree's copy of `WorkersList.jsx` and the tier
+  stayed green, because the live `:8090` Vite dev server serves the
+  **primary checkout**, not this worktree. Redid it against the actually-
+  served file: 3/17 failed naming the exact locator, restored, verified
+  `git diff` empty and tier green again. Worth remembering for any future
+  review of this track — editing the worktree copy alone proves nothing
+  about the live UI.
+
+**Verdict: still FAIL.** Gap 2 (slow tier never observed green) and
+`track-1033-sharing`'s 6 always-skipped tests are unchanged from the last
+implement pass's investigation above — no code change resolves them, both
+require a human decision about touching live shared infrastructure. Per
+`workflow.json` this transitions to `implement:queue`, but recording here
+plainly: another automated implement pass has no new decision to act on,
+and there is no working mechanism for a dev-track implement run to pause
+and wait for a human reply (`Waiting for reply` only gates non-dev tracks
+in the sync worker's implement-resume logic) — so the likely outcome
+without direct human attention is repeated implement/review cycles with no
+forward motion on this criterion.
+
+**Also found, incidentally, on review, not something to fix here**: the
+review comment this pass tried to post to `conversation.md` did not appear
+in `track_comments` after 30s of polling (content stayed in the file,
+`.conv-cursor` advanced near the end of it, but no corresponding DB row).
+The equivalent comment from the *previous* implement pass is missing
+entirely — present in this worktree's copy, absent from primary and from
+`track_comments`. The same "file holds only its latest 'Triggering X...'
+line" pattern was also observed, at the same time, on tracks 10017, 10018,
+and 1102 — so this isn't specific to track 1100. Flagging because it means
+an AI-authored comment can be silently lost before a human ever sees it,
+which undercuts the human-in-the-loop mechanism Gap 2's resolution depends
+on. Out of scope to fix from review; worth its own track.
