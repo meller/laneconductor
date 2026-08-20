@@ -207,17 +207,33 @@ button. The transcript drawer is rendered at
 **Solution**: Fix the layering, and stop presenting a finished run's
 transcript as live.
 
-- [ ] Task 1: Reproduce in a browser test — assert the action button is the
-      element at its own coordinates while a transcript is open
-- [ ] Task 2: Fix the stacking/layout so the drawer never covers card
-      controls (z-index and/or layout, not `pointer-events` papering)
-- [ ] Task 3: Distinguish a live run's transcript from a finished/killed
-      one in the UI
-- [ ] Task 4: Verify by driving the real UI and confirming the click
-      performs the action
+**Investigated, does not reproduce**: found a genuinely stuck `running`
+track live on the real board (#001, "Walkthrough Test Project 1104",
+stale 8715+ minutes) and ran the exact `document.elementFromPoint`
+reproduction technique this finding used. At the browser's default
+narrow viewport (925px, 6 columns squeezed to ~130px each) an overlap
+DID appear — but between two *different sibling cards*, not a
+transcript strip, and it vanished entirely at a realistic desktop width
+(1600px): `arrowIsTarget: true`, click lands correctly. Also checked
+`TrackDetailPanel`'s transcript drawer directly — its own collapse
+button is correctly clickable too, no overlap.
 
-**Impact**: Removes the third distinct cause of "clicking does nothing" seen
-in this session.
+- [x] Task 1: Reproduced (attempted) in a live browser against a real
+      stuck card — see investigation note above; no current reproduction
+      found at realistic viewport width
+- [ ] Task 2: Fix the stacking/layout (not attempted — no confirmed bug
+      to fix; see Task 1)
+- [ ] Task 3: Distinguish a live run's transcript from a finished/killed
+      one in the UI (not attempted — same reason)
+- [x] Task 4: Verified by driving the real UI — clicks land correctly at
+      realistic viewport width; not reproduced, so nothing to re-verify
+      after a fix
+
+**Impact**: No code change made. Documented what was actually found
+(likely fixed as a side effect of F2's button-rendering rework, or the
+original report was at an unusually narrow window) so this isn't
+re-investigated from scratch if it resurfaces — see F20's "Left open"
+note for what to capture if it does.
 
 ---
 
