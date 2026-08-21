@@ -30,12 +30,17 @@ help:
 	@echo "From a project repo, use: lc help"
 	@echo ""
 
-## Ensure Node.js is installed (via nvm if missing)
+## Ensure Node.js is installed (native Linux binary, not Windows interop)
 install-node:
-	@if command -v node >/dev/null 2>&1; then \
-	  echo "✅ Node.js $$(node --version) already installed"; \
+	@NODE_PATH=$$(command -v node 2>/dev/null); \
+	if [ -n "$$NODE_PATH" ] && echo "$$NODE_PATH" | grep -qv '^/mnt/'; then \
+	  echo "✅ Node.js $$(node --version) already installed ($$NODE_PATH)"; \
 	else \
-	  echo "📦 Installing Node.js via nvm..."; \
+	  if [ -n "$$NODE_PATH" ]; then \
+	    echo "⚠️  Found Windows node at $$NODE_PATH — installing native Linux node"; \
+	  else \
+	    echo "📦 Node.js not found — installing via nvm..."; \
+	  fi; \
 	  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash; \
 	  export NVM_DIR="$$HOME/.nvm"; \
 	  [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
