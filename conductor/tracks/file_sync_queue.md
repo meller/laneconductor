@@ -18,3 +18,11 @@
 Both items were explicitly scoped out of track 1100 itself per its review's own guidance ("not something to improvise inside this pass") and out of the live v2 experiment run during that review's follow-up — filed here as the reviewed, planned change they call for.
 **Processed**: 2026-08-20T12:07:08.111Z
 
+
+### Track 10022: make install — end-to-end DB provisioning & lc setup integration
+**Status**: pending
+**Type**: track-create
+**Created**: 2026-08-21T08:00:00Z
+**Title**: make install — end-to-end DB provisioning & lc setup integration
+**Description**: make install should provision Postgres (Docker or native), run migrations, start the UI, and guide the user to lc setup — zero manual steps after clone.
+**Metadata**: { "priority": "high", "assignee": null }
