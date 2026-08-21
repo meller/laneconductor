@@ -30,7 +30,7 @@ Additionally `lc setup` (which handles per-project DB config) is completely disc
 - Track 1063 (setup simplification) — done, provides `lc setup` flow foundation
 - Track 1103 (e2e onboarding) — in plan, this track feeds into its CLI path
 
-## Open Questions
+## Decisions
 
-- Should `make install` auto-launch `lc setup` (blocking, interactive) or just print "Next: run `lc setup` in your project"? Auto-launch is nicer but only makes sense if running from a project dir — laneconductor itself is not a typical project.
-- Should migrations use Atlas CLI (requires separate install) or the raw SQL files via `psql`/`pg` node client? Atlas is the canonical tool but adds a dependency; `psql` is simpler for new installs.
+- **make install scope**: handles all machine-level setup (DB, Atlas, migrations, UI start). It does NOT auto-launch `lc setup` — that is per-project and run separately from each project dir. End of `make install` prints "Next: cd your-project && lc setup".
+- **Migrations**: Atlas is the canonical migration tool and must be installed as part of `make install` (new `install-atlas` step). No Node.js fallback — Atlas is the way.
