@@ -14,10 +14,10 @@ Add `install-db` target that:
   - If not: print instructions + exit 1
 - Wire `install-db` into `make install` after `install-node`
 
-- [ ] Add `install-db` target to Makefile
-- [ ] Add Docker container spin-up with readiness wait
-- [ ] Add native Postgres fallback detection
-- [ ] Wire into `make install` dependency chain
+- [x] Add `install-db` target to Makefile
+- [x] Add Docker container spin-up with readiness wait
+- [x] Add native Postgres fallback detection
+- [x] Wire into `make install` dependency chain
 - [ ] Test: fresh run, re-run (idempotent), no-Docker path
 
 ## Phase 2: Install Atlas and run migrations
@@ -32,9 +32,9 @@ Add `install-migrate` target that:
 - Runs `atlas migrate apply --env local` (uses `atlas.hcl` already in repo)
 - Wire: `install-atlas` → `install-migrate` → after `install-db` in `make install`
 
-- [ ] Add `install-atlas` target with skip-if-present check
-- [ ] Add `install-migrate` target using Atlas
-- [ ] Wire both into `make install` dependency chain
+- [x] Add `install-atlas` target with skip-if-present check
+- [x] Add `install-migrate` target using Atlas
+- [x] Wire both into `make install` dependency chain
 - [ ] Test: fresh DB (all 29 migrations apply), already-migrated DB (idempotent), Atlas already installed (skips download)
 
 ## Phase 3: Start UI at end of make install
@@ -43,8 +43,8 @@ Add final step to `make install` that:
 - Calls `lc api start` and `lc ui start`
 - Prints dashboard URL
 
-- [ ] Add `lc api start && lc ui start` to end of `install` target
-- [ ] Print "✅ Dashboard ready at http://localhost:8090"
+- [x] Add `lc api start && lc ui start` to end of `install` target
+- [x] Print "✅ Dashboard ready at http://localhost:8090"
 
 ## Phase 4: lc setup DB connectivity check
 
@@ -61,9 +61,9 @@ In `lc setup`, when user selects `local-api` mode, before asking for DB credenti
 - If [2]: proceed to credential prompts as today
 - If [3]: warn and continue
 
-- [ ] Add TCP connectivity check to `lc setup` local-api path
-- [ ] Implement Docker start/run offer
-- [ ] Add readiness wait after Docker start
+- [x] Add TCP connectivity check to `lc setup` local-api path
+- [x] Implement Docker start/run offer
+- [x] Add readiness wait after Docker start
 - [ ] Test: Postgres running (no prompt), Postgres down + Docker available, Postgres down + no Docker
 
 ## Phase 5: Next-steps prompt at end of make install
@@ -78,5 +78,7 @@ Next: for each project you want to track:
   lc setup
 ```
 
-- [ ] Add next-steps message to end of `install` target
-- [ ] Confirm `make install` dependency order: install-node → install-atlas → ui-install → install-cli → install-db → install-migrate → api-start + ui-start
+- [x] Add next-steps message to end of `install` target
+- [x] Confirm `make install` dependency order: install-node → install-atlas → ui-install → install-cli → install-db → install-migrate → api-start + ui-start
+
+## ✅ COMPLETE
