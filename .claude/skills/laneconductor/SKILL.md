@@ -262,7 +262,7 @@ To find a track by number (e.g., "Track 017"):
 3.  **Check `conductor/tracks.md`**: This summary file often contains links to the track folders.
 4.  **Check `conductor/tracks/file_sync_queue.md`**: New tracks queued from the UI or CLI appear here with `**Status**: pending` before the worker creates their folder.
 
-**Folder Naming Convention**: `conductor/tracks/NNN-slug/` (where NNN is the 3-digit track number).
+**Folder Naming Convention**: `conductor/tracks/INITIALS-NNN-slug/` for new tracks (e.g. `AM-10023-my-feature`). Legacy tracks use the old `NNN-slug/` format and are fully supported.
 
 ---
 
@@ -1176,16 +1176,22 @@ Update the track status and progress by modifying its Markdown files.
 
 Registers a new track in the **file sync queue**. The sync worker processes it on next heartbeat.
 
-1. Determine the next track number: check highest number in `conductor/tracks/file_sync_queue.md` (matching `### Track NNN:`) and existing `conductor/tracks/NNN-*/` folder names.
-2. Create `conductor/tracks/NNN-slug/index.md` immediately (for fast feedback):
+1. Determine the next track number AND derive author initials:
+   - Run `git config user.name` and `git config user.email` to get author info.
+   - Derive initials: uppercase first letter of each word, max 3 chars, fallback to `XX` if not configured. Examples: "Asaf Meller" → `AM`, "John von Neumann" → `JVN`, "Madonna" → `M`.
+   - Find the highest existing number by scanning `conductor/tracks/file_sync_queue.md` (matching `### Track NNN:`) and all `conductor/tracks/*/` folder names — extract the number regardless of prefix (e.g. both `10022-slug` and `AM-10022-slug` contribute `10022`).
+   - The display ID is `INITIALS-NNN` (e.g. `AM-10023`). The folder name is `INITIALS-NNN-slug/`.
+2. Create `conductor/tracks/INITIALS-NNN-slug/index.md` immediately (for fast feedback):
    ```markdown
-   # Track NNN: [name]
+   # Track INITIALS-NNN: [name]
 
    **Lane**: plan
    **Lane Status**: queue
    **Progress**: 0%
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
+   **Author**: INITIALS
+   **Created By**: user@email.com
    **Summary**: [description]
    ```
    Default `**Type**` to `dev` unless the user specified a type.
@@ -1197,6 +1203,7 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Created**: [ISO timestamp]
    **Title**: [name]
    **Description**: [description]
+   **Author**: INITIALS
    **Metadata**: { "priority": "medium", "assignee": null }
    ```
 4. The sync worker detects the change (via chokidar or 5s heartbeat), creates the DB row, and moves the entry to `## Completed Queue`.
@@ -1756,9 +1763,9 @@ node conductor/syncdb.mjs \
 ```
 
 **What it does**:
-1. Scan `conductor/tracks/` directory for all folders matching `NNN-*` pattern
-2. For each track folder, read `NNN-*/index.md` and extract:
-   - Track number and slug from folder name
+1. Scan `conductor/tracks/` directory for all folders containing a number (matches both legacy `NNN-slug` and prefixed `INITIALS-NNN-slug` formats)
+2. For each track folder, read `index.md` and extract:
+   - Track number and slug from folder name (extract number via `/\d+/` match regardless of prefix)
    - Title from `**Title**` marker (fallback to slug)
    - Lane from `**Lane**` marker (default: 'planning')
    - Progress from `**Progress**` marker (default: 0%)
@@ -1906,7 +1913,9 @@ CREATE TABLE IF NOT EXISTS tracks (
   last_updated_by  TEXT DEFAULT 'human',
   last_heartbeat   TIMESTAMP DEFAULT NOW(),
   created_at       TIMESTAMP DEFAULT NOW(),
-  UNIQUE(project_id, track_number)
+  created_by_email TEXT,                    -- author email (NULL for legacy tracks)
+  author           TEXT,                    -- author initials (e.g. AM); NULL for legacy tracks
+  UNIQUE(project_id, created_by_email, track_number)  -- NULL emails are each distinct in Postgres
 );
 ```
 

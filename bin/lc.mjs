@@ -15,6 +15,7 @@ import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
+import { getAuthorInfo } from '../conductor/services/author.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -2098,7 +2099,7 @@ Please review this, answer any questions (some fields may contain questions rath
             return color + label.padEnd(8) + colors.reset;
         };
 
-        const tracks = readdirSync(tracksDir).filter(d => /^\d+/.test(d)).map(d => {
+        const tracks = readdirSync(tracksDir).filter(d => /\d+/.test(d)).map(d => {
             const trackPath = join(tracksDir, d);
             const indexPath = join(trackPath, 'index.md');
             if (!existsSync(indexPath)) return null;
@@ -2111,20 +2112,24 @@ Please review this, answer any questions (some fields may contain questions rath
             const runBy = ((content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
             const retryPath = join(trackPath, '.retry-count');
             const retries = existsSync(retryPath) ? parseInt(readFileSync(retryPath, 'utf8')) : 0;
-            return { id: d.split('-')[0], lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
+            // Handle both legacy (NNN-slug) and prefixed (AM-NNN-slug) folder names
+            const idMatch = d.match(/^([A-Z]+-)?(\d+)/);
+            const id = idMatch ? (idMatch[1] ? `${idMatch[1].slice(0, -1)}-${idMatch[2]}` : idMatch[2]) : d;
+            const num = idMatch ? parseInt(idMatch[2], 10) : 0;
+            return { id, num, lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
         }).filter(t => t !== null);
 
         tracks.sort((a, b) => {
             const laneDiff = getLanePrio(a.lane) - getLanePrio(b.lane);
             if (laneDiff !== 0) return laneDiff;
-            return b.progress - a.progress || parseInt(a.id) - parseInt(b.id);
+            return b.progress - a.progress || a.num - b.num;
         });
 
         console.log('\n' + colors.bold + 'Track Status (' + mode + '):' + colors.reset);
-        console.log('ID    LANE            STATUS    PROG   BY  PHASE/TITLE');
-        console.log('-'.repeat(80));
+        console.log('ID       LANE            STATUS    PROG   BY  PHASE/TITLE');
+        console.log('-'.repeat(83));
         tracks.forEach(t => {
-            const id = t.id.padEnd(5);
+            const id = t.id.padEnd(8);
             const lane = t.lane.padEnd(15);
             const status = getStatusLabel(t.status, t.retries);
             const prog = (t.progress + '%').padEnd(6);
@@ -2268,8 +2273,9 @@ Please review this, answer any questions (some fields may contain questions rath
     const trackLines = queueContent.match(/### Track (\d+):/g) || [];
     const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
 
-    const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
-    const existingDirNumStrs = existingDirs.map(d => d.match(/^(\d+)/)[1]);
+    // Prefix-agnostic number extraction: matches NNN in both legacy `NNN-slug` and new `AM-NNN-slug`
+    const existingDirs = readdirSync(tracksDir).filter(d => /\d+/.test(d));
+    const existingDirNumStrs = existingDirs.map(d => d.match(/(\d+)/)?.[1]).filter(Boolean);
     const dirNums = existingDirNumStrs.map(s => parseInt(s, 10));
 
     const allNums = [...queueNums, ...dirNums];
@@ -2282,13 +2288,16 @@ Please review this, answer any questions (some fields may contain questions rath
     const padWidth = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => s.length)) : 0;
     const nextNumStr = String(nextNum).padStart(padWidth, '0');
 
+    const author = getAuthorInfo();
+    const displayId = `${author.initials}-${nextNumStr}`;
+
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const trackFolderName = `${nextNumStr}-${slug}`;
+    const trackFolderName = `${displayId}-${slug}`;
     const trackPath = join(tracksDir, trackFolderName);
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNumStr}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types

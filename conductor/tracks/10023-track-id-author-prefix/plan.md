@@ -12,9 +12,9 @@ Examples:
 - "Madonna" → "M"
 - (not configured) → "XX"
 
-- [ ] Create `conductor/services/author.mjs`
-- [ ] Implement `deriveInitials(name)` with word-split logic
-- [ ] Implement `getAuthorInfo()` reading git config
+- [x] Create `conductor/services/author.mjs`
+- [x] Implement `deriveInitials(name)` with word-split logic
+- [x] Implement `getAuthorInfo()` reading git config
 - [ ] Unit test: verify initials derivation for edge cases
 
 ## Phase 2: lc new uses author prefix
@@ -25,10 +25,10 @@ Update `lc new` (and `lc setup`'s track creation) in `bin/lc.mjs`:
 - Folder name: `${initials}-${num}-${slug}/`
 - Write `**Created By**: ${email}` and `**Author**: ${initials}` to `index.md`
 
-- [ ] Update `lc new` folder naming to include initials prefix
-- [ ] Update next-number scan to be prefix-agnostic
-- [ ] Add `**Created By**` and `**Author**` markers to generated `index.md`
-- [ ] Test: `lc new "My Feature"` produces `AM-10023-my-feature/`
+- [x] Update `lc new` folder naming to include initials prefix
+- [x] Update next-number scan to be prefix-agnostic
+- [x] Add `**Created By**` and `**Author**` markers to generated `index.md`
+- [ ] Test: `lc new "My Feature"` produces `AM-10024-my-feature/`
 
 ## Phase 3: lc status displays prefixed IDs
 
@@ -37,10 +37,10 @@ Update `lc status` ID extraction in `bin/lc.mjs`:
 - New: check if first segment is all digits → legacy format; else use `INITIALS-NNN` as display ID
 - Regex: `d.match(/^([A-Z]+-)?(\d+)/)`  → groups to build display ID
 
-- [ ] Update ID extraction in `lc status` local-fs rendering
-- [ ] Legacy tracks (`NNN-slug`) display as `NNN` unchanged
-- [ ] New tracks (`AM-NNN-slug`) display as `AM-NNN`
-- [ ] ID column width: increase from 5 to 8 chars to fit `AM-10023`
+- [x] Update ID extraction in `lc status` local-fs rendering
+- [x] Legacy tracks (`NNN-slug`) display as `NNN` unchanged
+- [x] New tracks (`AM-NNN-slug`) display as `AM-NNN`
+- [x] ID column width: increase from 5 to 8 chars to fit `AM-10023`
 
 ## Phase 4: DB migration
 
@@ -54,8 +54,8 @@ ALTER TABLE tracks ADD CONSTRAINT tracks_project_id_author_track_number_key
   UNIQUE (project_id, created_by_email, track_number);
 ```
 
-- [ ] Write migration SQL file
-- [ ] Update `cloud/schema.sql` to include new columns
+- [x] Write migration SQL file (`migrations/20260821120000_add_track_author.sql`)
+- [x] Update `cloud/schema.sql` to include new columns
 - [ ] Test: migration applies cleanly on existing DB (nulls for legacy rows)
 - [ ] Test: two rows with same project_id + track_number but different emails — no constraint violation
 
@@ -67,11 +67,11 @@ Update `/laneconductor newTrack` in `SKILL.md`:
 - Use `INITIALS-NNN-slug/` folder naming
 - Write `**Created By**` and `**Author**` markers
 
-- [ ] Update SKILL.md newTrack section with author-prefix instructions
-- [ ] Update file_sync_queue.md entry format to include `**Author**` field
+- [x] Update SKILL.md newTrack section with author-prefix instructions
+- [x] Update file_sync_queue.md entry format to include `**Author**` field
 
 ## Phase 6: Backwards compatibility verification
 
-- [ ] Confirm existing tracks load correctly in `lc status` (no prefix → display as `NNN`)
-- [ ] Confirm worker/sync does not break on legacy folder names
-- [ ] Confirm `lc new` next-number scan correctly finds max across mixed legacy + prefixed folders
+- [x] Confirm existing tracks load correctly in `lc status` (no prefix → display as `NNN`)
+- [x] Confirm worker/sync does not break on legacy folder names (filter is `/\d+/`, backward compatible)
+- [x] Confirm `lc new` next-number scan correctly finds max across mixed legacy + prefixed folders

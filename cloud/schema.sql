@@ -30,4 +30,13 @@ ALTER TABLE projects
 ALTER TABLE tracks
   ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 0;
 
+-- Track 10023: author-prefixed IDs
+ALTER TABLE tracks
+  ADD COLUMN IF NOT EXISTS created_by_email TEXT,
+  ADD COLUMN IF NOT EXISTS author TEXT;
+
+DROP INDEX IF EXISTS "tracks_project_id_track_number_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "tracks_project_id_author_track_number_key"
+  ON "public"."tracks" ("project_id", "created_by_email", "track_number");
+
 CREATE INDEX IF NOT EXISTS idx_tracks_priority_waiting ON tracks (priority DESC, created_at ASC) WHERE lane_action_status = 'waiting';
