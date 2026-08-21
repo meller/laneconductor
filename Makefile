@@ -4,7 +4,7 @@ UI_DIR     := $(shell pwd)/ui
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install uninstall install-node ui-install install-cli api-start api-stop api-log ui-start ui-stop ui-log ui-restart start-all stop-all
+.PHONY: help install uninstall install-node install-atlas install-db install-migrate ui-install install-cli api-start api-stop api-log ui-start ui-stop ui-log ui-restart start-all stop-all
 
 ## Show available commands
 help:
@@ -51,13 +51,73 @@ install-node:
 	fi
 
 ## Install LaneConductor (run once after cloning)
-install: install-node ui-install install-cli
+install: install-node install-atlas ui-install install-cli install-db install-migrate
 	@echo "$(SKILL_DIR)" > $(RC_FILE)
-	@echo "✅ Installed → $(RC_FILE)"
-	@echo "   Skill path: $(SKILL_DIR)"
 	@echo ""
-	@echo "Next: open any project in Claude Code and run /laneconductor setup"
-	@echo "      setup scaffold will symlink the skill into that project's .claude/skills/"
+	@echo "✅ LaneConductor installed!"
+	@echo "   Dashboard: http://localhost:8090"
+	@echo ""
+	@echo "Next: for each project you want to track:"
+	@echo "  cd your-project"
+	@echo "  lc setup"
+	@echo ""
+
+## Install Atlas CLI (database migration tool)
+install-atlas:
+	@if command -v atlas >/dev/null 2>&1; then \
+	  echo "✅ Atlas already installed: $$(atlas version 2>&1 | head -1)"; \
+	else \
+	  echo "📦 Installing Atlas CLI..."; \
+	  curl -sSf https://atlasgo.sh | sh; \
+	  echo "✅ Atlas installed: $$(atlas version 2>&1 | head -1)"; \
+	fi
+
+## Start a local Postgres via Docker (or detect native)
+install-db:
+	@if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
+	  if docker ps --filter name=laneconductor-pg --filter status=running --format '{{.Names}}' | grep -q laneconductor-pg; then \
+	    echo "✅ Postgres already running (Docker: laneconductor-pg)"; \
+	  elif docker ps -a --filter name=laneconductor-pg --format '{{.Names}}' | grep -q laneconductor-pg; then \
+	    echo "▶️  Starting existing laneconductor-pg container..."; \
+	    docker start laneconductor-pg; \
+	    echo "⏳ Waiting for Postgres to be ready..."; \
+	    for i in $$(seq 1 30); do \
+	      docker exec laneconductor-pg pg_isready -U postgres >/dev/null 2>&1 && break; \
+	      sleep 1; \
+	    done; \
+	    echo "✅ Postgres ready"; \
+	  else \
+	    echo "📦 Starting Postgres via Docker..."; \
+	    docker run -d --name laneconductor-pg \
+	      -e POSTGRES_USER=postgres \
+	      -e POSTGRES_PASSWORD=postgres \
+	      -e POSTGRES_DB=laneconductor \
+	      -p 5432:5432 \
+	      --restart unless-stopped \
+	      postgres:16; \
+	    echo "⏳ Waiting for Postgres to be ready..."; \
+	    for i in $$(seq 1 30); do \
+	      docker exec laneconductor-pg pg_isready -U postgres >/dev/null 2>&1 && break; \
+	      sleep 1; \
+	    done; \
+	    echo "✅ Postgres ready (Docker: laneconductor-pg)"; \
+	  fi; \
+	elif pg_isready >/dev/null 2>&1; then \
+	  echo "✅ Native Postgres already running"; \
+	else \
+	  echo ""; \
+	  echo "⚠️  No Postgres found. Options:"; \
+	  echo "   • Install Docker and re-run make install"; \
+	  echo "   • Install Postgres: sudo apt install postgresql"; \
+	  echo ""; \
+	  exit 1; \
+	fi
+
+## Run database migrations via Atlas
+install-migrate:
+	@echo "🗄️  Running migrations..."
+	@atlas migrate apply --env local 2>&1 && echo "✅ Migrations applied" || \
+	  (echo "⚠️  Migration failed — is Postgres running? (make install-db)" && exit 1)
 
 ## Install global 'lc' command
 install-cli:

@@ -816,6 +816,52 @@ Choice [2]: `) || '2';
 
         let dbConfig = { host: 'localhost', port: 5432, name: 'laneconductor', user: 'postgres', password: '' };
         if (mode === 'local-api') {
+            // Check DB reachability before asking for credentials
+            const { default: net } = await import('net');
+            const pgReachable = await new Promise(resolve => {
+                const sock = new net.Socket();
+                sock.setTimeout(2000);
+                sock.connect(dbConfig.port, dbConfig.host, () => { sock.destroy(); resolve(true); });
+                sock.on('error', () => resolve(false));
+                sock.on('timeout', () => { sock.destroy(); resolve(false); });
+            });
+
+            if (!pgReachable) {
+                console.log(`\n⚠️  Cannot reach Postgres at ${dbConfig.host}:${dbConfig.port}`);
+                const dbChoice = await question(`
+How would you like to set up the database?
+  [1] Start Docker container (recommended — requires Docker)
+  [2] I have Postgres — let me configure the connection
+Choice [1]: `) || '1';
+
+                if (dbChoice === '1') {
+                    console.log('📦 Starting Postgres via Docker...');
+                    const dockerRun = spawnSync('docker', [
+                        'run', '-d', '--name', 'laneconductor-pg',
+                        '-e', 'POSTGRES_USER=postgres',
+                        '-e', 'POSTGRES_PASSWORD=postgres',
+                        '-e', 'POSTGRES_DB=laneconductor',
+                        '-p', '5432:5432',
+                        '--restart', 'unless-stopped',
+                        'postgres:16'
+                    ], { stdio: 'inherit' });
+
+                    if (dockerRun.status !== 0) {
+                        // Container may already exist — try starting it
+                        spawnSync('docker', ['start', 'laneconductor-pg'], { stdio: 'inherit' });
+                    }
+
+                    process.stdout.write('⏳ Waiting for Postgres');
+                    for (let i = 0; i < 30; i++) {
+                        await sleep(1000);
+                        const ready = spawnSync('docker', ['exec', 'laneconductor-pg', 'pg_isready', '-U', 'postgres'], { stdio: 'pipe' });
+                        if (ready.status === 0) break;
+                        process.stdout.write('.');
+                    }
+                    console.log('\n✅ Postgres ready');
+                }
+            }
+
             console.log('\n️  Database Configuration');
             dbConfig.host = await question(`DB Host [${dbConfig.host}]: `) || dbConfig.host;
             dbConfig.port = parseInt(await question(`DB Port [${dbConfig.port}]: `) || dbConfig.port);
