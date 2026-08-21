@@ -2057,12 +2057,12 @@ Please review this, answer any questions (some fields may contain questions rath
             const indexPath = join(trackPath, 'index.md');
             if (!existsSync(indexPath)) return null;
             const content = readFileSync(indexPath, 'utf8');
-            const title = (content.match(/^# ([^\n]+)/m) || [])[1] || d;
-            const lane = (content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???';
-            const status = (content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue';
-            const progressStr = (content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0';
-            const phase = (content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '';
-            const runBy = (content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '';
+            const title = ((content.match(/^# ([^\n]+)/m) || [])[1] || d).trim();
+            const lane = ((content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???').trim();
+            const status = ((content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue').trim();
+            const progressStr = ((content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0').trim();
+            const phase = ((content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
+            const runBy = ((content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
             const retryPath = join(trackPath, '.retry-count');
             const retries = existsSync(retryPath) ? parseInt(readFileSync(retryPath, 'utf8')) : 0;
             return { id: d.split('-')[0], lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
@@ -2084,7 +2084,7 @@ Please review this, answer any questions (some fields may contain questions rath
             const prog = (t.progress + '%').padEnd(6);
             const by = (t.runBy || '-').padEnd(3);
             const info = t.phase ? colors.dim + t.phase + ': ' + colors.reset + t.title : t.title;
-            console.log(id + ' ' + lane.padEnd(15) + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
+            console.log(id + ' ' + lane + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
         });
 
         // Worker Health Check
