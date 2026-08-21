@@ -20,19 +20,22 @@ Add `install-db` target that:
 - [ ] Wire into `make install` dependency chain
 - [ ] Test: fresh run, re-run (idempotent), no-Docker path
 
-## Phase 2: Run migrations as part of make install
+## Phase 2: Install Atlas and run migrations
+
+Add `install-atlas` target that:
+- Checks if `atlas` is already on PATH — skip if so
+- Downloads and installs Atlas via its official install script:
+  `curl -sSf https://atlasgo.sh | sh`
+- Verifies: `atlas version`
 
 Add `install-migrate` target that:
-- Checks if Atlas is available (`which atlas`)
-  - If yes: run `atlas migrate apply --env local`
-  - If no: run migrations via Node.js pg client against the SQL files directly (no extra dep)
-- Wire after `install-db` in `make install`
+- Runs `atlas migrate apply --env local` (uses `atlas.hcl` already in repo)
+- Wire: `install-atlas` → `install-migrate` → after `install-db` in `make install`
 
-- [ ] Add `install-migrate` target
-- [ ] Implement Atlas path
-- [ ] Implement fallback Node.js pg migration runner (reads `migrations/*.sql` in order)
-- [ ] Wire into `make install`
-- [ ] Test: fresh DB (all migrations apply), already-migrated DB (idempotent)
+- [ ] Add `install-atlas` target with skip-if-present check
+- [ ] Add `install-migrate` target using Atlas
+- [ ] Wire both into `make install` dependency chain
+- [ ] Test: fresh DB (all 29 migrations apply), already-migrated DB (idempotent), Atlas already installed (skips download)
 
 ## Phase 3: Start UI at end of make install
 
@@ -63,16 +66,17 @@ In `lc setup`, when user selects `local-api` mode, before asking for DB credenti
 - [ ] Add readiness wait after Docker start
 - [ ] Test: Postgres running (no prompt), Postgres down + Docker available, Postgres down + no Docker
 
-## Phase 5: lc setup prompt at end of make install
+## Phase 5: Next-steps prompt at end of make install
 
-At the end of `make install`, print a clear next-step prompt:
+At the end of `make install`, print clear guidance — no auto-launch of `lc setup` since that is per-project:
 ```
 ✅ LaneConductor installed!
+   Dashboard: http://localhost:8090
 
-Next steps:
+Next: for each project you want to track:
   cd your-project
-  lc setup        ← registers this project and configures your AI agent
+  lc setup
 ```
 
-- [ ] Add next-steps message to end of `install` target output
-- [ ] Consider: if `make install` is run from inside a project dir (has `.git`), auto-offer to run `lc setup` now
+- [ ] Add next-steps message to end of `install` target
+- [ ] Confirm `make install` dependency order: install-node → install-atlas → ui-install → install-cli → install-db → install-migrate → api-start + ui-start
