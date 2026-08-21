@@ -69,7 +69,12 @@ install-cli:
 ## Install UI dependencies
 ui-install:
 	@echo "📦 Installing UI dependencies..."
-	@cd ui && npm install
+	@export NVM_DIR="$$HOME/.nvm"; [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+	if [ -d ui/node_modules/@rollup/rollup-win32-x64-msvc ] && ! [ -d ui/node_modules/@rollup/rollup-linux-x64-gnu ]; then \
+	  echo "⚠️  Windows node_modules detected on Linux — cleaning and reinstalling..."; \
+	  rm -rf ui/node_modules; \
+	fi; \
+	cd ui && npm install
 	@echo "✅ UI ready"
 
 ## Start the Express API
