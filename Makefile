@@ -4,7 +4,7 @@ UI_DIR     := $(shell pwd)/ui
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install uninstall ui-install install-cli api-start api-stop api-log ui-start ui-stop ui-log ui-restart start-all stop-all
+.PHONY: help install uninstall install-node ui-install install-cli api-start api-stop api-log ui-start ui-stop ui-log ui-restart start-all stop-all
 
 ## Show available commands
 help:
@@ -30,8 +30,23 @@ help:
 	@echo "From a project repo, use: lc help"
 	@echo ""
 
+## Ensure Node.js is installed (via nvm if missing)
+install-node:
+	@if command -v node >/dev/null 2>&1; then \
+	  echo "✅ Node.js $$(node --version) already installed"; \
+	else \
+	  echo "📦 Installing Node.js via nvm..."; \
+	  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash; \
+	  export NVM_DIR="$$HOME/.nvm"; \
+	  [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+	  nvm install --lts; \
+	  echo "✅ Node.js $$(node --version) installed"; \
+	  echo ""; \
+	  echo "⚠️  Restart your shell (or run: source ~/.bashrc) to activate node in this session"; \
+	fi
+
 ## Install LaneConductor (run once after cloning)
-install: ui-install install-cli
+install: install-node ui-install install-cli
 	@echo "$(SKILL_DIR)" > $(RC_FILE)
 	@echo "✅ Installed → $(RC_FILE)"
 	@echo "   Skill path: $(SKILL_DIR)"
