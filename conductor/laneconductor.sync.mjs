@@ -1616,13 +1616,15 @@ function parsePhaseStep(content, laneStatus) {
 function extractTrackNumber(filepath) {
   const parts = filepath.replace(/\\/g, '/').split('/');
   const trackDir = parts[parts.length - 2] ?? '';
-  return trackDir.match(/^(\d+)/)?.[1] ?? trackDir;
+  // Matches both legacy (10022-slug) and prefixed (AM-10022-slug, KAN-100-slug)
+  return trackDir.match(/(?:^|-)(\d+)/)?.[1] ?? trackDir;
 }
 
 function extractTitle(filepath) {
   const parts = filepath.replace(/\\/g, '/').split('/');
   const trackDir = parts[parts.length - 2] ?? '';
-  return trackDir.replace(/^\d+-/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  // Strip leading prefix + number (e.g. "AM-10023-" or "10023-" or "KAN-100-")
+  return trackDir.replace(/^(?:[A-Z]+-)?[\d]+-/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 async function notifyApi(event, data) {
@@ -2441,10 +2443,10 @@ async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPat
 
 // ── Watchers ──────────────────────────────────────────────────────────────────
 
-// Only process .md files inside numbered track directories (e.g. 1012-git-worktree/index.md)
-// Filters out file_sync_queue.md, test-sync.md, and any non-numbered subdirs like tracks/
-const isTrackFile = f => f.endsWith('.md') && /[/\\]\d+[^/\\]*[/\\][^/\\]+\.md$/.test(f);
-const isConvFile = f => f.endsWith('conversation.md') && /[/\\]\d+[^/\\]*[/\\]conversation\.md$/.test(f);
+// Only process .md files inside numbered track directories.
+// Matches both legacy (e.g. 1012-git-worktree/) and prefixed (e.g. AM-10023-slug/, KAN-100-slug/).
+const isTrackFile = f => f.endsWith('.md') && /[/\\](?:[A-Z]+-)?[\d]+[^/\\]*[/\\][^/\\]+\.md$/.test(f);
+const isConvFile = f => f.endsWith('conversation.md') && /[/\\](?:[A-Z]+-)?[\d]+[^/\\]*[/\\]conversation\.md$/.test(f);
 
 watch('conductor/tracks', { ignoreInitial: false, depth: 2 })
   .on('add', f => {
@@ -2620,7 +2622,7 @@ setInterval(pullTracksMetadataFromDB, 5000);
 (function resetFilesystemRunningStatus() {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
+  for (const dir of readdirSync(tracksDir).filter(d => /\d+/.test(d))) {
     const indexPath = join(tracksDir, dir, 'index.md');
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
@@ -4995,7 +4997,7 @@ const CLAIM_STALE_MS = (Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker
 (function clearStaleClaimMarkers() {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
+  for (const dir of readdirSync(tracksDir).filter(d => /\d+/.test(d))) {
     const claimPath = claimTrackPath(tracksDir, dir);
     if (!existsSync(claimPath)) continue;
     const ageMs = Date.now() - statSync(claimPath).mtimeMs;
