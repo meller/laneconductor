@@ -241,6 +241,25 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     setMergeModeSaving(false);
   }
 
+  // Track 1115 (REQ-11): same write-through path as setMergeMode above —
+  // PATCH .../tracks/:num forwards to /track/:num/action, which the sync
+  // worker's marker sync reflects into **Workspace** in index.md. Setting
+  // this here is a deliberate, explicit human choice (D2) — it always wins
+  // in resolveWorkspaceMode() except the plan lane, which always runs main
+  // regardless.
+  const [workspaceModeSaving, setWorkspaceModeSaving] = useState(false);
+  async function setWorkspaceMode(mode) {
+    setWorkspaceModeSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ workspace_mode: mode || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setWorkspaceModeSaving(false);
+  }
+
   // Track 1116 REQ-7: per-track model override — beats the lane's
   // primary_model and the project default. Empty = inherit (unchanged).
   const [modelOverrideSaving, setModelOverrideSaving] = useState(false);
@@ -754,6 +773,24 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                   >
                     <option value="pr">PR (review required)</option>
                     <option value="direct">Direct (auto-merge)</option>
+                  </select>
+                </div>
+                {/* Track 1115 (REQ-11): workspace-mode toggle — unspecified/null
+                    falls through to the type-derived or project default
+                    (resolveWorkspaceMode()'s D5 rows 4/5/6), shown here as
+                    "branch" since that's the eventual fallback; the plan lane
+                    always runs main regardless of this setting. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Workspace:</span>
+                  <select
+                    value={detail.workspace_mode ?? 'branch'}
+                    disabled={workspaceModeSaving}
+                    onChange={e => setWorkspaceMode(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    title="main: lane actions run directly in the primary checkout, no worktree/branch. branch: today's default (lock, worktree, track branch, merge at done). The plan lane always runs main regardless."
+                  >
+                    <option value="branch">Branch (isolated worktree)</option>
+                    <option value="main">Main (direct, no worktree)</option>
                   </select>
                 </div>
                 {/* Track 1116 REQ-7: per-track model override — beats the

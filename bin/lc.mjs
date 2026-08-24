@@ -2255,13 +2255,27 @@ Please review this, answer any questions (some fields may contain questions rath
         desc = '';
     }
 
-    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other]'); process.exit(1); }
+    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch]'); process.exit(1); }
 
     const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
     let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
     if (!VALID_TRACK_TYPES.includes(trackType)) {
         console.error(`❌ Invalid track type "${trackType}". Must be one of: ${VALID_TRACK_TYPES.join(', ')}`);
         process.exit(1);
+    }
+
+    // Track 1115 REQ-7: --workspace main|branch. Absent by default (not
+    // defaulted to 'branch' here) — resolveWorkspaceMode() needs to know
+    // "unset" is distinct from "explicitly branch" (D2).
+    const VALID_WORKSPACE_MODES = ['main', 'branch'];
+    const workspaceIdx = args.indexOf('--workspace');
+    let workspaceMode = null;
+    if (workspaceIdx !== -1) {
+        workspaceMode = args[workspaceIdx + 1];
+        if (!VALID_WORKSPACE_MODES.includes(workspaceMode)) {
+            console.error(`❌ Invalid workspace mode "${workspaceMode}". Must be one of: ${VALID_WORKSPACE_MODES.join(', ')}`);
+            process.exit(1);
+        }
     }
 
     const queuePath = join(projectRoot, 'conductor', 'tracks', 'file_sync_queue.md');
@@ -2297,7 +2311,8 @@ Please review this, answer any questions (some fields may contain questions rath
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
+    const workspaceLine = workspaceMode ? `**Workspace**: ${workspaceMode}\n` : '';
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types

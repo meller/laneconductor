@@ -94,17 +94,27 @@ Harness: extend the `local-api-e2e.test.mjs` / `mock-collector.mjs` /
 
 ### Phase 2 — Dirty-checkout guard (REQ-10, D10)
 
-- [ ] TC-20: dirty file **outside** the track folder → main-mode dispatch does
-      not spawn; expected: `lane_action_status` still `queue`, no CLI process
-      started, `conversation.md` gained a comment naming the dirty path.
-- [ ] TC-21: same scenario, retry accounting — expected: retry count is
+- [x] TC-20 (**verified live via 7 real E2E tests, not just this unit
+      case** — see spec.md D10's correction note): dirty file **outside**
+      the track folder AND outside worker bookkeeping → main-mode
+      dispatch does not spawn; expected: `lane_action_status` still
+      `queue`, no CLI process started, `conversation.md` gained a comment
+      naming the dirty path.
+- [x] TC-21: same scenario, retry accounting — expected: retry count is
       **unchanged** (D10: a "not now" condition must not burn retries, or a
-      human with unrelated files open permanently blocks the track).
-- [ ] TC-22: dirty files **only inside** `conductor/tracks/{NNN}-*/` → the
-      dispatch proceeds. Expected: pass. This is the case that makes main mode
-      usable at all — the worker itself writes `**Lane Status**: running` into
-      that folder immediately before spawning, so a naive guard blocks every run.
-- [ ] TC-23: branch-mode dispatch with a filthy checkout → unaffected, spawns
+      human with unrelated files open permanently blocks the track). Verified
+      structurally: the guard throws before `spawn()` is ever called, so the
+      exit-handler code that increments `.retry-count` never runs.
+- [x] TC-22 (**expanded during implementation**): dirty files **only
+      inside** `conductor/tracks/{NNN}-*/` OR only the worker's own
+      runtime bookkeeping (`conductor/.sync.pid`, `.sync.lock-target`,
+      `.worker.tokens.json`, `conductor/tracks-metadata.json`) → the
+      dispatch proceeds. This is the case that makes main mode usable at
+      all in a real deployment — confirmed live: without the bookkeeping
+      half of this exemption, every `plan`-lane spawn in every worker
+      deployment was blocked (D6 makes plan always resolve to `'main'`),
+      which broke 7 pre-existing E2E tests until fixed.
+- [x] TC-23: branch-mode dispatch with a filthy checkout → unaffected, spawns
       normally. Expected: the guard is main-mode only.
 
 ### Phase 2 — Auto-complete merge (REQ-5, D8)
@@ -125,17 +135,25 @@ Harness: extend the `local-api-e2e.test.mjs` / `mock-collector.mjs` /
       error; no track folder created.
 - [ ] TC-28: `lc new` with no `--workspace` → no `**Workspace**` line emitted
       (stays unset so D5's defaults apply; must not hardcode `branch`).
-- [ ] TC-29 *(manual)*: run `/laneconductor plan` on a track with no
-      `**Workspace**` marker — expected: marker written to `index.md`, and
-      reasoning appended to `conversation.md` in the required
-      `> **system**: …` format. Verify the comment actually reached
-      `track_comments` (the format silently no-ops if malformed) rather than
-      only checking the file on disk.
+- [ ] TC-29 *(manual, corrected — see spec.md REQ-8's note)*: run
+      `/laneconductor plan` on a track with no `**Workspace**` and no
+      `**Track Kind**` marker — expected: `**Track Kind**: bug|feature`
+      written to `index.md` (NOT `**Workspace**`), and reasoning appended
+      to `conversation.md` in the required `> **system**: …` format. Verify
+      the comment actually reached `track_comments` (the format silently
+      no-ops if malformed) rather than only checking the file on disk. A
+      follow-up auto-queue claim on that track must still resolve to
+      `branch` if `**Track Kind**` came out `bug` — this is the regression
+      the correction exists to prevent.
 
 ### Phase 4 — UI + DB (REQ-6, REQ-11)
 
-- [ ] TC-30: `trackTemplates()` unit — `bug` emits `**Workspace**: main`,
-      `feature` emits `**Workspace**: branch`.
+- [ ] TC-30 (corrected — see spec.md D3's implementation-time correction):
+      `trackTemplates()` unit — `bug` emits `**Track Kind**: bug` and no
+      `**Workspace**` line; `feature` emits neither. Also assert
+      `resolveWorkspaceMode()` still defaults a `**Track Kind**: bug` track
+      to `branch` when `trigger: 'auto-queue'` — the regression this
+      correction exists to prevent.
 - [ ] TC-31: marker → `tracks.workspace_mode` sync — editing the marker in
       `index.md` updates the column on the next sync tick.
 - [ ] TC-32: migration applies cleanly to a DB with existing rows; expected:

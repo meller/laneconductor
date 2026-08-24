@@ -96,13 +96,13 @@ function setupProject(tmpDir, collectorPort) {
   writeFileSync(join(tmpDir, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1 } },
   }, null, 2));
 
   const trackDir = join(tmpDir, 'conductor/tracks/001-test-track');
   mkdirSync(trackDir, { recursive: true });
   writeFileSync(join(trackDir, 'index.md'), [
-    '# Track 001: Test Track', '', '**Lane**: plan', '**Lane Status**: queue', '**Progress**: 0%',
+    '# Track 001: Test Track', '', '**Lane**: implement', '**Lane Status**: queue', '**Progress**: 0%',
   ].join('\n'));
 
   execSync('git add -A', { cwd: tmpDir });
@@ -150,7 +150,7 @@ describe('Track 1102 F11: timeout only kills a genuinely stalled run, not one st
       }, { label: 'worker registered' });
       const workerId = state0.workers[0].id;
 
-      await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+      await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
       // Original deadline (2500ms) passes here — a run that's still
       // producing output must NOT have been killed at this point.
@@ -204,7 +204,7 @@ describe('Track 1102 F11: timeout only kills a genuinely stalled run, not one st
       }, { label: 'worker registered' });
       const workerId = state0.workers[0].id;
 
-      await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+      await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
       // The killer's own 'timeout' tag on lane_action_result is
       // immediately overwritten by the exit handler's own generic

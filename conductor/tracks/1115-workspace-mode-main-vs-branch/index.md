@@ -2,9 +2,9 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 85%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phase 1 complete (1 of 6) — spec.md + test.md written; Phase 2 gated on track 10018 (see plan.md Task 0)
+**Phase**: ⚠️ Lane/Progress inconsistent with real state — see conversation.md. Phases 1-4/6 done; Phase 5 (dedicated E2E suite) not written — see plan.md's Phase 5 status note.
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: LaneConductor implicitly assumes ALL work is branch-per-track worktree work; an entire live pairing session (tracks 1112-1114's bug fixes) happened directly on main because fixing self-hosted…
@@ -183,11 +183,11 @@ would be simpler and should be reopened if 10018 lands before Phase 2.
 
 ## Phases
 - [x] Phase 1: Design finalization — resolve the unattended-bug-run tension (options a/b/c above), decide config surface and the dirty-checkout guard; write spec.md with REQs
-- [ ] Phase 2: Worker — plan lane always main-direct; worktree created lazily at first implement, honoring the track's resolved mode (skip worktree/branch for main mode, keep the git lock, keep exit-handler file/DB writes pointed at cwd); inject track-reference commit convention into agent instructions
-- [ ] Phase 3: Skill + CLI — `/laneconductor plan` classifies bug-vs-feature when type is missing (writes it to index.md, reasoning to conversation.md); `lc new --type bug|feature` flag
-- [ ] Phase 4: UI — mode visible on track card/detail; type already selectable at creation (existing feature/Bug selector drives the default); project default in Config
-- [ ] Phase 5: Tests — both modes through a full lane action on a real scratch repo; plan-on-main leaves no branch behind; lazy worktree appears only at first implement; main-mode serialization (second dispatch queues, doesn't interleave); dirty-checkout guard
-- [ ] Phase 6: Docs — SKILL.md + workflow.md guidance on when each mode is appropriate
+- [x] Phase 2: Worker — plan lane always main-direct; worktree created lazily at first implement, honoring the track's resolved mode (skip worktree/branch for main mode, keep the git lock, keep exit-handler file/DB writes pointed at cwd); inject track-reference commit convention into agent instructions
+- [x] Phase 3: Skill + CLI — `/laneconductor plan` classifies bug-vs-feature when type is missing (writes it to index.md, reasoning to conversation.md); `lc new --workspace main|branch` flag
+- [x] Phase 4: UI — mode visible on track card/detail; type already selectable at creation (existing feature/Bug selector drives the default); project default in Config
+- [ ] Phase 5: Tests — **partially done, see plan.md's status note**: pure-resolver unit tests done (13 cases) and 7 pre-existing E2E tests fixed after D6 broke their plan-creates-a-worktree assumption; the dedicated Tasks 2-8 E2E suite (real spawned-worker process tests on real git state for main mode, lazy worktree, auto-queue override, merge skip, dirty-checkout guard, lock serialization, Worktrees-panel exclusion) is NOT written
+- [x] Phase 6: Docs — SKILL.md + workflow.md guidance on when each mode is appropriate
 
 ## Related tracks
 - [10018](../10018-per-track-merge-mode/index.md) — per-track merge mode (pr vs direct); the integration end of the same axis, see interaction section above
@@ -195,3 +195,6 @@ would be simpler and should be reopened if 10018 lands before Phase 2.
 - [1113](../1113-conversation-worker-interaction-consolidation/index.md) — its planning agent's "Send & Run doesn't exist" false-negative is this track's problem statement in miniature
 - [1110](../1110-worker-separation-and-claim-race-safety/index.md) — the lock/claim machinery main mode leans on for serialization
 **Merge Mode**: pr
+**PR Number**: 6
+**PR URL**: https://github.com/meller/laneconductor/pull/6
+**PR Status**: open
