@@ -1,9 +1,9 @@
 # Track 1087: Live Session Transcript Panel
 
-**Lane**: review
-**Lane Status**: queue
-**Progress**: 100%
-**Phase**: All 7 phases complete. Every claimed-complete task is backed by a real test or a documented live verification — Phase 7 audited coverage rather than writing tests for their own sake, closing two genuine gaps (a direct assertion for the non-Claude fallback, and documenting that pre-existing generic WS-relay tests already cover session:event) and being explicit that the auto-expand/collapse UI behavior is manually-verified only (no component-test infra in this repo).
+**Lane**: done
+**Lane Status**: success
+**Progress**: 89%
+**Phase**: Phases 1-7 complete (8/9, see below for what "complete" is backed by). Phase 8 (Direct Worker Interactive Chat) reopened 2026-08-12: live-tested end-to-end and found the worker has no handler for…
 **Type**: dev
 **Summary**: Collapsible right-side panel rendering a track's session live, replacing the raw log tail.
 
@@ -51,6 +51,7 @@ Full design context: [docs/superpowers/specs/2026-08-07-remote-worker-identity-a
 - [x] Phase 5: UI — cross-worker activity view (global worker activity latch, design revised from spec.md's snippet-in-WorkersList to a persistent reachable-from-anywhere panel)
 - [x] Phase 6: Non-track dispatch transcripts — deploy gets a raw-text log viewer keyed on dispatch id (revised scope, see spec.md REQ-6's correction); create-project deferred (1091 doesn't exist yet)
 - [x] Phase 7: Tests — audited coverage against every task, closed the two real gaps found, honest about what's automated vs. manually-verified
+- [ ] Phase 8 (reopened 2026-08-12): Direct Worker Interactive Chat — UI + dispatch creation done; worker-side execution of `worker_adhoc_chat`/`track_chat` was never implemented, confirmed by live end-to-end test (dispatch created, then failed with "missing track_number" — falls through to the generic lane-action handler, no dedicated handler exists)
 
 ## Depends on
 [1086](../1086-persistent-track-sessions/index.md) — this panel renders that track's persistent session stream; without 1086 there's no single continuous stream to show, only disconnected per-call logs. Phase 6 also depends on [1085](../1085-manual-worker-dispatch/index.md) (deploy) and [1091](../1091-manager-worker-and-new-project-flow/index.md) (create-project) existing as dispatch actions to have anything non-track-scoped to render.

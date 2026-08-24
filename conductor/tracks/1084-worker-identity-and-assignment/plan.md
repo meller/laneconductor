@@ -114,7 +114,7 @@ whichever worker already has a session for this track (depends on
 rest of this phase can).
 
 - [x] Task 1: In `autoLaunchLocalFs`, before claiming a track: resolve assignee, resolve candidate pinned workers (Phase 2 Task 2) — implemented server-side as a new `GET /api/projects/:id/claimable-tracks?worker_id=X` endpoint (reuses `resolveAssignee`/`resolvePinnedWorkers`), fetched once per auto-launch cycle rather than per track, since the worker has "zero DB knowledge" by design and can't run this resolution itself
-- [ ] Task 2: Continuity check — deferred, as planned: needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table, which doesn't exist yet
+- [ ] Task 2: Continuity check — deferred, as planned: needs [1086](../1086-persistent-track-sessions/index.md)'s `track_sessions` table, which doesn't exist yet. **→ Unblocked 2026-08-12 (1086 shipped, 100%); tracked as Phase 7 below rather than reopening this phase.**
 - [x] Task 3: No prior session — any idle candidate worker may claim it (first-idle-wins) — this is the actual behavior right now, since there's no continuity check yet to prefer a specific one
 - [x] Task 4: Apply the same gating to the API-mode claim path — there is only one claim path (`autoLaunchLocalFs`, shared by local-fs and API mode; the "claim-queue endpoint" comment nearby was stale/vestigial, no such endpoint is actually used for concurrency decisions), so this was gated once at the source
 - [x] Task 5: Confirm unpinned-assignee fallback preserves current open-claim behavior exactly — verified via curl: a track whose assignee has no pins is claimable by any worker
@@ -169,3 +169,203 @@ rewriting history; the `mock-collector`-based test in
 `conductor/tests/track-1084-worker-identity.test.mjs` covers the sync-worker's
 *consumption* of `claimable-tracks`, not the endpoint's own SQL/resolution logic, which
 is what Task 1/2/3 above close.
+
+## Phase 6 (reopened 2026-08-12): Worker lifecycle UI gaps
+
+**Problem**: Found live while browser-testing tracks 1089/1091/1096 —
+`WorkersList.jsx`'s worker start/stop controls were built around a "zero or
+one worker per project" mental model, even though Phase 0 of this track
+already made multiple workers per project a first-class, fully-supported
+case (`--worker-number`, per-instance pidfiles, stable identity). Three
+specific gaps, all in the same file:
+
+- [ ] Task 1: **No way to add a worker once a project already has one.**
+  `WorkersList.jsx`'s only "start a worker" affordance (`Start Sync Worker`)
+  is gated behind `!hasWorkers` (grid layout, ~line 158) — it disappears
+  the moment a project has even one worker running. There is currently no
+  UI path to start worker #2, #3, etc. for a project, even though the
+  backend has fully supported this since Phase 0. (Track 1089's `+ New
+  Worker` — SSH provisioning to a *different* machine — is a different
+  concern and was hidden 2026-08-12 since its backend is a stub; this task
+  is about adding another *local* worker to a project that already has
+  one, which needs its own affordance regardless of 1089's fate.)
+- [ ] Task 2: **No per-worker stop button.** Only a single global "Stop All
+  Workers" button exists per project (grid layout, ~line 288); there's no
+  way to stop just worker #2 while leaving #1 running. `handleWorkerAction`
+  only knows `start`/`stop` at the project level (`POST
+  /api/projects/:id/worker/:action`, which shells out to `make
+  lc-start`/`lc-stop` — both project-wide, not worker-number-aware).
+  Needs either a new worker-number-aware backend action, or a
+  `lc worker stop --worker-number <n>` invocation per button.
+- [ ] Task 3: **"Stop All Workers" scope, verified safe but worth
+  confirming explicitly.** Raised as a concern ("shouldn't stop the
+  manager") — traced live: the button is project-scoped
+  (`POST /api/projects/:id/worker/:action` → `make lc-stop` in that
+  project's own `repo_path`), and a manager worker (track 1091) lives in
+  its own separate directory/config entirely, so it's structurally
+  unreachable from this button today. Confirmed, not a bug — but also
+  found the button silently no-ops in the global "All Projects" Workers
+  view specifically: `handleWorkerAction` does `if (!projectId) return;`,
+  and that view has no single project in context, so the button does
+  nothing there with no error shown. Worth either disabling/hiding the
+  button in that view, or making it a genuine no-op-with-explanation
+  rather than a silent one.
+
+- [ ] Task 4 (found live while testing Task 1): **`GET /api/projects/:id/workers` folds every manager worker into every project's view**, via a `WHERE (w.project_id = $1 OR w.type = 'manager')` clause added for track 1096's own reasons. Side effect confirmed live: a project (macrodash) with zero of its own workers still has `hasWorkers === true` because a manager running in a completely unrelated directory counts — so the empty-state `Start Sync Worker` button never renders for *any* project as long as any manager is registered anywhere, even though that project genuinely has no worker of its own. A manager showing up in a *global* workers view (Task 1091's own concern) is reasonable; folding it into every individual *project's* view is not — those are different questions ("what workers exist" vs. "what workers does this project have").
+
+Not yet planned in detail — needs its own design pass (in particular Task
+2's backend shape and Task 4's fix, which likely means a project-scoped
+"has this project's own worker" check that's separate from any global
+"is a manager visible" check) before implementation, per this project's
+own brainstorming-before-code convention.
+
+### Phase 6 implementation (2026-08-12)
+
+- [x] Task 1: `Start Sync Worker` reappears — gate changed from `hasWorkers`
+      to `hasOwnWorkers` (see Task 4).
+- [x] Task 2: Per-worker **Stop** button on every worker card, plus
+      `POST /api/workers/:id/stop` (requireAuth). Uses the existing
+      `lc worker stop --worker-number N` / `--manager`, which already
+      supported this via per-instance pidfiles — only the endpoint and
+      button were missing. Verified live: stopped worker #1 while the
+      manager kept running. 3 tests.
+- [x] Task 3: `Stop All Workers` / `Start Sync Worker` are now hidden
+      unless a project is selected. Both shell out to `make lc-stop` /
+      `make lc-start` in a project directory, so in the All Projects view
+      they silently did nothing (`handleWorkerAction` returns early on
+      `!projectId`) with no feedback. Also confirmed the original concern:
+      Stop All *cannot* reach a manager — it runs in the project's own
+      directory and a manager lives elsewhere — and the button now says so
+      in its tooltip rather than leaving it to be inferred.
+- [x] Task 4: `hasOwnWorkers` separates "does this project have a worker of
+      its own" from "what workers are visible here". A manager is
+      deliberately included in a project's worker list (the New Project and
+      provisioning flows need to find it) but belongs to no project, so it
+      was making every project look staffed and suppressing the empty state
+      everywhere.
+
+- [ ] **Weakness found while verifying, not fixed**: the stop endpoint
+      trusts `lc worker stop`'s exit code, and that command exits 0 with a
+      warning when there's no pidfile ("⚠️ No heartbeat running"). So a
+      worker started outside `lc` (or one whose pidfile was lost) reports
+      `{ok: true}` and a cheerful "stopped" while the process keeps
+      running. `workers.pid` is right there in the row the endpoint
+      already fetches — it should verify the process is actually gone
+      (`process.kill(pid, 0)`) and report honestly if it isn't.
+
+## Phase 7: Continuity-first routing (unblocked 2026-08-12)
+
+**Problem**: `claimable-tracks` currently answers "may this worker claim
+this track?" with the assignee gate alone. Among an assignee's candidate
+workers it is first-idle-wins, so a track can be claimed by a worker that
+has never seen it while the worker holding its live Claude session sits
+idle. That worker then cold-starts and rebuilds the entire context —
+`product.md`, `tech-stack.md`, `spec.md`, `plan.md`, `conversation.md`, the
+lot — which is precisely the cost `FRESH_SESSION` exists to avoid.
+
+The endpoint says so itself (`ui/server/index.mjs:3785`):
+
+> *"(Continuity-first routing via track_sessions — track 1086 — is a
+> follow-up once that table exists; this is the assignee gate alone.)"*
+
+**That table now exists** — 1086 is `done`, 100%. The stated precondition is
+met, so this is no longer deferred work, it is just unimplemented work.
+
+**Solution**: implement REQ-3 step 3 — if `track_sessions` holds a row for
+`(track_number, worker_id)` and that worker is among the candidates, only
+that worker may claim the track. Fall back to today's first-idle-wins when
+there is no session row.
+
+- [ ] Task 1: In `claimable-tracks` (`ui/server/index.mjs:3770`), after the
+      assignee gate, look up `track_sessions` for the queued track numbers.
+      Batch it — one query for the whole candidate set, not per track; the
+      endpoint is already called once per auto-launch cycle and must not
+      become N+1.
+- [ ] Task 2: If a session row exists for this track, return it as claimable
+      **only** to that `worker_id`. No session row → unchanged behaviour.
+- [ ] Task 3: Liveness escape hatch. A session pinned to a worker that is
+      dead or long gone must not strand the track forever — if the holder
+      has aged out of the 60s heartbeat-freshness window used by
+      `GET /api/workers`, fall back to first-idle-wins. **Decide explicitly
+      whether to also delete the stale `track_sessions` row** (there is
+      already a `DELETE /track/:num/session`), or leave it so the original
+      worker reclaims continuity if it comes back. Leaving it is probably
+      right; make it a decision, not an accident.
+- [ ] Task 4: Tests — extend `conductor/tests/track-1084-worker-identity.test.mjs`'s
+      Phase 3 suite (its `mock-collector.mjs` already fakes
+      `/claimable-tracks` + `/_set-claimable`). Required cases:
+      - session-holder gets it, non-holder is refused **(assert the refusal,
+        not just the grant)**
+      - no session row → both candidates eligible, unchanged
+      - dead session-holder → track becomes claimable again (Task 3)
+- [ ] Task 5: Prove the payoff end to end rather than asserting it: run the
+      same track twice across two registered workers and confirm the second
+      run receives `FRESH_SESSION: false`. A green routing test that still
+      cold-starts every time would be a false pass — the whole point of this
+      phase is the session reuse, not the routing decision on its own.
+
+**Sequencing**: [1109](../1109-worker-claim-allowlist/index.md) adds a claim
+allowlist to this same function. Two independent claim predicates landing in
+`claimable-tracks` at once will conflict — land one, then rebase the other.
+The intersection semantics also need stating: an explicit `--only-tracks`
+allowlist should almost certainly **override** continuity (the operator asked
+for this track on this worker), but that ordering must be written down and
+tested, not left to whichever `if` happens to come first.
+
+## Phase 8: A stuck worker identity is now loud, not silent (2026-08-17 incident)
+
+**Problem**: Track 10014 sat with dispatch entries stuck `pending`
+indefinitely. Root cause: two duplicate `laneconductor.sync.mjs`
+processes ended up both claiming "worker #1" for the same project (the
+pidfile-liveness guard lives in `bin/lc.mjs`'s `worker start` wrapper,
+not the worker script itself — a direct `node laneconductor.sync.mjs`
+invocation bypassing it can orphan whatever was running before). A
+stronger, independent lock already exists for exactly this
+(`conductor/services/worker-lock.mjs`, built by track 1110) — the real,
+previously-unaddressed gap this incident exposed is different:
+`updateWorkerHeartbeat()` upserts by `(hostname, project_id,
+worker_number)` and never reads `myWorkerId`, while `checkDispatchInbox()`
+silently no-ops every cycle for as long as `myWorkerId` stays null. A
+worker whose `/worker/register` call never resolves therefore looks
+completely healthy — idle, heartbeating on schedule, visible in the UI —
+while never serving a single dispatch. Nothing anywhere logged this.
+
+**Solution**: a watchdog that checks specifically for "myWorkerId still
+null N seconds after startup" — the one condition heartbeat can never
+reveal — logs a named, specific warning the first time it fires, and
+retries registration on an interval until it succeeds.
+
+- [x] `workerStartedAt` / `workerIdResolvedLoggedStale` tracking added at
+      module scope
+- [x] `setInterval` watchdog (90s grace, then retries every 60s;
+      `LC_WORKER_ID_STALE_GRACE_MS`/`LC_WORKER_ID_WATCHDOG_MS` test-only
+      overrides) — logs once loudly, retries silently unless a retry
+      itself fails
+- [x] Self-heals without a restart if the underlying cause was transient
+      — confirmed by test, not asserted from reading the diff
+- [x] Considered and rejected: a second pidfile-liveness guard duplicating
+      `worker-lock.mjs`'s existing, stronger exclusivity — would not have
+      addressed the actual invisibility gap (heartbeat/dispatch's
+      decoupled success conditions), and two overlapping guard mechanisms
+      with different failure messages is its own confusion risk
+- [x] Considered and deferred: a per-process `instance_id` for
+      disambiguating "which physical process currently owns worker slot
+      N" in logs/UI (the "better naming than #1/#2" ask from this
+      incident's own review) — `worker-lock.mjs`'s exclusivity already
+      makes a *second* live claimant of the same slot structurally
+      impossible going forward, so the disambiguation value is lower once
+      Phase 8's watchdog also makes a *stuck* single claimant loud. Real
+      idea, not implemented here — flag as a follow-up if another
+      identity-confusion incident happens despite this phase.
+
+**Impact**: The exact symptom that made this incident hard to spot
+("everything looks idle and healthy") is now structurally impossible to
+miss — either the retry recovers silently, or the warning names the
+problem outright.
+
+Regression: `conductor/tests/worker-id-watchdog.test.mjs` — real worker
+process against a mock collector forced to fail `/worker/register`;
+asserts the warning fires and names the actual failure mode, then
+asserts recovery once registration starts succeeding again.
+Negative-controlled. 33/33 across every suite this and the same day's
+other fixes touch.

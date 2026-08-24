@@ -106,7 +106,15 @@ make install-cli
 ```
 
 ### Core Commands
-- `lc worker start [--sync-and-work]`: Start the heartbeat worker in the background.
+- `lc worker run <track>`: **Normally what you want.** Runs a worker scoped to
+  that track in the foreground and exits when it's done. It cannot claim any
+  other queued track — unlike `lc worker start --sync-and-work`, which claims
+  *anything* queued and will begin autonomous agent runs on every other track
+  sitting in `queue`. (Track 1109)
+- `lc worker start [--sync-and-work] [--only-tracks <n,n>] [--once]`: Start the
+  heartbeat worker in the background. `--only-tracks` restricts what it may
+  claim — it narrows only, and can never widen a server-side permission
+  decision; `--once` exits when that scoped work is finished.
 - `lc worker stop`: Stop the background heartbeat worker.
 - `lc worker restart`: Restart the background heartbeat worker.
 - `lc worker status`: Check the health and PID of the local worker.
@@ -254,7 +262,7 @@ To find a track by number (e.g., "Track 017"):
 3.  **Check `conductor/tracks.md`**: This summary file often contains links to the track folders.
 4.  **Check `conductor/tracks/file_sync_queue.md`**: New tracks queued from the UI or CLI appear here with `**Status**: pending` before the worker creates their folder.
 
-**Folder Naming Convention**: `conductor/tracks/NNN-slug/` (where NNN is the 3-digit track number).
+**Folder Naming Convention**: `conductor/tracks/INITIALS-NNN-slug/` for new tracks (e.g. `AM-10023-my-feature`). Legacy tracks use the old `NNN-slug/` format and are fully supported.
 
 ---
 
@@ -316,6 +324,12 @@ Your job is **only to generate the context files**. Do not ask questions.
 - **`conductor/kpis.md`** — project north-star metrics (see KPI template below)
 - **`conductor/user-stories.md`** — personas + their end-to-end journeys (see template below;
   stub with a TODO if no journey/flow language is found in `brainstorm_summary`)
+- **`conductor/quality-gate.md`** — the project's own verification commands
+  (see template below). **Must be tailored to THIS project's real stack** —
+  derive every command from what you actually found in the scan
+  (`package.json` scripts, test runner, lint config, e2e framework), not
+  from a generic list. A quality gate that names commands this project
+  doesn't have is worse than none: it gets skipped or faked.
 - **`conductor/tracks/`** and **`conductor/code_styleguides/`** — create dirs if missing
 - **`.claude/MEMORY.md`** — create if not present
 
@@ -361,6 +375,57 @@ component library theme, or design-token files if present; otherwise leave place
 Tracks with `**Maps To**` referencing a metric above will appear here automatically.
 ```
 
+**`conductor/quality-gate.md` template.** Replace every `<...>` with a real
+command discovered in the scan; **delete any line whose command this project
+doesn't actually have** rather than leaving an aspirational one. Note the
+boxes are left **unchecked** and there is **no pre-filled verdict** — this
+file is a checklist to run, not a report. (An earlier version of this
+template shipped every box pre-ticked with `Status: PASS` already filled in,
+which invited agents to rubber-stamp it; that is why this warning exists.)
+```markdown
+# Quality Gate
+
+> Checklist, not a report. Every box starts unchecked and is ticked only by
+> whoever ran the command **this time** and saw it pass. Do not trust marks
+> left by a previous run.
+
+## Automated Checks
+
+- [ ] Syntax/typecheck: `<e.g. npm run typecheck | node --check>` (Expected: no errors)
+- [ ] Lint: `<e.g. npm run lint>` (Expected: clean)
+- [ ] Unit + integration tests: `<e.g. npm test>` (Expected: all pass)
+- [ ] Build: `<e.g. npm run build>` (Expected: succeeds)
+- [ ] Coverage: `<e.g. npm run test:coverage>` (Expected: >= <N>% lines)
+- [ ] Security: `<e.g. npm audit --audit-level=high>` (Expected: 0 high/critical)
+
+## End-to-End / Real-Product Checks
+
+> Required for any track touching UI or a user-facing flow. Unit tests
+> cannot detect a feature that was never wired up.
+
+- [ ] E2E suite: `<e.g. npx playwright test>` (Expected: all specs pass —
+      run the EXISTING specs; writing one trivial new passing test does not
+      satisfy this)
+- [ ] Restarted long-running processes (workers, API server) before
+      verifying — they do not hot-reload, and testing against a stale
+      process is a false pass
+- [ ] If no E2E suite exists: drove the flow manually and recorded the
+      observed user-visible result (screenshot, or real API/DB response)
+
+## Manual Quality Review
+
+- [ ] Architecture alignment: follows this project's established patterns
+- [ ] Readability: clear naming, comments explain *why*
+- [ ] No stubs in completed work: `grep -rniE "not yet implemented|TODO|FIXME|FFU" <src dirs>`
+      returns nothing in code paths marked `[x]`
+
+## Verdict
+
+- Status: <PENDING — set to PASS/FAIL only after running the above>
+- Reviewer: <who/what ran it>
+- Date: <ISO date of this run>
+```
+
 **`conductor/user-stories.md` template** (seed from `brainstorm_summary` if it describes concrete
 user journeys/flows; otherwise stub with a TODO — don't invent personas that weren't discussed):
 ```markdown
@@ -386,6 +451,7 @@ Print progress as you write each file:
 📝 Writing conductor/deployment-stack.md...   ✅
 📝 Writing conductor/kpis.md...               ✅
 📝 Writing conductor/user-stories.md...       ✅
+📝 Writing conductor/quality-gate.md...       ✅
 ```
 
 **Also symlink the skill and Antigravity workspace rule/skill** (if not already linked):
@@ -1041,6 +1107,25 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Summary**: [text]` | `content_summary` | A one-line summary of the current work/problem. |
 | `**Waiting for reply**: [yes\|no]` | `waiting_for_reply` | Signals that a human comment needs an answer. |
 
+### Completion Comment Convention
+
+Every terminal lane-action outcome (`plan`, `implement`, `review`, `quality-gate`) appends
+**exactly one** structured comment to `conversation.md` on completion, always authored `system`
+and always leading with one of these three emoji as the very first character of the body (the
+Inbox's classification matches on this leading character — see `/api/inbox`):
+
+| Emoji | Meaning | Inbox bucket |
+|-------|---------|--------------|
+| `✅` | Success — no action needed, informational only | Recent activity |
+| `⚠️` | Needs intervention — human should look at this | Needs your input |
+| `❌` | Failed | Needs your input |
+
+Format: `> **system**: <emoji> <one-line summary>.` — e.g.
+`> **system**: ✅ Plan complete — moved to implement.` Don't double-post: if an earlier step in
+the same run already posted a `⚠️`/`❌` comment for this outcome (e.g. the fundamentals-conflict
+guardrail, or a quality-gate FAIL), that comment satisfies this convention on its own — no need
+for a second one.
+
 ### `/laneconductor qualityGate [track_number]`
 
 Verifies the implementation of a track against the project's quality standards. This command is usually invoked automatically by the worker when a track enters the `quality-gate` lane.
@@ -1091,16 +1176,22 @@ Update the track status and progress by modifying its Markdown files.
 
 Registers a new track in the **file sync queue**. The sync worker processes it on next heartbeat.
 
-1. Determine the next track number: check highest number in `conductor/tracks/file_sync_queue.md` (matching `### Track NNN:`) and existing `conductor/tracks/NNN-*/` folder names.
-2. Create `conductor/tracks/NNN-slug/index.md` immediately (for fast feedback):
+1. Determine the next track number AND derive author initials:
+   - Run `git config user.name` and `git config user.email` to get author info.
+   - Derive initials: uppercase first letter of each word, max 3 chars, fallback to `XX` if not configured. Examples: "Asaf Meller" → `AM`, "John von Neumann" → `JVN`, "Madonna" → `M`.
+   - Find the highest existing number by scanning `conductor/tracks/file_sync_queue.md` (matching `### Track NNN:`) and all `conductor/tracks/*/` folder names — extract the number regardless of prefix (e.g. both `10022-slug` and `AM-10022-slug` contribute `10022`).
+   - The display ID is `INITIALS-NNN` (e.g. `AM-10023`). The folder name is `INITIALS-NNN-slug/`.
+2. Create `conductor/tracks/INITIALS-NNN-slug/index.md` immediately (for fast feedback):
    ```markdown
-   # Track NNN: [name]
+   # Track INITIALS-NNN: [name]
 
    **Lane**: plan
    **Lane Status**: queue
    **Progress**: 0%
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
+   **Author**: INITIALS
+   **Created By**: user@email.com
    **Summary**: [description]
    ```
    Default `**Type**` to `dev` unless the user specified a type.
@@ -1112,6 +1203,7 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Created**: [ISO timestamp]
    **Title**: [name]
    **Description**: [description]
+   **Author**: INITIALS
    **Metadata**: { "priority": "medium", "assignee": null }
    ```
 4. The sync worker detects the change (via chokidar or 5s heartbeat), creates the DB row, and moves the entry to `## Completed Queue`.
@@ -1173,6 +1265,20 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - Check for human comments in `conversation.md` (always re-read this one). **If `conversation.md` contains a brainstorm thread** (lines starting with `> **system**: Brainstorm`), treat the Q&A dialogue as enriched requirements — incorporate answers into `spec.md`, `plan.md`, and `test.md` before finalising.
     - Flesh out missing requirements or phase details based on current codebase context.
     - **Fulfill test.md**: If `test.md` is missing, empty, or contains the generic `(Test cases to be added)` stub, you MUST fully scaffold/rewrite it using the **Track File Templates** format at the bottom of this file. Populating `test.md` with specific, real test cases for each phase in `plan.md` is a MANDATORY requirement of the planning phase. Never leave the test file empty or at the generic stub.
+    - **Acceptance criteria must describe the user-facing outcome, never
+      the scaffolding.** Every criterion has to be something a user could
+      observe. Criteria that lock in a placeholder are forbidden — e.g.
+      *"the worker logs the expected 'not yet implemented' message"*,
+      *"no real code path is exercised"*, *"the dispatch is marked failed
+      with that message"*. Those are satisfied by a stub, so the track can
+      pass its own gate while the feature does not exist (this happened —
+      see the quality-gate command's done-gate). Write *"a worker actually
+      starts on the target machine"* instead.
+    - **Deferring scope is fine; calling the track complete is not.** If a
+      capability is intentionally out of this pass (FFU), it must NOT
+      appear as a satisfiable acceptance criterion, and the plan must
+      carry an explicit unchecked phase for it. A track with deferred
+      Solution-level capability cannot later be marked `done` at 100%.
     - Update `test.md` with test cases for any new phases or requirements.
     - **Check for `## ❌ KPI MISS` in plan.md**: if present, this is a replanning cycle after a KPI failure. Read the failure data (target, actual, delta, snapshot) and use it as context. Generate a *different* hypothesis — new content angle, different channel, different CTA. Print: `♻️ Replanning with KPI data: target=X, actual=Y, delta=Z`. Append a new `## ❌ KPI MISS` entry (don't overwrite old ones).
 4.  **KPI enforcement** (for `marketing` and `sales` tracks):
@@ -1214,7 +1320,20 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - This is **non-blocking** by default — the track continues through planning; a human
       reviews and decides whether to update the fundamental doc or adjust the track's approach.
 6.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
-7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`.
+7.  **Transition**: **First re-read `index.md`'s current `**Lane**` marker.** If it is no
+    longer `plan` (a human moved the card to a different lane on the board while this run
+    was in progress — e.g. dragged straight to `implement` or `done`), do **not** overwrite
+    it: leave `**Lane**` and `**Lane Status**` exactly as they are, skip the rest of this
+    step, and append `> **system**: ℹ️ Plan finished, but the track had already been moved
+    to <current lane> — leaving it there.` to `conversation.md` instead of the comment
+    below. The human's manual move always wins over this run's own stale intent. Otherwise
+    (still `plan`, the normal case): read `conductor/workflow.json` and set `**Lane**` in
+    `index.md` to exactly what is defined in `lanes.plan.on_success`. Then append a
+    completion comment to `conversation.md` (see **Completion Comment Convention** below): if
+    step 5b's fundamentals-conflict guardrail fired during this run, use
+    `> **system**: ⚠️ Plan complete with a fundamentals conflict — see conversation above.`
+    (don't double-post; the guardrail's existing comment plus this one line is enough
+    context); otherwise use `> **system**: ✅ Plan complete — moved to <lane>.`
 
 **🛑 BOUNDARY ENFORCEMENT**: Your job ends here. Do NOT start implementing code. Wait for the next worker cycle to pick up the track in its new lane.
 
@@ -1323,9 +1442,21 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 5. **Dev track: On complete** (skip for non-dev tracks):
    - Same verification bar as step 4, for the track as a whole, before writing `## ✅ COMPLETE`.
    - Update `index.md` `**Progress**` marker to 100%.
-   - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
+   - **Transition**: First re-read `index.md`'s current `**Lane**` marker. If it is no
+     longer `implement` (a human moved the card elsewhere while this run was in progress),
+     do **not** overwrite it — leave `**Lane**`/`**Lane Status**` as-is and note in the
+     completion comment below that the lane was left untouched because it had already moved.
+     Otherwise: read `conductor/workflow.json` and set `**Lane**` in `index.md` to exactly
+     what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
+   - Append a completion comment to `conversation.md` (see **Completion Comment Convention**):
+     `> **system**: ✅ Implementation complete — moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`
+
+   Non-dev (supervised) tracks already set `**Waiting for reply**: yes` in step 3 — that
+   `waiting_for_reply` marker is itself the Inbox signal (see **Completion Comment
+   Convention** and `waiting_for_reply` in the marker table above), so no additional
+   completion comment is needed there.
 
 5. **Release lock and cleanup:**
    ```bash
@@ -1353,8 +1484,18 @@ Structured review of a track against its plan and product guidelines. Posts the 
 2. **Evaluate**: Check implementation against requirements and guidelines.
    - **Secrets Policy**: Ensure no secrets are hardcoded or leaked in logs. Verify use of ADC/Secret Manager as specified in `deployment-stack.md`.
    - If `test.md` exists, run the test commands listed there. A FAIL verdict is mandatory if any test cases are failing.
-3. **Post Review**: Write the review results into `conductor/tracks/NNN-*/conversation.md` (append to it). Include test pass/fail summary if `test.md` was present.
+3. **Post Review**: Append the review results to `conductor/tracks/NNN-*/conversation.md` as a
+   single `> **system**: ...` comment (see **Completion Comment Convention**) — author `system`,
+   not `claude`/`gemini`, and the emoji is the literal first character of the body, e.g.
+   `> **system**: ✅ REVIEW PASSED` or `> **system**: ⚠️ REVIEW FAILED`, followed by the full
+   write-up (test pass/fail summary if `test.md` was present, gaps if any) as `>`-prefixed
+   continuation lines under that same comment — do not post the write-up as a second comment.
 4. **Auto-lane transition**:
+   - First re-read `index.md`'s current `**Lane**` marker. If it is no longer `review` (a
+     human moved the card elsewhere while this run was in progress), do **not** overwrite
+     it — leave `**Lane**`/`**Lane Status**` as-is, still post the review comment from step 3
+     (the review itself is still valid information), and note there that the lane transition
+     was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
    - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
@@ -1376,7 +1517,6 @@ Runs automated checks and updates status files based on results.
    - If type is non-dev (`marketing`, `sales`, `support`, `other`) OR spec.md has a `## KPI` block: run `conductor/measure.mjs` for this track.
    - `node conductor/measure.mjs --track NNN`
    - Write result back to index.md: `**KPI Actual**: N` and `**KPI Snapshot**: {JSON}`
-   - Append to `conversation.md`: `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true/false`
    - **If KPI failed** (`passed: false`):
      - Append `## ❌ KPI MISS` to `plan.md`:
        ```markdown
@@ -1384,25 +1524,99 @@ Runs automated checks and updates status files based on results.
        **Target**: T | **Actual**: N | **Delta**: -D | **Window**: W
        **Snapshot**: `{raw JSON}`
        ```
+     - This is a terminal outcome (see **Completion Comment Convention**) — append to
+       `conversation.md`: `> **system**: ❌ KPI miss — actual=N, target=T, threshold=TH.`
      - Transition to `on_failure` lane. **Do NOT run code checks.**
-   - **If KPI passed**: continue to code checks below.
+   - **If KPI passed**: append to `conversation.md`:
+     `> **system**: KPI measurement: actual=N, target=T, threshold=TH, passed=true.` — no
+     leading emoji here (this is not yet a terminal outcome; step 4's Post Results is the
+     terminal comment for this run, and gets the emoji) — then continue to code checks below.
    - Dev tracks without a `## KPI` block: skip measurement entirely.
 2. **Execute Checks**: Read `conductor/quality-gate.md` and the track's `test.md`. You MUST execute EVERY command listed in both files' "Automated Checks" / "Test Commands" sections as shell commands (using your Bash/terminal tool).
+   - **The checkboxes in `quality-gate.md` are NOT a report — they are a
+     checklist you must run.** That file ships with every box pre-ticked
+     `[x]` and often a stale `Status: PASS` verdict from an earlier run.
+     Those marks say nothing about *your* track. Re-run every command and
+     judge only by output you personally saw. If you catch yourself
+     reasoning "it's already checked" — stop; that is exactly the failure
+     mode this warning exists for.
    - `test.md` test commands are the primary automated check for this specific track.
    - `quality-gate.md` commands apply project-wide quality standards.
    - **Deployment Safety**: Scan modified files for hardcoded secrets (API keys, tokens). Verify that `.gitignore` contains the patterns defined in the Zero-Secrets Policy.
    - If a command is missing from your system (e.g., `playwright` not installed), you MUST install it or report a failure.
    - Do NOT just mark them as checked; you must actually run the code and verify the output.
    - For non-dev tracks that passed KPI: skip code checks (there's no code to check).
+
+   **2a. Run the product, not just the code.** Unit tests only prove code
+   does what its author believed; they cannot tell you a feature is
+   missing. If this track touched UI or any user-facing flow:
+   - Run the project's browser/E2E suite if `quality-gate.md` names one
+     (e.g. `npx playwright test`). A line reading "if UI changes exist,
+     create/run tests" does **not** license writing one trivial passing
+     test — if specs already exist, run those.
+   - If there's no E2E suite, **drive the flow by hand once**: start the
+     app, use the thing this track added, confirm the user-visible result,
+     and record what you observed. A screenshot, or the real API/DB
+     response, is evidence. "The code looks correct" is not.
+   - **Restart long-running processes first.** Workers and the API server
+     do not hot-reload; verifying against a process started before your
+     change tests the *old* code and yields a false pass. This has caused
+     several false verdicts in this repo.
+
+   **2b. Stub / deferred-work scan.** Cheap, and catches the most damaging
+   class of false pass:
+   ```bash
+   grep -rniE "not yet implemented|not implemented|TODO|FIXME|FFU|placeholder|stub" \
+     --include="*.mjs" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" \
+     conductor ui bin 2>/dev/null | grep -v node_modules
+   ```
+   - A hit inside a code path this track's `plan.md` marks `[x]` is a
+     **FAIL**, not a note. A task is not done if the thing it claims to do
+     prints "not yet implemented".
+   - Also grep `index.md`/`plan.md`/`spec.md` for `FFU`, "deferred",
+     "future", "stub". If any capability named in `spec.md`'s Solution is
+     deferred, the track cannot reach `done` — see step 5.
+
+   **2c. Judge against the user-facing promise, not the implementation.**
+   Read `spec.md`'s Problem Statement and Solution and ask: *if a user did
+   the thing this track promises, would it work?* Acceptance criteria that
+   assert a placeholder ("logs the expected 'not yet implemented' message",
+   "no real code path is exercised") are **not** met criteria — they
+   describe scaffolding. Record them as a spec defect in `conversation.md`
+   instead of passing the track on them.
 3. **Self-Healing**: If a check fails but you can fix it (e.g., a syntax error or missing command), you MAY do so. However, before writing any fix:
    - **Write a failing test that reproduces the bug first.** The test must fail before you fix anything.
    - Then implement the fix.
    - Re-run to confirm the test now passes.
    - You MUST commit both the test and the fix together with `fix(quality-gate): [description]`.
    - You MUST post a comment to `conversation.md` explaining what failed and what was fixed.
-4. **Post Results**: Append results to `conversation.md`.
+4. **Post Results**: Append results to `conversation.md` as a single `> **system**: ...` comment
+   (see **Completion Comment Convention**) — author `system`, and the emoji is the literal first
+   character of the body: `> **system**: ✅ QUALITY GATE PASSED` on pass, or
+   `> **system**: ❌ QUALITY GATE FAILED` (or `⚠️` if it needs human judgment rather than a
+   straightforward retry) on fail, followed by the full results write-up as `>`-prefixed
+   continuation lines under that same comment — do not post the write-up as a second comment.
 5. **Transition**:
+   - First re-read `index.md`'s current `**Lane**` marker. If it is no longer
+     `quality-gate` (a human moved the card elsewhere while this run was in progress), do
+     **not** overwrite it — leave `**Lane**`/`**Lane Status**` as-is, still keep the results
+     comment posted in step 4 (it's still valid information), and note there that the lane
+     transition was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
+   - **Done-gate — a track may only reach `done` at 100% if the feature
+     actually works end to end.** Before setting a `done` lane, confirm
+     all of:
+     1. Step 2b's stub scan found nothing in `[x]` code paths.
+     2. No capability named in `spec.md`'s Solution is marked FFU /
+        deferred / future.
+     3. Step 2a's real-product check was actually performed, with a
+        recorded observation.
+     If any fails, you MUST NOT mark the track `done`. Set the lane to
+     `review` (or `on_failure`), keep `**Progress**` below 100%, and write
+     what remains in `conversation.md`. Honestly documenting a deferral
+     does **not** make a track complete — a track that shipped a stub and
+     was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
+     the exact incident these rules were written for.
    - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
    - Update `**Lane Status**` to `queue`.
@@ -1549,9 +1763,9 @@ node conductor/syncdb.mjs \
 ```
 
 **What it does**:
-1. Scan `conductor/tracks/` directory for all folders matching `NNN-*` pattern
-2. For each track folder, read `NNN-*/index.md` and extract:
-   - Track number and slug from folder name
+1. Scan `conductor/tracks/` directory for all folders containing a number (matches both legacy `NNN-slug` and prefixed `INITIALS-NNN-slug` formats)
+2. For each track folder, read `index.md` and extract:
+   - Track number and slug from folder name (extract number via `/\d+/` match regardless of prefix)
    - Title from `**Title**` marker (fallback to slug)
    - Lane from `**Lane**` marker (default: 'planning')
    - Progress from `**Progress**` marker (default: 0%)
@@ -1699,7 +1913,9 @@ CREATE TABLE IF NOT EXISTS tracks (
   last_updated_by  TEXT DEFAULT 'human',
   last_heartbeat   TIMESTAMP DEFAULT NOW(),
   created_at       TIMESTAMP DEFAULT NOW(),
-  UNIQUE(project_id, track_number)
+  created_by_email TEXT,                    -- author email (NULL for legacy tracks)
+  author           TEXT,                    -- author initials (e.g. AM); NULL for legacy tracks
+  UNIQUE(project_id, created_by_email, track_number)  -- NULL emails are each distinct in Postgres
 );
 ```
 

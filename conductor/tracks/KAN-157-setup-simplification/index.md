@@ -1,3 +1,0 @@
-# Setup Simplification
-
-[object Object]

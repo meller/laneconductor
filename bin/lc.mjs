@@ -8,9 +8,14 @@ import { spawn, spawnSync, execSync } from 'child_process';
 import { createInterface } from 'readline';
 
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from '../conductor/constants.mjs';
+import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from '../conductor/providers.mjs';
 import { hasSystemdUser, writeUnit, startService, stopService, isServiceActive, getServicePid, enableLinger } from './systemd-user.mjs';
 import { runDeploy } from '../conductor/deploy-runner.mjs';
 import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
+import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
+import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
+import { checkDivergence } from '../conductor/services/git-divergence.mjs';
+import { getAuthorInfo } from '../conductor/services/author.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -54,7 +59,89 @@ function getInstallPath() {
         // we need to reach the repo root where /ui lives.
         return resolve(skillPath, '../../..');
     }
-    return resolve(__dirname, '..');
+    // Track 10019 (REQ-4 / S9): __dirname is this exact script FILE's
+    // location — if it's being run as a linked worktree's own copy of
+    // bin/lc.mjs (e.g. someone invokes `.worktrees/10019/bin/lc.mjs`
+    // directly, or `/usr/local/bin/lc` was ever symlinked at a worktree's
+    // copy — S8), this fallback would otherwise resolve `ui`, pidfiles and
+    // logs to that worktree instead of the primary checkout no rc file
+    // exists to override it. Route through resolvePrimaryRepoRoot() so a
+    // worktree-resident invocation still lands on the primary; a
+    // legitimate standalone clone (not inside any worktree) is unaffected
+    // since resolvePrimaryRepoRoot() is a no-op there.
+    const scriptRoot = resolve(__dirname, '..');
+    try {
+        return resolvePrimaryRepoRoot(scriptRoot);
+    } catch {
+        return scriptRoot; // not inside a git repo — nothing to correct
+    }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/**
+ * Track 1110 Phase 2: waits for `pid` to actually exit (process.kill(pid, 0)
+ * throwing ESRCH), polling every `intervalMs` up to `timeoutMs`. Returns
+ * true if the process is confirmed gone within the deadline, false if it's
+ * still alive when the deadline passes.
+ *
+ * Exists because `process.kill(pid)` only delivers a signal — it returns
+ * immediately regardless of whether or when the target actually exits.
+ * `stop`/`restart` used to call it and then immediately delete the pidfile
+ * and report success, which lied whenever the target's own shutdown
+ * handling took any real time (laneconductor.sync.mjs's SIGTERM handler
+ * awaits a network call with up to a 10s timeout) — the exact mechanism
+ * behind a live duplicate-worker incident, see
+ * conductor/tracks/1110-worker-separation-and-claim-race-safety/plan.md.
+ */
+async function waitForProcessExit(pid, timeoutMs, intervalMs = 100) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        try {
+            process.kill(pid, 0);
+        } catch (e) {
+            return true; // ESRCH — process is gone
+        }
+        await sleep(intervalMs);
+    }
+    try {
+        process.kill(pid, 0);
+        return false; // still alive after the deadline
+    } catch (e) {
+        return true;
+    }
+}
+
+/**
+ * Track 1110 Phase 2: SIGTERM, then wait up to `gracefulTimeoutMs` for a
+ * real exit; if the process is still alive after that, escalate to
+ * SIGKILL (uncatchable — bounds the worst case deterministically) and
+ * wait briefly for that to take effect too. Returns once the process is
+ * confirmed dead, or throws if even SIGKILL didn't work (should not
+ * happen on any POSIX system barring a zombie/kernel-level oddity).
+ *
+ * gracefulTimeoutMs defaults to 12000 — slightly above
+ * laneconductor.sync.mjs's own removeWorker() network-call timeout
+ * (10000ms), so a normally-shutting-down worker is never killed out from
+ * under its own graceful cleanup.
+ */
+async function stopAndConfirmDeath(pid, { gracefulTimeoutMs = 12000, killTimeoutMs = 3000 } = {}) {
+    try {
+        process.kill(pid, 'SIGTERM');
+    } catch (e) {
+        return; // already gone
+    }
+    if (await waitForProcessExit(pid, gracefulTimeoutMs)) return;
+
+    console.log(`⚠️  Worker (PID: ${pid}) did not exit within ${gracefulTimeoutMs}ms of SIGTERM — sending SIGKILL`);
+    try {
+        process.kill(pid, 'SIGKILL');
+    } catch (e) {
+        return; // exited in the gap between the check and this call
+    }
+    if (await waitForProcessExit(pid, killTimeoutMs)) return;
+
+    throw new Error(`PID ${pid} still alive ${killTimeoutMs}ms after SIGKILL — cannot confirm it stopped`);
 }
 
 function findProjectRoot(startDir = process.cwd()) {
@@ -119,6 +206,17 @@ function resolveWorkerNumber(args) {
     if (idx === -1) return 1;
     const n = parseInt(args[idx + 1], 10);
     return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+// Track 1109: forward --only-tracks / --once to the spawned sync worker.
+// Deliberately does NOT validate — the worker owns that, so `lc worker start`
+// and a directly invoked laneconductor.sync.mjs can never disagree about what
+// counts as a legal scope.
+function forwardClaimScopeFlags(args, syncArgs) {
+    const idx = args.indexOf('--only-tracks');
+    if (idx !== -1) syncArgs.push('--only-tracks', args[idx + 1] ?? '');
+    if (args.includes('--once')) syncArgs.push('--once');
+    return syncArgs;
 }
 
 function getPidFilePath(projectRoot, workerNumber) {
@@ -194,8 +292,10 @@ async function callLLMConversational(cfg, prompt) {
 
     let cmd, cmdArgs;
     if (cli === 'gemini') {
-        cmd = 'npx';
-        cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', prompt];
+        // Track 1077 Phase 4: gemini-cli is retired — route through agy
+        // (Antigravity), the only Gemini access path that still works.
+        cmd = 'agy';
+        cmdArgs = ['--dangerously-skip-permissions', '-p', prompt];
         if (model) cmdArgs.push('--model', model);
     } else if (cli === 'antigravity' || cli === 'agy') {
         cmd = 'agy';
@@ -266,9 +366,10 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
             cmdArgs = ['--dangerously-skip-permissions', '-p', slashCmd];
             if (model) cmdArgs.push('--model', model);
         } else if (cli === 'gemini') {
-            cmd = 'npx';
-            // Prepend skill instructions directly to prompt for Gemini to avoid workspace/symlink restriction issues
-            cmdArgs = ['@google/gemini-cli', '--approval-mode', 'yolo', '-p', `${skillContext}${slashCmd}`];
+            // Track 1077 Phase 4: gemini-cli is retired — route through agy
+            // (Antigravity), the only Gemini access path that still works.
+            cmd = 'agy';
+            cmdArgs = ['--dangerously-skip-permissions', '-p', `${skillContext}${slashCmd}`];
             if (model) cmdArgs.push('--model', model);
         } else if (cli === 'antigravity' || cli === 'agy') {
             cmd = 'agy';
@@ -529,12 +630,39 @@ Project Setup  (run once per project — from project root)
   setup-deploy         Guided deployment setup (writes deployment-stack.md + deploy.json)
 
 Worker  (per session — run from project root)
+  worker run <track>   Run a worker scoped to one track, in the foreground, and exit
+                       when it's done. This is normally what you want — unlike
+                       "start", it cannot claim any other queued track.
+                       Example: lc worker run 1100
   start                Start the heartbeat sync worker
+                       Options:
+                         --manager                      Start as machine-level global manager worker
+                         --projects-dir <path>          (With --manager) Directory where projects are cloned
+                         --sync-and-work                Also poll database queue (default is sync-only)
+                         --worker-number <N>            Start multiple workers for a project (default: 1)
+                         --only-tracks <n,n>            Claim ONLY these tracks. Without it a
+                                                        sync-and-work worker claims anything queued.
+                         --once                         Exit when the --only-tracks work is done
+                                                        (requires --only-tracks)
+                         --cli <id>                     Run this one worker on a different provider
+                                                        than project.primary (claude/gemini/copilot/
+                                                        antigravity/other) — doesn't change the default
+                         --model <id>                   Model to pair with --cli
   stop                 Stop the heartbeat sync worker
+                       Options:
+                         --manager                      Stop the global manager worker
+                         --worker-number <N>            Stop specific project worker
   restart              Restart the heartbeat sync worker
-  worker [start|stop|restart|status|logs|sync]
-                       Manage the sync worker and force sync all targets
+                       Options:
+                         --manager                      Restart the global manager worker
+                         --sync-and-work                Also poll database queue
+                         --worker-number <N>            Restart specific project worker
+  worker [run|start|stop|restart|status|logs|sync]
+                       Manage the sync worker (supports options above)
   status               Show track status for the current project
+                       Options:
+                         --manager                      Check global manager worker status
+                         --worker-number <N>            Check status of a specific worker
 
 Track Management  (per project)
   new [name] [desc]    Create a new track
@@ -689,6 +817,52 @@ Choice [2]: `) || '2';
 
         let dbConfig = { host: 'localhost', port: 5432, name: 'laneconductor', user: 'postgres', password: '' };
         if (mode === 'local-api') {
+            // Check DB reachability before asking for credentials
+            const { default: net } = await import('net');
+            const pgReachable = await new Promise(resolve => {
+                const sock = new net.Socket();
+                sock.setTimeout(2000);
+                sock.connect(dbConfig.port, dbConfig.host, () => { sock.destroy(); resolve(true); });
+                sock.on('error', () => resolve(false));
+                sock.on('timeout', () => { sock.destroy(); resolve(false); });
+            });
+
+            if (!pgReachable) {
+                console.log(`\n⚠️  Cannot reach Postgres at ${dbConfig.host}:${dbConfig.port}`);
+                const dbChoice = await question(`
+How would you like to set up the database?
+  [1] Start Docker container (recommended — requires Docker)
+  [2] I have Postgres — let me configure the connection
+Choice [1]: `) || '1';
+
+                if (dbChoice === '1') {
+                    console.log('📦 Starting Postgres via Docker...');
+                    const dockerRun = spawnSync('docker', [
+                        'run', '-d', '--name', 'laneconductor-pg',
+                        '-e', 'POSTGRES_USER=postgres',
+                        '-e', 'POSTGRES_PASSWORD=postgres',
+                        '-e', 'POSTGRES_DB=laneconductor',
+                        '-p', '5432:5432',
+                        '--restart', 'unless-stopped',
+                        'postgres:16'
+                    ], { stdio: 'inherit' });
+
+                    if (dockerRun.status !== 0) {
+                        // Container may already exist — try starting it
+                        spawnSync('docker', ['start', 'laneconductor-pg'], { stdio: 'inherit' });
+                    }
+
+                    process.stdout.write('⏳ Waiting for Postgres');
+                    for (let i = 0; i < 30; i++) {
+                        await sleep(1000);
+                        const ready = spawnSync('docker', ['exec', 'laneconductor-pg', 'pg_isready', '-U', 'postgres'], { stdio: 'pipe' });
+                        if (ready.status === 0) break;
+                        process.stdout.write('.');
+                    }
+                    console.log('\n✅ Postgres ready');
+                }
+            }
+
             console.log('\n️  Database Configuration');
             dbConfig.host = await question(`DB Host [${dbConfig.host}]: `) || dbConfig.host;
             dbConfig.port = parseInt(await question(`DB Port [${dbConfig.port}]: `) || dbConfig.port);
@@ -726,36 +900,47 @@ Choice [1]: `) || '1';
         }
 
         console.log('\n🤖 Agent Configuration');
+        // Menu is built from PROVIDER_IDS (+ a trailing "other") so a new
+        // registry entry automatically appears here — no more hand-edited
+        // 4-line menu that silently drifts from the registry.
+        const agentMap = {};
+        const agentMenuLines = PROVIDER_IDS.map((id, i) => {
+            const num = String(i + 1);
+            agentMap[num] = id;
+            const provider = PROVIDERS[id];
+            const alias = provider.aliases?.[0] ? ` (${provider.aliases[0]})` : '';
+            const note = provider.retired ? ' (retired — use antigravity)' : (id === 'claude' ? '  (recommended)' : '');
+            return `  [${num}] ${id}${alias}${note}`;
+        });
+        const otherNum = String(PROVIDER_IDS.length + 1);
+        agentMap[otherNum] = 'other';
+        agentMenuLines.push(`  [${otherNum}] other`);
+        const agentMenu = agentMenuLines.join('\n');
+
         const agentChoice = await question(`
 Primary AI agent:
-  [1] claude  (recommended)
-  [2] antigravity (agy)
-  [3] gemini (retired — use antigravity)
-  [4] other
+${agentMenu}
 Choice [1]: `) || '1';
-        const agentMap = { '1': 'claude', '2': 'agy', '3': 'gemini', '4': 'other' };
-        const primaryCli = agentMap[agentChoice] || 'claude';
-        if (primaryCli === 'gemini') {
-            console.warn('⚠️  Gemini CLI was retired by Google — antigravity (agy) is now recommended.');
-            console.warn('   Continuing with gemini; switch later with: lc config project.primary.cli agy');
+        const primaryCli = normalizeProviderId(agentMap[agentChoice] || 'claude');
+        if (PROVIDERS[primaryCli]?.retired) {
+            console.warn(`⚠️  ${PROVIDERS[primaryCli].retiredMessage}`);
+            console.warn(`   Continuing with ${primaryCli}; switch later with: lc config project.primary.cli antigravity`);
         }
         const primaryModel = await question(`Primary model [default]: `) || null;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
         let secondary = null;
         if (secondaryYN.toLowerCase() !== 'n') {
-            const secAgentChoice = primaryCli === 'claude' ? '2' : '1'; // Default to antigravity if primary is claude
+            const defaultSecCli = primaryCli === 'claude' ? 'antigravity' : 'claude';
+            const defaultSecNum = Object.keys(agentMap).find(k => agentMap[k] === defaultSecCli) || '1';
             const secChoice = await question(`
 Secondary AI agent:
-  [1] claude
-  [2] antigravity (agy)
-  [3] gemini (retired — use antigravity)
-  [4] other
-Choice [${secAgentChoice}]: `) || secAgentChoice;
-            const secCli = agentMap[secChoice] || (secAgentChoice === '1' ? 'claude' : (secAgentChoice === '2' ? 'agy' : 'gemini'));
-            if (secCli === 'gemini') {
-                console.warn('⚠️  Gemini CLI was retired by Google — antigravity (agy) is now recommended.');
-                console.warn('   Continuing with gemini; switch later with: lc config project.secondary.cli agy');
+${agentMenu}
+Choice [${defaultSecNum}]: `) || defaultSecNum;
+            const secCli = normalizeProviderId(agentMap[secChoice] || defaultSecCli);
+            if (PROVIDERS[secCli]?.retired) {
+                console.warn(`⚠️  ${PROVIDERS[secCli].retiredMessage}`);
+                console.warn(`   Continuing with ${secCli}; switch later with: lc config project.secondary.cli antigravity`);
             }
             const secModel = await question(`Secondary model [default]: `) || null;
             secondary = { cli: secCli, model: secModel || null };
@@ -1381,6 +1566,19 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
+    // F17 (track 1102): findProjectRoot() walks up from cwd looking for a
+    // conductor/ dir — a linked worktree satisfies that just as well as
+    // the primary checkout, so `lc worker start` run from inside one spawns
+    // a worker pointed at THAT worktree's own (possibly very stale) copy of
+    // laneconductor.sync.mjs, with its pidfile/logfile scattered there too.
+    // Confirmed live: a worker spawned this way was still running its
+    // worktree's pre-fix code hours later, silently recreating the exact
+    // nested-worktree bug fixed earlier the same day. Every artifact this
+    // command creates (pidfile, logfile, the spawned process's own cwd, the
+    // script it runs) must agree on ONE root regardless of where `lc` was
+    // invoked from — same fix pattern as createWorktree/removeWorktree.
+    const workerRoot = resolvePrimaryRepoRoot(projectRoot);
+
     // Track 1091 Phase 2: --manager is a machine-level singleton — checked
     // against a global pidfile, not the per-project/per-worker-number one
     // below, and --worker-number is meaningless for it (there's only ever
@@ -1388,10 +1586,10 @@ Please review this, answer any questions (some fields may contain questions rath
     const isManager = args.includes('--manager');
 
     const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
-    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
     const logFile = isManager
-        ? join(projectRoot, 'conductor', '.manager.log')
-        : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
+        ? join(workerRoot, 'conductor', '.manager.log')
+        : join(workerRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
 
     const existingPid = getRunningWorkerPid(pidFile);
     if (existingPid) {
@@ -1424,7 +1622,7 @@ Please review this, answer any questions (some fields may contain questions rath
         }
     }
 
-    const { syncScript, error } = resolveSyncScript(projectRoot);
+    const { syncScript, error } = resolveSyncScript(workerRoot);
     if (error) {
         console.error(error);
         process.exit(1);
@@ -1441,15 +1639,47 @@ Please review this, answer any questions (some fields may contain questions rath
     } else if (workerNumber !== 1) {
         syncArgs.push('--worker-number', String(workerNumber));
     }
+    // Track 1109: forward the claim scope. Validation (empty list, missing
+    // value, --sync-only conflict) lives in the worker so `lc` and a directly
+    // invoked sync.mjs can't disagree about what is legal.
+    forwardClaimScopeFlags(args, syncArgs);
+
+    // Track 10011: --cli/--model let this one worker instance run a
+    // different provider than project.primary — sync.mjs applies these
+    // in-memory only, it never rewrites .laneconductor.json.
+    const cliFlagIdx = args.indexOf('--cli');
+    if (cliFlagIdx !== -1 && args[cliFlagIdx + 1]) {
+        syncArgs.push('--cli', normalizeProviderId(args[cliFlagIdx + 1]));
+    }
+    const modelFlagIdx = args.indexOf('--model');
+    if (modelFlagIdx !== -1 && args[modelFlagIdx + 1]) {
+        syncArgs.push('--model', args[modelFlagIdx + 1]);
+    }
 
     const worker = spawn('node', syncArgs, {
-        cwd: projectRoot,
+        cwd: workerRoot,
         detached: true,
         stdio: ['ignore', logFd, logFd]
     });
+    worker.unref();
+
+    // Track 1110 Phase 2 Task 7: `lc start` spawns detached and can't hold
+    // a lock itself (see worker-lock.mjs's own comment for why the lock
+    // lives in the long-running child, not here) — but it CAN give fast,
+    // honest feedback by briefly checking whether the child actually took
+    // hold. If another live instance already has this identity's lock, the
+    // child exits almost immediately (worker-lock.mjs's own check, near
+    // the top of laneconductor.sync.mjs's startup) rather than running —
+    // without this check, `lc start` would report success and write a
+    // pidfile for a process that's already dead.
+    await sleep(750);
+    const stillAlive = (() => { try { process.kill(worker.pid, 0); return true; } catch (e) { return false; } })();
+    if (!stillAlive) {
+        console.log(`❌ Worker failed to start — another live instance already holds this identity's lock (see conductor/${isManager ? '.manager.log' : (workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`)} for details).`);
+        process.exit(1);
+    }
 
     writeFileSync(pidFile, worker.pid.toString());
-    worker.unref();
     console.log(`✅ Worker started (PID: ${worker.pid})`);
 
     // Track 1075: best-effort — a worker that can't ship logs to the viewer
@@ -1464,9 +1694,14 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(1);
     }
 
+    // F17 (track 1102): must agree with `start`/`restart` on where the
+    // pidfile lives, or `lc stop` run from a linked worktree silently
+    // looks in the wrong place and reports "no heartbeat running" for a
+    // worker that's very much alive.
+    const workerRoot = resolvePrimaryRepoRoot(projectRoot);
     const isManager = args.includes('--manager');
     const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
-    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(projectRoot, workerNumber);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
     if (!existsSync(pidFile)) {
         console.log(`⚠️  No heartbeat running (no ${pidFile.split('/').pop()} found)`);
         process.exit(0);
@@ -1474,11 +1709,16 @@ Please review this, answer any questions (some fields may contain questions rath
 
     const pid = readFileSync(pidFile, 'utf8').trim();
     try {
-        process.kill(pid);
+        // Track 1110 Phase 2: must not report success (or delete the
+        // pidfile) until the process is actually confirmed dead — the old
+        // fire-and-forget `process.kill(pid)` + immediate unlink let a
+        // worker still mid-shutdown look "stopped" to a subsequent
+        // `lc start`, which then spawned a duplicate.
+        await stopAndConfirmDeath(pid);
         if (existsSync(pidFile)) unlinkSync(pidFile);
         console.log(`✅ Worker stopped (PID: ${pid})`);
     } catch (e) {
-        console.log(`⚠️  Worker (PID: ${pid}) was not running or could not be stopped.`);
+        console.log(`⚠️  Worker (PID: ${pid}) was not running or could not be stopped: ${e.message}`);
         if (existsSync(pidFile)) unlinkSync(pidFile);
     }
     process.exit(0);
@@ -1487,9 +1727,16 @@ Please review this, answer any questions (some fields may contain questions rath
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
         process.exit(1);
     }
-    const workerNumber = resolveWorkerNumber(args);
-    const pidFile = getPidFilePath(projectRoot, workerNumber);
-    const logFile = join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
+    // F17 (track 1102): same fix as `start` — resolve the primary checkout
+    // once, use it for every artifact this command touches, regardless of
+    // which directory (possibly a linked worktree) `lc` was invoked from.
+    const workerRoot = resolvePrimaryRepoRoot(projectRoot);
+    const isManager = args.includes('--manager');
+    const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
+    const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
+    const logFile = isManager
+        ? join(workerRoot, 'conductor', '.manager.log')
+        : join(workerRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
     const isSyncAndWork = args.includes('--sync-and-work') || args.includes('sync-and-work') || args.includes('sync_and_work');
 
     // Resolve the entry script BEFORE touching the running worker — killing it
@@ -1498,25 +1745,48 @@ Please review this, answer any questions (some fields may contain questions rath
     // (Track 1074: this used to hardcode the per-project path with no
     // canonical fallback, so it always crashed here for projects without a
     // local sync-script copy).
-    const { syncScript, error } = resolveSyncScript(projectRoot);
+    const { syncScript, error } = resolveSyncScript(workerRoot);
     if (error) {
         console.error(error);
         process.exit(1);
     }
 
-    console.log(`🚀 Restarting heartbeat worker${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
+    if (isManager) {
+        const projectsDirIdx = args.indexOf('--projects-dir');
+        const managerConfig = readManagerConfig();
+        if (projectsDirIdx !== -1) {
+            managerConfig.projectsDir = args[projectsDirIdx + 1];
+            writeManagerConfig(managerConfig);
+            console.log(`📁 Manager projects directory set to: ${managerConfig.projectsDir}`);
+        } else if (managerConfig.projectsDir) {
+            console.log(`📁 Manager projects directory (from previous run): ${managerConfig.projectsDir}`);
+        }
+    }
+
+    console.log(`🚀 Restarting LaneConductor heartbeat worker${isManager ? ' [MANAGER]' : ''}${isSyncAndWork ? ' (SYNC-AND-WORK mode)' : ' (SYNC-ONLY mode)'}${!isManager && workerNumber !== 1 ? ` [worker #${workerNumber}]` : ''}...`);
 
     if (existsSync(pidFile)) {
         const pid = readFileSync(pidFile, 'utf8').trim();
-        try { process.kill(pid); } catch (e) { }
+        // Track 1110 Phase 2: same fix as `stop` — must confirm the old
+        // process actually died before spawning its replacement, or the
+        // two can briefly coexist sharing one identity.
+        try { await stopAndConfirmDeath(pid); } catch (e) { console.log(`⚠️  ${e.message}`); }
         unlinkSync(pidFile);
     }
     // Same as 'start' logic
     const logFd = openSync(logFile, 'a');
     const syncArgs = [syncScript];
     if (!isSyncAndWork) syncArgs.push('--sync-only');
-    if (workerNumber !== 1) syncArgs.push('--worker-number', String(workerNumber));
-    const worker = spawn('node', syncArgs, { cwd: projectRoot, detached: true, stdio: ['ignore', logFd, logFd] });
+    if (isManager) {
+        syncArgs.push('--manager');
+    } else if (workerNumber !== 1) {
+        syncArgs.push('--worker-number', String(workerNumber));
+    }
+    // Track 1109: forward the claim scope. Validation (empty list, missing
+    // value, --sync-only conflict) lives in the worker so `lc` and a directly
+    // invoked sync.mjs can't disagree about what is legal.
+    forwardClaimScopeFlags(args, syncArgs);
+    const worker = spawn('node', syncArgs, { cwd: workerRoot, detached: true, stdio: ['ignore', logFd, logFd] });
     writeFileSync(pidFile, worker.pid.toString());
     worker.unref();
     console.log(`✅ Worker restarted (PID: ${worker.pid})`);
@@ -1538,21 +1808,55 @@ Please review this, answer any questions (some fields may contain questions rath
     if (sub === 'start') { const r = spawnSync('node', [__filename, 'start', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'stop') { const r = spawnSync('node', [__filename, 'stop', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'restart') { const r = spawnSync('node', [__filename, 'restart', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
-    if (sub === 'logs') { const r = spawnSync('node', [__filename, 'logs', 'worker'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    if (sub === 'logs') { const r = spawnSync('node', [__filename, 'logs', 'worker', ...subArgs], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
     if (sub === 'sync') { const r = spawnSync('node', [__filename, 'remote-sync'], { stdio: 'inherit' }); process.exit(r.status ?? 0); }
+    // Track 1109 Phase 4: `lc worker run <track>` — the normal way to run a
+    // worker. Deliberately a thin wrapper over the scoped path rather than a
+    // second implementation, so there is one execution path to reason about.
+    // Runs in the FOREGROUND (unlike `start`, which detaches): the point is
+    // to watch one track run and get its exit code.
+    if (sub === 'run') {
+        if (!projectRoot) { console.error('❌ Not inside a LaneConductor project.'); process.exit(1); }
+        const tracks = subArgs.filter(a => !a.startsWith('--'));
+        if (tracks.length === 0) {
+            console.error('Usage: lc worker run <track> [<track> ...]\n\nRuns a worker scoped to those tracks in the foreground and exits when they are done.');
+            process.exit(2);
+        }
+        // F17 (track 1102): same fix as start/restart/stop.
+        const workerRoot = resolvePrimaryRepoRoot(projectRoot);
+        const { syncScript, error } = resolveSyncScript(workerRoot);
+        if (error) { console.error(error); process.exit(1); }
+        const runArgs = [syncScript, '--only-tracks', tracks.join(','), '--once'];
+        const workerNumber = resolveWorkerNumber(subArgs);
+        // Reuse a stable identity — a fresh worker_number each run would mint
+        // a new workers row, miss its track_sessions row, and silently
+        // cold-start the agent context every time (track 1086 / 1084 Phase 0).
+        if (workerNumber !== 1) runArgs.push('--worker-number', String(workerNumber));
+        console.log(`🚀 Running worker scoped to track(s) ${tracks.join(', ')} — will exit when done.`);
+        const r = spawnSync('node', runArgs, { cwd: workerRoot, stdio: 'inherit' });
+        process.exit(r.status ?? 0);
+    }
     if (sub === 'status') {
         if (!projectRoot) { process.exit(1); }
-        const workerNumber = resolveWorkerNumber(subArgs);
-        const pidFile = getPidFilePath(projectRoot, workerNumber);
+        // F17 (track 1102): must agree with start/restart/stop on where the
+        // pidfile lives, or this misreports a live worker as stopped when
+        // run from inside a linked worktree.
+        const workerRoot = resolvePrimaryRepoRoot(projectRoot);
+        const isManager = subArgs.includes('--manager');
+        const workerNumber = isManager ? 1 : resolveWorkerNumber(subArgs);
+        const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
         let running = false;
         let pid = null;
         if (existsSync(pidFile)) {
             pid = readFileSync(pidFile, 'utf8').trim();
             try { process.kill(pid, 0); running = true; } catch (e) { unlinkSync(pidFile); }
         }
-        console.log(`\n👷 Worker Status${workerNumber !== 1 ? ` (#${workerNumber})` : ''}: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
+        console.log(`\n👷 Worker Status${isManager ? ' [MANAGER]' : (workerNumber !== 1 ? ` (#${workerNumber})` : '')}: ${running ? '✅ RUNNING' : '❌ STOPPED'}`);
         if (pid && running) console.log(`   PID: ${pid}`);
-        console.log(`   Log: conductor/${workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`}\n`);
+        const relativeLog = isManager
+            ? 'conductor/.manager.log'
+            : (workerNumber === 1 ? 'conductor/.sync.log' : `conductor/.sync-${workerNumber}.log`);
+        console.log(`   Log: ${relativeLog}\n`);
         process.exit(0);
     }
     console.error(`❌ Unknown worker command: ${sub}`);
@@ -1650,7 +1954,19 @@ Please review this, answer any questions (some fields may contain questions rath
             } catch (e) { /* stale */ }
         }
 
-        console.log('🚀 Starting Vite UI...');
+        // Track 10019 (REQ-6): `uiDir` already resolves to the primary
+        // checkout's `ui/` via getInstallPath()'s REQ-4 fix — verified
+        // here rather than assumed, so a future incident's first question
+        // ("which checkout is this actually serving?") has a real answer
+        // instead of a hopeful comment.
+        try {
+            const isPrimary = resolvePrimaryRepoRoot(uiDir) === resolve(uiDir);
+            console.log(isPrimary
+                ? `🚀 Starting Vite UI from ${uiDir} (primary checkout)...`
+                : `🚀 ⚠️  Starting Vite UI from ${uiDir} — this is NOT the primary checkout.`);
+        } catch {
+            console.log(`🚀 Starting Vite UI from ${uiDir}...`);
+        }
         const logFd = openSync(uiLogFile, 'a');
         const ui = spawn('npx', ['vite'], {
             cwd: uiDir,
@@ -1783,39 +2099,43 @@ Please review this, answer any questions (some fields may contain questions rath
             return color + label.padEnd(8) + colors.reset;
         };
 
-        const tracks = readdirSync(tracksDir).filter(d => /^\d+/.test(d)).map(d => {
+        const tracks = readdirSync(tracksDir).filter(d => /\d+/.test(d)).map(d => {
             const trackPath = join(tracksDir, d);
             const indexPath = join(trackPath, 'index.md');
             if (!existsSync(indexPath)) return null;
             const content = readFileSync(indexPath, 'utf8');
-            const title = (content.match(/^# ([^\n]+)/m) || [])[1] || d;
-            const lane = (content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???';
-            const status = (content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue';
-            const progressStr = (content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0';
-            const phase = (content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '';
-            const runBy = (content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '';
+            const title = ((content.match(/^# ([^\n]+)/m) || [])[1] || d).trim();
+            const lane = ((content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???').trim();
+            const status = ((content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue').trim();
+            const progressStr = ((content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0').trim();
+            const phase = ((content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
+            const runBy = ((content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
             const retryPath = join(trackPath, '.retry-count');
             const retries = existsSync(retryPath) ? parseInt(readFileSync(retryPath, 'utf8')) : 0;
-            return { id: d.split('-')[0], lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
+            // Handle both legacy (NNN-slug) and prefixed (AM-NNN-slug) folder names
+            const idMatch = d.match(/^([A-Z]+-)?(\d+)/);
+            const id = idMatch ? (idMatch[1] ? `${idMatch[1].slice(0, -1)}-${idMatch[2]}` : idMatch[2]) : d;
+            const num = idMatch ? parseInt(idMatch[2], 10) : 0;
+            return { id, num, lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
         }).filter(t => t !== null);
 
         tracks.sort((a, b) => {
             const laneDiff = getLanePrio(a.lane) - getLanePrio(b.lane);
             if (laneDiff !== 0) return laneDiff;
-            return b.progress - a.progress || parseInt(a.id) - parseInt(b.id);
+            return b.progress - a.progress || a.num - b.num;
         });
 
         console.log('\n' + colors.bold + 'Track Status (' + mode + '):' + colors.reset);
-        console.log('ID    LANE            STATUS    PROG   BY  PHASE/TITLE');
-        console.log('-'.repeat(80));
+        console.log('ID       LANE            STATUS    PROG   BY  PHASE/TITLE');
+        console.log('-'.repeat(83));
         tracks.forEach(t => {
-            const id = t.id.padEnd(5);
+            const id = t.id.padEnd(8);
             const lane = t.lane.padEnd(15);
             const status = getStatusLabel(t.status, t.retries);
             const prog = (t.progress + '%').padEnd(6);
             const by = (t.runBy || '-').padEnd(3);
             const info = t.phase ? colors.dim + t.phase + ': ' + colors.reset + t.title : t.title;
-            console.log(id + ' ' + lane.padEnd(15) + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
+            console.log(id + ' ' + lane + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
         });
 
         // Worker Health Check
@@ -1953,8 +2273,9 @@ Please review this, answer any questions (some fields may contain questions rath
     const trackLines = queueContent.match(/### Track (\d+):/g) || [];
     const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
 
-    const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
-    const existingDirNumStrs = existingDirs.map(d => d.match(/^(\d+)/)[1]);
+    // Prefix-agnostic number extraction: matches NNN in both legacy `NNN-slug` and new `AM-NNN-slug`
+    const existingDirs = readdirSync(tracksDir).filter(d => /\d+/.test(d));
+    const existingDirNumStrs = existingDirs.map(d => d.match(/(\d+)/)?.[1]).filter(Boolean);
     const dirNums = existingDirNumStrs.map(s => parseInt(s, 10));
 
     const allNums = [...queueNums, ...dirNums];
@@ -1967,13 +2288,16 @@ Please review this, answer any questions (some fields may contain questions rath
     const padWidth = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => s.length)) : 0;
     const nextNumStr = String(nextNum).padStart(padWidth, '0');
 
+    const author = getAuthorInfo();
+    const displayId = `${author.initials}-${nextNumStr}`;
+
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const trackFolderName = `${nextNumStr}-${slug}`;
+    const trackFolderName = `${displayId}-${slug}`;
     const trackPath = join(tracksDir, trackFolderName);
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNumStr}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types
@@ -2999,6 +3323,146 @@ Please review this, answer any questions (some fields may contain questions rath
 
     console.log(`\n📊 Results: ${passedTests}/${totalTests} tests passed`);
     process.exit(passedTests === totalTests ? 0 : 1);
+} else if (command === 'worktrees') {
+    // Track 1112 Phase 2/4: local, zero-infrastructure worktree visibility
+    // + manual merge. Deliberately reads git + `conductor/tracks/**/index.md`
+    // directly — no API, no DB — so it works identically in every mode,
+    // including local-fs (REQ-2/AC-3).
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+
+    let mainBranch = 'main';
+    try {
+        const remoteInfo = execSync('git remote show origin', { cwd: projectRoot, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+        const m = remoteInfo.match(/HEAD branch: (.*)/);
+        if (m?.[1]) mainBranch = m[1].trim();
+    } catch (e) {
+        try {
+            const branches = execSync('git branch -a', { cwd: projectRoot, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+            if (branches.includes('remotes/origin/master') && !branches.includes('remotes/origin/main')) mainBranch = 'master';
+        } catch (e2) { /* fall back to 'main' */ }
+    }
+
+    const sub = args[1];
+
+    if (sub === 'merge') {
+        const trackNumber = args[2];
+        if (!trackNumber) {
+            console.error('Usage: lc worktrees merge <track-number> [--dry-run] [--force]');
+            process.exit(2);
+        }
+        const dryRun = args.includes('--dry-run');
+        const force = args.includes('--force');
+
+        const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        const isDoneSuccess = row?.lane === 'done' && row?.laneStatus === 'success';
+
+        if (!row) {
+            console.error(`❌ No unmerged track-${trackNumber} branch found (already merged, or never existed).`);
+            process.exit(1);
+        }
+        if (!isDoneSuccess && !force) {
+            console.error(`❌ Track ${trackNumber} is not at done:success (lane: ${row.lane ?? 'unknown'}, status: ${row.laneStatus ?? 'unknown'}) — refusing to merge. Pass --force to override.`);
+            process.exit(1);
+        }
+
+        if (dryRun) {
+            if (row.classification === 'conflicted') {
+                console.log(`⚠️  track-${trackNumber} would CONFLICT merging into ${mainBranch}.`);
+            } else {
+                console.log(`✅ track-${trackNumber} would merge cleanly into ${mainBranch}.`);
+            }
+            process.exit(0);
+        }
+
+        const result = await mergeWorktreeBranch({ repoRoot: projectRoot, trackNumber: String(trackNumber), mainBranch });
+        if (result.merged) {
+            // mergeWorktreeBranch() already removed the original per-track
+            // worktree itself (must happen before branch -d, not after —
+            // see that function's doc comment for the real bug this fixed).
+            console.log(`✅ Merged track-${trackNumber} into ${mainBranch} (${result.mergeCommit})`);
+            process.exit(0);
+        } else if (result.reason === 'conflict') {
+            console.error(`❌ Merge conflict — the following paths conflict with ${mainBranch}:`);
+            for (const p of result.conflictPaths || []) console.error(`   ${p}`);
+            console.error(`Branch and worktree left intact for manual resolution.`);
+            process.exit(1);
+        } else {
+            console.error(`❌ Branch track-${trackNumber} not found.`);
+            process.exit(1);
+        }
+    }
+
+    const asJson = args.includes('--json');
+    const strandedOnly = args.includes('--stranded');
+
+    let rows;
+    try {
+        rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+    } catch (e) {
+        console.error(`❌ Failed to audit worktrees: ${e.message}`);
+        process.exit(1);
+    }
+    if (strandedOnly) rows = rows.filter(r => r.classification === 'stranded');
+
+    if (asJson) {
+        console.log(JSON.stringify(rows.map(r => ({
+            track: r.trackNumber, title: r.title, lane: r.lane, lane_status: r.laneStatus,
+            ahead: r.ahead, behind: r.behind, dirty: r.dirtyCount, class: r.classification,
+        })), null, 2));
+        process.exit(0);
+    }
+
+    if (rows.length === 0) {
+        console.log('✅ No unmerged worktrees or branches — nothing to show.');
+        process.exit(0);
+    }
+
+    const classIcon = { mergeable: '🟢', stranded: '🔴', conflicted: '🟠', open: '⚪', detached: '🟣' };
+    console.log(`\n🌳 Worktrees (${rows.length}) — main: ${mainBranch}\n`);
+    for (const r of rows) {
+        const icon = classIcon[r.classification] || '•';
+        const track = r.trackNumber ? `${r.trackNumber}` : '(no track)';
+        const title = r.title ? ` ${r.title}` : (r.branch ? ` [${r.branch}]` : '');
+        const lane = r.lane ? `${r.lane}:${r.laneStatus ?? '?'}` : '-';
+        const ahead = r.ahead ?? '-';
+        const behind = r.behind ?? '-';
+        const dirty = r.dirtyCount ?? '-';
+        console.log(`${icon} ${track}${title}`);
+        console.log(`   class=${r.classification}  lane=${lane}  ahead=${ahead}  behind=${behind}  dirty=${dirty}  worktree=${r.hasWorktree ? 'yes' : 'no'}`);
+    }
+
+    // Open-worktree cap warning (non-blocking) — plan.md Phase 2: a nudge
+    // when a project accumulates too many simultaneously-open tracks, named
+    // and pointed at the oldest ones so a human can triage. Never blocks
+    // creating a new worktree.
+    const OPEN_WARN_THRESHOLD = 10;
+    const openRows = rows.filter(r => r.classification === 'open' && r.trackNumber);
+    if (openRows.length > OPEN_WARN_THRESHOLD) {
+        const oldest = [...openRows].sort((a, b) => parseInt(a.trackNumber, 10) - parseInt(b.trackNumber, 10)).slice(0, 5);
+        console.log(`\n⚠️  ${openRows.length} open worktrees (> ${OPEN_WARN_THRESHOLD}) — consider running review/quality-gate on the oldest to close some out:`);
+        for (const r of oldest) console.log(`   ${r.trackNumber}${r.title ? ' — ' + r.title : ''} (${r.lane ?? 'unknown'}:${r.laneStatus ?? '?'})`);
+    }
+
+    // Track 1112 Phase 5 / REQ-9: out-of-band divergence report — a live
+    // fetch on every invocation (this command is explicitly on-demand
+    // inspection, unlike the worker's periodic background check).
+    try {
+        const divergence = await checkDivergence({ repoRoot: projectRoot, mainBranch });
+        if (!divergence.fetchOk) {
+            console.log(`\n⚠️  git-sync: fetch of origin/${mainBranch} failed — divergence unknown.`);
+        } else if (divergence.behind > 0) {
+            console.log(`\n🔀 git-sync: local ${mainBranch} is ${divergence.behind} commit(s) behind origin/${mainBranch}` +
+                (divergence.ahead > 0 ? ` and ${divergence.ahead} ahead (diverged)` : '') +
+                ` — fast-forward ${divergence.canFastForward ? 'available' : 'NOT available'}.`);
+        }
+    } catch (e) { /* best-effort — never block the worktree listing on a network hiccup */ }
+
+    console.log('');
+    process.exit(0);
 } else if (command === 'doc') {
     if (!projectRoot) { process.exit(1); }
     const [type, section, val] = [args[2], args[3], args[4]];
@@ -3030,7 +3494,11 @@ Please review this, answer any questions (some fields may contain questions rath
         process.exit(0);
     }
     if (command === 'logs' && trackNum === 'worker') {
-        const syncLog = join(projectRoot, 'conductor', '.sync.log');
+        const isManager = args.includes('--manager');
+        const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
+        const syncLog = isManager
+            ? join(projectRoot, 'conductor', '.manager.log')
+            : join(projectRoot, 'conductor', workerNumber === 1 ? '.sync.log' : `.sync-${workerNumber}.log`);
         if (existsSync(syncLog)) {
             console.log(readFileSync(syncLog, 'utf8').split('\n').slice(-50).join('\n'));
         } else {

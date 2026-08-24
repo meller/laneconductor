@@ -76,88 +76,32 @@ Store per-track Jira state in `conductor/tracks-metadata.json`:
 
 Populated at first sync, updated on each poll.
 
-### R5: Lane ↔ Status Mapping (1:1 with Auto-Creation)
+### R5: Lane ↔ Status Mapping
 
-**Implementation approach**: 1:1 mapping between LC lanes and Jira workflow statuses. Worker automatically creates missing statuses during first sync.
+Configurable via `lc add-target-mapping`. CLI configures `.laneconductor.json` adding `target_mapping` string dictionary:
 
-**Default 1:1 Mapping** (Phase 6 implementation):
 ```
-LC Lane          → Jira Status
-─────────────────────────────
-backlog          → Backlog (auto-created if missing)
-plan, queue      → To Do
-implement, running → In Progress
-review           → In Review
-quality-gate     → Testing (auto-created if missing)
-done, success    → Done
-```
-
-**Labels** (complementary for filtering/reporting):
-Worker also labels all issues with `lconductor-<lane>` and `lconductor-<action>`:
-- `lconductor-backlog`, `lconductor-plan`, `lconductor-implement`, etc. — lane labels
-- `lconductor-queue`, `lconductor-running`, `lconductor-success`, `lconductor-failed` — action labels
-
-This enables filtering and cross-lane visibility in Jira UI while status transitions handle workflow automation.
-
-**Custom Mapping** (optional, Phase 7):
-Teams can override defaults via `lc add-target-mapping`:
-```bash
-lc add-target-mapping --lane quality-gate --target "QA Review"
-```
-
-Stored in `.laneconductor.json`:
-```json
 {
   "collectors": [
     {
       "type": "jira",
       "target_mapping": {
-        "quality-gate": "QA Review"
+        "implement": "In Progress",
+        "review": "In Review"
       }
     }
   ]
 }
 ```
 
-The 1:1 constraint ensures no ambiguity: each LC lane has exactly one Jira status, and vice versa.
+If not configured, 1:1 default mapping prioritizes default LC workflow lane names:
+- `'plan'` ↔ `'To Do'` (`'TODO'`, `'Backlog'`, `'Selected for Development'` inbound fallback to `'plan'`)
+- `'implement'` ↔ `'In Progress'` (`'running'` inbound fallback to `'implement'`)
+- `'review'` ↔ `'In Review'` (`'Review'` inbound fallback to `'review'`)
+- `'quality-gate'` ↔ `'Testing'` (`'QA'` inbound fallback to `'quality-gate'`)
+- `'done'` ↔ `'Done'` (`'Resolved'`, `'Closed'` inbound fallback to `'done'`)
 
-### R10: Workspace/Folder Mapping (Phase 8)
-
-**Problem**: Multiple source folders (conductor, ui, infra) may need to sync to different Jira projects.
-
-**Solution**: `lc add-target --workspace` saves folder path to config. Worker uses this to route tracks:
-```json
-{
-  "collectors": [
-    {
-      "type": "jira",
-      "domain": "...",
-      "project_key": "KAN",
-      "workspace": "conductor"
-    },
-    {
-      "type": "jira",
-      "domain": "...",
-      "project_key": "INFRA",
-      "workspace": "infra"
-    },
-    {
-      "type": "jira",
-      "domain": "...",
-      "project_key": "UI",
-      "workspace": "ui"
-    }
-  ]
-}
-```
-
-**Worker Behavior**:
-- Track in `conductor/tracks/NNN-*` → syncs to KAN project
-- Track in `infra/tracks/NNN-*` → syncs to INFRA project
-- Track in `ui/tracks/NNN-*` → syncs to UI project
-- Track in other folders → syncs to first collector without workspace (default fallback)
-
-**No workspace specified** → collector applies to all folders (default behavior)
+**1:1 Constraint**: The CLI `add-target-mapping` ensures that no two LC lanes map to the same Jira status, and no two Jira statuses map to the same LC lane. If a conflict occurs, the previous mapping is removed.
 
 ### R8: Multi-File Field Mapping (Jira Description)
 
@@ -183,19 +127,17 @@ lc add-target --type jira \
   --domain mycompany.atlassian.net \
   --email user@example.com \
   --project-key KAN \
-  --token-env JIRA_API_TOKEN \
-  --workspace conductor
+  --token-env JIRA_API_TOKEN
 ```
 
 When `--type jira`:
 - Skip `--url` requirement
 - Require `--domain`, `--email`, `--project-key`
 - Accept `--token` (inline) or `--token-env` (env var reference)
-- Accept optional `--workspace` (folder path like `conductor`, `ui`, `infra` — defaults to all folders)
 - Store as collector entry with `type: 'jira'`
 
 Update `lc list-targets`:
-- Display Jira collectors as: `jira: KAN @ mycompany.atlassian.net (workspace: conductor)`
+- Display Jira collectors as: `jira: KAN @ mycompany.atlassian.net`
 - Display API collectors as: `api: http://...`
 
 ### R7: Multiple Workers (Race Condition Safety)

@@ -1,9 +1,9 @@
 # Track 1086: Persistent Track Sessions
 
-**Lane**: review
+**Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Phase**: All 5 phases complete. Reassignment cold-start (Phase 5 Task 5) is correct by construction — session lookups are scoped server-side by the caller's own worker_id, never client-supplied — and now has an explicit regression test.
+**Phase**: All 5 phases complete. Reassignment cold-start (Phase 5 Task 5) is correct by construction — session lookups are scoped server-side by the caller's own worker_id, never client-supplied — and now has…
 **Type**: dev
 **Summary**: One resumable Claude session per (worker, track) across the whole lifecycle.
 

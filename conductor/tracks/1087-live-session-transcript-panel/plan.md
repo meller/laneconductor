@@ -377,3 +377,107 @@ what.
   6) + live-verified against a real (safe, no-op) deploy dispatch via
   direct API call (Phase 6 section) — the exact real shell output was
   returned correctly.
+
+## Phase 8: Direct Worker Interactive Chat Bar
+
+**Problem**: While a worker's live output stream is visible in `WorkerActivityLatch`, the user cannot send chat messages or commands directly to the worker from that panel.
+**Solution**: Add an interactive chat input bar to `WorkerActivityLatch.jsx` allowing the user to post ad-hoc messages or track-specific chat prompts directly to the selected worker.
+
+- [x] Task 1: Update `POST /api/projects/:id/dispatch` to handle optional `track_number` in request body for project-scoped dispatches.
+- [x] Task 2: Implement direct chat input bar in `WorkerActivityLatch.jsx` (input field, Send button, sending state, Enter-to-submit).
+- [x] Task 3: Support sending prompts: when a worker is selected, dispatch chat action (`track_chat` or `worker_adhoc_chat`) directly to `POST /api/projects/:id/dispatch`.
+- [x] Task 4 (corrected then fixed 2026-08-12): **"Verify" only covered dispatch creation, not the worker actually doing anything with it.** Live-tested end-to-end (real worker, real UI, sent "Reply with exactly the word: pong" to an idle macrodash worker via the chat bar): dispatch was created fine (`worker_dispatch` row inserted, `action: 'worker_adhoc_chat'`), but the worker has **no handler for `worker_adhoc_chat` or `track_chat` at all** — `laneconductor.sync.mjs`'s dispatch loop has no `if (entry.action === 'worker_adhoc_chat')` branch, so it falls through to the generic lane-action handler, which expects a `track_number` and fails with `"missing track_number"`. This is the same shape of gap as track 1089's SSH stub: UI + dispatch-creation shipped, worker-side execution never did. Needs an actual handler: for `worker_adhoc_chat`, spawn a CLI turn with the prompt (no track context, no `conductor/tracks/NNN` folder to operate against — needs its own working-directory/session-continuity story, since normal track dispatches resolve a track folder first and this has none); for `track_chat`, resume/continue that track's existing session with the prompt appended. Not yet planned in detail.
+
+
+### Phase 8 completion (2026-08-12) — worker-side handler implemented and verified live
+
+The missing half. `worker_adhoc_chat` / `track_chat` now have a real
+handler in `laneconductor.sync.mjs`'s dispatch loop, and the panel shows
+the reply.
+
+- [x] Task 5: Worker-side handler for both chat actions. Deliberately
+      **not** routed through `spawnCli`: that path takes a git lock,
+      creates a worktree, and injects full track context — all meant for a
+      lane action that will *edit the repo*. A chat turn is a question, not
+      a mutation; it shouldn't block the git lock or leave worktrees
+      behind. `track_chat` still injects that track's own index/spec/plan/
+      conversation as context so the question has something to ground in;
+      `worker_adhoc_chat` runs with none.
+- [x] Task 6: Reply rendering in `WorkerActivityLatch` — the prompt shows
+      immediately as a bubble, then polls `GET /api/dispatch/:id` for the
+      answer (the worker reports the CLI's output as the dispatch
+      `result`). Without this the message vanished into the void even once
+      the handler existed: the panel had no way to surface an answer.
+- [x] Task 7: 3 tests (`conductor/tests/track-1087-worker-chat-dispatch.test.mjs`)
+      against a real spawned worker via `LC_MOCK_CLI` — adhoc chat returns
+      a reply, empty prompt is rejected rather than spawning an empty
+      turn, and `track_chat` runs against a real track. All three assert
+      the result is *not* "missing track_number", the exact symptom of the
+      original gap.
+
+**Bug found during live verification** (the mock CLI couldn't have caught
+it): the first working version returned raw `stream-json` JSONL as the
+chat reply — hook/system events, not an answer — because it reused
+`buildClaudeArgs`, which builds the *transcript pipeline's* invocation.
+A chat turn wants plain `--print` text. Fixed; re-verified live end to
+end against the real Claude CLI: "Reply with exactly one word: pong" →
+`done | pong`, and a real question about the project returned a correct
+substantive answer.
+
+**Honest verification note**: the backend round-trip is confirmed against
+the real CLI (the dispatch row holds the genuine answer text). In the UI,
+the sent-prompt bubble and "thinking…" state were confirmed visually; the
+rendered *reply* bubble was verified by code + the confirmed dispatch
+data, not by a screenshot — the browser pane stopped compositing frames
+before the (~40s) real-CLI turn completed.
+
+- [ ] Follow-up: chat turns are one-shot — each spawns a fresh CLI process
+      with no session continuity, so the worker has no memory between
+      messages. Fine for the "ask a quick question" case this phase was
+      scoped to, but a real back-and-forth needs session resume (track
+      1086's `track_sessions`) threaded through the chat handler.
+
+### Phase 8 addendum: refresh persistence + remote-api correctness (2026-08-12)
+
+- [x] Task 8: Chat history survives a refresh. The turns were *always*
+      persisted (`worker_dispatch.payload.prompt` + `.result`) — the panel
+      just kept them in React state, so a reload appeared to lose the
+      conversation. New `GET /api/workers/:id/chat-history` (worker-scoped,
+      oldest-first, `limit` capped at 100); the panel re-reads it whenever
+      a worker is selected. Deliberately worker-scoped rather than reusing
+      `GET /api/projects/:id/dispatch`, which mixes in deploys and can't
+      address a manager worker at all (its `project_id` is null). 3 tests.
+
+**Remote-api mode (API on a different machine than the worker) — checked
+explicitly, not assumed:**
+
+The *mechanism* is remote-safe by construction, because everything is
+outbound from the worker: the UI writes a `worker_dispatch` row, the
+worker polls its own inbox (`GET /worker/:id/dispatch`), runs the CLI
+locally, and PATCHes the result back. Nothing requires the API to reach
+into the worker's machine. Same for chat history, which is a plain DB
+read. This is the same property that made track 1089's SSH unnecessary.
+
+**But a real gap was found in the process**: the new endpoints — and the
+pre-existing `POST /api/dispatch/create-project` from track 1091 — were
+registered with **no auth middleware at all**, while comparable worker
+endpoints (`PATCH /api/workers/:id/visibility`,
+`GET /api/workers/:id/permissions`) use `requireAuth`. In local mode
+`requireAuth` is a pass-through so this was invisible; in remote mode it
+meant unauthenticated dispatch creation and unauthenticated reads.
+Fixed: `requireAuth` added to `/api/dispatch/create-project`,
+`/api/dispatch/provision-worker`, `/api/dispatch/:dispatchId`, and
+`/api/workers/:id/chat-history`.
+
+`requireAuth` alone still wasn't sufficient for chat history — it only
+proves *someone* is signed in, not that this worker is theirs. A chat
+transcript is private content, so that endpoint now also applies the same
+own/public/team-shared visibility scoping `GET /api/workers` uses, and
+404s otherwise. Without it any signed-in user could have read any other
+user's worker conversations by guessing an id.
+
+- [ ] Not verified live in remote mode — there's no remote deployment in
+      this environment to test against. The reasoning and the auth fix are
+      sound, but "works in remote-api mode" is currently an argument plus
+      unit tests, not an observed result. Worth an actual remote smoke
+      test before relying on it.

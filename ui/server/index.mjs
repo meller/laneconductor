@@ -1,8 +1,9 @@
 import { createHash, randomUUID } from 'crypto';
 import express from 'express';
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 import cors from 'cors';
 import pg from 'pg';
 import { readFileSync, mkdirSync, writeFileSync, readdirSync, existsSync, statSync, appendFileSync, rmSync } from 'fs';
@@ -15,6 +16,8 @@ import { slugify, trackTemplates, appendRegressionTest } from './utils.mjs';
 import { getBuilds, getBuildById, createBuildArtifact } from './build-manager.mjs';
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 import { logger } from './logger.mjs';
+import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
+import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -98,7 +101,13 @@ const server = createServer(app);
 initWebSocket(server);
 
 // ── Dev Servers (per project) ────────────────────────────────────────────────
-// Map: projectId -> { proc, pid, url }
+// Map: projectId -> { proc, pid, url, previewCwd, previewTrack }
+// Track 10018 Phase 5: previewCwd/previewTrack are set only when the server
+// was last started pointed at a track's worktree instead of the primary
+// checkout (repo_path) — the "single dev server, swapped between
+// checkouts" preview design. In-memory only, same as pid already is; an
+// API-server restart naturally clears back to "no preview active", which
+// is the correct, honest state (nothing is running yet either way).
 const devServers = new Map();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -212,6 +221,54 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
+// Track 10014: rename a project. Just the identity — .laneconductor.json's
+// project.name is managed separately via /api/projects/:id/config.
+app.patch('/api/projects/:id', async (req, res) => {
+  try {
+    const name = req.body?.name?.trim();
+    if (!name) return res.status(400).json({ error: 'name is required' });
+
+    const result = await pool.query(
+      'UPDATE projects SET name = $1 WHERE id = $2 RETURNING id, name',
+      [name, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Project not found' });
+
+    broadcast('conductor:updated', { projectId: req.params.id });
+    res.json({ ok: true, name: result.rows[0].name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10014: hard-delete a project. Every project_id FK in
+// prisma/schema.prisma is onDelete: Cascade, so this one DELETE cleans up
+// tracks/workers/comments/dispatch rows/etc. automatically — same reliance
+// on cascade already used by the DB side of track deletion above.
+// deleteLocalFiles is opt-in and disk-only; it never shells out to git.
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    const projRes = await pool.query('SELECT id, repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (!projRes.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path } = projRes.rows[0];
+
+    await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
+
+    let localFilesDeleted = false;
+    if (req.body?.deleteLocalFiles && repo_path && existsSync(repo_path)) {
+      rmSync(join(repo_path, 'conductor'), { recursive: true, force: true });
+      rmSync(join(repo_path, '.laneconductor.json'), { force: true });
+      localFilesDeleted = true;
+    }
+
+    broadcast('project:deleted', { projectId: req.params.id });
+    logger.info({ projectId: req.params.id, localFilesDeleted }, '[projects] Deleted project');
+    res.json({ ok: true, localFilesDeleted });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Project Members ────────────────────────────────────────────────────────
 
 app.get('/api/projects/:id/members', async (req, res) => {
@@ -262,11 +319,11 @@ app.get('/api/projects/:id/workers', async (req, res) => {
     // 4. Local mode (no AUTH_ENABLED): show all
 
     let queryStr = `
-      SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.mode, p.name AS project_name
+      SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
+              w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name
        FROM workers w
-       JOIN projects p ON p.id = w.project_id
-       WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+       LEFT JOIN projects p ON p.id = w.project_id
+       WHERE (w.project_id = $1 OR w.type = 'manager') AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;
     const params = [projectId];
 
@@ -293,6 +350,45 @@ app.get('/api/projects/:id/workers', async (req, res) => {
   }
 });
 
+// Track 1112 Phase 7 (D-6): project-scoped, not worker-scoped — `.worktrees/`
+// lives at the shared repo checkout's cwd, not inside any one worker's
+// private state, so every worker for this project on a given host reports
+// an identical list. DISTINCT ON (hostname) dedupes to the freshest report
+// per host; each row is tagged with `host` so the UI can group by host only
+// when more than one has actually reported (the common case is exactly one).
+//
+// Track 10018: extracted so GET /tracks (below) can reuse the exact same
+// data to answer "is this done-lane track's branch actually merged yet?" —
+// a track can sit at lane_status='done' while its branch is still
+// mergeable/stranded/conflicted/pr-open; the Kanban card needs the same
+// live, git-derived truth the Worktrees panel already has, not a second,
+// possibly-stale copy of it.
+async function fetchWorktreeRows(projectId) {
+  const result = await pool.query(
+    `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
+     FROM workers
+     WHERE project_id = $1 AND worktrees IS NOT NULL
+       AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+     ORDER BY hostname, last_heartbeat DESC`,
+    [projectId]
+  );
+  const rows = [];
+  for (const hostRow of result.rows) {
+    const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
+    for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
+  }
+  return rows;
+}
+
+app.get('/api/projects/:id/worktrees', async (req, res) => {
+  try {
+    const rows = await fetchWorktreeRows(req.params.id);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/workers', async (req, res) => {
   try {
     const userId = req.user?.uid || null;
@@ -301,8 +397,8 @@ app.get('/api/workers', async (req, res) => {
     // NULL by design (it isn't "for" any one project), so an inner join
     // silently dropped every manager worker from this endpoint's results.
     let queryStr = `
-      SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.mode, w.type,
+      SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
+              w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
               p.id AS project_id, p.name AS project_name, p.repo_path
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
@@ -339,8 +435,52 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     const { repo_path } = result.rows[0];
 
-    const { stdout, stderr } = await execAsync('make lc-start', { cwd: repo_path });
+    // Track 1114 (found live, real bug): `make lc-start` assumed every
+    // project's own Makefile defines an `lc-start` target — this repo's
+    // does, but that's not guaranteed (confirmed live: `aitutor`/coachai
+    // has no such target at all, failing with "No rule to make target").
+    // `lc start` is the actual CLI command Makefile targets like this one
+    // just wrap — calling it directly removes the per-project Makefile
+    // dependency entirely, matching the same direct-CLI approach already
+    // used by POST /api/projects/:id/workers/start-new.
+    const { stdout, stderr } = await execAsync('lc start', { cwd: repo_path });
     res.json({ ok: true, stdout, stderr });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1112/1084 dogfood incident (2026-08-13): the track panel's "Run on
+// worker" dropdown could only ever offer workers that already exist —
+// if the project's one worker was busy, a dispatch just queued silently
+// behind it with no way to actually get more capacity from the UI. Reuses
+// the exact mechanism the "Start Sync Worker" button already uses
+// (`lc start`), just parameterized with the next free --worker-number for
+// this project instead of always defaulting to 1 (which would hit the
+// "already running" guard when worker #1 exists, per bin/lc.mjs).
+app.post('/api/projects/:id/workers/start-new', async (req, res) => {
+  try {
+    const { rows: projRows } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    if (projRows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path } = projRows[0];
+
+    const { rows: numRows } = await pool.query(
+      `SELECT COALESCE(MAX(worker_number), 0) AS max_num FROM workers WHERE project_id = $1 AND type != 'manager'`,
+      [req.params.id]
+    );
+    const nextNumber = (numRows[0]?.max_num || 0) + 1;
+
+    // Track 10011: optional cli/model let the caller pick this worker's
+    // provider instead of always inheriting project.primary.cli. Omitting
+    // them keeps prior behavior unchanged. Uses execFile with an argument
+    // array (not execAsync's shell string) — cli/model are free text from
+    // the request body, same injection concern as /workers/manager/start.
+    const args = ['start', '--worker-number', String(nextNumber)];
+    if (req.body?.cli) args.push('--cli', String(req.body.cli));
+    if (req.body?.model) args.push('--model', String(req.body.model));
+
+    const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
+    res.json({ ok: true, worker_number: nextNumber, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -353,6 +493,68 @@ app.post('/api/projects/:id/worker/stop', async (req, res) => {
     const { repo_path } = result.rows[0];
 
     const { stdout, stderr } = await execAsync('make lc-stop', { cwd: repo_path });
+    res.json({ ok: true, stdout, stderr });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1084 Phase 6: stop ONE worker. The project-scoped stop above shells
+// out to `make lc-stop`, which is all-or-nothing — there was no way to stop
+// worker #2 while leaving #1 running, even though Phase 0 made multiple
+// workers per project a first-class case. Uses `lc worker stop
+// --worker-number N` (or --manager), which already supports exactly this
+// via per-instance pidfiles.
+app.post('/api/workers/:id/stop', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT w.id, w.worker_number, w.type, p.repo_path
+         FROM workers w
+         LEFT JOIN projects p ON p.id = w.project_id
+        WHERE w.id = $1`,
+      [parseInt(req.params.id)]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'worker not found' });
+    const { worker_number, type, repo_path } = rows[0];
+
+    // A manager isn't scoped to a project and has no repo_path of its own;
+    // its pidfile is global, so `lc worker stop --manager` finds it from
+    // anywhere. A project worker's pidfile lives in its project directory.
+    const cmd = type === 'manager'
+      ? 'lc worker stop --manager'
+      : `lc worker stop --worker-number ${parseInt(worker_number) || 1}`;
+    const cwd = type === 'manager' ? process.cwd() : repo_path;
+    if (type !== 'manager' && !cwd) {
+      return res.status(400).json({ error: 'worker has no project directory to stop it in' });
+    }
+
+    const { stdout, stderr } = await execAsync(cmd, { cwd });
+    broadcast('worker:updated', { projectId: null });
+    res.json({ ok: true, stdout, stderr });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1091 Phase 5b: the New Project and Provision-Worker flows both
+// dead-ended into "go run `lc worker start --manager --projects-dir <path>`
+// yourself" whenever no manager was online for the current machine — there
+// was a symmetric stop-manager path (above) but nothing to start one.
+// Mirrors POST /api/projects/:id/worker/start (`lc start`) for the
+// machine-level manager singleton instead of a project worker.
+//
+// Uses execFile with an argument array, not execAsync's shell string —
+// projectsDir is free text from a browser field, and every other command
+// built by this file interpolates only server-derived or numeric values
+// into its exec() string. This is the first one taking arbitrary user text,
+// so string interpolation into a shell command here would be a real
+// injection hole, not just an inconsistency.
+app.post('/api/workers/manager/start', async (req, res) => {
+  try {
+    const projectsDir = typeof req.body?.projectsDir === 'string' ? req.body.projectsDir.trim() : '';
+    const args = ['worker', 'start', '--manager'];
+    if (projectsDir) args.push('--projects-dir', projectsDir);
+    const { stdout, stderr } = await execFileAsync('lc', args, { cwd: process.cwd() });
     res.json({ ok: true, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -416,7 +618,8 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
-              t.assignee_uid, t.created_by_uid, p.owner_uid,
+              t.assignee_uid, t.created_by_uid, t.waiting_for_reply, p.owner_uid,
+              t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -429,7 +632,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS unreplied_count FROM track_comments uc
          WHERE uc.track_id = t.id
-           AND uc.author IN ('claude', 'gemini')
+           AND uc.author IN ('claude', 'gemini', 'system')
            AND uc.created_at > COALESCE(
              (SELECT MAX(created_at) FROM track_comments
               WHERE track_id = t.id AND author = 'human'),
@@ -482,10 +685,38 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
       }, new Map());
     }
 
-    res.json(result.rows.map(t => ({
-      ...t,
-      assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
-    })));
+    // Track 10018: a track can sit at lane_status='done' while its branch
+    // is still mergeable/stranded/conflicted/pr-open — "done" on the board
+    // otherwise silently means "the lane action finished," not "this
+    // shipped." Cross-reference the same live, git-derived worktree state
+    // the panel uses, keyed by track_number, so the Kanban card can show
+    // the truth. Absence here (the common case) means either the track
+    // never had a branch (non-dev work, or nothing to merge) or it's
+    // already fully merged — auditWorktrees omits fully-merged branches
+    // entirely, so "not in this map" IS the "really done" signal.
+    const worktreeRows = await fetchWorktreeRows(req.params.id);
+    const worktreeByTrack = new Map(worktreeRows.filter(r => r.track).map(r => [String(r.track), r]));
+
+    res.json(result.rows.map(t => {
+      const wt = worktreeByTrack.get(String(t.track_number));
+      return {
+        ...t,
+        assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
+        // null when there's no live unmerged branch for this track at all
+        // (nothing to show — the common, actually-shipped case).
+        worktree_class: wt?.class ?? null,
+        worktree_pr_status: wt?.pr_status ?? null,
+        worktree_pr_url: wt?.pr_url ?? null,
+        worktree_pr_number: wt?.pr_number ?? null,
+        // Track 10018 Phase 10: null exactly when there's no live worktree
+        // row for this track (not yet past `plan`, or — once track 1115's
+        // main-direct workspace mode ships — a track configured to work
+        // directly on main with no branch at all). The frontend renders
+        // "main" for that null case; this stays the raw signal, same
+        // convention as worktree_class above.
+        worktree_branch: wt?.branch ?? null,
+      };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -593,7 +824,7 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
         if (!existsSync(trackPath)) {
           mkdirSync(trackPath, { recursive: true });
           const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
-          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType);
+          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType, 'plan');
           writeFileSync(join(trackPath, 'index.md'), index, 'utf8');
           writeFileSync(join(trackPath, 'plan.md'), plan, 'utf8');
           writeFileSync(join(trackPath, 'spec.md'), spec, 'utf8');
@@ -660,7 +891,7 @@ app.get('/api/tracks', async (req, res) => {
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS unreplied_count FROM track_comments uc
          WHERE uc.track_id = t.id
-           AND uc.author IN ('claude', 'gemini')
+           AND uc.author IN ('claude', 'gemini', 'system')
            AND uc.created_at > COALESCE(
              (SELECT MAX(created_at) FROM track_comments
               WHERE track_id = t.id AND author = 'human'),
@@ -690,22 +921,48 @@ app.get('/api/inbox', async (req, res) => {
       ? `AND t.project_id = $${values.push(Number(project_id))}`
       : '';
 
+    // Track 10012: three-way bucket classification, evaluated in priority
+    // order so each row lands in exactly one section:
+    //  1. awaiting_ai   — a real unresolved human comment (unchanged from
+    //                     the pre-fix human_needs_reply heuristic; now
+    //                     correctly scoped since 'system' can no longer
+    //                     masquerade as 'human' here).
+    //  2. needs_input   — tracks.waiting_for_reply, or the most recent
+    //                     comment is a 'system' ⚠️/❌ notice, or (fallback)
+    //                     there's an unreplied claude/gemini/system message
+    //                     — the old "awaiting your reply" heuristic, kept
+    //                     for non-emoji AI comments.
+    //  3. recent_activity — most recent comment is a 'system' ✅ notice (or
+    //                     nothing else applies): informational only.
+    // A row is excluded entirely (before bucketing) once dismissed_at is at
+    // least as new as its latest visible comment — POST .../dismiss sets
+    // it, and it's automatically superseded the moment a genuinely new
+    // comment arrives, without needing to touch waiting_for_reply (which a
+    // later sync cycle would just re-assert from the track's own file).
     const result = await pool.query(
       `SELECT t.id AS track_id, t.track_number, t.title, t.lane_status,
-              t.lane_action_status,
+              t.lane_action_status, t.waiting_for_reply,
               p.id AS project_id, p.name AS project_name,
               lc.author AS last_comment_author, lc.body AS last_comment_body, lc.created_at AS last_comment_at,
-              uc.unreplied_count, hr.human_needs_reply
+              uc.unreplied_count, hr.human_needs_reply,
+              CASE
+                WHEN hr.human_needs_reply THEN 'awaiting_ai'
+                WHEN t.waiting_for_reply THEN 'needs_input'
+                WHEN lc.author = 'system' AND (lc.body LIKE '⚠️%' OR lc.body LIKE '❌%') THEN 'needs_input'
+                WHEN lc.author = 'system' AND lc.body LIKE '✅%' THEN 'recent_activity'
+                WHEN COALESCE(uc.unreplied_count, 0) > 0 THEN 'needs_input'
+                ELSE 'recent_activity'
+              END AS bucket
        FROM tracks t
        JOIN projects p ON p.id = t.project_id
-       JOIN LATERAL (
+       LEFT JOIN LATERAL (
          SELECT body, author, created_at FROM track_comments
          WHERE track_id = t.id AND is_hidden = FALSE ORDER BY created_at DESC LIMIT 1
        ) lc ON true
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS unreplied_count FROM track_comments uc
          WHERE uc.track_id = t.id
-           AND uc.author IN ('claude', 'gemini')
+           AND uc.author IN ('claude', 'gemini', 'system')
            AND uc.is_hidden = FALSE
            AND uc.created_at > COALESCE(
              (SELECT MAX(created_at) FROM track_comments
@@ -718,7 +975,9 @@ app.get('/api/inbox', async (req, res) => {
            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
          ) AS human_needs_reply
        ) hr ON true
-       WHERE 1=1 ${projectFilter}
+       WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE)
+         AND NOT (t.dismissed_at IS NOT NULL AND t.dismissed_at >= COALESCE(lc.created_at, t.dismissed_at))
+         ${projectFilter}
        ORDER BY lc.created_at DESC`,
       values
     );
@@ -735,6 +994,23 @@ app.post('/api/projects/:id/tracks/:num/dismiss', async (req, res) => {
 
     await pool.query(
       'UPDATE track_comments SET is_hidden = TRUE WHERE track_id = $1',
+      [trackId]
+    );
+    // Track 10012-follow-up: hiding comments alone doesn't stop a row from
+    // reappearing on the next poll when it qualifies via
+    // tracks.waiting_for_reply — that flag is authoritative-per-sync
+    // (re-asserted from the track's own index.md marker every sync cycle,
+    // see parseWaitingForReply() in laneconductor.sync.mjs), so setting it
+    // false here would just get overwritten back to true on the next sync
+    // for a track that's genuinely still waiting (found live: track 8002,
+    // a stale brainstorm fixture, kept reappearing after every dismiss).
+    // dismissed_at sidesteps that fight entirely — GET /api/inbox excludes
+    // a track once dismissed_at is at least as new as its latest visible
+    // comment, and automatically re-includes it the moment a genuinely
+    // NEW comment arrives, without this endpoint needing to touch
+    // waiting_for_reply at all.
+    await pool.query(
+      'UPDATE tracks SET dismissed_at = NOW() WHERE id = $1',
       [trackId]
     );
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
@@ -754,6 +1030,47 @@ app.get('/api/projects/:id/conductor', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     res.json(result.rows[0].conductor_files ?? {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10014: generalizes the write-through pattern already used by
+// POST /api/projects/:id/workflow (conductor_files JSONB + disk write) to
+// the other human-editable context docs — closes the gap where kpis.md,
+// product.md, etc. could only be read from the UI, never edited.
+const CONDUCTOR_FILE_MAP = {
+  product: 'product.md',
+  tech_stack: 'tech-stack.md',
+  product_guidelines: 'product-guidelines.md',
+  design_language: 'design-language.md',
+  deployment_stack: 'deployment-stack.md',
+  kpis: 'kpis.md',
+  user_stories: 'user-stories.md',
+  quality_gate: 'quality-gate.md',
+};
+
+app.patch('/api/projects/:id/conductor/:key', async (req, res) => {
+  try {
+    const { key } = req.params;
+    const filename = CONDUCTOR_FILE_MAP[key];
+    if (!filename) return res.status(400).json({ error: `unknown conductor file key: ${key}` });
+
+    const content = req.body?.content ?? '';
+    const dbResult = await pool.query('SELECT repo_path, conductor_files FROM projects WHERE id = $1', [req.params.id]);
+    if (!dbResult.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const { repo_path, conductor_files } = dbResult.rows[0];
+
+    const updatedFiles = { ...(conductor_files || {}), [key]: content };
+    await pool.query('UPDATE projects SET conductor_files = $1 WHERE id = $2', [updatedFiles, req.params.id]);
+
+    if (repo_path && existsSync(repo_path)) {
+      writeFileSync(join(repo_path, 'conductor', filename), content, 'utf8');
+    }
+
+    broadcast('conductor:updated', { projectId: req.params.id });
+    logger.info({ projectId: req.params.id, key }, '[conductor] Updated context file');
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -977,10 +1294,10 @@ app.get('/api/projects/:id/tracks/finished', async (req, res) => {
 app.get('/api/projects/:id/tracks/:num', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, track_number, title, lane_status, progress_percent,
+      `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              assignee_uid, created_by_uid
+              active_cli, assignee_uid, created_by_uid
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -992,6 +1309,15 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       track_number: t.track_number,
       title: t.title,
       lane_status: t.lane_status,
+      // Track 1112 dogfood incident (2026-08-13): lane_action_status and
+      // active_cli were columns on the table and written by the worker,
+      // but never selected/returned here — the client's "is this run
+      // actually live right now" logic (TrackDetailPanel's Logs tab) had
+      // no way to ever be correct, for any track, because the field it
+      // checked was always undefined. Verified live: a real running
+      // track's own detail fetch had neither key at all.
+      lane_action_status: t.lane_action_status,
+      active_cli: t.active_cli,
       progress_percent: t.progress_percent,
       current_phase: t.current_phase,
       content_summary: t.content_summary,
@@ -1043,7 +1369,7 @@ app.get('/api/projects/:id/tracks/:num/transcript', async (req, res) => {
       try { events.push(JSON.parse(line)); }
       catch { /* non-JSON line — skip (non-Claude CLI log, or a truncated last line) */ }
     }
-    res.json({ events });
+    res.json({ events, rawLog: content });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1188,6 +1514,19 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         /^\*\*Progress\*\*:\s*.+$/m,
         `**Progress**: ${progressStr}`
       ) || (`**Progress**: ${progressStr}\n` + content);
+    }
+
+    // Track 10018: only write a marker when a value was actually set — a
+    // null merge_mode (explicitly clearing back to "unspecified") removes
+    // the marker rather than writing "**Merge Mode**: null".
+    if (updates.merge_mode !== undefined) {
+      if (updates.merge_mode === null) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Merge Mode\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+$/m, `**Merge Mode**: ${updates.merge_mode}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Merge Mode**: ${updates.merge_mode}`) || content;
+      }
     }
 
     // Write back to file
@@ -1344,6 +1683,61 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
 
 // ── Manual re-run implement ──────────────────────────────────────────────────
 
+// Track 1102 F5/F15: queueing alone only works if a sync+poll worker will
+// come along and claim it. A sync-only worker — the default for every
+// wizard-created project, meaning "sync + manual UI operations" — never
+// polls the queue; it only serves the dispatch inbox. So when a project's
+// live workers are ALL sync-only, bridge the action into a dispatch
+// addressed to one of them, or it can never run there (proven live
+// 2026-08-12 for /implement: the identical dispatch sent by hand was
+// claimed in seconds; F15 extends the same bridge to /track/:num/lane and
+// /track/:num/reset, which had the same gap).
+//
+// When a sync+poll worker exists we deliberately do NOT dispatch — its
+// queue poller will claim the track as today, and dispatching too would
+// race the same action into running twice. Managers are never candidates:
+// lane actions are project work. Caller must invoke this AFTER the track's
+// lane_status has already been written to the DB, since the dispatch
+// action is read back from there.
+async function dispatchIfSyncOnly(projectId, trackNumber) {
+  try {
+    // Track 1102 F18: same phantom-worker exclusion as the /dispatch and
+    // /worktrees/refresh fallbacks — a Playwright fixture worker
+    // (hostname 'pw-e2e-worker' / pid 999999, or pid 0) heartbeating
+    // during a test run looks like a real live worker to this query and
+    // its low id would otherwise win.
+    const { rows: liveWorkers } = await pool.query(
+      `SELECT w.id, w.mode, w.type FROM workers w
+        WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+          AND w.pid != 0 AND (w.hostname IS NULL OR w.hostname NOT LIKE 'pw-e2e-%')
+        ORDER BY w.id ASC`,
+      [projectId]
+    );
+    const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
+    const hasPoller = projectWorkers.some(w => w.mode === 'sync+poll');
+    if (!hasPoller && projectWorkers.length > 0) {
+      const { rows: [track] } = await pool.query(
+        'SELECT id, lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+        [projectId, trackNumber]
+      );
+      if (track?.lane_status) {
+        await pool.query(
+          `INSERT INTO worker_dispatch(worker_id, track_number, action)
+           VALUES ($1, $2, $3)`,
+          [projectWorkers[0].id, trackNumber, track.lane_status]
+        );
+        return true;
+      }
+    }
+  } catch (dispatchErr) {
+    // The queue flag is already set; a dispatch failure shouldn't turn a
+    // partially-successful request into a 500 — but it must not be
+    // silent either (silent halfway states are track 1102 F8's lesson).
+    console.warn(`[dispatch-bridge] dispatch bridging failed for track ${trackNumber}:`, dispatchErr.message);
+  }
+  return false;
+}
+
 app.post('/api/projects/:id/tracks/:num/implement', async (req, res) => {
   try {
     await collectorWrite('PATCH', `/track/${req.params.num}/action`, {
@@ -1359,8 +1753,10 @@ app.post('/api/projects/:id/tracks/:num/implement', async (req, res) => {
       is_replied: true
     }, req.params.id);
 
+    const dispatched = await dispatchIfSyncOnly(parseInt(req.params.id), req.params.num);
+
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
-    res.json({ ok: true, message: 'Track moved to waiting state' });
+    res.json({ ok: true, dispatched, message: dispatched ? 'Dispatched to this project\'s worker' : 'Track moved to waiting state' });
   } catch (err) {
     res.status(err.status ?? 500).json({ error: err.message });
   }
@@ -1532,7 +1928,21 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     const { dev_command, dev_url, repo_path } = projResult.rows[0];
     if (!dev_command) return res.status(400).json({ error: 'No dev_command configured for this project' });
 
-    // Kill existing dev server if any
+    // Track 10018 Phase 5: an optional preview target — when provided, the
+    // dev server runs against that worktree's directory instead of the
+    // primary checkout, so you can test an unmerged (typically pr-mode)
+    // track's branch before approving it. `preview_cwd` is trusted as-is
+    // from the client (same trust level as every other worktree_path this
+    // API already accepts from the Worktrees panel, e.g. remove-worktree's
+    // dispatch payload) — it's always one of the paths the panel itself
+    // just displayed, sourced from this project's own git worktree list.
+    const { preview_cwd, preview_track } = req.body || {};
+    const targetCwd = preview_cwd || repo_path;
+
+    // Kill existing dev server if any — this IS the "stop current, swap"
+    // behavior: starting fresh (whether at the primary checkout or a
+    // preview target) always tears down whatever was running first, so
+    // there is only ever one dev server for this project at a time.
     if (devServers.has(projectId)) {
       const existing = devServers.get(projectId);
       if (existing.proc) {
@@ -1548,12 +1958,15 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
 
     // Spawn new dev server
     const proc = spawn('sh', ['-c', dev_command], {
-      cwd: repo_path,
+      cwd: targetCwd,
       detached: true,
       stdio: 'ignore'
     });
 
-    devServers.set(projectId, { proc, pid: proc.pid, url: dev_url });
+    devServers.set(projectId, {
+      proc, pid: proc.pid, url: dev_url,
+      previewCwd: preview_cwd || null, previewTrack: preview_cwd ? (preview_track ?? null) : null,
+    });
 
     // Save PID to DB
     await pool.query(
@@ -1562,7 +1975,7 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     );
 
     broadcast('conductor:updated', { projectId });
-    res.json({ running: true, pid: proc.pid, url: dev_url });
+    res.json({ running: true, pid: proc.pid, url: dev_url, preview_track: preview_cwd ? (preview_track ?? null) : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1640,6 +2053,7 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
     // Check if process in Map is still alive
     let running = false;
     let pid = null;
+    let previewTrack = null;
 
     if (entry?.pid) {
       try {
@@ -1647,6 +2061,11 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
         kill(entry.pid, 0);
         running = true;
         pid = entry.pid;
+        // Track 10018 Phase 5: only meaningful when the live entry is the
+        // one we spawned this process from — a DB-PID fallback (below) has
+        // no way to know whether that process was ever a preview at all,
+        // so it correctly stays null rather than guessing.
+        previewTrack = entry.previewTrack ?? null;
       } catch (e) {
         // Process is dead
         devServers.delete(projectId);
@@ -1674,7 +2093,8 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
       running,
       pid,
       url: devUrl,
-      dev_command: devCommand
+      dev_command: devCommand,
+      preview_track: previewTrack,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1746,10 +2166,17 @@ function hashApiKey(key) {
 async function collectorAuth(req, res, next) {
   const bearer = req.headers.authorization?.replace('Bearer ', '');
 
+  const bodyProj = req.body?.project_id ? parseInt(req.body.project_id) : null;
+  const queryProj = req.query.project_id ? parseInt(req.query.project_id) : null;
+  const resolvedProjectId = isNaN(queryProj) ? (isNaN(bodyProj) ? null : bodyProj) : (queryProj || (isNaN(bodyProj) ? null : bodyProj));
+
   // 1. If global token configured, enforce it.
   if (COLLECTOR_TOKEN_ENV) {
     if (!bearer) return res.status(401).json({ error: 'unauthorized' });
-    if (bearer === COLLECTOR_TOKEN_ENV) return next();
+    if (bearer === COLLECTOR_TOKEN_ENV) {
+      req.worker_project_id = resolvedProjectId;
+      return next();
+    }
   }
 
   // 2. Identify worker via machine_token
@@ -1757,7 +2184,7 @@ async function collectorAuth(req, res, next) {
     try {
       let queryArgs = [bearer];
       let queryStr = 'SELECT id, project_id, user_uid, visibility FROM workers WHERE machine_token = $1';
-      const requestedProject = req.query.project_id || req.body.project_id;
+      const requestedProject = queryProj || bodyProj;
       if (requestedProject) {
         queryStr += ' AND project_id = $2';
         queryArgs.push(requestedProject);
@@ -1765,7 +2192,7 @@ async function collectorAuth(req, res, next) {
       const { rows } = await pool.query(queryStr, queryArgs);
       if (rows.length > 0) {
         req.worker_id = rows[0].id;
-        req.worker_project_id = rows[0].project_id;
+        req.worker_project_id = rows[0].project_id || resolvedProjectId;
         req.worker_user_uid = rows[0].user_uid;
         req.worker_visibility = rows[0].visibility;
         req.machine_token = bearer;
@@ -1784,6 +2211,7 @@ async function collectorAuth(req, res, next) {
       );
       if (rows.length > 0) {
         req.user_uid = rows[0].user_uid;
+        req.worker_project_id = resolvedProjectId;
         // Update last_used_at asynchronously — don't block the request
         pool.query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => { });
         return next();
@@ -1795,6 +2223,7 @@ async function collectorAuth(req, res, next) {
 
   // 4. If no global token, allow anonymous (for local usage)
   if (!COLLECTOR_TOKEN_ENV) {
+    req.worker_project_id = resolvedProjectId;
     return next();
   }
 
@@ -1901,6 +2330,10 @@ app.post('/track', collectorAuth, async (req, res) => {
       track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
+      waiting_for_reply,
+      // Track 10018: per-track merge mode marker (null = unspecified, kept
+      // distinct from 'pr' so resolveMergeMode's default stays overridable)
+      merge_mode,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -1920,12 +2353,38 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
 
-    // Fetch old state to detect transitions
+    // Fetch old state to detect transitions (index_content included for the
+    // F9 gutted-index guard below).
     const oldRes = await pool.query(
-      'SELECT id, lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      'SELECT id, lane_status, lane_action_status, index_content FROM tracks WHERE project_id = $1 AND track_number = $2',
       [projectId, track_number]
     );
     const oldTrack = oldRes.rows[0];
+
+    // Track 1102 F9: refuse to replace a substantial index_content with a
+    // gutted, title-less stub. Observed live: a 263-byte marker-only
+    // index (title and body gone, Summary lifted from plan.md) was pushed
+    // over a full 4KB version after a lane-action run, and the DB→FS pull
+    // then propagated the stub back over the good file — newer-wins
+    // ping-pong erasing the track body everywhere. With multiple workers/
+    // checkouts pushing concurrently, this boundary — which every pusher
+    // goes through — is the one place a guard actually protects the data.
+    // Deliberate rewrites stay possible: keeping the `# Track` title (or
+    // there being no substantial existing version) is all it takes.
+    let effectiveIndexContent = index_content;
+    let indexGuardTripped = false;
+    if (
+      typeof index_content === 'string' &&
+      typeof oldTrack?.index_content === 'string' &&
+      oldTrack.index_content.length > 1000 &&
+      index_content.length < oldTrack.index_content.length * 0.4 &&
+      /^#\s/m.test(oldTrack.index_content) &&
+      !/^#\s/m.test(index_content)
+    ) {
+      console.warn(`[API] POST /track #${track_number}: REFUSING gutted index_content (${index_content.length}b, title-less) over existing ${oldTrack.index_content.length}b — keeping existing body. See track 1102 F9.`);
+      effectiveIndexContent = oldTrack.index_content;
+      indexGuardTripped = true;
+    }
 
     // Build UPDATE clause — avoid duplicate lane_action_status assignments
     let laneStatusClause = '';
@@ -1946,13 +2405,20 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     const params = [projectId, track_number, title, insertLaneStatus, progress,
       current_phase, content_summary, phase_step,
-      index_content, plan_content, spec_content, test_content, insertActionStatus,
+      effectiveIndexContent, plan_content, spec_content, test_content, insertActionStatus,
       // KPI params $14-$26
       track_type ?? 'dev', kpi_target ?? null, kpi_actual ?? null,
       kpi_metric ?? null, kpi_source ?? null, kpi_source_config ?? null,
       kpi_threshold ?? null, kpi_window ?? null,
       kpi_snapshot ? JSON.stringify(kpi_snapshot) : null,
       kpi_measured_at ?? null, kpi_check_after ?? null, kpi_scheduled_at ?? null, kpi_maps_to ?? null,
+      // $27: waiting_for_reply — authoritative per sync (raw, possibly null so
+      // ON CONFLICT can distinguish "explicitly set" from "omitted")
+      waiting_for_reply === undefined ? null : waiting_for_reply,
+      // $28: merge_mode — raw (possibly null/absent from the file), COALESCEd
+      // below so an unspecified file never clobbers an explicit DB value
+      // (e.g. one set via the track detail panel's toggle).
+      merge_mode ?? null,
     ];
 
     const qRes = await pool.query(`
@@ -1961,9 +2427,10 @@ app.post('/track', collectorAuth, async (req, res) => {
        current_phase, content_summary, phase_step, index_content, plan_content, spec_content, test_content,
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
-       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to)
+       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
+       waiting_for_reply, merge_mode)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), $28)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -1990,7 +2457,9 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_measured_at    = COALESCE(EXCLUDED.kpi_measured_at, tracks.kpi_measured_at),
       kpi_check_after    = EXCLUDED.kpi_check_after,
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
-      kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to)
+      kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
+      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
+      merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode)
     RETURNING id
   `, params);
 
@@ -2021,7 +2490,7 @@ app.post('/track', collectorAuth, async (req, res) => {
     );
 
     broadcast('track:updated', { projectId, trackNumber: track_number });
-    res.json({ ok: true });
+    res.json(indexGuardTripped ? { ok: true, index_guard: 'kept_existing' } : { ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2045,7 +2514,10 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
   try {
     const { lane_action_status, lane_action_result, last_log_tail, active_cli,
       lane_status, progress_percent,
-      auto_planning_launched, auto_implement_launched, auto_review_launched } = req.body;
+      auto_planning_launched, auto_implement_launched, auto_review_launched,
+      waiting_for_reply,
+      // Track 10018: merge mode + PR tracking fields
+      merge_mode, pr_number, pr_url, pr_status } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2068,6 +2540,16 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (auto_planning_launched !== undefined) { sets.push(`auto_planning_launched = $${i++}`); params.push(auto_planning_launched); }
     if (auto_implement_launched !== undefined) { sets.push(`auto_implement_launched = $${i++}`); params.push(auto_implement_launched); }
     if (auto_review_launched !== undefined) { sets.push(`auto_review_launched = $${i++}`); params.push(auto_review_launched); }
+    if (waiting_for_reply !== undefined) { sets.push(`waiting_for_reply = $${i++}`); params.push(waiting_for_reply); }
+    if (merge_mode !== undefined) {
+      if (merge_mode !== null && !['pr', 'direct'].includes(merge_mode)) {
+        return res.status(400).json({ error: `Invalid merge_mode: "${merge_mode}". Must be "pr" or "direct".` });
+      }
+      sets.push(`merge_mode = $${i++}`); params.push(merge_mode);
+    }
+    if (pr_number !== undefined) { sets.push(`pr_number = $${i++}`); params.push(pr_number); }
+    if (pr_url !== undefined) { sets.push(`pr_url = $${i++}`); params.push(pr_url); }
+    if (pr_status !== undefined) { sets.push(`pr_status = $${i++}`); params.push(pr_status); }
     await pool.query(
       `UPDATE tracks SET ${sets.join(', ')} WHERE project_id = $1 AND track_number = $2`,
       params
@@ -2078,6 +2560,7 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (lane_status !== undefined) syncUpdates.lane_status = lane_status;
     if (lane_action_status !== undefined) syncUpdates.lane_action_status = lane_action_status;
     if (progress_percent !== undefined) syncUpdates.progress_percent = progress_percent;
+    if (merge_mode !== undefined) syncUpdates.merge_mode = merge_mode;
     if (Object.keys(syncUpdates).length > 0) {
       syncTrackToFile(projectId, req.params.num, syncUpdates).catch(err =>
         console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)
@@ -2094,6 +2577,10 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
 app.post('/provider-status', collectorAuth, async (req, res) => {
   try {
     const { provider, status, reset_at, last_error } = req.body;
+    // 'mock' is the LC_MOCK_CLI test sentinel, never a real LLM provider —
+    // reject it here so a stray test run or misconfigured worker can't
+    // leave a fake provider card in the dashboard.
+    if (provider === 'mock') return res.json({ ok: true });
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
     await pool.query(`
     INSERT INTO provider_status (project_id, provider, status, reset_at, last_error, updated_at)
@@ -2229,6 +2716,19 @@ async function claimQueuedTracks(req, res) {
       }
     }
 
+    // Track 1110 Phase 3: optional single-track target. autoLaunchLocalFs
+    // decides ITS OWN candidate from local file state (which track, which
+    // lane) — this lets it ask the DB "is this SPECIFIC track still mine
+    // to claim" atomically right before spawning, instead of only
+    // supporting "give me your next N eligible tracks" (which the
+    // untargeted form above still does, unchanged, for every existing
+    // caller). Placed after the visibility filter so a targeted claim is
+    // still subject to the same ownership/team rules as any other.
+    if (req.body.track_number) {
+      params.push(req.body.track_number);
+      queryStr += ` AND track_number = $${params.length} `;
+    }
+
     queryStr += `
         ORDER BY priority DESC, CASE
           WHEN lane_status = 'plan' THEN 1
@@ -2330,17 +2830,28 @@ app.get('/track/:num/retry-count', collectorAuth, async (req, res) => {
 app.post('/tracks/reset-stuck-actions', collectorAuth, async (req, res) => {
   try {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
-    // immediate=true: reset ALL running tracks (used on worker startup — worker starts fresh, owns no running tracks)
-    // default: only reset tracks stuck for more than 2 minutes
+    // immediate=true: this worker just started and owns no running tracks —
+    // release only ITS OWN prior claims (claimed_by = its own machine_token).
+    // Track 1117 Bug 1: this used to reset every running/queued track for the
+    // whole project, stomping sibling workers' still-live tracks whenever any
+    // one worker restarted. If this caller has no resolvable machine_token
+    // (e.g. global-token/anonymous auth has no per-worker identity to scope
+    // by), reset nothing rather than falling back to the old project-wide
+    // behavior.
+    // default: only reset tracks stuck for more than 2 minutes (heartbeat-staleness — unaffected by this fix, applies regardless of owner)
     const immediate = req.body?.immediate === true;
+    if (immediate && !req.machine_token) {
+      return res.json({ reset: [] });
+    }
     const whereClause = immediate
-      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by IS NOT NULL`
+      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by = $2`
       : `project_id = $1 AND lane_action_status = 'running' AND last_heartbeat < NOW() - INTERVAL '2 minutes'`;
+    const params = immediate ? [projectId, req.machine_token] : [projectId];
     const r = await pool.query(
       `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = 'stuck_timeout', claimed_by = NULL
        WHERE ${whereClause}
        RETURNING track_number`,
-      [projectId]
+      params
     );
     res.json({ reset: r.rows.map(r => r.track_number) });
   } catch (err) {
@@ -2454,8 +2965,9 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
     const { author = 'human', body } = req.body;
     if (!body) return res.status(400).json({ error: 'body is required' });
-    const VALID_AUTHORS = ['human', 'claude', 'gemini'];
-    const safeAuthor = VALID_AUTHORS.includes(author) ? author : 'human';
+    const VALID_AUTHORS = ['human', 'system', ...PROVIDER_IDS];
+    const normalizedAuthor = normalizeProviderId(author);
+    const safeAuthor = VALID_AUTHORS.includes(normalizedAuthor) ? normalizedAuthor : 'human';
 
     const trackRes = await pool.query(
       'SELECT id FROM tracks WHERE project_id = $1 AND track_number = $2',
@@ -2613,6 +3125,14 @@ app.patch('/track/:num/lane', collectorAuth, async (req, res) => {
       console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)
     );
 
+    // Track 1102 F15: a lane change needs the same sync-only dispatch
+    // bridge as /implement, or a drag-to-lane on a sync-only project sits
+    // in lane_action_status='queue' forever. 'done' sets lane_action_status
+    // to 'success', not 'queue' — nothing to dispatch in that case.
+    if (nextActionStatus === 'queue') {
+      await dispatchIfSyncOnly(projectId, req.params.num);
+    }
+
     res.json(r.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2630,6 +3150,10 @@ lane_action_result = NULL, last_updated_by = $4, last_heartbeat = NOW()
      WHERE project_id = $1 AND track_number = $2`,
       [projectId, req.params.num, lane_status, last_updated_by]
     );
+
+    // Track 1102 F15: same sync-only dispatch bridge as /implement and /lane.
+    await dispatchIfSyncOnly(projectId, req.params.num);
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2719,6 +3243,12 @@ app.post('/worker/register', async (req, res, next) => {
 }, async (req, res) => {
   try {
     const { hostname, pid, mode } = req.body;
+    // Normalize legacy ids (e.g. 'agy') here — this is the forward-migration
+    // point: every worker that registers stores the canonical provider id
+    // in the DB even if its local .laneconductor.json still has the old one.
+    const cli = req.body.cli ? normalizeProviderId(req.body.cli) : null;
+    const model = req.body.model || null;
+    const available_models = req.body.available_models ? JSON.stringify(req.body.available_models) : null;
     // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
     // pid changes on every restart, which under the old (project_id,
     // hostname, pid) key minted a brand-new row per restart and orphaned
@@ -2742,14 +3272,17 @@ app.post('/worker/register', async (req, res, next) => {
     if (type === 'manager') {
       const machine_token = randomUUID();
       const { rows: [{ id: workerId }] } = await pool.query(`
-        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, last_heartbeat)
-        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', NOW())
+        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, last_heartbeat)
+        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, NOW())
         ON CONFLICT (hostname) WHERE type = 'manager' DO UPDATE SET
         status = 'idle', pid = EXCLUDED.pid, user_uid = EXCLUDED.user_uid,
         mode = EXCLUDED.mode,
+        cli = COALESCE(EXCLUDED.cli, workers.cli),
+        model = COALESCE(EXCLUDED.model, workers.model),
+        available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
         last_heartbeat = NOW()
         RETURNING id
-      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
+      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
       broadcast('worker:updated', { projectId: null });
       return res.json({ ok: true, machine_token, id: workerId });
     }
@@ -2766,14 +3299,17 @@ app.post('/worker/register', async (req, res, next) => {
     }
 
     const { rows: [{ id: workerId }] } = await pool.query(`
-    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, last_heartbeat)
-    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, NOW())
+    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, last_heartbeat)
+    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, NOW())
     ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
     status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
+    cli = COALESCE(EXCLUDED.cli, workers.cli),
+    model = COALESCE(EXCLUDED.model, workers.model),
+    available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
     last_heartbeat = NOW()
     RETURNING id
-  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling']);
+  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
 
 
     broadcast('worker:updated', { projectId });
@@ -2789,9 +3325,28 @@ app.post('/worker/register', async (req, res, next) => {
 app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
-    const { hostname, pid, status, current_task, mode } = req.body;
+    const { hostname, pid, status, current_task, mode, model, available_models, worktrees } = req.body;
+    // Same forward-migration normalization as /worker/register — see its comment.
+    const cli = normalizeProviderId(req.body.cli);
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
-    const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
+    // Track 1102 F13: an explicit project_id in the BODY (including an
+    // explicit null, e.g. a manager's own heartbeat) must win over
+    // collectorAuth's auth-derived req.worker_project_id, not the other
+    // way around. Observed live: a manager co-located with a project in
+    // the same directory has no credential storage of its own --
+    // resolveCollectorToken() falls through to the project's own
+    // machine_token, so the manager authenticates AS that project's
+    // worker even though its own body correctly says project_id: null.
+    // The old `req.worker_project_id || body.project_id` precedence let
+    // that misattributed auth resolution silently win, corrupting the
+    // project worker's row with the manager's pid every heartbeat cycle.
+    // 'project_id' in req.body distinguishes "the body explicitly
+    // declared this (maybe null)" from "the body said nothing at all",
+    // where falling back to the auth-resolved value is still correct
+    // (the common case: a normal worker's own heartbeat).
+    const projectId = 'project_id' in req.body
+      ? (req.body.project_id ? parseInt(req.body.project_id) : null)
+      : req.worker_project_id;
     // pid is kept updated for liveness/informational purposes even though
     // worker_number (not pid) is the identity key — see /worker/register.
     const sets = ['last_heartbeat = NOW()', 'pid = $4'];
@@ -2800,19 +3355,80 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     if (status) { sets.push(`status = $${i++} `); params.push(status); }
     if (current_task !== undefined) { sets.push(`current_task = $${i++} `); params.push(current_task); }
     if (mode) { sets.push(`mode = $${i++} `); params.push(mode); }
+    if (cli !== undefined) { sets.push(`cli = $${i++} `); params.push(cli); }
+    if (model !== undefined) { sets.push(`model = $${i++} `); params.push(model); }
+    if (available_models !== undefined) { sets.push(`available_models = $${i++}`); params.push(JSON.stringify(available_models)); }
+    if (worktrees !== undefined) { sets.push(`worktrees = $${i++}`); params.push(JSON.stringify(worktrees)); }
     // Track 1091: IS NOT DISTINCT FROM, not `=` — a manager worker's
     // project_id is always NULL, and SQL's `NULL = NULL` is never true, so
     // a plain `=` silently matched zero rows for every manager heartbeat
     // (last_heartbeat never advanced past registration, so it aged out of
     // GET /api/workers' 60-second freshness window and the worker appeared
     // to vanish, even though the process was alive and heartbeating).
-    await pool.query(
+    const hb = await pool.query(
       `UPDATE workers SET ${sets.join(', ')}
       WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3`,
       params
     );
+    // Track 1102 F10: a heartbeat that matched no row must say so — the
+    // worker's error handler re-registers on 404. Returning ok:true here
+    // left a worker whose row had been deleted out from under it (see
+    // DELETE /worker's F10 note) heartbeating into the void forever:
+    // busy and running, but invisible in every workers list.
+    if (hb.rowCount === 0) {
+      return res.status(404).json({ error: 'worker not registered (no matching row) — re-register' });
+    }
     broadcast('worker:updated', { projectId });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1096: Worker CLI and Model selection endpoint
+app.patch('/api/workers/:id/config', requireAuth, async (req, res) => {
+  try {
+    const workerId = req.params.id;
+    const { model } = req.body;
+    // Normalize a legacy alias (e.g. 'agy') so a client that still sends
+    // it is accepted and canonicalized, not rejected.
+    const cli = req.body.cli != null ? normalizeProviderId(req.body.cli) : req.body.cli;
+
+    const VALID_CLIS = [...PROVIDER_IDS, 'other'];
+    if (cli !== undefined && cli !== null && !VALID_CLIS.includes(cli)) {
+      return res.status(400).json({ error: 'Invalid CLI engine' });
+    }
+
+    const workerRes = await pool.query('SELECT id, project_id, type FROM workers WHERE id = $1', [workerId]);
+    if (workerRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Worker not found' });
+    }
+    const worker = workerRes.rows[0];
+
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (cli !== undefined) { sets.push(`cli = $${i++}`); params.push(cli); }
+    if (model !== undefined) { sets.push(`model = $${i++}`); params.push(model); }
+
+    if (sets.length > 0) {
+      params.push(workerId);
+      await pool.query(
+        `UPDATE workers SET ${sets.join(', ')} WHERE id = $${i}`,
+        params
+      );
+    }
+
+    // Queue worker_dispatch action 'set_model' for worker heartbeat pickup
+    const payload = JSON.stringify({ cli, model });
+    await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, NULL, 'set_model', $2)`,
+      [workerId, payload]
+    );
+
+    broadcast('worker:updated', { projectId: worker.project_id });
+    res.json({ ok: true, worker_id: workerId, cli, model });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2822,9 +3438,19 @@ app.delete('/worker', collectorAuth, async (req, res) => {
     const { hostname } = req.body;
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     const projectId = req.worker_project_id || (req.body.project_id ? parseInt(req.body.project_id) : null);
-    // Same NULL-safe comparison as the heartbeat handler above.
+    // Track 1102 F10: SOFT de-registration — never DELETE the row.
+    // worker_dispatch.worker_id is ON DELETE CASCADE, so a hard delete
+    // erased the worker's entire dispatch history (the Activity panel's
+    // chat included). Observed live: two processes briefly shared one
+    // (project, hostname, worker_number) identity; the short-lived one's
+    // graceful shutdown deleted the shared row and cascaded away the
+    // survivor's in-flight dispatches and all chat history. A stable
+    // identity (track 1084) that a routine stop can destroy isn't stable.
+    // Marking offline preserves the row, its id, and everything attached;
+    // re-registration reuses it via the existing ON CONFLICT upsert.
     await pool.query(
-      'DELETE FROM workers WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3',
+      `UPDATE workers SET status = 'offline', last_heartbeat = NOW() - INTERVAL '10 minutes'
+        WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3`,
       [projectId, hostname, worker_number]
     );
     res.json({ ok: true });
@@ -2844,6 +3470,23 @@ app.get('/worker/:id/dispatch', collectorAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       "SELECT * FROM worker_dispatch WHERE worker_id = $1 AND status = 'pending' ORDER BY created_at ASC",
+      [req.params.id]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1110 Phase 6: a dispatch this worker itself claimed but never
+// reported the outcome of (its child process finished on its own after a
+// worker restart orphaned the exit handler that would have called PATCH
+// /worker-dispatch/:id). Startup reconciliation reads this to find
+// dispatches worth checking a track's worktree for completion evidence.
+app.get('/worker/:id/dispatch/claimed', collectorAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM worker_dispatch WHERE worker_id = $1 AND status = 'claimed' ORDER BY claimed_at ASC",
       [req.params.id]
     );
     res.json({ entries: rows });
@@ -2925,35 +3568,210 @@ app.get('/api/tracks/:id/dispatch', async (req, res) => {
   }
 });
 
-// UI-side: enqueue a project-scoped (deploy) dispatch entry — no track_number,
-// since deploy isn't tied to any one track's lane.
+// Track 1089: Provisioning targets CRUD
+app.get('/api/projects/:id/provision-targets', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM provision_targets WHERE project_id = $1 ORDER BY created_at ASC',
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    logger.error?.({ err }, '[api] Failed to list provision targets') || console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/projects/:id/provision-targets', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { host, label } = req.body;
+    if (!host || typeof host !== 'string' || !host.trim()) {
+      return res.status(400).json({ error: 'host is required' });
+    }
+    const userUid = req.user?.uid || null;
+    const result = await pool.query(
+      `INSERT INTO provision_targets (project_id, user_uid, host, label)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (project_id, host) DO UPDATE SET label = EXCLUDED.label
+       RETURNING *`,
+      [id, userUid, host.trim(), label?.trim() || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    logger.error?.({ err }, '[api] Failed to create provision target') || console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/projects/:id/provision-targets/:targetId', async (req, res) => {
+  try {
+    const { id, targetId } = req.params;
+    const result = await pool.query(
+      'DELETE FROM provision_targets WHERE id = $1 AND project_id = $2 RETURNING id',
+      [targetId, id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Target not found' });
+    }
+    res.json({ success: true, id: Number(targetId) });
+  } catch (err) {
+    logger.error?.({ err }, '[api] Failed to delete provision target') || console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UI-side: enqueue a project-scoped (deploy / provision) dispatch entry — no track_number,
+// since project-level actions aren't tied to any one track's lane.
 app.post('/api/projects/:id/dispatch', async (req, res) => {
   try {
-    const { worker_id, action, payload } = req.body;
+    let { worker_id, action, payload, track_number } = req.body;
+    if (!action) return res.status(400).json({ error: 'action is required' });
+
+    // Track 1112 D7: the "Merge to main" button doesn't make the client
+    // pick a worker — it resolves server-side, reusing 1084's
+    // resolveAssignee/resolvePinnedWorkers so the merge lands on whichever
+    // worker is already holding that track's session (continuity-first),
+    // falling back to any live worker for the project only when the
+    // assignee has none of their own (claimable-tracks' same zero-config
+    // fallback). A caller MAY still pass worker_id explicitly (tests, or a
+    // future "pick a worker" UI) — resolution only fires when it's absent.
+    // Track 1114: same auto-resolution as merge-worktree, extended to
+    // remove-worktree and auto-complete-track — none of these should make
+    // the client pick a worker. remove-worktree and refresh-worktrees are
+    // the exceptions to requiring a track_number: neither is scoped to a
+    // single track (a detached worktree has no track-* branch to resolve
+    // an assignee from; a cache refresh isn't track-scoped at all), so
+    // both always fall straight to "any live worker for the project."
+    // Track 10018: create-pr/merge-pr are the pr-mode siblings of
+    // merge-worktree — same worker-resolution treatment (a track-scoped
+    // git/gh operation, not something the client should be picking a
+    // worker for). ai-resolve-conflict (Track 1114) gets the same
+    // treatment for the same reason.
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'create-pr' || action === 'merge-pr' || action === 'ai-resolve-conflict') && !worker_id) {
+      const trackNumber = payload?.track_number;
+      if (action !== 'remove-worktree' && action !== 'refresh-worktrees' && !trackNumber) {
+        return res.status(400).json({ error: `payload.track_number is required for ${action}` });
+      }
+
+      const { rows: [project] } = await pool.query('SELECT owner_uid FROM projects WHERE id = $1', [req.params.id]);
+      if (!project) return res.status(404).json({ error: 'project not found' });
+
+      let resolvedWorkerId = null;
+      if (trackNumber) {
+        const { rows: [track] } = await pool.query(
+          'SELECT assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND track_number = $2',
+          [req.params.id, String(trackNumber)]
+        );
+        const assignee = track ? resolveAssignee(track, project) : null;
+        if (assignee) {
+          const own = await resolvePinnedWorkers(pool, req.params.id, assignee);
+          if (own.length > 0) resolvedWorkerId = own[0].id;
+        }
+      }
+      if (!resolvedWorkerId) {
+        // Track 1102 F18: a Playwright fixture worker (hostname
+        // 'pw-e2e-worker', pid 999999 — worker-identity.spec.js; or pid 0,
+        // hostname 'e2e-test-host' — track-1033-e2e.spec.js) heartbeating
+        // during a test run looks identical to a real worker to this
+        // query, and its low id (created early in that run) wins
+        // `ORDER BY id LIMIT 1` over every real worker. A phantom
+        // heartbeats but never polls a dispatch inbox, so the dispatch
+        // starves silently forever. pid 0 is never a real process (reserved
+        // for the kernel scheduler) and the 'pw-e2e-' hostname prefix is
+        // this codebase's own established fixture-naming convention —
+        // excluding both is safe for real remote-api workers, which use
+        // neither.
+        const { rows: any } = await pool.query(
+          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
+          [req.params.id]
+        );
+        resolvedWorkerId = any[0]?.id ?? null;
+      }
+      if (!resolvedWorkerId) return res.status(400).json({ error: `no worker available for this project to run ${action} on` });
+      worker_id = resolvedWorkerId;
+    }
+
     if (!worker_id || !action) return res.status(400).json({ error: 'worker_id and action are required' });
     if ((action === 'deploy' || action === 'build_and_deploy') && !payload?.environment) {
       return res.status(400).json({ error: 'payload.environment is required for deploy' });
     }
 
-    if (action === 'deploy' && (payload?.buildId || payload?.build_id)) {
-      const buildId = payload.buildId || payload.build_id;
-      const { rows: [proj] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
-      if (proj?.repo_path) {
-        const build = getBuildById(proj.repo_path, buildId);
-        if (!build) {
-          return res.status(404).json({ error: `Build artifact '${buildId}' not found` });
+    if (action === 'provision-worker') {
+      if (!payload?.target_host) {
+        return res.status(400).json({ error: 'payload.target_host is required for provision-worker' });
+      }
+      if (req.params.id && req.params.id !== 'null') {
+        const targetProjId = payload.target_project_id || req.params.id;
+        const { rows: targets } = await pool.query(
+          'SELECT id FROM provision_targets WHERE project_id = $1 AND host = $2',
+          [targetProjId, payload.target_host]
+        );
+        if (targets.length === 0) {
+          return res.status(400).json({ error: `target_host '${payload.target_host}' is not a registered provision target for project` });
         }
       }
     }
 
+    if (action === 'deploy' && (payload?.buildId || payload?.build_id)) {
+      const buildId = payload.buildId || payload.build_id;
+      if (req.params.id !== 'null') {
+        const { rows: [proj] } = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+        if (proj?.repo_path) {
+          const build = getBuildById(proj.repo_path, buildId);
+          if (!build) {
+            return res.status(404).json({ error: `Build artifact '${buildId}' not found` });
+          }
+        }
+      }
+    }
+
+    const trackNum = track_number || payload?.track_number || null;
+    const projId = req.params.id === 'null' || !req.params.id ? null : req.params.id;
+
     const { rows: [inserted], rowCount } = await pool.query(
       `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
        SELECT $1, $2, $3, $4
-       WHERE EXISTS (SELECT 1 FROM workers WHERE id = $1 AND project_id = $5)
+       WHERE EXISTS (
+         SELECT 1 FROM workers
+         WHERE id = $1
+           AND (project_id IS NOT DISTINCT FROM $5 OR (type = 'manager' AND $5 IS NULL) OR $3 = 'provision-worker')
+       )
        RETURNING id`,
-      [worker_id, null, action, payload ? JSON.stringify(payload) : null, req.params.id]
+      [worker_id, trackNum, action, payload ? JSON.stringify(payload) : null, projId]
     );
     if (rowCount === 0) return res.status(400).json({ error: 'worker does not belong to this project' });
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1114 follow-up: named convenience route for forcing a worktree
+// cache re-audit, so the Worktrees panel doesn't have to know the
+// underlying dispatch action name — thin wrapper over the same
+// worker-resolution + insert the generic /dispatch endpoint does for
+// refresh-worktrees, since this action is never track-scoped.
+app.post('/api/projects/:id/worktrees/refresh', async (req, res) => {
+  try {
+    // Track 1102 F18: same phantom-worker exclusion as the /dispatch
+    // fallback above — see that comment for the full explanation.
+    const { rows: any } = await pool.query(
+      `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+       AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
+      [req.params.id]
+    );
+    const workerId = any[0]?.id ?? null;
+    if (!workerId) return res.status(400).json({ error: 'no worker available for this project to refresh worktrees' });
+
+    const { rows: [inserted] } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, NULL, 'refresh-worktrees', NULL)
+       RETURNING id`,
+      [workerId]
+    );
     res.json({ ok: true, id: inserted.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2996,7 +3814,7 @@ app.post('/api/projects/:id/deploy', async (req, res) => {
 // project-scoped) — a manager worker's own project_id is null, so unlike
 // deploy/lane-action dispatch this can't validate the worker against an
 // existing :id in the URL. Restricted to type: 'manager' workers only.
-app.post('/api/dispatch/create-project', async (req, res) => {
+app.post('/api/dispatch/create-project', requireAuth, async (req, res) => {
   try {
     const { worker_id, payload } = req.body;
     if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
@@ -3020,10 +3838,54 @@ app.post('/api/dispatch/create-project', async (req, res) => {
   }
 });
 
+// Track 1089 Phase 6: provision-worker dispatch, restricted to type:
+// 'manager' workers — same reasoning as create-project just above. A
+// manager's project_id is always null, so the existing project-scoped
+// POST /api/projects/:id/dispatch can never validate it (that endpoint
+// requires the dispatched-to worker to belong to the given project).
+//
+// The chosen manager IS the machine choice: a manager is a machine-level
+// singleton, and it starts the worker locally on its own machine (no SSH
+// — see track 1089 index.md). It resolves the project folder itself from
+// its own --projects-dir, so no path is passed here.
+app.post('/api/dispatch/provision-worker', requireAuth, async (req, res) => {
+  try {
+    const { worker_id, payload } = req.body;
+    if (!worker_id) return res.status(400).json({ error: 'worker_id is required' });
+    if (!payload?.project_name) return res.status(400).json({ error: 'payload.project_name is required' });
+
+    const workerResult = await pool.query('SELECT id, type FROM workers WHERE id = $1', [worker_id]);
+    if (workerResult.rows.length === 0) return res.status(404).json({ error: 'worker not found' });
+    if (workerResult.rows[0].type !== 'manager') {
+      return res.status(400).json({ error: 'provision-worker dispatch requires a manager-type worker' });
+    }
+
+    let workerNumber = payload?.worker_number;
+    if (!workerNumber && payload?.project_id) {
+      const numRes = await pool.query(
+        "SELECT COALESCE(MAX(worker_number), 0) + 1 as next_num FROM workers WHERE project_id = $1",
+        [payload.project_id]
+      );
+      workerNumber = numRes.rows[0]?.next_num || 1;
+    }
+    const finalPayload = { ...payload, worker_number: workerNumber || 1 };
+
+    const { rows: [inserted] } = await pool.query(
+      `INSERT INTO worker_dispatch(worker_id, track_number, action, payload)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [worker_id, null, 'provision-worker', JSON.stringify(finalPayload)]
+    );
+    res.json({ ok: true, id: inserted.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Track 1091 Phase 4: poll a create-project dispatch's status/result. Global
 // like its POST counterpart above — a create-project dispatch has no
 // project to scope the URL to (that's the whole point of it).
-app.get('/api/dispatch/:dispatchId', async (req, res) => {
+app.get('/api/dispatch/:dispatchId', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
       'SELECT id, worker_id, action, status, result, created_at, claimed_at FROM worker_dispatch WHERE id = $1',
@@ -3048,6 +3910,57 @@ app.get('/api/projects/:id/dispatch', async (req, res) => {
        ORDER BY wd.created_at DESC
        LIMIT 20`,
       [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1087 Phase 8: a worker's own chat turns, so the Activity panel can
+// restore the conversation after a page refresh. The turns were always
+// persisted (prompt in payload.prompt, reply in result) — the panel just
+// had no way to read them back. Worker-scoped rather than project-scoped
+// like GET /api/projects/:id/dispatch above, which mixes in deploys and
+// can't address a manager worker at all (its project_id is null).
+// Returned oldest-first so the client can render them straight down as a
+// conversation.
+app.get('/api/workers/:id/chat-history', requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const workerId = parseInt(req.params.id);
+
+    // Remote mode: a chat transcript is private content, so scope it the
+    // same way GET /api/workers scopes the worker list — own workers, or
+    // ones explicitly shared with this user. Without this, any signed-in
+    // user could read any other user's worker conversations by id.
+    // AUTH_ENABLED is false in local single-user mode, where this is moot.
+    if (AUTH_ENABLED) {
+      const uid = req.user?.uid || null;
+      const { rows: allowed } = await pool.query(
+        `SELECT 1 FROM workers w
+          WHERE w.id = $1 AND (
+            w.visibility = 'public'
+            OR w.user_uid = $2
+            OR w.user_uid IS NULL
+            OR (w.visibility = 'team' AND EXISTS (
+                  SELECT 1 FROM worker_permissions wp
+                   WHERE wp.worker_id = w.id AND wp.user_uid = $2))
+          )`,
+        [workerId, uid]
+      );
+      if (allowed.length === 0) return res.status(404).json({ error: 'worker not found' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT * FROM (
+         SELECT id, worker_id, track_number, action, payload, status, result, created_at
+         FROM worker_dispatch
+         WHERE worker_id = $1 AND action IN ('worker_adhoc_chat', 'track_chat')
+         ORDER BY created_at DESC
+         LIMIT $2
+       ) recent ORDER BY created_at ASC`,
+      [workerId, limit]
     );
     res.json(rows);
   } catch (err) {
@@ -3556,6 +4469,25 @@ if (process.env.NODE_ENV !== 'test') {
     // console.log('[LaneConductor API] Auth: configured via auth module');
     // ensureGitGlobalId() is removed or needs an explicit project DB poll if needed, better skip for now since it's collector specific
     console.log(`[LaneConductor API] http://localhost:${PORT}/api/health`);
+
+    // Track 10019 (REQ-6): one-line startup provenance — this server has
+    // no cwd-derived state of its own to correct (S13: per-project ops use
+    // `repo_path` from the DB, not process.cwd()), but it inherits
+    // whatever cwd its launcher passed (the Makefile's UI_DIR / lc api
+    // start's uiDir — both now resolve to the primary per REQ-2/REQ-4).
+    // Logged so a future incident's first question ("which checkout is
+    // this actually serving?") has an answer without /proc archaeology.
+    try {
+      const servingRoot = process.cwd();
+      const isPrimary = resolvePrimaryRepoRoot(servingRoot) === servingRoot;
+      const provenanceMsg = isPrimary
+        ? `[LaneConductor API] Serving from ${servingRoot} (primary checkout).`
+        : `[LaneConductor API] ⚠️  Serving from ${servingRoot} — this is NOT the primary checkout.`;
+      console.log(provenanceMsg);
+      logger.info({ servingRoot, isPrimary }, provenanceMsg);
+    } catch {
+      // Not inside a git repo (e.g. a stripped deployment) — nothing to report.
+    }
   });
 }
 

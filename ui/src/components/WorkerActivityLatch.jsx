@@ -4,6 +4,7 @@ import { DeployLogView } from './DeployLogView.jsx';
 import { CreateProjectDispatchView } from './CreateProjectDispatchView.jsx';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
+import { isWorkerOffline } from '../lib/workerStatus.js';
 import { useApi } from '../hooks/useApi.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 
@@ -19,17 +20,16 @@ import { useWebSocket } from '../hooks/useWebSocket.js';
 // right content pane (structured transcript vs. raw deploy log) instead
 // of just falling through to "idle".
 
-const WORKER_OFFLINE_MS = 60_000;
 
-function isWorkerOffline(worker) {
-  if (!worker?.last_heartbeat) return true;
-  return Date.now() - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
-}
-
-export function WorkerActivityLatch({ workers, projectId, onClose }) {
+export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack }) {
   const { apiFetch } = useApi();
   const [selectedWorkerId, setSelectedWorkerId] = useState(null);
   const [transcriptState, setTranscriptState] = useState(() => createTranscriptState());
+  const [chatInput, setChatInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState(null);
+  const [rawLog, setRawLog] = useState(null);
+  const [chatTurns, setChatTurns] = useState([]);
   const transcriptEndRef = useRef(null);
 
   const selectedWorker = workers.find(w => w.id === selectedWorkerId) ?? null;
@@ -40,13 +40,44 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
   // scoped) — fall back to the currently selected project in that case.
   const selectedProjectId = selectedWorker?.project_id ?? projectId;
 
+  const handleSelectWorker = (workerId) => {
+    setSelectedWorkerId(workerId);
+    setChatInput('');
+    setSendError(null);
+    setChatTurns([]);
+  };
+
+  // Chat turns live in worker_dispatch, not just in this component's state —
+  // so they survive a page refresh. Re-read them whenever a worker is
+  // selected, otherwise the conversation only appears to exist until the
+  // next reload.
+  useEffect(() => {
+    if (!selectedWorkerId) return;
+    let cancelled = false;
+    apiFetch(`/api/workers/${selectedWorkerId}/chat-history`)
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => {
+        if (cancelled || !Array.isArray(rows)) return;
+        setChatTurns(rows.map(r => ({
+          id: r.id,
+          prompt: r.payload?.prompt ?? '(prompt unavailable)',
+          status: r.status,
+          reply: r.result,
+        })));
+      })
+      .catch(() => { });
+    return () => { cancelled = true; };
+  }, [selectedWorkerId]);
+
   useEffect(() => {
     setTranscriptState(createTranscriptState());
+    setRawLog(null);
     if (!selectedProjectId || !selectedTrackNumber) return;
     apiFetch(`/api/projects/${selectedProjectId}/tracks/${selectedTrackNumber}/transcript`)
-      .then(r => r.ok ? r.json() : { events: [] })
-      .then(({ events }) => {
+      .then(r => r.ok ? r.json() : { events: [], rawLog: null })
+      .then(({ events, rawLog }) => {
         setTranscriptState((events || []).reduce(reduceStreamEvent, createTranscriptState()));
+        setRawLog(rawLog || null);
       })
       .catch(() => { });
   }, [selectedProjectId, selectedTrackNumber]);
@@ -61,6 +92,89 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcriptState]);
+
+  const handleSendChat = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !selectedWorker || isSending) return;
+    setIsSending(true);
+    setSendError(null);
+
+    try {
+      const action = selectedTask?.kind === 'track' ? 'track_chat' : 'worker_adhoc_chat';
+      const body = {
+        worker_id: selectedWorker.id,
+        action,
+        track_number: selectedTrackNumber,
+        payload: {
+          prompt: chatInput.trim(),
+          track_number: selectedTrackNumber
+        }
+      };
+
+      const res = await apiFetch(`/api/projects/${selectedProjectId}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch chat prompt');
+
+      // Track 1087 Phase 8: show the turn locally and poll for the reply.
+      // The worker reports the CLI's answer as the dispatch `result`; without
+      // this the message just vanished into the void — the panel had no way
+      // to surface an answer at all, which is what made the chat bar look
+      // broken even after the worker-side handler existed.
+      const sent = chatInput.trim();
+      setChatInput('');
+      setChatTurns(prev => [...prev, { id: data.id, prompt: sent, status: 'pending', reply: null }]);
+      pollChatReply(data.id);
+    } catch (err) {
+      setSendError(err.message);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const pollChatReply = (dispatchId) => {
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const r = await apiFetch(`/api/dispatch/${dispatchId}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.status !== 'pending' && d.status !== 'claimed') {
+            clearInterval(interval);
+            setChatTurns(prev => prev.map(t =>
+              t.id === dispatchId ? { ...t, status: d.status, reply: d.result } : t
+            ));
+            return;
+          }
+        }
+      } catch { /* transient — retry next tick */ }
+
+      if (attempts >= 120) { // chat turns can legitimately run for minutes
+        clearInterval(interval);
+        setChatTurns(prev => prev.map(t =>
+          t.id === dispatchId ? { ...t, status: 'timeout', reply: 'Still running — check the worker\'s transcript.' } : t
+        ));
+      }
+    }, 1000);
+  };
+
+  const formatWorkerName = (w) => {
+    if (!w) return '';
+    const explicitName = w.name || w.worker_name;
+    if (explicitName) {
+      return `${explicitName} (${w.hostname}${w.worker_number ? ` #${w.worker_number}` : ''})`;
+    }
+    const workerNum = w.worker_number ? ` #${w.worker_number}` : '';
+    const project = w.type === 'manager' ? ' · MANAGER' : (w.project_name ? ` · ${w.project_name}` : '');
+    return `${w.hostname}${workerNum}${project}`;
+  };
+
+  const workerDisplayName = formatWorkerName(selectedWorker);
 
   return (
     <>
@@ -79,23 +193,26 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
               workers.map(w => {
                 const task = parseWorkerTask(w.current_task);
                 const offline = isWorkerOffline(w);
+                const wName = formatWorkerName(w);
                 return (
                   <button
                     key={w.id}
-                    onClick={() => setSelectedWorkerId(w.id)}
+                    onClick={() => handleSelectWorker(w.id)}
                     className={`w-full text-left px-4 py-2.5 border-b border-gray-900 text-xs transition-colors ${selectedWorkerId === w.id ? 'bg-gray-800' : 'hover:bg-gray-900'
                       }`}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${offline ? 'bg-gray-600' : w.status === 'busy' ? 'bg-orange-400' : 'bg-green-500'
-                          }`}
-                      />
-                      <span className="font-medium text-gray-300 truncate">
-                        {w.hostname}{w.project_name ? ` · ${w.project_name}` : ''}
-                      </span>
+                    <div className="flex items-center gap-1.5 justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${offline ? 'bg-gray-600' : w.status === 'busy' ? 'bg-orange-400' : 'bg-green-500'
+                            }`}
+                        />
+                        <span className="font-medium text-gray-300 truncate">
+                          {wName}
+                        </span>
+                      </div>
                       {w.type === 'manager' && (
-                        <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-emerald-900/40 text-emerald-400 border-emerald-800/50 shrink-0">
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-1 py-0.2 rounded border bg-purple-900/50 text-purple-300 border-purple-700/60 shrink-0 ml-1" data-testid="manager-badge">
                           MANAGER
                         </span>
                       )}
@@ -116,28 +233,97 @@ export function WorkerActivityLatch({ workers, projectId, onClose }) {
           </div>
         </div>
 
-        {/* Selected worker's live activity */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {!selectedWorker ? (
-            <p className="text-gray-600 text-sm italic pt-4">Select a worker to see its live activity.</p>
-          ) : selectedTask?.kind === 'track' ? (
-            <>
-              <div className="text-xs text-gray-500 mb-3">Track #{selectedTask.trackNumber}</div>
-              <TranscriptView blocks={transcriptState.blocks} />
-              <div ref={transcriptEndRef} />
-            </>
-          ) : selectedTask?.kind === 'deploy' ? (
-            <>
-              <div className="text-xs text-gray-500 mb-3">Deploy — dispatch #{selectedTask.dispatchId}</div>
-              <DeployLogView projectId={selectedProjectId} dispatchId={selectedTask.dispatchId} />
-            </>
-          ) : selectedTask?.kind === 'create-project' ? (
-            <>
-              <div className="text-xs text-gray-500 mb-3">Create Project — dispatch #{selectedTask.dispatchId}</div>
-              <CreateProjectDispatchView dispatchId={selectedTask.dispatchId} />
-            </>
-          ) : (
-            <p className="text-gray-600 text-sm italic pt-4">{selectedWorker.hostname} is idle.</p>
+        {/* Selected worker's live activity & interactive chat */}
+        <div className="flex-1 flex flex-col min-w-0 h-full">
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {!selectedWorker ? (
+              <p className="text-gray-600 text-sm italic pt-4">Select a worker to see its live activity.</p>
+            ) : selectedTask?.kind === 'track' ? (
+              <>
+                <div className="text-xs text-gray-500 mb-3 font-mono">
+                  {workerDisplayName} ·{' '}
+                  {onSelectTrack ? (
+                    <button
+                      onClick={() => onSelectTrack(selectedProjectId, selectedTask.trackNumber)}
+                      className="text-blue-400 hover:text-blue-300 hover:underline"
+                      title="Open this track"
+                    >
+                      Track #{selectedTask.trackNumber} ↗
+                    </button>
+                  ) : (
+                    <>Track #{selectedTask.trackNumber}</>
+                  )}
+                </div>
+                {transcriptState.blocks.length > 0 ? (
+                  <TranscriptView blocks={transcriptState.blocks} />
+                ) : rawLog ? (
+                  <pre className="text-xs font-mono bg-black/30 p-3 rounded border border-gray-800 text-gray-300 whitespace-pre-wrap max-h-[500px] overflow-y-auto">
+                    {rawLog}
+                  </pre>
+                ) : (
+                  <p className="text-gray-600 text-sm italic pt-4">No transcript yet.</p>
+                )}
+                <div ref={transcriptEndRef} />
+              </>
+            ) : selectedTask?.kind === 'deploy' ? (
+              <>
+                <div className="text-xs text-gray-500 mb-3 font-mono">
+                  {workerDisplayName} · Deploy — dispatch #{selectedTask.dispatchId}
+                </div>
+                <DeployLogView projectId={selectedProjectId} dispatchId={selectedTask.dispatchId} />
+              </>
+            ) : (
+              <p className="text-gray-600 text-sm italic pt-4">{workerDisplayName} is idle.</p>
+            )}
+
+            {/* Track 1087 Phase 8: chat turns sent from the bar below. */}
+            {chatTurns.length > 0 && (
+              <div className="mt-4 space-y-3 border-t border-gray-800 pt-4">
+                {chatTurns.map(turn => (
+                  <div key={turn.id} className="space-y-1.5">
+                    <div className="text-xs text-blue-300 bg-blue-950/30 border border-blue-900/40 rounded-lg px-3 py-2">
+                      {turn.prompt}
+                    </div>
+                    {turn.status === 'pending' ? (
+                      <p className="text-[11px] text-gray-500 italic pl-1">thinking…</p>
+                    ) : (
+                      <pre className={`text-[11px] font-mono whitespace-pre-wrap leading-relaxed border rounded-lg px-3 py-2 ${turn.status === 'done'
+                        ? 'text-gray-300 bg-gray-900 border-gray-800'
+                        : 'text-red-300 bg-red-950/30 border-red-900/50'
+                        }`}>
+                        {turn.reply || '(no reply)'}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Phase 8: Direct Worker Interactive Chat Bar */}
+          {selectedWorker && (
+            <div className="p-3 border-t border-gray-800 bg-gray-900/50 shrink-0">
+              <form onSubmit={handleSendChat} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder={`Send prompt to ${workerDisplayName}...`}
+                  disabled={isSending || isWorkerOffline(selectedWorker)}
+                  className="flex-1 bg-gray-950 border border-gray-800 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim() || isSending || isWorkerOffline(selectedWorker)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 text-white rounded text-xs font-medium transition-colors shrink-0"
+                >
+                  {isSending ? 'Sending...' : 'Send'}
+                </button>
+              </form>
+              {sendError && (
+                <p className="text-red-400 text-xs mt-1.5">{sendError}</p>
+              )}
+            </div>
           )}
         </div>
       </div>

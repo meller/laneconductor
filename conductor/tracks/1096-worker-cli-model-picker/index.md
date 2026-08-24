@@ -1,9 +1,9 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: backlog
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New — reported, not yet investigated or planned
+**Lane**: plan
+**Lane Status**: running
+**Progress**: 100%
+**Phase**: Plan refined — spec.md updated with Phase 6 provider-switch confirmation requirement; ready for implement
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -23,10 +23,27 @@ no UI path to:
 2. Change an *existing* worker's model assignment afterward, without
    editing `.laneconductor.json` directly and restarting the worker.
 
-Not yet investigated: how per-lane model overrides (`workflow.json`'s
-`primary_model` per lane) interact with a worker-level default, and
-whether "worker's model" should mean the whole worker's default or
-something that can vary in-flight.
+## Plan Checklist
+
+### Phase 1: Database Migration & API Server Support
+- [ ] Task 1.1: Create database migration adding `cli` and `model` columns to `workers` table.
+- [ ] Task 1.2: Update `POST /worker/register` and `PATCH /worker/heartbeat` in `ui/server/index.mjs` to receive, validate, and store `cli` and `model`.
+- [ ] Task 1.3: Update `GET /api/workers` and `GET /api/projects/:id/workers` queries in `ui/server/index.mjs` to include `w.cli` and `w.model`.
+- [ ] Task 1.4: Implement `PATCH /api/workers/:id/config` endpoint in `ui/server/index.mjs` to update worker config and dispatch `set_model` action to `worker_dispatch`.
+
+### Phase 2: Worker Daemon Sync Engine
+- [ ] Task 2.1: Update worker heartbeat payload in `conductor/laneconductor.sync.mjs` to include CLI engine name and active model.
+- [ ] Task 2.2: Add dispatch action handler for `set_model` in `conductor/laneconductor.sync.mjs` to update in-memory active model without process restart.
+
+### Phase 3: UI Components & Model Picker Modal
+- [ ] Task 3.1: Create `WorkerModelSelectorModal.jsx` component offering selectable model options per provider (Claude, Gemini, Copilot, Antigravity) + custom model text input.
+- [ ] Task 3.2: Update `WorkersList.jsx` card (grid) and pill (strip) layouts to render CLI icon/badge and model tag.
+- [ ] Task 3.3: Add "Change Model" button to worker cards in `WorkersList.jsx` to launch `WorkerModelSelectorModal`.
+- [ ] Task 3.4: Connect modal submit to `PATCH /api/workers/:id/config` with WebSocket refresh broadcast.
+
+### Phase 4: Integration Testing & Verification
+- [ ] Task 4.1: Write integration test suite `ui/server/tests/track-1096-worker-model-picker.test.mjs` testing register, heartbeat, patch config, and GET worker routes.
+- [ ] Task 4.2: Perform browser verification of Workers View model selector UI and live state updates.
 
 ## Depends on
 

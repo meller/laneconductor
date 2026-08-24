@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -91,7 +91,9 @@ describe('Track 1091 Phase 3: create-project dispatch handler', () => {
 
     managerWorker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', '--manager'], {
       cwd: MANAGER_DIR,
-      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1' },
+      // Track 1110 Phase 2: the manager identity lock is machine-global —
+      // see track-1091-manager-worker.test.mjs's identical note.
+      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     managerWorker.stdout.on('data', d => process.stdout.write(`[manager] ${d}`));
@@ -165,6 +167,24 @@ describe('Track 1091 Phase 3: create-project dispatch handler', () => {
     assert.equal(state.workers.length, 2);
     assert.equal(state.workers[0].type, 'manager');
     assert.notEqual(state.workers[1].type, 'manager');
+    // sync-only is the intended default for a newly created project: it
+    // syncs and serves manual UI actions (via the dispatch inbox, which
+    // checkDispatchInbox polls regardless of mode) without opting the
+    // project into the fully automatic queue-claiming workflow. Asserted
+    // so a future change to `lc worker start`'s default is a deliberate
+    // decision rather than a silent one.
+    assert.equal(state.workers[1].mode, 'sync-only');
+
+    // Track 1102 F7: the new project must be a git repo WITH a commit.
+    // spawnCli takes a git lock and runs `git worktree add ... HEAD`
+    // before every lane action, so without this the first plan dies with
+    // "not a git repository" and the project is one where no lane action
+    // can ever run. `git init` alone is insufficient — worktree add fails
+    // with "invalid reference: HEAD" until something is committed.
+    const gitDir = join(TARGET_DIR, '.git');
+    assert.ok(existsSync(gitDir), 'created project should be a git repository');
+    const head = execSync('git rev-parse HEAD', { cwd: TARGET_DIR, encoding: 'utf8' }).trim();
+    assert.match(head, /^[0-9a-f]{7,40}$/, 'created project should have an initial commit');
 
     process.kill(newPid); // cleanup — this test's own spawned process tree
 

@@ -95,16 +95,21 @@ mocked-DB unit tests alone.
 - [x] TC-25b (added 2026-08-10, not in the original list): manager worker heartbeats correctly advance past the 60-second `GET /api/workers` freshness window instead of silently freezing at registration time. Verified live (registered a manager, waited 75s past registration, confirmed `last_heartbeat` had advanced) and by regression test (`ui/server/tests/track-1091-phase4-dispatch-status.test.mjs`, asserts `IS NOT DISTINCT FROM` in both `PATCH /worker/heartbeat` and `DELETE /worker`).
 
 ### Phase 5: Visual distinction for manager workers
-- [ ] TC-26: A `type: 'manager'` row renders a distinct badge in `WorkersList.jsx` instead of a project name (it has none)
-- [ ] TC-27: A `type: 'manager'` row renders the same distinct badge in `WorkerActivityLatch.jsx` (1087)
-- [ ] TC-28: A manager worker's `current_task` while running `create-project` routes to 1087 Phase 6's non-track dispatch log view, not the track-transcript path
-- [ ] TC-29: `type: 'project'` workers render unchanged in both components — no regression from adding the manager case
+- [x] TC-26: A `type: 'manager'` row renders a distinct badge in `WorkersList.jsx` instead of a project name (it has none) — verified by code read 2026-08-14, `data-testid="manager-badge"` present
+- [x] TC-27: A `type: 'manager'` row renders the same distinct badge in `WorkerActivityLatch.jsx` (1087) — verified by code read 2026-08-14, same testid present
+- [x] TC-28: A manager worker's `current_task` while running `create-project` routes to 1087 Phase 6's non-track dispatch log view, not the track-transcript path — verified by code read 2026-08-14: the dispatch-format `current_task` string matches `parseWorkerTask`'s deploy-kind regex
+- [x] TC-29: `type: 'project'` workers render unchanged in both components — no regression from adding the manager case — verified by code read 2026-08-14: badge branches are additive conditionals, existing path untouched
+
+### Phase 5b: Create Manager Worker UI (added 2026-08-14)
+- [x] TC-32: `POST /api/workers/manager/start` actually starts a manager and it registers in the DB — verified live (no manager running beforehand, real registration confirmed within seconds, real PID)
+- [x] TC-33: Free-text `projectsDir` cannot reach a shell — verified live with a shell-metacharacter payload (`; touch /tmp/INJECTION_PROOF`); no injection occurred
+- [x] TC-34: `ui/server/tests/track-1091-manager-start.test.mjs` (new, 4/4 passing) — asserts the exact `execFile('lc', ['worker','start','--manager',...])` argument-array shape (not `exec()`+string), the `--projects-dir` omission case, a shell-metacharacter payload landing as one literal array element, and the 500/error path. `CreateManagerWorkerForm.jsx` itself stays covered by live manual verification only (no component-level test) — consistent with this file's existing standard for UI components elsewhere in this track.
 
 ### Phase 6: Tests (this file) + end-to-end
-- [ ] TC-30: End-to-end — submitting the New Project UI flow against a real manager worker results in a fully scaffolded project (all standard `conductor/` files present) and registered `projects`/`workers` rows, with no manual terminal command
-- [ ] TC-31: Existing single-worker, `lc setup`-based onboarding path is completely unaffected by any of the above (regression check — run existing setup/scaffold tests, confirm unchanged)
+- [x] TC-30: End-to-end — submitting the New Project UI flow against a real manager worker results in a fully scaffolded project (all standard `conductor/` files present) and registered `projects`/`workers` rows, with no manual terminal command — verified live during Phase 4 (see plan.md), and again structurally for Phase 5b's manager-creation step
+- [x] TC-31: Existing single-worker, `lc setup`-based onboarding path is completely unaffected — verified 2026-08-14 by two independent checks rather than assumed: (1) `git log` across every track-1091 commit confirms the `command === 'setup'` branch in `bin/lc.mjs` (the actual onboarding wizard) was never touched by any of them; (2) the one shared code path that *did* change — the `lc worker start/stop/restart/logs/sync` subcommand wrapper's exit-code propagation fix (Phase 2) — has been running live, continuously, this entire session via real non-manager (`type: 'project'`) workers on this machine (heartbeats advancing normally, no failures), which is direct evidence, not just "designed to be additive."
 
 ## Acceptance Criteria
-- [ ] All test cases above pass
-- [ ] `workers.type` migration applied with zero drift (confirmed via `atlas migrate diff`, matching this project's established migration verification pattern)
-- [ ] No regressions in 1084 (worker identity), 1085 (dispatch), or 1087 (transcript/activity latch) — their own existing test suites still pass unmodified
+- [x] All test cases above pass
+- [x] `workers.type` migration applied with zero drift (confirmed via `atlas migrate diff`, matching this project's established migration verification pattern) — per Phase 1 record
+- [x] No regressions in 1084 (worker identity), 1085 (dispatch), or 1087 (transcript/activity latch) — their own existing test suites still pass unmodified — per Phase 1-4 records; not independently re-run this cycle

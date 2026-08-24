@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
+import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
+import { useApi } from '../hooks/useApi';
+import { mergeKey, createPrKey, mergePrKey } from '../lib/worktreePendingKeys.js';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -12,12 +15,18 @@ const LANE_STYLES = {
 
 const NEXT_LANE = {
   plan: 'implement',
-  backlog: 'implement',
+  // Track 1102 F19 (hit live on track 10019): this was 'implement',
+  // making the ONLY one-click path out of backlog skip the plan lane
+  // entirely — one click dispatched a real implement agent against a
+  // track with no plan.md/spec.md/test.md at all. Backlog's next stop is
+  // planning; implement is reachable from plan once the plan succeeds.
+  backlog: 'plan',
   implement: 'review',
   review: 'done',
 };
 
 const NEXT_LANE_LABEL = {
+  plan: 'Plan',
   implement: 'Start',
   review: 'Review lane',
   'quality-gate': 'Quality Gate',
@@ -123,17 +132,23 @@ function AssigneeWorkerStatusBadge({ status }) {
 
 // ── Agent badge ───────────────────────────────────────────────────────────────
 
-const AGENT_LABELS = {
-  claude: { label: 'Claude', color: 'bg-orange-900 text-orange-300' },
-  gemini: { label: 'Gemini', color: 'bg-blue-900 text-blue-300' },
-  other: { label: 'AI', color: 'bg-gray-800 text-gray-400' },
+// Color per provider is a presentation detail, not registry data — label
+// and icon come from the shared registry so Copilot/Antigravity get a real
+// badge instead of falling through to the generic "AI" label.
+const AGENT_COLORS = {
+  claude: 'bg-orange-900 text-orange-300',
+  gemini: 'bg-blue-900 text-blue-300',
+  copilot: 'bg-emerald-900 text-emerald-300',
+  antigravity: 'bg-purple-900 text-purple-300',
 };
+const AGENT_FALLBACK_COLOR = 'bg-gray-800 text-gray-400';
 
 function AgentBadge({ agent }) {
-  const style = AGENT_LABELS[agent] ?? AGENT_LABELS.other;
+  const id = normalizeProviderId(agent);
+  const color = AGENT_COLORS[id] || AGENT_FALLBACK_COLOR;
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${style.color}`}>
-      {style.label}
+    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${color}`}>
+      {providerLabel(id)}
     </span>
   );
 }
@@ -156,6 +171,221 @@ function TrackTypeBadge({ trackType }) {
       {style.label}
     </span>
   );
+}
+
+// ── Branch indicator (Track 10018 Phase 10) ──────────────────────────────────
+//
+// Direct human feedback: cards only ever showed lane/progress — nothing
+// told you whether a track is on its own branch or still on `main`. Shown
+// on every lane, not gated to `done` like UnmergedBadge — the "what am I
+// working on" question applies from `plan` onward, since a branch only
+// exists from `implement` onward (and, once track 1115's main-direct
+// workspace mode ships, not even always then). `worktree_branch` is null
+// for exactly those cases (see GET /api/projects/:id/tracks) — falls
+// through to "main" here, which is already correct today and needs no
+// change once 1115 ships.
+function BranchIndicator({ branch }) {
+  const label = branch || 'main';
+  return (
+    <span
+      className="text-[10px] font-mono text-gray-600 truncate max-w-[8rem]"
+      title={branch ? `Working on branch ${branch}` : 'No branch yet — working on main'}
+    >
+      ⌥ {label}
+    </span>
+  );
+}
+
+// ── Unmerged-branch badge (Track 10018) ──────────────────────────────────────
+//
+// A track at lane_status='done' means the lane ACTION finished — it does not
+// mean the code shipped. worktree_class (see GET /api/projects/:id/tracks,
+// cross-referenced against the same live worktree data the Worktrees panel
+// uses) is null exactly when there's no live unmerged branch left for this
+// track — either it never had one, or it's already fully merged. Anything
+// else means "still sitting unmerged," regardless of whether that's a plain
+// direct-mode mergeable/stranded/conflicted branch or a pr-mode PR still
+// awaiting approval — this card is not the full truth without it.
+const UNMERGED_BADGE = {
+  mergeable: { label: 'Unmerged', icon: '⏳', color: 'bg-gray-800 text-gray-400 border-gray-700' },
+  stranded: { label: 'Unmerged', icon: '🔴', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  conflicted: { label: 'Conflict', icon: '⚠️', color: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
+  open: { label: 'Unmerged', icon: '⏳', color: 'bg-gray-800 text-gray-400 border-gray-700' },
+};
+const UNMERGED_PR_BADGE = {
+  open: { label: 'PR open', icon: '🔵', color: 'bg-blue-950/40 text-blue-300 border-blue-800/80' },
+  'checks-failed': { label: 'PR checks failed', icon: '❌', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  conflicted: { label: 'PR conflict', icon: '🟠', color: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
+  closed: { label: 'PR closed', icon: '🚫', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+  merged: { label: 'Merging…', icon: '✅', color: 'bg-green-950/40 text-green-300 border-green-800/80' },
+  error: { label: 'PR failed to open', icon: '⚠️', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
+};
+
+function UnmergedBadge({ worktreeClass, prStatus, prUrl }) {
+  if (!worktreeClass) return null; // no live unmerged branch — this really is done
+  const style = worktreeClass === 'pr-open'
+    ? (UNMERGED_PR_BADGE[prStatus] ?? UNMERGED_PR_BADGE.open)
+    : (UNMERGED_BADGE[worktreeClass] ?? UNMERGED_BADGE.open);
+
+  const content = (
+    <span
+      className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${style.color}`}
+      title={worktreeClass === 'pr-open'
+        ? 'This track is marked done, but its PR has not merged yet — see the Worktrees panel'
+        : 'This track is marked done, but its branch has not merged into main yet — see the Worktrees panel'}
+    >
+      <span>{style.icon}</span>
+      <span>{style.label}</span>
+    </span>
+  );
+
+  return worktreeClass === 'pr-open' && prUrl ? (
+    <a href={prUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
+      {content}
+    </a>
+  ) : content;
+}
+
+// ── Done-lane merge/PR actions (Track 10018 Phase 9) ─────────────────────────
+//
+// Direct human feedback on Phase 7's read-only badge: "status and the
+// action for it should be in the same place" — acting on an unmerged
+// done-lane card shouldn't require leaving it to find the same track's row
+// in the Worktrees panel. Reuses the exact same dispatch actions
+// (merge-worktree/create-pr/merge-pr) and gating WorktreesPanel.jsx already
+// has for a matching class, so the two surfaces never disagree about what's
+// safe to click — no new backend work.
+//
+// Click behavior deliberately matches the PANEL'S ACTUAL code, not plan.md
+// Phase 9 Task 1's "armed-confirm" wording verbatim: WorktreeRow's own
+// "Merge to main"/"Create PR" buttons are single-click (no arming) — only
+// "Merge PR" is armed two-click there. Matching the real panel behavior is
+// what "never disagree about what's safe to click" actually requires;
+// mirrored here exactly rather than following the plan text over the code.
+const PENDING_TIMEOUT_MS = 3 * 60 * 1000;
+const CARD_ACTION_BTN = 'text-[9px] px-1.5 py-0.5 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+function DoneLaneMergeActions({ projectId, track }) {
+  const { apiFetch } = useApi();
+  const [pendingKey, setPendingKey] = useState(null);
+  const [armed, setArmed] = useState(false);
+  const pendingTimerRef = useRef(null);
+  const armTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    clearTimeout(pendingTimerRef.current);
+    clearTimeout(armTimerRef.current);
+  }, []);
+
+  const worktreeClass = track.worktree_class;
+  if (!worktreeClass) return null;
+
+  // Same identity-key pattern worktreePendingKeys.js uses for the panel's
+  // own pending state — card-scoped (this component's own local state, not
+  // shared React state with the panel), but keyed identically so the two
+  // surfaces are never contradictory about which underlying dispatch a
+  // pending state refers to.
+  const row = { track: track.track_number };
+  const isPrOpen = worktreeClass === 'pr-open';
+  const canMerge = worktreeClass === 'mergeable' || worktreeClass === 'stranded';
+  const isConflicted = worktreeClass === 'conflicted';
+  const canCreatePr = isPrOpen && !track.worktree_pr_number;
+  const canMergePr = isPrOpen && track.worktree_pr_number && track.worktree_pr_status === 'open';
+  const busy = pendingKey !== null;
+
+  async function dispatch(action, key) {
+    setPendingKey(key);
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+        method: 'POST',
+        body: JSON.stringify({ action, payload: { track_number: track.track_number } }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+    } catch (err) {
+      console.error(`[TrackCard] Failed to dispatch ${action} for #${track.track_number}:`, err.message);
+    }
+    clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = setTimeout(() => setPendingKey(null), PENDING_TIMEOUT_MS);
+  }
+
+  if (canMerge) {
+    const key = mergeKey(row);
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); dispatch('merge-worktree', key); }}
+        disabled={busy}
+        data-testid="card-merge-to-main-btn"
+        title="Merge this track's branch into main"
+        className={`${CARD_ACTION_BTN} border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40`}
+      >
+        {pendingKey === key ? 'Merging…' : 'Merge to main'}
+      </button>
+    );
+  }
+
+  if (isConflicted) {
+    return (
+      <span
+        className={`${CARD_ACTION_BTN} border-gray-800 text-gray-600 cursor-not-allowed`}
+        title="This branch conflicts with main — resolve manually (lc worktrees merge for details)"
+      >
+        Merge to main
+      </span>
+    );
+  }
+
+  if (canCreatePr) {
+    const key = createPrKey(row);
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); dispatch('create-pr', key); }}
+        disabled={busy}
+        data-testid="card-create-pr-btn"
+        title={track.worktree_pr_status === 'error' ? 'A previous attempt to open a PR failed — retry' : 'Push this branch and open a PR for review'}
+        className={`${CARD_ACTION_BTN} border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40`}
+      >
+        {pendingKey === key ? 'Opening…' : 'Create PR'}
+      </button>
+    );
+  }
+
+  if (canMergePr) {
+    const key = mergePrKey(row);
+    return (
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          clearTimeout(armTimerRef.current);
+          if (armed) {
+            setArmed(false);
+            dispatch('merge-pr', key);
+          } else {
+            setArmed(true);
+            armTimerRef.current = setTimeout(() => setArmed(false), 4000);
+          }
+        }}
+        disabled={busy}
+        data-testid="card-merge-pr-btn"
+        title="Merges PR through GitHub (gh pr merge) — branch protection and required checks still apply"
+        className={`${CARD_ACTION_BTN} ${armed ? 'border-green-500 bg-green-800/60 text-white' : 'border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40'}`}
+      >
+        {pendingKey === key ? 'Merging…' : armed ? 'Click again to merge PR' : 'Merge PR'}
+      </button>
+    );
+  }
+
+  if (isPrOpen) {
+    return (
+      <span
+        className={`${CARD_ACTION_BTN} border-gray-800 text-gray-600 cursor-not-allowed`}
+        title={track.worktree_pr_status === 'merged' ? 'PR merged — cleanup runs on the next reconcile pass' : 'Resolve on GitHub before this can merge (checks failing, conflicts, or closed unmerged)'}
+      >
+        Merge PR
+      </span>
+    );
+  }
+
+  return null;
 }
 
 // ── KPI window countdown ─────────────────────────────────────────────────────
@@ -221,8 +451,15 @@ function KpiProgressBar({ kpiActual, kpiTarget }) {
 
 // ── TrackCard ─────────────────────────────────────────────────────────────────
 
-export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
+export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
   const styles = LANE_STYLES[track.lane_status] ?? LANE_STYLES.backlog;
+  // Track 10018 Phase 9: GET /api/projects/:id/tracks doesn't select
+  // t.project_id (single-project scoped response, so every row already
+  // implies the project) — same fallback App.jsx's own handlers already
+  // use everywhere else (track.project_id ?? selectedProjectId), needed
+  // here because DoneLaneMergeActions makes its own direct API calls
+  // rather than delegating to an App-level handler.
+  const resolvedProjectId = track.project_id ?? projectId;
 
   let nextLane = NEXT_LANE[track.lane_status];
   // Logic for Quality Gate detour
@@ -243,6 +480,15 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
   const showNextBtn = nextLane && track.lane_status !== 'done';
   const nextBtnDisabled = track.lane_status === 'plan' && track.lane_action_status !== 'success';
+  // Track 1102 F2: the gating above is correct (don't let a plan-lane track
+  // advance until its plan actually succeeded) — only the tooltip was wrong,
+  // unconditionally claiming "in progress" for queue/failure states too,
+  // where nothing is running.
+  const nextBtnDisabledReason = track.lane_action_status === 'failure' || track.lane_action_status === 'failed'
+    ? 'Plan failed — fix and re-run before advancing'
+    : track.lane_action_status === 'running'
+      ? 'Plan in progress...'
+      : 'Plan is queued — run it before advancing';
 
   return (
     <div
@@ -250,6 +496,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
       draggable
       onDragStart={startDrag}
       onClick={onClick}
+      data-testid="track-card"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
@@ -262,6 +509,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
               </span>
             )}
             <TrackTypeBadge trackType={track.track_type} />
+            <BranchIndicator branch={track.worktree_branch} />
             {(track.human_needs_reply || track.unreplied_count > 0) && (
               <span
                 className={`flex items-center gap-0.5 text-[10px] px-1 rounded ${track.human_needs_reply ? 'bg-amber-900/40 text-amber-400 border border-amber-800/40' : 'bg-blue-900/40 text-blue-400 border border-blue-800/40'
@@ -280,6 +528,16 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}>
             {track.lane_status}
           </span>
+          {track.lane_status === 'done' && track.worktree_class && (
+            <div className="flex items-center gap-1">
+              <UnmergedBadge
+                worktreeClass={track.worktree_class}
+                prStatus={track.worktree_pr_status}
+                prUrl={track.worktree_pr_url}
+              />
+              <DoneLaneMergeActions projectId={resolvedProjectId} track={track} />
+            </div>
+          )}
           <AssigneeWorkerStatusBadge status={track.assignee_worker_status} />
           {track.retry_count > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 bg-red-950/40 text-red-500 border border-red-900/40 rounded leading-none" title="Automated retries since last human message">
@@ -291,9 +549,11 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
       {/* Progress bar */}
       <div className="space-y-1">
-        <div className="flex justify-between text-xs text-gray-500">
-          <span>{track.current_phase ?? 'No active phase'}</span>
-          <span>{track.progress_percent ?? 0}%</span>
+        <div className="flex justify-between gap-2 text-xs text-gray-500">
+          <span className="truncate min-w-0" title={track.current_phase ?? undefined}>
+            {track.current_phase ?? 'No active phase'}
+          </span>
+          <span className="shrink-0">{track.progress_percent ?? 0}%</span>
         </div>
         <div className="w-full bg-gray-800 rounded-full h-1.5">
           <div
@@ -405,7 +665,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
 
           {/* Dev server button — visible on review and in-progress lanes */}
           {(track.lane_status === 'review' || track.lane_status === 'implement') && (
-            <DevServerButton projectId={track.project_id} devUrl={track.dev_url} />
+            <DevServerButton projectId={resolvedProjectId} devUrl={track.dev_url} />
           )}
 
           <div className="flex items-center gap-1 shrink-0">
@@ -437,7 +697,14 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                 Fix
               </button>
             )}
-            {['plan', 'implement', 'review', 'quality-gate'].includes(track.lane_status) && track.lane_action_status === 'success' && (
+            {/* Track 1102 F2/F5: the run control used to render ONLY on
+                lane_action_status === 'success' — so a fresh track
+                (queue) or a failed one had no way to be started from the
+                UI at all, while a pulsing "Plan" indicator claimed work
+                was happening. Now: runnable when queued/failed/succeeded;
+                only an actually-running action hides it. */}
+            {['plan', 'implement', 'review', 'quality-gate'].includes(track.lane_status)
+              && ['success', 'queue', 'failure', 'failed'].includes(track.lane_action_status) && (
               <button
                 disabled={launching}
                 onClick={async e => {
@@ -448,14 +715,18 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                 }}
                 className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border transition-colors ${launching
                   ? 'border-blue-800 text-blue-400 bg-blue-900/30 cursor-default'
-                  : 'border-gray-700 text-gray-400 hover:bg-gray-800'
+                  : track.lane_action_status === 'success'
+                    ? 'border-gray-700 text-gray-400 hover:bg-gray-800'
+                    : 'border-blue-800/70 text-blue-400 hover:bg-blue-900/30'
                   }`}
-                title={`Re-run ${track.lane_status} action for this track`}
+                title={track.lane_action_status === 'success'
+                  ? `Re-run ${track.lane_status} action for this track`
+                  : `Run ${track.lane_status} action for this track`}
               >
-                {launching ? '⏳' : '↺'}
+                {launching ? '⏳' : track.lane_action_status === 'success' ? '↺' : '▶'}
               </button>
             )}
-            {track.lane_status === 'plan' && track.lane_action_status !== 'success' && (
+            {track.lane_status === 'plan' && track.lane_action_status === 'running' && (
               <span className="flex items-center gap-1 text-[10px] text-indigo-400 animate-pulse whitespace-nowrap">
                 <span>⚡</span><span>Plan</span>
               </span>
@@ -468,7 +739,7 @@ export function TrackCard({ track, onClick, onLaneChange, onFixReview, onRerunIm
                   ? 'border-gray-800 text-gray-600 bg-gray-950 cursor-not-allowed'
                   : 'border-blue-800/70 text-blue-400 hover:bg-blue-900/30'
                   }`}
-                title={nextBtnDisabled ? 'Plan in progress...' : `Move this card to the ${NEXT_LANE_LABEL[nextLane]} lane`}
+                title={nextBtnDisabled ? nextBtnDisabledReason : `Move this card to the ${NEXT_LANE_LABEL[nextLane]} lane`}
               >
                 →
               </button>

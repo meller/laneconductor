@@ -27,3 +27,55 @@ export function parseNewJsonlLines(content, previousOffset = 0) {
   }
   return { events, newOffset };
 }
+
+// Track 1086 (conversation-gap fix, 2026-08-12): pull the run's closing
+// assistant message out of a full stream-json log, so conversation.md can
+// carry the actual response instead of only "PASS (exit 0)". The LAST
+// non-empty assistant text block is the one that matters — it's the
+// closing summary; earlier blocks are working narration. Returns null for
+// logs with no assistant text at all (non-claude CLIs, empty/killed runs),
+// letting the caller fall back to the terse line alone.
+export function extractFinalAssistantText(logContent, maxChars = 2000) {
+  if (!logContent) return null;
+  let final = null;
+  for (const line of logContent.split('\n')) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e?.type !== 'assistant') continue;
+    for (const c of e.message?.content ?? []) {
+      if (c?.type === 'text' && typeof c.text === 'string' && c.text.trim()) {
+        final = c.text.trim();
+      }
+    }
+  }
+  if (final === null) return null;
+  if (final.length > maxChars) {
+    final = final.slice(0, maxChars) + `\n[truncated — full transcript in the track's log]`;
+  }
+  return final;
+}
+
+// Track 10020: a dispatched lane action can end its turn on a genuine
+// blocking question (e.g. "should I apply this DB migration?") instead of
+// finishing the work — the CLI harness records this as a `post_turn_summary`
+// system event with `status_category: 'blocked'`, but nothing previously
+// read that event. Left alone, the question sits stranded in the raw
+// transcript: it's never posted to conversation.md/track_comments (the only
+// path a human reply flows through), and the Inbox's bucket logic — driven
+// entirely by track_comments — confidently classifies the track as
+// "awaiting_ai" (nothing needed from you) when a human decision is actually
+// pending. The LAST post_turn_summary is the one that matters, mirroring
+// extractFinalAssistantText's same "most recent wins" reasoning above.
+export function extractBlockedQuestion(logContent) {
+  if (!logContent) return null;
+  let blocked = null;
+  for (const line of logContent.split('\n')) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e?.type !== 'system' || e?.subtype !== 'post_turn_summary') continue;
+    blocked = e.status_category === 'blocked' ? (e.status_detail || '').trim() || null : null;
+  }
+  return blocked;
+}

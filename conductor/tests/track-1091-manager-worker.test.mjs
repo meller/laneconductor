@@ -77,7 +77,14 @@ describe('Track 1091 Phase 2: --manager worker registration', () => {
 
     worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', '--manager'], {
       cwd: TMP,
-      env: { ...process.env, LC_SKIP_GIT_LOCK: '1' },
+      // Track 1110 Phase 2: the manager identity lock is machine-global
+      // (matching the real workers_one_manager_per_host DB constraint),
+      // so it correctly refuses to start a second manager if a real one
+      // is already running on the developer's machine — which it may
+      // well be, independent of this test. LC_SKIP_WORKER_LOCK is this
+      // test's own isolated manager instance, not the thing under test
+      // here (manager registration behavior), so it opts out.
+      env: { ...process.env, LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     worker.stdout.on('data', d => process.stdout.write(`[manager-worker] ${d}`));

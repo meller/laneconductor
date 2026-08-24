@@ -28,6 +28,7 @@ export const LaneAliases = {
   'planning': Lanes.PLAN,
   'in-progress': Lanes.IMPLEMENT,
   'implementing': Lanes.IMPLEMENT,
+  'complete': Lanes.DONE,
   'completed': Lanes.DONE,
   'success': Lanes.DONE
 };
@@ -37,5 +38,8 @@ export const LaneAliases = {
  */
 export const ActionStatusAliases = {
   'waiting': LaneActionStatus.QUEUE,
-  'done': LaneActionStatus.SUCCESS
+  'idle': LaneActionStatus.QUEUE,
+  'done': LaneActionStatus.SUCCESS,
+  'complete': LaneActionStatus.SUCCESS,
+  'completed': LaneActionStatus.SUCCESS
 };
