@@ -74,7 +74,7 @@ API endpoint, no worker join, no third transcript mechanism.
 - [x] Phase 4: Real-browser Playwright verification + no-backend-surface check
 **Lane**: done
 **Lane Status**: success
-**Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no new API or worker join.
+**Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no…
 **PR Number**: 8
 **PR URL**: https://github.com/meller/laneconductor/pull/8
-**PR Status**: open
+**PR Status**: conflicted

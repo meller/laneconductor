@@ -1,8 +1,8 @@
 # Track 1106: End-to-end walkthrough — CLI (lc)
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 100%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
 **Summary**: Run the complete "nothing → a track planned" path purely through the lc CLI in a terminal. Sibling of 1104 (UI) and 1105 (skill); all three must reach the same end state.

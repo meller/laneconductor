@@ -14,3 +14,6 @@ To be defined.
 **Lane**: done
 **Lane Status**: success
 **Summary**: we need to make sure that when a track action (converastion, or end of plan implementation, review, qualitty gate) ends inbox get populated to notify user a succefull end of action or if he needs to…
+**PR Number**: 9
+**PR URL**: https://github.com/meller/laneconductor/pull/9
+**PR Status**: merged

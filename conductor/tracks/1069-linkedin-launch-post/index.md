@@ -1,7 +1,7 @@
 # Track 1069: LinkedIn Launch Post
 
 **Lane**: done
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: 2026-05-07
 **Lane Status**: success
 **Progress**: 100%
 **Phase**: KPI Window — waiting 72h

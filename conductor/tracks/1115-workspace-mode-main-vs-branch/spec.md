@@ -116,14 +116,44 @@ branch."
 
 ### D3 — Type-derived default: bug → main, feature → branch
 
-When no marker is present, the track's existing `**Type**` supplies the
-default. The New Track modal already has this selector (feature vs `⚠ Bug`),
-so track creation needs no new UI surface.
+When no marker is present, the track's bug/feature classification supplies
+the default. The New Track modal already has this selector (feature vs
+`⚠ Bug`), so track creation needs no new UI surface.
 
 Rationale: features are larger and benefit from isolation; bugs are small
 fixes where worktree overhead dominates. Per D1 this default only takes
 effect for manually-dispatched runs — an auto-claimed bug track still gets a
 branch.
+
+**Correction found during implementation (2026-08-24, superseding this
+D3's original wording and REQ-6 below):** "the track's existing `**Type**`"
+above was wrong — `**Type**` in index.md holds `dev|marketing|sales|
+support|other` (parsed by the pre-existing `parseTrackType()`), a
+completely different axis from the New Track modal's bug/feature selector.
+Nothing durably persisted bug-vs-feature anywhere before this track; the
+modal's choice was consumed once by `trackTemplates()` to pick a doc
+template and then discarded.
+
+This mattered more than a naming mixup. REQ-6's original text had
+`trackTemplates()` write the *resolved workspace mode* directly —
+`**Workspace**: main` for bug, `**Workspace**: branch` for feature — as
+the only way to make the classification durable. But `**Workspace**` is
+also the field D1's row 2 treats as an unconditional, human-authority
+override. Baking the type-derived default into that same field at
+creation time makes every UI-created bug track's marker **indistinguishable
+from a human's deliberate choice**, so D1's row 3 (auto-queue overrides the
+*inferred* default, never an explicit one) would silently never apply to
+the common case — the exact safety property D1 exists for, defeated by its
+own default-setting path.
+
+**Fix:** a new, narrow marker, `**Track Kind**: bug` (omitted for
+`feature`, matching `**Type**`'s sparse-emission convention), parsed by
+`parseTrackKind()` in `workspace-mode.mjs`. `trackTemplates()` writes
+*this*, never `**Workspace**`, so D5 row 4 keeps deriving the default
+dynamically at resolve time — preserving the marker-vs-inferred
+distinction row 3 depends on. `**Track Kind**` is deliberately narrow:
+it exists only to feed D5 row 4 and is not a general track classification
+other code should read.
 
 ### D4 — Project default: `project.workspace_mode`
 
@@ -227,6 +257,25 @@ WIP into a track commit.
   failure, and burning retries on it would block the track permanently while
   a human has unrelated files open.
 
+**Correction found during implementation (2026-08-24):** the guard as
+originally specified — "any dirty path outside the track's own folder" —
+blocked **every** `plan`-lane spawn in **any** normal worker deployment,
+confirmed by 7 existing E2E tests failing after this guard was added
+(`track-1102-f9-index-producer.test.mjs` and 6 others). Root cause: since
+D6 makes `plan` always resolve to `'main'`, the guard runs on every single
+plan dispatch — and the worker's **own runtime bookkeeping**
+(`conductor/.sync.pid`, `.sync.lock-target`, `.worker.tokens.json`,
+`conductor/tracks-metadata.json` — all dotfiles/state living directly
+under `conductor/`, written by the worker itself as part of ordinary
+operation) is legitimately dirty essentially all the time. That's not
+"unrelated human WIP" a commit could accidentally sweep in — it's the
+worker's own operational state — so it's now exempted the same as the
+track's own folder: any dirty path matching `conductor/\.[^/]+$` (a
+top-level dotfile directly under `conductor/`) or exactly
+`conductor/tracks-metadata.json`. Real human/agent content —
+`conductor/workflow.json`, other tracks' folders under
+`conductor/tracks/`, anything else — still disqualifies as before.
+
 ---
 
 ## Requirements
@@ -267,16 +316,28 @@ WIP into a track commit.
 - **REQ-5**: `finishAutoCompleteWithMerge()` skips `mergeWorktreeBranch()`
   for main-mode tracks and reports success (D8), rather than surfacing
   `reason: 'no-branch'` as a failure.
-- **REQ-6**: `ui/server/utils.mjs`'s `trackTemplates()` emits
-  `**Workspace**: main` for the `bug` type and `**Workspace**: branch` for
-  `feature`, alongside the existing type line.
+- **REQ-6** (corrected per D3's implementation-time fix above):
+  `ui/server/utils.mjs`'s `trackTemplates()` emits `**Track Kind**: bug` for
+  the `bug` type (omitted for `feature`), alongside the existing type line —
+  **not** `**Workspace**` directly, which would collapse the type-derived
+  default into an unconditional override and defeat D1's row 3.
 - **REQ-7**: `lc new` accepts `--workspace main|branch`, validated against
   that set, writing the marker into the generated `index.md`.
-- **REQ-8**: `/laneconductor plan` classifies bug-vs-feature when
-  `**Workspace**` is absent, writes the resulting marker to `index.md`, and
-  records its reasoning in `conversation.md` as a `> **system**:` comment
-  (using the required comment format — plain prose silently fails to sync),
-  so a wrong guess is visible and overridable rather than silent.
+- **REQ-8** (corrected during implementation, same reasoning as REQ-6's
+  fix): `/laneconductor plan` classifies bug-vs-feature when **both**
+  `**Workspace**` and `**Track Kind**` are absent, and writes
+  `**Track Kind**: bug|feature` to `index.md` — **not** `**Workspace**`
+  directly. The same collapse-into-an-unconditional-override problem
+  applies here: plan runs before every lane action (D6), so if it wrote
+  `**Workspace**` directly, an inferred classification would become
+  indistinguishable from a deliberate human override before implement ever
+  ran, permanently defeating D1's row 3 for every track that reaches plan
+  without a marker already set — which, after this track ships, is nearly
+  all of them. Writing `**Track Kind**` instead keeps the classification
+  feeding D5 row 4 dynamically, exactly like `trackTemplates()`'s REQ-6
+  path. Records its reasoning in `conversation.md` as a `> **system**:`
+  comment (using the required comment format — plain prose silently fails
+  to sync), so a wrong guess is visible and overridable rather than silent.
 - **REQ-9**: Main-mode tracks never appear in the Worktrees panel, and the
   lazy-worktree change (D7) does not regress branch-mode tracks. Locked by
   test, not by new code (D9).
