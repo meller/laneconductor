@@ -14,6 +14,10 @@ node --test conductor/tests/local-fs-e2e.test.mjs
 # Project-wide regression check (existing gates must still pass)
 node --test conductor/tests/track-1109-claim-allowlist.test.mjs
 node --test conductor/tests/local-api-e2e.test.mjs
+
+# Phase 7: real subprocess E2E — real worker + real ui/server/index.mjs
+# + real Postgres (throwaway project, cleaned up in after())
+node --test conductor/tests/track-10017-auto-run-phase7-e2e.test.mjs
 ```
 
 ## Test Cases
@@ -52,6 +56,23 @@ node --test conductor/tests/local-api-e2e.test.mjs
       `queue` (not `running`).
 - [x] TC-10: Same track with `**Auto Run**: yes` added — the next poll cycle
       spawns the CLI action and `**Lane Status**` transitions to `running`.
+
+### Feature: Phase 7 — real endpoint + Complete & Merge integration
+- [x] TC-11: Real subprocess E2E (`track-10017-auto-run-phase7-e2e.test.mjs`)
+      — a queued track with no `**Auto Run**` marker is untouched by a real
+      worker; `PATCH .../auto-run` against the real, Postgres-backed
+      `ui/server/index.mjs` sets `tracks.auto_run = true` and writes
+      `**Auto Run**: yes` into `index.md` via `syncTrackToFile`; the same
+      real worker's next poll cycle picks it up and runs `implement → review`
+      to completion.
+- [x] TC-12: Complete & Merge's tooltip contains the required confirmation
+      wording ("This will send the track to an automatic worker to complete
+      it — is that OK?") — verified live via Playwright (`el.getAttribute('title')`).
+- [x] TC-13: Confirming Complete & Merge (two-step armed button) sets
+      `tracks.auto_run = true` in the real DB and creates a real
+      `worker_dispatch` row with `action: 'auto-complete-track'` — verified
+      by querying the real DB directly after the click, not just observing
+      the UI's optimistic "Running…" state.
 
 ## Acceptance Criteria
 - [x] All existing claim-scope / assignee-gate / auto-launch tests still
