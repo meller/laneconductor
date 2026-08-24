@@ -1,8 +1,8 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 60%
+**Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Phase 4 — write up the wiki UI guide (blocked: track 1103 hasn't established the wiki location yet); Phase 5 blocked on track 1100's fast tier being green
 **Type**: dev
