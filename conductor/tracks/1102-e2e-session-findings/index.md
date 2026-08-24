@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 76%
+**Progress**: 82%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Implementing Phase 15a — E2E dispatch bridge test on the existing worker harness (unblocked, no live-system access needed)
+**Phase**: 14 of 17 phases done. Phase 15a (F15 real E2E) fixed and mutation-verified; found a second F22 drift instance along the way. Remaining: Phase 13 (F10c live-DB apply, blocked on Phase 16), Phase 16 (F22 — merge main, re-timestamp, apply), Phase 15b (browser drag gesture, needs consent)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -633,7 +633,7 @@ transcript) was considered and deferred — the Transcript tab already
 serves that need better than a raw tail would for Claude specifically;
 non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 
-### F15 — F5's dispatch bridge only covers `/implement`; drag-to-lane and reset still strand sync-only projects 🔴 CONFIRMED & FIXED (unit-tested, not live E2E)
+### F15 — F5's dispatch bridge only covers `/implement`; drag-to-lane and reset still strand sync-only projects 🔴 CONFIRMED & FIXED (real E2E via 15a; browser gesture (15b) still pending)
 Found 2026-08-15 while diagnosing why track 10011 sat at `lane_action_status:
 'queue'` indefinitely after being dragged to the Implement lane (root cause
 of *that* specific incident turned out to be unrelated — the real
@@ -669,11 +669,18 @@ dispatch when a sync+poll worker exists, does not dispatch on a move to
 `done`). Watched all 5 fail for the right reason (no `worker_dispatch`
 insert) before restoring the production code, then watched them pass.
 
-**Not proven live** the way F5 was (no real drag-and-drop against a real
-sync-only project, watching a `worker_dispatch` row appear and get
-claimed) — confirmed via unit tests exercising the same code path F5's
-tests already trust, not a live E2E walkthrough. Worth a live pass if this
-resurfaces.
+**Proven end-to-end 2026-08-20 (Phase 15a)** — not via a browser drag, but
+via the real mechanism: `conductor/tests/track-1102-f15-lane-dispatch-e2e.test.mjs`
+spawns a real `ui/server/index.mjs` (against the scratch `laneconductor_dev`
+DB, not mocked) and a real sync-only worker, sends the actual `PATCH
+/track/:num/lane` and `/track/:num/reset` requests, and watches a real
+`worker_dispatch` row get created and claimed — plus a negative case
+confirming a `sync+poll` worker correctly suppresses the bridge. Each of
+the 3 assertions independently mutation-verified against the real
+production code. This is a genuine E2E of the mechanism the fix claims;
+what's still missing is only the **browser drag gesture itself** (15b) —
+a materially smaller, cosmetic gap now, not "confirmed by unit test
+alone."
 
 ### F16 — Worker identity lock silently stopped protecting against duplicates when cwd wasn't the primary checkout 🔴 CONFIRMED & FIXED
 Found live (2026-08-17) chasing a "can't delete worktree from the UI"
@@ -1086,6 +1093,20 @@ Fix directions:
   canonical for new schema work, since having both undocumented is what
   made the first read of this land on the wrong conclusion.
 
+**A second, independent instance found 2026-08-20 (Phase 15a)**, same
+session: standing up `laneconductor_dev`'s schema fresh from
+`prisma/schema.sql` to build F15's E2E test produced a `projects` table
+**missing a `UNIQUE` constraint on `repo_path`** that real migrations on
+main have added — `POST /project/ensure`'s `ON CONFLICT (repo_path)`
+silently no-ops instead of erroring, so every worker registration failed
+with a confusing, unrelated-looking `"project_id is required"`. Same root
+cause as the FK issue (this branch's `prisma/schema.sql` doesn't reflect
+main's 196 commits of migrations), different symptom, found independently
+while doing unrelated work — evidence this isn't a one-off, it's what this
+file being stale actually costs in practice. Worked around on the scratch
+DB directly (`ALTER TABLE projects ADD CONSTRAINT ... UNIQUE (repo_path)`)
+without touching `schema.sql`, which stays in scope for Phase 16.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
@@ -1138,7 +1159,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
 - [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL`. Migration written + scratch-DB tested, but **the live DB's FK is still CASCADE** — the fix does nothing in production yet. Blocked on Phase 16 (not on permission alone, as previously reported). See F22
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
-- [ ] Phase 15a: F15 — E2E through the real dispatch chain (temp project, real spawned worker, real dispatch claim) on the harness F8/F9/F12/F21 already use. **Unblocked** — the previous "needs permission" framing over-scoped the blocker
+- [x] Phase 15a: F15 — real E2E of the dispatch bridge (real spawned API server + real DB + real worker, not the lightweight mock-collector.mjs). Fixed and mutation-verified; found a second F22 drift instance along the way
 - [ ] Phase 15b: F15 — the browser drag *gesture* on the real board. Still needs an explicit go-ahead or a disposable scratch project; deliberately split so 15a isn't held hostage to it
 - [ ] Phase 16: F22 — make the F10c migration actually applicable: merge main (196 commits behind), re-timestamp above the live high-water mark, regenerate `atlas.sum`, dry-run on scratch, then apply
 
