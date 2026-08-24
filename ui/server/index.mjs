@@ -478,6 +478,12 @@ app.post('/api/projects/:id/workers/start-new', async (req, res) => {
     const args = ['start', '--worker-number', String(nextNumber)];
     if (req.body?.cli) args.push('--cli', String(req.body.cli));
     if (req.body?.model) args.push('--model', String(req.body.model));
+    // Track 10017 Phase 7: the Complete & Merge auto-provision path needs a
+    // worker that actually polls the queue — `lc start` defaults to
+    // sync-only (see bin/lc.mjs), which never claims a track regardless of
+    // auto_run. Opt-in only; every other caller of this endpoint keeps
+    // today's sync-only default.
+    if (req.body?.sync_and_work) args.push('--sync-and-work');
 
     const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
     res.json({ ok: true, worker_number: nextNumber, stdout, stderr });
@@ -618,7 +624,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
-              t.assignee_uid, t.created_by_uid, t.waiting_for_reply, p.owner_uid,
+              t.assignee_uid, t.created_by_uid, t.waiting_for_reply, t.auto_run, p.owner_uid,
               t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
@@ -1297,7 +1303,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              active_cli, assignee_uid, created_by_uid
+              active_cli, assignee_uid, created_by_uid, auto_run
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1329,6 +1335,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       last_log_tail: t.last_log_tail,
       assignee_uid: t.assignee_uid, // Track 1084
       created_by_uid: t.created_by_uid, // Track 1084
+      auto_run: t.auto_run, // Track 10017
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1514,6 +1521,21 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         /^\*\*Progress\*\*:\s*.+$/m,
         `**Progress**: ${progressStr}`
       ) || (`**Progress**: ${progressStr}\n` + content);
+    }
+
+    // Track 10017: **Auto Run** is absent by default (REQ-1) — unlike the
+    // fields above, which always already exist in a scaffolded index.md, this
+    // marker frequently needs to be added rather than replaced, so this uses
+    // an explicit test/replace-or-append instead of the `replace() || fallback`
+    // pattern above (that pattern never appends: String.replace() returns the
+    // unchanged, still-truthy string on a no-match, so the `||` branch never
+    // fires — harmless for markers guaranteed present, wrong for one that isn't).
+    if (updates.auto_run !== undefined) {
+      const autoRunStr = updates.auto_run ? 'yes' : 'no';
+      const autoRunRe = /^\*\*Auto Run\*\*:\s*.+$/m;
+      content = autoRunRe.test(content)
+        ? content.replace(autoRunRe, `**Auto Run**: ${autoRunStr}`)
+        : content.trim() + `\n**Auto Run**: ${autoRunStr}\n`;
     }
 
     // Track 10018: only write a marker when a value was actually set — a
@@ -2330,7 +2352,7 @@ app.post('/track', collectorAuth, async (req, res) => {
       track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-      waiting_for_reply,
+      waiting_for_reply, auto_run,
       // Track 10018: per-track merge mode marker (null = unspecified, kept
       // distinct from 'pr' so resolveMergeMode's default stays overridable)
       merge_mode,
@@ -2415,7 +2437,10 @@ app.post('/track', collectorAuth, async (req, res) => {
       // $27: waiting_for_reply — authoritative per sync (raw, possibly null so
       // ON CONFLICT can distinguish "explicitly set" from "omitted")
       waiting_for_reply === undefined ? null : waiting_for_reply,
-      // $28: merge_mode — raw (possibly null/absent from the file), COALESCEd
+      // $28: auto_run — same raw-nullable pattern as waiting_for_reply, so a
+      // partial sync payload never clobbers an existing value with false
+      auto_run === undefined ? null : auto_run,
+      // $29: merge_mode — raw (possibly null/absent from the file), COALESCEd
       // below so an unspecified file never clobbers an explicit DB value
       // (e.g. one set via the track detail panel's toggle).
       merge_mode ?? null,
@@ -2428,9 +2453,9 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply, merge_mode)
+       waiting_for_reply, auto_run, merge_mode)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), $28)
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2459,6 +2484,7 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
       kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
       waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
+      auto_run           = COALESCE($28, tracks.auto_run),
       merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode)
     RETURNING id
   `, params);
@@ -4322,6 +4348,34 @@ app.patch('/api/projects/:id/tracks/:num/assignee', async (req, res) => {
       [assignee_uid, req.params.id, req.params.num]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10017: toggle whether a non-sync-only worker's auto-launch loop may
+// claim this track from the queue. Unlike assignee_uid (DB-only — resolved
+// server-side at claim time), auto_run is read by the worker straight out of
+// index.md (see isTrackClaimable in claim-scope.mjs), so this also syncs the
+// **Auto Run** marker back to file via syncTrackToFile so the worker's next
+// poll cycle sees the change without a manual file edit (REQ-4).
+app.patch('/api/projects/:id/tracks/:num/auto-run', async (req, res) => {
+  try {
+    const { auto_run } = req.body;
+    if (typeof auto_run !== 'boolean') {
+      return res.status(400).json({ error: 'auto_run must be a boolean' });
+    }
+    const { rowCount } = await pool.query(
+      'UPDATE tracks SET auto_run = $1 WHERE project_id = $2 AND track_number = $3',
+      [auto_run, req.params.id, req.params.num]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    // syncTrackToFile catches its own errors and never rejects — awaited here
+    // (unlike the fire-and-forget usage elsewhere) so the response only
+    // returns once the **Auto Run** marker write has actually settled.
+    await syncTrackToFile(req.params.id, req.params.num, { auto_run });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
   } catch (err) {

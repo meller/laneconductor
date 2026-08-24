@@ -116,6 +116,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // Track 1084 Phase 4: assignee control
   const [members, setMembers] = useState([]);
   const [assigneeSaving, setAssigneeSaving] = useState(false);
+  // Track 10017: auto-run toggle
+  const [autoRunSaving, setAutoRunSaving] = useState(false);
   const [mergeModeSaving, setMergeModeSaving] = useState(false);
   // Track 1085 Phase 4: manual dispatch — "Run on worker" control + history
   const [projectWorkers, setProjectWorkers] = useState([]);
@@ -223,6 +225,20 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       if (r.ok) fetchDetail();
     } catch { }
     setAssigneeSaving(false);
+  }
+
+  // Track 10017: whether a sync+poll worker's auto-launch loop may claim
+  // this track from the queue. Default off — see claim-scope.mjs.
+  async function setAutoRunFlag(value) {
+    setAutoRunSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/auto-run`, {
+        method: 'PATCH',
+        body: JSON.stringify({ auto_run: value }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setAutoRunSaving(false);
   }
 
   // Track 10018 (REQ-9): writes through the same track-update path lane
@@ -739,6 +755,19 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                       {detail.assignee_uid ?? detail.created_by_uid ?? 'unassigned'}
                     </span>
                   )}
+                </div>
+                {/* Track 10017: Auto Run control */}
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs text-gray-600 flex items-center gap-1.5 cursor-pointer" title="Whether a sync+poll worker's auto-launch loop may pick this track up from the queue on its own. Manual runs (Run on worker, lc worker run) are unaffected.">
+                    <input
+                      type="checkbox"
+                      checked={!!detail.auto_run}
+                      disabled={autoRunSaving}
+                      onChange={e => setAutoRunFlag(e.target.checked)}
+                      className="disabled:opacity-50"
+                    />
+                    Auto-run: {detail.auto_run ? 'on' : 'off'}
+                  </label>
                 </div>
                 {/* Track 10018 (REQ-9): merge-mode toggle — unspecified/null
                     shows as "pr" (resolveMergeMode's default), matching what
