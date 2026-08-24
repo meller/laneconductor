@@ -52,4 +52,4 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (new-worker
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
-**Waiting for reply**: yes
+**Waiting for reply**: no
