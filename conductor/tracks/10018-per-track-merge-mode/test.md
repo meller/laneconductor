@@ -54,7 +54,7 @@ make test 2>/dev/null || npm test
 ### Phase 6: Migration + E2E
 - [ ] TC-6.1: **Not done** — re-scoped, see plan.md (10000-series folders are live external canary artifacts, not this codebase's fixtures)
 - [x] TC-6.2: `local-api-e2e.test.mjs` re-run after every phase — steady at 5/6 (1 pre-existing, unrelated flake confirmed on unmodified `main`)
-- [ ] TC-6.3: **Still not done — genuine gap, unchanged by Phase 8.** No subprocess-level E2E through the real spawned worker process (`openTrackPrOnDone`/`reconcilePrTracks`). Phase 8 below closes the UI-layer gap (badges, dispatch buttons) via DB-seeded fixtures against the real running app — a different, cheaper layer than a spawned-worker test, deliberately scoped that way per plan.md Phase 8. See plan.md for why and what mitigates it.
+- [x] TC-6.3: **Closed by Phase 11.** `track-10018-pr-flow-e2e.test.mjs` spawns the real worker process (no `LC_SKIP_GIT_LOCK`) against a real git fixture and a scriptable mock `gh`, proving `openTrackPrOnDone`/`reconcilePrTracks` end to end — quality-gate pass → real PR opened → synced to collector → MERGED detected → worktree/branch cleanup. 3/3 consecutive runs, no flakes. See plan.md's Phase 11 for the three real bugs (one production, two fixture) this found and fixed along the way.
 - [ ] TC-6.4: N/A — no fixture generator found in this codebase to stamp (see TC-6.1)
 
 ### Phase 8: Playwright E2E for the PR-mode Worktrees panel + done-lane badge — ✅ covered (`conductor/tests/playwright/track-10018-pr-worktree-panel.spec.js`, 5/5 pass, fast tier, ~11s)
@@ -85,9 +85,20 @@ make test 2>/dev/null || npm test
 - Stability: full 10-test file run 3x consecutively (2x after the Phase 10 addition specifically), 10/10 green every time
 - No new bugs found this phase (unlike Phase 9) — `worktree_branch` reused the exact same `wt?.field ?? null` convention `worktree_class`/`worktree_pr_status`/etc. already established, and `BranchIndicator` reads `track.worktree_branch` directly (no new `projectId`-style indirection needed, since it renders a label with no dispatch of its own)
 
+### Phase 11: Subprocess-level E2E for the real worker-side PR flow — ✅ covered (`conductor/tests/track-10018-pr-flow-e2e.test.mjs`, 1/1 pass, 3/3 consecutive runs, ~8s each)
+- [x] TC-11.1: Real worker process (no `LC_SKIP_GIT_LOCK`) claims a `quality-gate:queue` track with no `**Merge Mode**` marker, runs mock-cli's quality-gate, transitions to `done`, and forks into `openTrackPrOnDone` — asserted via the real `pr_status` reaching `'open'` on the collector, not a code-reviewed assumption
+- [x] TC-11.2: `pr_number: 777`/`pr_url` match the mock `gh pr create`'s scripted response exactly, proving `createTrackPr`'s stdout-parsing runs for real inside the spawned process
+- [x] TC-11.3: `git ls-remote origin refs/heads/track-19979` proves the branch was actually pushed to a real (throwaway) remote — not just committed locally
+- [x] TC-11.4: local `main` is asserted NOT an ancestor of the track branch post-PR-open — direct proof of REQ-5/REQ-6 (no local merge in pr-mode) at the process level, not just via `mergeAndRemoveWorktree` never being called (which the unit tests already establish)
+- [x] TC-11.5: after the fixture simulates GitHub merging the PR (real merge commit landed on the fixture's origin) and the mock `gh pr view` script is updated to report `MERGED`, `reconcilePrTracks`'s now-fast (`LC_RECONCILE_INTERVAL_MS=500`) poll picks it up — `pr_status` reaches `'merged'` on the collector for real
+- [x] TC-11.6: cleanup confirmed against real filesystem/git state: `.worktrees/19979` directory gone, local `track-19979` ref gone (deleted only because the fixture made it a real ancestor of `main` first — exercising `cleanupMergedPrTrack`'s actual ancestor-check gate, not a stub)
+
+**Three real bugs found and fixed via this test's own TDD cycle** (full account in plan.md Phase 11): (1) fixture — an empty bare origin's `HEAD branch: (unknown)` got cached by `getMainBranch()` as a literal branch name, breaking every git command that used it; (2) **production** — `openTrackPrOnDone`'s marker writes only ever reached the worktree's copy of `index.md`, never the primary checkout's, so `reconcilePrTracks` (which only reads primary) had nothing to poll — a pr-mode track would have silently never converged, in production, no matter what GitHub reported; (3) fixture — the first attempt to simulate a GitHub merge (`git reset --hard`) destroyed the very PR marker bug #2's fix had just written, producing a false "still broken" read.
+
 ## Acceptance Criteria
-- [x] All unit + integration tests pass (70 new/updated tests across 6 files, all green; see per-phase notes above for exactly what each covers vs. code-review-only)
+- [x] All unit + integration tests pass (89 new/updated tests across 7 files, all green; see per-phase notes above for exactly what each covers vs. code-review-only)
 - [x] Existing merge/worktree E2E suites pass unchanged (direct-mode guarantee) — 11/11 worktree-merge, 13/13 worktree-audit, 5/6 local-api-e2e (pre-existing flake)
 - [x] New Playwright E2E for the PR-mode Worktrees panel + done-lane badge + card actions + branch indicator (Phases 8-10) — 10/10 pass, verified against the real running app, not code review
+- [x] Subprocess-level E2E for the real worker-side PR flow (Phase 11) — 1/1 pass, 3/3 consecutive runs, closes the last documented gap from Phase 6
 - [ ] Manual: one real PR opened + merged via panel on a throwaway track — **not done**, deliberately avoided touching real GitHub/the live fleet during implementation; recommend as a manual smoke test before shipping
 - [x] No regressions in WorktreesPanel existing actions (abandon/remove/refresh) — confirmed via diff review; existing action code paths untouched by this track's edits

@@ -12,11 +12,11 @@ export default defineConfig({
     port: 8090,
     proxy: {
       '/api': {
-        target: 'http://localhost:8091',
+        target: process.env.SCRATCH_API_PORT ? `http://localhost:${process.env.SCRATCH_API_PORT}` : 'http://localhost:8091',
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:8091',
+        target: process.env.SCRATCH_API_PORT ? `http://localhost:${process.env.SCRATCH_API_PORT}` : 'http://localhost:8091',
         changeOrigin: true,
       },
     },

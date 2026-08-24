@@ -1,7 +1,7 @@
 # Track 1092: CI/CD Tab — Deploy Config, Dispatch History & deploy.sh Builder
 
 **Lane**: implement
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 20%
 **Phase**: Implementation
 **Type**: dev

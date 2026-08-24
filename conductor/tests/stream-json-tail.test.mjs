@@ -9,7 +9,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseNewJsonlLines, extractFinalAssistantText } from '../stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from '../stream-json-tail.mjs';
 
 describe('parseNewJsonlLines', () => {
   it('returns no events and the same offset when there is no new content', () => {
@@ -109,5 +109,56 @@ describe('extractFinalAssistantText (track 1086 conversation-gap fix)', () => {
   it('skips whitespace-only text blocks when picking the final', () => {
     const log = [assistantText('Real summary.'), assistantText('   \n  ')].join('\n');
     assert.equal(extractFinalAssistantText(log), 'Real summary.');
+  });
+});
+
+describe('extractBlockedQuestion (track 10020: surface a stranded blocking question)', () => {
+  const ev = (o) => JSON.stringify(o);
+  const summary = (status_category, status_detail) => ev({
+    type: 'system', subtype: 'post_turn_summary', status_category, status_detail,
+  });
+
+  it('returns the question text when the last post_turn_summary is blocked', () => {
+    const log = [
+      ev({ type: 'assistant', message: { content: [{ type: 'text', text: 'Investigating…' }] } }),
+      summary('blocked', 'Should I apply migrations/foo.sql to the live DB?'),
+    ].join('\n');
+    assert.equal(extractBlockedQuestion(log), 'Should I apply migrations/foo.sql to the live DB?');
+  });
+
+  it('returns null when the last post_turn_summary is not blocked (e.g. review_ready)', () => {
+    const log = summary('review_ready', 'regression suite running; vitest pre-existing flakes confirmed');
+    assert.equal(extractBlockedQuestion(log), null);
+  });
+
+  it('returns null for a log with no post_turn_summary at all', () => {
+    assert.equal(extractBlockedQuestion(''), null);
+    assert.equal(extractBlockedQuestion(ev({ type: 'assistant', message: { content: [] } })), null);
+  });
+
+  it('uses the LAST post_turn_summary, not an earlier one — a later clean summary clears an earlier block', () => {
+    const log = [
+      summary('blocked', 'first question, later resolved'),
+      summary('review_ready', 'all good now'),
+    ].join('\n');
+    assert.equal(extractBlockedQuestion(log), null);
+  });
+
+  it('uses the LAST post_turn_summary even when it re-blocks after a non-blocked one', () => {
+    const log = [
+      summary('review_ready', 'looked fine at first'),
+      summary('blocked', 'actually, should I drop this column?'),
+    ].join('\n');
+    assert.equal(extractBlockedQuestion(log), 'actually, should I drop this column?');
+  });
+
+  it('treats a blocked summary with empty status_detail as no usable question (null)', () => {
+    const log = summary('blocked', '');
+    assert.equal(extractBlockedQuestion(log), null);
+  });
+
+  it('skips malformed JSON lines without throwing', () => {
+    const log = ['not valid json', summary('blocked', 'real question')].join('\n');
+    assert.equal(extractBlockedQuestion(log), 'real question');
   });
 });

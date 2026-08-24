@@ -1,9 +1,9 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 20%
-**Phase**: Walking the full new-user path in the real UI, fixing what breaks
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 87%
+**Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both…
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -367,7 +367,7 @@ Still open from this finding: (a) the pre-fix history is unrecoverable;
 (c) whether `worker_dispatch`'s CASCADE should become SET NULL as
 belt-and-braces for manual row deletions.
 
-### F11 — Spawn timeout killed the dogfooded walkthrough; the FAIL line hid why 🟠 PARTIALLY FIXED
+### F11 — Spawn timeout killed the dogfooded walkthrough; the FAIL line hid why 🟠 CONFIRMED & FIXED (unit-tested)
 The 1104 implement run (the walkthrough executing itself) was SIGTERM'd by
 the worker's own `spawn_timeout_ms` (15min for this project) mid-Phase-1,
 after 90 productive turns — and conversation.md recorded only
@@ -414,8 +414,46 @@ could be retried and actually complete. This is a config value, not the
 structural fix; the per-lane-override / keepalive design question above
 is still open for whoever picks it up.
 
+**Structural fix landed 2026-08-19**: went with the keepalive direction
+over a per-lane timeout override — a static per-lane number still just
+moves the same guessing problem to a different knob, while a keepalive
+directly measures the thing that actually matters (is the run still
+doing something) instead of guessing how long any given lane *should*
+take. `spawnCli()`'s kill timer (`conductor/laneconductor.sync.mjs`) is
+no longer a single `setTimeout(timeoutMs)` fired unconditionally after
+spawn — it's now a `setInterval` (checked every `timeoutMs/10`, clamped
+1-30s) that tracks the spawn log file's size and only kills once it's
+seen **no growth for the full `timeoutMs` window**, not merely
+"`timeoutMs` since spawn." A run that's still producing output — exactly
+the 1104 case, 90 turns, log growing the whole time — now keeps running
+for as long as it keeps producing output; a genuinely silent/hung run is
+still killed after being quiet for the full window, preserving the
+mechanism's actual purpose.
 
-### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED
+Tested:
+`conductor/tests/track-1102-f11-progress-keepalive.test.mjs` — two
+real-spawned-worker cases. (1) A mock CLI writing output every 500ms for
+7s against a 2.5s configured timeout survives past the original deadline
+and finishes successfully — asserted both via the DB's terminal status
+*and* directly via the worker's own stdout never containing a kill-log
+line, since the killer's `lane_action_result: 'timeout'` tag turned out
+to be immediately overwritten by the exit handler's own generic
+`error (code N)` PATCH that runs right after it (pre-existing behavior,
+unrelated to this fix — found while writing the test, when an assertion
+on that DB field alone gave a false negative). (2) A mock CLI producing
+no further output for the same 2.5s window is still killed, confirmed
+via the new `no log growth for Nms (genuinely stalled)` log line —
+proving the real-hang case this mechanism exists for still works.
+`mock-cli.mjs` gained a `MOCK_CLI_PROGRESS_INTERVAL_MS` option to
+support case (1) (periodic output throughout the delay, instead of one
+line then silence). Watched both cases fail for the right reason against
+the pre-fix code (case 1's run got killed at the original deadline
+despite active output; case 2's kill-log line didn't exist in the old
+message format) before the fix, pass after. Full conductor suite re-run:
+same pre-existing flaky baseline, no new failures.
+
+
+### F12 — A successful worktree plan run can still get permanently stuck at `running`, with no UI signal 🔴 CONFIRMED & FIXED (unit-tested)
 Found while dogfooding track 1104's UI walkthrough on a fresh project
 (`Walkthrough Test Project 1104`, project 925, track 001). This is a
 **different** trigger than F7/F8 above — it happens on a project that
@@ -480,6 +518,59 @@ in 1102").
 **Filed as F12** (renumbered from the worktree's own "F9" — that slot was already taken in main's committed history by a different, unrelated finding: the gutted-index-content guard. Two independent processes — this dogfooded implement agent working inside `.worktrees/1104`, and my own manual session — each picked "F9" as the next free number without seeing the other's concurrent edit, since the worktree's copy of this file diverged from main the moment the worktree was created. Content preserved exactly as the agent wrote it; only the heading number and this note changed.)
 
 **Directly relevant to [1112](../1112-git-sync-and-worktree-visibility/index.md)**, opened the same day: this finding IS the worktree-merge-back failure 1112 exists to fix, caught in the act rather than inferred from branch-count alone.
+
+**Root-caused and fixed 2026-08-18**, via live reproduction rather than
+guessing — two hypotheses tested, one falsified before the real fix:
+
+- **Hypothesis 1 (falsified)**: "the worker-restart-orphans-a-dispatch
+  scenario" — already covered by Track 1110 Phase 6's startup
+  reconciler (`conductor/services/orphaned-dispatch.mjs`), which post-dates
+  this finding. Not F12's actual gap.
+- **Hypothesis 2 (falsified)**: "the direct completion PATCH
+  (`PATCH /track/:num/action`) fails" — reproduced with a real spawned
+  worker + real git worktree, failing only that one endpoint. Did NOT
+  reproduce a stuck track: copy-back's own independent `syncTrack()` call
+  (a different endpoint, `POST /track`) self-healed it regardless.
+- **Hypothesis 3 (confirmed)**: a genuine full outage — every write the
+  collector receives failing for a window covering the *entire* exit
+  handler (completion PATCH, conversation.md comment sync, copy-back's
+  own DB sync, all of it) — reliably reproduced the exact stuck state:
+  `lane_action_status` frozen at `running`, `progress_percent: 0`, still
+  stuck many reconcile cycles later. The code's own comment at the
+  completion-PATCH call site had already predicted this exact gap
+  ("DB will show stale state until reconciled" — with no actual
+  reconciliation step existing for this specific failure mode).
+
+**Fixed**: `reconcileActiveDispatch()` (`conductor/laneconductor.sync.mjs`,
+already polling every 5s for exactly this class of thing — checking
+whether an in-flight dispatch's track file shows a terminal status) now
+also re-pushes the track's file state to the DB via `syncTrack()`, and —
+critically — only removes the track from its `activeDispatch` tracking
+map once that push actually succeeds, so a transient outage gets retried
+on the next 5s tick instead of being abandoned after one failed attempt.
+
+Caught a real bug in the *first* draft of this exact fix before it ever
+committed: `syncTrack()` deliberately catches its own internal
+`postToCollectors()` failure and returns the boolean `collectorSynced`
+rather than rejecting — the first draft used
+`.then(() => true).catch(...)`, which maps *any* resolution (including
+one that resolved to `false`) to `true`, silently defeating the retry
+logic while looking correct. Only caught because the regression test's
+first run passed unexpectedly fast and a `grep` for repeated
+`reconcileActiveDispatch` log lines showed only one attempt ever
+happened. Fixed by using the returned value directly.
+
+Tested: `conductor/tests/track-1102-f12-stuck-running.test.mjs`, against
+a real spawned worker and real git worktree, using a new test-only
+failure-injection endpoint added to `conductor/tests/mock-collector.mjs`
+(`/_set-fail-all-writes`, time-window-based rather than a request-count
+budget — a count-based budget was tried first and proved unreliable,
+since unrelated background traffic like file-sync polling shares the
+same pool and can consume it before the exit handler's own calls ever
+arrive). Watched it fail (never recovers, even 15s+ after the outage
+clears) before the fix, pass after. Full conductor suite re-run: 7
+pre-existing flaky failures both before and after (same set, confirmed
+via stash-compare), no new failures.
 
 ### F13 — A manager co-located with a project shares (and clobbers) that project's auth token 🔴 CONFIRMED & FIXED
 Caught live while dogfooding track 1112's own dispatch: `GET
@@ -754,7 +845,7 @@ button. Layering/layout bug in the board card + transcript strip
 (`TrackCard`/`TranscriptView`); also worth asking why a finished (killed)
 run's transcript still renders as if live.
 
-### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 CONFIRMED (not fixed)
+### F21 — An implement agent that backgrounds a long command at turn end exits 0 mid-work; the run silently resets to queue with everything uncommitted 🟠 PARTIALLY FIXED (escalated variant fixed & unit-tested; original turn-end variant still open)
 Hit live on track 10019's implement run (dispatch 1516, 2026-08-18): the
 agent finished Phases 1-2 worth of real work (new
 `conductor/services/primary-cwd.mjs`, a new 19-test suite it had watched
@@ -803,6 +894,54 @@ process it spawned is still alive* — likely the same early-close path
 in both observations (reconcile logic or a mis-attributed exit event),
 NOT the agent's own behavior (unlike the original F21 case above, these
 agents were mid-flight and healthy).
+
+**Root cause found & fixed 2026-08-20 (escalated variant only).** Traced to
+`syncWorktreeDocsToPrimary()` (`conductor/laneconductor.sync.mjs`, added by
+track 10019 Phase 4) — it runs every 60s for every live worktree,
+deliberately including actively-locked ones, and merges the worktree's own
+`index.md` markers (Lane/Lane Status included, per track 1112's fix) onto
+primary's copy via `copyWorktreeArtifactsToPrimary()` →
+`mergeIndexMarkers()`. For a **reused** per-cycle worktree (the normal case
+for a track's 2nd+ lane action — review, then quality-gate, both against the
+same worktree, exactly track 10019's shape), the worktree's Lane/Lane Status
+stays frozen at whatever the *previous* cycle's exit handler last wrote
+until *this* cycle's own exit handler runs — nothing updates it mid-run.
+`copyWorktreeArtifactsToPrimary`'s `skipUnchanged` staleness guard (mtime
+comparison) normally protects against syncing a stale worktree file, but any
+ordinary mid-run edit an agent makes to its own `index.md` — e.g. bumping
+`**Progress**`, which agents routinely do and which never touches `**Lane
+Status**` — bumps the worktree file's mtime past the guard, letting the
+merge through and carrying the still-stale Lane Status along with it. That
+clobbers the "running" marker `checkDispatchInbox()` had just written onto
+primary, and the very next `reconcileActiveDispatch()` tick (5s cadence)
+sees a non-"running" status and closes the dispatch as done — while the real
+agent process is still alive. Reproduced live end-to-end (real git
+worktree, real dispatch lifecycle, simulated one ordinary mid-run Progress
+edit) in
+`conductor/tests/track-1102-f21-mid-run-doc-sync-clobber.test.mjs`: RED
+against the unfixed code (dispatch closed out mid-run), GREEN after the fix
+(dispatch stays `claimed` through several doc-sync ticks, then completes
+normally once the run actually finishes).
+
+Fix: `mergeIndexMarkers()`/`copyWorktreeArtifactsToPrimary()` gained an
+opt-in `skipStatusMarkers` option (default `false` — every existing caller,
+i.e. the exit handler and orphan-reconcile, is unaffected) that excludes
+Lane/Lane Status from what gets merged. `syncWorktreeDocsToPrimary()` now
+passes `skipStatusMarkers: true` — mid-run syncs still keep Progress/Phase/
+Summary/Waiting-for-reply live (the whole point of that pass), just without
+the one marker whose staleness has a completion-detection side effect.
+Also added `LC_DOC_SYNC_INTERVAL_MS` (test-only override, default stays
+60s) so this is testable without a real 60s wait, matching the existing
+`LC_DISPATCH_POLL_MS`/`LC_WORKER_ID_WATCHDOG_MS` pattern. 8 unit tests in
+`conductor/tests/track-1112-worktree-artifact-merge.test.mjs` cover the new
+option directly (2 new, 6 pre-existing all still pass unmodified).
+
+**Still open:** the *original* (non-escalated) F21 case above — an agent
+that itself backgrounds a long command and lets its own turn end mid-work —
+is a different mechanism (the exit handler sees a clean `exit 0` against a
+still-`running` index.md and generically resets to `queue`) and needs its
+own fix per the "Fix directions" above (a distinguishable "ended mid-work"
+outcome, plus SKILL guidance against backgrounding a final-turn command).
 
 ## What worked (verified live, not assumed)
 

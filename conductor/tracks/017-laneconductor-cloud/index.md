@@ -33,4 +33,4 @@ Key architectural decisions:
 - [x] Phase 4: Cloud UI Reader + Dashboard
 - [ ] Phase 5: Billing — Stripe
 - [ ] Phase 6: `/laneconductor syncdb` Command
-
+**Summary**: Worker writes directly to Postgres — couples it to DB credentials, makes local and cloud paths fundamentally different code.
