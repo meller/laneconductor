@@ -59,7 +59,7 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
 **Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no…
 **Waiting for reply**: no
