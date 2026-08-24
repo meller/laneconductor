@@ -1,10 +1,10 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
 **Lane**: implement
-**Lane Status**: success
+**Lane Status**: running
 **Progress**: 82%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: 14 of 17 phases done. Phase 15a (F15 real E2E) fixed and mutation-verified; found a second F22 drift instance along the way. Remaining: Phase 13 (F10c live-DB apply, blocked on Phase 16), Phase 16 (F22 — merge main, re-timestamp, apply), Phase 15b (browser drag gesture, needs consent)
+**Phase**: User approved both remaining items — implementing Phase 16 (merge main, 219 commits, re-timestamp, apply F10c to live DB) and Phase 15b (real browser drag gesture)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
