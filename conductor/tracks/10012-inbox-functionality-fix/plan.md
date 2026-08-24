@@ -175,3 +175,29 @@ track's own conductor markdown files. Sent back to `implement`.
 - Validated distinct UI rendering and badge styling in `InboxPanel.jsx` and `TrackDetailPanel.jsx`.
 - Validated completion comment convention in `SKILL.md`.
 - All 13 new Vitest test cases passing and production UI build verified.
+
+## ✅ QUALITY PASSED
+
+**Verified 2026-08-24** — re-run against the current branch state (this track's work has
+been merged to `main` twice since Aug 15; a related follow-up, the `dismissed_at`
+dismiss-fix from 2026-08-18, builds directly on this track's `waiting_for_reply` column
+and is included in this pass):
+- `cd ui && npx vitest run server/tests/track-10012-inbox.test.mjs
+  server/tests/track-10012-inbox-buckets.test.mjs` — 18/18 pass.
+- Full server suite: 310 passed, 24 failed — all 24 in test files this track never
+  touched (Firebase-dependent auth tests, a pre-existing `child_process` mock gap, and
+  other in-flight tracks' own unrelated gaps); none reference `waiting_for_reply`,
+  `dismissed_at`, comment `author`, or `/api/inbox`.
+- Frontend suite: 76 passed, 10 failed, all in `WorkflowSettings.test.jsx` (track 1116,
+  unrelated).
+- `cd ui && npx vite build` — clean.
+- Stub scan — no hits in changed code paths.
+- Real-product check: queried the live local API directly (real Postgres, 491 real
+  tracks) — confirmed `bucket` classification and priority ordering (`awaiting_ai` >
+  `waiting_for_reply`/`⚠️`/`❌` > unreplied AI comment > `✅`/else) hold on real,
+  varied production data, not just synthetic test fixtures. See `conversation.md` for
+  the full write-up.
+- Done-gate: stub scan clean, no capability marked FFU/deferred in spec.md's Solution,
+  real-product check performed and recorded. All three conditions met.
+
+Moved to `done`.
