@@ -2,7 +2,7 @@
 
 **Lane**: plan
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 80%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Plan re-verified against the shipped code — three spec-vs-code mismatches found; Phase 7 opened for the one that needs code (Start-worker launch picker)
 **Type**: dev
@@ -50,3 +50,4 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (new-worker
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
+**Waiting for reply**: yes
