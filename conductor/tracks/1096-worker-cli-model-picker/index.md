@@ -1,10 +1,10 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: implement
-**Lane Status**: success
-**Progress**: 90%
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Implemented Phase 7 — Start-worker CLI/model picker (course-corrected to reuse track 10011's in-memory --cli/--model mechanism, not a .laneconductor.json write) and the missing heartbeat test. 25/25 tests pass. Only Task 4.2 (browser E2E) remains, and could not be attempted this run — see conversation.md.
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 96%
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Phase 8 — performed the Task 4.2 browser E2E for real (Playwright reconnected), against an isolated instance of this worktree's code, not the live shared stack. Confirmed the Model Change flow, Phase 6's provider-switch confirmation, and the new Start-worker picker all work live. Caught and reverted one live side effect along the way (see conversation.md). Remaining: didn't click "Start Sync Worker" itself, and "+ New Worker" had no manager to test against.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -32,12 +32,13 @@ keep this summary in sync with it, don't duplicate task text here).
 - [x] Phase 1: Database Migration & API Server Support
 - [x] Phase 2: Worker Daemon Sync Engine
 - [x] Phase 3: UI Components & Model Picker Modal
-- [ ] Phase 4: Integration Testing & Verification — automated coverage
+- [x] Phase 4: Integration Testing & Verification — automated coverage
       green (25/25 for this track's suites; 327/338 for the full UI test
       run, 11 pre-existing failures unrelated to this track — confirmed via
-      `git stash`). Task 4.2 (browser E2E) has **still never been
-      performed** — see plan.md for exactly why, and why it's the one
-      thing blocking `done`.
+      `git stash`). Task 4.2 (browser E2E) **performed for real this
+      pass** — see plan.md Phase 8. Small remainders (Start button's
+      actual click, +New Worker with a manager online) are documented,
+      not silently dropped.
 - [x] Phase 5: UX Fixes (post-implementation)
 - [x] Phase 6: Provider vs. model — session continuity constraint
 - [x] Phase 7: Gaps found by verifying the spec against the code — 7.1/7.2
