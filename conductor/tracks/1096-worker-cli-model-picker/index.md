@@ -1,9 +1,10 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Review passed — re-ran all 25 tests fresh, read the full diff against main, scanned for stubs/secrets, confirmed no lasting effect from the prior pass's live-project incident. Moved to quality-gate.
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Quality gate passed — all automated checks re-run fresh (found and worked around a NODE_TEST_CONTEXT env gotcha that was silently zero-running node --test), fast-tier E2E run for real, done-gate's three conditions all verified. Done.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -25,25 +26,26 @@ no UI path to:
 
 ## Plan Checklist
 
-### Phase 1: Database Migration & API Server Support
-- [ ] Task 1.1: Create database migration adding `cli` and `model` columns to `workers` table.
-- [ ] Task 1.2: Update `POST /worker/register` and `PATCH /worker/heartbeat` in `ui/server/index.mjs` to receive, validate, and store `cli` and `model`.
-- [ ] Task 1.3: Update `GET /api/workers` and `GET /api/projects/:id/workers` queries in `ui/server/index.mjs` to include `w.cli` and `w.model`.
-- [ ] Task 1.4: Implement `PATCH /api/workers/:id/config` endpoint in `ui/server/index.mjs` to update worker config and dispatch `set_model` action to `worker_dispatch`.
+Full phase-by-phase task detail lives in `plan.md` (source of truth —
+keep this summary in sync with it, don't duplicate task text here).
 
-### Phase 2: Worker Daemon Sync Engine
-- [ ] Task 2.1: Update worker heartbeat payload in `conductor/laneconductor.sync.mjs` to include CLI engine name and active model.
-- [ ] Task 2.2: Add dispatch action handler for `set_model` in `conductor/laneconductor.sync.mjs` to update in-memory active model without process restart.
-
-### Phase 3: UI Components & Model Picker Modal
-- [ ] Task 3.1: Create `WorkerModelSelectorModal.jsx` component offering selectable model options per provider (Claude, Gemini, Copilot, Antigravity) + custom model text input.
-- [ ] Task 3.2: Update `WorkersList.jsx` card (grid) and pill (strip) layouts to render CLI icon/badge and model tag.
-- [ ] Task 3.3: Add "Change Model" button to worker cards in `WorkersList.jsx` to launch `WorkerModelSelectorModal`.
-- [ ] Task 3.4: Connect modal submit to `PATCH /api/workers/:id/config` with WebSocket refresh broadcast.
-
-### Phase 4: Integration Testing & Verification
-- [ ] Task 4.1: Write integration test suite `ui/server/tests/track-1096-worker-model-picker.test.mjs` testing register, heartbeat, patch config, and GET worker routes.
-- [ ] Task 4.2: Perform browser verification of Workers View model selector UI and live state updates.
+- [x] Phase 1: Database Migration & API Server Support
+- [x] Phase 2: Worker Daemon Sync Engine
+- [x] Phase 3: UI Components & Model Picker Modal
+- [x] Phase 4: Integration Testing & Verification — automated coverage
+      green (25/25 for this track's suites; 327/338 for the full UI test
+      run, 11 pre-existing failures unrelated to this track — confirmed via
+      `git stash`). Task 4.2 (browser E2E) **performed for real this
+      pass** — see plan.md Phase 8. Small remainders (Start button's
+      actual click, +New Worker with a manager online) are documented,
+      not silently dropped.
+- [x] Phase 5: UX Fixes (post-implementation)
+- [x] Phase 6: Provider vs. model — session continuity constraint
+- [x] Phase 7: Gaps found by verifying the spec against the code — 7.1/7.2
+      (doc corrections), 7.3 (Start-worker CLI/model picker — built using
+      track 10011's existing in-memory `--cli`/`--model` mechanism, a
+      correction from the plan's original "write to .laneconductor.json"),
+      and 7.4 (heartbeat test) all done.
 
 ## Depends on
 
@@ -53,3 +55,6 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
 **Waiting for reply**: no
+**PR Number**: 7
+**PR URL**: https://github.com/meller/laneconductor/pull/7
+**PR Status**: open
