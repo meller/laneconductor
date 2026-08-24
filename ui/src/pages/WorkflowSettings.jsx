@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { WorkflowGraph } from '../components/WorkflowGraph.jsx';
 import { useApi } from '../hooks/useApi';
+import { PROVIDERS } from '../../../conductor/providers.mjs';
+
+const MODEL_SUGGESTIONS = PROVIDERS.claude.models.map(m => m.id);
 
 export function WorkflowSettings({ projectId, onClose }) {
   const { apiFetch } = useApi();
@@ -163,6 +166,17 @@ export function WorkflowSettings({ projectId, onClose }) {
                 </div>
 
                 <div>
+                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Primary Model</label>
+                  <input
+                    list="model-suggestions"
+                    value={config.lanes[selectedLane]?.primary_model || ''}
+                    onChange={e => updateLaneProp('primary_model', e.target.value)}
+                    placeholder="e.g. claude-sonnet-5 (defaults to project model)"
+                    className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">On Success</label>
                   <input
                     list="lane-suggestions"
@@ -192,6 +206,10 @@ export function WorkflowSettings({ projectId, onClose }) {
                   <option value="quality-gate" />
                   <option value="done" />
                 </datalist>
+
+                <datalist id="model-suggestions">
+                  {MODEL_SUGGESTIONS.map(id => <option key={id} value={id} />)}
+                </datalist>
               </div>
             )}
           </div>
@@ -213,6 +231,7 @@ export function WorkflowSettings({ projectId, onClose }) {
             <li><code>on_success</code>: Lane after success — plain lane (<code>"implement"</code>) or <code>"lane:status"</code> (e.g. <code>"plan:success"</code> to stay in plan and mark done)</li>
             <li><code>on_failure</code>: Lane after max retries — same format (e.g. <code>"backlog"</code> or <code>"plan:queue"</code>)</li>
             <li><code>parallel_limit</code>: Max concurrent tracks in this lane</li>
+            <li><code>primary_model</code>: Model used when this lane runs a track (provider/CLI stays the project default — only the model varies per lane). Leave blank to fall back to the project's default model.</li>
           </ul>
         </div>
       </div>

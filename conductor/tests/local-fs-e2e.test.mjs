@@ -77,10 +77,14 @@ function setupProject() {
   }, null, 2));
 }
 
-function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
+// Track 10017: auto_run defaults to true here so the suites above (testing
+// parallelism/transitions/pipeline behavior, not the auto-run gate itself)
+// don't need to know the gate exists. The gate's own tests below pass
+// autoRun explicitly.
+function createTrack(tracksDir, num, lane, laneStatus = 'queue', { autoRun = true } = {}) {
   const dir = join(tracksDir, `${num}-test-track-${num}`);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'index.md'), [
+  const lines = [
     `# Track ${num}: Test Track ${num}`,
     '',
     `**Lane**: ${lane}`,
@@ -92,7 +96,9 @@ function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
     '',
     '## Solution',
     'Test solution.',
-  ].join('\n'));
+  ];
+  if (autoRun) lines.push('**Auto Run**: yes');
+  writeFileSync(join(dir, 'index.md'), lines.join('\n'));
 }
 
 function startWorker(env = {}) {
@@ -239,6 +245,45 @@ describe('LaneConductor local-fs E2E', () => {
       // Verify the queue file is updated
       const queueContent = readFileSync(queuePath, 'utf8');
       assert.ok(queueContent.includes('**Status**: processed') || queueContent.includes('**Status**: completed'), 'Queue entry status should be updated');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
+  // Track 10017: end-to-end auto-run gating (TC-9, TC-10). These are the
+  // only two tests in this file that intentionally omit or toggle
+  // **Auto Run** — every other test above opts in via createTrack's default.
+  it('TC-9: a queued track with no **Auto Run** marker is left untouched by the auto-launch loop', async () => {
+    setupProject();
+    const tracksDir = join(TMP, 'conductor/tracks');
+    createTrack(tracksDir, '601', 'in-progress', 'queue', { autoRun: false });
+
+    const worker = startWorker({ MOCK_CLI_DELAY_MS: '200' });
+    try {
+      // No positive event to poll for (that's the point) — wait out a full
+      // poll cycle plus margin, then assert nothing happened.
+      await sleep(6000);
+      const content = readIndex(tracksDir, '601');
+      assert.equal(getLaneStatus(content), 'queue', 'lane_action_status must stay queue — no CLI process should have spawned');
+      assert.equal(getLane(content), 'in-progress', 'lane must not have moved either');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
+  it('TC-10: the same track WITH **Auto Run**: yes is picked up and run', async () => {
+    setupProject();
+    const tracksDir = join(TMP, 'conductor/tracks');
+    createTrack(tracksDir, '602', 'in-progress', 'queue', { autoRun: true });
+
+    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '1500' });
+    try {
+      await poll(() => {
+        const c = readIndex(tracksDir, '602');
+        return getLaneStatus(c) === 'running' ? true : null;
+      }, { label: 'track 602 picked up and running', timeout: 10000 });
     } finally {
       worker.kill('SIGTERM');
       await sleep(500);

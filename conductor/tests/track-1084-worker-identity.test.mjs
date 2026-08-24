@@ -249,6 +249,9 @@ function setupPhase3Project(collectorPort) {
       '**Lane**: implement',
       '**Lane Status**: queue',
       '**Progress**: 0%',
+      // Track 10017: this suite tests the assignee/claimable-tracks gate,
+      // not the auto-run gate — opt in so it's unaffected.
+      '**Auto Run**: yes',
     ].join('\n'));
   }
 }
