@@ -11,7 +11,7 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 **Waiting for reply**: no
-**Summary**: Test description
+**Summary**: Discarded via Worktrees panel — not merging.
