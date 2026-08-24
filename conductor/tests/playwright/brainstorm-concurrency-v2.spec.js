@@ -101,7 +101,7 @@ test.describe('Brainstorm & Concurrency strict check', () => {
         while (Date.now() - replyStartTime < 60000) {
             if (existsSync(convPathB)) {
                 const content = readFileSync(convPathB, 'utf8');
-                if (content.includes('> **assistant**:')) {
+                if (/> \*\*(claude|gemini)\*\*:/.test(content)) {
                     hasReply = true;
                     console.log('✅ AI replied to brainstorm message.');
                     break;

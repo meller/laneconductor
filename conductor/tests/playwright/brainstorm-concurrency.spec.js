@@ -137,7 +137,7 @@ test.describe('Brainstorm & Concurrency E2E', () => {
         let replied = false;
         while (Date.now() < replyDeadline) {
             const content = readFileSync(convPathB, 'utf8');
-            if (content.includes('> **assistant**:')) {
+            if (/> \*\*(claude|gemini)\*\*:/.test(content)) {
                 replied = true;
                 console.log('✅ AI replied to brainstorm!');
                 break;
