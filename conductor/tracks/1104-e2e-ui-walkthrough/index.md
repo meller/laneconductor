@@ -1,7 +1,7 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 4 — write up the wiki UI guide (blocked: track 1103 hasn't established the wiki location yet); Phase 5 blocked on track 1100's fast tier being green
