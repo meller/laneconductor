@@ -25,8 +25,8 @@ Give the specs their own infrastructure instead of borrowing shared infrastructu
 - [ ] Phase 4: `brainstorm-concurrency.spec.js` self-scoping (hermetic concurrency assertion)
 - [ ] Phase 5: Dedicated `PW_TEST_MODE` server — un-skip `track-1033-sharing.spec.js`'s 6 tests
 - [ ] Phase 6: Config, docs, and full-suite verification including both negative hang paths
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Type**: dev
 **Track Kind**: feature
 **Summary**: Follow-up from track 1100 Review #3's Gap 2 and track-1033-sharing findings (2026-08-20). Both blockers on the slow Playwright tier come down to the same root cause: the specs depend on shared live…
