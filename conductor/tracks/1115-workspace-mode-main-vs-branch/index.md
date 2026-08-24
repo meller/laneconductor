@@ -1,9 +1,9 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 15%
-**Last Run**: claude/claude-opus-5 (primary)
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 1 complete (1 of 6) — spec.md + test.md written; Phase 2 gated on track 10018 (see plan.md Task 0)
 **Type**: dev
 **Waiting for reply**: no
