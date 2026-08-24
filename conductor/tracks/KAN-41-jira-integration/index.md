@@ -1,3 +1,0 @@
-# Jira Integration
-
-[object Object]
