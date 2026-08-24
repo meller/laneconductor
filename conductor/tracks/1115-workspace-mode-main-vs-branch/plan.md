@@ -22,6 +22,17 @@ actual call sites in `conductor/laneconductor.sync.mjs`.
 **Impact**: No code yet. Everything below is new work for `/laneconductor
 implement`.
 
+**Task 0's gate, pre-answered (2026-08-24, before this implement pass
+started)**: track 10018 (per-track merge mode) HAS landed — merged to
+main in commit `96b2418`, `conductor/services/merge-mode.mjs` with
+`resolveMergeMode()` is present and live in the current codebase. Per
+Task 0's own instructions below: adopt spec.md D1's **option (d)** —
+drop the type-derived bug→main default (D3) entirely, update D1/D3/D5
+and test.md's TC-4/TC-5/TC-6 accordingly, and co-locate
+`resolveWorkspaceMode()` with the existing `resolveMergeMode()` in
+`conductor/services/` rather than inventing a second convention. Do
+not re-implement assuming 10018 hasn't landed — it has.
+
 ## Phase 2: Worker — mode resolution + spawnCli wiring
 
 **Problem**: `spawnCli()` (`laneconductor.sync.mjs:3531`) always
@@ -29,6 +40,30 @@ lock+worktrees except in local-fs mode; there is no per-track,
 per-trigger decision point.
 **Solution**: REQ-1/REQ-2/REQ-3/REQ-4.
 
+- [ ] Task 0 (**GATE — do this before Task 1, it can delete Tasks 1's D1/D3
+      logic entirely**): Check whether track 10018 has landed:
+      `grep -rn "merge_mode" conductor/services/ conductor/laneconductor.sync.mjs`.
+      - **As of the 2026-08-19 replan**: 10018 was at `implement`, 98%,
+        with no `merge_mode` yet in worker code — i.e. imminent but not
+        landed. This track has not started Phase 2, so 10018 will very
+        likely land first.
+      - **If it has landed**: adopt spec.md D1's **option (d)** — drop the
+        type-derived bug→main default (D3) entirely; bug tracks become
+        `branch` + `merge_mode: direct`, and `main` is reserved for the
+        cases that genuinely need it (infra self-fixes, live pairing).
+        This deletes D3, deletes D5 rows 3 and 4, and reduces the resolver
+        to: plan-lane → marker → project default → branch. It also removes
+        the whole "behavior depends on how the run was launched" surprise.
+        Update spec.md's D1/D3/D5 and `test.md`'s TC-4/TC-5/TC-6 to match
+        rather than implementing both designs.
+      - **If it has not landed**: proceed with D1/D3 as specified below.
+      - Either way, coordinate with 10018's `resolveMergeMode(track)`:
+        it is the direct sibling of `resolveWorkspaceMode()` (same
+        marker-plus-nullable-column pattern, same NULL-vs-explicit
+        distinction). Confirmed 2026-08-19 from 10018's spec.md:14-15.
+        Prefer co-locating the two resolvers over inventing a second
+        convention — index.md's interaction note calls for "one shared
+        resolution service."
 - [ ] Task 1: Create `conductor/services/workspace-mode.mjs` exporting
       `resolveWorkspaceMode({ laneStatus, workspaceMarker, trackType,
       trigger, projectWorkspaceMode })` implementing spec.md D5's table

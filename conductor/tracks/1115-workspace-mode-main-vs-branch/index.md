@@ -1,9 +1,9 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: Not started — design captured from live discussion 2026-08-14
+**Progress**: 100%
+**Phase**: Phase 1 complete (1 of 6) — spec.md + test.md written; Phase 2 gated on track 10018 (see plan.md Task 0)
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: LaneConductor implicitly assumes ALL work is branch-per-track worktree work; an entire live pairing session (tracks 1112-1114's bug fixes) happened directly on main because fixing self-hosted…
