@@ -21,10 +21,15 @@ control, with DB→FS sync-back so the file marker stays authoritative for
 the worker's own decision loop.
 
 ## Phases
-- [ ] Phase 1: DB schema — `tracks.auto_run` column
-- [ ] Phase 2: FS marker — `**Auto Run**` parsing + sync payload
-- [ ] Phase 3: Enforcement — claim-scope gate in auto-launch
-- [ ] Phase 4: API surface — expose + toggle `auto_run`, DB→FS sync-back
-- [ ] Phase 5: UI toggle + SKILL.md docs
+- [x] Phase 1: DB schema — `tracks.auto_run` column
+- [x] Phase 2: FS marker — `**Auto Run**` parsing + sync payload
+- [x] Phase 3: Enforcement — claim-scope gate in auto-launch
+- [x] Phase 4: API surface — expose + toggle `auto_run`, DB→FS sync-back
+- [x] Phase 5: UI toggle + SKILL.md docs
+- [x] Phase 6: Tests — unit, API, E2E
+- [x] Phase 7: Connect auto_run to Complete & Merge button + dedicated E2E
 **Lane**: implement
-**Lane Status**: running
+**Lane Status**: queue
+**Progress**: 100%
+**Summary**: All 7 phases implemented, tested with real DB/worker/browser verification (see conversation.md) — grep for "auto_run" now returns real matches across sync.mjs, claim-scope.mjs, index.mjs, and TrackDetailPanel.jsx/WorktreesPanel.jsx.
+**Waiting for reply**: no
