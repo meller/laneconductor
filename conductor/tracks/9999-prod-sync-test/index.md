@@ -1,7 +1,7 @@
 # Track 9999: Production Sync Test
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 0%
 **Phase**: Testing
 **Summary**: Test track to verify worker syncs to production

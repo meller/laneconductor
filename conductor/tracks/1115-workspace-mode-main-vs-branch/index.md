@@ -1,8 +1,8 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 15%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Phase 1 complete (1 of 6) — spec.md + test.md written; Phase 2 gated on track 10018 (see plan.md Task 0)
 **Type**: dev
@@ -194,3 +194,4 @@ would be simpler and should be reopened if 10018 lands before Phase 2.
 - [1112](../1112-git-sync-and-worktree-visibility/index.md) / [1114](../1114-worktrees-panel-deep-link-autopilot-cleanup/index.md) — the worktree machinery this adds an alternative to; 1114's panel scoping already behaves correctly for main-mode tracks (nothing to show)
 - [1113](../1113-conversation-worker-interaction-consolidation/index.md) — its planning agent's "Send & Run doesn't exist" false-negative is this track's problem statement in miniature
 - [1110](../1110-worker-separation-and-claim-race-safety/index.md) — the lock/claim machinery main mode leans on for serialization
+**Merge Mode**: pr

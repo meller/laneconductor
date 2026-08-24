@@ -20,7 +20,7 @@ export const PROVIDERS = {
       { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
       { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
       { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' },
+      { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
     ],
   },
   gemini: {

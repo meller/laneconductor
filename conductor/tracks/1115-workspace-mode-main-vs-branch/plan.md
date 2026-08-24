@@ -22,6 +22,17 @@ actual call sites in `conductor/laneconductor.sync.mjs`.
 **Impact**: No code yet. Everything below is new work for `/laneconductor
 implement`.
 
+**Task 0's gate, pre-answered (2026-08-24, before this implement pass
+started)**: track 10018 (per-track merge mode) HAS landed — merged to
+main in commit `96b2418`, `conductor/services/merge-mode.mjs` with
+`resolveMergeMode()` is present and live in the current codebase. Per
+Task 0's own instructions below: adopt spec.md D1's **option (d)** —
+drop the type-derived bug→main default (D3) entirely, update D1/D3/D5
+and test.md's TC-4/TC-5/TC-6 accordingly, and co-locate
+`resolveWorkspaceMode()` with the existing `resolveMergeMode()` in
+`conductor/services/` rather than inventing a second convention. Do
+not re-implement assuming 10018 hasn't landed — it has.
+
 ## Phase 2: Worker — mode resolution + spawnCli wiring
 
 **Problem**: `spawnCli()` (`laneconductor.sync.mjs:3531`) always

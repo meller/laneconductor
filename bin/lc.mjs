@@ -15,6 +15,7 @@ import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
+import { getAuthorInfo } from '../conductor/services/author.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -58,7 +59,22 @@ function getInstallPath() {
         // we need to reach the repo root where /ui lives.
         return resolve(skillPath, '../../..');
     }
-    return resolve(__dirname, '..');
+    // Track 10019 (REQ-4 / S9): __dirname is this exact script FILE's
+    // location — if it's being run as a linked worktree's own copy of
+    // bin/lc.mjs (e.g. someone invokes `.worktrees/10019/bin/lc.mjs`
+    // directly, or `/usr/local/bin/lc` was ever symlinked at a worktree's
+    // copy — S8), this fallback would otherwise resolve `ui`, pidfiles and
+    // logs to that worktree instead of the primary checkout no rc file
+    // exists to override it. Route through resolvePrimaryRepoRoot() so a
+    // worktree-resident invocation still lands on the primary; a
+    // legitimate standalone clone (not inside any worktree) is unaffected
+    // since resolvePrimaryRepoRoot() is a no-op there.
+    const scriptRoot = resolve(__dirname, '..');
+    try {
+        return resolvePrimaryRepoRoot(scriptRoot);
+    } catch {
+        return scriptRoot; // not inside a git repo — nothing to correct
+    }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -801,6 +817,52 @@ Choice [2]: `) || '2';
 
         let dbConfig = { host: 'localhost', port: 5432, name: 'laneconductor', user: 'postgres', password: '' };
         if (mode === 'local-api') {
+            // Check DB reachability before asking for credentials
+            const { default: net } = await import('net');
+            const pgReachable = await new Promise(resolve => {
+                const sock = new net.Socket();
+                sock.setTimeout(2000);
+                sock.connect(dbConfig.port, dbConfig.host, () => { sock.destroy(); resolve(true); });
+                sock.on('error', () => resolve(false));
+                sock.on('timeout', () => { sock.destroy(); resolve(false); });
+            });
+
+            if (!pgReachable) {
+                console.log(`\n⚠️  Cannot reach Postgres at ${dbConfig.host}:${dbConfig.port}`);
+                const dbChoice = await question(`
+How would you like to set up the database?
+  [1] Start Docker container (recommended — requires Docker)
+  [2] I have Postgres — let me configure the connection
+Choice [1]: `) || '1';
+
+                if (dbChoice === '1') {
+                    console.log('📦 Starting Postgres via Docker...');
+                    const dockerRun = spawnSync('docker', [
+                        'run', '-d', '--name', 'laneconductor-pg',
+                        '-e', 'POSTGRES_USER=postgres',
+                        '-e', 'POSTGRES_PASSWORD=postgres',
+                        '-e', 'POSTGRES_DB=laneconductor',
+                        '-p', '5432:5432',
+                        '--restart', 'unless-stopped',
+                        'postgres:16'
+                    ], { stdio: 'inherit' });
+
+                    if (dockerRun.status !== 0) {
+                        // Container may already exist — try starting it
+                        spawnSync('docker', ['start', 'laneconductor-pg'], { stdio: 'inherit' });
+                    }
+
+                    process.stdout.write('⏳ Waiting for Postgres');
+                    for (let i = 0; i < 30; i++) {
+                        await sleep(1000);
+                        const ready = spawnSync('docker', ['exec', 'laneconductor-pg', 'pg_isready', '-U', 'postgres'], { stdio: 'pipe' });
+                        if (ready.status === 0) break;
+                        process.stdout.write('.');
+                    }
+                    console.log('\n✅ Postgres ready');
+                }
+            }
+
             console.log('\n️  Database Configuration');
             dbConfig.host = await question(`DB Host [${dbConfig.host}]: `) || dbConfig.host;
             dbConfig.port = parseInt(await question(`DB Port [${dbConfig.port}]: `) || dbConfig.port);
@@ -1892,7 +1954,19 @@ Please review this, answer any questions (some fields may contain questions rath
             } catch (e) { /* stale */ }
         }
 
-        console.log('🚀 Starting Vite UI...');
+        // Track 10019 (REQ-6): `uiDir` already resolves to the primary
+        // checkout's `ui/` via getInstallPath()'s REQ-4 fix — verified
+        // here rather than assumed, so a future incident's first question
+        // ("which checkout is this actually serving?") has a real answer
+        // instead of a hopeful comment.
+        try {
+            const isPrimary = resolvePrimaryRepoRoot(uiDir) === resolve(uiDir);
+            console.log(isPrimary
+                ? `🚀 Starting Vite UI from ${uiDir} (primary checkout)...`
+                : `🚀 ⚠️  Starting Vite UI from ${uiDir} — this is NOT the primary checkout.`);
+        } catch {
+            console.log(`🚀 Starting Vite UI from ${uiDir}...`);
+        }
         const logFd = openSync(uiLogFile, 'a');
         const ui = spawn('npx', ['vite'], {
             cwd: uiDir,
@@ -2025,39 +2099,43 @@ Please review this, answer any questions (some fields may contain questions rath
             return color + label.padEnd(8) + colors.reset;
         };
 
-        const tracks = readdirSync(tracksDir).filter(d => /^\d+/.test(d)).map(d => {
+        const tracks = readdirSync(tracksDir).filter(d => /\d+/.test(d)).map(d => {
             const trackPath = join(tracksDir, d);
             const indexPath = join(trackPath, 'index.md');
             if (!existsSync(indexPath)) return null;
             const content = readFileSync(indexPath, 'utf8');
-            const title = (content.match(/^# ([^\n]+)/m) || [])[1] || d;
-            const lane = (content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???';
-            const status = (content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue';
-            const progressStr = (content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0';
-            const phase = (content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '';
-            const runBy = (content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '';
+            const title = ((content.match(/^# ([^\n]+)/m) || [])[1] || d).trim();
+            const lane = ((content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???').trim();
+            const status = ((content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue').trim();
+            const progressStr = ((content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0').trim();
+            const phase = ((content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
+            const runBy = ((content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
             const retryPath = join(trackPath, '.retry-count');
             const retries = existsSync(retryPath) ? parseInt(readFileSync(retryPath, 'utf8')) : 0;
-            return { id: d.split('-')[0], lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
+            // Handle both legacy (NNN-slug) and prefixed (AM-NNN-slug) folder names
+            const idMatch = d.match(/^([A-Z]+-)?(\d+)/);
+            const id = idMatch ? (idMatch[1] ? `${idMatch[1].slice(0, -1)}-${idMatch[2]}` : idMatch[2]) : d;
+            const num = idMatch ? parseInt(idMatch[2], 10) : 0;
+            return { id, num, lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
         }).filter(t => t !== null);
 
         tracks.sort((a, b) => {
             const laneDiff = getLanePrio(a.lane) - getLanePrio(b.lane);
             if (laneDiff !== 0) return laneDiff;
-            return b.progress - a.progress || parseInt(a.id) - parseInt(b.id);
+            return b.progress - a.progress || a.num - b.num;
         });
 
         console.log('\n' + colors.bold + 'Track Status (' + mode + '):' + colors.reset);
-        console.log('ID    LANE            STATUS    PROG   BY  PHASE/TITLE');
-        console.log('-'.repeat(80));
+        console.log('ID       LANE            STATUS    PROG   BY  PHASE/TITLE');
+        console.log('-'.repeat(83));
         tracks.forEach(t => {
-            const id = t.id.padEnd(5);
+            const id = t.id.padEnd(8);
             const lane = t.lane.padEnd(15);
             const status = getStatusLabel(t.status, t.retries);
             const prog = (t.progress + '%').padEnd(6);
             const by = (t.runBy || '-').padEnd(3);
             const info = t.phase ? colors.dim + t.phase + ': ' + colors.reset + t.title : t.title;
-            console.log(id + ' ' + lane.padEnd(15) + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
+            console.log(id + ' ' + lane + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
         });
 
         // Worker Health Check
@@ -2195,8 +2273,9 @@ Please review this, answer any questions (some fields may contain questions rath
     const trackLines = queueContent.match(/### Track (\d+):/g) || [];
     const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
 
-    const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
-    const existingDirNumStrs = existingDirs.map(d => d.match(/^(\d+)/)[1]);
+    // Prefix-agnostic number extraction: matches NNN in both legacy `NNN-slug` and new `AM-NNN-slug`
+    const existingDirs = readdirSync(tracksDir).filter(d => /\d+/.test(d));
+    const existingDirNumStrs = existingDirs.map(d => d.match(/(\d+)/)?.[1]).filter(Boolean);
     const dirNums = existingDirNumStrs.map(s => parseInt(s, 10));
 
     const allNums = [...queueNums, ...dirNums];
@@ -2209,13 +2288,16 @@ Please review this, answer any questions (some fields may contain questions rath
     const padWidth = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => s.length)) : 0;
     const nextNumStr = String(nextNum).padStart(padWidth, '0');
 
+    const author = getAuthorInfo();
+    const displayId = `${author.initials}-${nextNumStr}`;
+
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const trackFolderName = `${nextNumStr}-${slug}`;
+    const trackFolderName = `${displayId}-${slug}`;
     const trackPath = join(tracksDir, trackFolderName);
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNumStr}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types
