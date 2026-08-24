@@ -349,15 +349,33 @@ history with it — exactly the loss F10 documented as unrecoverable.
 
 **Solution**: Belt-and-braces — make the history survive a row deletion.
 
-- [ ] Task 1: Write a failing test — deleting a worker row keeps its
-      dispatch rows with `worker_id IS NULL`
-- [ ] Task 2: Add an Atlas migration changing CASCADE → SET NULL (column
-      must be nullable)
-- [ ] Task 3: Audit every read of `worker_dispatch.worker_id` for a null it
-      did not previously have to handle
-- [ ] Task 4: Apply the migration and verify against the real DB
+**Reopened during replan (2026-08-20)**: previously reported as "done
+except an apply step awaiting confirmation". Verifying that during this
+replan showed the migration **cannot be applied as committed at all** —
+see F22. Tasks 1–3 are genuinely done; Task 4 is blocked on Phase 16, not
+on permission alone, and the phase does not count as complete until the
+live DB's FK actually changes.
 
-**Impact**: Worker history stops being destroyable by a single row deletion.
+- [x] Task 1: Write a failing test — deleting a worker row keeps its
+      dispatch rows with `worker_id IS NULL`
+      (`ui/server/tests/track-1102-f10c-dispatch-fk-set-null.test.mjs`,
+      2 tests; watched both fail against the pre-fix CASCADE schema,
+      pass after — against the scratch `laneconductor_dev` DB)
+- [x] Task 2: Add an Atlas migration changing CASCADE → SET NULL (column
+      made nullable first) — hand-written rather than atlas-generated,
+      since `atlas migrate diff` bundled in unrelated pre-existing drift
+- [x] Task 3: Audit every read of `worker_dispatch.worker_id` for a null
+      it did not previously have to handle
+- [ ] Task 4: Apply the migration and verify against the **real** DB —
+      **blocked on Phase 16** (branch currency + re-timestamp). Verified
+      during replan that the live FK is still `ON DELETE CASCADE`, i.e.
+      this phase's actual goal is not yet achieved
+- [ ] Task 5: Re-run the F10c test suite pointed at the live DB's real
+      schema (not the scratch reconstruction) as the honest AC-8 check
+
+**Impact**: Worker history stops being destroyable by a single row
+deletion — *once Task 4 lands*. Today the code is written and proven on a
+scratch DB while production still cascades.
 
 ---
 
@@ -389,28 +407,77 @@ trust, but was never proven live the way F5 was. Every finding in this track
 that was "confirmed by unit test alone" is exactly the class of thing this
 whole track exists to distrust.
 
-**Solution**: Prove it on a real sync-only project.
+**Solution**: Prove it end to end — split during replan into a part that
+needs nobody's permission and a much narrower part that does.
 
-**Deferred, not attempted**: this live board (`localhost:8090`) is the
-real, shared, currently-running system — every project/track on it is
-someone's actual work, not disposable test data. Dragging a real card to
-trigger this verification would dispatch a real lane action (spawning an
-actual Claude session, consuming real tokens, potentially mutating a real
-project's files) as a side effect of a *verification* step — the same
-risk category as F10c's live-DB-apply question, which is already
-sitting on an explicit, still-unanswered confirmation request. Doing
-this without asking first would be worse: F10c at least asked before
-touching anything; this would touch something first and explain after.
+**Replan correction**: the previous framing ("blocked, needs a go-ahead
+to touch the live board") over-scoped the blocker. What F15's fix
+actually claims is that `PATCH /track/:num/lane` and `/track/:num/reset`
+insert a `worker_dispatch` row that a sync-only worker then claims and
+runs. That whole chain — real Express app, real worker process, real
+dispatch claim, real lane action — is exactly what this repo's existing
+mock-collector + spawned-worker harness already exercises for F8/F9/F12/
+F21, entirely inside a temp dir. It is *not* "one level weaker than F5";
+it is a genuine E2E of the mechanism. Only the browser drag **gesture**
+needs the real board, and that is a much smaller claim to leave open.
 
-- [ ] Task 1: Real sync-only project, real card, real drag to a new lane
-      — needs either an explicit go-ahead to use a real project/track for
-      this, or a disposable scratch project created specifically for it
-- [ ] Task 2: Observe the `worker_dispatch` row appear and get claimed
-- [ ] Task 3: Repeat for the `/reset` path
-- [ ] Task 4: Record the observation in F15's body
+### 15a — E2E through the real dispatch chain (unblocked)
+- [ ] Task 1: New test on the established harness pattern: temp project,
+      sync-only worker, real `PATCH /track/:num/lane` → assert a
+      `worker_dispatch` row is created, claimed, and the lane action runs
+- [ ] Task 2: Same for the `/track/:num/reset` path
+- [ ] Task 3: Negative case — a project with a sync+poll worker must NOT
+      get a dispatch (the bridge's own precondition)
+- [ ] Task 4: Watch each fail for the right reason before wiring it up
 
-**Impact**: Still not verified live — F15's fix remains unit-tested only,
-one level weaker than F5. Genuinely open, not silently dropped.
+### 15b — the browser drag gesture (still needs consent)
+- [ ] Task 5: Drag a card on the real board and observe the row appear
+      — needs either an explicit go-ahead, or a disposable scratch
+      project. Deliberately left as its own small item so 15a isn't held
+      hostage to it
+- [ ] Task 6: Record the observation in F15's body
+
+**Impact**: The mechanism gets real E2E coverage now; only the gesture
+remains gated. Splitting also stops "needs permission" from being an
+excuse that quietly covers work that never needed permission.
+
+---
+
+## Phase 16: F22 — make the F10c migration actually applicable
+
+**Problem**: See F22. The migration authored in Phase 13 sits at version
+`20260820101300`, but this branch is **196 commits behind main**, and the
+live DB has already recorded `20260821120000` and `20260823100000` — both
+sorting above it, and neither present in this worktree. Atlas assumes
+linear history and rejects out-of-order migrations by default;
+`atlas.sum` was regenerated against the stale file set and will conflict
+on merge. The live FK is still `ON DELETE CASCADE`, so Phase 13's fix
+currently does nothing in production.
+
+**Solution**: Bring the branch current, re-timestamp above the
+high-water mark, regenerate the checksum on the merged tree, then apply.
+
+- [ ] Task 1: Merge (or rebase onto) `main` — 196 commits; expect real
+      conflicts in `migrations/atlas.sum` and possibly the F18b/F21 files,
+      since main has moved under all of them
+- [ ] Task 2: Re-run this track's full test set after the merge, before
+      touching anything else — a 196-commit merge is itself a regression
+      risk to everything already landed here
+- [ ] Task 3: Re-timestamp the migration above the live high-water mark
+      (currently `20260823100000`), delete the old file, regenerate
+      `atlas.sum` with `atlas migrate hash`
+- [ ] Task 4: Dry-run against the scratch `laneconductor_dev` DB first —
+      confirm Atlas accepts the ordering and applies cleanly there
+- [ ] Task 5: Only then apply to the live DB (Phase 13 Task 4), with
+      explicit confirmation, and verify the FK actually changed
+- [ ] Task 6: Decide/record which migration mechanism is canonical
+      (`migrations/` + Atlas vs `ui/server/migrations/` + startup
+      `runMigration()`) — having both undocumented is what made the first
+      read of this land on the wrong answer
+
+**Impact**: Turns a schema fix that silently does nothing into one that
+actually ships — and documents the trap for the next track that writes a
+migration from a long-lived worktree.
 
 ---
 

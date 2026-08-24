@@ -85,23 +85,39 @@ File: `ui/server/tests/track-1102-f18b-dispatch-claim-timeout.test.mjs`
 
 ### Phase 13 — F10c: FK SET NULL (REQ-8 / AC-8)
 File: `ui/server/tests/track-1102-f10c-dispatch-fk-set-null.test.mjs`
-- [ ] TC-13.1: deleting a `workers` row leaves its `worker_dispatch` rows present — expected: rows survive with `worker_id IS NULL` (fails today: CASCADE deletes them)
-- [ ] TC-13.2: `worker_adhoc_chat` history survives the same deletion — expected: readable afterwards
-- [ ] TC-13.3: every read path tolerates a null `worker_id` — expected: no crash, sensible rendering
-- [ ] TC-13.4: migration applies cleanly to a DB with existing rows — expected: applies, no data loss
+- [x] TC-13.1: deleting a `workers` row leaves its `worker_dispatch` rows present — expected: rows survive with `worker_id IS NULL`. **Green against the scratch `laneconductor_dev` DB only** — watched it fail against a reconstructed CASCADE schema, pass after
+- [x] TC-13.2: `worker_adhoc_chat` history survives the same deletion — covered by TC-13.1's row-survival assertion (same table)
+- [x] TC-13.3: every read path tolerates a null `worker_id` — audited, no crash paths found
+- [ ] TC-13.4: migration applies cleanly to a DB with existing rows — **blocked on Phase 16**; cannot pass today (out-of-order version, see F22)
+- [ ] TC-13.5 (**the honest AC-8 check**, new): against the **live** DB after Phase 16 applies — `\d worker_dispatch` shows `ON DELETE SET NULL`, and deleting a real (test-created, then cleaned up) worker row leaves its dispatch rows with `worker_id IS NULL`. Expected today: **FAILS** — live FK is still `ON DELETE CASCADE`, which is precisely why TC-13.1 being green is not sufficient
 
 ### Phase 4 — walkthrough (no fixed test file)
 Observation-driven, not assertion-driven. Each task records a screenshot or
 a real API/DB response. Anything broken becomes F22+ in `index.md` with the
 same evidence standard as F1–F21.
-- [ ] TC-4.1: Activity panel states/chat/stop — observed and recorded
-- [ ] TC-4.2: Inbox classification of ✅ / ⚠️ / ❌ — observed and recorded
-- [ ] TC-4.3: deploy wizard walked, stopping before an actual deploy — recorded
+- [x] TC-4.1: Activity panel states/chat/stop — observed and recorded (3 real workers, busy/idle correct, live streaming transcript)
+- [x] TC-4.2: Inbox classification of ✅ / ⚠️ / ❌ — observed and recorded (36 real items, both buckets correct)
+- [x] TC-4.3: deploy wizard walked, stopping before an actual deploy — recorded (Release tab, real dispatch history)
 
-### Phase 15 — F15 live verification (REQ-9 / AC-9)
-- [ ] TC-15.1: real sync-only project, drag a card to a new lane — expected: a `worker_dispatch` row appears and is claimed
-- [ ] TC-15.2: same via the `/reset` path — expected: same
-- [ ] TC-15.3: observation recorded in F15's body
+### Phase 15a — F15 E2E through the real dispatch chain (REQ-9, unblocked)
+File (new): `conductor/tests/track-1102-f15-lane-dispatch-e2e.test.mjs` —
+established mock-collector + real-spawned-worker pattern (as F8/F9/F12/F21),
+entirely inside a temp dir; no live-system access needed.
+- [ ] TC-15a.1: sync-only worker + `PATCH /track/:num/lane` — expected: a `worker_dispatch` row is created, claimed, and the lane action actually runs
+- [ ] TC-15a.2: same via the `/track/:num/reset` path — expected: same
+- [ ] TC-15a.3 (negative): project with a sync+poll worker — expected: NO dispatch created (the bridge's own precondition; a regression here would double-run every action)
+- [ ] TC-15a.4: each of the above watched failing for the right reason before the wiring is trusted
+
+### Phase 15b — the browser drag gesture (REQ-9 / AC-9, needs consent)
+- [ ] TC-15b.1: sync-only project on the real board, drag a card to a new lane — expected: `worker_dispatch` row appears and is claimed
+- [ ] TC-15b.2: observation recorded in F15's body
+
+### Phase 16 — F22: migration is actually applicable (REQ-11 / AC-11)
+No unit-test file — verified by running the real tooling.
+- [ ] TC-16.1: after merging main + re-timestamping, `atlas migrate hash` succeeds and `atlas.sum` matches the merged file set — expected: no checksum error
+- [ ] TC-16.2: `atlas migrate apply` against scratch `laneconductor_dev` — expected: applies cleanly, no out-of-order rejection
+- [ ] TC-16.3: this track's full conductor + ui/server suites re-run post-merge — expected: no NEW failures vs. the recorded pre-existing baseline (a 196-commit merge is its own regression risk)
+- [ ] TC-16.4: live DB revisions table lists the new migration as applied — expected: present after Phase 13 Task 4
 
 ## Live verification (required, not optional)
 

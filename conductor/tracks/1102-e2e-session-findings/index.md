@@ -1,10 +1,10 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: implement
+**Lane**: plan
 **Lane Status**: success
-**Progress**: 87%
+**Progress**: 76%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both deferred, same reason: this board is the real live shared system, so both need an explicit go-ahead (or a disposable scratch project for F15) rather than being done autonomously
+**Phase**: Replanned 2026-08-20 — progress corrected DOWN 87%→76% (13 of 17). Found F22: the F10c migration cannot apply as committed (branch 196 commits behind main; version sorts below two already-applied revisions; live FK still CASCADE), so Phase 13 reopens and Phase 16 is added. Phase 15 split — 15a (E2E on the existing worker harness) is unblocked, only 15b (browser drag gesture) needs consent
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -1041,6 +1041,51 @@ still-`running` index.md and generically resets to `queue`) and needs its
 own fix per the "Fix directions" above (a distinguishable "ended mid-work"
 outcome, plus SKILL guidance against backgrounding a final-turn command).
 
+### F22 — A migration authored in a long-lived worktree silently never applies, and lands out-of-order on merge 🔴 CONFIRMED (found while replanning 2026-08-20, not fixed)
+Found while re-planning this track's own Phase 13 (F10c). The previous
+implement session wrote `migrations/20260820101300_worker_dispatch_fk_set_null.sql`,
+tested it against the scratch `laneconductor_dev` DB, committed it, and
+reported it as "done except for an apply step needing your go-ahead."
+Verifying that framing during this replan showed it was wrong in a more
+serious way — the ask wasn't just "may I apply it", the migration as
+committed **cannot be applied cleanly at all**:
+
+- **The live DB's FK is still `ON DELETE CASCADE`** (verified directly:
+  `\d worker_dispatch`). The fix is not in effect, and no automatic
+  mechanism will put it in effect.
+- **Atlas is genuinely the live mechanism** — an earlier read of this
+  during the session concluded it wasn't, based on `\dt` showing no
+  revisions table; that was wrong, the table lives in its own
+  `atlas_schema_revisions` schema and `\dt` only lists `public`.
+  (`ui/server/migrations/`'s startup `runMigration()` is a *second*,
+  separate, idempotent-SQL mechanism — both exist.)
+- **This branch is 196 commits behind main.** Main has two migrations —
+  `20260821120000_add_track_author`, `20260823100000_restore_track_number_unique`
+  — that are already recorded in the live DB's revisions table and do not
+  exist in this worktree at all.
+- **So the new migration's version sorts BEFORE two already-applied
+  revisions.** Atlas assumes linear history; a migration inserted below
+  the applied high-water mark is an out-of-order migration it will refuse
+  by default. `migrations/atlas.sum` was also regenerated against the
+  196-behind file set, so it will conflict with main's on merge.
+
+Generalizes well beyond this track: **any** track that authors an Atlas
+migration from a long-lived worktree hits this, and nothing warns about
+it — the migration commits cleanly, tests pass against a scratch DB, and
+the gap only surfaces when someone eventually tries to apply it (or
+doesn't, and silently ships a schema fix that never took effect).
+
+Fix directions:
+- For this track specifically: merge/rebase main in, re-timestamp the
+  migration above the current high-water mark, regenerate `atlas.sum` on
+  the merged tree, then apply (see Phases 16/13).
+- Generally: a check (CI or `lc`) that fails when a repo migration's
+  version sorts below the live DB's latest applied revision, or when the
+  authoring branch is behind main and touches `migrations/`.
+- Worth deciding explicitly which of the two migration mechanisms is
+  canonical for new schema work, since having both undocumented is what
+  made the first read of this land on the wrong conclusion.
+
 ## What worked (verified live, not assumed)
 
 - New Project wizard → real scaffold run → project registered + worker
@@ -1091,9 +1136,11 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
 - [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
 - [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
-- [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL` so a manual row deletion can't erase dispatch/chat history
+- [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL`. Migration written + scratch-DB tested, but **the live DB's FK is still CASCADE** — the fix does nothing in production yet. Blocked on Phase 16 (not on permission alone, as previously reported). See F22
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
-- [ ] Phase 15: F15 — live E2E verification of the drag-to-lane / reset dispatch bridge, the way F5 was proven. Deferred: this board is the real live shared system — every drag would dispatch a real lane action against someone's real project, the same risk class as F10c's pending DB confirmation. Needs an explicit go-ahead or a disposable scratch project, not attempted
+- [ ] Phase 15a: F15 — E2E through the real dispatch chain (temp project, real spawned worker, real dispatch claim) on the harness F8/F9/F12/F21 already use. **Unblocked** — the previous "needs permission" framing over-scoped the blocker
+- [ ] Phase 15b: F15 — the browser drag *gesture* on the real board. Still needs an explicit go-ahead or a disposable scratch project; deliberately split so 15a isn't held hostage to it
+- [ ] Phase 16: F22 — make the F10c migration actually applicable: merge main (196 commits behind), re-timestamp above the live high-water mark, regenerate `atlas.sum`, dry-run on scratch, then apply
 
 **Verified closed while planning** (contradicting an earlier write-up): F8's
 "clear the busy heartbeat" follow-up needs no phase — `spawnCli()` does call
