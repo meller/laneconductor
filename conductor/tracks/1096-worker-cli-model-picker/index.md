@@ -1,10 +1,10 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Review passed — re-ran all 25 tests fresh, read the full diff against main, scanned for stubs/secrets, confirmed no lasting effect from the prior pass's live-project incident. Moved to quality-gate.
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Quality gate passed — all automated checks re-run fresh (found and worked around a NODE_TEST_CONTEXT env gotcha that was silently zero-running node --test), fast-tier E2E run for real, done-gate's three conditions all verified. Done.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
