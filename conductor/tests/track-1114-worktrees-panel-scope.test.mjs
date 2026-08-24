@@ -31,4 +31,15 @@ describe('belongsInWorktreesPanel', () => {
   it('includes detached rows — always have a worktree by definition (that is how they are found)', () => {
     assert.equal(belongsInWorktreesPanel({ classification: 'detached', hasWorktree: true }), true);
   });
+
+  // Track 10018: pr-open with no worktree is the pr-mode equivalent of
+  // stranded — the PR is still open and needs a decision even after its
+  // worktree is gone.
+  it('includes a pr-open row even with no worktree — the PR itself still needs a decision', () => {
+    assert.equal(belongsInWorktreesPanel({ classification: 'pr-open', hasWorktree: false }), true);
+  });
+
+  it('includes a pr-open row with a live worktree — the common case', () => {
+    assert.equal(belongsInWorktreesPanel({ classification: 'pr-open', hasWorktree: true }), true);
+  });
 });

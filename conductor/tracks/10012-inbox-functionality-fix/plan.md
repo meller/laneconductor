@@ -166,3 +166,12 @@ track's own conductor markdown files. Sent back to `implement`.
   benefits automatically from the `unreplied_count` fix (system `⚠️`/`❌` notices already count)
   without needing its own change — `waiting_for_reply` itself was deliberately left
   Inbox-only, per spec.md's acceptance criteria.
+
+## ✅ REVIEWED
+
+**Reviewed**: 2026-08-17. Implementation verified against spec and requirements.
+- Validated `waiting_for_reply` column persistence in `POST /track` and `PATCH /track/:num/action`.
+- Validated `system` author validity and three-bucket classification in `/api/inbox`.
+- Validated distinct UI rendering and badge styling in `InboxPanel.jsx` and `TrackDetailPanel.jsx`.
+- Validated completion comment convention in `SKILL.md`.
+- All 13 new Vitest test cases passing and production UI build verified.

@@ -95,6 +95,9 @@ async function setupProject(collectorPort, mode = 'local-api') {
   }, null, 2));
 }
 
+// Track 10017: auto_run defaults to true — this suite tests local/remote-api
+// sync behavior, not the auto-run gate itself (which has its own dedicated
+// coverage in local-fs-e2e.test.mjs and track-10017-auto-run.test.mjs).
 function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
   const dir = join(tracksDir, `${num}-test-track-${num}`);
   mkdirSync(dir, { recursive: true });
@@ -110,6 +113,7 @@ function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
     '',
     '## Solution',
     'Test solution.',
+    '**Auto Run**: yes',
   ].join('\n'));
 }
 
@@ -121,6 +125,14 @@ function startWorker(env = {}) {
       LC_MOCK_CLI: `node ${MOCK_CLI}`,
       MOCK_CLI_DELAY_MS: '200',
       LC_SKIP_GIT_LOCK: '1',
+      // This suite predates the worker-identity singleton lock (added on
+      // main after this branch forked): TMP is a plain directory, not its
+      // own git repo, so resolvePrimaryRepoRoot() walks up past it to this
+      // real checkout's primary root and collides with whatever live
+      // worker is actually running for this project. This suite tests
+      // lane transitions, not the identity lock itself — same rationale
+      // as LC_SKIP_GIT_LOCK above.
+      LC_SKIP_WORKER_LOCK: '1',
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

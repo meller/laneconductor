@@ -177,6 +177,9 @@ model tracks {
   kpi_scheduled_at        DateTime? @db.Timestamp(6)        // when the schedule was set
   kpi_maps_to             String?                           // north-star metric name from conductor/kpis.md
   waiting_for_reply       Boolean           @default(false) // set from index.md's **Waiting for reply** marker
+  auto_run                Boolean           @default(false) // set from index.md's **Auto Run** marker; gates sync+poll worker auto-launch
+  dismissed_at            DateTime?         @db.Timestamptz(6) // set by POST /dismiss; inbox re-shows once anything newer than this happens
+  model_override          String?                           // Track 1116 REQ-7: set from index.md's **Model** marker — beats lane/project model precedence
   track_comments          track_comments[]
   projects                projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 

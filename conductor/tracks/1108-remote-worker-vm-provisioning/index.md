@@ -1,7 +1,7 @@
 # Track 1108: Worker VM provisioning from the remote app (first-host onboarding)
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -51,9 +51,36 @@ scope as its own effort rather than scope-creep on 1089.
   the user pastes themselves as a first increment.
 - The zero-hosts screen is also where quota/cost expectations get set (a
   VM running an LLM worker costs real money — say so up front).
+- **Instance mode is a config choice, not just a VM-provisioning detail.**
+  Any remote API launch — not only ones created through this track's
+  "Create a worker VM for me" path — should be able to declare whether the
+  instance backing it may also run a worker, not just serve API/UI
+  traffic:
+  1. **api-only** — Collector API + UI, no local execution capacity.
+  2. **api + workers** — full dev VM: same Collector API, plus a manager
+     worker running on that same instance.
+  This needs a home broader than one VM's cloud-init script — likely a
+  general LaneConductor **instance definition** (what an "instance" is:
+  its API/UI, its mode, which workers are attached to it) that both this
+  track's provisioned VMs and any other remote-api deployment read from.
+  Where exactly that gets defined, and how instance admins are identified
+  and authorized to change the mode after launch, is open — see below.
+
+## Open Questions (raised 2026-08-18, folded into Phase 1)
+- Where does "instance mode" (api-only vs. api+workers) get declared and
+  read from — per-instance config on the Collector, a field on the
+  `.laneconductor.json`-equivalent for remote instances, or a new general
+  LaneConductor instance/UI/API definition doc/schema that doesn't exist
+  yet? No existing track owns this.
+- How do we define "admin" for a LaneConductor instance (who can flip the
+  mode, who can provision/deprovision workers on it)? No existing track
+  addresses instance-level admin roles — [1003](../1003-laneconductor-app-billing/index.md)'s
+  "admin" is a billing/analytics dashboard, not this.
+- Does switching an existing api-only instance to api+workers (after
+  launch) need to be supported, or is mode fixed at creation time for v1?
 
 ## Phases
-- [ ] Phase 1: Plan — zero-hosts detection contract, which clouds first, credentials model (BYO-token vs. paste-cloud-init), and the exact bootstrap the VM runs
+- [ ] Phase 1: Plan — zero-hosts detection contract, which clouds first, credentials model (BYO-token vs. paste-cloud-init), the exact bootstrap the VM runs, **and the instance-mode (api-only vs. api+workers) + admin-model questions above**
 - [ ] Phase 2: Zero-hosts onboarding UI (remote mode): detection + the two-path chooser + "I have a machine" instructions
 - [ ] Phase 3: VM creation path for the first cloud(s), incl. startup script that installs, registers the manager, and appears on the dashboard
 - [ ] Phase 4: Tests + the negative paths (bad credentials, VM never phones home, user closes mid-provision)

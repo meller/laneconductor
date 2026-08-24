@@ -55,6 +55,8 @@ function setupProject() {
   }, null, 2));
 }
 
+// Track 10017: this suite tests claim atomicity, not the auto-run gate —
+// opt in so it's unaffected.
 function createTrack(num) {
   const dir = join(TMP, 'conductor/tracks', `${num}-race-track`);
   mkdirSync(dir, { recursive: true });
@@ -65,7 +67,7 @@ function createTrack(num) {
     '**Lane Status**: queue',
     '**Progress**: 0%',
     '',
-    '## Problem', 'Test.', '', '## Solution', 'Test.',
+    '## Problem', 'Test.', '', '## Solution', 'Test.', '**Auto Run**: yes',
   ].join('\n'));
 }
 

@@ -32,6 +32,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { validatePathIsolation } from './path-isolation.mjs';
+import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
 
 function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
@@ -126,8 +127,25 @@ export async function mergeWorktreeBranch({ repoRoot, trackNumber, mainBranch = 
     } catch {
       const conflictPaths = (gitQuiet(['diff', '--name-only', '--diff-filter=U'], scratchPath) ?? '')
         .split('\n').map(l => l.trim()).filter(Boolean);
-      gitQuiet(['merge', '--abort'], scratchPath);
-      return { merged: false, reason: 'conflict', conflictPaths };
+
+      // Track 1114 Phase 17: a conflict limited entirely to this track's
+      // own conductor/tracks/<N>-*/ bookkeeping files isn't real work to
+      // lose — it's the periodic DB->FS sync writing this same track's
+      // status header directly onto main while its own branch does the
+      // same independently. The branch's copy is the authoritative
+      // completion record; resolve by taking it, exactly like a human
+      // would (`git checkout --theirs`), and finish the merge instead of
+      // aborting. Any OTHER conflicting path (real code) still aborts.
+      if (isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, branch, conflictPaths, trackNumber })) {
+        for (const p of conflictPaths) {
+          git(['checkout', '--theirs', '--', p], scratchPath);
+          git(['add', '--', p], scratchPath);
+        }
+        git(['commit', '--no-edit'], scratchPath);
+      } else {
+        gitQuiet(['merge', '--abort'], scratchPath);
+        return { merged: false, reason: 'conflict', conflictPaths };
+      }
     }
 
     const newMainSha = git(['rev-parse', 'HEAD'], scratchPath).trim();

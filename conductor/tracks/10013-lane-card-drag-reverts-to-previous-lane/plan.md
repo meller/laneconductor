@@ -139,3 +139,132 @@ fetch-abort races.
   board's lane doesn't reflect reality," but have unrelated root causes
   (merge-step field exclusion vs. marker-parsing precedence) and were found/
   fixed independently.
+
+## ✅ REVIEWED
+
+Diff (commit 820db6e) matches all three phases' descriptions. Regression
+suite `conductor/tests/track-10012-parse-status-precedence.test.mjs` 4/4
+pass. Frontend vitest suite 32/32 pass; 11 pre-existing server-side auth
+test failures confirmed unrelated (files never touched by this diff). No
+stubs or secrets introduced. See `conversation.md` for the full write-up.
+
+## ✅ QUALITY PASSED
+
+Full project quality-gate checklist re-run against this worktree: syntax,
+critical files, config validation, command reachability, worker test suite
+(218/227 pass — 9 known-unrelated failures), server vitest (263/274 —
+known auth-suite failures), frontend vitest (32/32), build, security audit
+(pre-existing devDependency findings only), stub scan (clean for this
+diff's changed lines), Playwright fast tier (11 passed / 6 known-skipped /
+0 failed), and a live browser check against the main checkout (which
+already has this fix merged) confirming the WS StrictMode fix and board
+load. See `conversation.md` for the full write-up.
+
+## Phase 4: Stale in-flight run clobbers a human's manual lane move ✅ COMPLETE (prompt-level fix — see caveat below)
+
+**Reported**: dragging track 8003 ("Concurrency A 1786523175558") to `done`
+kept landing back in `plan`.
+
+**Investigation**: Reproduced the exact drag via the same
+`PATCH /api/projects/:id/tracks/:num` call the UI's confirm dialog makes —
+it held perfectly stable (30s+, then 70s+) with no revert, both times.
+Ruled out: a diverged `**Status**`/`**Lane**` pair (Phase 1's bug — this
+track's markers agree), an active worktree/lock (none exists — the branch
+was already deleted per track 1114's cleanup), and multiple duplicate
+workers racing the claim (checked `track_locks`, `claimed_by` — clean).
+
+While investigating, caught the track live in `lane_action_status: running`
+with `worker_dispatch` showing an in-flight `plan` dispatch
+(`dispatch-plan-8003-*.log`, a real 281KB CLI session) — this is what a
+`Move this card to the Done lane` button click, or a same-target drag, would
+have hit mid-run: `KanbanBoard.jsx`'s drop handler silently no-ops while
+`lane_status === 'plan' && lane_action_status === 'running'` (by design —
+see the comment at that check), so a drag attempted during that window
+does nothing and the card just stays where it is, with zero feedback.
+
+That alone explains a *blocked* drag, but not a *reverted* one — and
+`conversation.md` had `> **system**: ✅ Plan complete — moved to plan:success.`
+sitting right there. Root cause, confirmed by reading the skill protocol
+directly (`.claude/skills/laneconductor/SKILL.md`): `/laneconductor plan`'s
+step 7 (**Transition**) unconditionally writes `**Lane**` in `index.md` to
+`workflow.json`'s `lanes.plan.on_success` value when the run finishes — with
+no check for whether a human already moved the card to a different lane
+while the run was still in progress. Symmetrically, `/laneconductor
+implement`/`review`/`quality-gate`'s own Transition steps do the exact same
+unconditional write. So the actual failure mode a user hits is a **race**,
+not a permanent bug: drag to `done` while a `plan` run is still finishing →
+the drag briefly succeeds → the already-in-flight run completes moments
+later and blindly stamps `**Lane**: plan` back over it, per its own
+(now-stale) instructions — the file has no way to know the human moved on
+in the meantime. `reconcileActiveDispatch()`
+(`conductor/laneconductor.sync.mjs`) only reports the dispatch's own
+`worker_dispatch.status`; nothing in that path double-checks the track's
+current lane before letting the file write stand, either.
+
+**Fix applied**: added an explicit guard to all four Transition steps in
+`.claude/skills/laneconductor/SKILL.md` (plan, implement, review,
+quality-gate) — before writing the lane transition, re-read `index.md`'s
+current `**Lane**` marker; if it no longer matches the lane this run itself
+claimed at step 0, skip the overwrite entirely (leave `**Lane**`/`**Lane
+Status**` untouched) and note in the completion comment that the lane had
+already moved. The human's manual move always wins over a stale run's own
+completion intent.
+
+**Caveat — this is a prompt-level fix, not a code-level one**: the guard is
+an instruction to the CLI agent, not a deterministic check enforced by
+`laneconductor.sync.mjs` or the API. It should hold given the model follows
+its own protocol (as it already does for the Claim step's parallel
+requirement), but it isn't hard-guaranteed the way a server-side check
+would be. If this is worth closing more tightly, `reconcileActiveDispatch()`
+would be the natural place for a code-level backstop — before ever letting
+a dispatch's file-based Lane transition reach the primary DB, compare it
+against `tracks.last_updated_by`/timestamp to detect a human's more-recent
+manual move and defer to it. Not done here — flagging it as a possible
+Phase 5 rather than guessing at server-side locking semantics without a
+second live reproduction to verify against.
+
+**Not independently live-verified end to end**: verifying this fully needs
+racing a real in-flight `plan` run against a manual drag and confirming the
+guard fires — a multi-minute reproduction given the CLI run itself takes
+that long, not run in this session. The root cause is solid (direct protocol
+read + the exact `worker_dispatch`/`lane_action_status`/`conversation.md`
+evidence above all point the same direction), and the fix directly addresses
+it, but treat it as verified-by-inspection rather than verified-live like
+Phases 1–3.
+
+- [x] Task 1: Reproduce the reported drag via direct API call — held stable,
+      ruling out Phase 1's bug and worktree/lock races for this specific track
+- [x] Task 2: Catch the track in `lane_action_status: running` with a live
+      `worker_dispatch` entry — confirms an in-flight run, not a permanent DB bug
+- [x] Task 3: Read `.claude/skills/laneconductor/SKILL.md`'s Transition steps
+      directly — confirmed all four (plan/implement/review/quality-gate)
+      unconditionally overwrite `**Lane**` on completion with no check for an
+      intervening human move
+- [x] Task 4: Add a "re-read current Lane before overwriting" guard to all
+      four Transition steps
+- [ ] Task 5 (not done — proposed follow-up): a code-level backstop in
+      `reconcileActiveDispatch()` so this isn't solely enforced by prompt
+      compliance
+
+## ✅ REVIEWED
+
+Phase 5 (the code-level backstop for the human-lane-override race) reviewed
+and passed. Full write-up, including a real bug found and fixed in the
+guard's first version during this review (a same-lane echo sync was
+clearing the guard flag within milliseconds — caught live against the real
+API server, not just mocked tests), is in `conversation.md`. 7/7 new unit
+tests pass; 301/312 full suite (11 pre-existing, unrelated auth failures);
+live end-to-end reproduction of the 8003 race against a disposable scratch
+track confirmed the fix holds.
+
+## ✅ QUALITY PASSED
+
+Full checklist re-run from scratch (all boxes were pre-ticked from a prior
+track's run — ignored per the gate file's own warning, re-executed
+personally). Syntax/config/critical-files clean. Worker tests 268/275,
+server tests 301/312, frontend 60/60 — all failures pre-existing and
+unrelated (verified via `git stash` where relevant). Build succeeds.
+Playwright fast tier 11/11 (6 known skips), 0 failed, against a freshly
+restarted API server. Beyond the suite: live-verified the actual 8003 race
+end-to-end against the real running server on a disposable scratch track.
+Full write-up in `conversation.md`.

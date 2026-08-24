@@ -24,4 +24,4 @@ Four-part feature:
 - [ ] Phase 2: Track comments (DB schema + API + UI)
 - [ ] Phase 3: Blocker capture during implement
 - [ ] Phase 4: Back-to-backlog loop + re-implement skill flow
-
+**Summary**: Kanban is read-only. No way to move cards between lanes. No visibility into where a track is within its current phase.
