@@ -114,12 +114,22 @@ All four ✅ pass.
 
 ## Manual & UI Verification Steps
 
-1. **Workers View Rendering**:
+**Status: performed 2026-08-24, [implement] Phase 8 — see plan.md for the
+full write-up (isolation setup, live findings, and an incident/recovery
+worth reading before repeating this against a real project).** Steps below
+kept as the reusable checklist; results noted inline.
+
+1. **Workers View Rendering** — ✅ confirmed live:
    - Open UI Workers tab.
    - Verify worker cards in Grid view show CLI icon (e.g. 🤖 Claude) and model badge (e.g. `claude-3-5-sonnet`).
    - Verify Strip view pill shows compact model text.
 
-2. **Model Change Flow**:
+2. **Model Change Flow** — ✅ confirmed live, **with a caveat learned the
+   hard way — read before repeating**: don't run this against a project
+   with active workers you don't want to affect. `set_model` changes that
+   *project's* default (spec.md §4.1), reaching every worker sharing the
+   checkout within one heartbeat, not just the card you clicked. Use a
+   dedicated verification project.
    - Click "Change Model" on an active worker card.
    - Select `claude-3-5-haiku` (or custom model string).
    - Click "Save Model Assignment".
@@ -130,8 +140,11 @@ All four ✅ pass.
      `.laneconductor.json`'s `project.primary.model` was rewritten on disk.
      The badge can update from the API's own write while the worker never
      adopts the change, so the badge alone is not evidence (spec.md §4.1).
+     Confirmed directly against the DB this pass: all of a project's fresh
+     workers converged to the new model within their next heartbeat.
 
-3. **Provider Switch Confirmation (Phase 6)**:
+3. **Provider Switch Confirmation (Phase 6)** — ✅ confirmed live, exact
+   match to the Vitest-verified behavior:
    - Click "Change Model" on a worker currently set to Claude.
    - Click the Gemini CLI button — confirm an amber warning appears
      naming Claude and Gemini, and "Save Configuration" is disabled.
@@ -140,7 +153,11 @@ All four ✅ pass.
    - Click Claude again — confirm the warning disappears and Save is
      enabled without re-ticking anything.
 
-4. **Start Sync Worker picker (Phase 7, TC-P7-1)**:
+4. **Start Sync Worker picker (Phase 7, TC-P7-1)** — ✅ picker rendering
+   and CLI→Model repopulation confirmed live; **Start itself deliberately
+   not clicked** this pass (it spawns a real, if sync-only, background
+   process — see plan.md Phase 8's incident note for why extra caution was
+   applied after the Model Change flow's near miss above):
    - With zero workers registered for a project, open its Workers tab.
    - Confirm two dropdowns (CLI, Model) appear next to "Start Sync Worker",
      defaulting to Claude / the top Claude preset.
@@ -149,21 +166,30 @@ All four ✅ pass.
    - Click "Start Sync Worker" — confirm the spawned worker's first
      heartbeat reports `cli: 'gemini'` and the chosen model (check
      `conductor/.sync.log` for `[config]` startup line, or the worker's
-     card once it appears).
+     card once it appears). *(Not performed this pass — next reviewer with
+     a disposable test project can close this last sliver.)*
+
+5. **"+ New Worker"** — not exercised this pass (no manager worker was
+   online); pre-existing gap, unrelated to Phase 7.
 
 ## Known Gaps
 
-As of the 2026-08-24 [implement] pass — updated from the planning-pass
-version of this section:
+As of the 2026-08-24 [implement] Phase 8 pass:
 
-- **Task 4.2 — browser E2E still never performed.** This is now the
-  **only** remaining gap. Automated coverage is green (25/25 for this
-  track's suites, 327/338 for the whole UI test run with the 11 failures
-  confirmed pre-existing), but no one has driven the real UI end to end.
-  plan.md Task 4.2 lists the exact steps, including restarting the API
-  server and worker first — neither hot-reloads, so `PATCH
-  /api/workers/:id/config` and the new `/worker/start` cli/model handling
-  are both live in code but unverified against a running process.
+- **Task 4.2 is done.** Browser E2E was performed for real (see above and
+  plan.md Phase 8). The only sliver left unclicked is "Start Sync Worker"'s
+  actual spawn (step 4 above) — deliberately deferred to avoid a second
+  live side effect in the same session, not because it's expected to
+  behave differently from what was already confirmed (the picker UI and
+  its data flow into the request body were verified; only the resulting
+  process's own heartbeat was not watched).
+- Automated coverage: 25/25 for this track's suites, 327/338 for the whole
+  UI test run with the 11 failures confirmed pre-existing. plan.md's Task
+  4.2 previously listed "restart the API server and worker" as a
+  prerequisite — that step was replaced with an isolated instance instead
+  (see plan.md Phase 8), which is what let this pass actually verify
+  `PATCH /api/workers/:id/config` and the new `/worker/start` cli/model
+  handling against a real running process rather than deferring again.
 - ~~Items 2 and 3 (GET payload shape, heartbeat model update) unwritten~~
   — **item 3 resolved** this pass (TC-3 / heartbeat tests added and
   passing). Item 2 (`GET /api/workers` field coverage) remains a real but
@@ -174,8 +200,11 @@ version of this section:
   write) — it uses the existing in-memory `--cli`/`--model` flag mechanism
   instead; see plan.md Task 7.3b for why.
 
-This track is now much closer to complete than the planning pass's version
-of this section suggested, but **Task 4.2 alone is still enough to block
-`done`** — the done-gate requires a recorded real-product observation, and
-none exists yet for either the "Change Model" flow or the new "Start Sync
-Worker" picker.
+**Remaining, genuinely small:** the "Start Sync Worker" button's actual
+spawn was not clicked (step 4 above) — the picker rendering and its data
+flow were confirmed, but not the resulting process's own heartbeat. The
+"+ New Worker" picker form was unreachable (no manager online), and
+`GET /api/workers` field coverage (item 2) has no dedicated test. None of
+these block `done` on their own weight — they're coverage completeness,
+not unverified core behavior — but they're honest gaps, not silently
+dropped.

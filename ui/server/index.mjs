@@ -3709,9 +3709,19 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
         // this codebase's own established fixture-naming convention —
         // excluding both is safe for real remote-api workers, which use
         // neither.
+        //
+        // Prefer an idle worker (current_task IS NULL) over a busy one so
+        // this fallback load-balances across the project's live workers
+        // instead of always piling onto the same lowest-id one — observed
+        // live: two idle workers sat unused while every dispatch kept
+        // landing on the same busy worker, serializing work that could
+        // have run in parallel. `id` only breaks ties within the same
+        // idle/busy bucket, so behavior is unchanged when all workers are
+        // idle or all are busy.
         const { rows: any } = await pool.query(
           `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
+           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%')
+           ORDER BY (current_task IS NOT NULL), id LIMIT 1`,
           [req.params.id]
         );
         resolvedWorkerId = any[0]?.id ?? null;

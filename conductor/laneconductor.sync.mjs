@@ -5393,9 +5393,31 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
     const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
     return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
   };
+  const originalLaneActionStatus = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim() || 'queue';
   writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
   const proj = getProject();
-  const spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  // Unlike checkDispatchInbox's identical spawnCli call, this one had no
+  // try/catch — a lock-contention or worktree-setup failure (observed
+  // live: a second auto-complete-track stage racing an already-running
+  // one for the same track) threw straight out of this async function,
+  // permanently stuck the file's Lane Status on 'running' with nothing to
+  // ever revert it, and left the dispatch row silently 'claimed' forever.
+  let spawnedPid;
+  try {
+    spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  } catch (err) {
+    logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
+    writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+    const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
+    await reportAutoCompleteResult(dispatchId, 'failed', resultText);
+    try {
+      appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+    } catch (writeErr) {
+      logger.warn({ trackNumber, err: writeErr.message }, '[auto-complete] Failed to post spawn-failure conversation comment');
+    }
+    activeAutoComplete.delete(trackNumber);
+    return;
+  }
   logger.info({ trackNumber, currentLane, spawnedPid, dispatchId }, '[auto-complete] stage started');
   // stagesRun is the history BEFORE this stage — appended with the lane
   // just started so reconcileAutoComplete's next check has an accurate
@@ -6701,6 +6723,19 @@ async function checkDispatchInbox() {
         .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
       await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: originalLaneActionStatus, lane_action_result: err.message })
         .catch(e => logger.warn({ trackNumber, err: e.message }, '[dispatch] Failed to reset track lane_action_status after spawn failure'));
+      // Previously only visible by digging through the dispatch table and
+      // lock files (observed live: a lock-contention rejection — a second
+      // dispatch racing an already-running session for the same track —
+      // left conversation.md and the Inbox with no trace of what happened,
+      // making a completely ordinary "another run was already in
+      // progress" bounce look like an unexplained stall). Post it where a
+      // human is actually looking.
+      try {
+        appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
+          `\n> **system**: ${entry.action} could not start: ${err.message}\n`);
+      } catch (writeErr) {
+        logger.warn({ trackNumber, err: writeErr.message }, '[dispatch] Failed to post spawn-failure conversation comment');
+      }
     }
   }
 }
