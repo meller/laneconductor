@@ -1,8 +1,9 @@
 # Track 1107: End-to-end walkthrough — remote app + API
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
+**Last Run**: mock (primary)
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
 **Summary**: Run the "nothing → a track planned" path with the app and Collector API on a DIFFERENT machine than the worker — remote-api mode with real auth. Fourth sibling of 1104 (UI) / 1105 (skill) / 1106…
