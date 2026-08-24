@@ -112,14 +112,14 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1 } },
   }, null, 2));
 
   mkdirSync(trackDir, { recursive: true });
   writeFileSync(indexPath, [
     '# Track 001: Test Track',
     '',
-    '**Lane**: plan',
+    '**Lane**: implement',
     '**Lane Status**: queue',
     '**Progress**: 0%',
     '',
@@ -175,7 +175,7 @@ describe('Track 10020: reconcileActiveDispatch must not finalize on a transient 
     }, { label: 'worker registered' });
     const workerId = state0.workers[0].id;
 
-    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
     // Wait until the dispatch is claimed and spawnCli has written "running".
     await poll(async () => {
@@ -193,14 +193,14 @@ describe('Track 10020: reconcileActiveDispatch must not finalize on a transient 
     // implementation would have needed to wrongly finalize this.
     await sleep(1500);
     let mid = await getState(collectorPort);
-    let entry = mid.dispatch.find(e => e.action === 'plan');
+    let entry = mid.dispatch.find(e => e.action === 'implement');
     assert.equal(entry.status, 'claimed', 'must NOT finalize while the real spawned process is still alive, even after a sustained transient blip spanning several reconcile ticks');
 
     // Simulate the agent going back to real work.
     writeLaneStatus('running');
     await sleep(1000);
     mid = await getState(collectorPort);
-    entry = mid.dispatch.find(e => e.action === 'plan');
+    entry = mid.dispatch.find(e => e.action === 'implement');
     assert.equal(entry.status, 'claimed', 'still claimed — the real process has not exited yet');
 
     // Now let the mock CLI actually exit (delay elapses at 3s from spawn;
@@ -208,11 +208,11 @@ describe('Track 10020: reconcileActiveDispatch must not finalize on a transient 
     // still correctly detected afterward.
     const finalState = await poll(async () => {
       const s = await getState(collectorPort);
-      const d = s.dispatch.find(e => e.action === 'plan');
+      const d = s.dispatch.find(e => e.action === 'implement');
       return d && d.status !== 'claimed' ? s : null;
     }, { timeout: 15000, label: 'dispatch resolves once the real process exits' });
 
-    const finalEntry = finalState.dispatch.find(e => e.action === 'plan');
+    const finalEntry = finalState.dispatch.find(e => e.action === 'implement');
     assert.equal(finalEntry.status, 'done', 'the real exit must still be detected and reported correctly');
   });
 });

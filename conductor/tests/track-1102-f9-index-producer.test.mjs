@@ -24,6 +24,13 @@
 // into the primary — losing the agent's real work even though it never
 // touched the primary directly.
 //
+// Track 1115: this test originally dispatched 'plan' to trigger worktree
+// creation. Track 1115's D6 makes 'plan' always run main-direct (no
+// worktree, for every track, by design) — so the scenario now dispatches
+// 'implement' instead, the lane that still gets a worktree under 1115's
+// default (branch) mode. The regression this test guards against is
+// unchanged; only the lane used to reach a worktree changed.
+//
 // Run: node --test conductor/tests/track-1102-f9-index-producer.test.mjs
 
 import { describe, it, before, after } from 'node:test';
@@ -80,7 +87,7 @@ async function enqueueDispatch(port, entry) {
 const PRIMARY_INDEX = [
   '# Track 001: Real Track With A Full Body',
   '',
-  '**Lane**: plan',
+  '**Lane**: implement',
   '**Lane Status**: queue',
   '**Progress**: 0%',
   '**Summary**: original pre-run summary, should not leak into the post-run version',
@@ -100,7 +107,7 @@ const WORKTREE_MARKER = 'UNIQUE_AGENT_FINISHED_WORK_MARKER_98765';
 const AGENT_INDEX = [
   '# Track 001: Real Track With A Full Body',
   '',
-  '**Lane**: plan',
+  '**Lane**: implement',
   '**Lane Status**: success',
   '**Progress**: 100%',
   `**Summary**: ${WORKTREE_MARKER}`,
@@ -132,7 +139,7 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1 } },
   }, null, 2));
 
   const trackDir = join(TMP, 'conductor/tracks/001-real-track-with-a-full-body');
@@ -182,7 +189,7 @@ describe('Track 1102 F9: does the exit handler clobber the worktree\'s own finis
     }, { label: 'worker registered' });
     const workerId = state0.workers[0].id;
 
-    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
     // Wait for the real worktree to appear, then simulate "the agent
     // finished its real work" by writing AGENT_INDEX into it — before the

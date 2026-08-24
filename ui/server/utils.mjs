@@ -31,14 +31,24 @@ export function slugify(title) {
 
 export function trackTemplates(trackNumber, title, description, type = 'feature', trackType = 'dev', laneStatus = 'plan') {
     const typeLine = trackType && trackType !== 'dev' ? `**Type**: ${trackType}\n` : '';
+    // Track 1115 REQ-6: `**Track Kind**` records the New Track modal's bug/feature
+    // selector — a distinct field from **Type** (dev/marketing/sales/support/other)
+    // and deliberately NOT the same as **Workspace**. Writing the resolved
+    // workspace mode directly here would collapse "inferred from type" and
+    // "human explicitly chose main" into one indistinguishable marker, defeating
+    // resolveWorkspaceMode()'s D1 auto-queue-override safety check (see
+    // workspace-mode.mjs's parseTrackKind() for the full reasoning). Only emit
+    // for 'bug' — 'feature' is the implicit default, same sparse-emission
+    // convention as typeLine above.
+    const kindLine = type === 'bug' ? '**Track Kind**: bug\n' : '';
     if (type === 'bug') {
-        const index = `# Track ${trackNumber}: ${title}\n\n**Status**: ${laneStatus}\n**Progress**: 0%\n${typeLine}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nInvestigate root cause, fix, and add regression test.\n\n## Phases\n- [ ] Phase 1: Investigate and fix\n`;
+        const index = `# Track ${trackNumber}: ${title}\n\n**Status**: ${laneStatus}\n**Progress**: 0%\n${typeLine}${kindLine}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nInvestigate root cause, fix, and add regression test.\n\n## Phases\n- [ ] Phase 1: Investigate and fix\n`;
         const plan = `# Track ${trackNumber}: ${title}\n\n## Phase 1: Investigate and Fix\n\n**Problem**: ${description || 'To be defined.'}\n**Solution**: Identify root cause, implement fix, verify with regression test.\n\n- [ ] Reproduce the bug\n- [ ] Investigate root cause\n- [ ] Implement fix\n- [ ] Verify fix works\n- [ ] Add regression test\n`;
         const spec = `# Spec: ${title}\n\n## Problem Statement\n${description || 'To be defined.'}\n\n## Steps to Reproduce\n1. \n2. \n\n## Expected Behaviour\n\n## Actual Behaviour\n\n## Acceptance Criteria\n- [ ] Bug no longer reproducible\n- [ ] Regression test added\n`;
         return { index, plan, spec };
     }
     // feature (default)
-    const index = `# Track ${trackNumber}: ${title}\n\n**Status**: ${laneStatus}\n**Progress**: 0%\n${typeLine}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nTo be defined.\n\n## Phases\n- [ ] Phase 1: Implementation\n`;
+    const index = `# Track ${trackNumber}: ${title}\n\n**Status**: ${laneStatus}\n**Progress**: 0%\n${typeLine}${kindLine}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nTo be defined.\n\n## Phases\n- [ ] Phase 1: Implementation\n`;
     const plan = `# Track ${trackNumber}: ${title}\n\n## Phase 1: Implementation\n\n**Problem**: ${description || 'To be defined.'}\n**Solution**: To be defined.\n\n- [ ] Task 1: Define requirements\n- [ ] Task 2: Implement\n- [ ] Task 3: Test\n`;
     const spec = `# Spec: ${title}\n\n## Problem Statement\n${description || 'To be defined.'}\n\n## Requirements\n- REQ-1: ...\n\n## Acceptance Criteria\n- [ ] Criterion 1\n`;
     return { index, plan, spec };

@@ -319,10 +319,18 @@ Exit handler:
 
 **Worktree Management**
 
-Worktrees provide isolated parallel execution for each track. The lifecycle is controlled by `project.worktree_lifecycle` in `.laneconductor.json`:
+Worktrees provide isolated parallel execution for a track running in
+**`branch` workspace mode** — see "Workspace Modes" below; a
+**`main`-mode** track skips everything in this section entirely (no
+worktree, no track branch, no merge step). For `branch`-mode tracks, the
+lifecycle is controlled by `project.worktree_lifecycle` in
+`.laneconductor.json`:
 
 - **per-cycle** (default): Worktree persists for the full track lifecycle (plan → implement → review → quality-gate → done)
-  - Created: When track first enters `in-progress` lane
+  - Created: lazily, at the first `branch`-mode lane action that needs
+    one (normally `implement` — never at track creation or during
+    `plan`, which always runs directly in the primary checkout
+    regardless of the track's resolved mode; see "Workspace Modes")
   - Path: `.git/worktrees/{track_number}/`
   - Reused: Across all lane transitions until `done:success`
   - Cleanup: Only when track reaches `done:success` (merge to main + remove worktree)
@@ -333,7 +341,25 @@ Worktrees provide isolated parallel execution for each track. The lifecycle is c
   - Cleanup: When exiting the lane (regardless of success/failure)
   - Use case: Strict isolation, each lane starts fresh with no context
 
-All work happens inside the worktree (isolated from main branch). Commits go to the track's feature branch (`track-{track_number}`). On `done:success`, the feature branch is merged to main via `git merge --no-ff` (preserves history), then the worktree is removed.
+For a `branch`-mode track, all work happens inside the worktree (isolated
+from main branch). Commits go to the track's feature branch
+(`track-{track_number}`). On `done:success`, the feature branch is merged
+to main via `git merge --no-ff` (preserves history), then the worktree is
+removed. A `main`-mode track is already on main at `done:success` — there
+is no merge step.
+
+**Workspace Modes (Track 1115)**
+
+Orthogonal to the lifecycle above: every lane action first resolves to
+`branch` (the default — everything described in this section applies) or
+`main` (runs directly in the primary checkout; this whole section is
+N/A). Selected via a `**Workspace**` marker (deliberate, explicit —
+always wins) or a `**Track Kind**` marker (an inference from bug/feature
+classification, which defaults `bug` → `main` but does *not* survive an
+unattended auto-queue claim, unlike an explicit `**Workspace**` marker).
+See `conductor/workflow.md`'s "Workspace Modes" section and
+`conductor/tracks/1115-workspace-mode-main-vs-branch/spec.md` for the
+full resolution table.
 
 **Lock Synchronization** (when remote collector configured)
 - Local worker creates lock, commits to git

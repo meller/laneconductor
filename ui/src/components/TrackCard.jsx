@@ -173,6 +173,28 @@ function TrackTypeBadge({ trackType }) {
   );
 }
 
+// ── Workspace mode badge (Track 1115) ────────────────────────────────────────
+//
+// Only shown for 'main' — 'branch' is today's silent default (matches
+// TrackTypeBadge's convention of returning null for the default value, and
+// **Track Kind**/**Type**'s sparse-emission convention on the file side).
+// Distinct from BranchIndicator above: that one infers "main" from the
+// ABSENCE of an active branch (true for main-mode tracks AND for a
+// branch-mode track that hasn't reached implement yet — D7's lazy worktree
+// creation), so it can't tell "will never have a branch" apart from "doesn't
+// have one yet". This badge reflects the track's actual RESOLVED mode.
+function WorkspaceModeBadge({ workspaceMode }) {
+  if (workspaceMode !== 'main') return null;
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded border font-bold tracking-wide bg-orange-900/60 text-orange-300 border-orange-800"
+      title="Workspace mode: main — this track's lane actions run directly in the primary checkout, no worktree or branch"
+    >
+      MAIN
+    </span>
+  );
+}
+
 // ── Branch indicator (Track 10018 Phase 10) ──────────────────────────────────
 //
 // Direct human feedback: cards only ever showed lane/progress — nothing
@@ -509,6 +531,7 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
               </span>
             )}
             <TrackTypeBadge trackType={track.track_type} />
+            <WorkspaceModeBadge workspaceMode={track.workspace_mode} />
             <BranchIndicator branch={track.worktree_branch} />
             {(track.human_needs_reply || track.unreplied_count > 0) && (
               <span
