@@ -348,3 +348,11 @@ tested, and independently verified against real infrastructure this session
 
 Lane left at `plan`/`queue` as found — moved externally while this run was
 in progress; not overwritten (see conversation.md).
+
+## ✅ COMPLETE
+
+Re-invoked by the worker on the same completed work (`implement`/`queue` —
+a normal re-queue since the prior turn deferred the lane transition to
+respect what looked like external changes at the time). Re-verified: all
+tests still pass, nothing regressed. Transitioning per
+`workflow.json`'s `lanes.implement.on_success`: `review:queue`.
