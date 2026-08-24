@@ -1,6 +1,6 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
 **Progress**: 80%
 **Phase**: Plan re-verified against the shipped code — three spec-vs-code mismatches found; Phase 7 opened for the one that needs code (Start-worker launch picker)
