@@ -20,5 +20,5 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: queue
 **Summary**: Follow-up from track 1100 Review #3's Gap 2 and track-1033-sharing findings (2026-08-20). Both blockers on the slow Playwright tier come down to the same root cause: the specs depend on shared live…
