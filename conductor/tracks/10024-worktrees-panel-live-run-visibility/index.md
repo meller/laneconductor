@@ -1,7 +1,7 @@
 # Track 10024: Worktrees panel: live run visibility
 
 **Status**: plan
-**Progress**: 0%
+**Progress**: 100%
 
 ## Problem
 When a Worktrees panel row is running an action (Complete & Merge, AI resolve conflict, a re-triggered lane dispatch), the row just shows a static 'Running…' badge with no way to see what's actually happening.
@@ -59,6 +59,7 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Summary**: When a Worktrees panel row is running an action (Complete & Merge, AI resolve conflict, a re-triggered lane dispatch), the row just shows a static 'Running…' badge with no way to see which worker…
+**Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no…
+**Waiting for reply**: no
