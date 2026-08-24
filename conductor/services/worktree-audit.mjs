@@ -11,6 +11,9 @@
 // directory left to read from disk).
 
 import { execFileSync } from 'node:child_process';
+import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 function git(args, cwd) {
   try {
@@ -84,7 +87,14 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
   const lane = indexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
   const laneStatus = indexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
   const title = indexContent.match(/^#\s*Track\s+\S+:\s*(.+)$/mi)?.[1]?.trim() ?? null;
-  return { lane, laneStatus, title, trackDir: dirName };
+  // Track 10018: read straight off the branch tip, same as lane/laneStatus
+  // above — works identically whether or not a worktree currently exists.
+  const mergeModeRaw = indexContent.match(/\*\*Merge Mode\*\*:\s*([a-z]+)/i)?.[1]?.trim().toLowerCase() ?? null;
+  const mergeMode = ['pr', 'direct'].includes(mergeModeRaw) ? mergeModeRaw : 'pr'; // resolveMergeMode's default, inlined to avoid a cross-module import cycle here
+  const prNumber = indexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+  const prUrl = indexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null;
+  const prStatus = indexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null;
+  return { lane, laneStatus, title, trackDir: dirName, mergeMode, prNumber, prUrl, prStatus };
 }
 
 // Track 1112 Phase 2, corrected twice during implementation:
@@ -108,25 +118,61 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
 // specifically change on main since the merge-base — i.e. did the track
 // genuinely progress through the lane pipeline independently, not just
 // "some byte in this directory differs."
-function mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, trackDir, trackNumber) {
+//
+// 3rd correction (track 10011's own incident): a `running` marker on main
+// is not, by itself, proof of live independent progress. Nothing can
+// legitimately be running a track without holding
+// conductor/locks/<trackNumber>.lock — the same invariant
+// reconcileWorktrees() already relies on to avoid merging out from under a
+// genuinely active run. An earlier, premature merge left main's own copy
+// of track 10011 stuck at quality-gate:running with its worker long since
+// gone; that stale, unlocked marker alone was enough to trip this guard
+// and permanently strand the branch's real, later done:success completion
+// as 'open' — it took a manual, out-of-band `git merge` to land it. A
+// `running` status is now only trusted as independent progress when a
+// matching lock file backs it; unlocked, it's a dead artifact.
+function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, trackDir, trackNumber) {
   const base = git(['merge-base', branch, mainBranch], repoRoot).trim();
   if (!base) return false;
   const baseState = readTrackStateFromBranch(repoRoot, base, trackNumber);
   const mainState = readTrackStateFromBranch(repoRoot, mainBranch, trackNumber);
   if (!baseState || !mainState) return false;
-  return baseState.lane !== mainState.lane || baseState.laneStatus !== mainState.laneStatus;
+  if (baseState.lane === mainState.lane && baseState.laneStatus === mainState.laneStatus) return false;
+
+  if (mainState.laneStatus?.trim().toLowerCase() === 'running') {
+    // Track 10019 (REQ-5 / S11): locks always live under the PRIMARY
+    // checkout's .conductor/locks/, never a linked worktree's — building
+    // this path from `repoRoot` silently missed real, live locks whenever
+    // this function was called with a worktree path (e.g.
+    // reconcileWorktrees() running from a worktree, S5), misclassifying an
+    // actively-claimed track as safe to auto-merge (confirmed live,
+    // conductor/tracks/10019-*/spec.md). `primaryPath` is already known —
+    // auditWorktrees() derives it for free from `git worktree list`'s own
+    // ordering, no extra git call needed.
+    const lockPath = join(primaryPath, '.conductor', 'locks', `${trackNumber}.lock`);
+    if (!existsSync(lockPath)) return false; // stale/orphaned — not real independent progress
+  }
+  return true;
 }
 
-function wouldConflict(repoRoot, mainBranch, branch) {
+// Track 1114 Phase 17: returns the conflicting paths a real `git merge`
+// would hit — `[]` means clean. `git merge-tree --write-tree` is fully
+// read-only (no working directory, index, or ref touched — required for
+// this file's read-only contract), and reports each conflict as its own
+// `CONFLICT (...): ... in <path>` line, parsed here. If git ever reports a
+// conflict in a shape this can't parse a path out of (format change, or a
+// genuinely different failure), falls back to a sentinel path that can
+// never match isTrackBookkeepingConflict's whitelist — conservative:
+// still classified 'conflicted', never silently treated as clean or
+// auto-resolvable off of an unparsed failure.
+function getConflictPaths(repoRoot, mainBranch, branch) {
   try {
-    execFileSync('git', ['merge-tree', '--write-tree', mainBranch, branch], { cwd: repoRoot, stdio: 'pipe' });
-    return false;
+    execFileSync('git', ['merge-tree', '--write-tree', mainBranch, branch], { cwd: repoRoot, stdio: 'pipe', encoding: 'utf8' });
+    return [];
   } catch (err) {
-    // merge-tree exits nonzero on a real conflict; anything else (e.g. the
-    // branch/ref genuinely can't be merge-tree'd for an unrelated reason)
-    // is treated the same way — conservative: don't call it mergeable
-    // unless we positively confirmed a clean merge.
-    return true;
+    const output = `${err.stdout || ''}${err.stderr || ''}`;
+    const paths = [...output.matchAll(/^CONFLICT \([^)]*\):.*? in (.+)$/gm)].map(m => m[1].trim());
+    return paths.length > 0 ? paths : ['__unparsed-conflict__'];
   }
 }
 
@@ -147,6 +193,29 @@ function wouldConflict(repoRoot, mainBranch, branch) {
  * Fully merged branches are omitted — nothing to report.
  * Read-only: never merges, deletes, or checks anything out.
  */
+// Track 10019 (Phase 4): every currently-existing track worktree,
+// regardless of merge/branch-divergence state — deliberately NOT
+// auditWorktrees() above, whose `isAncestor(...) continue` (line ~211)
+// drops any track-* branch that hasn't diverged from `mainBranch` yet.
+// That's correct for auditWorktrees' own purpose (nothing to merge until
+// there's a commit to merge) but wrong for this one: a freshly-created
+// worktree with uncommitted, in-progress edits — exactly the case doc-sync
+// exists to keep fresh — has a branch that's still a plain ancestor of
+// main until the agent's first commit, and would otherwise be silently
+// invisible to doc-sync for the entire early part of a run. One
+// `git worktree list --porcelain` call, no branch/commit walking.
+export function listTrackWorktrees({ repoRoot }) {
+  const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
+  const results = [];
+  for (const [path] of worktreesByPath) {
+    if (path === primaryPath) continue;
+    const trackNumber = path.match(/\.worktrees[\\/](\d+)$/)?.[1];
+    if (!trackNumber) continue; // not a track worktree (scratch/merge worktree, etc.)
+    results.push({ trackNumber, worktreePath: path });
+  }
+  return results;
+}
+
 export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
   const { byPath: worktreesByPath, primaryPath } = parsePorcelainWorktreeList(git(['worktree', 'list', '--porcelain'], repoRoot));
   const branchToWorktree = new Map();
@@ -187,6 +256,37 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     const worktreePath = branchToWorktree.get(branch) ?? null;
     const hasWorktree = worktreePath !== null;
 
+    // openTrackPrOnDone() deliberately writes **PR Number**/**PR URL**/
+    // **PR Status** as raw, UNCOMMITTED file writes (both the worktree's
+    // and primary's own copies of index.md) — committing them would create
+    // branch noise/conflicts with the actual code change. But
+    // readTrackStateFromBranch() above reads via `git show branch:path`,
+    // which can only ever see committed content — a structural blind spot
+    // for exactly these three fields, permanent regardless of how many
+    // times the audit re-runs. Confirmed live: five real done:success
+    // pr-mode tracks stuck reporting prNumber: null indefinitely despite
+    // their working-tree files having the correct **PR Number** marker,
+    // because nothing ever commits it. Read those three fields fresh from
+    // the actual working-tree file when one exists — the only place they
+    // are ever genuinely written — overriding (not replacing) state's
+    // git-show-sourced lane/laneStatus/title/mergeMode, which correctly
+    // stay committed-only per this file's own documented single-code-path
+    // reasoning above.
+    let prFields = { prNumber: state?.prNumber ?? null, prUrl: state?.prUrl ?? null, prStatus: state?.prStatus ?? null };
+    if (hasWorktree && state?.trackDir) {
+      try {
+        const wtIndexContent = readFileSync(join(worktreePath, state.trackDir, 'index.md'), 'utf8');
+        const prNumber = wtIndexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+        if (prNumber) {
+          prFields = {
+            prNumber,
+            prUrl: wtIndexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null,
+            prStatus: wtIndexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null,
+          };
+        }
+      } catch { /* file unreadable — fall back to state's (likely null) values */ }
+    }
+
     const ahead = countCommits(repoRoot, `${mainBranch}..${branch}`);
     const behind = countCommits(repoRoot, `${branch}..${mainBranch}`);
     const dirtyCount = hasWorktree
@@ -195,23 +295,38 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
 
     const isDoneSuccess = state?.lane === 'done' && state?.laneStatus === 'success';
     const superseded = state?.trackDir
-      ? mainHasReopenedTrackIndependently(repoRoot, mainBranch, branch, state.trackDir, trackNumber)
+      ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber)
       : false;
+    // Track 10018: a pr-mode track must NEVER classify as 'mergeable' —
+    // that's the classification that drives the plain, local-merge "Merge
+    // to main" button, which would silently defeat the whole point of
+    // pausing for PR review/approval. 'pr-open' is its own classification
+    // so the panel can render PR-specific actions instead (Phase 4 UI).
+    // Still subject to the same isDoneSuccess/superseded gate as
+    // mergeable/stranded — a pr-mode track that isn't done yet is still
+    // just 'open', same as today.
     let classification;
+    let conflictPaths = [];
     if (!isDoneSuccess || superseded) {
       classification = 'open';
+    } else if (state?.mergeMode === 'pr') {
+      classification = 'pr-open';
     } else if (!hasWorktree) {
       classification = 'stranded';
-    } else if (wouldConflict(repoRoot, mainBranch, branch)) {
-      classification = 'conflicted';
     } else {
-      classification = 'mergeable';
+      conflictPaths = getConflictPaths(repoRoot, mainBranch, branch);
+      const realConflict = conflictPaths.length > 0
+        && !isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, branch, conflictPaths, trackNumber });
+      classification = realConflict ? 'conflicted' : 'mergeable';
+      if (!realConflict) conflictPaths = []; // only meaningful to callers when the row is actually `conflicted`
     }
 
     rows.push({
       trackNumber, branch, worktreePath, hasWorktree, ahead, behind, dirtyCount,
       lane: state?.lane ?? null, laneStatus: state?.laneStatus ?? null, title: state?.title ?? null,
-      classification,
+      classification, conflictPaths,
+      mergeMode: state?.mergeMode ?? 'pr',
+      ...prFields,
     });
   }
 

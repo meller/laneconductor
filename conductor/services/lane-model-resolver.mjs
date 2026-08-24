@@ -15,9 +15,14 @@
 // (track 1096's set_model dispatch, persisted into proj.primary.model)
 // only applies when the current lane has no `primary_model` of its own.
 
-export function resolveLaneCliAndModel({ laneConfig = {}, proj = {} } = {}) {
+// Track 1116 REQ-7: adds a track-level tier on top of 1111's lane/project
+// precedence — `track.model` (sourced from the track's own `**Model**:`
+// index.md marker) wins over the lane's `primary_model`, which still wins
+// over the project default. `track` is optional and defaults to `{}` so
+// every existing call site (none of which pass it) is unaffected.
+export function resolveLaneCliAndModel({ laneConfig = {}, proj = {}, track = {} } = {}) {
   const cli = proj.primary?.cli ?? 'claude';
-  const model = laneConfig.primary_model ?? proj.primary?.model;
+  const model = track.model ?? laneConfig.primary_model ?? proj.primary?.model;
   return { cli, model };
 }
 

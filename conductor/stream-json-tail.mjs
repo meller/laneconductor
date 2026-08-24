@@ -55,3 +55,27 @@ export function extractFinalAssistantText(logContent, maxChars = 2000) {
   }
   return final;
 }
+
+// Track 10020: a dispatched lane action can end its turn on a genuine
+// blocking question (e.g. "should I apply this DB migration?") instead of
+// finishing the work — the CLI harness records this as a `post_turn_summary`
+// system event with `status_category: 'blocked'`, but nothing previously
+// read that event. Left alone, the question sits stranded in the raw
+// transcript: it's never posted to conversation.md/track_comments (the only
+// path a human reply flows through), and the Inbox's bucket logic — driven
+// entirely by track_comments — confidently classifies the track as
+// "awaiting_ai" (nothing needed from you) when a human decision is actually
+// pending. The LAST post_turn_summary is the one that matters, mirroring
+// extractFinalAssistantText's same "most recent wins" reasoning above.
+export function extractBlockedQuestion(logContent) {
+  if (!logContent) return null;
+  let blocked = null;
+  for (const line of logContent.split('\n')) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e?.type !== 'system' || e?.subtype !== 'post_turn_summary') continue;
+    blocked = e.status_category === 'blocked' ? (e.status_detail || '').trim() || null : null;
+  }
+  return blocked;
+}

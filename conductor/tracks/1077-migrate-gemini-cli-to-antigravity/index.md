@@ -3,6 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Phase**: Implementation complete
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Quality gate passed
 **Type**: dev
-**Summary**: CLI-dispatch already fully supported `agy`/antigravity alongside `gemini` before this track (`runAIAgent`/`callLLMConversational` in `bin/lc.mjs`, `buildCliArgs` in `laneconductor.sync.mjs` —…
+**Summary**: Gemini CLI setup-time UX deprecated + runtime dispatch (buildCliArgs, runAIAgent, callLLMConversational) rerouted through agy — closes the gap Phases 1-3 deliberately left. Live-verified against…

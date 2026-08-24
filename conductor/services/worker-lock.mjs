@@ -34,20 +34,47 @@ import { dirname } from 'node:path';
 // mistaken for dead and has its lock stolen out from under it.
 export const DEFAULT_STALE_MS = 60000;
 
+// Track 1117 Bug 4: proper-lockfile refreshes this lock's mtime on an
+// internal timer for as long as it's held, entirely outside the
+// acquireWorkerLock() call above (which only wraps the INITIAL .lock()
+// call). If that periodic refresh ever fails — confirmed live, "Unable to
+// update lock within the stale threshold" — the library's own default
+// onCompromised handler is `(err) => { throw err; }`, thrown from that
+// internal timer with no surrounding try/catch of ours to catch it. It
+// still reaches this process's `uncaughtException` handler (Node doesn't
+// silently drop it), but that handler is generic and shared with every
+// OTHER kind of crash — this needs a dedicated, distinguishable log line
+// and its own deliberate cleanup path, not to be lumped in as "some
+// uncaught exception happened."
+function defaultOnCompromised(err) {
+  console.error(`[worker-lock] Lock compromised (${err.message}) — exiting cleanly rather than continuing with an unrefreshable lock.`);
+  process.exit(1);
+}
+
 /**
  * Attempts to acquire an exclusive lock at `lockTargetPath`, creating the
  * target file if it doesn't exist (proper-lockfile locks an existing
  * path, not an arbitrary one). Returns a `release()` function on success,
  * or `null` if another live process already holds it — callers should
  * treat `null` as "already running" and exit rather than retry silently.
+ *
+ * `onCompromised` (optional): called if the lock's background mtime-refresh
+ * fails while held (e.g. the lock file/dir was deleted or stolen out from
+ * under this process). Defaults to logging and exiting this process
+ * cleanly — see `defaultOnCompromised` above. Pass your own to run
+ * additional cleanup (e.g. de-registering from a collector) before exiting;
+ * re-acquiring the SAME logical hold in place isn't supported by
+ * proper-lockfile (a fresh `.lock()` call mints a new, separate
+ * release/lock pair, leaving the caller's original `release()` reference
+ * stale) so this is intentionally an exit path, not a retry loop.
  */
-export async function acquireWorkerLock(lockTargetPath, { staleMs = DEFAULT_STALE_MS } = {}) {
+export async function acquireWorkerLock(lockTargetPath, { staleMs = DEFAULT_STALE_MS, onCompromised = defaultOnCompromised } = {}) {
   mkdirSync(dirname(lockTargetPath), { recursive: true });
   if (!existsSync(lockTargetPath)) {
     closeSync(openSync(lockTargetPath, 'w'));
   }
   try {
-    return await lockfile.lock(lockTargetPath, { stale: staleMs, retries: 0 });
+    return await lockfile.lock(lockTargetPath, { stale: staleMs, retries: 0, onCompromised });
   } catch (err) {
     return null;
   }

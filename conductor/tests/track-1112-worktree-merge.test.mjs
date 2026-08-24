@@ -124,6 +124,61 @@ describe('mergeWorktreeBranch()', () => {
     assert.equal(existsSync(join(REPO, '.git', 'MERGE_HEAD')), false, 'primary checkout must never show a MERGING state');
   });
 
+  it('auto-resolves a conflict limited to a status-header line in the track\'s own index.md, preferring the branch\'s copy', async () => {
+    // Reproduces the track-10014 incident live: main independently touched
+    // this same track's index.md (the periodic DB->FS sync writing status
+    // headers directly onto main), and the branch ALSO touched it (its own
+    // completion record) — same file, same **Progress** line, a real git
+    // conflict by content. But since main's own side of the conflict never
+    // touched anything but a known status-header line (confirmed against
+    // the merge-base, not just "same filename"), it's the sync-mirror
+    // artifact, not real content — the branch's copy is the authoritative
+    // "what actually happened".
+    setupRepo();
+    const trackDir = 'conductor/tracks/208-bookkeeping-conflict';
+    mkdirSync(join(REPO, trackDir), { recursive: true });
+    const content = (lane, laneStatus, progress) =>
+      `# Track 208\n\n**Lane**: ${lane}\n**Lane Status**: ${laneStatus}\n**Progress**: ${progress}\n`;
+    writeFileSync(join(REPO, trackDir, 'index.md'), content('plan', 'queue', '0%'));
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    makeBranch(208, (wt) => {
+      writeFileSync(join(wt, trackDir, 'index.md'), content('done', 'success', '100%'));
+    });
+
+    // Main independently bumps Progress (the sync-mirror pattern) — same
+    // Lane/Lane Status as base, real content overlap on the Progress line.
+    writeFileSync(join(REPO, trackDir, 'index.md'), content('plan', 'queue', '50%'));
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main independently re-synced this track\'s status"');
+
+    const result = await mergeWorktreeBranch({ repoRoot: REPO, trackNumber: '208', mainBranch: 'main' });
+    assert.equal(result.merged, true, 'a conflict limited to a status-header line must not block the merge');
+    assert.equal(readFileSync(join(REPO, trackDir, 'index.md'), 'utf8'), content('done', 'success', '100%'), 'the branch\'s completion record wins, not main\'s stale mirror');
+    assert.equal(git('status --porcelain'), '', 'primary checkout must end up clean, not mid-resolution');
+  });
+
+  it('still blocks on a real code conflict even when a bookkeeping file ALSO conflicts in the same merge', async () => {
+    setupRepo();
+    const trackDir = 'conductor/tracks/209-mixed-conflict';
+    mkdirSync(join(REPO, trackDir), { recursive: true });
+    writeFileSync(join(REPO, trackDir, 'index.md'), '# base\n**Lane**: review\n');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    makeBranch(209, (wt) => {
+      writeFileSync(join(wt, trackDir, 'index.md'), '# base\n**Lane**: done\n');
+      writeFileSync(join(wt, 'file.txt'), 'base\nBRANCH VERSION\n');
+    });
+
+    writeFileSync(join(REPO, trackDir, 'index.md'), '# base\n**Lane**: implement\n');
+    writeFileSync(join(REPO, 'file.txt'), 'base\nMAIN VERSION\n');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main diverges on both a bookkeeping file and real code"');
+
+    const result = await mergeWorktreeBranch({ repoRoot: REPO, trackNumber: '209', mainBranch: 'main' });
+    assert.equal(result.merged, false, 'a real code conflict must still block, even alongside an auto-resolvable bookkeeping conflict');
+    assert.equal(result.reason, 'conflict');
+    assert.ok(result.conflictPaths.includes('file.txt'));
+  });
+
   it('returns no-branch when the branch does not exist, without touching anything', async () => {
     setupRepo();
     const beforeStatus = git('status --porcelain');

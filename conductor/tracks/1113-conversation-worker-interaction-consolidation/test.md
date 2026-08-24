@@ -46,18 +46,6 @@ node --test conductor/tests/sync-conversation-parser.test.mjs
       "Run \<lane\> now" button (both folded into Send & Run)
 - [ ] TC-6: Post Note, Bug, and +New Track behavior is unchanged (byte-for-
       byte same request bodies as before this track)
-- [x] TC-6b (added 2026-08-14, addendum — plain Send didn't dispatch):
-      Selecting "💬 Message" (default `sendMode`) and sending now posts the
-      comment (`no_wake: true`) then dispatches a `track_chat` turn via
-      `resolveWorkerId()` — including provisioning a new worker if
-      "+ New worker…" is selected, same as Send & Run/Brainstorm. Verified
-      by code-path equivalence with Brainstorm (already live-verified) +
-      regression suites (1085/1086/1087/sync-conversation-parser, 17/17,
-      including a live `track_chat` dispatch test) — **not** independently
-      click-through-verified in-app this cycle (blocked by an unrelated,
-      pre-existing browser-preview connectivity issue). No dedicated
-      automated test added for this specific branch — same real gap TC-1
-      through TC-6 already have.
 
 ### Phase 3: Chat coordination
 - [ ] TC-7: A `track_chat` dispatch for `(track, worker)` calls

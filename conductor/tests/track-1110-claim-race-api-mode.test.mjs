@@ -84,13 +84,15 @@ async function setupProject(collectorPort) {
   }, null, 2));
 }
 
+// Track 10017: this suite tests claim atomicity, not the auto-run gate —
+// opt in so it's unaffected.
 function createTrack(num) {
   const dir = join(TMP, 'conductor/tracks', `${num}-race-track`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.md'), [
     `# Track ${num}: Race Track`, '',
     '**Lane**: in-progress', '**Lane Status**: queue', '**Progress**: 0%', '',
-    '## Problem', 'Test.', '', '## Solution', 'Test.',
+    '## Problem', 'Test.', '', '## Solution', 'Test.', '**Auto Run**: yes',
   ].join('\n'));
 }
 

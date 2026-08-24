@@ -1,12 +1,12 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 85%
-**Phase**: Phases 1-9 implemented and live-verified. This track surfaced far more real, pre-existing bugs than originally scoped for — a data-loss bug in `createWorktree()` (unconditional branch reset), two…
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Phase 18 complete — live-verified (real conflicted rows + a disposable fixture end to end)
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Follow-on requests for the Worktrees panel (track 1112, now merged): deep-link each row to its track, autopilot/force-merge a track to done, remove-worktree cleanup widened to every row, and durable…
+**Summary**: Reopened again (2026-08-17): user asked why `conflicted` rows (1111, 1113 — real content conflicts, not the bookkeeping-only case Phase 17 handles) only offer Remove Worktree. Phase 17's…
 
 ## Problem
 
@@ -202,6 +202,39 @@ tested (9/9 — counting, singular/plural wording, threshold boundary,
 empty-list edge case). Verified live against this repo's real data: 30
 total, 30 Open, 235 dirty files, and the >10 warning correctly firing.
 
+**17. `mergeWorktreeBranch()`/`auditWorktrees()` treated ANY conflict inside
+a track's own bookkeeping files as permanently blocking (found live,
+2026-08-17)** — track 10014 reached `done:success` with real, verified
+implementation work on its branch, but sat unmergeable, classified
+`conflicted`, requiring a manual `git checkout --theirs` on exactly its
+own `index.md`/`plan.md` to unblock. Root cause: the periodic DB->FS sync
+(`chore(track-N): sync files before worktree`) writes that same track's
+status header directly onto main while its own worktree branch
+independently does the same — genuine line-level overlap, a real git
+conflict by content, but not real work to lose (the branch's copy is
+always the authoritative completion record once done:success). Fixed with
+`isSafeToAutoResolveBookkeepingConflict()`
+(`conductor/services/track-metadata-conflict.mjs`): confirms every
+conflicting path is one of the track's own `conductor/tracks/<N>-*/`
+bookkeeping files AND that main's own side of the conflict, relative to
+the merge-base, never touched anything but known status-header lines
+(`**Lane**`, `**Lane Status**`, `**Progress**`, etc.) — not Problem/
+Solution prose. `mergeWorktreeBranch()` now auto-resolves by taking the
+branch's copy and completing the merge instead of aborting;
+`auditWorktrees()`'s classification (via a new read-only
+`getConflictPaths()` using `git merge-tree --write-tree`, fully
+side-effect-free) agrees, so the 60s reconciler actually attempts it
+instead of silently skipping a `conflicted` row forever. A real content
+conflict (main hand-editing Problem/Solution prose, or any conflict
+touching a file outside the track's own directory) still blocks exactly
+as before — deliberately whitelist-based, nothing outside this
+well-understood case is ever auto-resolved. 13/13 new/updated unit tests
+(`track-1114-track-metadata-conflict.test.mjs` 6/6, plus updated
+worktree-audit/worktree-merge suites); live-verified by manually
+reproducing and resolving the exact track-10014 shape before the fix
+existed, then confirming the new tests exercise the identical scenario
+the fix now handles automatically.
+
 ## Phases
 - [x] Phase 1: Deep link — `onSelectTrack` wired through `WorktreesPanel` → `App.jsx`, verified live
 - [x] Phase 2: Extend heartbeat worktree summary with `branch`/`worktreePath` fields
@@ -219,7 +252,23 @@ total, 30 Open, 235 dirty files, and the >10 warning correctly firing.
 - [x] Phase 12: `refresh-worktrees` dispatch action + `POST /api/projects/:id/worktrees/refresh` convenience route — found live during a bulk manual branch/worktree cleanup (30 branches deleted directly via `git`, bypassing the panel's own handlers): `cachedWorktreeSummary` only re-audits on its own 60s timer or at process boot, so the panel kept showing all 30 already-deleted rows with no way to force a re-check short of a full worker restart. New dispatch handler calls `refreshWorktreeSummaryCache()` then immediately pushes via `updateWorkerHeartbeat()` rather than waiting for the next tick; API route does the same "any live worker for the project" resolution `remove-worktree` uses (never track-scoped). Verified live end to end: removed a worktree via raw `git`, confirmed the API still served the stale count, called the new endpoint, confirmed the dispatch was claimed and completed (`"Refreshed — N worktree row(s)"`), and confirmed the API reflected the corrected count immediately after.
 - [x] Phase 13: Wire the refresh into the panel itself — manual "↻ Refresh" button in `WorktreeStatsHeader` (and in the empty "No Unmerged Worktrees" state, where it matters most since that's exactly the state a stale cache would produce) plus a background `setInterval` while the panel is mounted (every 30s, fire-and-forget) that nudges the same endpoint so staleness self-heals without a click. Found live while testing: the empty-state path had no `error` banner wired up at all, so a genuine "no worker available" 400 (hit live — the project's worker had gone offline mid-session) failed silently with the button just re-enabling itself; fixed by rendering the same error banner there. Verified live end to end against a real worker: click → dispatch created → claimed and completed within ~10s → button un-disables → row data genuinely changed (dirty count 4→5), confirming a real re-audit ran, not a cached response.
 - [x] Phase 14: **The board's own Lane/Lane Status froze for the entire duration a track spent inside a worktree** (found live watching track 1112's own review run: it genuinely passed and moved to `quality-gate` inside `.worktrees/1112`, but the primary checkout — what the UI/DB actually reflect — kept showing `review` indefinitely). Root cause: the step that copies a worktree's `index.md` status back onto the primary checkout's copy (in the spawnCli exit handler, `laneconductor.sync.mjs`) deliberately excluded Lane/Lane Status, on the stale assumption "the exit handler always writes the correct values after this merge" — true only for main-mode tracks with no worktree (there, `workDir` IS the primary checkout, so the exit handler's own write already lands directly). For worktree-based tracks, the exit handler only ever writes Lane/Lane Status into the *worktree's* own copy — the merge-back step was the only thing that ever reached the primary checkout, so excluding those two fields left the board frozen at the track's pre-run lane for its entire time in the worktree, only catching up at final done-merge. This is the same root cause behind this session's earlier "a lot of work was done but I'm not seeing it" / "maybe I'm opening the same tracks over and over" symptoms and the 30-branch cleanup, just caught here at the single-lane-hop scale instead of the terminal (abandoned-branch) scale. Fixed by including Lane/Lane Status in the merge; extracted the merge logic into `mergeIndexMarkers()` (`conductor/services/worktree-artifact-merge.mjs`) so it's unit-testable independent of the whole exit-handler flow — 6/6 tests (`conductor/tests/track-1112-worktree-artifact-merge.test.mjs`), including the exact Lane/Lane-Status regression and a `**Lane**` vs `**Lane Status**` prefix-collision check. Manually restored 1112's clobbered primary-checkout `index.md` (commit `10f2f92`) before the fix landed; live-verifying the fix itself by re-running quality-gate against track 1112.
-- [ ] Phase 7: Tests — unit coverage exists for the auto-complete sequencing logic, worktree-create-args, panel-scope, and worktree-stats decisions; no coverage yet for the server-side force-merge lane-write path or the armed-confirm/pending-state UI behavior (the exact area that regressed live this session — highest-value gap to close next)
+- [x] Phase 7: Tests — closed the last gap. Extracted three previously-untested behaviors into pure, unit-tested modules (matching this track's established pattern of pulling decision logic out of the dispatch handler / React hooks so it's testable without a real worktree, git process, or DOM):
+  - `conductor/services/force-merge-marker.mjs` — the force-merge lane-write decision (`shouldWriteForceDoneMarker`) and the Lane/Lane Status header mutation (`applyDoneSuccessMarkers`), wired into the `merge-worktree` dispatch handler in `laneconductor.sync.mjs`; 8/8 tests (`conductor/tests/track-1114-force-merge-marker.test.mjs`), including the not-done+force+hasWorktree case, the already-done no-op case, the !force no-op case, the stranded/no-worktree fallback case, and the header-mutation prefix-collision case (Lane vs Lane Status)
+  - `ui/src/lib/armedConfirm.js` — the two-step confirm's arm-vs-fire decision (`nextArmedState`), wired into `useArmedConfirm`; 4/4 tests (`ui/src/lib/armedConfirm.test.js`)
+  - `ui/src/lib/worktreePendingKeys.js` — the row identity keys and the "which pending keys are stale given the current rows" check `fetchRows` runs every poll (`computeStaleKeys`), wired into `WorktreesPanel.jsx`; 5/5 tests (`ui/src/lib/worktreePendingKeys.test.js`), explicitly covering the class of case bug #8 depended on (a pending key whose row disappeared or merged out of the list must be identified as stale)
+  - Full suite run: `node --test conductor/tests/*.test.mjs` → 222/229 pass (7 pre-existing failures, unrelated to this change — auto-launch, deploy, integration-multi-pattern, quality-gate retry, lock-unlock, session resume-failure — confirmed via `git stash` that they fail identically without this track's diff applied); `cd ui && npm test` → 291/302 pass (11 pre-existing failures, all in `auth.test.mjs`/`track-1033-worker-auth.test.mjs`, confirmed the same way — untouched by this change)
+  - Ran in its own worktree while a concurrent session added Phases 15/16 directly to this file on main — those two are real, freshly-discovered gaps, not yet addressed; noted here rather than silently claiming full completion.
+- [ ] Phase 15: Discard track (no merge) — found live doing exactly this by hand for a real track (macrodash #031, abandoned after a product-direction change away from PayPal): the panel has Remove Worktree, Complete & Merge, and Force Merge, but nothing for "this branch is never going to be merged, stop tracking it as active work." Remove Worktree alone leaves the branch and the board's Lane/Lane Status exactly as they were (still `review`/`implement`/etc.), so the row keeps showing up as if it's just waiting its turn. Needs a fourth action — Remove Worktree plus moving the track to `backlog` with an explicit abandonment note in `index.md` (never `done:success`, which would misrepresent it as shipped and risk being auto-merged elsewhere) — surfaced from the panel instead of done by hand against the track file.
+- [ ] Phase 16: "No worker available" refresh failure has no recovery path — found live: the empty "No Unmerged Worktrees" state's refresh can fail with "no worker available for this project to refresh worktrees" (Phase 13's error banner correctly surfaces this, but then the user is stuck). Add either an inline "Create worker" action right there, or at minimum a deep link to the project's Worker tab, so hitting this state doesn't require leaving the panel to go figure out worker status manually.
+- [x] Phase 17: Auto-resolve merge conflicts confined to a track's own `conductor/tracks/<N>-*/` bookkeeping files (found live — track 10014 stuck `conflicted` despite being genuinely `done:success`) — `isSafeToAutoResolveBookkeepingConflict()` confirms main's side of the conflict never touched anything but known status-header lines relative to the merge-base; `mergeWorktreeBranch()` auto-resolves and `auditWorktrees()`'s classification agrees, so the 60s reconciler actually merges it. Real content conflicts (Problem/Solution prose, or any file outside the track's own directory) still block. 13/13 new/updated unit tests.
+- [x] Phase 18: `conflicted` rows have no path forward besides Remove Worktree (asked live: tracks 1111/1113, real content conflicts — 143/163 commits behind main — not Phase 17's bookkeeping-only case). Two parts, both requested ("both"), both implemented and live-verified:
+  - **18a (surface, low risk)** — threaded Phase 17's already-computed `conflictPaths` (previously discarded right after classification, `worktree-audit.mjs`) through `auditWorktrees()`'s row → `refreshWorktreeSummaryCache` (`conflict_paths` field) → `/api/projects/:id/worktrees` (already spread-through, no server change needed) → the panel. `conflicted` rows now show the actual conflicting file list plus a copy-pasteable manual-resolve git snippet (`ConflictDetails` component). No new dispatch action — resolving locally and pushing lets the next audit cycle reclassify the row `mergeable` on its own. **Live-verified against the real rows**: #1111 correctly shows 3 conflicting paths, #1113 shows 4, both including `conductor/laneconductor.sync.mjs` itself.
+  - **18b (AI-assisted resolve, opt-in)** — new dispatch action `ai-resolve-conflict`: worker runs a real `git merge <mainBranch>` inside the track's worktree (not the dry-run `merge-tree` check), spawns a scoped one-shot Claude session (same raw-spawn pattern as `track_chat`, not `spawnCli` — this isn't a lane) to resolve the resulting conflict markers using its understanding of both sides' intent, then verifies before ever committing. New "AI resolve conflict" button, armed two-step, purple to distinguish from the other four actions, labeled as needing post-merge review.
+    - **Found + fixed live verifying against a disposable fixture** (track 9995, deliberately `Lane: done:success` this time, not `implement:queue` — Phase 15's fixture got auto-claimed as real work by giving it a queued lane, learned from that): two real bugs in the new handler.
+      1. `gitExec()` uses plain `execSync` with no `encoding` option, so it returns a **Buffer**, not a string — every prior call site only used it for side effects and never parsed stdout as text, so `.split()` on the `git status --porcelain` output threw on first real run. Fixed with `.toString()` at the call site (left the shared `gitExec` helper itself untouched — no other caller needed this).
+      2. The `MERGE_HEAD` existence check joined `worktreePath, '.git', 'MERGE_HEAD'` directly — but a **linked worktree's `.git` is a file** (`gitdir: <primary>/.git/worktrees/<name>`), not a directory, so that path can never exist and the check silently always reported "no merge in progress," even when one genuinely was (confirmed live: would have misreported the fixture's real, agent-resolved merge as a failure). Fixed with `git rev-parse -q --verify MERGE_HEAD` run with the worktree as cwd, which resolves correctly regardless of worktree layout.
+    - **Verified live end to end** after both fixes: real conflict (same line diverged on both the branch and main) → AI session ran, correctly kept BOTH sides' changes rather than picking one → merge completed and landed on `main` as `Merge track 9995` → branch and worktree cleaned up automatically via the existing `mergeWorktreeBranch()` path. Fixture fully torn down afterward (track dir, DB row, all untracked artifacts).
+    - Also accidentally killed two workers belonging to a *different* project (`air-hockey-pvp`) with an overly broad `pkill`-style restart during this — caught immediately and restarted them with matching flags; worth remembering that `sync.mjs` process lists aren't project-scoped, only PID-based kills targeting the exact PIDs you mean to touch are safe in a multi-project host like this one.
 
 ## Related tracks
 - [1112](../1112-git-sync-and-worktree-visibility/index.md) — built the Worktrees panel this extends
