@@ -1,6 +1,6 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
