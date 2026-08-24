@@ -56,6 +56,7 @@ import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mj
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
+import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind } from './services/workspace-mode.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -2150,6 +2151,9 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       // Track 10018: per-track merge mode marker (null when unspecified —
       // resolveMergeMode() on the read side is where NULL becomes 'pr')
       merge_mode: parseMergeMode(stateContent),
+      // Track 1115: per-track workspace mode marker (null when unspecified —
+      // resolveWorkspaceMode() on the read side is where NULL becomes 'branch')
+      workspace_mode: parseWorkspaceMarker(stateContent),
       // KPI fields
       track_type: trackType,
       kpi_target: parseKpiTarget(stateContent),
@@ -4114,7 +4118,7 @@ setInterval(() => {
   checkOutOfBandGitSync().catch(err => console.error('[git-sync error]:', err.message));
 }, 30000); // ticks every 30s; actual fetch cadence is governed by git.fetch_interval_ms above
 
-async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null) {
+async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null) {
   let lockFile = null;
   let worktreePath = null;
 
@@ -4124,10 +4128,78 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     projectId = proj?.id;
   }
 
+  // Track 1115: resolve this action's workspace mode BEFORE touching lock/worktree —
+  // 'main' skips createWorktree() entirely (still takes the lock, per D1/REQ-2).
+  // Read from process.cwd(), which at this point is always the primary checkout
+  // (no worktree has been created yet this call).
+  const primaryTracksDir = join(process.cwd(), 'conductor', 'tracks');
+  const primaryTrackDirName = resolveTrackFolder(primaryTracksDir, trackNumber);
+  const primaryIndexPath = primaryTrackDirName ? join(primaryTracksDir, primaryTrackDirName, 'index.md') : null;
+  const primaryIndexContent = primaryIndexPath ? (readIfExists(primaryIndexPath) || '') : '';
+  const workspaceMode = resolveWorkspaceMode({
+    laneStatus,
+    workspaceMarker: parseWorkspaceMarker(primaryIndexContent),
+    trackType: parseTrackKind(primaryIndexContent),
+    trigger,
+    projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+  });
+
+  // D10/REQ-10: main mode must refuse to start on a dirty checkout — any
+  // dirty path outside the track's OWN folder risks an agent's commit
+  // sweeping in unrelated human WIP. The track's own folder is excluded
+  // because the caller has already written **Lane Status**: running into
+  // it just before calling spawnCli.
+  //
+  // Discovered live while testing this guard (not in the original spec):
+  // the worker's OWN runtime bookkeeping — .sync.pid/.sync-N.pid,
+  // .sync.lock-target/.sync-N.lock-target, .worker.tokens.json/
+  // .worker-N.tokens.json, tracks-metadata.json — sits directly under
+  // conductor/ and is legitimately dirty during ordinary operation. A
+  // strict "own folder only" exemption blocked EVERY plan-lane spawn in
+  // ANY normal worker deployment (plan always resolves to 'main' per D6),
+  // confirmed by track-1102-f9-index-producer.test.mjs and others failing
+  // after this guard was added. These are the worker's own operational
+  // state, not human/agent WIP a commit could accidentally sweep in, so
+  // they're exempted the same as the track's own folder.
+  if (workspaceMode === 'main') {
+    const dirtyPaths = (() => {
+      try {
+        return execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
+          .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
+      } catch {
+        return [];
+      }
+    })();
+    const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
+    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json';
+    const disqualifying = dirtyPaths.filter(p =>
+      (!ownFolderPrefix || !p.startsWith(ownFolderPrefix)) && !isWorkerBookkeeping(p)
+    );
+    if (disqualifying.length > 0) {
+      console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder: ${disqualifying.join(', ')}`);
+      if (primaryIndexPath) {
+        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
+      }
+      if (primaryTrackDirName) {
+        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+        const comment = `\n> **system**: ⚠️ Main-mode run blocked — the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}. Not spawning; will retry next cycle once the checkout is clean.\n`;
+        try {
+          appendFileSync(convPath, comment, 'utf8');
+        } catch { /* best-effort — the console.warn above is the durable record either way */ }
+      }
+      const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
+      err.workspaceGuardBlocked = true;
+      throw err;
+    }
+  }
+
   if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
     try {
       lockFile = await checkAndClaimGitLock(trackNumber);
-      worktreePath = await createWorktree(trackNumber);
+      if (workspaceMode === 'branch') {
+        worktreePath = await createWorktree(trackNumber);
+      }
     } catch (err) {
       console.error(`[${label}] Failed to setup lock/worktree for track ${trackNumber}: ${err.message}`);
       if (worktreePath) await removeWorktree(trackNumber).catch(() => { });
@@ -4170,6 +4242,13 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
       contextPrompt += `\nYour workspace is at: ${worktreePath || process.cwd()}\n`;
       contextPrompt += `The track you are working on is in: conductor/tracks/${trackDirName}/\n`;
+      // Track 1115 REQ-4: no track branch exists to attribute main-mode
+      // commits to, so ask the agent to reference the track explicitly —
+      // this is what closes the "commits with no track record" gap
+      // motivating this track (see conductor/workflow.md's commit convention).
+      if (workspaceMode === 'main') {
+        contextPrompt += `\nYou are working DIRECTLY on the primary checkout (no worktree, no track branch — this track's workspace mode is 'main'). Every commit you make MUST reference this track, e.g. "feat(track-${trackNumber}): ..." or "fix(track-${trackNumber}): ...", per conductor/workflow.md's commit convention.\n`;
+      }
     }
   } catch (ctxErr) {
     console.warn(`[context] Failed to gather rich context: ${ctxErr.message}`);
@@ -5296,7 +5375,11 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       const runningContent = updateHeader(content, 'Lane Status', 'running');
       writeFileSync(indexPath, runningContent, 'utf8');
 
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session);
+      // Track 1115 REQ-3: same call site handles both the normal queue claim
+      // and the waitingForReply answer-flow — trigger is computed inline from
+      // the local already in scope, not threaded from two separate sites.
+      const trigger = waitingForReply ? 'manual-dispatch' : 'auto-queue';
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session, trigger);
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
@@ -5383,7 +5466,7 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   };
   writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
   const proj = getProject();
-  const spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  const spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete');
   logger.info({ trackNumber, currentLane, spawnedPid, dispatchId }, '[auto-complete] stage started');
   // stagesRun is the history BEFORE this stage — appended with the lane
   // just started so reconcileAutoComplete's next check has an accurate
@@ -5393,16 +5476,37 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
 
 async function finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun) {
   activeAutoComplete.delete(trackNumber);
+
+  // Track 1115 REQ-5/D8: a main-mode track was never on a branch, so
+  // "already on main" IS the merged state — no mergeWorktreeBranch() call,
+  // and no `{ merged: false, reason: 'no-branch' }` surfaced as a failure.
+  const finishTracksDir = 'conductor/tracks';
+  const finishTrackDirName = resolveTrackFolder(finishTracksDir, trackNumber);
+  const finishIndexContent = finishTrackDirName ? (readIfExists(join(finishTracksDir, finishTrackDirName, 'index.md')) || '') : '';
+  const finishWorkspaceMode = resolveWorkspaceMode({
+    laneStatus: 'done',
+    workspaceMarker: parseWorkspaceMarker(finishIndexContent),
+    trackType: parseTrackKind(finishIndexContent),
+    trigger: null,
+    projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+  });
+
   let mergeResult;
-  try {
-    mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
-  } catch (err) {
-    mergeResult = { merged: false, reason: 'error', error: err.message };
-  }
   const stageList = stagesRun.join(' → ') || '(already done)';
-  const resultText = mergeResult.merged
-    ? `Completed [${stageList}] and merged track-${trackNumber} into main (${mergeResult.mergeCommit}).`
-    : `Completed [${stageList}] but merge failed: ${mergeResult.reason}${mergeResult.error ? `: ${mergeResult.error}` : ''}${mergeResult.conflictPaths?.length ? ` (${mergeResult.conflictPaths.join(', ')})` : ''}`;
+  let resultText;
+  if (finishWorkspaceMode === 'main') {
+    mergeResult = { merged: true, reason: 'already-on-main' };
+    resultText = `Completed [${stageList}] — already on main, no merge needed.`;
+  } else {
+    try {
+      mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
+    } catch (err) {
+      mergeResult = { merged: false, reason: 'error', error: err.message };
+    }
+    resultText = mergeResult.merged
+      ? `Completed [${stageList}] and merged track-${trackNumber} into main (${mergeResult.mergeCommit}).`
+      : `Completed [${stageList}] but merge failed: ${mergeResult.reason}${mergeResult.error ? `: ${mergeResult.error}` : ''}${mergeResult.conflictPaths?.length ? ` (${mergeResult.conflictPaths.join(', ')})` : ''}`;
+  }
   await reportAutoCompleteResult(dispatchId, mergeResult.merged ? 'done' : 'failed', resultText);
   try {
     const tracksDir = 'conductor/tracks';
@@ -6671,7 +6775,7 @@ async function checkDispatchInbox() {
 
     const proj = getProject();
     try {
-      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
+      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session, 'manual-dispatch');
       console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
       activeDispatch.set(trackNumber, entry.id);
     } catch (err) {

@@ -125,7 +125,7 @@ function setupProject(tmpDir, collectorPort) {
   writeFileSync(join(tmpDir, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1 } },
   }, null, 2));
 
   const trackDir = join(tmpDir, 'conductor/tracks/001-test-track');
@@ -137,7 +137,7 @@ function setupProject(tmpDir, collectorPort) {
   // never this small.
   writeFileSync(join(trackDir, 'index.md'), [
     '# Track 001: Test Track', '',
-    '**Lane**: plan', '**Lane Status**: queue', '**Progress**: 0%',
+    '**Lane**: implement', '**Lane Status**: queue', '**Progress**: 0%',
     '**Phase**: Planning', '**Summary**: A realistically-sized fixture track for the F21 regression test',
     '', '## Problem', 'Some description of the problem this track addresses, spread across a couple of lines',
     'so the file is long enough to look like a real track document instead of a bare-minimum stub.',
@@ -163,7 +163,7 @@ function preCreateReusedWorktree(tmpDir, trackNumber) {
   const wtIndexPath = join(wtPath, 'conductor/tracks/001-test-track/index.md');
   writeFileSync(wtIndexPath, [
     '# Track 001: Test Track', '',
-    '**Lane**: plan', '**Lane Status**: success', '**Progress**: 100%',
+    '**Lane**: implement', '**Lane Status**: success', '**Progress**: 100%',
     '**Phase**: Planning', '**Summary**: Stale copy left over from a prior lane-action cycle',
     '', '## Problem', 'Some description of the problem this track addresses, spread across a couple of lines',
     'so the file is long enough to look like a real track document instead of a bare-minimum stub.',
@@ -216,7 +216,7 @@ describe('Track 1102 F21: mid-run doc-sync must not close a dispatch whose CLI c
       }, { label: 'worker registered' });
       const workerId = state0.workers[0].id;
 
-      const dispatchId = await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+      const dispatchId = await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
       await poll(async () => {
         const s = await getState(collectorPort);

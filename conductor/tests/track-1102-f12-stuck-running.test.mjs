@@ -103,7 +103,7 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1 } },
   }, null, 2));
 
   const trackDir = join(TMP, 'conductor/tracks/001-test-track');
@@ -111,7 +111,7 @@ function setupProject(collectorPort) {
   writeFileSync(join(trackDir, 'index.md'), [
     '# Track 001: Test Track',
     '',
-    '**Lane**: plan',
+    '**Lane**: implement',
     '**Lane Status**: queue',
     '**Progress**: 0%',
   ].join('\n'));
@@ -157,7 +157,7 @@ describe('Track 1102 F12: a failed completion PATCH permanently freezes the trac
     }, { label: 'worker registered' });
     const workerId = state0.workers[0].id;
 
-    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
     // Let claim + git-lock + worktree setup succeed for real first (the
     // outage must only cover the EXIT HANDLER's writes, not the ones

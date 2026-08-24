@@ -40,7 +40,7 @@ lock+worktrees except in local-fs mode; there is no per-track,
 per-trigger decision point.
 **Solution**: REQ-1/REQ-2/REQ-3/REQ-4.
 
-- [ ] Task 0 (**GATE — do this before Task 1, it can delete Tasks 1's D1/D3
+- [x] Task 0 (**GATE — do this before Task 1, it can delete Tasks 1's D1/D3
       logic entirely**): Check whether track 10018 has landed:
       `grep -rn "merge_mode" conductor/services/ conductor/laneconductor.sync.mjs`.
       - **As of the 2026-08-19 replan**: 10018 was at `implement`, 98%,
@@ -64,14 +64,14 @@ per-trigger decision point.
         Prefer co-locating the two resolvers over inventing a second
         convention — index.md's interaction note calls for "one shared
         resolution service."
-- [ ] Task 1: Create `conductor/services/workspace-mode.mjs` exporting
+- [x] Task 1: Create `conductor/services/workspace-mode.mjs` exporting
       `resolveWorkspaceMode({ laneStatus, workspaceMarker, trackType,
       trigger, projectWorkspaceMode })` implementing spec.md D5's table
       exactly (pure function, no I/O — mirrors `path-isolation.mjs`'s
       style).
-    - [ ] Sub-task: `laneStatus === 'plan'` → `'main'` unconditionally
+    - [x] Sub-task: `laneStatus === 'plan'` → `'main'` unconditionally
           (D6), checked first.
-    - [ ] Sub-task: explicit `workspaceMarker` (`'main'`/`'branch'`)
+    - [x] Sub-task: explicit `workspaceMarker` (`'main'`/`'branch'`)
           wins over everything except the plan-lane rule above —
           **including over the auto-queue override below.** ⚠️ This
           REVERSES what an earlier draft of this task said. See spec.md
@@ -79,21 +79,21 @@ per-trigger decision point.
           `main` does not produce a safe run, it produces a *wrong* one
           (an infra track is marked main precisely because a branch run
           cannot do its job). The marker is the human's explicit switch.
-    - [ ] Sub-task: `trigger` of `'auto-queue'` or `'auto-complete'`
+    - [x] Sub-task: `trigger` of `'auto-queue'` or `'auto-complete'`
           forces `'branch'` — but only over the **type-derived** default
           (D3), not over the marker. Encode the precedence exactly as D5
           orders it: plan-lane, then marker, then auto-trigger, then
           bug-type default, then project default, then branch. Rows 2/3/4
           in that sequence are the entire encoding of D1 — TC-3 and TC-4
           in `test.md` exist to pin them as a conflicting pair.
-    - [ ] Sub-task: `projectWorkspaceMode` fallback, then `'branch'`
+    - [x] Sub-task: `projectWorkspaceMode` fallback, then `'branch'`
           default.
-- [ ] Task 2: Add a `parseWorkspaceMarker(content)` helper next to the
+- [x] Task 2: Add a `parseWorkspaceMarker(content)` helper next to the
       existing `parseTrackType()` (`laneconductor.sync.mjs:1450`),
       reading `**Workspace**:` the same way, returning `null` when
       absent/invalid (not a default — resolveWorkspaceMode needs to know
       "unset" is distinct from "branch chosen").
-- [ ] Task 3: In `spawnCli()` (`:3728`), before the existing
+- [x] Task 3: In `spawnCli()` (`:3728`), before the existing
       `if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK)` block
       (`laneconductor.sync.mjs:3738`): read the track's `index.md`,
       resolve workspace mode, and change the block to:
@@ -110,7 +110,7 @@ per-trigger decision point.
         `worktreePath === null`. Verified present at these lines during
         this planning pass; confirm with a real run rather than
         re-reading the code a second time.
-- [ ] Task 4: Add `trigger` as a new parameter to `spawnCli()` and thread
+- [x] Task 4: Add `trigger` as a new parameter to `spawnCli()` and thread
       it from all **four** trigger sources (REQ-3). ⚠️ An earlier draft
       of this task listed three and missed the auto-complete chain:
       - `autoLaunchLocalFs()` normal claim (`:4727`) → `'auto-queue'`
@@ -121,25 +121,35 @@ per-trigger decision point.
         as unattended per D5 row 3 (human-*started*, but a fire-and-forget
         multi-lane chain — exactly the "nobody is watching" case).
       - `checkDispatchInbox()` (`:6022`) → `'manual-dispatch'`.
-- [ ] Task 5 (REQ-4): In `spawnCli()`'s `contextPrompt` construction
+- [x] Task 5 (REQ-4): In `spawnCli()`'s `contextPrompt` construction
       (`:3751` onward), append one instruction line — only when resolved
       mode is `'main'` — telling the agent to commit with
       `feat(track-NNN): ...` / reference the track number, per
       `conductor/workflow.md`'s existing convention.
-- [ ] Task 6 (REQ-5/D8): In `finishAutoCompleteWithMerge()`
+- [x] Task 6 (REQ-5/D8): In `finishAutoCompleteWithMerge()`
       (`:4822`), resolve the track's workspace mode before calling
       `mergeWorktreeBranch()`. On `'main'`, skip the merge call and
       report success (`resultText` = `"Completed [...] — already on
       main, no merge needed."`) instead of treating `{ merged: false,
       reason: 'no-branch' }` as failure.
-- [ ] Task 7 (D10/REQ-10): Add a dirty-checkout guard function (reusing
-      `git status --porcelain`, matching
+- [x] Task 7 (D10/REQ-10, **corrected during implementation** — see
+      spec.md D10's 2026-08-24 note): Add a dirty-checkout guard function
+      (reusing `git status --porcelain`, matching
       `conductor/services/git-divergence.mjs:91`'s pattern) called only
       when resolved mode is `'main'`, right before spawning. On a
       disqualifying dirty path (anything outside
-      `conductor/tracks/{NNN}/`): do not spawn, leave
+      `conductor/tracks/{NNN}/` **and** outside the worker's own runtime
+      bookkeeping — `conductor/.sync*.pid`, `.sync*.lock-target`,
+      `.worker*.tokens.json`, `conductor/tracks-metadata.json`, all
+      matched via `conductor/\.[^/]+$` or an explicit
+      `tracks-metadata.json` check): do not spawn, leave
       `lane_action_status: queue`, append a `conversation.md` comment
-      naming the path(s), return without consuming a retry.
+      naming the path(s), return without consuming a retry. ⚠️ The
+      bookkeeping exemption was NOT in the original spec — without it,
+      this guard blocks every `plan`-lane spawn in any real deployment
+      (D6 makes `plan` always resolve to `'main'`, and the worker's own
+      pid/lock/token files are dirty essentially all the time); confirmed
+      live by 7 existing E2E tests failing until this was added.
 
 **Impact**: `spawnCli()` becomes mode-aware; `main`-mode tracks never
 create a worktree/branch; `plan` never creates one for anyone.
@@ -150,20 +160,25 @@ create a worktree/branch; `plan` never creates one for anyone.
 worker's own resolution logic.
 **Solution**: REQ-7/REQ-8.
 
-- [ ] Task 1 (REQ-7): `bin/lc.mjs`'s `new` command
+- [x] Task 1 (REQ-7): `bin/lc.mjs`'s `new` command
       (`:2078-2189`) gains `--workspace main|branch`, validated against
       `['main', 'branch']`; when present, writes `**Workspace**: <value>`
       into the generated `index.md` alongside the existing
       `**Type**:`/`**Lane**:` lines. Update the usage string at `:2121`.
-- [ ] Task 2 (REQ-8): `.claude/skills/laneconductor/SKILL.md`'s
+- [x] Task 2 (REQ-8, **corrected during implementation** — see spec.md
+      REQ-8's 2026-08-24 note): `.claude/skills/laneconductor/SKILL.md`'s
       `/laneconductor plan` section gains a step, ordered before the
       existing "Scaffold (if missing)"/"Refine (if exists)" logic: if
-      `index.md` has no `**Workspace**` marker, classify bug-vs-feature
-      from the track's title/description/`conversation.md` + a quick
-      codebase scan, write `**Workspace**: main` or `**Workspace**:
-      branch`, and append the reasoning as a `> **system**:` comment to
-      `conversation.md` (using the skill's required comment-format
-      protocol — plain prose here would silently fail to sync).
+      `index.md` has no `**Workspace**` AND no `**Track Kind**` marker,
+      classify bug-vs-feature from the track's title/description/
+      `conversation.md` + a quick codebase scan, write `**Track Kind**:
+      bug` or `**Track Kind**: feature` (NOT `**Workspace**` directly —
+      plan runs before every lane action per D6, so writing `**Workspace**`
+      here would make the inference indistinguishable from a deliberate
+      human override for nearly every track), and append the reasoning as
+      a `> **system**:` comment to `conversation.md` (using the skill's
+      required comment-format protocol — plain prose here would silently
+      fail to sync).
 
 **Impact**: Every track-creation path (UI, `lc new`, worker-side
 scaffold-on-missing in `spawnCli`) either sets `**Workspace**` up front
@@ -174,23 +189,27 @@ or gets it classified by the first `plan` run.
 **Problem**: no visibility into a track's resolved workspace mode.
 **Solution**: REQ-6/REQ-11/REQ-12.
 
-- [ ] Task 1 (REQ-6): `ui/server/utils.mjs`'s `trackTemplates()`
-      (`:32-45`) emits `**Workspace**: main` in the `bug` branch's
-      `index` template and `**Workspace**: branch` in the `feature`
-      branch's — one line each, matching the existing `typeLine`
-      pattern already in that function.
-- [ ] Task 2 (REQ-11): Sync the `**Workspace**` marker to the DB the same
+- [x] Task 1 (REQ-6, **corrected during implementation** — see spec.md
+      D3's 2026-08-24 correction note): `ui/server/utils.mjs`'s
+      `trackTemplates()` emits `**Track Kind**: bug` (a NEW marker, not
+      `**Workspace**` — that would make the type-derived default
+      indistinguishable from an explicit human override and silently
+      defeat D1's auto-queue safety check) in the `bug` branch's `index`
+      template only (omitted for `feature`, same sparse-emission
+      convention as `typeLine`). `parseTrackKind()` lives in
+      `workspace-mode.mjs` alongside `resolveWorkspaceMode()`.
+- [x] Task 2 (REQ-11): Sync the `**Workspace**` marker to the DB the same
       way `**Type**` already reaches `tracks.track_type` (find that
       sync path — likely the same `syncTrack()` marker-parsing routine
       that handles `**Progress**`/`**Phase**`/etc. — and add
       `workspace_mode` alongside it, including a migration for the new
       `tracks.workspace_mode` column).
-- [ ] Task 3 (REQ-11): `TrackCard.jsx`/`TrackDetailPanel.jsx` render the
+- [x] Task 3 (REQ-11): `TrackCard.jsx`/`TrackDetailPanel.jsx` render the
       mode next to the existing `TrackTypeBadge`
       (`TrackCard.jsx:151`) — e.g. a small "main" / "branch" tag, styled
       distinctly (this repo's convention: red/blue/green/amber badges
       per type, per `TrackCard.jsx:264` and `NewTrackModal.jsx:271-277`).
-- [ ] Task 4 (REQ-12): Wherever `worktree_lifecycle` is currently
+- [x] Task 4 (REQ-12): Wherever `worktree_lifecycle` is currently
       surfaced in the project Config UI (or, if it isn't, document
       `workspace_mode` as a manual `.laneconductor.json` edit exactly
       like `worktree_lifecycle` is documented today — do not build a
@@ -209,7 +228,23 @@ verification, not code-reading.
 **Solution**: see `test.md` for the full list; summarized here by what
 each covers.
 
-- [ ] Task 1: Unit tests for `resolveWorkspaceMode()` — every row of
+**Status (2026-08-24 implement pass): Task 1 done, Tasks 2-8 NOT done —
+deferred, not silently dropped.** Task 1's pure-resolver unit tests exist
+and pass (13 cases), and this pass additionally fixed 7 PRE-EXISTING E2E
+tests that broke as a direct consequence of D6 shipping (they assumed
+`plan` always creates a worktree, which is no longer true — see
+`spec.md`'s D10 correction note). But the dedicated Task 2-8 E2E suite —
+real spawned-worker-process tests asserting on real git state for `main`
+mode, lazy worktree creation, the auto-queue override, the merge skip, the
+dirty-checkout guard, lock serialization, and the Worktrees-panel
+exclusion — was not written this pass. **This matters**: `test.md`'s own
+header says these are "the load-bearing ones... unit tests over a pure
+resolver cannot detect a worktree that got created anyway," and that is
+still true — the resolver being unit-tested does not verify `spawnCli`'s
+wiring actually uses it correctly end to end. Do not treat this track as
+verified for real-world main-mode behavior until Tasks 2-8 land.
+
+- [x] Task 1: Unit tests for `resolveWorkspaceMode()` — every row of
       D5's table, as a pure-function test
       (`conductor/tests/track-1115-workspace-mode.test.mjs`, mirroring
       `track-1112-worktree-audit.test.mjs`'s style for pure logic).
@@ -252,17 +287,17 @@ identical to today's `branch` behavior.
 `**Workspace**` marker means.
 **Solution**:
 
-- [ ] Task 1: `.claude/skills/laneconductor/SKILL.md` — document the
+- [x] Task 1: `.claude/skills/laneconductor/SKILL.md` — document the
       `**Workspace**` marker in the "Filesystem-as-API Interface" table
       (alongside `**Status**`/`**Progress**`/etc.), and add a short
       "Workspace Modes" subsection near `/laneconductor plan`'s
       description covering the classification step and D1's
       auto-queue-forces-branch rule.
-- [ ] Task 2: `conductor/workflow.md` — add a short section on when
+- [x] Task 2: `conductor/workflow.md` — add a short section on when
       `main` vs `branch` is appropriate (mirrors this spec's Non-Goals:
       branch stays the default; main is for attended bug fixes and infra
       self-fixes).
-- [ ] Task 3: `conductor/product.md` — its "Worktree Management" section
+- [x] Task 3: `conductor/product.md` — its "Worktree Management" section
       currently states flatly that "All work happens inside the worktree
       (isolated from main branch)" and describes `worktree_lifecycle` as
       having exactly two values (`per-cycle`/`per-lane`). Both become
