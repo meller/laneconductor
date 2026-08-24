@@ -1,7 +1,7 @@
 # Track 1105: End-to-end walkthrough — skill (/laneconductor in an AI editor)
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev

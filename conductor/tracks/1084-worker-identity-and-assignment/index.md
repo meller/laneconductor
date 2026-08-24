@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 71%
-**Phase**: Phases 0-5 complete for their achievable scope. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12. **Phase 7 added 2026-08-12: continuity-first routing is UNBLOCKED** — 1086 shipped `track_sessions`, so the deferred REQ-3 step can finally land. (Progress recut 83%→71%: 5 of 7 phases, not 5 of 6.)
+**Phase**: Phases 0-5 complete for their achievable scope. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12. Phase 7 (continuity-first routing) unblocked 2026-08-12, still open. **Phase 8 added…
 **Type**: dev
 **Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
 

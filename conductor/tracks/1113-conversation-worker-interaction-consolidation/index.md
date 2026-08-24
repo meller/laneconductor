@@ -1,9 +1,9 @@
 # Track 1113: Conversation ↔ Worker Interaction Consolidation
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 40%
-**Phase**: Phase 1+2 complete, plus a 2026-08-14 addendum (plain "Send" now dispatches via track_chat, same as Brainstorm — see plan.md). Phases 3-5 still not started; Phase 2 itself still has zero automated test coverage.
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: All 5 phases complete. Header "Run <lane> now" button consolidated into Send & Run (2026-08-14, verified live in-browser). TC-3/TC-5 now covered; TC-1/2/4/6 remain without dedicated automated…
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: The conversation panel, inbox, transcripts, and worker-chat grew as four separate tracks (015, 1085, 1086, 1087) and their interaction semantics no longer compose — found live while dogfooding track…
@@ -69,11 +69,11 @@ traced one by one:
   accidental.
 
 ## Phases
-- [ ] Phase 1: Design — interaction model for message → worker action (inventory above is the input; decide button set, Send semantics, chat/lane-action coordination, inbox scope)
-- [ ] Phase 2: Send & Run UX finalization (control shipped this session; validate against design, adjust placement/defaults)
-- [ ] Phase 3: Chat interrupt/resume (needs 1086 sessions; likely worker-side: inject chat into running session vs parallel one-shot)
-- [ ] Phase 4: Inbox consolidation across track_comments / transcripts / worker-chat results
-- [ ] Phase 5: Tests — E2E covering the "message means go do more work" path end to end on a sync-only worker
+- [x] Phase 1: Design — interaction model for message → worker action
+- [x] Phase 2: Send & Run UX — header button consolidated 2026-08-14; TC-1/2/4/6 still lack automated coverage (harness gap, see test.md)
+- [x] Phase 3: Chat coordination — shared session (REQ-5), defer against in-flight lane action (REQ-6), no heartbeat clobber (REQ-7)
+- [x] Phase 4: Inbox consolidation — track_chat reply reaches conversation.md → track_comments (mechanism changed from the original plan; see plan.md)
+- [x] Phase 5: Tests — track-1113-chat-coordination.test.mjs, chat-reply-conversation-md.test.mjs, both negative-controlled
 
 ## Related tracks
 - [015](../015-track-conversation-inbox/index.md) — built the Inbox (pre-transcripts)

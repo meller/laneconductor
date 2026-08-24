@@ -19,6 +19,15 @@
 //                               dispatch to fail and a later one to
 //                               succeed — the test creates/deletes the file
 //                               between dispatches instead.
+//   MOCK_CLI_PROGRESS_INTERVAL_MS=<n>   Track 1102 F11: if set, print a
+//                               new output line every <n>ms throughout
+//                               the full MOCK_CLI_DELAY_MS instead of
+//                               going silent after the first line —
+//                               simulates a genuinely-progressing run
+//                               (log file still growing) so a test can
+//                               tell a real hang apart from a run that's
+//                               just taking a while but producing output
+//                               the whole time.
 //   MOCK_CLI_CLAIM_MARKER=<path>   Track 1110 Phase 1: if set, append
 //                               "<pid>\n" to the file at <path> on every
 //                               invocation. Lets a test with TWO worker
@@ -53,12 +62,40 @@ if (process.env.MOCK_CLI_CLAIM_MARKER) {
   appendFileSync(process.env.MOCK_CLI_CLAIM_MARKER, `${process.pid}\n`);
 }
 
+// Track 1113: one JSON line per invocation with the full argv, so a test can
+// assert which session flag a chat turn was actually invoked with
+// (--session-id on a fresh session vs --resume on a shared one). The
+// CLAIM_MARKER above only records pids, which cannot answer that.
+if (process.env.MOCK_CLI_ARGV_LOG) {
+  appendFileSync(process.env.MOCK_CLI_ARGV_LOG,
+    JSON.stringify({ pid: process.pid, argv: process.argv.slice(2), at: Date.now() }) + '\n');
+}
+
 if (resumeFailure) {
   console.log('No conversation found with session ID: (mock)');
 } else {
   console.log(`[mock-cli] ${command} track=${trackNumber} → exit ${exitCode} after ${delay}ms`);
 }
 
+const progressIntervalMs = parseInt(process.env.MOCK_CLI_PROGRESS_INTERVAL_MS ?? '0');
+let progressTimer = null;
+if (progressIntervalMs > 0 && !resumeFailure) {
+  progressTimer = setInterval(() => {
+    console.log(`[mock-cli] ${command} track=${trackNumber} → still working at ${Date.now()}`);
+  }, progressIntervalMs);
+}
+
+// Track 10020: MOCK_CLI_EMIT_BLOCKED_SUMMARY=<question text> — if set,
+// print a real post_turn_summary JSONL line (status_category: 'blocked')
+// right before exiting, so a test can drive spawnCli's exit handler through
+// its actual isBlockedTurn path against a real spawned process, not just
+// extractBlockedQuestion() in isolation.
+const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
+
 setTimeout(() => {
+  if (progressTimer) clearInterval(progressTimer);
+  if (blockedSummary) {
+    console.log(JSON.stringify({ type: 'system', subtype: 'post_turn_summary', status_category: 'blocked', status_detail: blockedSummary }));
+  }
   process.exit(exitCode);
 }, delay);

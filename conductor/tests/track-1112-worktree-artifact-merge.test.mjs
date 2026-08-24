@@ -37,12 +37,29 @@ describe('mergeIndexMarkers', () => {
     assert.match(merged, /\*\*Waiting for reply\*\*: no/);
   });
 
-  it('does not inject a marker that is missing from the existing (primary) file', () => {
+  it('does not inject most markers that are missing from the existing (primary) file', () => {
     const existing = '# Track 1: Title\n\n**Lane**: plan\n';
-    const artifact = '# Track 1: Title\n\n**Lane**: implement\n**Waiting for reply**: no\n';
+    const artifact = '# Track 1: Title\n\n**Lane**: implement\n**Summary**: brand new summary\n';
     const merged = mergeIndexMarkers(existing, artifact);
     assert.match(merged, /\*\*Lane\*\*: implement/);
-    assert.ok(!merged.includes('Waiting for reply'), 'must not inject a marker the primary file never had');
+    assert.ok(!merged.includes('Summary'), 'must not inject a marker the primary file never had');
+  });
+
+  // Track 10020: unlike every other marker, "Waiting for reply" going
+  // missing-in-primary is the NORMAL first-occurrence case, not a sign of
+  // reshaping the file — a track can legitimately go its whole life
+  // without needing it until a dispatched lane action first hits a genuine
+  // blocking question. The old "don't inject" behavior silently dropped
+  // the exit handler's own correctly-written marker during the
+  // worktree-to-primary copy, and the very next syncTrack() call — reading
+  // primary's now marker-less file — overwrote the DB back to
+  // waiting_for_reply: false, undoing the fix that set it. Caught live on
+  // track 1102.
+  it('DOES inject "Waiting for reply" even when primary never had it before', () => {
+    const existing = '# Track 1: Title\n\n**Lane**: implement\n**Lane Status**: success\n';
+    const artifact = '# Track 1: Title\n\n**Lane**: implement\n**Lane Status**: success\n**Waiting for reply**: yes\n';
+    const merged = mergeIndexMarkers(existing, artifact);
+    assert.match(merged, /\*\*Waiting for reply\*\*:\s*yes/i, 'must inject the marker on its first occurrence, not silently drop it');
   });
 
   it('leaves the existing marker untouched when the artifact has no value for it', () => {
@@ -59,5 +76,32 @@ describe('mergeIndexMarkers', () => {
     // Exactly one Lane line and one Lane Status line, each with the new value.
     assert.equal((merged.match(/\*\*Lane\*\*: quality-gate/g) || []).length, 1);
     assert.equal((merged.match(/\*\*Lane Status\*\*: queue/g) || []).length, 1);
+  });
+
+  // Track 1102 F21 (2026-08-20): { skipStatusMarkers: true } is what the
+  // periodic mid-run doc-sync pass uses — a reused per-cycle worktree's
+  // Lane/Lane Status is frozen at the PREVIOUS cycle's terminal value until
+  // this cycle's own exit handler runs, so merging it mid-run clobbers the
+  // dispatcher's freshly-written "running" marker on primary and causes
+  // reconcileActiveDispatch() to close the dispatch out while the real
+  // agent process is still alive (live: track 10019's review and
+  // quality-gate dispatches). Every other marker has no such hazard and
+  // must keep flowing through — that's the whole point of the mid-run pass.
+  it('with skipStatusMarkers: true, leaves Lane/Lane Status untouched but still merges Progress/Phase/Summary', () => {
+    const existing = '**Lane**: plan\n**Lane Status**: running\n**Progress**: 0%\n**Phase**: old\n**Summary**: old\n';
+    const artifact = '**Lane**: plan\n**Lane Status**: success\n**Progress**: 40%\n**Phase**: new\n**Summary**: new\n';
+    const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
+    assert.match(merged, /\*\*Lane\*\*: plan/);
+    assert.match(merged, /\*\*Lane Status\*\*: running/, 'Lane Status must stay at the primary\'s own value, not the stale worktree one');
+    assert.match(merged, /\*\*Progress\*\*: 40%/);
+    assert.match(merged, /\*\*Phase\*\*: new/);
+    assert.match(merged, /\*\*Summary\*\*: new/);
+  });
+
+  it('without skipStatusMarkers (default), Lane Status still merges as before — the flag is opt-in, not a behavior change for existing callers', () => {
+    const existing = '**Lane**: plan\n**Lane Status**: running\n';
+    const artifact = '**Lane**: plan\n**Lane Status**: success\n';
+    const merged = mergeIndexMarkers(existing, artifact);
+    assert.match(merged, /\*\*Lane Status\*\*: success/);
   });
 });

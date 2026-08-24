@@ -1,62 +1,54 @@
 import { useState } from 'react';
 import { useApi } from '../hooks/useApi.js';
+import { PROVIDERS, PROVIDER_IDS, providerLabel } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
+// Re-exported under their historical names so existing imports (e.g.
+// ProvisionWorkerModal.jsx's `import { MODEL_PRESETS, CLI_ENGINES } from
+// './WorkerModelModal.jsx'`) keep working unchanged — the data itself now
+// comes from the single canonical registry instead of a local copy.
 // Fallback presets shown when a worker hasn't reported its own available models.
-// Future: workers will report `available_models` via heartbeat (per CLI/version),
-// and these presets will only be used as the "Custom" fallback list.
-export const MODEL_PRESETS = {
-  claude: [
-    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 ✨' },
-    { id: 'claude-opus-5', label: 'Claude Opus 5' },
-    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-    { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
-    { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
-    { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
-    { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' },
-  ],
-  gemini: [
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro ✨' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  ],
-  copilot: [
-    { id: 'gpt-4o', label: 'GPT-4o' },
-    { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { id: 'o3', label: 'o3' },
-    { id: 'o3-mini', label: 'o3-mini' },
-    { id: 'o1', label: 'o1' },
-  ],
-  antigravity: [
-    { id: 'auto', label: 'Auto (recommended)' },
-    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
-    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
-  ],
-};
+export const MODEL_PRESETS = Object.fromEntries(
+  PROVIDER_IDS.map(id => [id, PROVIDERS[id].models])
+);
 
-export const CLI_ENGINES = [
-  { id: 'claude', name: 'Claude', icon: '🤖' },
-  { id: 'gemini', name: 'Gemini', icon: '✨' },
-  { id: 'copilot', name: 'Copilot', icon: '✈️' },
-  { id: 'antigravity', name: 'Antigravity', icon: '🚀' },
-];
+export const CLI_ENGINES = PROVIDER_IDS.map(id => ({
+  id, name: PROVIDERS[id].label, icon: PROVIDERS[id].icon,
+}));
 
-export function WorkerModelModal({ worker, onClose, onUpdated }) {
+export function WorkerModelModal({ worker, project, workers, onClose, onUpdated }) {
   const { apiFetch } = useApi();
-  const [selectedCli, setSelectedCli] = useState(worker.cli || 'claude');
+  // REQ-3b: 'claude' (and MODEL_PRESETS.claude[0]) were previously hardcoded
+  // as the "worker hasn't reported cli/model yet" fallback — resolve from
+  // the project's actual configured default (live discovery / registry
+  // recommendation) instead, same as every other former hardcoded-claude site.
+  const projectDefault = getDefaultProviderModel(project, workers);
+  // Captured once at open — the provider this worker (and any session tied
+  // to it) is currently running under. Compared against selectedCli below
+  // to detect a provider *switch*, which is the operation with a session-
+  // continuity consequence — not a plain model change within the same CLI.
+  const [originalCli] = useState(worker.cli || projectDefault.cli);
+  const [selectedCli, setSelectedCli] = useState(worker.cli || projectDefault.cli);
   // Falls back to the first preset (the current recommended model), not a
   // hardcoded id — a pinned id silently rots to an old model as presets
   // are updated (this was stuck on claude-3-5-sonnet).
   const [selectedModel, setSelectedModel] = useState(
-    worker.model || (MODEL_PRESETS[worker.cli || 'claude'] || MODEL_PRESETS.claude)[0].id
+    worker.model || (MODEL_PRESETS[worker.cli || projectDefault.cli] || MODEL_PRESETS.claude)[0].id
   );
   const [customModel, setCustomModel] = useState('');
   const [isCustom, setIsCustom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+
+  // Track 1096 Phase 6: a model change within the same CLI keeps
+  // --resume working (session ids are CLI-specific, e.g. Claude's
+  // claude_session_id) — freely allowed. Switching the CLI/provider itself
+  // means this worker starts a fresh conversation under the new provider;
+  // it doesn't error, and the old provider's session is left untouched
+  // (resumable again if the user switches back), but it's still a
+  // consequence the user should confirm rather than trigger by accident.
+  const isProviderSwitch = selectedCli !== originalCli;
 
   // Use worker-reported models if available; fall back to global presets.
   // available_models arrives as parsed JSON from the server (JSONB column).
@@ -76,14 +68,17 @@ export function WorkerModelModal({ worker, onClose, onUpdated }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
     const modelToSave = isCustom ? customModel.trim() : selectedModel;
     if (!modelToSave) {
       setError('Model identifier is required');
-      setLoading(false);
       return;
     }
+    if (isProviderSwitch && !confirmSwitch) {
+      setError('Confirm the provider switch below before saving');
+      return;
+    }
+    setLoading(true);
 
     try {
       const res = await apiFetch(`/api/workers/${worker.id}/config`, {
@@ -152,6 +147,7 @@ export function WorkerModelModal({ worker, onClose, onUpdated }) {
                     type="button"
                     onClick={() => {
                       setSelectedCli(engine.id);
+                      setConfirmSwitch(false);
                       // When switching CLI, reset to first preset for that engine
                       const newPresets = MODEL_PRESETS[engine.id];
                       if (newPresets && newPresets.length > 0) {
@@ -225,6 +221,33 @@ export function WorkerModelModal({ worker, onClose, onUpdated }) {
             )}
           </div>
 
+          {/* Provider-switch warning — model-only changes never show this */}
+          {isProviderSwitch && (
+            <div
+              className="p-3 bg-amber-950/40 border border-amber-900/60 rounded-xl text-amber-200 text-xs flex flex-col gap-2"
+              data-testid="provider-switch-warning"
+            >
+              <div className="flex gap-2">
+                <span className="text-amber-400 font-bold">⚠️</span>
+                <span>
+                  Switching from <strong>{providerLabel(originalCli)}</strong> to{' '}
+                  <strong>{providerLabel(selectedCli)}</strong> starts a new conversation for this
+                  worker — its {providerLabel(originalCli)} history won't carry over. That history
+                  isn't deleted; it's available again if you switch back to {providerLabel(originalCli)}.
+                </span>
+              </div>
+              <label className="flex items-center gap-2 pl-6 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={confirmSwitch}
+                  onChange={e => setConfirmSwitch(e.target.checked)}
+                  data-testid="confirm-provider-switch-checkbox"
+                />
+                <span>I understand — switch this worker to {providerLabel(selectedCli)}</span>
+              </label>
+            </div>
+          )}
+
           {/* Footer Buttons */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
             <button
@@ -236,7 +259,7 @@ export function WorkerModelModal({ worker, onClose, onUpdated }) {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isProviderSwitch && !confirmSwitch)}
               className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/30 transition-all"
               data-testid="save-worker-config-btn"
             >

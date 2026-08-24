@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
 import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
-import { WorkerModelModal } from './WorkerModelModal.jsx';
+import { WorkerModelModal, MODEL_PRESETS, CLI_ENGINES } from './WorkerModelModal.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
+import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -20,12 +22,12 @@ const VISIBILITY_BADGE = {
   public: { label: 'Public', icon: '🌐', className: 'text-green-400 border-green-900/50' },
 };
 
-const CLI_ICONS = {
-  claude: '🤖',
-  gemini: '✨',
-  copilot: '✈️',
-  antigravity: '🚀',
-};
+// Neutral fallback text shown when a worker hasn't reported its `model`
+// yet AND its `cli` isn't a recognized provider (never a hardcoded
+// Claude model id for a non-Claude worker — see track 10011).
+function workerModelLabel(worker) {
+  return worker.model || defaultModelFor(worker.cli) || 'model not reported yet';
+}
 
 function ProviderStatus({ providers }) {
   if (!providers || providers.length === 0) return null;
@@ -122,9 +124,14 @@ function WaitingQueue({ tracks, onPriorityChange }) {
   );
 }
 
-export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh, onSelectTrack }) {
+export function WorkersList({ projectId, project, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh, onSelectTrack }) {
   const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
+  // REQ-3b: 'claude' was previously hardcoded here as the "cli not
+  // reported" fallback — resolve it from the project's actual configured
+  // default (falling back through live discovery / registry recommendation)
+  // instead, same as every other former hardcoded-claude site.
+  const defaultCli = getDefaultProviderModel(project, workers).cli;
   // Track 1084 Phase 6: "does this project have a worker of its own?" is a
   // different question from "what workers are visible here". A manager is
   // deliberately included in a project's worker list (the provisioning and
@@ -136,6 +143,18 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
   const [visibilityWorker, setVisibilityWorker] = useState(null);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [configWorker, setConfigWorker] = useState(null);
+  // Track 1096 Phase 7: picker state for the "Start Sync Worker" button —
+  // this project's own worker #1, started locally, so (unlike
+  // ProvisionWorkerModal) there's no project/machine choice, just CLI/model.
+  const [startCli, setStartCli] = useState('claude');
+  const [startModel, setStartModel] = useState(MODEL_PRESETS.claude[0].id);
+  const startModelOptions = MODEL_PRESETS[startCli] || [];
+
+  useEffect(() => {
+    if (startModelOptions.length && !startModelOptions.some(m => m.id === startModel)) {
+      setStartModel(startModelOptions[0].id);
+    }
+  }, [startCli, startModelOptions, startModel]);
 
   async function handleStopWorker(worker) {
     try {
@@ -148,13 +167,17 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
     }
   }
 
-  async function handleWorkerAction(action) {
+  async function handleWorkerAction(action, body) {
     if (!projectId) return;
     try {
-      const res = await apiFetch(`/api/projects/${projectId}/worker/${action}`, { method: 'POST' });
+      const res = await apiFetch(`/api/projects/${projectId}/worker/${action}`, {
+        method: 'POST',
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       console.log(`Worker ${action} result:`, data);
+      onRefresh?.();
     } catch (err) {
       console.error(`Failed to ${action} worker:`, err);
       alert(`Failed to ${action} worker: ${err.message}`);
@@ -200,12 +223,32 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                 {/* Project-scoped (`make lc-start` in this project's dir), so
                     it silently did nothing in the All Projects view. */}
                 {IS_LOCAL_HOST && projectId && (
-                  <button
-                    onClick={() => handleWorkerAction('start')}
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
-                  >
-                    Start Sync Worker
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={startCli}
+                      onChange={e => setStartCli(e.target.value)}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                      data-testid="start-worker-cli-select"
+                      title="CLI engine for this worker"
+                    >
+                      {CLI_ENGINES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                    </select>
+                    <select
+                      value={startModel}
+                      onChange={e => setStartModel(e.target.value)}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                      data-testid="start-worker-model-select"
+                      title="Model for this worker"
+                    >
+                      {startModelOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </select>
+                    <button
+                      onClick={() => handleWorkerAction('start', { cli: startCli, model: startModel })}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                      Start Sync Worker
+                    </button>
+                  </div>
                 )}
                 <button
                   onClick={() => setShowProvisionModal(true)}
@@ -451,10 +494,10 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                     </div>
                     <div className="flex items-center justify-between bg-gray-950/60 px-2 py-1.5 rounded-lg border border-gray-800/80 my-2">
                       <div className="flex items-center gap-1.5 overflow-hidden">
-                        <span className="text-xs">{CLI_ICONS[worker.cli || 'claude'] || '🤖'}</span>
-                        <span className="text-[11px] font-medium text-gray-300 capitalize">{worker.cli || 'claude'}</span>
+                        <span className="text-xs">{providerIcon(worker.cli)}</span>
+                        <span className="text-[11px] font-medium text-gray-300 capitalize">{worker.cli || defaultCli}</span>
                         <span className="text-[10px] font-mono text-purple-400 bg-purple-950/50 px-1.5 py-0.5 rounded border border-purple-800/40 truncate" data-testid="worker-model-badge">
-                          {worker.model || 'claude-3-5-sonnet'}
+                          {workerModelLabel(worker)}
                         </span>
                       </div>
                       <button
@@ -524,6 +567,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
         {configWorker && (
           <WorkerModelModal
             worker={configWorker}
+            project={project}
+            workers={workers}
             onClose={() => setConfigWorker(null)}
             onUpdated={() => {
               onRefresh?.();
@@ -624,8 +669,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
               data-testid="change-worker-model-btn-strip"
               title="Click to change model"
             >
-              <span>{CLI_ICONS[worker.cli || 'claude'] || '🤖'}</span>
-              <span>{worker.model || 'claude-3-5-sonnet'}</span>
+              <span>{providerIcon(worker.cli)}</span>
+              <span>{workerModelLabel(worker)}</span>
             </button>
           </div>
         ))}
@@ -664,6 +709,8 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
       {configWorker && (
         <WorkerModelModal
           worker={configWorker}
+          project={project}
+          workers={workers}
           onClose={() => setConfigWorker(null)}
           onUpdated={() => {
             onRefresh?.();

@@ -62,6 +62,24 @@ describe('computeWorktreeStats', () => {
     expect(rec.level).toBe('info');
   });
 
+  it('counts pr-open rows separately from mergeable, and does not recommend attention for a healthy open PR', () => {
+    const stats = computeWorktreeStats([{ class: 'pr-open', dirty: 0, pr_status: 'open' }]);
+    expect(stats.counts['pr-open']).toBe(1);
+    expect(stats.recommendations).toEqual([]);
+  });
+
+  it('recommends attention for PRs with failing checks, conflicts, or closed-unmerged status', () => {
+    const stats = computeWorktreeStats([
+      { class: 'pr-open', dirty: 0, pr_status: 'checks-failed' },
+      { class: 'pr-open', dirty: 0, pr_status: 'conflicted' },
+      { class: 'pr-open', dirty: 0, pr_status: 'open' }, // healthy — should not count
+    ]);
+    const rec = stats.recommendations.find(r => /needs? attention/i.test(r.text));
+    expect(rec).toBeTruthy();
+    expect(rec.level).toBe('action');
+    expect(rec.text).toMatch(/^2 open PRs need attention/i);
+  });
+
   it('produces no recommendations for a small, healthy set of open rows', () => {
     const rows = [{ class: 'open', dirty: 0 }, { class: 'mergeable', dirty: 0 }];
     const stats = computeWorktreeStats(rows);

@@ -106,20 +106,6 @@ CREATE TABLE "track_comments" (
 );
 
 -- CreateTable
--- Track 1086: one resumable Claude session per (worker, track) pair, so a
--- lane action and a later conversation reply for the same track on the same
--- worker can --resume instead of cold-starting and re-reading all context.
-CREATE TABLE "track_sessions" (
-    "track_number" TEXT NOT NULL,
-    "worker_id" INTEGER NOT NULL,
-    "claude_session_id" UUID NOT NULL,
-    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "last_used_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "track_sessions_pkey" PRIMARY KEY ("track_number","worker_id")
-);
-
--- CreateTable
 CREATE TABLE "tracks" (
     "id" SERIAL NOT NULL,
     "project_id" INTEGER,
@@ -148,8 +134,6 @@ CREATE TABLE "tracks" (
     "content_updated_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
     "last_updated_by_uid" TEXT,
-    "created_by_uid" TEXT,
-    "assignee_uid" TEXT,
     "claimed_by" TEXT,
     "active_cli" TEXT,
     "worktree_path" TEXT,
@@ -169,6 +153,8 @@ CREATE TABLE "tracks" (
     "kpi_check_after" TIMESTAMP(6),
     "kpi_scheduled_at" TIMESTAMP(6),
     "kpi_maps_to" TEXT,
+    "waiting_for_reply" BOOLEAN NOT NULL DEFAULT false,
+    "auto_run" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "tracks_pkey" PRIMARY KEY ("id")
 );
@@ -186,31 +172,11 @@ CREATE TABLE "users" (
 );
 
 -- CreateTable
--- Track 1085: per-worker command inbox, separate from the general
--- auto-launch queue. track_number is null for project-level actions
--- (e.g. deploy); payload is a generic per-action parameter bag so future
--- action types don't need their own dedicated column.
-CREATE TABLE "worker_dispatch" (
-    "id" SERIAL NOT NULL,
-    "worker_id" INTEGER NOT NULL,
-    "track_number" TEXT,
-    "action" TEXT NOT NULL,
-    "payload" JSONB,
-    "status" TEXT NOT NULL DEFAULT 'pending',
-    "result" TEXT,
-    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "claimed_at" TIMESTAMPTZ(6),
-
-    CONSTRAINT "worker_dispatch_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "workers" (
     "id" SERIAL NOT NULL,
     "project_id" INTEGER,
     "hostname" TEXT NOT NULL,
     "pid" INTEGER NOT NULL,
-    "worker_number" INTEGER NOT NULL DEFAULT 1,
     "status" TEXT DEFAULT 'idle',
     "mode" TEXT DEFAULT 'polling',
     "current_task" TEXT,
@@ -219,32 +185,9 @@ CREATE TABLE "workers" (
     "machine_token" TEXT,
     "user_uid" TEXT,
     "visibility" TEXT DEFAULT 'private',
-    -- Track 1091: 'project' (default, unchanged) or 'manager' — a manager
-    -- worker isn't scoped to any project (project_id stays null for it) and
-    -- is a machine-level singleton, see workers_one_manager_per_host below.
-    "type" TEXT NOT NULL DEFAULT 'project',
-    -- Track 1096: the CLI/model this worker's primary session runs, and the
-    -- model list it discovered on its own machine (null = use UI presets;
-    -- see conductor/laneconductor.sync.mjs's discoverAvailableModels).
-    "cli" TEXT,
-    "model" TEXT,
-    "available_models" JSONB,
+    "worktrees" JSONB,
 
     CONSTRAINT "workers_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
--- Track 1089: remote hosts a project's workers can be provisioned onto.
-CREATE TABLE "provision_targets" (
-    "id" SERIAL NOT NULL,
-    "project_id" INTEGER REFERENCES "projects"("id") ON DELETE CASCADE,
-    "user_uid" TEXT,
-    "host" TEXT NOT NULL,
-    "label" TEXT,
-    "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "provision_targets_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "unique_project_host" UNIQUE ("project_id", "host")
 );
 
 -- CreateTable
@@ -306,21 +249,10 @@ CREATE INDEX "idx_tracks_priority_queue" ON "tracks"("priority", "created_at");
 CREATE UNIQUE INDEX "tracks_project_id_track_number_key" ON "tracks"("project_id", "track_number");
 
 -- CreateIndex
-CREATE INDEX "idx_worker_dispatch_worker_status" ON "worker_dispatch"("worker_id", "status");
-
--- CreateIndex
 CREATE UNIQUE INDEX "workers_machine_token_key" ON "workers"("machine_token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "workers_project_id_hostname_worker_number_key" ON "workers"("project_id", "hostname", "worker_number");
-
--- CreateIndex
--- Track 1091: at most one 'manager'-type worker per hostname, machine-wide.
--- A plain unique constraint on (project_id, hostname) wouldn't work here —
--- Postgres treats each NULL project_id as distinct, so multiple manager
--- rows (project_id always null) would NOT violate it; this partial index
--- is what actually enforces the singleton.
-CREATE UNIQUE INDEX "workers_one_manager_per_host" ON "workers"("hostname") WHERE "type" = 'manager';
+CREATE UNIQUE INDEX "workers_project_id_hostname_pid_key" ON "workers"("project_id", "hostname", "pid");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "workspaces_github_org_key" ON "workspaces"("github_org");
@@ -347,13 +279,7 @@ ALTER TABLE "track_locks" ADD CONSTRAINT "track_locks_track_id_fkey" FOREIGN KEY
 ALTER TABLE "track_comments" ADD CONSTRAINT "track_comments_track_id_fkey" FOREIGN KEY ("track_id") REFERENCES "tracks"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE "track_sessions" ADD CONSTRAINT "track_sessions_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-
--- AddForeignKey
 ALTER TABLE "tracks" ADD CONSTRAINT "tracks_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-
--- AddForeignKey
-ALTER TABLE "worker_dispatch" ADD CONSTRAINT "worker_dispatch_worker_id_fkey" FOREIGN KEY ("worker_id") REFERENCES "workers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "workers" ADD CONSTRAINT "workers_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
