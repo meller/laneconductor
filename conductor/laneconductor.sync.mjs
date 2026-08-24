@@ -45,6 +45,7 @@ import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
+import { capContentForArgv } from './services/context-cap.mjs';
 import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
@@ -4250,7 +4251,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       'workflow.md': 'conductor/workflow.md'
     };
     for (const [name, path] of Object.entries(docs)) {
-      const content = readIfExists(path);
+      const content = capContentForArgv(readIfExists(path), 10_000);
       if (content) contextPrompt += `\n<project_context file="${name}">\n${content}\n</project_context>\n`;
     }
 
@@ -4259,15 +4260,29 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
     if (trackDirName) {
       const trackPath = join(tracksDir, trackDirName);
+      // Confirmed live (dogfooding 2026-08-24): this whole contextPrompt is
+      // embedded as a single argv element passed to spawn() — and on this
+      // system a single argv element over ~131072 bytes fails with
+      // `spawn E2BIG`, silently making a track undispatchable (not a
+      // content-quality issue, an OS execve() limit). A track's own
+      // conversation.md is the one file here with no natural size bound —
+      // it grows for as long as the track is worked on, so it's the one
+      // most likely to cross that ceiling on any sufficiently long-lived
+      // track, independent of anything unusual about that track's content.
+      // capContentForArgv keeps the TAIL for conversation.md specifically
+      // (most recent activity is what actually matters for continuing
+      // work) and a smaller flat cap for the rest, keeping the worst-case
+      // total safely under the ~131KB ceiling with real margin for the
+      // GOAL/freshness-marker suffix added after this.
       const trackDocs = {
-        'index.md': join(trackPath, 'index.md'),
-        'spec.md': join(trackPath, 'spec.md'),
-        'plan.md': join(trackPath, 'plan.md'),
-        'test.md': join(trackPath, 'test.md'),
-        'conversation.md': join(trackPath, 'conversation.md')
+        'index.md': [join(trackPath, 'index.md'), 12_000, false],
+        'spec.md': [join(trackPath, 'spec.md'), 12_000, false],
+        'plan.md': [join(trackPath, 'plan.md'), 12_000, false],
+        'test.md': [join(trackPath, 'test.md'), 12_000, false],
+        'conversation.md': [join(trackPath, 'conversation.md'), 30_000, true],
       };
-      for (const [name, path] of Object.entries(trackDocs)) {
-        const content = readIfExists(path);
+      for (const [name, [path, maxBytes, keepTail]] of Object.entries(trackDocs)) {
+        const content = capContentForArgv(readIfExists(path), maxBytes, keepTail);
         if (content) contextPrompt += `\n<track_context file="${name}">\n${content}\n</track_context>\n`;
       }
       contextPrompt += `\nYour workspace is at: ${worktreePath || process.cwd()}\n`;
