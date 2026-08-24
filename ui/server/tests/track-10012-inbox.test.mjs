@@ -104,8 +104,9 @@ describe('POST /track — waiting_for_reply persistence (Track 10012)', () => {
     const upsert = queryCalls().find(([sql]) => /INSERT INTO tracks/i.test(sql));
     expect(upsert).toBeTruthy();
     expect(upsert[0]).toContain('waiting_for_reply');
-    // $27 is waiting_for_reply — track 1116 appended $28 (model_override)
-    // after it, so it's no longer the last param.
+    // $27 = waiting_for_reply; track 10017 appended auto_run as $28 and
+    // track 10018 appended merge_mode as $29 after it, so this is no
+    // longer the last param — index explicitly instead.
     expect(upsert[1][26]).toBe(true);
   });
 

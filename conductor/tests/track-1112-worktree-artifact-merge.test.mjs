@@ -37,12 +37,29 @@ describe('mergeIndexMarkers', () => {
     assert.match(merged, /\*\*Waiting for reply\*\*: no/);
   });
 
-  it('does not inject a marker that is missing from the existing (primary) file', () => {
+  it('does not inject most markers that are missing from the existing (primary) file', () => {
     const existing = '# Track 1: Title\n\n**Lane**: plan\n';
-    const artifact = '# Track 1: Title\n\n**Lane**: implement\n**Waiting for reply**: no\n';
+    const artifact = '# Track 1: Title\n\n**Lane**: implement\n**Summary**: brand new summary\n';
     const merged = mergeIndexMarkers(existing, artifact);
     assert.match(merged, /\*\*Lane\*\*: implement/);
-    assert.ok(!merged.includes('Waiting for reply'), 'must not inject a marker the primary file never had');
+    assert.ok(!merged.includes('Summary'), 'must not inject a marker the primary file never had');
+  });
+
+  // Track 10020: unlike every other marker, "Waiting for reply" going
+  // missing-in-primary is the NORMAL first-occurrence case, not a sign of
+  // reshaping the file — a track can legitimately go its whole life
+  // without needing it until a dispatched lane action first hits a genuine
+  // blocking question. The old "don't inject" behavior silently dropped
+  // the exit handler's own correctly-written marker during the
+  // worktree-to-primary copy, and the very next syncTrack() call — reading
+  // primary's now marker-less file — overwrote the DB back to
+  // waiting_for_reply: false, undoing the fix that set it. Caught live on
+  // track 1102.
+  it('DOES inject "Waiting for reply" even when primary never had it before', () => {
+    const existing = '# Track 1: Title\n\n**Lane**: implement\n**Lane Status**: success\n';
+    const artifact = '# Track 1: Title\n\n**Lane**: implement\n**Lane Status**: success\n**Waiting for reply**: yes\n';
+    const merged = mergeIndexMarkers(existing, artifact);
+    assert.match(merged, /\*\*Waiting for reply\*\*:\s*yes/i, 'must inject the marker on its first occurrence, not silently drop it');
   });
 
   it('leaves the existing marker untouched when the artifact has no value for it', () => {

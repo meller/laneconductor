@@ -1,9 +1,9 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 85%
-**Phase**: Gap 1 fixed; blocked on slow-tier worker decision
+**Lane**: review
+**Lane Status**: success
+**Progress**: 90%
+**Phase**: Review #4 FAIL — Gap 4 fix confirmed solid; new related Gap 5 found (API-key revoke count race, not yet fixed); Gap 2 + track-1033-sharing still need the human decision requested 3x in conversation.md
 **Type**: dev
 **Summary**: 19 Playwright specs exist but are effectively never run: the suite is sequential with multi-minute per-test budgets (worst case ~40min), and 3 of 6 worker-identity specs fail. The quality gate now…
 
@@ -99,3 +99,4 @@ standing in for a real check), and that is how several tracks reached
 `done` with features that didn't work. Until this track lands,
 `quality-gate.md` records the honest measured baseline and treats a *new*
 failure as a blocker while known-failing specs are not.
+**Waiting for reply**: yes

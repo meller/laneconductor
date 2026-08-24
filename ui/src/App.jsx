@@ -24,6 +24,7 @@ import { KpiRollupPanel } from './components/KpiRollupPanel.jsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { AccountPanel } from './pages/AccountPanel.jsx';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 
 function timeAgo(date) {
   if (!date) return null;
@@ -83,7 +84,11 @@ function AppInner() {
   }
   if (!user) return <LoginPage />;
 
-  return <AppContent user={user} logout={logout} />;
+  return (
+    <ErrorBoundary>
+      <AppContent user={user} logout={logout} />
+    </ErrorBoundary>
+  );
 }
 
 function AppContent({ user, logout }) {
@@ -166,8 +171,8 @@ function AppContent({ user, logout }) {
     setActiveTrack({ projectId: pid, trackNumber: track.track_number });
   }
 
-  function handleInboxSelect(projectId, trackNumber) {
-    setActiveTrack({ projectId, trackNumber, initialTab: 'conversation' });
+  function handleInboxSelect(projectId, trackNumber, opts) {
+    setActiveTrack({ projectId, trackNumber, initialTab: 'conversation', openTranscript: Boolean(opts?.transcript) });
     setInboxOpen(false);
   }
 
@@ -546,6 +551,8 @@ function AppContent({ user, logout }) {
           <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} />
         ) : tracks.length === 0 && user && !user.local ? (
           <RemoteEmptyState onOpenAccount={() => setAccountOpen(true)} />
+        ) : projects.length === 0 ? (
+          <LocalSetupEmptyState />
         ) : (
           <>
             <KpiRollupPanel tracks={tracks} />
@@ -563,6 +570,7 @@ function AppContent({ user, logout }) {
               </div>
             ) : boardMode === 'lane' ? (
               <LaneFocusView
+                projectId={selectedProjectId}
                 tracks={displayTracks}
                 focusedLane={focusedLane}
                 onFocusLane={setFocusedLane}
@@ -576,6 +584,7 @@ function AppContent({ user, logout }) {
               />
             ) : (
               <KanbanBoard
+                projectId={selectedProjectId}
                 tracks={displayTracks}
                 onTrackClick={handleTrackClick}
                 onLaneChange={handleLaneChange}
@@ -596,6 +605,7 @@ function AppContent({ user, logout }) {
           projectId={activeTrack.projectId}
           trackNumber={activeTrack.trackNumber}
           initialTab={activeTrack?.initialTab}
+          initialTranscriptOpen={activeTrack?.openTranscript}
           onClose={() => setActiveTrack(null)}
         />
       )}
@@ -733,6 +743,43 @@ function RemoteEmptyState({ onOpenAccount }) {
   );
 }
 
+function LocalSetupEmptyState() {
+  return (
+    <div className="flex items-center justify-center h-full min-h-64">
+      <div className="max-w-md w-full text-center space-y-6 px-4">
+        <div className="space-y-2">
+          <p className="text-2xl">🛠️</p>
+          <h2 className="text-base font-bold text-white">No projects yet</h2>
+          <p className="text-xs text-gray-500">
+            Register a project to start tracking tracks here.
+          </p>
+        </div>
+        <div className="text-left space-y-3 bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quick setup</p>
+          <div className="space-y-3">
+            {[
+              ['1', 'Go to your project directory', <code key="c" className="text-[10px] font-mono text-blue-300 block mt-1 bg-gray-950 rounded px-2 py-1">cd your-project</code>],
+              ['2', 'Register the project', <code key="s" className="text-[10px] font-mono text-blue-300 block mt-1 bg-gray-950 rounded px-2 py-1">lc setup</code>],
+              ['3', 'Start the heartbeat worker', <code key="w" className="text-[10px] font-mono text-blue-300 block mt-1 bg-gray-950 rounded px-2 py-1">lc worker start</code>],
+            ].map(([n, label, extra]) => (
+              <div key={n} className="flex gap-3 items-start">
+                <div className="shrink-0 w-5 h-5 rounded-full bg-blue-900 border border-blue-700 flex items-center justify-center text-[10px] font-bold text-blue-300 mt-0.5">{n}</div>
+                <div>
+                  <p className="text-xs text-gray-300">{label}</p>
+                  {extra}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-[10px] text-gray-600">
+          Once set up, tracks appear here automatically within seconds.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Cloud mode app (Firebase Auth + cloud collector)
 function CloudAppInner() {
   const { user, loading: authLoading, logout, apiToken } = useCloudAuth();
@@ -857,6 +904,7 @@ function CloudAppInner() {
         ) : viewMode === 'lanes' ? (
           selectedProject ? (
             <KanbanBoard
+              projectId={selectedProjectId}
               tracks={tracks.filter(t => t.project_id === selectedProjectId)}
               onTrackClick={handleTrackClick}
               onLaneChange={(track, targetLane) => setPendingAction({ track, targetLane })}

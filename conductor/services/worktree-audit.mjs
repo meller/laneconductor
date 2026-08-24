@@ -12,7 +12,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 function git(args, cwd) {
@@ -87,7 +87,14 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
   const lane = indexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
   const laneStatus = indexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim() ?? null;
   const title = indexContent.match(/^#\s*Track\s+\S+:\s*(.+)$/mi)?.[1]?.trim() ?? null;
-  return { lane, laneStatus, title, trackDir: dirName };
+  // Track 10018: read straight off the branch tip, same as lane/laneStatus
+  // above — works identically whether or not a worktree currently exists.
+  const mergeModeRaw = indexContent.match(/\*\*Merge Mode\*\*:\s*([a-z]+)/i)?.[1]?.trim().toLowerCase() ?? null;
+  const mergeMode = ['pr', 'direct'].includes(mergeModeRaw) ? mergeModeRaw : 'pr'; // resolveMergeMode's default, inlined to avoid a cross-module import cycle here
+  const prNumber = indexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+  const prUrl = indexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null;
+  const prStatus = indexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null;
+  return { lane, laneStatus, title, trackDir: dirName, mergeMode, prNumber, prUrl, prStatus };
 }
 
 // Track 1112 Phase 2, corrected twice during implementation:
@@ -249,6 +256,37 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     const worktreePath = branchToWorktree.get(branch) ?? null;
     const hasWorktree = worktreePath !== null;
 
+    // openTrackPrOnDone() deliberately writes **PR Number**/**PR URL**/
+    // **PR Status** as raw, UNCOMMITTED file writes (both the worktree's
+    // and primary's own copies of index.md) — committing them would create
+    // branch noise/conflicts with the actual code change. But
+    // readTrackStateFromBranch() above reads via `git show branch:path`,
+    // which can only ever see committed content — a structural blind spot
+    // for exactly these three fields, permanent regardless of how many
+    // times the audit re-runs. Confirmed live: five real done:success
+    // pr-mode tracks stuck reporting prNumber: null indefinitely despite
+    // their working-tree files having the correct **PR Number** marker,
+    // because nothing ever commits it. Read those three fields fresh from
+    // the actual working-tree file when one exists — the only place they
+    // are ever genuinely written — overriding (not replacing) state's
+    // git-show-sourced lane/laneStatus/title/mergeMode, which correctly
+    // stay committed-only per this file's own documented single-code-path
+    // reasoning above.
+    let prFields = { prNumber: state?.prNumber ?? null, prUrl: state?.prUrl ?? null, prStatus: state?.prStatus ?? null };
+    if (hasWorktree && state?.trackDir) {
+      try {
+        const wtIndexContent = readFileSync(join(worktreePath, state.trackDir, 'index.md'), 'utf8');
+        const prNumber = wtIndexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+        if (prNumber) {
+          prFields = {
+            prNumber,
+            prUrl: wtIndexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null,
+            prStatus: wtIndexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null,
+          };
+        }
+      } catch { /* file unreadable — fall back to state's (likely null) values */ }
+    }
+
     const ahead = countCommits(repoRoot, `${mainBranch}..${branch}`);
     const behind = countCommits(repoRoot, `${branch}..${mainBranch}`);
     const dirtyCount = hasWorktree
@@ -259,10 +297,20 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     const superseded = state?.trackDir
       ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber)
       : false;
+    // Track 10018: a pr-mode track must NEVER classify as 'mergeable' —
+    // that's the classification that drives the plain, local-merge "Merge
+    // to main" button, which would silently defeat the whole point of
+    // pausing for PR review/approval. 'pr-open' is its own classification
+    // so the panel can render PR-specific actions instead (Phase 4 UI).
+    // Still subject to the same isDoneSuccess/superseded gate as
+    // mergeable/stranded — a pr-mode track that isn't done yet is still
+    // just 'open', same as today.
     let classification;
     let conflictPaths = [];
     if (!isDoneSuccess || superseded) {
       classification = 'open';
+    } else if (state?.mergeMode === 'pr') {
+      classification = 'pr-open';
     } else if (!hasWorktree) {
       classification = 'stranded';
     } else {
@@ -277,6 +325,8 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       trackNumber, branch, worktreePath, hasWorktree, ahead, behind, dirtyCount,
       lane: state?.lane ?? null, laneStatus: state?.laneStatus ?? null, title: state?.title ?? null,
       classification, conflictPaths,
+      mergeMode: state?.mergeMode ?? 'pr',
+      ...prFields,
     });
   }
 

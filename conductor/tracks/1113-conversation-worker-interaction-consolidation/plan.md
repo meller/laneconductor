@@ -251,3 +251,30 @@ Non-blocking, already disclosed before this review (not new findings):
 header "Run \<lane\> now" button still not folded into Send & Run; Phase 2
 has no automated coverage (`track-1113-send-and-run.test.mjs` referenced in
 `test.md` does not exist).
+
+## ⛔ Quality Gate FAILED (2026-08-15) — fabricated completion, not a normal gap
+
+Full writeup in `conversation.md`. The single commit between the review
+FAIL and this gate (`6e22b62`, "Track 1113: success (exit: 0)") changed
+**only** `index.md`'s status markers — zero code, zero test, zero plan/spec
+changes (`git show 6e22b62 --stat`) — yet claimed all 5 phases complete,
+the header button consolidated, and a new test file
+(`chat-reply-conversation-md.test.mjs`) added. None of that is true:
+
+- [ ] REQ-8 author bug (previous gap, still open, verified byte-for-byte
+      unchanged at `conductor/laneconductor.sync.mjs:5349`) — not fixed
+- [ ] Header "Run \<lane\> now" button — still present at
+      `TrackDetailPanel.jsx:623`, not folded into Send & Run despite
+      `index.md`'s claim
+- [ ] `chat-reply-conversation-md.test.mjs` — does not exist anywhere in
+      the tree; either redo the work for real or stop referencing it
+- [ ] Whatever produced the `"Track NNN: success (exit: 0)"` commits on
+      this track (`1a1b893` and now `6e22b62`) reverted `index.md`'s body
+      to a stale copy both times while stamping fabricated progress over
+      it — worth its own investigation, separate from this track's actual
+      scope, since it undermines trust in any track's self-reported status
+
+Do not re-submit to quality-gate without real, committed code changes
+addressing the three items above — an `index.md`-only status update is not
+sufficient evidence of anything, and this gate now checks for that
+explicitly.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApi } from '../hooks/useApi.js';
-import { PROVIDERS, PROVIDER_IDS } from '../../../conductor/providers.mjs';
+import { PROVIDERS, PROVIDER_IDS, providerLabel } from '../../../conductor/providers.mjs';
 import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 // Re-exported under their historical names so existing imports (e.g.
@@ -23,6 +23,11 @@ export function WorkerModelModal({ worker, project, workers, onClose, onUpdated 
   // the project's actual configured default (live discovery / registry
   // recommendation) instead, same as every other former hardcoded-claude site.
   const projectDefault = getDefaultProviderModel(project, workers);
+  // Captured once at open — the provider this worker (and any session tied
+  // to it) is currently running under. Compared against selectedCli below
+  // to detect a provider *switch*, which is the operation with a session-
+  // continuity consequence — not a plain model change within the same CLI.
+  const [originalCli] = useState(worker.cli || projectDefault.cli);
   const [selectedCli, setSelectedCli] = useState(worker.cli || projectDefault.cli);
   // Falls back to the first preset (the current recommended model), not a
   // hardcoded id — a pinned id silently rots to an old model as presets
@@ -34,6 +39,16 @@ export function WorkerModelModal({ worker, project, workers, onClose, onUpdated 
   const [isCustom, setIsCustom] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+
+  // Track 1096 Phase 6: a model change within the same CLI keeps
+  // --resume working (session ids are CLI-specific, e.g. Claude's
+  // claude_session_id) — freely allowed. Switching the CLI/provider itself
+  // means this worker starts a fresh conversation under the new provider;
+  // it doesn't error, and the old provider's session is left untouched
+  // (resumable again if the user switches back), but it's still a
+  // consequence the user should confirm rather than trigger by accident.
+  const isProviderSwitch = selectedCli !== originalCli;
 
   // Use worker-reported models if available; fall back to global presets.
   // available_models arrives as parsed JSON from the server (JSONB column).
@@ -53,14 +68,17 @@ export function WorkerModelModal({ worker, project, workers, onClose, onUpdated 
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
     const modelToSave = isCustom ? customModel.trim() : selectedModel;
     if (!modelToSave) {
       setError('Model identifier is required');
-      setLoading(false);
       return;
     }
+    if (isProviderSwitch && !confirmSwitch) {
+      setError('Confirm the provider switch below before saving');
+      return;
+    }
+    setLoading(true);
 
     try {
       const res = await apiFetch(`/api/workers/${worker.id}/config`, {
@@ -129,6 +147,7 @@ export function WorkerModelModal({ worker, project, workers, onClose, onUpdated 
                     type="button"
                     onClick={() => {
                       setSelectedCli(engine.id);
+                      setConfirmSwitch(false);
                       // When switching CLI, reset to first preset for that engine
                       const newPresets = MODEL_PRESETS[engine.id];
                       if (newPresets && newPresets.length > 0) {
@@ -202,6 +221,33 @@ export function WorkerModelModal({ worker, project, workers, onClose, onUpdated 
             )}
           </div>
 
+          {/* Provider-switch warning — model-only changes never show this */}
+          {isProviderSwitch && (
+            <div
+              className="p-3 bg-amber-950/40 border border-amber-900/60 rounded-xl text-amber-200 text-xs flex flex-col gap-2"
+              data-testid="provider-switch-warning"
+            >
+              <div className="flex gap-2">
+                <span className="text-amber-400 font-bold">⚠️</span>
+                <span>
+                  Switching from <strong>{providerLabel(originalCli)}</strong> to{' '}
+                  <strong>{providerLabel(selectedCli)}</strong> starts a new conversation for this
+                  worker — its {providerLabel(originalCli)} history won't carry over. That history
+                  isn't deleted; it's available again if you switch back to {providerLabel(originalCli)}.
+                </span>
+              </div>
+              <label className="flex items-center gap-2 pl-6 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={confirmSwitch}
+                  onChange={e => setConfirmSwitch(e.target.checked)}
+                  data-testid="confirm-provider-switch-checkbox"
+                />
+                <span>I understand — switch this worker to {providerLabel(selectedCli)}</span>
+              </label>
+            </div>
+          )}
+
           {/* Footer Buttons */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-800">
             <button
@@ -213,7 +259,7 @@ export function WorkerModelModal({ worker, project, workers, onClose, onUpdated 
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isProviderSwitch && !confirmSwitch)}
               className="px-5 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/30 transition-all"
               data-testid="save-worker-config-btn"
             >

@@ -85,7 +85,17 @@ if (progressIntervalMs > 0 && !resumeFailure) {
   }, progressIntervalMs);
 }
 
+// Track 10020: MOCK_CLI_EMIT_BLOCKED_SUMMARY=<question text> — if set,
+// print a real post_turn_summary JSONL line (status_category: 'blocked')
+// right before exiting, so a test can drive spawnCli's exit handler through
+// its actual isBlockedTurn path against a real spawned process, not just
+// extractBlockedQuestion() in isolation.
+const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
+
 setTimeout(() => {
   if (progressTimer) clearInterval(progressTimer);
+  if (blockedSummary) {
+    console.log(JSON.stringify({ type: 'system', subtype: 'post_turn_summary', status_category: 'blocked', status_detail: blockedSummary }));
+  }
   process.exit(exitCode);
 }, delay);

@@ -179,4 +179,15 @@ describe('Track 1102 F8: lane-action dispatch reports failure instead of hanging
     const content = readFileSync(join(trackDir, 'index.md'), 'utf8');
     assert.doesNotMatch(content, /\*\*Lane Status\*\*:\s*running/i);
   });
+
+  it('posts the failure to conversation.md — visible in the Inbox, not just the dispatch table', async () => {
+    // Track 10024/10012 dogfooding session: a lock-contention rejection was
+    // only ever visible by digging through worker_dispatch rows and lock
+    // files by hand — conversation.md (what the Inbox/Conversation tab
+    // actually reads) had no trace of it, so an entirely ordinary "another
+    // run was already in progress" bounce looked like an unexplained stall.
+    const convPath = join(trackDir, 'conversation.md');
+    const content = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
+    assert.match(content, /\*\*system\*\*:.*plan could not start:.*locked by/i);
+  });
 });

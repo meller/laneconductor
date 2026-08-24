@@ -3,6 +3,7 @@ import { TrackCard } from './TrackCard.jsx';
 import { LANES, LANE_STATUS_CONFIG } from './KanbanBoard.jsx';
 
 export function LaneFocusView({
+  projectId,
   tracks,
   focusedLane,
   onFocusLane,
@@ -106,6 +107,7 @@ export function LaneFocusView({
           {filteredTracks.map(track => (
             <TrackCard
               key={track.id}
+              projectId={projectId}
               track={track}
               onClick={() => onTrackClick?.(track)}
               onLaneChange={onLaneChange}

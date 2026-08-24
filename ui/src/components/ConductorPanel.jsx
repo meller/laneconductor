@@ -7,7 +7,6 @@ import { useApi } from '../hooks/useApi.js';
 const TABS = [
   { key: 'product', label: 'Product' },
   { key: 'tech_stack', label: 'Tech Stack' },
-  { key: 'workflow', label: 'Workflow' },
   { key: 'product_guidelines', label: 'Guidelines' },
   { key: 'design_language', label: 'Design' },
   { key: 'deployment_stack', label: 'Deployment' },
@@ -17,10 +16,10 @@ const TABS = [
 ];
 
 // Track 10014 Phase 5: mirrors CONDUCTOR_FILE_MAP's allow-list in
-// ui/server/index.mjs's PATCH /api/projects/:id/conductor/:key — `workflow`
-// already has its own dedicated WorkflowSettings editor, and the
+// ui/server/index.mjs's PATCH /api/projects/:id/conductor/:key — the
 // dynamically-added `sg_*` styleguide tabs have no allow-listed key, so
-// neither gets an Edit button here.
+// they get no Edit button here. (`workflow` used to be a read-only tab
+// here too, duplicating the dedicated WorkflowSettings editor — removed.)
 const EDITABLE_KEYS = new Set([
   'product', 'tech_stack', 'product_guidelines', 'design_language',
   'deployment_stack', 'kpis', 'user_stories', 'quality_gate',

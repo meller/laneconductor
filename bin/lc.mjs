@@ -15,6 +15,7 @@ import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
+import { getAuthorInfo } from '../conductor/services/author.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -820,6 +821,52 @@ Choice [2]: `) || '2';
 
         let dbConfig = { host: 'localhost', port: 5432, name: 'laneconductor', user: 'postgres', password: '' };
         if (mode === 'local-api') {
+            // Check DB reachability before asking for credentials
+            const { default: net } = await import('net');
+            const pgReachable = await new Promise(resolve => {
+                const sock = new net.Socket();
+                sock.setTimeout(2000);
+                sock.connect(dbConfig.port, dbConfig.host, () => { sock.destroy(); resolve(true); });
+                sock.on('error', () => resolve(false));
+                sock.on('timeout', () => { sock.destroy(); resolve(false); });
+            });
+
+            if (!pgReachable) {
+                console.log(`\n⚠️  Cannot reach Postgres at ${dbConfig.host}:${dbConfig.port}`);
+                const dbChoice = await question(`
+How would you like to set up the database?
+  [1] Start Docker container (recommended — requires Docker)
+  [2] I have Postgres — let me configure the connection
+Choice [1]: `) || '1';
+
+                if (dbChoice === '1') {
+                    console.log('📦 Starting Postgres via Docker...');
+                    const dockerRun = spawnSync('docker', [
+                        'run', '-d', '--name', 'laneconductor-pg',
+                        '-e', 'POSTGRES_USER=postgres',
+                        '-e', 'POSTGRES_PASSWORD=postgres',
+                        '-e', 'POSTGRES_DB=laneconductor',
+                        '-p', '5432:5432',
+                        '--restart', 'unless-stopped',
+                        'postgres:16'
+                    ], { stdio: 'inherit' });
+
+                    if (dockerRun.status !== 0) {
+                        // Container may already exist — try starting it
+                        spawnSync('docker', ['start', 'laneconductor-pg'], { stdio: 'inherit' });
+                    }
+
+                    process.stdout.write('⏳ Waiting for Postgres');
+                    for (let i = 0; i < 30; i++) {
+                        await sleep(1000);
+                        const ready = spawnSync('docker', ['exec', 'laneconductor-pg', 'pg_isready', '-U', 'postgres'], { stdio: 'pipe' });
+                        if (ready.status === 0) break;
+                        process.stdout.write('.');
+                    }
+                    console.log('\n✅ Postgres ready');
+                }
+            }
+
             console.log('\n️  Database Configuration');
             dbConfig.host = await question(`DB Host [${dbConfig.host}]: `) || dbConfig.host;
             dbConfig.port = parseInt(await question(`DB Port [${dbConfig.port}]: `) || dbConfig.port);
@@ -2073,39 +2120,43 @@ Please review this, answer any questions (some fields may contain questions rath
             return color + label.padEnd(8) + colors.reset;
         };
 
-        const tracks = readdirSync(tracksDir).filter(d => /^\d+/.test(d)).map(d => {
+        const tracks = readdirSync(tracksDir).filter(d => /\d+/.test(d)).map(d => {
             const trackPath = join(tracksDir, d);
             const indexPath = join(trackPath, 'index.md');
             if (!existsSync(indexPath)) return null;
             const content = readFileSync(indexPath, 'utf8');
-            const title = (content.match(/^# ([^\n]+)/m) || [])[1] || d;
-            const lane = (content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???';
-            const status = (content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue';
-            const progressStr = (content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0';
-            const phase = (content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '';
-            const runBy = (content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '';
+            const title = ((content.match(/^# ([^\n]+)/m) || [])[1] || d).trim();
+            const lane = ((content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || '???').trim();
+            const status = ((content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i) || [])[1] || 'queue').trim();
+            const progressStr = ((content.match(/\*\*Progress\*\*:\s*(\d+)%/i) || [])[1] || '0').trim();
+            const phase = ((content.match(/\*\*Phase\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
+            const runBy = ((content.match(/\*\*Last Run By\*\*:\s*([^\n]+)/i) || [])[1] || '').trim();
             const retryPath = join(trackPath, '.retry-count');
             const retries = existsSync(retryPath) ? parseInt(readFileSync(retryPath, 'utf8')) : 0;
-            return { id: d.split('-')[0], lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
+            // Handle both legacy (NNN-slug) and prefixed (AM-NNN-slug) folder names
+            const idMatch = d.match(/^([A-Z]+-)?(\d+)/);
+            const id = idMatch ? (idMatch[1] ? `${idMatch[1].slice(0, -1)}-${idMatch[2]}` : idMatch[2]) : d;
+            const num = idMatch ? parseInt(idMatch[2], 10) : 0;
+            return { id, num, lane, status, progress: parseInt(progressStr), title, phase, retries, runBy: runBy.includes('worker') ? 'W' : (runBy ? 'U' : '') };
         }).filter(t => t !== null);
 
         tracks.sort((a, b) => {
             const laneDiff = getLanePrio(a.lane) - getLanePrio(b.lane);
             if (laneDiff !== 0) return laneDiff;
-            return b.progress - a.progress || parseInt(a.id) - parseInt(b.id);
+            return b.progress - a.progress || a.num - b.num;
         });
 
         console.log('\n' + colors.bold + 'Track Status (' + mode + '):' + colors.reset);
-        console.log('ID    LANE            STATUS    PROG   BY  PHASE/TITLE');
-        console.log('-'.repeat(80));
+        console.log('ID       LANE            STATUS    PROG   BY  PHASE/TITLE');
+        console.log('-'.repeat(83));
         tracks.forEach(t => {
-            const id = t.id.padEnd(5);
+            const id = t.id.padEnd(8);
             const lane = t.lane.padEnd(15);
             const status = getStatusLabel(t.status, t.retries);
             const prog = (t.progress + '%').padEnd(6);
             const by = (t.runBy || '-').padEnd(3);
             const info = t.phase ? colors.dim + t.phase + ': ' + colors.reset + t.title : t.title;
-            console.log(id + ' ' + lane.padEnd(15) + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
+            console.log(id + ' ' + lane + ' ' + status + ' ' + prog.padEnd(6) + ' ' + by.padEnd(3) + ' ' + info);
         });
 
         // Worker Health Check
@@ -2225,13 +2276,27 @@ Please review this, answer any questions (some fields may contain questions rath
         desc = '';
     }
 
-    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other]'); process.exit(1); }
+    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch]'); process.exit(1); }
 
     const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
     let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
     if (!VALID_TRACK_TYPES.includes(trackType)) {
         console.error(`❌ Invalid track type "${trackType}". Must be one of: ${VALID_TRACK_TYPES.join(', ')}`);
         process.exit(1);
+    }
+
+    // Track 1115 REQ-7: --workspace main|branch. Absent by default (not
+    // defaulted to 'branch' here) — resolveWorkspaceMode() needs to know
+    // "unset" is distinct from "explicitly branch" (D2).
+    const VALID_WORKSPACE_MODES = ['main', 'branch'];
+    const workspaceIdx = args.indexOf('--workspace');
+    let workspaceMode = null;
+    if (workspaceIdx !== -1) {
+        workspaceMode = args[workspaceIdx + 1];
+        if (!VALID_WORKSPACE_MODES.includes(workspaceMode)) {
+            console.error(`❌ Invalid workspace mode "${workspaceMode}". Must be one of: ${VALID_WORKSPACE_MODES.join(', ')}`);
+            process.exit(1);
+        }
     }
 
     const queuePath = join(projectRoot, 'conductor', 'tracks', 'file_sync_queue.md');
@@ -2243,8 +2308,9 @@ Please review this, answer any questions (some fields may contain questions rath
     const trackLines = queueContent.match(/### Track (\d+):/g) || [];
     const queueNums = trackLines.map(m => parseInt(m.match(/\d+/)[0]));
 
-    const existingDirs = readdirSync(tracksDir).filter(d => /^\d+/.test(d));
-    const existingDirNumStrs = existingDirs.map(d => d.match(/^(\d+)/)[1]);
+    // Prefix-agnostic number extraction: matches NNN in both legacy `NNN-slug` and new `AM-NNN-slug`
+    const existingDirs = readdirSync(tracksDir).filter(d => /\d+/.test(d));
+    const existingDirNumStrs = existingDirs.map(d => d.match(/(\d+)/)?.[1]).filter(Boolean);
     const dirNums = existingDirNumStrs.map(s => parseInt(s, 10));
 
     const allNums = [...queueNums, ...dirNums];
@@ -2257,13 +2323,17 @@ Please review this, answer any questions (some fields may contain questions rath
     const padWidth = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => s.length)) : 0;
     const nextNumStr = String(nextNum).padStart(padWidth, '0');
 
+    const author = getAuthorInfo();
+    const displayId = `${author.initials}-${nextNumStr}`;
+
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const trackFolderName = `${nextNumStr}-${slug}`;
+    const trackFolderName = `${displayId}-${slug}`;
     const trackPath = join(tracksDir, trackFolderName);
 
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
-    const indexContent = `# Track ${nextNumStr}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Summary**: ${desc}\n`;
+    const workspaceLine = workspaceMode ? `**Workspace**: ${workspaceMode}\n` : '';
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types

@@ -20,7 +20,7 @@ export const LANE_STATUS_CONFIG = {
 
 const LANE_EXPAND_THRESHOLD = 5;
 
-export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane }) {
+export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane }) {
   const [dragOverLane, setDragOverLane] = useState(null);
 
   const byLane = Object.fromEntries(
@@ -44,8 +44,15 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
 
   if (tracks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-600 text-sm">
-        No tracks yet. Run <code className="mx-1 px-1 bg-gray-800 rounded">/laneconductor newTrack</code> in a project.
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-600 text-sm">
+        <p>No tracks yet.</p>
+        <div className="text-left text-xs space-y-1 bg-gray-900 border border-gray-800 rounded-lg p-4">
+          <p className="text-gray-400 mb-2">Create one:</p>
+          <code className="block text-blue-300 bg-gray-950 rounded px-2 py-1">lc new "My Feature"</code>
+          <p className="text-gray-500 mt-2">or in your AI editor:</p>
+          <code className="block text-blue-300 bg-gray-950 rounded px-2 py-1">/laneconductor newTrack</code>
+        </div>
+        <p className="text-xs text-gray-700">Start the worker first: <code className="px-1 bg-gray-800 rounded">lc worker start</code></p>
       </div>
     );
   }
@@ -107,6 +114,7 @@ export function KanbanBoard({ tracks, onTrackClick, onLaneChange, onFixReview, o
                       {tracks.map(track => (
                         <TrackCard
                           key={track.id}
+                          projectId={projectId}
                           track={track}
                           onClick={() => onTrackClick?.(track)}
                           onLaneChange={onLaneChange}
