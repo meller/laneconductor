@@ -83,6 +83,15 @@ Re-verified against the code in this worktree, not taken from the write-ups:
   track (a manager needs its own `~/.laneconductor/manager-config.json`
   credential storage instead of borrowing a co-located project's
   `machine_token`) and referenced from this track's Depends-on.
+- **REQ-11 (F22, new 2026-08-20)** — REQ-8's migration must actually be
+  *applicable*, not merely authored. This branch is 196 commits behind
+  main; main carries two migrations already recorded in the live DB's
+  `atlas_schema_revisions` table whose versions sort **above** the new
+  one, making it an out-of-order migration Atlas refuses by default, and
+  `atlas.sum` was regenerated against the stale file set. The branch must
+  be brought current, the migration re-timestamped above the live
+  high-water mark, and `atlas.sum` regenerated on the merged tree, before
+  any apply is attempted.
 
 ## Non-goals
 
@@ -122,14 +131,23 @@ Each criterion states an outcome a user or an operator could observe.
       does not stay `pending` indefinitely — it is reassigned to another
       live worker or marked failed with a reason, and that is observable in
       the UI.
-- [ ] **AC-8 (REQ-8)** Deleting a `workers` row leaves its
-      `worker_dispatch` rows intact with `worker_id IS NULL`; the Activity
-      panel's history survives.
-- [ ] **AC-9 (REQ-9)** A recorded live run exists: on a real sync-only
-      project, dragging a card to a new lane produces a `worker_dispatch`
+- [ ] **AC-8 (REQ-8)** Deleting a `workers` row **in the live
+      `laneconductor` DB** leaves its `worker_dispatch` rows intact with
+      `worker_id IS NULL`; the Activity panel's history survives.
+      *Deliberately worded against the live DB, not a scratch one:* the
+      scratch-DB version of this is already green while the live DB's FK
+      is still `ON DELETE CASCADE` (F22) — a criterion a scratch DB can
+      satisfy is exactly the kind that lets a track pass its own gate
+      while the fix does nothing in reality.
+- [ ] **AC-9 (REQ-9)** A recorded live run exists: on a sync-only
+      project, moving a card to a new lane produces a `worker_dispatch`
       row that is claimed and executed — observed, not inferred.
 - [ ] **AC-10 (REQ-10)** A new track exists for the manager credential
       storage problem, linked from this track.
+- [ ] **AC-11 (REQ-11)** `atlas migrate apply` runs cleanly against the
+      live DB with the new migration included — no out-of-order rejection,
+      no `atlas.sum` mismatch — and the revisions table afterwards lists
+      it as applied.
 
 ## Completion rule
 
