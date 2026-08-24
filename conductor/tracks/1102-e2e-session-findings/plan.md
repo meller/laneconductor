@@ -421,14 +421,34 @@ F21, entirely inside a temp dir. It is *not* "one level weaker than F5";
 it is a genuine E2E of the mechanism. Only the browser drag **gesture**
 needs the real board, and that is a much smaller claim to leave open.
 
-### 15a — E2E through the real dispatch chain (unblocked)
-- [ ] Task 1: New test on the established harness pattern: temp project,
-      sync-only worker, real `PATCH /track/:num/lane` → assert a
-      `worker_dispatch` row is created, claimed, and the lane action runs
-- [ ] Task 2: Same for the `/track/:num/reset` path
-- [ ] Task 3: Negative case — a project with a sync+poll worker must NOT
-      get a dispatch (the bridge's own precondition)
-- [ ] Task 4: Watch each fail for the right reason before wiring it up
+### 15a — E2E through the real dispatch chain (unblocked) ✅ DONE
+**Correction**: this needed more than "the established harness pattern"
+implied — F8/F9/F12/F21's mock-collector.mjs is a lightweight fake, not
+the real Express app, so it couldn't prove the real `/lane`/`/reset`
+endpoints' own `dispatchIfSyncOnly()` call actually connects to a real
+worker's claim. Built new: a real spawned `ui/server/index.mjs` against
+the scratch `laneconductor_dev` DB (schema stood up via
+`prisma/schema.sql` + `cloud/schema.sql`), alongside a real spawned
+sync-only worker.
+
+- [x] Task 1: `conductor/tests/track-1102-f15-lane-dispatch-e2e.test.mjs`
+      — real `PATCH /track/:num/lane` → real `worker_dispatch` row →
+      real worker claims and resolves it (not left `pending`)
+- [x] Task 2: Same for `/track/:num/reset` (separate track, so the two
+      dispatch rows can't be confused)
+- [x] Task 3: Negative case — inserted a real `mode='sync+poll'` worker
+      row for the project, confirmed no dispatch is created
+- [x] Task 4: Each of the 3 tests independently mutation-verified —
+      disabling the `/lane` dispatch call fails only test 1, disabling
+      `/reset`'s only test 2, forcing `hasPoller=false` only test 3
+
+**Found along the way**: `laneconductor_dev`'s schema (stood up fresh from
+`prisma/schema.sql`) was missing a `UNIQUE` constraint on
+`projects.repo_path` that real migrations added on main — a second,
+independent instance of F22's drift, hit immediately when trying to use
+the file this session already flagged as stale. Patched directly on the
+scratch DB (schema.sql itself stays in scope for Phase 16, not duplicated
+here).
 
 ### 15b — the browser drag gesture (still needs consent)
 - [ ] Task 5: Drag a card on the real board and observe the row appear
