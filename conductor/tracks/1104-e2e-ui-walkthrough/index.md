@@ -1,9 +1,9 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 4 — write up the wiki UI guide (blocked: track 1103 hasn't established the wiki location yet); Phase 5 blocked on track 1100's fast tier being green
 **Type**: dev
 **Summary**: Phases 1-3 complete: real-browser walkthrough recorded (`session-log.md`), findings cross-referenced into 1102 (F5/F7 re-confirmed fixed; new F9 filed — a successful plan run inside a worktree never…
