@@ -14,7 +14,18 @@ const AUTHOR_STYLES = {
   human: { dot: 'bg-gray-400', label: 'You' },
   claude: { dot: 'bg-orange-400', label: 'Claude' },
   gemini: { dot: 'bg-blue-400', label: 'Gemini' },
+  system: { dot: 'bg-purple-400', label: 'System' },
 };
+
+// Leading-emoji severity of a system notice — drives the small badge dot in
+// InboxRow so a ✅ FYI reads differently from a ⚠️/❌ real ask at a glance.
+function systemSeverity(item) {
+  if (item.last_comment_author !== 'system') return null;
+  const body = item.last_comment_body ?? '';
+  if (body.startsWith('✅')) return 'ok';
+  if (body.startsWith('⚠️') || body.startsWith('❌')) return 'alert';
+  return null;
+}
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -26,7 +37,10 @@ function timeAgo(dateStr) {
 }
 
 function InboxRow({ item, showProject, onSelect, onDismiss }) {
+  const hasComment = Boolean(item.last_comment_author);
   const author = AUTHOR_STYLES[item.last_comment_author] ?? AUTHOR_STYLES.human;
+  const severity = systemSeverity(item);
+  const dotClass = severity === 'alert' ? 'bg-red-400' : severity === 'ok' ? 'bg-green-400' : author.dot;
   const badge = LANE_BADGE[item.lane_status] ?? LANE_BADGE.backlog;
   const preview = (item.last_comment_body ?? '').slice(0, 120);
   const truncated = (item.last_comment_body ?? '').length > 120;
@@ -62,11 +76,20 @@ function InboxRow({ item, showProject, onSelect, onDismiss }) {
         )}
 
         <div className="flex items-start gap-1.5">
-          <span className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${author.dot}`} />
-          <p className="text-xs text-gray-500 leading-relaxed">
-            <span className="text-gray-400 font-medium">{author.label}:</span>{' '}
-            {preview}{truncated && '…'}
-          </p>
+          {hasComment ? (
+            <>
+              <span className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${dotClass}`} />
+              <p className="text-xs text-gray-500 leading-relaxed">
+                <span className="text-gray-400 font-medium">{author.label}:</span>{' '}
+                {preview}{truncated && '…'}
+              </p>
+            </>
+          ) : (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full mt-1 shrink-0 bg-red-400" />
+              <p className="text-xs text-gray-500 leading-relaxed italic">Waiting for your input</p>
+            </>
+          )}
         </div>
       </button>
 
@@ -137,10 +160,23 @@ export function InboxPanel({ projectId, onSelectTrack, onClose }) {
 
   const showProject = !projectId;
 
-  const awaitingReply = items.filter(i => i.unreplied_count > 0);
-  const awaitingAI = items.filter(i => i.human_needs_reply);
+  // Track 10012: the API returns a `bucket` field (see /api/inbox) so the
+  // three-way split lives in one place — this is a defensive local
+  // fallback only, in case an older API response omits it.
+  const bucketOf = item => item.bucket ?? (
+    item.human_needs_reply ? 'awaiting_ai'
+      : item.waiting_for_reply ? 'needs_input'
+        : systemSeverity(item) === 'alert' ? 'needs_input'
+          : systemSeverity(item) === 'ok' ? 'recent_activity'
+            : item.unreplied_count > 0 ? 'needs_input'
+              : 'recent_activity'
+  );
 
-  const isEmpty = awaitingReply.length === 0 && awaitingAI.length === 0;
+  const needsInput = items.filter(i => bucketOf(i) === 'needs_input');
+  const awaitingAI = items.filter(i => bucketOf(i) === 'awaiting_ai');
+  const recentActivity = items.filter(i => bucketOf(i) === 'recent_activity');
+
+  const isEmpty = needsInput.length === 0 && awaitingAI.length === 0 && recentActivity.length === 0;
 
   return (
     <>
@@ -175,14 +211,14 @@ export function InboxPanel({ projectId, onSelectTrack, onClose }) {
             </div>
           ) : (
             <>
-              {awaitingReply.length > 0 && (
+              {needsInput.length > 0 && (
                 <div>
                   <div className="px-4 pt-3 pb-1">
                     <span className="text-[10px] uppercase tracking-wider font-bold text-orange-400">
-                      Awaiting your reply
+                      Needs your input
                     </span>
                   </div>
-                  {awaitingReply.map(item => (
+                  {needsInput.map(item => (
                     <InboxRow
                       key={item.track_id}
                       item={item}
@@ -202,6 +238,25 @@ export function InboxPanel({ projectId, onSelectTrack, onClose }) {
                     </span>
                   </div>
                   {awaitingAI.map(item => (
+                    <InboxRow
+                      key={item.track_id}
+                      item={item}
+                      showProject={showProject}
+                      onSelect={onSelectTrack}
+                      onDismiss={handleDismiss}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {recentActivity.length > 0 && (
+                <div>
+                  <div className="px-4 pt-3 pb-1">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500">
+                      Recent activity
+                    </span>
+                  </div>
+                  {recentActivity.map(item => (
                     <InboxRow
                       key={item.track_id}
                       item={item}

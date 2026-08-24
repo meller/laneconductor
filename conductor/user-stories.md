@@ -115,3 +115,16 @@ Flow:
 5. The worker initializes the sync loop with the retrieved token, keeping the workspace secure.
 
 Related tracks: [[017-laneconductor-cloud]], [[1046-cloud-api-keys-endpoints]]
+
+## Cost-Conscious Power User — Right-size the model per lane, track, and machine
+**As a** developer running many AI-driven tracks, **I want to** control exactly which model runs each stage of the work — an expensive reasoning model for planning, a fast cheap one for reviews, and a one-off override for a single hard track — **so that** I spend premium tokens only where they matter, without babysitting each agent session.
+
+Flow:
+1. Open **Workflow Settings** in the dashboard and set a per-lane model on each lane (e.g. `plan` → Opus, `implement` → Sonnet, `review`/`quality-gate` → Haiku); the model choices come from what the worker machine actually has installed (live discovery via heartbeat), not a stale hardcoded list.
+2. For one unusually hard track, set a track-level model override on the track's detail panel — it beats the lane setting for that track only (planned: track 1116).
+3. Queue tracks normally; the worker resolves track → lane → project-default precedence at spawn time and launches each lane action with the right `--model`, keeping the provider fixed so session continuity (`--resume`) survives across lanes.
+4. If the primary provider's quota is exhausted mid-run, the worker automatically falls back to the configured secondary CLI instead of stalling the board.
+
+**Why this needs the full stack**: none of this works in skill-only mode — with no worker there is nothing to spawn per-lane sessions, so the model is simply whatever session the human happens to be running. Per-lane/per-track model control, live model discovery, and exhaustion fallback are worker-mode features, and the picker UI needs the local API + dashboard. This is a concrete reason for a skill-only user to graduate to `lc setup` and the full local stack.
+
+Related tracks: [[1111-per-lane-model-stickiness-and-auto-update]], [[1099-dynamic-worker-model-discovery]], [[1116-per-lane-provider-model-picker]], [[1096-worker-cli-model-picker]]

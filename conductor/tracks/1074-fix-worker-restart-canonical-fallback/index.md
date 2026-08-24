@@ -1,7 +1,7 @@
 # Track 1074: Fix `lc worker restart` missing canonical sync-script fallback
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Implementation complete
 **Type**: dev

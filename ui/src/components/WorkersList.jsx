@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
+import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
+import { WorkerModelModal } from './WorkerModelModal.jsx';
 import { useApi } from '../hooks/useApi.js';
+import { parseWorkerTask } from '../lib/workerTaskInfo.js';
+import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -16,6 +21,13 @@ const VISIBILITY_BADGE = {
   team: { label: 'Team', icon: '👥', className: 'text-blue-400 border-blue-900/50' },
   public: { label: 'Public', icon: '🌐', className: 'text-green-400 border-green-900/50' },
 };
+
+// Neutral fallback text shown when a worker hasn't reported its `model`
+// yet AND its `cli` isn't a recognized provider (never a hardcoded
+// Claude model id for a non-Claude worker — see track 10011).
+function workerModelLabel(worker) {
+  return worker.model || defaultModelFor(worker.cli) || 'model not reported yet';
+}
 
 function ProviderStatus({ providers }) {
   if (!providers || providers.length === 0) return null;
@@ -112,10 +124,36 @@ function WaitingQueue({ tracks, onPriorityChange }) {
   );
 }
 
-export function WorkersList({ projectId, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh }) {
+export function WorkersList({ projectId, project, workers, providers = [], waitingTracks = [], layout = 'strip', onRefresh, onSelectTrack }) {
   const { apiFetch } = useApi();
   const hasWorkers = workers && workers.length > 0;
+  // REQ-3b: 'claude' was previously hardcoded here as the "cli not
+  // reported" fallback — resolve it from the project's actual configured
+  // default (falling back through live discovery / registry recommendation)
+  // instead, same as every other former hardcoded-claude site.
+  const defaultCli = getDefaultProviderModel(project, workers).cli;
+  // Track 1084 Phase 6: "does this project have a worker of its own?" is a
+  // different question from "what workers are visible here". A manager is
+  // deliberately included in a project's worker list (the provisioning and
+  // New Project flows need to find it), but it belongs to no project — so
+  // counting it made a project with zero real workers look staffed, and
+  // the empty-state "Start Sync Worker" button never rendered for ANY
+  // project as long as a manager was running anywhere.
+  const hasOwnWorkers = (workers || []).some(w => w.type !== 'manager');
   const [visibilityWorker, setVisibilityWorker] = useState(null);
+  const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [configWorker, setConfigWorker] = useState(null);
+
+  async function handleStopWorker(worker) {
+    try {
+      const res = await apiFetch(`/api/workers/${worker.id}/stop`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
+      onRefresh?.();
+    } catch (err) {
+      console.error('Failed to stop worker:', err);
+      alert(`Failed to stop worker: ${err.message}`);
+    }
+  }
 
   async function handleWorkerAction(action) {
     if (!projectId) return;
@@ -144,34 +182,56 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
 
   if (layout === 'grid') {
     // For now we don't show providers in grid layout as it's less common, or we could add them at the top
-    if (!hasWorkers) {
+    // hasOwnWorkers, not hasWorkers — a manager visible here doesn't mean
+    // this project is staffed. See the note at its definition.
+    if (!hasOwnWorkers) {
       return (
-        <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
-          <div className="w-16 h-16 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mb-4 shadow-inner">
-            <span className="text-2xl opacity-50">🤖</span>
-          </div>
-          <h3 className="text-gray-300 font-medium mb-1">No Active Workers</h3>
-          <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
-            There are no heartbeat workers currently registered for this project.
-          </p>
-          <div className="mt-6 flex flex-col items-center gap-4">
-            <div className="p-3 bg-gray-900/50 border border-gray-800 rounded-lg text-left w-full max-w-xs">
-              <p className="text-[11px] text-gray-500 uppercase tracking-widest font-bold mb-2">How to start a worker:</p>
-              <code className="text-xs text-blue-400 block font-mono">
-                $ make lc-start
-              </code>
+        <>
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
+            <div className="w-16 h-16 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mb-4 shadow-inner">
+              <span className="text-2xl opacity-50">🤖</span>
             </div>
+            <h3 className="text-gray-300 font-medium mb-1">No Active Workers</h3>
+            <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
+              There are no heartbeat workers currently registered for this project.
+            </p>
+            <div className="mt-6 flex flex-col items-center gap-4">
+              <div className="p-3 bg-gray-900/50 border border-gray-800 rounded-lg text-left w-full max-w-xs">
+                <p className="text-[11px] text-gray-500 uppercase tracking-widest font-bold mb-2">How to start a worker:</p>
+                <code className="text-xs text-blue-400 block font-mono">
+                  $ make lc-start
+                </code>
+              </div>
 
-            {IS_LOCAL_HOST && (
-              <button
-                onClick={() => handleWorkerAction('start')}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
-              >
-                Start Sync Worker
-              </button>
-            )}
+              <div className="flex items-center gap-3">
+                {/* Project-scoped (`make lc-start` in this project's dir), so
+                    it silently did nothing in the All Projects view. */}
+                {IS_LOCAL_HOST && projectId && (
+                  <button
+                    onClick={() => handleWorkerAction('start')}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
+                  >
+                    Start Sync Worker
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowProvisionModal(true)}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-purple-900/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                >
+                  <span>+ New Worker</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+          {showProvisionModal && (
+            <ProvisionWorkerModal
+              projectId={projectId}
+              workers={workers}
+              onClose={() => setShowProvisionModal(false)}
+              onProvisioned={onRefresh}
+            />
+          )}
+        </>
       );
     }
     return (
@@ -252,14 +312,29 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between pl-1">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Heartbeat Workers</h3>
-              {IS_LOCAL_HOST && (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleWorkerAction('stop')}
-                  className="text-[10px] px-2 py-1 border border-red-900/50 text-red-400 hover:bg-red-900/20 rounded font-bold uppercase tracking-wider transition-colors"
+                  onClick={() => setShowProvisionModal(true)}
+                  className="text-[10px] px-2.5 py-1 border border-purple-800/60 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40 rounded font-bold uppercase tracking-wider transition-colors flex items-center gap-1 shadow-sm"
+                  data-testid="add-new-worker-btn"
                 >
-                  Stop All Workers
+                  <span>+ New Worker</span>
                 </button>
-              )}
+                {/* Project-scoped: shells out to `make lc-stop` in this
+                    project's directory, so it can't reach a manager (which
+                    lives elsewhere) — and it does nothing at all without a
+                    project, which it used to do silently in the
+                    All Projects view. Hidden there instead. */}
+                {IS_LOCAL_HOST && projectId && (
+                  <button
+                    onClick={() => handleWorkerAction('stop')}
+                    title="Stops this project's own workers. Managers are unaffected."
+                    className="text-[10px] px-2 py-1 border border-red-900/50 text-red-400 hover:bg-red-900/20 rounded font-bold uppercase tracking-wider transition-colors"
+                  >
+                    Stop All Workers
+                  </button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {workers.map(worker => {
@@ -277,17 +352,27 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                         <div className="flex flex-col">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-gray-200">{worker.hostname}</span>
-                            {worker.type === 'manager' && (
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm bg-emerald-600/20 text-emerald-400 border-emerald-500/50">
-                                MANAGER
+                            {worker.type === 'manager' ? (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm bg-purple-600/30 text-purple-300 border-purple-500/60" data-testid="manager-badge">
+                                👑 MANAGER
                               </span>
-                            )}
-                            {worker.mode ? (
-                              <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm ${worker.mode === 'sync-only'
-                                ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
-                                : 'bg-purple-600/20 text-purple-400 border-purple-500/50'
-                                }`}>
-                                {worker.mode === 'sync-only' ? 'SYNC-ONLY' : 'SYNC+POLL'}
+                            ) : worker.mode ? (
+                              <span
+                                className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm ${worker.mode === 'sync-only'
+                                  ? 'bg-blue-600/20 text-blue-400 border-blue-500/50'
+                                  : 'bg-purple-600/20 text-purple-400 border-purple-500/50'
+                                  }`}
+                                title={worker.mode === 'sync-only'
+                                  ? 'Manual — syncs and serves dispatched actions, does not auto-claim the queue'
+                                  : 'Automatic — also claims and runs queued tracks on its own'}
+                              >
+                                {/* Track 1103 D6: user-facing label is Manual/Automatic — the
+                                    internal wire value (worker.mode, DB column, CLI flags) stays
+                                    sync-only/sync+poll unchanged, this is display-only. Renamed
+                                    because the mechanism names caused a real misdiagnosis
+                                    earlier (1102 F1): a sync-only worker was reported as
+                                    "broken" when it was working exactly as designed. */}
+                                {worker.mode === 'sync-only' ? 'MANUAL' : 'AUTOMATIC'}
                               </span>
                             ) : (
                               <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gray-600/20 text-gray-500 border-gray-500/50">
@@ -295,11 +380,15 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                               </span>
                             )}
                           </div>
-                          {worker.project_name && (
+                          {worker.type === 'manager' ? (
+                            <span className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-tight">
+                              SYSTEM MANAGER
+                            </span>
+                          ) : worker.project_name ? (
                             <span className="text-[10px] font-mono text-blue-500 font-bold uppercase tracking-tight">
                               {worker.project_name}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -315,6 +404,18 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                         <span className="text-[10px] font-mono text-gray-600 bg-black/30 px-1.5 py-0.5 rounded border border-gray-800">
                           PID: {worker.pid}
                         </span>
+                        {/* Track 1084 Phase 6: stop THIS worker. Previously the
+                            only control was the project-wide "Stop All Workers". */}
+                        {IS_LOCAL_HOST && (
+                          <button
+                            onClick={() => handleStopWorker(worker)}
+                            data-testid="worker-stop-btn"
+                            title={worker.type === 'manager' ? 'Stop this manager worker' : `Stop worker #${worker.worker_number ?? 1}`}
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-red-900/50 text-red-400 hover:bg-red-900/20 font-bold uppercase tracking-wider transition-colors"
+                          >
+                            Stop
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -324,18 +425,52 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
                           <span className={`text-[10px] uppercase font-bold tracking-tight ${worker.status === 'busy' ? 'text-amber-500' : 'text-gray-500'}`}>
                             Current Task
                           </span>
-                          <p className={`text-xs leading-relaxed p-2 rounded border font-medium ${worker.status === 'busy'
-                            ? 'bg-amber-950/40 text-amber-300 border-amber-800/80 shadow-[0_0_10px_rgba(217,119,6,0.1)]'
-                            : 'bg-gray-950/50 text-gray-300 border-gray-800/50'
-                            }`}>
-                            {worker.current_task}
-                          </p>
+                          {(() => {
+                            const task = parseWorkerTask(worker.current_task);
+                            const trackNumber = task?.kind === 'track' ? task.trackNumber : null;
+                            const badgeClass = `text-xs leading-relaxed p-2 rounded border font-medium ${worker.status === 'busy'
+                              ? 'bg-amber-950/40 text-amber-300 border-amber-800/80 shadow-[0_0_10px_rgba(217,119,6,0.1)]'
+                              : 'bg-gray-950/50 text-gray-300 border-gray-800/50'
+                              }`;
+                            // Track 1112 dogfood incident (2026-08-13): the
+                            // user asked for exactly this — from the
+                            // Workers view, clicking a worker's current
+                            // task should jump straight to that track,
+                            // instead of having to go find it on the board.
+                            return trackNumber && onSelectTrack ? (
+                              <button
+                                onClick={() => onSelectTrack(worker.project_id ?? projectId, trackNumber)}
+                                className={`${badgeClass} text-left hover:brightness-110 transition-all cursor-pointer`}
+                                title="Open this track"
+                              >
+                                {worker.current_task} ↗
+                              </button>
+                            ) : (
+                              <p className={badgeClass}>{worker.current_task}</p>
+                            );
+                          })()}
                         </div>
                       ) : (
                         <div className="h-full flex items-center justify-center border border-dashed border-gray-800 rounded-lg">
                           <span className="text-[11px] text-gray-600 italic">Idle — waiting for task</span>
                         </div>
                       )}
+                    </div>
+                    <div className="flex items-center justify-between bg-gray-950/60 px-2 py-1.5 rounded-lg border border-gray-800/80 my-2">
+                      <div className="flex items-center gap-1.5 overflow-hidden">
+                        <span className="text-xs">{providerIcon(worker.cli)}</span>
+                        <span className="text-[11px] font-medium text-gray-300 capitalize">{worker.cli || defaultCli}</span>
+                        <span className="text-[10px] font-mono text-purple-400 bg-purple-950/50 px-1.5 py-0.5 rounded border border-purple-800/40 truncate" data-testid="worker-model-badge">
+                          {workerModelLabel(worker)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setConfigWorker(worker)}
+                        className="text-[10px] px-2 py-0.5 border border-purple-800/60 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40 rounded font-bold transition-colors shrink-0 ml-2"
+                        data-testid="change-worker-model-btn"
+                      >
+                        Change Model
+                      </button>
                     </div>
 
                     <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-800/50">
@@ -385,6 +520,26 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
             onUpdated={() => { onRefresh?.(); setVisibilityWorker(null); }}
           />
         )}
+        {showProvisionModal && (
+          <ProvisionWorkerModal
+            projectId={projectId}
+            workers={workers}
+            onClose={() => setShowProvisionModal(false)}
+            onProvisioned={onRefresh}
+          />
+        )}
+        {configWorker && (
+          <WorkerModelModal
+            worker={configWorker}
+            project={project}
+            workers={workers}
+            onClose={() => setConfigWorker(null)}
+            onUpdated={() => {
+              onRefresh?.();
+              setConfigWorker(null);
+            }}
+          />
+        )}
       </>
     );
   }
@@ -396,7 +551,23 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
         <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex-shrink-0">
           Workers:
         </div>
-        {!hasWorkers && <span className="text-[10px] text-gray-600 italic">none active</span>}
+        {/* Track 1103 D1/D2: hasOwnWorkers, not hasWorkers — this used
+            hasWorkers, which stayed true whenever a manager was visible
+            (nearly always, since managers appear in every project's
+            worker list for provisioning), so this indicator was silently
+            hidden for every project with zero of its OWN workers. Also
+            strengthened from small gray italic text — easy to miss on
+            the exact board a user is staring at while nothing happens —
+            to an explicit, actionable badge. Not a blocking modal (D1:
+            zero workers is a valid state), just no longer silent (D2). */}
+        {!hasOwnWorkers && (
+          <span
+            className="text-[10px] font-bold text-amber-400 bg-amber-900/20 border border-amber-800/50 rounded px-2 py-0.5"
+            title="No workers registered for this project — lane actions triggered from the board will queue but nothing will run them."
+          >
+            ⚠ No worker for this project
+          </span>
+        )}
         {workers.map(worker => (
           <div
             key={worker.id}
@@ -408,34 +579,63 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
             <span className={`text-[11px] font-medium transition-colors ${worker.status === 'busy' ? 'text-amber-200' : 'text-gray-300'}`}>
               {worker.hostname}
             </span>
-            {worker.type === 'manager' && (
-              <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-emerald-900/40 text-emerald-400 border-emerald-800/50">
-                MANAGER
+            {worker.type === 'manager' ? (
+              <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-purple-900/50 text-purple-300 border-purple-700/60" data-testid="manager-badge">
+                👑 MANAGER
               </span>
-            )}
-            {worker.mode ? (
-              <span className={`text-[8px] font-bold uppercase tracking-wider px-1 rounded border ${worker.mode === 'sync-only'
-                ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
-                : 'bg-purple-900/40 text-purple-400 border-purple-800/50'
-                }`}>
-                {worker.mode === 'sync-only' ? 'SYNC-ONLY' : 'SYNC+POLL'}
+            ) : worker.mode ? (
+              <span
+                className={`text-[8px] font-bold uppercase tracking-wider px-1 rounded border ${worker.mode === 'sync-only'
+                  ? 'bg-blue-900/40 text-blue-400 border-blue-800/50'
+                  : 'bg-purple-900/40 text-purple-400 border-purple-800/50'
+                  }`}
+                title={worker.mode === 'sync-only'
+                  ? 'Manual — syncs and serves dispatched actions, does not auto-claim the queue'
+                  : 'Automatic — also claims and runs queued tracks on its own'}
+              >
+                {/* Track 1103 D6: see the grid layout's identical badge above for the full note. */}
+                {worker.mode === 'sync-only' ? 'MANUAL' : 'AUTOMATIC'}
               </span>
             ) : (
               <span className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-gray-600/20 text-gray-500 border-gray-500/50">
                 UNKNOWN
               </span>
             )}
-            {worker.project_name && (
+            {worker.type === 'manager' ? (
+              <span className="text-[9px] font-mono text-purple-400 font-bold uppercase tracking-tight border-l border-gray-800 pl-2">
+                MANAGER
+              </span>
+            ) : worker.project_name ? (
               <span className="text-[9px] font-mono text-blue-500 font-bold uppercase tracking-tight border-l border-gray-800 pl-2">
                 {worker.project_name}
               </span>
-            )}
-            {worker.current_task && (
-              <span className={`text-[10px] border-l pl-2 max-w-[200px] truncate transition-colors ${worker.status === 'busy' ? 'text-amber-400/80 border-amber-800/50' : 'text-gray-500 border-gray-800'
-                }`}>
-                {worker.current_task}
-              </span>
-            )}
+            ) : null}
+            {worker.current_task && (() => {
+              const task = parseWorkerTask(worker.current_task);
+              const trackNumber = task?.kind === 'track' ? task.trackNumber : null;
+              const spanClass = `text-[10px] border-l pl-2 max-w-[200px] truncate transition-colors ${worker.status === 'busy' ? 'text-amber-400/80 border-amber-800/50' : 'text-gray-500 border-gray-800'
+                }`;
+              return trackNumber && onSelectTrack ? (
+                <button
+                  onClick={() => onSelectTrack(worker.project_id ?? projectId, trackNumber)}
+                  className={`${spanClass} hover:brightness-125 cursor-pointer`}
+                  title="Open this track"
+                >
+                  {worker.current_task} ↗
+                </button>
+              ) : (
+                <span className={spanClass}>{worker.current_task}</span>
+              );
+            })()}
+            <button
+              onClick={() => setConfigWorker(worker)}
+              className="text-[10px] font-mono text-purple-300 bg-purple-950/40 hover:bg-purple-900/40 px-1.5 py-0.5 rounded border border-purple-800/50 transition-colors flex items-center gap-1 ml-2"
+              data-testid="change-worker-model-btn-strip"
+              title="Click to change model"
+            >
+              <span>{providerIcon(worker.cli)}</span>
+              <span>{workerModelLabel(worker)}</span>
+            </button>
           </div>
         ))}
       </div>
@@ -452,6 +652,36 @@ export function WorkersList({ projectId, workers, providers = [], waitingTracks 
       )}
 
       <ProviderStatus providers={providers} />
+
+      {visibilityWorker && (
+        <WorkerVisibilityDialog
+          worker={visibilityWorker}
+          onClose={() => setVisibilityWorker(null)}
+          onUpdated={() => { onRefresh?.(); setVisibilityWorker(null); }}
+        />
+      )}
+
+      {showProvisionModal && (
+        <ProvisionWorkerModal
+          projectId={projectId}
+          workers={workers}
+          onClose={() => setShowProvisionModal(false)}
+          onProvisioned={onRefresh}
+        />
+      )}
+
+      {configWorker && (
+        <WorkerModelModal
+          worker={configWorker}
+          project={project}
+          workers={workers}
+          onClose={() => setConfigWorker(null)}
+          onUpdated={() => {
+            onRefresh?.();
+            setConfigWorker(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 # Track 1062: Deployment Context & lc deploy Command
 
-**Lane**: review
-**Lane Status**: review
+**Lane**: done
+**Lane Status**: success
 
 # Track 1062: Deployment Context & lc deploy Command
 

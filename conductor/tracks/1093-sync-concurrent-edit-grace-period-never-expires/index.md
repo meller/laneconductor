@@ -1,6 +1,6 @@
 # Track 1093: Sync Worker Bug Sprint — Track 180 Investigation
 
-**Lane**: implement
+**Lane**: done
 **Lane Status**: success
 **Progress**: 100%
 **Phase**: Both bugs fixed, verified live end-to-end (including a real content backfill)

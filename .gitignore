@@ -18,6 +18,11 @@ conductor/.env
 /tmp/
 conductor/.sync.pid
 conductor/.sync.log
+conductor/.sync*.lock-target
+conductor/.sync-*.pid
+# Per-worker machine tokens — credentials, one file per worker, never shared
+conductor/.worker.tokens.json
+conductor/.worker-*.tokens.json
 
 # Git worktrees
 .worktrees/
