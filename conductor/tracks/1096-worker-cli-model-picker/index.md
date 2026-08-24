@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 80%
-**Phase**: Plan re-verified against the shipped code — three spec-vs-code mismatches found; Phase 7 opened for the one that needs code (Start-worker launch picker)
+**Progress**: 90%
+**Phase**: Implemented Phase 7 — Start-worker CLI/model picker (course-corrected to reuse track 10011's in-memory --cli/--model mechanism, not a .laneconductor.json write) and the missing heartbeat test. 25/25…
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
