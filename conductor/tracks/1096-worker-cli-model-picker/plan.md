@@ -336,3 +336,13 @@ Passed. Full write-up in conversation.md. Re-ran all 25 tests fresh, read the
 actual diff (not just commit messages), scanned for stubs/secrets, and
 confirmed the previous pass's live-project incident left no lasting effect.
 Moving to quality-gate per workflow.json's lanes.review.on_success.
+
+## ✅ QUALITY PASSED — [quality-gate] 2026-08-24
+
+All automated checks re-run fresh, not trusted from stale marks. Zero
+regressions attributable to this track (confirmed by diff against `main`
+for every failing suite/test found). Fast-tier E2E run for real (1
+unrelated failure, confirmed by diff). Done-gate's three required
+conditions all verified. Full checklist in `conductor/quality-gate.md`,
+full write-up in `conversation.md`. Moving to `done` per
+`workflow.json`'s `lanes.quality-gate.on_success`.
