@@ -1,7 +1,7 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 20%
 **Phase**: Walking the full new-user path in the real UI, fixing what breaks
 **Type**: bug

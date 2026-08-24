@@ -1,10 +1,10 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
-**Lane**: quality-gate
-**Lane Status**: running
-**Progress**: 100%
+**Lane**: done
+**Lane Status**: success
+**Progress**: 85%
 **Last Run**: mock (primary)
-**Phase**: Phase 1 complete (1 of 6) — spec.md + test.md written; Phase 2 gated on track 10018 (see plan.md Task 0)
+**Phase**: ⚠️ Lane/Progress inconsistent with real state — see conversation.md. Phases 1-4/6 done; Phase 5 (dedicated E2E suite) not written — see plan.md's Phase 5 status note.
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: LaneConductor implicitly assumes ALL work is branch-per-track worktree work; an entire live pairing session (tracks 1112-1114's bug fixes) happened directly on main because fixing self-hosted…
@@ -174,3 +174,6 @@ planning phase:
 - [1113](../1113-conversation-worker-interaction-consolidation/index.md) — its planning agent's "Send & Run doesn't exist" false-negative is this track's problem statement in miniature
 - [1110](../1110-worker-separation-and-claim-race-safety/index.md) — the lock/claim machinery main mode leans on for serialization
 **Merge Mode**: pr
+**PR Number**: 6
+**PR URL**: https://github.com/meller/laneconductor/pull/6
+**PR Status**: conflicted

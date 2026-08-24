@@ -1,6 +1,6 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: done
+**Lane**: implement
 **Lane Status**: success
 **Waiting for reply**: no
 **Progress**: 100%
@@ -107,3 +107,6 @@ Opened directly from a user request with four numbered asks; this index
 restates each against verified current code behavior (file:line
 references above) rather than assumed behavior, per this session's
 established practice of confirming before planning fixes.
+**PR Number**: 5
+**PR URL**: https://github.com/meller/laneconductor/pull/5
+**PR Status**: conflicted
