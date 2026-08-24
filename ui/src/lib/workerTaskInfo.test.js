@@ -23,6 +23,14 @@ describe('parseWorkerTask', () => {
     expect(parseWorkerTask('deploy staging (dispatch 7)')).toEqual({ kind: 'deploy', dispatchId: '7' });
   });
 
+  // Track 1091 Phase 5: create-project also matches the generic
+  // "(dispatch N)" pattern above — it must be distinguished from a real
+  // deploy, since DeployLogView's endpoint is project-scoped and a
+  // create-project dispatch has no project to scope it to.
+  it('extracts a dispatch id from a create-project task string as its own kind, not deploy', () => {
+    expect(parseWorkerTask('create-project (dispatch 12)')).toEqual({ kind: 'create-project', dispatchId: '12' });
+  });
+
   it('returns null for an unrecognized task string rather than guessing', () => {
     expect(parseWorkerTask('something unexpected')).toBeNull();
   });
