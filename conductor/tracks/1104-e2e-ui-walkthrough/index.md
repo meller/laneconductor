@@ -1,6 +1,6 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
