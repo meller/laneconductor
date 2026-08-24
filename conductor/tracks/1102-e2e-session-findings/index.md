@@ -2,8 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: success
-**Progress**: 76%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Replanned 2026-08-20 — progress corrected DOWN 87%→76% (13 of 17). Found F22: the F10c migration cannot apply as committed (branch 196 commits behind main; version sorts below two already-applied revisions; live FK still CASCADE), so Phase 13 reopens and Phase 16 is added. Phase 15 split — 15a (E2E on the existing worker harness) is unblocked, only 15b (browser drag gesture) needs consent
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
