@@ -1,8 +1,8 @@
 # Track 1108: Worker VM provisioning from the remote app (first-host onboarding)
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 100%
 **Phase**: New
 **Type**: dev
 **Summary**: In remote app/api mode, a user who logs in with zero registered hosts currently hits a dead end — nothing can run anywhere. Detect that state and offer creating a worker VM on the major hosting…

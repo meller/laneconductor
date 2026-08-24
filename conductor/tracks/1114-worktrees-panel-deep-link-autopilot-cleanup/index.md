@@ -1,12 +1,12 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
-**Lane**: done
+**Lane**: review
 **Lane Status**: success
 **Progress**: 100%
-**Phase**: Phase 18 complete — live-verified (real conflicted rows + a disposable fixture end to end)
+**Phase**: Phase 17 complete — live-verified
 **Type**: dev
 **Waiting for reply**: no
-**Summary**: Reopened again (2026-08-17): user asked why `conflicted` rows (1111, 1113 — real content conflicts, not the bookkeeping-only case Phase 17 handles) only offer Remove Worktree. Phase 17's…
+**Summary**: Reopened (2026-08-17): found live chasing "why didn't track 10014 auto-merge on done" — mergeWorktreeBranch()/auditWorktrees() treated ANY conflict inside a track's own conductor/tracks/<N>-*/…
 
 ## Problem
 
