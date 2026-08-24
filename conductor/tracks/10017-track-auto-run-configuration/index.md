@@ -11,7 +11,7 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Summary**: All 7 phases implemented, tested with real DB/worker/browser verification (see conversation.md) — grep for "auto_run" now returns real matches across sync.mjs, claim-scope.mjs, index.mjs, and TrackDetailPanel.jsx/WorktreesPanel.jsx.
 **Waiting for reply**: no
