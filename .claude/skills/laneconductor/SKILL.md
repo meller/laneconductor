@@ -272,7 +272,7 @@ To find a track by number (e.g., "Track 017"):
 3.  **Check `conductor/tracks.md`**: This summary file often contains links to the track folders.
 4.  **Check `conductor/tracks/file_sync_queue.md`**: New tracks queued from the UI or CLI appear here with `**Status**: pending` before the worker creates their folder.
 
-**Folder Naming Convention**: `conductor/tracks/NNN-slug/` (where NNN is the 3-digit track number).
+**Folder Naming Convention**: `conductor/tracks/INITIALS-NNN-slug/` for new tracks (e.g. `AM-10023-my-feature`). Legacy tracks use the old `NNN-slug/` format and are fully supported.
 
 ---
 
@@ -1187,16 +1187,22 @@ Update the track status and progress by modifying its Markdown files.
 
 Registers a new track in the **file sync queue**. The sync worker processes it on next heartbeat.
 
-1. Determine the next track number: check highest number in `conductor/tracks/file_sync_queue.md` (matching `### Track NNN:`) and existing `conductor/tracks/NNN-*/` folder names.
-2. Create `conductor/tracks/NNN-slug/index.md` immediately (for fast feedback):
+1. Determine the next track number AND derive author initials:
+   - Run `git config user.name` and `git config user.email` to get author info.
+   - Derive initials: uppercase first letter of each word, max 3 chars, fallback to `XX` if not configured. Examples: "Asaf Meller" → `AM`, "John von Neumann" → `JVN`, "Madonna" → `M`.
+   - Find the highest existing number by scanning `conductor/tracks/file_sync_queue.md` (matching `### Track NNN:`) and all `conductor/tracks/*/` folder names — extract the number regardless of prefix (e.g. both `10022-slug` and `AM-10022-slug` contribute `10022`).
+   - The display ID is `INITIALS-NNN` (e.g. `AM-10023`). The folder name is `INITIALS-NNN-slug/`.
+2. Create `conductor/tracks/INITIALS-NNN-slug/index.md` immediately (for fast feedback):
    ```markdown
-   # Track NNN: [name]
+   # Track INITIALS-NNN: [name]
 
    **Lane**: plan
    **Lane Status**: queue
    **Progress**: 0%
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
+   **Author**: INITIALS
+   **Created By**: user@email.com
    **Summary**: [description]
    ```
    Default `**Type**` to `dev` unless the user specified a type.
@@ -1208,6 +1214,7 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Created**: [ISO timestamp]
    **Title**: [name]
    **Description**: [description]
+   **Author**: INITIALS
    **Metadata**: { "priority": "medium", "assignee": null }
    ```
 4. The sync worker detects the change (via chokidar or 5s heartbeat), creates the DB row, and moves the entry to `## Completed Queue`.
@@ -1324,9 +1331,17 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
     - This is **non-blocking** by default — the track continues through planning; a human
       reviews and decides whether to update the fundamental doc or adjust the track's approach.
 6.  **Pulse**: Update DB status via `/laneconductor pulse NNN planning 0%`.
-7.  **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.plan.on_success`. Then append a completion comment to
-    `conversation.md` (see **Completion Comment Convention** below): if step 5b's
-    fundamentals-conflict guardrail fired during this run, use
+7.  **Transition**: **First re-read `index.md`'s current `**Lane**` marker.** If it is no
+    longer `plan` (a human moved the card to a different lane on the board while this run
+    was in progress — e.g. dragged straight to `implement` or `done`), do **not** overwrite
+    it: leave `**Lane**` and `**Lane Status**` exactly as they are, skip the rest of this
+    step, and append `> **system**: ℹ️ Plan finished, but the track had already been moved
+    to <current lane> — leaving it there.` to `conversation.md` instead of the comment
+    below. The human's manual move always wins over this run's own stale intent. Otherwise
+    (still `plan`, the normal case): read `conductor/workflow.json` and set `**Lane**` in
+    `index.md` to exactly what is defined in `lanes.plan.on_success`. Then append a
+    completion comment to `conversation.md` (see **Completion Comment Convention** below): if
+    step 5b's fundamentals-conflict guardrail fired during this run, use
     `> **system**: ⚠️ Plan complete with a fundamentals conflict — see conversation above.`
     (don't double-post; the guardrail's existing comment plus this one line is enough
     context); otherwise use `> **system**: ✅ Plan complete — moved to <lane>.`
@@ -1438,7 +1453,12 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 5. **Dev track: On complete** (skip for non-dev tracks):
    - Same verification bar as step 4, for the track as a whole, before writing `## ✅ COMPLETE`.
    - Update `index.md` `**Progress**` marker to 100%.
-   - **Transition**: Read `conductor/workflow.json`. Set `**Lane**` in `index.md` to exactly what is defined in `lanes.implement.on_success`.
+   - **Transition**: First re-read `index.md`'s current `**Lane**` marker. If it is no
+     longer `implement` (a human moved the card elsewhere while this run was in progress),
+     do **not** overwrite it — leave `**Lane**`/`**Lane Status**` as-is and note in the
+     completion comment below that the lane was left untouched because it had already moved.
+     Otherwise: read `conductor/workflow.json` and set `**Lane**` in `index.md` to exactly
+     what is defined in `lanes.implement.on_success`.
    - Append `## ✅ COMPLETE` to `plan.md`.
    - Append a completion comment to `conversation.md` (see **Completion Comment Convention**):
      `> **system**: ✅ Implementation complete — moved to <lane>.`
@@ -1482,6 +1502,11 @@ Structured review of a track against its plan and product guidelines. Posts the 
    write-up (test pass/fail summary if `test.md` was present, gaps if any) as `>`-prefixed
    continuation lines under that same comment — do not post the write-up as a second comment.
 4. **Auto-lane transition**:
+   - First re-read `index.md`'s current `**Lane**` marker. If it is no longer `review` (a
+     human moved the card elsewhere while this run was in progress), do **not** overwrite
+     it — leave `**Lane**`/`**Lane Status**` as-is, still post the review comment from step 3
+     (the review itself is still valid information), and note there that the lane transition
+     was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
    - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
@@ -1583,6 +1608,11 @@ Runs automated checks and updates status files based on results.
    straightforward retry) on fail, followed by the full results write-up as `>`-prefixed
    continuation lines under that same comment — do not post the write-up as a second comment.
 5. **Transition**:
+   - First re-read `index.md`'s current `**Lane**` marker. If it is no longer
+     `quality-gate` (a human moved the card elsewhere while this run was in progress), do
+     **not** overwrite it — leave `**Lane**`/`**Lane Status**` as-is, still keep the results
+     comment posted in step 4 (it's still valid information), and note there that the lane
+     transition was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
    - **Done-gate — a track may only reach `done` at 100% if the feature
      actually works end to end.** Before setting a `done` lane, confirm
@@ -1744,9 +1774,9 @@ node conductor/syncdb.mjs \
 ```
 
 **What it does**:
-1. Scan `conductor/tracks/` directory for all folders matching `NNN-*` pattern
-2. For each track folder, read `NNN-*/index.md` and extract:
-   - Track number and slug from folder name
+1. Scan `conductor/tracks/` directory for all folders containing a number (matches both legacy `NNN-slug` and prefixed `INITIALS-NNN-slug` formats)
+2. For each track folder, read `index.md` and extract:
+   - Track number and slug from folder name (extract number via `/\d+/` match regardless of prefix)
    - Title from `**Title**` marker (fallback to slug)
    - Lane from `**Lane**` marker (default: 'planning')
    - Progress from `**Progress**` marker (default: 0%)
@@ -1894,7 +1924,9 @@ CREATE TABLE IF NOT EXISTS tracks (
   last_updated_by  TEXT DEFAULT 'human',
   last_heartbeat   TIMESTAMP DEFAULT NOW(),
   created_at       TIMESTAMP DEFAULT NOW(),
-  UNIQUE(project_id, track_number)
+  created_by_email TEXT,                    -- author email (NULL for legacy tracks)
+  author           TEXT,                    -- author initials (e.g. AM); NULL for legacy tracks
+  UNIQUE(project_id, created_by_email, track_number)  -- NULL emails are each distinct in Postgres
 );
 ```
 

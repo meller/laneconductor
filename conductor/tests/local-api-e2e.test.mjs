@@ -125,6 +125,14 @@ function startWorker(env = {}) {
       LC_MOCK_CLI: `node ${MOCK_CLI}`,
       MOCK_CLI_DELAY_MS: '200',
       LC_SKIP_GIT_LOCK: '1',
+      // This suite predates the worker-identity singleton lock (added on
+      // main after this branch forked): TMP is a plain directory, not its
+      // own git repo, so resolvePrimaryRepoRoot() walks up past it to this
+      // real checkout's primary root and collides with whatever live
+      // worker is actually running for this project. This suite tests
+      // lane transitions, not the identity lock itself — same rationale
+      // as LC_SKIP_GIT_LOCK above.
+      LC_SKIP_WORKER_LOCK: '1',
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

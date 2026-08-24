@@ -4,7 +4,7 @@ UI_DIR     := $(shell pwd)/ui
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install uninstall ui-install install-cli api-start api-stop api-log ui-start ui-stop ui-log ui-restart start-all stop-all
+.PHONY: help install uninstall install-node install-atlas install-db install-migrate ui-install install-cli api-start api-stop api-log ui-start ui-stop ui-log ui-restart start-all stop-all
 
 ## Show available commands
 help:
@@ -30,14 +30,94 @@ help:
 	@echo "From a project repo, use: lc help"
 	@echo ""
 
+## Ensure Node.js is installed (native Linux binary, not Windows interop)
+install-node:
+	@NODE_PATH=$$(command -v node 2>/dev/null); \
+	if [ -n "$$NODE_PATH" ] && echo "$$NODE_PATH" | grep -qv '^/mnt/'; then \
+	  echo "✅ Node.js $$(node --version) already installed ($$NODE_PATH)"; \
+	else \
+	  if [ -n "$$NODE_PATH" ]; then \
+	    echo "⚠️  Found Windows node at $$NODE_PATH — installing native Linux node"; \
+	  else \
+	    echo "📦 Node.js not found — installing via nvm..."; \
+	  fi; \
+	  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash; \
+	  export NVM_DIR="$$HOME/.nvm"; \
+	  [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+	  nvm install --lts; \
+	  echo "✅ Node.js $$(node --version) installed"; \
+	  echo ""; \
+	  echo "⚠️  Restart your shell (or run: source ~/.bashrc) to activate node in this session"; \
+	fi
+
 ## Install LaneConductor (run once after cloning)
-install: ui-install install-cli
+install: install-node install-atlas ui-install install-cli install-db install-migrate
 	@echo "$(SKILL_DIR)" > $(RC_FILE)
-	@echo "✅ Installed → $(RC_FILE)"
-	@echo "   Skill path: $(SKILL_DIR)"
 	@echo ""
-	@echo "Next: open any project in Claude Code and run /laneconductor setup"
-	@echo "      setup scaffold will symlink the skill into that project's .claude/skills/"
+	@echo "✅ LaneConductor installed!"
+	@echo "   Dashboard: http://localhost:8090"
+	@echo ""
+	@echo "Next: for each project you want to track:"
+	@echo "  cd your-project"
+	@echo "  lc setup"
+	@echo ""
+
+## Install Atlas CLI (database migration tool)
+install-atlas:
+	@if command -v atlas >/dev/null 2>&1; then \
+	  echo "✅ Atlas already installed: $$(atlas version 2>&1 | head -1)"; \
+	else \
+	  echo "📦 Installing Atlas CLI..."; \
+	  curl -sSf https://atlasgo.sh | sh; \
+	  echo "✅ Atlas installed: $$(atlas version 2>&1 | head -1)"; \
+	fi
+
+## Start a local Postgres via Docker (or detect native)
+install-db:
+	@if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then \
+	  if docker ps --filter name=laneconductor-pg --filter status=running --format '{{.Names}}' | grep -q laneconductor-pg; then \
+	    echo "✅ Postgres already running (Docker: laneconductor-pg)"; \
+	  elif docker ps -a --filter name=laneconductor-pg --format '{{.Names}}' | grep -q laneconductor-pg; then \
+	    echo "▶️  Starting existing laneconductor-pg container..."; \
+	    docker start laneconductor-pg; \
+	    echo "⏳ Waiting for Postgres to be ready..."; \
+	    for i in $$(seq 1 30); do \
+	      docker exec laneconductor-pg pg_isready -U postgres >/dev/null 2>&1 && break; \
+	      sleep 1; \
+	    done; \
+	    echo "✅ Postgres ready"; \
+	  else \
+	    echo "📦 Starting Postgres via Docker..."; \
+	    docker run -d --name laneconductor-pg \
+	      -e POSTGRES_USER=postgres \
+	      -e POSTGRES_PASSWORD=postgres \
+	      -e POSTGRES_DB=laneconductor \
+	      -p 5432:5432 \
+	      --restart unless-stopped \
+	      postgres:16; \
+	    echo "⏳ Waiting for Postgres to be ready..."; \
+	    for i in $$(seq 1 30); do \
+	      docker exec laneconductor-pg pg_isready -U postgres >/dev/null 2>&1 && break; \
+	      sleep 1; \
+	    done; \
+	    echo "✅ Postgres ready (Docker: laneconductor-pg)"; \
+	  fi; \
+	elif pg_isready >/dev/null 2>&1; then \
+	  echo "✅ Native Postgres already running"; \
+	else \
+	  echo ""; \
+	  echo "⚠️  No Postgres found. Options:"; \
+	  echo "   • Install Docker and re-run make install"; \
+	  echo "   • Install Postgres: sudo apt install postgresql"; \
+	  echo ""; \
+	  exit 1; \
+	fi
+
+## Run database migrations via Atlas
+install-migrate:
+	@echo "🗄️  Running migrations..."
+	@atlas migrate apply --env local 2>&1 && echo "✅ Migrations applied" || \
+	  (echo "⚠️  Migration failed — is Postgres running? (make install-db)" && exit 1)
 
 ## Install global 'lc' command
 install-cli:
@@ -49,7 +129,12 @@ install-cli:
 ## Install UI dependencies
 ui-install:
 	@echo "📦 Installing UI dependencies..."
-	@cd ui && npm install
+	@export NVM_DIR="$$HOME/.nvm"; [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+	if [ -d ui/node_modules/@rollup/rollup-win32-x64-msvc ] && ! [ -d ui/node_modules/@rollup/rollup-linux-x64-gnu ]; then \
+	  echo "⚠️  Windows node_modules detected on Linux — cleaning and reinstalling..."; \
+	  rm -rf ui/node_modules; \
+	fi; \
+	cd ui && npm install
 	@echo "✅ UI ready"
 
 ## Start the Express API
@@ -57,7 +142,7 @@ api-start:
 	@if [ -f $(UI_DIR)/.api.pid ] && kill -0 $$(cat $(UI_DIR)/.api.pid) 2>/dev/null; then \
 	  echo "✅ API already running (PID: $$(cat $(UI_DIR)/.api.pid))"; \
 	else \
-	  cd $(UI_DIR) && node server/index.mjs >> $(UI_DIR)/.api.log 2>&1 & echo $$! > $(UI_DIR)/.api.pid; \
+	  cd $(UI_DIR) && nohup node server/index.mjs >> $(UI_DIR)/.api.log 2>&1 & echo $$! > $(UI_DIR)/.api.pid; \
 	  sleep 0.3; \
 	  echo "✅ API started (PID: $$(cat $(UI_DIR)/.api.pid)) → http://localhost:8091"; \
 	fi
@@ -79,7 +164,7 @@ ui-start:
 	@if [ -f $(UI_DIR)/.ui.pid ] && kill -0 $$(cat $(UI_DIR)/.ui.pid) 2>/dev/null; then \
 	  echo "✅ UI already running (PID: $$(cat $(UI_DIR)/.ui.pid))"; \
 	else \
-	  cd $(UI_DIR) && npx vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
+	  cd $(UI_DIR) && nohup npx vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
 	  sleep 0.3; \
 	  echo "✅ UI started (PID: $$(cat $(UI_DIR)/.ui.pid)) → http://localhost:8090"; \
 	fi

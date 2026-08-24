@@ -17,6 +17,7 @@ import { getBuilds, getBuildById, createBuildArtifact } from './build-manager.mj
 import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from './auth.mjs';
 import { logger } from './logger.mjs';
 import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
+import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -100,7 +101,13 @@ const server = createServer(app);
 initWebSocket(server);
 
 // ── Dev Servers (per project) ────────────────────────────────────────────────
-// Map: projectId -> { proc, pid, url }
+// Map: projectId -> { proc, pid, url, previewCwd, previewTrack }
+// Track 10018 Phase 5: previewCwd/previewTrack are set only when the server
+// was last started pointed at a track's worktree instead of the primary
+// checkout (repo_path) — the "single dev server, swapped between
+// checkouts" preview design. In-memory only, same as pid already is; an
+// API-server restart naturally clears back to "no preview active", which
+// is the correct, honest state (nothing is running yet either way).
 const devServers = new Map();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -349,23 +356,33 @@ app.get('/api/projects/:id/workers', async (req, res) => {
 // an identical list. DISTINCT ON (hostname) dedupes to the freshest report
 // per host; each row is tagged with `host` so the UI can group by host only
 // when more than one has actually reported (the common case is exactly one).
+//
+// Track 10018: extracted so GET /tracks (below) can reuse the exact same
+// data to answer "is this done-lane track's branch actually merged yet?" —
+// a track can sit at lane_status='done' while its branch is still
+// mergeable/stranded/conflicted/pr-open; the Kanban card needs the same
+// live, git-derived truth the Worktrees panel already has, not a second,
+// possibly-stale copy of it.
+async function fetchWorktreeRows(projectId) {
+  const result = await pool.query(
+    `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
+     FROM workers
+     WHERE project_id = $1 AND worktrees IS NOT NULL
+       AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+     ORDER BY hostname, last_heartbeat DESC`,
+    [projectId]
+  );
+  const rows = [];
+  for (const hostRow of result.rows) {
+    const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
+    for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
+  }
+  return rows;
+}
+
 app.get('/api/projects/:id/worktrees', async (req, res) => {
   try {
-    const projectId = req.params.id;
-    const result = await pool.query(
-      `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
-       FROM workers
-       WHERE project_id = $1 AND worktrees IS NOT NULL
-         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-       ORDER BY hostname, last_heartbeat DESC`,
-      [projectId]
-    );
-
-    const rows = [];
-    for (const hostRow of result.rows) {
-      const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
-      for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
-    }
+    const rows = await fetchWorktreeRows(req.params.id);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -608,6 +625,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
               t.assignee_uid, t.created_by_uid, t.waiting_for_reply, t.auto_run, p.owner_uid,
+              t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -673,10 +691,38 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
       }, new Map());
     }
 
-    res.json(result.rows.map(t => ({
-      ...t,
-      assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
-    })));
+    // Track 10018: a track can sit at lane_status='done' while its branch
+    // is still mergeable/stranded/conflicted/pr-open — "done" on the board
+    // otherwise silently means "the lane action finished," not "this
+    // shipped." Cross-reference the same live, git-derived worktree state
+    // the panel uses, keyed by track_number, so the Kanban card can show
+    // the truth. Absence here (the common case) means either the track
+    // never had a branch (non-dev work, or nothing to merge) or it's
+    // already fully merged — auditWorktrees omits fully-merged branches
+    // entirely, so "not in this map" IS the "really done" signal.
+    const worktreeRows = await fetchWorktreeRows(req.params.id);
+    const worktreeByTrack = new Map(worktreeRows.filter(r => r.track).map(r => [String(r.track), r]));
+
+    res.json(result.rows.map(t => {
+      const wt = worktreeByTrack.get(String(t.track_number));
+      return {
+        ...t,
+        assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
+        // null when there's no live unmerged branch for this track at all
+        // (nothing to show — the common, actually-shipped case).
+        worktree_class: wt?.class ?? null,
+        worktree_pr_status: wt?.pr_status ?? null,
+        worktree_pr_url: wt?.pr_url ?? null,
+        worktree_pr_number: wt?.pr_number ?? null,
+        // Track 10018 Phase 10: null exactly when there's no live worktree
+        // row for this track (not yet past `plan`, or — once track 1115's
+        // main-direct workspace mode ships — a track configured to work
+        // directly on main with no branch at all). The frontend renders
+        // "main" for that null case; this stays the raw signal, same
+        // convention as worktree_class above.
+        worktree_branch: wt?.branch ?? null,
+      };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -894,6 +940,11 @@ app.get('/api/inbox', async (req, res) => {
     //                     for non-emoji AI comments.
     //  3. recent_activity — most recent comment is a 'system' ✅ notice (or
     //                     nothing else applies): informational only.
+    // A row is excluded entirely (before bucketing) once dismissed_at is at
+    // least as new as its latest visible comment — POST .../dismiss sets
+    // it, and it's automatically superseded the moment a genuinely new
+    // comment arrives, without needing to touch waiting_for_reply (which a
+    // later sync cycle would just re-assert from the track's own file).
     const result = await pool.query(
       `SELECT t.id AS track_id, t.track_number, t.title, t.lane_status,
               t.lane_action_status, t.waiting_for_reply,
@@ -930,7 +981,9 @@ app.get('/api/inbox', async (req, res) => {
            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
          ) AS human_needs_reply
        ) hr ON true
-       WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE) ${projectFilter}
+       WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE)
+         AND NOT (t.dismissed_at IS NOT NULL AND t.dismissed_at >= COALESCE(lc.created_at, t.dismissed_at))
+         ${projectFilter}
        ORDER BY lc.created_at DESC`,
       values
     );
@@ -947,6 +1000,23 @@ app.post('/api/projects/:id/tracks/:num/dismiss', async (req, res) => {
 
     await pool.query(
       'UPDATE track_comments SET is_hidden = TRUE WHERE track_id = $1',
+      [trackId]
+    );
+    // Track 10012-follow-up: hiding comments alone doesn't stop a row from
+    // reappearing on the next poll when it qualifies via
+    // tracks.waiting_for_reply — that flag is authoritative-per-sync
+    // (re-asserted from the track's own index.md marker every sync cycle,
+    // see parseWaitingForReply() in laneconductor.sync.mjs), so setting it
+    // false here would just get overwritten back to true on the next sync
+    // for a track that's genuinely still waiting (found live: track 8002,
+    // a stale brainstorm fixture, kept reappearing after every dismiss).
+    // dismissed_at sidesteps that fight entirely — GET /api/inbox excludes
+    // a track once dismissed_at is at least as new as its latest visible
+    // comment, and automatically re-includes it the moment a genuinely
+    // NEW comment arrives, without this endpoint needing to touch
+    // waiting_for_reply at all.
+    await pool.query(
+      'UPDATE tracks SET dismissed_at = NOW() WHERE id = $1',
       [trackId]
     );
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
@@ -1468,6 +1538,19 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         : content.trim() + `\n**Auto Run**: ${autoRunStr}\n`;
     }
 
+    // Track 10018: only write a marker when a value was actually set — a
+    // null merge_mode (explicitly clearing back to "unspecified") removes
+    // the marker rather than writing "**Merge Mode**: null".
+    if (updates.merge_mode !== undefined) {
+      if (updates.merge_mode === null) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Merge Mode\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+$/m, `**Merge Mode**: ${updates.merge_mode}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Merge Mode**: ${updates.merge_mode}`) || content;
+      }
+    }
+
     // Write back to file
     writeFileSync(trackIndexPath, content, 'utf8');
 
@@ -1640,9 +1723,16 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
 // action is read back from there.
 async function dispatchIfSyncOnly(projectId, trackNumber) {
   try {
+    // Track 1102 F18: same phantom-worker exclusion as the /dispatch and
+    // /worktrees/refresh fallbacks — a Playwright fixture worker
+    // (hostname 'pw-e2e-worker' / pid 999999, or pid 0) heartbeating
+    // during a test run looks like a real live worker to this query and
+    // its low id would otherwise win.
     const { rows: liveWorkers } = await pool.query(
       `SELECT w.id, w.mode, w.type FROM workers w
-        WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'`,
+        WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+          AND w.pid != 0 AND (w.hostname IS NULL OR w.hostname NOT LIKE 'pw-e2e-%')
+        ORDER BY w.id ASC`,
       [projectId]
     );
     const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
@@ -1860,7 +1950,21 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     const { dev_command, dev_url, repo_path } = projResult.rows[0];
     if (!dev_command) return res.status(400).json({ error: 'No dev_command configured for this project' });
 
-    // Kill existing dev server if any
+    // Track 10018 Phase 5: an optional preview target — when provided, the
+    // dev server runs against that worktree's directory instead of the
+    // primary checkout, so you can test an unmerged (typically pr-mode)
+    // track's branch before approving it. `preview_cwd` is trusted as-is
+    // from the client (same trust level as every other worktree_path this
+    // API already accepts from the Worktrees panel, e.g. remove-worktree's
+    // dispatch payload) — it's always one of the paths the panel itself
+    // just displayed, sourced from this project's own git worktree list.
+    const { preview_cwd, preview_track } = req.body || {};
+    const targetCwd = preview_cwd || repo_path;
+
+    // Kill existing dev server if any — this IS the "stop current, swap"
+    // behavior: starting fresh (whether at the primary checkout or a
+    // preview target) always tears down whatever was running first, so
+    // there is only ever one dev server for this project at a time.
     if (devServers.has(projectId)) {
       const existing = devServers.get(projectId);
       if (existing.proc) {
@@ -1876,12 +1980,15 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
 
     // Spawn new dev server
     const proc = spawn('sh', ['-c', dev_command], {
-      cwd: repo_path,
+      cwd: targetCwd,
       detached: true,
       stdio: 'ignore'
     });
 
-    devServers.set(projectId, { proc, pid: proc.pid, url: dev_url });
+    devServers.set(projectId, {
+      proc, pid: proc.pid, url: dev_url,
+      previewCwd: preview_cwd || null, previewTrack: preview_cwd ? (preview_track ?? null) : null,
+    });
 
     // Save PID to DB
     await pool.query(
@@ -1890,7 +1997,7 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     );
 
     broadcast('conductor:updated', { projectId });
-    res.json({ running: true, pid: proc.pid, url: dev_url });
+    res.json({ running: true, pid: proc.pid, url: dev_url, preview_track: preview_cwd ? (preview_track ?? null) : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1968,6 +2075,7 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
     // Check if process in Map is still alive
     let running = false;
     let pid = null;
+    let previewTrack = null;
 
     if (entry?.pid) {
       try {
@@ -1975,6 +2083,11 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
         kill(entry.pid, 0);
         running = true;
         pid = entry.pid;
+        // Track 10018 Phase 5: only meaningful when the live entry is the
+        // one we spawned this process from — a DB-PID fallback (below) has
+        // no way to know whether that process was ever a preview at all,
+        // so it correctly stays null rather than guessing.
+        previewTrack = entry.previewTrack ?? null;
       } catch (e) {
         // Process is dead
         devServers.delete(projectId);
@@ -2002,7 +2115,8 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
       running,
       pid,
       url: devUrl,
-      dev_command: devCommand
+      dev_command: devCommand,
+      preview_track: previewTrack,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2239,6 +2353,9 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
       waiting_for_reply, auto_run,
+      // Track 10018: per-track merge mode marker (null = unspecified, kept
+      // distinct from 'pr' so resolveMergeMode's default stays overridable)
+      merge_mode,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -2323,6 +2440,10 @@ app.post('/track', collectorAuth, async (req, res) => {
       // $28: auto_run — same raw-nullable pattern as waiting_for_reply, so a
       // partial sync payload never clobbers an existing value with false
       auto_run === undefined ? null : auto_run,
+      // $29: merge_mode — raw (possibly null/absent from the file), COALESCEd
+      // below so an unspecified file never clobbers an explicit DB value
+      // (e.g. one set via the track detail panel's toggle).
+      merge_mode ?? null,
     ];
 
     const qRes = await pool.query(`
@@ -2332,9 +2453,9 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply, auto_run)
+       waiting_for_reply, auto_run, merge_mode)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false))
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2363,7 +2484,8 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
       kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
       waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
-      auto_run           = COALESCE($28, tracks.auto_run)
+      auto_run           = COALESCE($28, tracks.auto_run),
+      merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode)
     RETURNING id
   `, params);
 
@@ -2419,7 +2541,9 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     const { lane_action_status, lane_action_result, last_log_tail, active_cli,
       lane_status, progress_percent,
       auto_planning_launched, auto_implement_launched, auto_review_launched,
-      waiting_for_reply } = req.body;
+      waiting_for_reply,
+      // Track 10018: merge mode + PR tracking fields
+      merge_mode, pr_number, pr_url, pr_status } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2443,6 +2567,15 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (auto_implement_launched !== undefined) { sets.push(`auto_implement_launched = $${i++}`); params.push(auto_implement_launched); }
     if (auto_review_launched !== undefined) { sets.push(`auto_review_launched = $${i++}`); params.push(auto_review_launched); }
     if (waiting_for_reply !== undefined) { sets.push(`waiting_for_reply = $${i++}`); params.push(waiting_for_reply); }
+    if (merge_mode !== undefined) {
+      if (merge_mode !== null && !['pr', 'direct'].includes(merge_mode)) {
+        return res.status(400).json({ error: `Invalid merge_mode: "${merge_mode}". Must be "pr" or "direct".` });
+      }
+      sets.push(`merge_mode = $${i++}`); params.push(merge_mode);
+    }
+    if (pr_number !== undefined) { sets.push(`pr_number = $${i++}`); params.push(pr_number); }
+    if (pr_url !== undefined) { sets.push(`pr_url = $${i++}`); params.push(pr_url); }
+    if (pr_status !== undefined) { sets.push(`pr_status = $${i++}`); params.push(pr_status); }
     await pool.query(
       `UPDATE tracks SET ${sets.join(', ')} WHERE project_id = $1 AND track_number = $2`,
       params
@@ -2453,6 +2586,7 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (lane_status !== undefined) syncUpdates.lane_status = lane_status;
     if (lane_action_status !== undefined) syncUpdates.lane_action_status = lane_action_status;
     if (progress_percent !== undefined) syncUpdates.progress_percent = progress_percent;
+    if (merge_mode !== undefined) syncUpdates.merge_mode = merge_mode;
     if (Object.keys(syncUpdates).length > 0) {
       syncTrackToFile(projectId, req.params.num, syncUpdates).catch(err =>
         console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)
@@ -2722,17 +2856,28 @@ app.get('/track/:num/retry-count', collectorAuth, async (req, res) => {
 app.post('/tracks/reset-stuck-actions', collectorAuth, async (req, res) => {
   try {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
-    // immediate=true: reset ALL running tracks (used on worker startup — worker starts fresh, owns no running tracks)
-    // default: only reset tracks stuck for more than 2 minutes
+    // immediate=true: this worker just started and owns no running tracks —
+    // release only ITS OWN prior claims (claimed_by = its own machine_token).
+    // Track 1117 Bug 1: this used to reset every running/queued track for the
+    // whole project, stomping sibling workers' still-live tracks whenever any
+    // one worker restarted. If this caller has no resolvable machine_token
+    // (e.g. global-token/anonymous auth has no per-worker identity to scope
+    // by), reset nothing rather than falling back to the old project-wide
+    // behavior.
+    // default: only reset tracks stuck for more than 2 minutes (heartbeat-staleness — unaffected by this fix, applies regardless of owner)
     const immediate = req.body?.immediate === true;
+    if (immediate && !req.machine_token) {
+      return res.json({ reset: [] });
+    }
     const whereClause = immediate
-      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by IS NOT NULL`
+      ? `project_id = $1 AND lane_action_status IN ('running', 'queue') AND claimed_by = $2`
       : `project_id = $1 AND lane_action_status = 'running' AND last_heartbeat < NOW() - INTERVAL '2 minutes'`;
+    const params = immediate ? [projectId, req.machine_token] : [projectId];
     const r = await pool.query(
       `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = 'stuck_timeout', claimed_by = NULL
        WHERE ${whereClause}
        RETURNING track_number`,
-      [projectId]
+      params
     );
     res.json({ reset: r.rows.map(r => r.track_number) });
   } catch (err) {
@@ -3525,7 +3670,12 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
     // single track (a detached worktree has no track-* branch to resolve
     // an assignee from; a cache refresh isn't track-scoped at all), so
     // both always fall straight to "any live worker for the project."
-    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track') && !worker_id) {
+    // Track 10018: create-pr/merge-pr are the pr-mode siblings of
+    // merge-worktree — same worker-resolution treatment (a track-scoped
+    // git/gh operation, not something the client should be picking a
+    // worker for). ai-resolve-conflict (Track 1114) gets the same
+    // treatment for the same reason.
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'create-pr' || action === 'merge-pr' || action === 'ai-resolve-conflict') && !worker_id) {
       const trackNumber = payload?.track_number;
       if (action !== 'remove-worktree' && action !== 'refresh-worktrees' && !trackNumber) {
         return res.status(400).json({ error: `payload.track_number is required for ${action}` });
@@ -3547,8 +3697,21 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
         }
       }
       if (!resolvedWorkerId) {
+        // Track 1102 F18: a Playwright fixture worker (hostname
+        // 'pw-e2e-worker', pid 999999 — worker-identity.spec.js; or pid 0,
+        // hostname 'e2e-test-host' — track-1033-e2e.spec.js) heartbeating
+        // during a test run looks identical to a real worker to this
+        // query, and its low id (created early in that run) wins
+        // `ORDER BY id LIMIT 1` over every real worker. A phantom
+        // heartbeats but never polls a dispatch inbox, so the dispatch
+        // starves silently forever. pid 0 is never a real process (reserved
+        // for the kernel scheduler) and the 'pw-e2e-' hostname prefix is
+        // this codebase's own established fixture-naming convention —
+        // excluding both is safe for real remote-api workers, which use
+        // neither.
         const { rows: any } = await pool.query(
-          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+          `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
           [req.params.id]
         );
         resolvedWorkerId = any[0]?.id ?? null;
@@ -3619,8 +3782,11 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
 // refresh-worktrees, since this action is never track-scoped.
 app.post('/api/projects/:id/worktrees/refresh', async (req, res) => {
   try {
+    // Track 1102 F18: same phantom-worker exclusion as the /dispatch
+    // fallback above — see that comment for the full explanation.
     const { rows: any } = await pool.query(
-      `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds' ORDER BY id LIMIT 1`,
+      `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+       AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
       [req.params.id]
     );
     const workerId = any[0]?.id ?? null;
@@ -4357,6 +4523,25 @@ if (process.env.NODE_ENV !== 'test') {
     // console.log('[LaneConductor API] Auth: configured via auth module');
     // ensureGitGlobalId() is removed or needs an explicit project DB poll if needed, better skip for now since it's collector specific
     console.log(`[LaneConductor API] http://localhost:${PORT}/api/health`);
+
+    // Track 10019 (REQ-6): one-line startup provenance — this server has
+    // no cwd-derived state of its own to correct (S13: per-project ops use
+    // `repo_path` from the DB, not process.cwd()), but it inherits
+    // whatever cwd its launcher passed (the Makefile's UI_DIR / lc api
+    // start's uiDir — both now resolve to the primary per REQ-2/REQ-4).
+    // Logged so a future incident's first question ("which checkout is
+    // this actually serving?") has an answer without /proc archaeology.
+    try {
+      const servingRoot = process.cwd();
+      const isPrimary = resolvePrimaryRepoRoot(servingRoot) === servingRoot;
+      const provenanceMsg = isPrimary
+        ? `[LaneConductor API] Serving from ${servingRoot} (primary checkout).`
+        : `[LaneConductor API] ⚠️  Serving from ${servingRoot} — this is NOT the primary checkout.`;
+      console.log(provenanceMsg);
+      logger.info({ servingRoot, isPrimary }, provenanceMsg);
+    } catch {
+      // Not inside a git repo (e.g. a stripped deployment) — nothing to report.
+    }
   });
 }
 

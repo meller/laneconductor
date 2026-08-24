@@ -28,12 +28,20 @@ function git(cmd, cwd = REPO) {
   return execSync(`git ${cmd}`, { cwd, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
 }
 
-function writeTrackIndex(dir, trackNumber, title, lane, laneStatus, problemText = 'Test.') {
+// Track 10018: this whole suite exercises local-merge classification
+// (mergeable/stranded/conflicted), which only applies to merge_mode:
+// 'direct' tracks now that unspecified defaults to 'pr' — so every fixture
+// here declares itself 'direct' by default, same as the real migration
+// Phase 6 applies to this repo's own e2e/canary tracks. Pass
+// mergeMode: null explicitly for the one test that specifically covers the
+// pr-open classification itself.
+function writeTrackIndex(dir, trackNumber, title, lane, laneStatus, problemText = 'Test.', mergeMode = 'direct') {
   const trackDir = join(dir, 'conductor/tracks', `${trackNumber}-${title.toLowerCase().replace(/\s+/g, '-')}`);
   mkdirSync(trackDir, { recursive: true });
   writeFileSync(join(trackDir, 'index.md'), [
     `# Track ${trackNumber}: ${title}`, '',
-    `**Lane**: ${lane}`, `**Lane Status**: ${laneStatus}`, '**Progress**: 0%', '',
+    `**Lane**: ${lane}`, `**Lane Status**: ${laneStatus}`, '**Progress**: 0%',
+    ...(mergeMode ? [`**Merge Mode**: ${mergeMode}`] : []), '',
     '## Problem', problemText, '',
   ].join('\n'));
 }
@@ -75,6 +83,54 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'mergeable');
     assert.equal(row.hasWorktree, true);
     assert.ok(row.ahead >= 1);
+    assert.equal(row.mergeMode, 'direct');
+  });
+
+  // Track 10018 (TC-4.1-ish, at the audit layer): a pr-mode track that's
+  // otherwise identical to the 'mergeable' fixture above must NEVER
+  // classify as mergeable — that classification is what the panel wires
+  // to a plain local-merge button, which would silently bypass PR review.
+  it('classifies a done:success pr-mode branch as pr-open, never mergeable', async () => {
+    setupRepo();
+    writeTrackIndex(REPO, '201', 'PR Track', 'plan', 'queue', 'Test.', null);
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-201 .worktrees/201 HEAD');
+    writeTrackIndex(join(REPO, '.worktrees/201'), '201', 'PR Track', 'done', 'success', 'Test.', null);
+    git('add -A', join(REPO, '.worktrees/201'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 201 done, unspecified merge mode"', join(REPO, '.worktrees/201'));
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '201');
+    assert.ok(row, 'track 201 should appear in the audit');
+    assert.equal(row.classification, 'pr-open');
+    assert.equal(row.mergeMode, 'pr'); // unspecified marker resolves to 'pr'
+    assert.equal(row.hasWorktree, true);
+  });
+
+  it('carries PR Number/URL/Status markers through to the row once a PR is opened', async () => {
+    setupRepo();
+    writeTrackIndex(REPO, '202', 'PR With Number', 'plan', 'queue', 'Test.', null);
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-202 .worktrees/202 HEAD');
+    const trackDir = join(REPO, '.worktrees/202', 'conductor/tracks/202-pr-with-number');
+    mkdirSync(trackDir, { recursive: true });
+    writeFileSync(join(trackDir, 'index.md'), [
+      '# Track 202: PR With Number', '',
+      '**Lane**: done', '**Lane Status**: success', '**Progress**: 100%',
+      '**Merge Mode**: pr', '**PR Number**: 42', '**PR URL**: https://github.com/org/repo/pull/42',
+      '**PR Status**: open', '',
+    ].join('\n'));
+    git('add -A', join(REPO, '.worktrees/202'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 202 pr open"', join(REPO, '.worktrees/202'));
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '202');
+    assert.equal(row.classification, 'pr-open');
+    assert.equal(row.prNumber, '42');
+    assert.equal(row.prUrl, 'https://github.com/org/repo/pull/42');
+    assert.equal(row.prStatus, 'open');
   });
 
   it('classifies a done:success branch whose worktree directory is gone as stranded', async () => {
@@ -129,7 +185,7 @@ describe('auditWorktrees()', () => {
     const dir = join(REPO, 'conductor/tracks/111-bookkeeping-conflict');
     mkdirSync(dir, { recursive: true });
     const content = (lane, laneStatus, progress) =>
-      `# Track 111: Bookkeeping Conflict\n\n**Lane**: ${lane}\n**Lane Status**: ${laneStatus}\n**Progress**: ${progress}\n\n## Problem\nSame problem text everywhere.\n`;
+      `# Track 111: Bookkeeping Conflict\n\n**Lane**: ${lane}\n**Lane Status**: ${laneStatus}\n**Progress**: ${progress}\n**Merge Mode**: direct\n\n## Problem\nSame problem text everywhere.\n`;
     writeFileSync(join(dir, 'index.md'), content('plan', 'queue', '0%'));
     git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
 
@@ -312,6 +368,40 @@ describe('auditWorktrees()', () => {
     const rows = await auditWorktrees({ repoRoot: join(REPO, '.worktrees/108'), mainBranch: 'main' });
     const primaryRow = rows.find(r => r.worktreePath === REPO);
     assert.equal(primaryRow, undefined, 'the primary checkout must never be reported as its own row');
+  });
+
+  it('resolves the lock-file check against the PRIMARY checkout even when called with a linked worktree repoRoot (track 10019 / S11)', async () => {
+    // Real bug found live (track 10019): mainHasReopenedTrackIndependently()
+    // built its `.conductor/locks/<n>.lock` path from whatever `repoRoot`
+    // was passed in — correct only when the caller runs from the primary.
+    // reconcileWorktrees() calls auditWorktrees({ repoRoot: process.cwd() })
+    // on a 60s tick; if the worker's own cwd is ever a linked worktree
+    // (the exact class this track exists to close), the lock check misses
+    // a real, live lock and misclassifies an actively-reopened,
+    // still-locked track as `mergeable` — safe to auto-merge out from
+    // under a running worker.
+    setupRepo();
+    writeTrackIndex(REPO, '109', 'Reopened Track', 'done', 'success');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "track 109 done"');
+    git('worktree add -q -B track-109 .worktrees/109 HEAD');
+    // Branch must have its own unmerged commit, or it's just an ancestor of
+    // main and auditWorktrees skips it entirely as "fully merged".
+    writeTrackIndex(join(REPO, '.worktrees/109'), '109', 'Reopened Track', 'done', 'success', 'Worktree-only commit.');
+    git('add -A', join(REPO, '.worktrees/109'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "worktree unrelated commit"', join(REPO, '.worktrees/109'));
+
+    mkdirSync(join(REPO, '.conductor/locks'), { recursive: true });
+    writeFileSync(join(REPO, '.conductor/locks/109.lock'), '{"track_number":"109"}');
+    writeTrackIndex(REPO, '109', 'Reopened Track', 'plan', 'running');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main reopened track 109 (locked)"');
+
+    const fromPrimary = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const fromWorktree = await auditWorktrees({ repoRoot: join(REPO, '.worktrees/109'), mainBranch: 'main' });
+
+    assert.equal(fromPrimary.find(r => r.trackNumber === '109')?.classification, 'open',
+      'sanity check: a live lock protects the track when called from the primary');
+    assert.equal(fromWorktree.find(r => r.trackNumber === '109')?.classification, 'open',
+      'must still see the live lock — and refuse to classify as mergeable — when called with a linked worktree repoRoot');
   });
 
   it('does not merge, delete, or otherwise mutate anything — read-only', async () => {
