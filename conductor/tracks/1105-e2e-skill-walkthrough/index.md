@@ -1,8 +1,8 @@
 # Track 1105: End-to-end walkthrough — skill (/laneconductor in an AI editor)
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 100%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev
 **Summary**: Run the complete "nothing → a track planned" path purely through the /laneconductor skill commands, as an AI-editor user would (including Skill-Only mode with no lc CLI and no DB). Sibling of 1104…

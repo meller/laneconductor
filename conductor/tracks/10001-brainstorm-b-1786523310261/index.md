@@ -11,6 +11,6 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: backlog
+**Lane**: plan
 **Lane Status**: queue
 **Summary**: Test description

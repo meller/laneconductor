@@ -1,7 +1,7 @@
 # Brainstorm B
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 **Waiting for reply**: no
 **Progress**: 0%
-**Summary**: Canary for the brainstorm → plan loop. Plan written under an unconfirmed assumption — see OPEN-1 in spec.md.
+**Summary**: Discarded via Worktrees panel — not merging.
