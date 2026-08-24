@@ -13,4 +13,4 @@ To be defined.
 - [ ] Phase 1: Implementation
 **Lane**: implement
 **Lane Status**: running
-**Summary**: There's no persisted place to store the per-track auto-run flag.
+**Summary**: All 6 phases implemented and tested — auto_run gate live in claim-scope.mjs, API + UI toggle wired, DB→FS sync-back verified end-to-end.
