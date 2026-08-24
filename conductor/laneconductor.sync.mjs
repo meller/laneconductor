@@ -3896,7 +3896,30 @@ async function reconcilePrTracks() {
     if (resolveMergeMode({ merge_mode: parseMergeModeMarker(content) }) !== 'pr') continue;
 
     const prNumberMatch = content.match(/\*\*PR Number\*\*:\s*(\d+)/i);
-    if (!prNumberMatch) continue; // no PR opened yet for this track — nothing to poll
+    if (!prNumberMatch) {
+      // openTrackPrOnDone is normally fired once, in-process, by spawnCli's
+      // own exit handler right after a track reaches done:success — a
+      // single fire-and-forget call with no retry: a worker restart at the
+      // wrong instant (or anything else interrupting that continuation)
+      // drops it silently, forever, with nothing to notice or retry.
+      // Observed live: tracks sitting at done:success with merge_mode 'pr'
+      // and no PR for DAYS (track 1111, since 2026-08-20) — not just
+      // restart-interrupted ones from the same session. Make PR creation a
+      // reconciled invariant instead of a one-shot action, mirroring how
+      // reconcileWorktrees() already self-heals direct-mode merges the
+      // same way (see its own Track 10018 TC-2.5 comment).
+      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+      const laneStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+      const isDoneSuccess = laneMatch?.[1]?.trim().toLowerCase() === 'done'
+        && laneStatusMatch?.[1]?.trim().toLowerCase() === 'success';
+      if (!isDoneSuccess) continue; // not finished yet — nothing to open a PR for
+      const worktreePath = join(repoRoot, '.worktrees', trackNumber);
+      if (!existsSync(worktreePath)) continue; // nothing left to push from
+      if (existsSync(join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`))) continue; // actively claimed — don't race a running session
+      console.log(`[reconcile-pr] track ${trackNumber}: done:success with merge_mode=pr and no PR yet — opening one`);
+      await openTrackPrOnDone(trackNumber, worktreePath);
+      continue; // openTrackPrOnDone writes its own PR markers; picked up by polling next cycle
+    }
     const currentStatusMatch = content.match(/\*\*PR Status\*\*:\s*(\S+)/i);
     if (currentStatusMatch && ['merged', 'closed'].includes(currentStatusMatch[1].toLowerCase())) continue; // terminal — nothing left to poll
 
