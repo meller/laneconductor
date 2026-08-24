@@ -55,3 +55,6 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
 **Waiting for reply**: no
+**PR Number**: 7
+**PR URL**: https://github.com/meller/laneconductor/pull/7
+**PR Status**: open
