@@ -576,3 +576,53 @@ gate. Per `workflow.json`'s `quality-gate.on_failure`, transitioned to
 `plan:queue`. Substance is unchanged from Review #3: the only forward
 motion available is the human decision on Gap 2 already requested twice
 in `conversation.md`.
+
+## ✅ Gap 4 resolved — 2026-08-24 (implement pass 4)
+
+Fixed for real rather than re-documented — Gap 4's own suggested angle (a):
+harden the two identified fixtures against ambient/concurrent contention.
+
+**`worker-identity.spec.js`**: `FIXTURE_HOSTNAME` was the literal
+`'pw-e2e-worker'`. Now `` `pw-e2e-worker-${process.pid}` ``, so two
+concurrent invocations upsert different `(project_id, hostname,
+worker_number)` rows instead of racing the same one.
+
+**`track-1112-worktree-panel.spec.js`**: had two independent collision
+sources, both fixed:
+1. It picked whichever worker row was `ORDER BY last_heartbeat DESC LIMIT
+   1` and mutated it directly — could grab a *real* ambient worker on this
+   normally-busy machine, and `afterAll`'s "restore" could then stomp that
+   worker's actual current state. Now registers its own dedicated fixture
+   worker (same `POST /worker/register` pattern as `seedWorker()` above),
+   keyed by a pid-unique hostname, and `afterAll` deletes the fixture row
+   outright instead of trying to restore borrowed state.
+2. Even with a unique worker/hostname, the seeded fake track numbers
+   (`'19999'`/`'19998'`) were still hardcoded literals. The worktrees panel
+   API (`fetchWorktreeRows` in `ui/server/index.mjs`) deliberately
+   aggregates across every worker/host for the project — that's the
+   feature — so two concurrent runs each seeding a card titled `#19999`
+   both land in the same aggregated panel, and `getByText('#19999')`
+   matches two elements. Made the fake track numbers pid-derived too
+   (`TRACK_MERGEABLE`/`TRACK_STRANDED`), and scoped the "Mergeable"/
+   "Stranded" badge-text assertions to each seeded card rather than
+   page-wide, since the badge text itself is generic across any concurrent
+   run's cards.
+
+**Verified against the actual failure mode, not just re-run**: two
+genuinely concurrent `npx playwright test --project=fast` invocations
+(`&` + `wait`, not sequential):
+- *Before this fix* (confirming Gap 4's diagnosis first): both concurrent
+  runs failed identically — `getByText('#19999')` resolved to 2 elements,
+  strict-mode violation.
+- *After this fix*: both concurrent runs — **11 passed, 0 failed, 6
+  skipped each**, exit 0/0.
+- Sequential run afterward: unaffected, 11 passed, 0 failed, 6 skipped.
+
+This directly answers Gap 4's open question in the affirmative: it *was*
+fixture-identity collision, not inherent flakiness under ambient load, and
+it's now provably fixed rather than merely better-explained.
+
+Gap 2 (slow tier) and `track-1033-sharing` are unchanged and still require
+the same human decision requested in review #3 / the quality-gate run —
+nothing here touches live shared infrastructure or spawns a real agent
+session, so none of it needed that approval.
