@@ -1,7 +1,10 @@
 # Track 10024: Worktrees panel: live run visibility
 
 **Status**: plan
-**Progress**: 0%
+**Step**: complete
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
+**Waiting for reply**: no
 
 ## Problem
 When a Worktrees panel row is running an action (Complete & Merge, AI resolve conflict, a re-triggered lane dispatch), the row just shows a static 'Running…' badge with no way to see what's actually happening.
@@ -55,10 +58,20 @@ Requirements:
   WorkerActivityLatch by another name.
 
 ## Solution
-To be defined.
+Carry an "open the transcript" intent along the deep-link the Worktrees panel
+already has. A pure `isWorktreeRowRunning()` helper decides if a row is running
+(client-side pending dispatch OR `lane_status === 'running'`); a running row
+renders a clickable `Running…` badge (and its `#<track> ↗` link) that calls the
+existing `onSelectTrack` with `{ transcript: true }`; `App` passes that through
+as a new `initialTranscriptOpen` prop which seeds `TrackDetailPanel`'s existing
+Phase 4 `transcriptOpen` drawer open (open-only — never force-closes). No new
+API endpoint, no worker join, no third transcript mechanism.
 
 ## Phases
-- [ ] Phase 1: Implementation
+- [ ] Phase 1: Run-state helper (`ui/src/lib/worktreeRunState.js`) + unit tests
+- [ ] Phase 2: Clickable Running badge + transcript intent in WorktreesPanel
+- [ ] Phase 3: `initialTranscriptOpen` plumbing (App → TrackDetailPanel)
+- [ ] Phase 4: Real-browser Playwright verification + no-backend-surface check
 **Lane**: plan
-**Lane Status**: running
-**Summary**: When a Worktrees panel row is running an action (Complete & Merge, AI resolve conflict, a re-triggered lane dispatch), the row just shows a static 'Running…' badge with no way to see which worker…
+**Lane Status**: success
+**Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no new API or worker join.
