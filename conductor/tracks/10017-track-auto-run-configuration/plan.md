@@ -274,7 +274,7 @@ ask is to connect the two:
 **Phase 7: E2E verification of the full flow (required before this track can
 be marked done again)**
 
-- [ ] Write a real subprocess-level E2E test (mirroring
+- [x] Write a real subprocess-level E2E test (mirroring
       `conductor/tests/track-10018-pr-flow-e2e.test.mjs`'s pattern: real
       spawned worker, real git fixture, no LC_SKIP_GIT_LOCK) that: creates a
       queued track with no `**Auto Run**` marker, confirms a `sync+poll`
@@ -282,10 +282,69 @@ be marked done again)**
       endpoint; confirms a `sync+poll` worker DOES pick it up and run it
       through to completion — proving Phases 1-4 actually work together
       against a real process, not just in isolation.
-- [ ] Manually verify the "Complete & Merge" button's new confirmation +
+      — `conductor/tests/track-10017-auto-run-phase7-e2e.test.mjs`. Runs the
+      real `ui/server/index.mjs` (Postgres-backed, the actual production
+      code — no mock-collector equivalent exists for the UI-facing
+      `/api/projects/:id/...` surface) and the real worker as two spawned
+      subprocesses; PATCHes the real `/auto-run` endpoint; confirms the DB
+      row, the `**Auto Run**: yes` file write via `syncTrackToFile`, and the
+      worker's subsequent `implement → review` transition. Uses a
+      unique throwaway `repo_path`, cleans up its project row in `after()`.
+      This deviates from this test family's usual "no real DB" convention
+      (documented in the test file's own header) — deliberate, since the
+      endpoint under test has no DB-free equivalent.
+- [x] Manually verify the "Complete & Merge" button's new confirmation +
       auto-worker-provisioning flow in a real browser (per this project's
       own standing rule: UI changes must be exercised in a browser before
       being reported done, not just built and asserted).
-- [ ] Do not write another "✅ COMPLETE" summary without first re-running the
+      — Built the UI against a scratch `ui/server/index.mjs` instance (real
+      Postgres, throwaway project) and drove it with Playwright: confirmed
+      the tooltip carries the exact "This will send the track to an
+      automatic worker..." confirmation text, the two-step armed-confirm
+      button transitions Complete & merge → Click again to run → Running…
+      (disabled), and — verified directly against the real DB afterward,
+      not just the UI's own optimistic state — `tracks.auto_run` flipped to
+      `true` and a real `worker_dispatch` row
+      (`action: 'auto-complete-track'`) was created. Cleaned up the
+      throwaway project row, scratch processes, and the temporary
+      `vite.config.js` env-driven proxy override used to reach the scratch
+      API without CORS issues (reverted after).
+- [x] Do not write another "✅ COMPLETE" summary without first re-running the
       exact `grep -n "auto_run"` check above and confirming it now returns
       real matches in the actual files.
+      — Re-ran it this session: real matches in `conductor/laneconductor.sync.mjs`,
+      `conductor/claim-scope.mjs`, `ui/server/index.mjs`,
+      `ui/src/components/TrackDetailPanel.jsx`, and
+      `ui/src/components/WorktreesPanel.jsx`.
+
+## ✅ RE-OPEN RESOLVED (2026-08-24)
+
+All 7 phases (including the new Phase 7 this re-open added) are implemented,
+tested, and independently verified against real infrastructure this session
+— not re-confirmed from a stale narrative. Specifics:
+
+- **Unit**: `conductor/tests/track-10017-auto-run.test.mjs` (TC-1..5, the
+  `isTrackClaimable` gate) and `ui/server/tests/track-10017-auto-run-api.test.mjs`
+  (TC-6..8, the FS↔DB round trip, including a real filesystem-write
+  assertion) — all pass.
+- **Integration**: `conductor/tests/local-fs-e2e.test.mjs` TC-9/TC-10 (real
+  spawned worker, no DB) and the new
+  `conductor/tests/track-10017-auto-run-phase7-e2e.test.mjs` (real spawned
+  worker AND real spawned `ui/server/index.mjs` against real Postgres) —
+  both pass, proving the gate and the toggle endpoint work standalone and
+  together.
+- **Browser**: Complete & Merge's new confirmation text, two-step
+  armed-confirm, and its `auto_run`-set + dispatch side effects verified
+  live via Playwright against a real (throwaway) project — not just built
+  and asserted.
+- **Regression**: full existing `conductor/tests/` and `ui/server/tests/`
+  suites re-run; the only failures are pre-existing and independently
+  confirmed unrelated (still fail with this track's entire diff reverted) —
+  see test.md's Acceptance Criteria section for the full list and the
+  handful of pre-existing E2E fixtures that needed `**Auto Run**: yes`
+  added to keep testing what they were written to test, given REQ-1's
+  default-closed behavior is a deliberate breaking change for zero-config
+  queued tracks.
+
+Lane left at `plan`/`queue` as found — moved externally while this run was
+in progress; not overwritten (see conversation.md).

@@ -461,6 +461,12 @@ app.post('/api/projects/:id/workers/start-new', async (req, res) => {
     const args = ['start', '--worker-number', String(nextNumber)];
     if (req.body?.cli) args.push('--cli', String(req.body.cli));
     if (req.body?.model) args.push('--model', String(req.body.model));
+    // Track 10017 Phase 7: the Complete & Merge auto-provision path needs a
+    // worker that actually polls the queue — `lc start` defaults to
+    // sync-only (see bin/lc.mjs), which never claims a track regardless of
+    // auto_run. Opt-in only; every other caller of this endpoint keeps
+    // today's sync-only default.
+    if (req.body?.sync_and_work) args.push('--sync-and-work');
 
     const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
     res.json({ ok: true, worker_number: nextNumber, stdout, stderr });
