@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 96%
-**Last Run**: claude/claude-opus-5 (primary)
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 8 — performed the Task 4.2 browser E2E for real (Playwright reconnected), against an isolated instance of this worktree's code, not the live shared stack. Confirmed the Model Change flow, Phase 6's provider-switch confirmation, and the new Start-worker picker all work live. Caught and reverted one live side effect along the way (see conversation.md). Remaining: didn't click "Start Sync Worker" itself, and "+ New Worker" had no manager to test against.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
