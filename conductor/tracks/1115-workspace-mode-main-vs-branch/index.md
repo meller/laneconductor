@@ -1,7 +1,7 @@
 # Track 1115: Workspace Mode — main-direct vs branch-per-track
 
 **Lane**: quality-gate
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Phase 1 complete (1 of 6) — spec.md + test.md written; Phase 2 gated on track 10018 (see plan.md Task 0)
