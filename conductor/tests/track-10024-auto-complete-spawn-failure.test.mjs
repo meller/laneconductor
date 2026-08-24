@@ -1,22 +1,19 @@
 #!/usr/bin/env node
-// conductor/tests/track-1102-f8-dispatch-failure-reporting.test.mjs
-// Track 1102 F8: a failed lane-action dispatch must report failure like
-// every other dispatch handler (chat, deploy, create-project,
-// provision-worker) does — not silently stay 'claimed' forever.
+// conductor/tests/track-10024-auto-complete-spawn-failure.test.mjs
 //
-// Reproduces a real spawnCli-throws trigger: checkAndClaimGitLock() throws
-// when the track is already locked by someone else (contention with
-// another worker/user). (A git-repo-with-no-commits trigger, F7's
-// original failure mode, turns out to now self-heal: checkAndClaimGitLock
-// itself commits the track's files before createWorktree runs, giving a
-// fresh repo its first commit — so lock contention is the reliable way
-// to exercise this path today.) Before this fix, checkDispatchInbox()'s
-// lane-action branch called spawnCli() with no try/catch: the dispatch
-// stayed 'claimed', the track's own **Lane Status** marker (already
-// flipped to 'running' right before the call) never got reverted, and
-// the uncaught throw aborted the rest of that poll tick's dispatches too.
+// Dogfooding session on 2026-08-24 (tracks 10024/10012): startNextAutoCompleteStage
+// called spawnCli() with no try/catch at all — unlike checkDispatchInbox's
+// identical call (Track 1102 F8), which already had one. A lock-contention
+// rejection there (e.g. a re-triggered auto-complete-track dispatch racing
+// an already-running stage for the same track — observed live) threw
+// straight out of the async function: the track's own **Lane Status**
+// marker (already flipped to 'running' right before the call) never got
+// reverted, the dispatch row stayed 'claimed' forever, and conversation.md
+// (what the Inbox actually reads) had no trace of what happened — an
+// entirely ordinary "another run was already in progress" bounce looked
+// like an unexplained stall.
 //
-// Run: node --test conductor/tests/track-1102-f8-dispatch-failure-reporting.test.mjs
+// Run: node --test conductor/tests/track-10024-auto-complete-spawn-failure.test.mjs
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,7 +25,7 @@ import { spawn, execSync } from 'node:child_process';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-track-1102-f8');
+const TMP = join(ROOT, '.test-tmp-track-10024-auto-complete-spawn-failure');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -86,7 +83,7 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { plan: { parallel_limit: 1, max_retries: 1, on_success: 'plan:success' } },
   }, null, 2));
 
   const trackDir = join(TMP, 'conductor/tracks/001-test-track');
@@ -102,11 +99,8 @@ function setupProject(collectorPort) {
     'Test problem.',
   ].join('\n'));
 
-  // Force checkAndClaimGitLock() to throw deterministically: a fresh
-  // (non-stale) lock already held by a different machine/pid. This is a
-  // real trigger (lock contention with another worker/user) and, unlike
-  // the git-repo-with-no-commits case, isn't self-healed by anything else
-  // in the lock-claim path.
+  // Same deterministic spawnCli-throws trigger as Track 1102 F8: a fresh,
+  // real lock already held by a different machine/pid.
   mkdirSync(join(TMP, '.conductor/locks'), { recursive: true });
   writeFileSync(join(TMP, '.conductor/locks/001.lock'), JSON.stringify({
     user: 'someone-else',
@@ -120,7 +114,7 @@ function setupProject(collectorPort) {
   return trackDir;
 }
 
-describe('Track 1102 F8: lane-action dispatch reports failure instead of hanging forever', () => {
+describe('Track 10024: auto-complete-track reports a spawn failure instead of throwing uncaught', () => {
   let collectorProc, collectorPort, worker, trackDir;
 
   before(async () => {
@@ -131,8 +125,8 @@ describe('Track 1102 F8: lane-action dispatch reports failure instead of hanging
 
     trackDir = setupProject(collectorPort);
 
-    // Deliberately NOT setting LC_SKIP_GIT_LOCK — this test needs the
-    // real git-lock/worktree path to run and fail.
+    // Deliberately NOT setting LC_SKIP_GIT_LOCK — this test needs the real
+    // git-lock/worktree path to run and fail.
     worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only'], {
       cwd: TMP,
       env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_DISPATCH_POLL_MS: '500' },
@@ -148,7 +142,7 @@ describe('Track 1102 F8: lane-action dispatch reports failure instead of hanging
     rmSync(TMP, { recursive: true, force: true });
   });
 
-  it('reports the dispatch as failed (with the real error) instead of leaving it claimed forever', async () => {
+  it('reports the auto-complete-track dispatch as failed instead of leaving it claimed forever', async () => {
     const state0 = await poll(async () => {
       const s = await getState(collectorPort);
       return s.workers.length > 0 ? s : null;
@@ -157,37 +151,31 @@ describe('Track 1102 F8: lane-action dispatch reports failure instead of hanging
 
     await enqueueDispatch(collectorPort, {
       worker_id: workerId,
-      action: 'plan',
+      action: 'auto-complete-track',
       track_number: '001',
+      payload: { track_number: '001' },
     });
 
     const finalState = await poll(async () => {
       const s = await getState(collectorPort);
-      const d = s.dispatch.find(e => e.action === 'plan');
+      const d = s.dispatch.find(e => e.action === 'auto-complete-track');
       return d && d.status !== 'pending' && d.status !== 'claimed' ? s : null;
-    }, { timeout: 20000, label: 'plan dispatch resolves out of claimed/pending' });
+    }, { timeout: 20000, label: 'auto-complete-track dispatch resolves out of claimed/pending' });
 
-    const entry = finalState.dispatch.find(e => e.action === 'plan');
+    const entry = finalState.dispatch.find(e => e.action === 'auto-complete-track');
     assert.equal(entry.status, 'failed');
-    assert.match(entry.result, /locked by/i);
+    assert.match(entry.result, /could not start plan.*locked by/i);
   });
 
   it('does not leave the track\'s Lane Status marker stuck on "running"', async () => {
-    // The failure above already happened in the previous test; give the
-    // worker's revert-write a moment in case of any residual async lag.
     await sleep(500);
     const content = readFileSync(join(trackDir, 'index.md'), 'utf8');
     assert.doesNotMatch(content, /\*\*Lane Status\*\*:\s*running/i);
   });
 
   it('posts the failure to conversation.md — visible in the Inbox, not just the dispatch table', async () => {
-    // Track 10024/10012 dogfooding session: a lock-contention rejection was
-    // only ever visible by digging through worker_dispatch rows and lock
-    // files by hand — conversation.md (what the Inbox/Conversation tab
-    // actually reads) had no trace of it, so an entirely ordinary "another
-    // run was already in progress" bounce looked like an unexplained stall.
     const convPath = join(trackDir, 'conversation.md');
     const content = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
-    assert.match(content, /\*\*system\*\*:.*plan could not start:.*locked by/i);
+    assert.match(content, /\*\*system\*\*:.*could not start plan.*locked by/i);
   });
 });

@@ -2,6 +2,7 @@
 
 **Status**: plan
 **Progress**: 0%
+**Last Run**: mock (primary)
 
 ## Problem
 Test description
@@ -11,7 +12,7 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: done
+**Lane**: plan
 **Lane Status**: success
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Summary**: Test description

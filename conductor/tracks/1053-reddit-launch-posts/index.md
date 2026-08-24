@@ -1,8 +1,9 @@
 # Track 1053: Reddit Launch Posts
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: KPI Window — waiting 72h
 **Type**: marketing
 **Summary**: All direct posts removed (karma). Submitted to r/ClaudeAI Built with Claude Showcase Megathread — live. r/LocalLLaMA and r/SideProject deferred until karma established.

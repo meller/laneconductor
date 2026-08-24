@@ -24,6 +24,7 @@ import { KpiRollupPanel } from './components/KpiRollupPanel.jsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { AccountPanel } from './pages/AccountPanel.jsx';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 
 function timeAgo(date) {
   if (!date) return null;
@@ -83,7 +84,11 @@ function AppInner() {
   }
   if (!user) return <LoginPage />;
 
-  return <AppContent user={user} logout={logout} />;
+  return (
+    <ErrorBoundary>
+      <AppContent user={user} logout={logout} />
+    </ErrorBoundary>
+  );
 }
 
 function AppContent({ user, logout }) {
@@ -166,8 +171,8 @@ function AppContent({ user, logout }) {
     setActiveTrack({ projectId: pid, trackNumber: track.track_number });
   }
 
-  function handleInboxSelect(projectId, trackNumber) {
-    setActiveTrack({ projectId, trackNumber, initialTab: 'conversation' });
+  function handleInboxSelect(projectId, trackNumber, opts) {
+    setActiveTrack({ projectId, trackNumber, initialTab: 'conversation', openTranscript: Boolean(opts?.transcript) });
     setInboxOpen(false);
   }
 
@@ -600,6 +605,7 @@ function AppContent({ user, logout }) {
           projectId={activeTrack.projectId}
           trackNumber={activeTrack.trackNumber}
           initialTab={activeTrack?.initialTab}
+          initialTranscriptOpen={activeTrack?.openTranscript}
           onClose={() => setActiveTrack(null)}
         />
       )}
