@@ -647,6 +647,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
               t.assignee_uid, t.created_by_uid, t.waiting_for_reply, t.auto_run, p.owner_uid,
               t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
+              t.workspace_mode,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -1572,6 +1573,17 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       }
     }
 
+    // Track 1115: same only-write-when-set / remove-when-null pattern as merge_mode above.
+    if (updates.workspace_mode !== undefined) {
+      if (updates.workspace_mode === null) {
+        content = content.replace(/^\*\*Workspace\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Workspace\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Workspace\*\*:\s*.+$/m, `**Workspace**: ${updates.workspace_mode}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Workspace**: ${updates.workspace_mode}`) || content;
+      }
+    }
+
     // Write back to file
     writeFileSync(trackIndexPath, content, 'utf8');
 
@@ -2377,6 +2389,10 @@ app.post('/track', collectorAuth, async (req, res) => {
       // Track 10018: per-track merge mode marker (null = unspecified, kept
       // distinct from 'pr' so resolveMergeMode's default stays overridable)
       merge_mode,
+      // Track 1115: per-track workspace mode marker (null = unspecified,
+      // kept distinct from 'branch' so resolveWorkspaceMode's default stays
+      // overridable)
+      workspace_mode,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -2488,6 +2504,8 @@ app.post('/track', collectorAuth, async (req, res) => {
       // below so an unspecified file never clobbers an explicit DB value
       // (e.g. one set via the track detail panel's toggle).
       merge_mode ?? null,
+      // $29: workspace_mode — same COALESCE reasoning as merge_mode above.
+      workspace_mode ?? null,
     ];
 
     // Track 10013 Phase 5: only a genuine new claim (isGenuineClaim) resets
@@ -2504,9 +2522,9 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply, auto_run, merge_mode)
+       waiting_for_reply, auto_run, merge_mode, workspace_mode)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29)
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29, $30)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2536,7 +2554,8 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
       waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
       auto_run           = COALESCE($28, tracks.auto_run),
-      merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode)
+      merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode),
+      workspace_mode     = COALESCE(EXCLUDED.workspace_mode, tracks.workspace_mode)
     RETURNING id
   `, params);
 
@@ -2596,7 +2615,9 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
       auto_planning_launched, auto_implement_launched, auto_review_launched,
       waiting_for_reply,
       // Track 10018: merge mode + PR tracking fields
-      merge_mode, pr_number, pr_url, pr_status } = req.body;
+      merge_mode, pr_number, pr_url, pr_status,
+      // Track 1115: workspace mode
+      workspace_mode } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2626,6 +2647,12 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
       }
       sets.push(`merge_mode = $${i++}`); params.push(merge_mode);
     }
+    if (workspace_mode !== undefined) {
+      if (workspace_mode !== null && !['main', 'branch'].includes(workspace_mode)) {
+        return res.status(400).json({ error: `Invalid workspace_mode: "${workspace_mode}". Must be "main" or "branch".` });
+      }
+      sets.push(`workspace_mode = $${i++}`); params.push(workspace_mode);
+    }
     if (pr_number !== undefined) { sets.push(`pr_number = $${i++}`); params.push(pr_number); }
     if (pr_url !== undefined) { sets.push(`pr_url = $${i++}`); params.push(pr_url); }
     if (pr_status !== undefined) { sets.push(`pr_status = $${i++}`); params.push(pr_status); }
@@ -2640,6 +2667,7 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (lane_action_status !== undefined) syncUpdates.lane_action_status = lane_action_status;
     if (progress_percent !== undefined) syncUpdates.progress_percent = progress_percent;
     if (merge_mode !== undefined) syncUpdates.merge_mode = merge_mode;
+    if (workspace_mode !== undefined) syncUpdates.workspace_mode = workspace_mode;
     if (Object.keys(syncUpdates).length > 0) {
       syncTrackToFile(projectId, req.params.num, syncUpdates).catch(err =>
         console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)

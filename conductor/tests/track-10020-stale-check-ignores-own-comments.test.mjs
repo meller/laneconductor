@@ -83,14 +83,14 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1, on_success: 'review:queue' } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1, on_success: 'review:queue' } },
   }, null, 2));
 
   mkdirSync(trackDir, { recursive: true });
   writeFileSync(indexPath, [
     '# Track 001: Test Track',
     '',
-    '**Lane**: plan',
+    '**Lane**: implement',
     '**Lane Status**: queue',
     '**Progress**: 0%',
     '',
@@ -133,7 +133,7 @@ describe('Track 10020: the agent\'s own mid-run comment must NOT be mistaken for
     const state0 = await poll(async () => { const s = await getState(collectorPort); return s.workers.length > 0 ? s : null; });
     const workerId = state0.workers[0].id;
 
-    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
     await poll(async () => {
       const content = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
@@ -147,11 +147,11 @@ describe('Track 10020: the agent\'s own mid-run comment must NOT be mistaken for
 
     const finalState = await poll(async () => {
       const s = await getState(collectorPort);
-      const d = s.dispatch.find(e => e.action === 'plan');
+      const d = s.dispatch.find(e => e.action === 'implement');
       return d && d.status === 'done' ? s : null;
     }, { timeout: 15000, label: 'dispatch resolves' });
 
-    const finalEntry = finalState.dispatch.find(e => e.action === 'plan');
+    const finalEntry = finalState.dispatch.find(e => e.action === 'implement');
     assert.equal(finalEntry.status, 'done');
 
     // The critical assertion: the lane DID advance to review, and progress

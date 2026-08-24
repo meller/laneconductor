@@ -96,14 +96,14 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1, on_success: 'review:queue' } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1, on_success: 'review:queue' } },
   }, null, 2));
 
   mkdirSync(trackDir, { recursive: true });
   writeFileSync(indexPath, [
     '# Track 001: Test Track',
     '',
-    '**Lane**: plan',
+    '**Lane**: implement',
     '**Lane Status**: queue',
     '**Progress**: 0%',
     '',
@@ -155,7 +155,7 @@ describe('Track 10020: a mid-run conversation.md message must not be silently mi
     }, { label: 'worker registered' });
     const workerId = state0.workers[0].id;
 
-    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
     // Wait until the dispatch has been claimed and spawnCli has started
     // (marked "running") — its context is now frozen.
@@ -173,19 +173,19 @@ describe('Track 10020: a mid-run conversation.md message must not be silently mi
     // exit; nothing about the run itself failed).
     const finalState = await poll(async () => {
       const s = await getState(collectorPort);
-      const d = s.dispatch.find(e => e.action === 'plan');
+      const d = s.dispatch.find(e => e.action === 'implement');
       return d && d.status === 'done' ? s : null;
     }, { timeout: 15000, label: 'dispatch resolves' });
 
-    const finalEntry = finalState.dispatch.find(e => e.action === 'plan');
+    const finalEntry = finalState.dispatch.find(e => e.action === 'implement');
     assert.equal(finalEntry.status, 'done', 'the dispatch itself still completes normally');
 
     // The critical assertions: despite a clean exit and an on_success
-    // transition configured for 'plan', the track must NOT have advanced to
+    // transition configured for 'implement', the track must NOT have advanced to
     // 'review' or been left at a terminal 'success' — it must be back at
     // 'queue', same lane, ready for an immediate fresh re-run.
     const content = readFileSync(indexPath, 'utf8');
-    assert.match(content, /\*\*Lane\*\*:\s*plan/i, 'must NOT have advanced to review — this run\'s success is stale, not trustworthy');
+    assert.match(content, /\*\*Lane\*\*:\s*implement/i, 'must NOT have advanced to review — this run\'s success is stale, not trustworthy');
     assert.match(content, /\*\*Lane Status\*\*:\s*queue/i, 'must be back at queue, not left at success, so the next dispatch picks up the fresh message');
     assert.doesNotMatch(content, /\*\*Progress\*\*:\s*100%/, 'must not have been marked 100% complete off a stale run');
   });
