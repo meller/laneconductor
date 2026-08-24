@@ -1,6 +1,6 @@
 # Track 1092: CI/CD Tab — Deploy Config, Dispatch History & deploy.sh Builder
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
