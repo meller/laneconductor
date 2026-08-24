@@ -1,9 +1,9 @@
 # Track 1092: CI/CD Tab — Deploy Config, Dispatch History & deploy.sh Builder
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation
 **Type**: dev
 **Summary**: A dedicated CI/CD tab (alongside Lanes and Workers) that consolidates deployment config, dispatch history, and an interactive deploy.sh builder — so the entire deploy lifecycle lives in one place.
