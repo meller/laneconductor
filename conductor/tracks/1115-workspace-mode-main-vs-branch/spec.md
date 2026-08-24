@@ -72,16 +72,33 @@ index.md's option (c): require a track to be human-approved once before an
 agent may use main mode. Not built now — it is machinery for a problem not
 yet observed.
 
-**Option (d) was considered and not taken.** Track 10018's per-track merge
-mode makes a fourth option available: drop bug→main defaulting entirely,
-let bug tracks be `branch` + `merge_mode: direct` (fast integration, no PR
-ceremony, still quarantined), and reserve main strictly for motivations #1
-and #2. This is *simpler and more predictable* than D1 — the mode would
-always be explicit, never inferred, and a track's behavior would not depend
-on how it was launched. It is not taken now only because 10018 has not
-landed and this track should not depend on unlanded work. **If 10018 lands
-before this track's Phase 2, option (d) should be reopened** — it would let
-D3 be deleted outright, which is a real simplification.
+**Option (d) was considered and not taken — but is now the likely
+successor.** Track 10018's per-track merge mode makes a fourth option
+available: drop bug→main defaulting entirely, let bug tracks be `branch` +
+`merge_mode: direct` (fast integration, no PR ceremony, still quarantined),
+and reserve main strictly for motivations #1 and #2. This is *simpler and
+more predictable* than D1 — the mode would always be explicit, never
+inferred, and a track's behavior would not depend on how it was launched.
+It was not taken because 10018 had not landed and this track should not
+depend on unlanded work.
+
+**Status check, 2026-08-19 replan:** 10018 is at `implement`, 98%, with no
+`merge_mode` yet in worker code — imminent, not landed. Since this track
+has not begun Phase 2, 10018 will very likely land first. Option (d) is
+therefore promoted from "considered alternative" to a **gate on Phase 2**:
+see plan.md Phase 2 Task 0. If 10018 has landed when implementation
+starts, adopt option (d) — it deletes D3 and D5 rows 3–4 outright, leaving
+the resolver as plan-lane → marker → project default → branch. Do not
+implement both designs.
+
+**Sibling convention (confirmed against 10018's spec.md:14-15):** 10018
+ships `**Merge Mode**: pr|direct` with a nullable `tracks.merge_mode`
+column and a `resolveMergeMode(track)` function that keeps `NULL`
+("never specified") distinct from an explicit value — structurally
+identical to this track's `**Workspace**` marker, nullable
+`tracks.workspace_mode`, and `resolveWorkspaceMode()`. This is
+convergent design, not coincidence: prefer co-locating the two resolvers
+over inventing a second convention.
 
 ### D2 — Config surface: one marker, not two
 
