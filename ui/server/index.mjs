@@ -435,6 +435,25 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     const { repo_path } = result.rows[0];
 
+    // Track 1096 Phase 7: optional cli/model let the picker on this button
+    // choose worker #1's own provider, the same --cli/--model flags
+    // /workers/start-new already forwards for additional numbered workers
+    // (track 10011). Deliberately NOT written into .laneconductor.json —
+    // sync.mjs applies these in-memory only, by design (see its own
+    // comment: "this worker instance's own choice, not a change to the
+    // project default"). Omitting the body keeps prior behavior exactly:
+    // no flags, worker boots on whatever the project default already is.
+    const cli = req.body?.cli != null ? normalizeProviderId(req.body.cli) : null;
+    const VALID_CLIS = [...PROVIDER_IDS, 'other'];
+    if (cli !== null && !VALID_CLIS.includes(cli)) {
+      return res.status(400).json({ error: 'Invalid CLI engine' });
+    }
+    const model = req.body?.model || null;
+
+    const args = ['start'];
+    if (cli) args.push('--cli', cli);
+    if (model) args.push('--model', model);
+
     // Track 1114 (found live, real bug): `make lc-start` assumed every
     // project's own Makefile defines an `lc-start` target — this repo's
     // does, but that's not guaranteed (confirmed live: `aitutor`/coachai
@@ -442,8 +461,10 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
     // `lc start` is the actual CLI command Makefile targets like this one
     // just wrap — calling it directly removes the per-project Makefile
     // dependency entirely, matching the same direct-CLI approach already
-    // used by POST /api/projects/:id/workers/start-new.
-    const { stdout, stderr } = await execAsync('lc start', { cwd: repo_path });
+    // used by POST /api/projects/:id/workers/start-new. execFileAsync (not
+    // execAsync's shell string) because cli/model are free text from the
+    // request body — same injection concern as /workers/start-new.
+    const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
     res.json({ ok: true, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3709,9 +3730,19 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
         // this codebase's own established fixture-naming convention —
         // excluding both is safe for real remote-api workers, which use
         // neither.
+        //
+        // Prefer an idle worker (current_task IS NULL) over a busy one so
+        // this fallback load-balances across the project's live workers
+        // instead of always piling onto the same lowest-id one — observed
+        // live: two idle workers sat unused while every dispatch kept
+        // landing on the same busy worker, serializing work that could
+        // have run in parallel. `id` only breaks ties within the same
+        // idle/busy bucket, so behavior is unchanged when all workers are
+        // idle or all are busy.
         const { rows: any } = await pool.query(
           `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
+           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%')
+           ORDER BY (current_task IS NOT NULL), id LIMIT 1`,
           [req.params.id]
         );
         resolvedWorkerId = any[0]?.id ?? null;

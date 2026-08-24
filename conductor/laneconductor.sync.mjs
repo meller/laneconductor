@@ -3896,7 +3896,30 @@ async function reconcilePrTracks() {
     if (resolveMergeMode({ merge_mode: parseMergeModeMarker(content) }) !== 'pr') continue;
 
     const prNumberMatch = content.match(/\*\*PR Number\*\*:\s*(\d+)/i);
-    if (!prNumberMatch) continue; // no PR opened yet for this track — nothing to poll
+    if (!prNumberMatch) {
+      // openTrackPrOnDone is normally fired once, in-process, by spawnCli's
+      // own exit handler right after a track reaches done:success — a
+      // single fire-and-forget call with no retry: a worker restart at the
+      // wrong instant (or anything else interrupting that continuation)
+      // drops it silently, forever, with nothing to notice or retry.
+      // Observed live: tracks sitting at done:success with merge_mode 'pr'
+      // and no PR for DAYS (track 1111, since 2026-08-20) — not just
+      // restart-interrupted ones from the same session. Make PR creation a
+      // reconciled invariant instead of a one-shot action, mirroring how
+      // reconcileWorktrees() already self-heals direct-mode merges the
+      // same way (see its own Track 10018 TC-2.5 comment).
+      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+      const laneStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+      const isDoneSuccess = laneMatch?.[1]?.trim().toLowerCase() === 'done'
+        && laneStatusMatch?.[1]?.trim().toLowerCase() === 'success';
+      if (!isDoneSuccess) continue; // not finished yet — nothing to open a PR for
+      const worktreePath = join(repoRoot, '.worktrees', trackNumber);
+      if (!existsSync(worktreePath)) continue; // nothing left to push from
+      if (existsSync(join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`))) continue; // actively claimed — don't race a running session
+      console.log(`[reconcile-pr] track ${trackNumber}: done:success with merge_mode=pr and no PR yet — opening one`);
+      await openTrackPrOnDone(trackNumber, worktreePath);
+      continue; // openTrackPrOnDone writes its own PR markers; picked up by polling next cycle
+    }
     const currentStatusMatch = content.match(/\*\*PR Status\*\*:\s*(\S+)/i);
     if (currentStatusMatch && ['merged', 'closed'].includes(currentStatusMatch[1].toLowerCase())) continue; // terminal — nothing left to poll
 
@@ -5393,9 +5416,31 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
     const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
     return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
   };
+  const originalLaneActionStatus = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim() || 'queue';
   writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
   const proj = getProject();
-  const spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  // Unlike checkDispatchInbox's identical spawnCli call, this one had no
+  // try/catch — a lock-contention or worktree-setup failure (observed
+  // live: a second auto-complete-track stage racing an already-running
+  // one for the same track) threw straight out of this async function,
+  // permanently stuck the file's Lane Status on 'running' with nothing to
+  // ever revert it, and left the dispatch row silently 'claimed' forever.
+  let spawnedPid;
+  try {
+    spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  } catch (err) {
+    logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
+    writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+    const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
+    await reportAutoCompleteResult(dispatchId, 'failed', resultText);
+    try {
+      appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+    } catch (writeErr) {
+      logger.warn({ trackNumber, err: writeErr.message }, '[auto-complete] Failed to post spawn-failure conversation comment');
+    }
+    activeAutoComplete.delete(trackNumber);
+    return;
+  }
   logger.info({ trackNumber, currentLane, spawnedPid, dispatchId }, '[auto-complete] stage started');
   // stagesRun is the history BEFORE this stage — appended with the lane
   // just started so reconcileAutoComplete's next check has an accurate
@@ -6701,6 +6746,19 @@ async function checkDispatchInbox() {
         .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
       await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: originalLaneActionStatus, lane_action_result: err.message })
         .catch(e => logger.warn({ trackNumber, err: e.message }, '[dispatch] Failed to reset track lane_action_status after spawn failure'));
+      // Previously only visible by digging through the dispatch table and
+      // lock files (observed live: a lock-contention rejection — a second
+      // dispatch racing an already-running session for the same track —
+      // left conversation.md and the Inbox with no trace of what happened,
+      // making a completely ordinary "another run was already in
+      // progress" bounce look like an unexplained stall). Post it where a
+      // human is actually looking.
+      try {
+        appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
+          `\n> **system**: ${entry.action} could not start: ${err.message}\n`);
+      } catch (writeErr) {
+        logger.warn({ trackNumber, err: writeErr.message }, '[dispatch] Failed to post spawn-failure conversation comment');
+      }
     }
   }
 }
