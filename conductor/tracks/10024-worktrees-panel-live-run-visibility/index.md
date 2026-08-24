@@ -1,9 +1,9 @@
 # Track 10024: Worktrees panel: live run visibility
 
-**Status**: plan
-**Step**: complete
+**Status**: implement
+**Step**: coding
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Waiting for reply**: no
 
 ## Problem
@@ -68,10 +68,10 @@ Phase 4 `transcriptOpen` drawer open (open-only — never force-closes). No new
 API endpoint, no worker join, no third transcript mechanism.
 
 ## Phases
-- [ ] Phase 1: Run-state helper (`ui/src/lib/worktreeRunState.js`) + unit tests
-- [ ] Phase 2: Clickable Running badge + transcript intent in WorktreesPanel
-- [ ] Phase 3: `initialTranscriptOpen` plumbing (App → TrackDetailPanel)
-- [ ] Phase 4: Real-browser Playwright verification + no-backend-surface check
-**Lane**: plan
-**Lane Status**: success
+- [x] Phase 1: Run-state helper (`ui/src/lib/worktreeRunState.js`) + unit tests
+- [x] Phase 2: Clickable Running badge + transcript intent in WorktreesPanel
+- [x] Phase 3: `initialTranscriptOpen` plumbing (App → TrackDetailPanel)
+- [x] Phase 4: Real-browser Playwright verification + no-backend-surface check
+**Lane**: review
+**Lane Status**: queue
 **Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no new API or worker join.
