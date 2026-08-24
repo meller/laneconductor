@@ -626,3 +626,42 @@ Gap 2 (slow tier) and `track-1033-sharing` are unchanged and still require
 the same human decision requested in review #3 / the quality-gate run —
 nothing here touches live shared infrastructure or spawns a real agent
 session, so none of it needed that approval.
+
+## ⚠️ Review #4 — 2026-08-24 (FAIL, same criterion; Gap 4 fix confirmed solid; one new related finding)
+
+Re-verified rather than trusting implement pass 4's marks:
+
+- **Gap 4 fix confirmed**: 1 solo run (11/0/6) + 2 rounds of genuinely
+  concurrent paired invocations, all clean. The visibility-badge and
+  worktree-panel collisions implement pass 4 fixed are solid.
+- **New finding, not covered by Gap 4's fix**: one of the two concurrent
+  fast-tier runs in the first paired check failed —
+  `worker-identity.spec.js`'s "Revoke API key removes it from list"
+  (`rowsAfter < rowsBefore` assertion, line ~207). This test counts
+  **all** `api-key-row` elements for the project before/after revoking
+  the one key it generated — under a second concurrent invocation
+  generating its own key in the same window, the global count can rise
+  from the other run exactly as this run's own revoke lowers it, netting
+  a false "didn't decrease." Re-ran the same spec concurrently twice more
+  afterward and it passed both times — consistent with a genuine
+  timing-dependent race (intermittent by nature), not a deterministic
+  bug, and not disproven by a clean re-run.
+- This is the **same class of issue** `plan.md`'s own Phase 4 analysis
+  already named for a different pairing (worker-identity vs.
+  track-1033-e2e both mutating API keys on the same project) — just not
+  previously considered for two concurrent copies of *the same* spec.
+  Not something Gap 4's fix touched (that fix was scoped to fixture
+  hostnames/track numbers, not API-key row counting).
+- Not fixed here — review evaluates, doesn't patch. A safe, code-only fix
+  for a future implement pass: scope the before/after count to keys
+  matching this run's own generated key name (already pid-suffixable, same
+  pattern as Gap 4's fix) rather than counting the whole project's rows.
+
+**Verdict: still FAIL**, unchanged reason — Gap 2 (slow tier never
+observed green) and `track-1033-sharing`'s skipped tests remain unmet
+against spec.md's literal acceptance criteria, and no human decision has
+been recorded since review #3 despite three separate requests
+(review #3, the quality-gate run, implement pass 4's close-out). Per
+`workflow.json` this transitions to `implement:queue` again. Recording
+plainly, again: nothing here requires further automated cycling to
+resolve — it requires the decision already on the table.
