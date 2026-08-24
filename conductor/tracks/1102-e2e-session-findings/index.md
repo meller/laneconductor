@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 87%
-**Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both…
+**Progress**: 82%
+**Phase**: 14 of 17 phases done. Phase 15a (F15 real E2E) fixed and mutation-verified; found a second F22 drift instance along the way. Remaining: Phase 13 (F10c live-DB apply, blocked on Phase 16), Phase 16 (F22 — merge main, re-timestamp, apply), Phase 15b (browser drag gesture, needs consent)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
