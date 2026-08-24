@@ -1,9 +1,9 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: implement
+**Lane Status**: success
 **Progress**: 90%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implemented Phase 7 — Start-worker CLI/model picker (course-corrected to reuse track 10011's in-memory --cli/--model mechanism, not a .laneconductor.json write) and the missing heartbeat test. 25/25 tests pass. Only Task 4.2 (browser E2E) remains, and could not be attempted this run — see conversation.md.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
@@ -53,4 +53,4 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (new-worker
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
-**Waiting for reply**: no
+**Waiting for reply**: yes
