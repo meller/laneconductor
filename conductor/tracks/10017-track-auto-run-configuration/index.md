@@ -13,4 +13,5 @@ To be defined.
 - [ ] Phase 1: Implementation
 **Lane**: implement
 **Lane Status**: running
-**Summary**: All 6 phases implemented and tested — auto_run gate live in claim-scope.mjs, API + UI toggle wired, DB→FS sync-back verified end-to-end.
+**Summary**: All 7 phases implemented, tested with real DB/worker/browser verification (see conversation.md) — grep for "auto_run" now returns real matches across sync.mjs, claim-scope.mjs, index.mjs, and…
+**Waiting for reply**: no

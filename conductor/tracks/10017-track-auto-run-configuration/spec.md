@@ -63,6 +63,16 @@ wording confirms this is intended ("if no indicator - dont pick it up").
   plus a short note under `/laneconductor implement`/auto-launch docs, is
   added to `.claude/skills/laneconductor/SKILL.md` (this repo IS the
   canonical skill source, not a symlink target).
+- REQ-8 (added on re-open, 2026-08-24): the "Complete & Merge" button
+  (`WorktreesPanel.jsx`, `auto-complete-track` dispatch) sets `auto_run:
+  true` on confirm — as part of, not instead of, its existing dispatch —
+  and best-effort ensures a `sync+poll` worker is registered (provisioning
+  one via the existing `/workers/start-new` endpoint, extended with a
+  `sync_and_work` flag, if none is live), so the flag it just set is
+  actually meaningful going forward. The button's existing two-step
+  armed-confirm (`useArmedConfirm`) is the confirmation gate — no new
+  dialog — carrying the wording "This will send the track to an automatic
+  worker to complete it — is that OK?" in its tooltip.
 
 ## Non-Goals
 - No change to the assignee gate (track 1084) or `--only-tracks` (track
