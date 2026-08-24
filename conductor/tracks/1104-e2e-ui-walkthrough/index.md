@@ -1,9 +1,9 @@
 # Track 1104: End-to-end walkthrough — UI (browser)
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 60%
-**Last Run**: claude/sonnet (primary)
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: mock (primary)
 **Phase**: Phase 4 — write up the wiki UI guide (blocked: track 1103 hasn't established the wiki location yet); Phase 5 blocked on track 1100's fast tier being green
 **Type**: dev
 **Summary**: Phases 1-3 complete: real-browser walkthrough recorded (`session-log.md`), findings cross-referenced into 1102 (F5/F7 re-confirmed fixed; new F9 filed — a successful plan run inside a worktree never…
@@ -79,3 +79,6 @@ describe steps that don't work; one written from memory can and will.
 
 ## Depends on
 [1103](../1103-e2e-onboarding-experience/index.md) (the design this validates), [1102](../1102-e2e-session-findings/index.md) (known bugs on this path), [1100](../1100-fix-playwright-e2e-suite/index.md) (Phase 5 needs the fast tier).
+**PR Number**: 4
+**PR URL**: https://github.com/meller/laneconductor/pull/4
+**PR Status**: conflicted

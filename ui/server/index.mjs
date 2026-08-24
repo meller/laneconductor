@@ -101,7 +101,13 @@ const server = createServer(app);
 initWebSocket(server);
 
 // ── Dev Servers (per project) ────────────────────────────────────────────────
-// Map: projectId -> { proc, pid, url }
+// Map: projectId -> { proc, pid, url, previewCwd, previewTrack }
+// Track 10018 Phase 5: previewCwd/previewTrack are set only when the server
+// was last started pointed at a track's worktree instead of the primary
+// checkout (repo_path) — the "single dev server, swapped between
+// checkouts" preview design. In-memory only, same as pid already is; an
+// API-server restart naturally clears back to "no preview active", which
+// is the correct, honest state (nothing is running yet either way).
 const devServers = new Map();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -350,23 +356,33 @@ app.get('/api/projects/:id/workers', async (req, res) => {
 // an identical list. DISTINCT ON (hostname) dedupes to the freshest report
 // per host; each row is tagged with `host` so the UI can group by host only
 // when more than one has actually reported (the common case is exactly one).
+//
+// Track 10018: extracted so GET /tracks (below) can reuse the exact same
+// data to answer "is this done-lane track's branch actually merged yet?" —
+// a track can sit at lane_status='done' while its branch is still
+// mergeable/stranded/conflicted/pr-open; the Kanban card needs the same
+// live, git-derived truth the Worktrees panel already has, not a second,
+// possibly-stale copy of it.
+async function fetchWorktreeRows(projectId) {
+  const result = await pool.query(
+    `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
+     FROM workers
+     WHERE project_id = $1 AND worktrees IS NOT NULL
+       AND last_heartbeat > NOW() - INTERVAL '60 seconds'
+     ORDER BY hostname, last_heartbeat DESC`,
+    [projectId]
+  );
+  const rows = [];
+  for (const hostRow of result.rows) {
+    const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
+    for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
+  }
+  return rows;
+}
+
 app.get('/api/projects/:id/worktrees', async (req, res) => {
   try {
-    const projectId = req.params.id;
-    const result = await pool.query(
-      `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
-       FROM workers
-       WHERE project_id = $1 AND worktrees IS NOT NULL
-         AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-       ORDER BY hostname, last_heartbeat DESC`,
-      [projectId]
-    );
-
-    const rows = [];
-    for (const hostRow of result.rows) {
-      const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
-      for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
-    }
+    const rows = await fetchWorktreeRows(req.params.id);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -419,6 +435,25 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
     const { repo_path } = result.rows[0];
 
+    // Track 1096 Phase 7: optional cli/model let the picker on this button
+    // choose worker #1's own provider, the same --cli/--model flags
+    // /workers/start-new already forwards for additional numbered workers
+    // (track 10011). Deliberately NOT written into .laneconductor.json —
+    // sync.mjs applies these in-memory only, by design (see its own
+    // comment: "this worker instance's own choice, not a change to the
+    // project default"). Omitting the body keeps prior behavior exactly:
+    // no flags, worker boots on whatever the project default already is.
+    const cli = req.body?.cli != null ? normalizeProviderId(req.body.cli) : null;
+    const VALID_CLIS = [...PROVIDER_IDS, 'other'];
+    if (cli !== null && !VALID_CLIS.includes(cli)) {
+      return res.status(400).json({ error: 'Invalid CLI engine' });
+    }
+    const model = req.body?.model || null;
+
+    const args = ['start'];
+    if (cli) args.push('--cli', cli);
+    if (model) args.push('--model', model);
+
     // Track 1114 (found live, real bug): `make lc-start` assumed every
     // project's own Makefile defines an `lc-start` target — this repo's
     // does, but that's not guaranteed (confirmed live: `aitutor`/coachai
@@ -426,8 +461,10 @@ app.post('/api/projects/:id/worker/start', async (req, res) => {
     // `lc start` is the actual CLI command Makefile targets like this one
     // just wrap — calling it directly removes the per-project Makefile
     // dependency entirely, matching the same direct-CLI approach already
-    // used by POST /api/projects/:id/workers/start-new.
-    const { stdout, stderr } = await execAsync('lc start', { cwd: repo_path });
+    // used by POST /api/projects/:id/workers/start-new. execFileAsync (not
+    // execAsync's shell string) because cli/model are free text from the
+    // request body — same injection concern as /workers/start-new.
+    const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
     res.json({ ok: true, stdout, stderr });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -462,6 +499,12 @@ app.post('/api/projects/:id/workers/start-new', async (req, res) => {
     const args = ['start', '--worker-number', String(nextNumber)];
     if (req.body?.cli) args.push('--cli', String(req.body.cli));
     if (req.body?.model) args.push('--model', String(req.body.model));
+    // Track 10017 Phase 7: the Complete & Merge auto-provision path needs a
+    // worker that actually polls the queue — `lc start` defaults to
+    // sync-only (see bin/lc.mjs), which never claims a track regardless of
+    // auto_run. Opt-in only; every other caller of this endpoint keeps
+    // today's sync-only default.
+    if (req.body?.sync_and_work) args.push('--sync-and-work');
 
     const { stdout, stderr } = await execFileAsync('lc', args, { cwd: repo_path });
     res.json({ ok: true, worker_number: nextNumber, stdout, stderr });
@@ -602,7 +645,9 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result, t.priority,
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
-              t.assignee_uid, t.created_by_uid, t.waiting_for_reply, p.owner_uid,
+              t.assignee_uid, t.created_by_uid, t.waiting_for_reply, t.auto_run, p.owner_uid,
+              t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
+              t.workspace_mode,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -668,10 +713,38 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
       }, new Map());
     }
 
-    res.json(result.rows.map(t => ({
-      ...t,
-      assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
-    })));
+    // Track 10018: a track can sit at lane_status='done' while its branch
+    // is still mergeable/stranded/conflicted/pr-open — "done" on the board
+    // otherwise silently means "the lane action finished," not "this
+    // shipped." Cross-reference the same live, git-derived worktree state
+    // the panel uses, keyed by track_number, so the Kanban card can show
+    // the truth. Absence here (the common case) means either the track
+    // never had a branch (non-dev work, or nothing to merge) or it's
+    // already fully merged — auditWorktrees omits fully-merged branches
+    // entirely, so "not in this map" IS the "really done" signal.
+    const worktreeRows = await fetchWorktreeRows(req.params.id);
+    const worktreeByTrack = new Map(worktreeRows.filter(r => r.track).map(r => [String(r.track), r]));
+
+    res.json(result.rows.map(t => {
+      const wt = worktreeByTrack.get(String(t.track_number));
+      return {
+        ...t,
+        assignee_worker_status: resolveAssigneeWorkerStatus(workersByUid.get(resolveAssignee(t, { owner_uid: t.owner_uid })) ?? []),
+        // null when there's no live unmerged branch for this track at all
+        // (nothing to show — the common, actually-shipped case).
+        worktree_class: wt?.class ?? null,
+        worktree_pr_status: wt?.pr_status ?? null,
+        worktree_pr_url: wt?.pr_url ?? null,
+        worktree_pr_number: wt?.pr_number ?? null,
+        // Track 10018 Phase 10: null exactly when there's no live worktree
+        // row for this track (not yet past `plan`, or — once track 1115's
+        // main-direct workspace mode ships — a track configured to work
+        // directly on main with no branch at all). The frontend renders
+        // "main" for that null case; this stays the raw signal, same
+        // convention as worktree_class above.
+        worktree_branch: wt?.branch ?? null,
+      };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1252,7 +1325,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              active_cli, assignee_uid, created_by_uid
+              active_cli, assignee_uid, created_by_uid, auto_run
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1284,6 +1357,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       last_log_tail: t.last_log_tail,
       assignee_uid: t.assignee_uid, // Track 1084
       created_by_uid: t.created_by_uid, // Track 1084
+      auto_run: t.auto_run, // Track 10017
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1469,6 +1543,45 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         /^\*\*Progress\*\*:\s*.+$/m,
         `**Progress**: ${progressStr}`
       ) || (`**Progress**: ${progressStr}\n` + content);
+    }
+
+    // Track 10017: **Auto Run** is absent by default (REQ-1) — unlike the
+    // fields above, which always already exist in a scaffolded index.md, this
+    // marker frequently needs to be added rather than replaced, so this uses
+    // an explicit test/replace-or-append instead of the `replace() || fallback`
+    // pattern above (that pattern never appends: String.replace() returns the
+    // unchanged, still-truthy string on a no-match, so the `||` branch never
+    // fires — harmless for markers guaranteed present, wrong for one that isn't).
+    if (updates.auto_run !== undefined) {
+      const autoRunStr = updates.auto_run ? 'yes' : 'no';
+      const autoRunRe = /^\*\*Auto Run\*\*:\s*.+$/m;
+      content = autoRunRe.test(content)
+        ? content.replace(autoRunRe, `**Auto Run**: ${autoRunStr}`)
+        : content.trim() + `\n**Auto Run**: ${autoRunStr}\n`;
+    }
+
+    // Track 10018: only write a marker when a value was actually set — a
+    // null merge_mode (explicitly clearing back to "unspecified") removes
+    // the marker rather than writing "**Merge Mode**: null".
+    if (updates.merge_mode !== undefined) {
+      if (updates.merge_mode === null) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Merge Mode\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Merge Mode\*\*:\s*.+$/m, `**Merge Mode**: ${updates.merge_mode}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Merge Mode**: ${updates.merge_mode}`) || content;
+      }
+    }
+
+    // Track 1115: same only-write-when-set / remove-when-null pattern as merge_mode above.
+    if (updates.workspace_mode !== undefined) {
+      if (updates.workspace_mode === null) {
+        content = content.replace(/^\*\*Workspace\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Workspace\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Workspace\*\*:\s*.+$/m, `**Workspace**: ${updates.workspace_mode}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Workspace**: ${updates.workspace_mode}`) || content;
+      }
     }
 
     // Write back to file
@@ -1922,7 +2035,21 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     const { dev_command, dev_url, repo_path } = projResult.rows[0];
     if (!dev_command) return res.status(400).json({ error: 'No dev_command configured for this project' });
 
-    // Kill existing dev server if any
+    // Track 10018 Phase 5: an optional preview target — when provided, the
+    // dev server runs against that worktree's directory instead of the
+    // primary checkout, so you can test an unmerged (typically pr-mode)
+    // track's branch before approving it. `preview_cwd` is trusted as-is
+    // from the client (same trust level as every other worktree_path this
+    // API already accepts from the Worktrees panel, e.g. remove-worktree's
+    // dispatch payload) — it's always one of the paths the panel itself
+    // just displayed, sourced from this project's own git worktree list.
+    const { preview_cwd, preview_track } = req.body || {};
+    const targetCwd = preview_cwd || repo_path;
+
+    // Kill existing dev server if any — this IS the "stop current, swap"
+    // behavior: starting fresh (whether at the primary checkout or a
+    // preview target) always tears down whatever was running first, so
+    // there is only ever one dev server for this project at a time.
     if (devServers.has(projectId)) {
       const existing = devServers.get(projectId);
       if (existing.proc) {
@@ -1938,12 +2065,15 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
 
     // Spawn new dev server
     const proc = spawn('sh', ['-c', dev_command], {
-      cwd: repo_path,
+      cwd: targetCwd,
       detached: true,
       stdio: 'ignore'
     });
 
-    devServers.set(projectId, { proc, pid: proc.pid, url: dev_url });
+    devServers.set(projectId, {
+      proc, pid: proc.pid, url: dev_url,
+      previewCwd: preview_cwd || null, previewTrack: preview_cwd ? (preview_track ?? null) : null,
+    });
 
     // Save PID to DB
     await pool.query(
@@ -1952,7 +2082,7 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
     );
 
     broadcast('conductor:updated', { projectId });
-    res.json({ running: true, pid: proc.pid, url: dev_url });
+    res.json({ running: true, pid: proc.pid, url: dev_url, preview_track: preview_cwd ? (preview_track ?? null) : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2030,6 +2160,7 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
     // Check if process in Map is still alive
     let running = false;
     let pid = null;
+    let previewTrack = null;
 
     if (entry?.pid) {
       try {
@@ -2037,6 +2168,11 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
         kill(entry.pid, 0);
         running = true;
         pid = entry.pid;
+        // Track 10018 Phase 5: only meaningful when the live entry is the
+        // one we spawned this process from — a DB-PID fallback (below) has
+        // no way to know whether that process was ever a preview at all,
+        // so it correctly stays null rather than guessing.
+        previewTrack = entry.previewTrack ?? null;
       } catch (e) {
         // Process is dead
         devServers.delete(projectId);
@@ -2064,7 +2200,8 @@ app.get('/api/projects/:id/dev-server/status', async (req, res) => {
       running,
       pid,
       url: devUrl,
-      dev_command: devCommand
+      dev_command: devCommand,
+      preview_track: previewTrack,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2300,7 +2437,14 @@ app.post('/track', collectorAuth, async (req, res) => {
       track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
       kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
       kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-      waiting_for_reply,
+      waiting_for_reply, auto_run,
+      // Track 10018: per-track merge mode marker (null = unspecified, kept
+      // distinct from 'pr' so resolveMergeMode's default stays overridable)
+      merge_mode,
+      // Track 1115: per-track workspace mode marker (null = unspecified,
+      // kept distinct from 'branch' so resolveWorkspaceMode's default stays
+      // overridable)
+      workspace_mode,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
@@ -2321,12 +2465,30 @@ app.post('/track', collectorAuth, async (req, res) => {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
 
     // Fetch old state to detect transitions (index_content included for the
-    // F9 gutted-index guard below).
+    // F9 gutted-index guard below; last_updated_by for the Track 10013
+    // human-lane-override guard below).
     const oldRes = await pool.query(
-      'SELECT id, lane_status, lane_action_status, index_content FROM tracks WHERE project_id = $1 AND track_number = $2',
+      'SELECT id, lane_status, lane_action_status, last_updated_by, index_content FROM tracks WHERE project_id = $1 AND track_number = $2',
       [projectId, track_number]
     );
     const oldTrack = oldRes.rows[0];
+
+    // Track 10013 Phase 5: a stale lane action's completion sync must not
+    // clobber a lane a human has since manually moved the track to.
+    // `/track/:num/lane` marks last_updated_by='human' on every human-driven
+    // move; here, skip the lane_status/lane_action_status write whenever the
+    // row is human-owned AND the incoming lane_status disagrees with it —
+    // unless this sync is a genuine new claim (lane_action_status:'running',
+    // written by a lane action's own "claim the track immediately" step),
+    // which must always be allowed through and clears the human flag so this
+    // new run's own eventual completion isn't itself guarded. A same-lane
+    // echo (human's own write reflected back through the file watcher) must
+    // NOT clear the flag either — only a genuine claim does.
+    const isGenuineClaim = lane_action_status === 'running';
+    const humanOwned = !!(oldTrack && oldTrack.last_updated_by === 'human');
+    const laneDisagrees = !!(oldTrack && lane_status !== null && lane_status !== undefined && oldTrack.lane_status !== lane_status);
+    const humanGuardActive = humanOwned && laneDisagrees && !isGenuineClaim;
+    const preserveHumanFlag = humanOwned && !isGenuineClaim;
 
     // Track 1102 F9: refuse to replace a substantial index_content with a
     // gutted, title-less stub. Observed live: a 263-byte marker-only
@@ -2355,11 +2517,16 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     // Build UPDATE clause — avoid duplicate lane_action_status assignments
     let laneStatusClause = '';
-    const laneChanging = lane_status !== null && oldTrack && oldTrack.lane_status !== lane_status;
-    if (lane_status !== null) {
+    // humanGuardActive: a stale sync disagreeing with a human-set lane —
+    // skip the lane_status/lane_action_status write entirely (see guard
+    // computed above), leaving the human's lane in place.
+    const laneChanging = !humanGuardActive && lane_status !== null && oldTrack && oldTrack.lane_status !== lane_status;
+    if (humanGuardActive) {
+      console.warn(`[API] POST /track #${track_number}: human-lane-override guard — keeping lane_status='${oldTrack.lane_status}' (human-set), ignoring stale sync's lane_status='${lane_status}'. See track 10013.`);
+    } else if (lane_status !== null) {
       laneStatusClause = `lane_status = EXCLUDED.lane_status,`;
     }
-    if (lane_action_status !== null && lane_action_status !== undefined) {
+    if (!humanGuardActive && lane_action_status !== null && lane_action_status !== undefined) {
       // Explicit status wins over lane-change default
       laneStatusClause += ` lane_action_status = $13,`;
       if (laneChanging) {
@@ -2382,7 +2549,23 @@ app.post('/track', collectorAuth, async (req, res) => {
       // $27: waiting_for_reply — authoritative per sync (raw, possibly null so
       // ON CONFLICT can distinguish "explicitly set" from "omitted")
       waiting_for_reply === undefined ? null : waiting_for_reply,
+      // $28: auto_run — same raw-nullable pattern as waiting_for_reply, so a
+      // partial sync payload never clobbers an existing value with false
+      auto_run === undefined ? null : auto_run,
+      // $29: merge_mode — raw (possibly null/absent from the file), COALESCEd
+      // below so an unspecified file never clobbers an explicit DB value
+      // (e.g. one set via the track detail panel's toggle).
+      merge_mode ?? null,
+      // $29: workspace_mode — same COALESCE reasoning as merge_mode above.
+      workspace_mode ?? null,
     ];
+
+    // Track 10013 Phase 5: only a genuine new claim (isGenuineClaim) resets
+    // last_updated_by to 'worker'. A human-owned row that isn't being
+    // claimed keeps its flag untouched (whether this sync's lane_status
+    // agreed or was guarded away above) so a later stale completion is
+    // still caught.
+    const lastUpdatedByClause = preserveHumanFlag ? '' : `last_updated_by    = 'worker',`;
 
     const qRes = await pool.query(`
     INSERT INTO tracks
@@ -2391,9 +2574,9 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply)
+       waiting_for_reply, auto_run, merge_mode, workspace_mode)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false))
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29, $30)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
       ${laneStatusClause}
@@ -2407,7 +2590,7 @@ app.post('/track', collectorAuth, async (req, res) => {
       test_content       = COALESCE(EXCLUDED.test_content, tracks.test_content),
       last_heartbeat     = NOW(),
       sync_status        = 'syncing',
-      last_updated_by    = 'worker',
+      ${lastUpdatedByClause}
       track_type         = COALESCE(EXCLUDED.track_type, tracks.track_type, 'dev'),
       kpi_target         = COALESCE(EXCLUDED.kpi_target, tracks.kpi_target),
       kpi_actual         = COALESCE(EXCLUDED.kpi_actual, tracks.kpi_actual),
@@ -2421,16 +2604,21 @@ app.post('/track', collectorAuth, async (req, res) => {
       kpi_check_after    = EXCLUDED.kpi_check_after,
       kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
       kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
-      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply)
+      waiting_for_reply  = COALESCE($27, tracks.waiting_for_reply),
+      auto_run           = COALESCE($28, tracks.auto_run),
+      merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode),
+      workspace_mode     = COALESCE(EXCLUDED.workspace_mode, tracks.workspace_mode)
     RETURNING id
   `, params);
 
     const trackId = qRes.rows[0]?.id;
 
     // Reset retries by adding a human system comment if lane changed or manual reset to queue
+    // (humanGuardActive: the write above was skipped, so the lane did NOT
+    // actually change — don't post a misleading "Moved to X" comment)
     if (trackId && oldTrack) {
-      const laneChanged = oldTrack.lane_status !== lane_status;
-      const manuallyQueued = oldTrack.lane_action_status === 'failure' && lane_action_status === 'queue';
+      const laneChanged = !humanGuardActive && oldTrack.lane_status !== lane_status;
+      const manuallyQueued = !humanGuardActive && oldTrack.lane_action_status === 'failure' && lane_action_status === 'queue';
 
       if (laneChanged || manuallyQueued) {
         // Use is_replied=true so system-generated lane comments don't trigger auto-answer
@@ -2477,7 +2665,11 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     const { lane_action_status, lane_action_result, last_log_tail, active_cli,
       lane_status, progress_percent,
       auto_planning_launched, auto_implement_launched, auto_review_launched,
-      waiting_for_reply } = req.body;
+      waiting_for_reply,
+      // Track 10018: merge mode + PR tracking fields
+      merge_mode, pr_number, pr_url, pr_status,
+      // Track 1115: workspace mode
+      workspace_mode } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2501,6 +2693,21 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (auto_implement_launched !== undefined) { sets.push(`auto_implement_launched = $${i++}`); params.push(auto_implement_launched); }
     if (auto_review_launched !== undefined) { sets.push(`auto_review_launched = $${i++}`); params.push(auto_review_launched); }
     if (waiting_for_reply !== undefined) { sets.push(`waiting_for_reply = $${i++}`); params.push(waiting_for_reply); }
+    if (merge_mode !== undefined) {
+      if (merge_mode !== null && !['pr', 'direct'].includes(merge_mode)) {
+        return res.status(400).json({ error: `Invalid merge_mode: "${merge_mode}". Must be "pr" or "direct".` });
+      }
+      sets.push(`merge_mode = $${i++}`); params.push(merge_mode);
+    }
+    if (workspace_mode !== undefined) {
+      if (workspace_mode !== null && !['main', 'branch'].includes(workspace_mode)) {
+        return res.status(400).json({ error: `Invalid workspace_mode: "${workspace_mode}". Must be "main" or "branch".` });
+      }
+      sets.push(`workspace_mode = $${i++}`); params.push(workspace_mode);
+    }
+    if (pr_number !== undefined) { sets.push(`pr_number = $${i++}`); params.push(pr_number); }
+    if (pr_url !== undefined) { sets.push(`pr_url = $${i++}`); params.push(pr_url); }
+    if (pr_status !== undefined) { sets.push(`pr_status = $${i++}`); params.push(pr_status); }
     await pool.query(
       `UPDATE tracks SET ${sets.join(', ')} WHERE project_id = $1 AND track_number = $2`,
       params
@@ -2511,6 +2718,8 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     if (lane_status !== undefined) syncUpdates.lane_status = lane_status;
     if (lane_action_status !== undefined) syncUpdates.lane_action_status = lane_action_status;
     if (progress_percent !== undefined) syncUpdates.progress_percent = progress_percent;
+    if (merge_mode !== undefined) syncUpdates.merge_mode = merge_mode;
+    if (workspace_mode !== undefined) syncUpdates.workspace_mode = workspace_mode;
     if (Object.keys(syncUpdates).length > 0) {
       syncTrackToFile(projectId, req.params.num, syncUpdates).catch(err =>
         console.warn(`[sync-to-file] Failed to sync track ${req.params.num}:`, err.message)
@@ -3049,6 +3258,10 @@ app.patch('/track/:num/lane', collectorAuth, async (req, res) => {
       `lane_action_status = '${nextActionStatus}'`,
       `lane_action_result = NULL`,
       `last_heartbeat = NOW()`,
+      // Track 10013 Phase 5: mark this row human-owned so a stale lane
+      // action's later completion sync (POST /track) can't clobber this
+      // move — see the human-lane-override guard there.
+      `last_updated_by = 'human'`,
     ];
     const params = [projectId, req.params.num, lane_status];
     if (phase_step !== undefined) { sets.push(`phase_step = $${params.length + 1} `); params.push(phase_step); }
@@ -3594,7 +3807,12 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
     // single track (a detached worktree has no track-* branch to resolve
     // an assignee from; a cache refresh isn't track-scoped at all), so
     // both always fall straight to "any live worker for the project."
-    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'ai-resolve-conflict') && !worker_id) {
+    // Track 10018: create-pr/merge-pr are the pr-mode siblings of
+    // merge-worktree — same worker-resolution treatment (a track-scoped
+    // git/gh operation, not something the client should be picking a
+    // worker for). ai-resolve-conflict (Track 1114) gets the same
+    // treatment for the same reason.
+    if ((action === 'merge-worktree' || action === 'remove-worktree' || action === 'auto-complete-track' || action === 'refresh-worktrees' || action === 'discard-track' || action === 'create-pr' || action === 'merge-pr' || action === 'ai-resolve-conflict') && !worker_id) {
       const trackNumber = payload?.track_number;
       if (action !== 'remove-worktree' && action !== 'refresh-worktrees' && !trackNumber) {
         return res.status(400).json({ error: `payload.track_number is required for ${action}` });
@@ -3628,9 +3846,19 @@ app.post('/api/projects/:id/dispatch', async (req, res) => {
         // this codebase's own established fixture-naming convention —
         // excluding both is safe for real remote-api workers, which use
         // neither.
+        //
+        // Prefer an idle worker (current_task IS NULL) over a busy one so
+        // this fallback load-balances across the project's live workers
+        // instead of always piling onto the same lowest-id one — observed
+        // live: two idle workers sat unused while every dispatch kept
+        // landing on the same busy worker, serializing work that could
+        // have run in parallel. `id` only breaks ties within the same
+        // idle/busy bucket, so behavior is unchanged when all workers are
+        // idle or all are busy.
         const { rows: any } = await pool.query(
           `SELECT id FROM workers WHERE project_id = $1 AND last_heartbeat > NOW() - INTERVAL '60 seconds'
-           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%') ORDER BY id LIMIT 1`,
+           AND pid != 0 AND (hostname IS NULL OR hostname NOT LIKE 'pw-e2e-%')
+           ORDER BY (current_task IS NOT NULL), id LIMIT 1`,
           [req.params.id]
         );
         resolvedWorkerId = any[0]?.id ?? null;
@@ -4267,6 +4495,34 @@ app.patch('/api/projects/:id/tracks/:num/assignee', async (req, res) => {
       [assignee_uid, req.params.id, req.params.num]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10017: toggle whether a non-sync-only worker's auto-launch loop may
+// claim this track from the queue. Unlike assignee_uid (DB-only — resolved
+// server-side at claim time), auto_run is read by the worker straight out of
+// index.md (see isTrackClaimable in claim-scope.mjs), so this also syncs the
+// **Auto Run** marker back to file via syncTrackToFile so the worker's next
+// poll cycle sees the change without a manual file edit (REQ-4).
+app.patch('/api/projects/:id/tracks/:num/auto-run', async (req, res) => {
+  try {
+    const { auto_run } = req.body;
+    if (typeof auto_run !== 'boolean') {
+      return res.status(400).json({ error: 'auto_run must be a boolean' });
+    }
+    const { rowCount } = await pool.query(
+      'UPDATE tracks SET auto_run = $1 WHERE project_id = $2 AND track_number = $3',
+      [auto_run, req.params.id, req.params.num]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    // syncTrackToFile catches its own errors and never rejects — awaited here
+    // (unlike the fire-and-forget usage elsewhere) so the response only
+    // returns once the **Auto Run** marker write has actually settled.
+    await syncTrackToFile(req.params.id, req.params.num, { auto_run });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
   } catch (err) {

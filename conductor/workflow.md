@@ -34,6 +34,48 @@ Machine-readable config lives in `conductor/workflow.json`.
 Edit it directly or via `/laneconductor workflow set`.
 See `conductor/workflow.json` for lane transitions, parallel limits, and model overrides.
 
+## Workspace Modes (Track 1115)
+
+Every lane action resolves to one of two workspace modes:
+
+- **`branch`** (default) — lock → worktree → track branch → merge at
+  `done:success`. The safe default for autonomous/unattended runs: a run
+  that goes sideways stays quarantined on its own branch.
+- **`main`** — runs directly in the primary checkout. No worktree, no
+  track branch. Still takes the git lock (serializes to one lane action
+  at a time per project), and every commit made during the run must
+  reference the track (`feat(track-NNN): ...`) per the Commit Strategy
+  above — the worker injects this instruction automatically.
+
+**When to use `main`:** attended bug fixes (small, fast, worktree overhead
+dominates the change itself) and self-hosted infrastructure fixes to
+this project's own worker/API/UI, where you need to run the fix from the
+checkout that's actually serving it — a fix on a branch never takes
+effect until merged and restarted. **`branch` stays the default for
+everything else**, especially unattended/autonomous runs: a track marked
+`main` via inference alone (see `**Track Kind**` below) still runs on
+`branch` when claimed from the open queue, and only runs `main` when a
+human deliberately set `**Workspace**: main`.
+
+The `plan` lane always runs `main`-direct for every track, regardless of
+mode — it only writes the track's own docs, and the worktree for a
+`branch`-mode track is created lazily at the first lane action that
+needs one (normally `implement`), not at track creation.
+
+Two markers control this, in `index.md`:
+- `**Workspace**: main|branch` — a deliberate, explicit choice (set by a
+  human, `lc new --workspace`, or a track detail panel control). Always
+  wins, except the `plan` lane still runs `main` regardless.
+- `**Track Kind**: bug|feature` — an *inference* (from the New Track
+  modal's type selector, or `/laneconductor plan`'s own classification
+  when neither marker is set). Feeds a `bug` → `main` default, but —
+  unlike `**Workspace**` — does not survive an auto-queue claim, so an
+  inferred-but-unconfirmed bug track still runs safely on `branch` when
+  nobody is watching.
+
+See `conductor/tracks/1115-workspace-mode-main-vs-branch/spec.md` for the
+full resolution table and the reasoning behind the marker split.
+
 ## Model Overrides
 
 Which model an automated lane action uses is resolved in this order (highest wins):

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TranscriptView } from './TranscriptView.jsx';
 import { DeployLogView } from './DeployLogView.jsx';
+import { CreateProjectDispatchView } from './CreateProjectDispatchView.jsx';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { isWorkerOffline } from '../lib/workerStatus.js';

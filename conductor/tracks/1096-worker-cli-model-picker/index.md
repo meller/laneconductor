@@ -1,9 +1,9 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Plan refined — spec.md updated with Phase 6 provider-switch confirmation requirement; ready for implement
+**Phase**: Quality gate passed — all automated checks re-run fresh (found and worked around a NODE_TEST_CONTEXT env gotcha that was silently zero-running node --test), fast-tier E2E run for real, done-gate's…
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -52,3 +52,7 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (new-worker
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
+**Waiting for reply**: no
+**PR Number**: 7
+**PR URL**: https://github.com/meller/laneconductor/pull/7
+**PR Status**: closed

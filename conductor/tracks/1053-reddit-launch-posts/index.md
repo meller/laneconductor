@@ -1,8 +1,9 @@
 # Track 1053: Reddit Launch Posts
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: KPI Window — waiting 72h
 **Type**: marketing
 **Summary**: All direct posts removed (karma). Submitted to r/ClaudeAI Built with Claude Showcase Megathread — live. r/LocalLLaMA and r/SideProject deferred until karma established.
@@ -23,3 +24,6 @@
 - [x] Phase 4: Post all three (all removed — karma issue)
 - [x] Phase 5: Submit to r/ClaudeAI Showcase Megathread
 - [ ] Phase 6: KPI measurement at 72h window close (2026-05-10)
+**PR Number**: 3
+**PR URL**: https://github.com/meller/laneconductor/pull/3
+**PR Status**: merged

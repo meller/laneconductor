@@ -1173,4 +1173,3 @@ actions do report as busy.
 
 ## Spawned tracks
 [1118](../1118-manager-worker-credential-storage/index.md) — F13's deeper cause (manager credential storage), filed 2026-08-20 rather than fixed inline.
-**Waiting for reply**: yes

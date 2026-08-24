@@ -336,3 +336,332 @@ Fixed test-first, against a deliberately dirty starting state:
 The tier now recovers from dirty state on its own, which is the property
 that was missing. Gap 2 (slow tier) and Gap 3 (`make start-all` not named in
 `quality-gate.md`) remain open.
+
+## ✅ Gap 3 resolved — 2026-08-20 (implement pass 3)
+
+`quality-gate.md`'s E2E section now names the exact command
+(`make start-all`, plus `make api-start`/`make ui-start` for one service and
+a `lc worker status` / `curl` check to avoid starting a second copy) instead
+of just asserting the UI and API must be "up".
+
+## Gap 2 — investigated further, still open, and now understood to be two separable problems
+
+**This machine right now**: `ps aux` shows two ambient `--sync-only`
+workers (`worker-number 2`, `worker-number 3`) plus live Vite/API instances
+for several other worktrees (10018, and others) — i.e. genuinely busy,
+multiple tracks in flight concurrently on shared infrastructure. That's not
+a hypothetical risk, it's the observed state right now, which is exactly why
+this needs a human call rather than a judgment call made unilaterally
+inside an autonomous `implement` run.
+
+Read all three slow specs closely (not just re-run them) to find what
+`--only-tracks` (track 1109's claim-time allowlist, verified in
+`conductor/laneconductor.sync.mjs` — genuinely enforced at claim, not just
+documentation) would need to be scoped safely:
+
+| Spec | How it gets a track number | Safely scopable with `--only-tracks` today? |
+|---|---|---|
+| `brainstorm-concurrency-v2.spec.js` | Hardcoded `991`/`992`, written straight to `conductor/tracks/` on disk | **Yes** — numbers are known before the worker starts |
+| `brainstorm-concurrency.spec.js` (v1) | Clicks "New Track" in the live UI; number comes back from the POST response, so it's whatever the app's next-available counter assigns | **No** — can't pass `--only-tracks` before the number exists |
+| `new-track-plan.spec.js` | Same UI-driven creation as v1 | **No** — same problem |
+
+So Gap 2 is actually two different things, not one:
+
+1. **v2 could be run safely today** (`lc worker start --sync-and-work
+   --only-tracks 991,992 --once`) — the scoping mechanism genuinely can't
+   touch tracks 10003–10007 or anything else queued. But even this "safe"
+   path is not side-effect-free: it spawns a real Claude Code CLI planning
+   run against a fake test track, in the same live `conductor/tracks/`
+   directory the actual dashboard renders, and costs real API time. That's
+   a shared/visible/costed action on the user's live system on their
+   behalf — not something to trigger from an unattended `implement` pass
+   without asking, even though it's provably scoped.
+2. **v1 and `new-track-plan` can't be scoped at all as currently written.**
+   The fix would be real — teach them to read back the created track number
+   and spawn their own throwaway `--only-tracks <n> --once` worker rather
+   than depending on an ambient `--sync-and-work` worker that has to be
+   started externally. That's a legitimate design (turns "needs a
+   pre-existing sync+poll worker" into "each spec brings its own scoped
+   one," which would also make the slow tier runnable in CI). It's also a
+   nontrivial rewrite of test control flow that's worth scoping and
+   reviewing on its own, not something to improvise inside this pass.
+
+**Not doing either without asking first** — both because of the review's
+explicit "needs a human decision" and because independently I found this
+touches real running Claude sessions and a live shared dashboard, which is
+exactly the class of action this project's own operating guidance says to
+confirm before taking. Recommendation, for whoever makes this call:
+(a) approve running v2's already-scoped path as a one-off to at least prove
+the worker/spec mechanics work at all, and/or (b) approve the v1/
+`new-track-plan` self-scoping rewrite as its own reviewed change. Left open
+either way — see conversation.md.
+
+## ⚠️ Gap 4 (blocking) — review 2026-08-20: fast tier is not actually stable on this machine right now
+
+Implement pass 3's conversation comment claimed "None of this changes the
+fast tier (still required, still green)". Re-running it during review
+falsifies that claim under the repo's real current conditions.
+
+**Reproduction — `npx playwright test --project=fast`, four consecutive
+runs, no code changes between them:**
+
+| Run | Result | Failing spec |
+|---|---|---|
+| 1 | 3 failed, 8 passed, 6 skipped (53.0s) | `worker-identity.spec.js` — all 3 visibility-badge tests |
+| 2 | 0 failed, 11 passed, 6 skipped (20.0s) | none |
+| 3 | 1 failed, 10 passed, 6 skipped (41.4s) | `track-1112-worktree-panel.spec.js` |
+| 4 | 0 failed, 11 passed, 6 skipped (27.9s) | none |
+
+Two different spec files failed on two different runs. Both pass reliably
+in isolation:
+- `worker-identity.spec.js` alone: 6/6 passed, 21.6s (run twice).
+- `track-1112-worktree-panel.spec.js` alone: 1/1 passed, ×3 runs, ~2–3s
+  each.
+
+**This is not the same failure Gap 1 fixed.** Gap 1 was a permanent
+failure against unbroken code (ambient-visibility precondition). This is
+intermittent — same code, same machine, different outcome per run — and
+only surfaces when the full tier runs together on this machine's current
+real load.
+
+**Root cause, by evidence not guess:** `ps aux` at review time shows this
+machine running several real ambient `--sync-only` workers (heartbeat
+every 5s) plus multiple other worktrees' live Vite/API instances — the
+exact "genuinely busy" state Gap 2's investigation already documented as
+the machine's normal current condition, not a hypothetical. Two distinct
+contention mechanisms, both plausible from the code:
+1. `worker-identity.spec.js`'s visibility-badge assertions use a 10s
+   timeout that's comfortably met in isolation (<4s) but apparently not
+   always under load from the rest of the tier plus ambient activity.
+2. `track-1112-worktree-panel.spec.js` (added after this track's own
+   Phase 4 conflict analysis, so not covered by it) selects its target
+   worker via `ORDER BY last_heartbeat DESC LIMIT 1` — on a machine with
+   real workers heartbeating every 5s, that query can grab a real ambient
+   worker instead of the one the test just seeded, and the real worker's
+   own next heartbeat can overwrite the test's injected `worktrees` data
+   before the UI assertion runs.
+
+**Why this blocks, rather than being a shrug**: `quality-gate.md` states
+"Any failure is a blocker" for this tier, and `test.md`'s TC-7/TC-11
+record "3 consecutive runs, 10 passed / 0 failed each" as evidence of
+determinism. That evidence does not reproduce today. A gate that fails
+~50% of the time for reasons unrelated to the change under review trains
+people to re-run instead of trust red — precisely the failure mode this
+track's own Notes section says it exists to eliminate, just approached
+from the opposite direction (false failures instead of false passes).
+
+**Not fixed here** — review evaluates, it doesn't patch. Left for the next
+implement pass. Two independent angles worth considering, not mutually
+exclusive: (a) harden the specs against ambient concurrency — e.g.
+`track-1112-worktree-panel.spec.js` should target a worker row it fully
+owns rather than "most recently heartbeated," and any tight (~10s) UI
+timeouts in the visibility tests may need to be more generous or
+retry-friendly; (b) reconsider, as Gap 2's investigation already gestured
+at, whether asserting against this specific shared live dev instance
+(rather than an isolated project/DB) is the right execution model for a
+tier that's meant to be a trustworthy per-track gate.
+
+**Correction, added after the fact — a better-supported explanation
+surfaced by "Review #3" below, written concurrently with this one:** that
+review's 3 consecutive fast-tier runs came back clean (11/0/6, every time)
+and it independently discovered that live `localhost:8090` serves the
+**primary checkout**, not whichever worktree is running the command — so
+both this review and Review #3 were, at the same time, running the
+identical suite against the identical shared `:8090`/`:8091` backend,
+using the identical hardcoded fixture identity
+(`pw-e2e-worker`/`worker_number: 99`, same resolved `project_id`). Two
+concurrent runs mutating and asserting on the same DB row via the same
+hostname/worker_number is a far more direct and sufficient explanation for
+the mixed results above than generic ambient background-worker load — and
+it undercuts my "root cause: contention with ambient heartbeat activity"
+framing as stated. The observations themselves (the four run outcomes,
+the isolated-vs-integrated contrast) are real and stand as recorded above,
+but readers should weight "two review passes collided on one hardcoded
+fixture identity" over "the tier is inherently flaky under normal
+ambient load" until it's re-measured with no concurrent run in flight.
+That re-measurement is still worth doing before trusting this tier fully,
+but the more actionable, better-supported fix is: give shared fixtures
+(here and in `track-1112-worktree-panel.spec.js`) a run-unique identity
+(e.g. a PID or random suffix in the hostname) so concurrent runs of the
+*same* suite can't collide, rather than assuming the tier only ever runs
+alone.
+
+## track-1033-sharing.spec.js (6 skipped tests) — same shape of blocker, traced further
+
+Enabling this tier requires the **live** `ui/server/index.mjs` — the same
+process serving `:8091` for every other in-flight track on this machine
+right now — to be restarted with `PW_TEST_MODE=true`
+(`ui/server/auth.mjs:16`: `TEST_MODE = process.env.PW_TEST_MODE === 'true'`).
+That flag makes the shared server accept mock bearer tokens; it is an
+auth-bypass mode on infrastructure other people's work currently depends
+on, for the duration of the test run. Not something to toggle unilaterally
+on a shared instance. The clean fix is a dedicated `PW_TEST_MODE` server on
+its own port for this one test file, not flipping the shared one — but
+that's new infrastructure, and belongs in its own track rather than a
+quiet addition here. Recorded, not built.
+
+## ⚠️ Review #3 — 2026-08-20 (FAIL, one criterion, unchanged since review #2)
+
+Re-verified everything re-verifiable in code rather than trusting prior
+marks:
+
+- Fast tier: **11 passed, 6 skipped, 0 failed**, 3 consecutive runs
+  (~19-23s each). Count moved 10→11 since review #2 because track 1112
+  later added `track-1112-worktree-panel.spec.js`, which defaulted into
+  `fast` per `playwright.config.js`'s own stated design ("new spec matching
+  neither list lands in fast by default") — not a regression from this
+  track.
+- Gap 1 (`seedWorker()` visibility): fix confirmed present
+  (`worker-identity.spec.js`, `PATCH /api/workers/:id/visibility` call) and
+  holding.
+- Gap 3 (`make start-all` in `quality-gate.md`): confirmed present.
+- TC-14 negative test re-run: **first attempt was a false pass** — broke
+  the testid in this worktree's copy of `WorkersList.jsx` and the tier
+  stayed green, because the live `:8090` Vite dev server serves the
+  **primary checkout**, not this worktree. Redid it against the actually-
+  served file: 3/17 failed naming the exact locator, restored, verified
+  `git diff` empty and tier green again. Worth remembering for any future
+  review of this track — editing the worktree copy alone proves nothing
+  about the live UI.
+
+**Verdict: still FAIL.** Gap 2 (slow tier never observed green) and
+`track-1033-sharing`'s 6 always-skipped tests are unchanged from the last
+implement pass's investigation above — no code change resolves them, both
+require a human decision about touching live shared infrastructure. Per
+`workflow.json` this transitions to `implement:queue`, but recording here
+plainly: another automated implement pass has no new decision to act on,
+and there is no working mechanism for a dev-track implement run to pause
+and wait for a human reply (`Waiting for reply` only gates non-dev tracks
+in the sync worker's implement-resume logic) — so the likely outcome
+without direct human attention is repeated implement/review cycles with no
+forward motion on this criterion.
+
+**Also found, incidentally, on review, not something to fix here**: the
+review comment this pass tried to post to `conversation.md` did not appear
+in `track_comments` after 30s of polling (content stayed in the file,
+`.conv-cursor` advanced near the end of it, but no corresponding DB row).
+The equivalent comment from the *previous* implement pass is missing
+entirely — present in this worktree's copy, absent from primary and from
+`track_comments`. The same "file holds only its latest 'Triggering X...'
+line" pattern was also observed, at the same time, on tracks 10017, 10018,
+and 1102 — so this isn't specific to track 1100. Flagging because it means
+an AI-authored comment can be silently lost before a human ever sees it,
+which undercuts the human-in-the-loop mechanism Gap 2's resolution depends
+on. Out of scope to fix from review; worth its own track.
+
+## ❌ Quality Gate — 2026-08-20 (FAIL, same blocker as review)
+
+Invoked directly on the track while it sat in `implement:queue` after
+Review #3's FAIL. Ran the required checks for real rather than trusting
+prior marks:
+
+- Fast tier (required): **3 consecutive runs, 11 passed / 0 failed / 6
+  skipped each, ~19-20s wall**, with no concurrent Playwright process
+  running against the shared instance this time. This confirms Gap 4's
+  correction — the earlier flakiness during review was two concurrent
+  review passes colliding on one shared hardcoded fixture identity, not a
+  standing defect in the tier itself. With that contention removed, the
+  tier is clean and fast, comfortably under the ~2min target.
+- Stub/deferred-work scan on this track's files: no hits.
+- Slow tier: not run. No sync+poll worker running (`lc worker status`:
+  stopped in this worktree); starting one would claim and begin executing
+  this machine's real queued tracks, which is precisely the side-effecting
+  action still awaiting your decision. Not taken unilaterally here either.
+
+**Verdict: FAIL**, via the done-gate. spec.md's own acceptance criterion —
+"the slow tier still runs and passes when explicitly invoked" — has never
+been observed true. That's a stated requirement for this specific track,
+not a deferred nice-to-have, so a clean fast tier alone can't clear the
+gate. Per `workflow.json`'s `quality-gate.on_failure`, transitioned to
+`plan:queue`. Substance is unchanged from Review #3: the only forward
+motion available is the human decision on Gap 2 already requested twice
+in `conversation.md`.
+
+## ✅ Gap 4 resolved — 2026-08-24 (implement pass 4)
+
+Fixed for real rather than re-documented — Gap 4's own suggested angle (a):
+harden the two identified fixtures against ambient/concurrent contention.
+
+**`worker-identity.spec.js`**: `FIXTURE_HOSTNAME` was the literal
+`'pw-e2e-worker'`. Now `` `pw-e2e-worker-${process.pid}` ``, so two
+concurrent invocations upsert different `(project_id, hostname,
+worker_number)` rows instead of racing the same one.
+
+**`track-1112-worktree-panel.spec.js`**: had two independent collision
+sources, both fixed:
+1. It picked whichever worker row was `ORDER BY last_heartbeat DESC LIMIT
+   1` and mutated it directly — could grab a *real* ambient worker on this
+   normally-busy machine, and `afterAll`'s "restore" could then stomp that
+   worker's actual current state. Now registers its own dedicated fixture
+   worker (same `POST /worker/register` pattern as `seedWorker()` above),
+   keyed by a pid-unique hostname, and `afterAll` deletes the fixture row
+   outright instead of trying to restore borrowed state.
+2. Even with a unique worker/hostname, the seeded fake track numbers
+   (`'19999'`/`'19998'`) were still hardcoded literals. The worktrees panel
+   API (`fetchWorktreeRows` in `ui/server/index.mjs`) deliberately
+   aggregates across every worker/host for the project — that's the
+   feature — so two concurrent runs each seeding a card titled `#19999`
+   both land in the same aggregated panel, and `getByText('#19999')`
+   matches two elements. Made the fake track numbers pid-derived too
+   (`TRACK_MERGEABLE`/`TRACK_STRANDED`), and scoped the "Mergeable"/
+   "Stranded" badge-text assertions to each seeded card rather than
+   page-wide, since the badge text itself is generic across any concurrent
+   run's cards.
+
+**Verified against the actual failure mode, not just re-run**: two
+genuinely concurrent `npx playwright test --project=fast` invocations
+(`&` + `wait`, not sequential):
+- *Before this fix* (confirming Gap 4's diagnosis first): both concurrent
+  runs failed identically — `getByText('#19999')` resolved to 2 elements,
+  strict-mode violation.
+- *After this fix*: both concurrent runs — **11 passed, 0 failed, 6
+  skipped each**, exit 0/0.
+- Sequential run afterward: unaffected, 11 passed, 0 failed, 6 skipped.
+
+This directly answers Gap 4's open question in the affirmative: it *was*
+fixture-identity collision, not inherent flakiness under ambient load, and
+it's now provably fixed rather than merely better-explained.
+
+Gap 2 (slow tier) and `track-1033-sharing` are unchanged and still require
+the same human decision requested in review #3 / the quality-gate run —
+nothing here touches live shared infrastructure or spawns a real agent
+session, so none of it needed that approval.
+
+## ⚠️ Review #4 — 2026-08-24 (FAIL, same criterion; Gap 4 fix confirmed solid; one new related finding)
+
+Re-verified rather than trusting implement pass 4's marks:
+
+- **Gap 4 fix confirmed**: 1 solo run (11/0/6) + 2 rounds of genuinely
+  concurrent paired invocations, all clean. The visibility-badge and
+  worktree-panel collisions implement pass 4 fixed are solid.
+- **New finding, not covered by Gap 4's fix**: one of the two concurrent
+  fast-tier runs in the first paired check failed —
+  `worker-identity.spec.js`'s "Revoke API key removes it from list"
+  (`rowsAfter < rowsBefore` assertion, line ~207). This test counts
+  **all** `api-key-row` elements for the project before/after revoking
+  the one key it generated — under a second concurrent invocation
+  generating its own key in the same window, the global count can rise
+  from the other run exactly as this run's own revoke lowers it, netting
+  a false "didn't decrease." Re-ran the same spec concurrently twice more
+  afterward and it passed both times — consistent with a genuine
+  timing-dependent race (intermittent by nature), not a deterministic
+  bug, and not disproven by a clean re-run.
+- This is the **same class of issue** `plan.md`'s own Phase 4 analysis
+  already named for a different pairing (worker-identity vs.
+  track-1033-e2e both mutating API keys on the same project) — just not
+  previously considered for two concurrent copies of *the same* spec.
+  Not something Gap 4's fix touched (that fix was scoped to fixture
+  hostnames/track numbers, not API-key row counting).
+- Not fixed here — review evaluates, doesn't patch. A safe, code-only fix
+  for a future implement pass: scope the before/after count to keys
+  matching this run's own generated key name (already pid-suffixable, same
+  pattern as Gap 4's fix) rather than counting the whole project's rows.
+
+**Verdict: still FAIL**, unchanged reason — Gap 2 (slow tier never
+observed green) and `track-1033-sharing`'s skipped tests remain unmet
+against spec.md's literal acceptance criteria, and no human decision has
+been recorded since review #3 despite three separate requests
+(review #3, the quality-gate run, implement pass 4's close-out). Per
+`workflow.json` this transitions to `implement:queue` again. Recording
+plainly, again: nothing here requires further automated cycling to
+resolve — it requires the decision already on the table.

@@ -35,7 +35,8 @@ import { parseConversationComments } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
-import { parseNewJsonlLines, extractFinalAssistantText } from './stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from './stream-json-tail.mjs';
+import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
@@ -44,8 +45,11 @@ import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
+import { capContentForArgv } from './services/context-cap.mjs';
 import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
+import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
+import { checkGhAuth, createTrackPr, pollTrackPr, resolvePrStatus, mergeTrackPr } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
 import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
@@ -53,6 +57,7 @@ import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mj
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
+import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind } from './services/workspace-mode.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -1076,6 +1081,9 @@ async function refreshWorktreeSummaryCache() {
       // detached rows have no `track` number at all, so branch/path are
       // the only handles available for them.
       branch: r.branch, worktree_path: r.worktreePath,
+      // Track 10018: merge mode + PR fields, same snake_case convention as
+      // the rest of this row shape.
+      merge_mode: r.mergeMode, pr_number: r.prNumber, pr_url: r.prUrl, pr_status: r.prStatus,
       // Track 1114 Phase 18a: auditWorktrees() already computes this to
       // decide the `conflicted` classification (Phase 17) — was discarded
       // right after. Only ever non-empty when class is 'conflicted'.
@@ -1485,6 +1493,11 @@ function parseWaitingForReply(content) {
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
 }
 
+function parseAutoRun(content) {
+  const match = content.match(/\*\*Auto Run\*\*:\s*([^\n]+)/i);
+  return match ? match[1].trim().toLowerCase() === 'yes' : false;
+}
+
 // Track 1116 REQ-7: per-track model override, same marker convention as
 // **Lane**/**Progress**/**Summary**. Mirrors parseSummaryMarker — null (not
 // deriving a fallback) when the marker is absent or empty, so callers can
@@ -1512,6 +1525,15 @@ function parseTrackType(content) {
   if (!match) return 'dev';
   const val = match[1].trim().toLowerCase();
   return ['dev', 'marketing', 'sales', 'support', 'other'].includes(val) ? val : 'dev';
+}
+
+// Marker-only reader — returns null (not a default) when **Merge Mode** is
+// absent or invalid, so the FS→DB payload only pushes a value when the file
+// actually says one, letting COALESCE on the DB side preserve whatever the
+// column already holds. Track 10018 — see services/merge-mode.mjs for the
+// NULL→'pr' resolution this deliberately does NOT do here.
+function parseMergeMode(content) {
+  return parseMergeModeMarker(content);
 }
 
 function parseKpiTarget(content) {
@@ -1601,13 +1623,15 @@ function parsePhaseStep(content, laneStatus) {
 function extractTrackNumber(filepath) {
   const parts = filepath.replace(/\\/g, '/').split('/');
   const trackDir = parts[parts.length - 2] ?? '';
-  return trackDir.match(/^(\d+)/)?.[1] ?? trackDir;
+  // Matches both legacy (10022-slug) and prefixed (AM-10022-slug, KAN-100-slug)
+  return trackDir.match(/(?:^|-)(\d+)/)?.[1] ?? trackDir;
 }
 
 function extractTitle(filepath) {
   const parts = filepath.replace(/\\/g, '/').split('/');
   const trackDir = parts[parts.length - 2] ?? '';
-  return trackDir.replace(/^\d+-/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  // Strip leading prefix + number (e.g. "AM-10023-" or "10023-" or "KAN-100-")
+  return trackDir.replace(/^(?:[A-Z]+-)?[\d]+-/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 async function notifyApi(event, data) {
@@ -1759,6 +1783,12 @@ function updateIndexMDFromDB(trackFolder, dbTrack) {
     }
     if (dbTrack.content_summary) {
       content = updateMarker(content, 'Summary', dbTrack.content_summary);
+    }
+    // Track 10018: only write the marker when the DB explicitly has a value —
+    // an absent/NULL merge_mode means "unspecified", which resolveMergeMode()
+    // treats as 'pr' without ever needing the marker to say so in the file.
+    if (dbTrack.merge_mode) {
+      content = updateMarker(content, 'Merge Mode', dbTrack.merge_mode);
     }
 
     writeFileSync(indexPath, content, 'utf8');
@@ -2083,6 +2113,7 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     let laneStatus = parseStatus(stateContent, qualityGateEnabled);
     let laneActionStatusFromFile = parseLaneStatus(stateContent);
     let waitingForReply = parseWaitingForReply(stateContent);
+    const autoRun = parseAutoRun(stateContent);
 
     // If index.md exists but has no status yet, fallback to EXISTING DB state
     // rather than guessing from content which might contain "Implementation" etc.
@@ -2122,8 +2153,15 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       progress_percent: progress, current_phase: currentPhase,
       content_summary: summary, phase_step: phaseStep,
       waiting_for_reply: waitingForReply,
+      auto_run: autoRun,
       index_content: indexContent, plan_content: planContent, spec_content: specContent, test_content: testContent,
       log_content: logContent,
+      // Track 10018: per-track merge mode marker (null when unspecified —
+      // resolveMergeMode() on the read side is where NULL becomes 'pr')
+      merge_mode: parseMergeMode(stateContent),
+      // Track 1115: per-track workspace mode marker (null when unspecified —
+      // resolveWorkspaceMode() on the read side is where NULL becomes 'branch')
+      workspace_mode: parseWorkspaceMarker(stateContent),
       // KPI fields
       track_type: trackType,
       kpi_target: parseKpiTarget(stateContent),
@@ -2417,10 +2455,10 @@ async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPat
 
 // ── Watchers ──────────────────────────────────────────────────────────────────
 
-// Only process .md files inside numbered track directories (e.g. 1012-git-worktree/index.md)
-// Filters out file_sync_queue.md, test-sync.md, and any non-numbered subdirs like tracks/
-const isTrackFile = f => f.endsWith('.md') && /[/\\]\d+[^/\\]*[/\\][^/\\]+\.md$/.test(f);
-const isConvFile = f => f.endsWith('conversation.md') && /[/\\]\d+[^/\\]*[/\\]conversation\.md$/.test(f);
+// Only process .md files inside numbered track directories.
+// Matches both legacy (e.g. 1012-git-worktree/) and prefixed (e.g. AM-10023-slug/, KAN-100-slug/).
+const isTrackFile = f => f.endsWith('.md') && /[/\\](?:[A-Z]+-)?[\d]+[^/\\]*[/\\][^/\\]+\.md$/.test(f);
+const isConvFile = f => f.endsWith('conversation.md') && /[/\\](?:[A-Z]+-)?[\d]+[^/\\]*[/\\]conversation\.md$/.test(f);
 
 watch('conductor/tracks', { ignoreInitial: false, depth: 2 })
   .on('add', f => {
@@ -2596,7 +2634,7 @@ setInterval(pullTracksMetadataFromDB, 5000);
 (function resetFilesystemRunningStatus() {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
+  for (const dir of readdirSync(tracksDir).filter(d => /\d+/.test(d))) {
     const indexPath = join(tracksDir, dir, 'index.md');
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
@@ -3670,6 +3708,110 @@ async function removeWorktree(trackNumber) {
 // per-track worktree itself now (not this function) — it has to happen
 // before branch deletion, not after; see that function's doc comment for
 // the real bug (silently-undeleted branches) that ordering caused.
+// Track 10018: reads a track's merge_mode straight from its own index.md
+// (rather than the DB) so this decision works identically in local-fs mode
+// (no DB/collector at all) and never races the file→DB sync. Self-contained
+// on purpose — deliberately doesn't reuse any `content`/`trackDir` variable
+// from the caller's outer scope, since those are declared deep inside a
+// sibling try-block whose scope this function must not depend on. Defaults
+// to 'pr' (the safe default) on any read failure, same as resolveMergeMode.
+function readTrackMergeMode(root, trackNumber) {
+  try {
+    const tracksDir = join(root, 'conductor', 'tracks');
+    const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+    if (!trackDir) return 'pr';
+    const indexPath = join(tracksDir, trackDir, 'index.md');
+    if (!existsSync(indexPath)) return 'pr';
+    const idx = readFileSync(indexPath, 'utf8');
+    return resolveMergeMode({ merge_mode: parseMergeModeMarker(idx) });
+  } catch {
+    return 'pr';
+  }
+}
+
+// Track 10018 Phase 2: the PR-mode counterpart to mergeAndRemoveWorktree —
+// pushes the branch and opens a PR instead of merging locally, and leaves
+// the worktree/branch fully intact (the reconcile loop's PR poller, not
+// this function, is what eventually cleans up once GitHub reports MERGED).
+// Never falls back to a local merge on failure — per spec, a `gh`
+// precondition failure must be loud (a track comment + pr_status note),
+// not a silent divergence from the mode the track asked for.
+async function openTrackPrOnDone(trackNumber, worktreePath) {
+  const mainBranch = getMainBranch();
+  const primaryRoot = resolvePrimaryRepoRoot(worktreePath);
+
+  const auth = checkGhAuth({ cwd: worktreePath });
+  if (!auth.ok) {
+    const msg = `gh CLI is not authenticated — cannot open a PR for track ${trackNumber} (merge_mode: pr). Run 'gh auth login' on this machine. Branch and worktree left in place; track NOT merged.`;
+    console.error(`[pr-flow] ${msg}`);
+    await postToCollectors(`/track/${trackNumber}/comment`, { author: 'system', body: `⚠️ ${msg}` }).catch(() => {});
+    await patchTrackPrFields(trackNumber, { pr_status: 'error' });
+    return;
+  }
+
+  const tracksDir = join(worktreePath, 'conductor', 'tracks');
+  const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+  const titleMatch = trackDir && readIfExists(join(tracksDir, trackDir, 'index.md'))?.match(/^#\s*(.+)$/m);
+  const title = titleMatch ? titleMatch[1].trim() : `Track ${trackNumber}`;
+
+  try {
+    const { number, url } = createTrackPr({
+      repoRoot: worktreePath, trackNumber, mainBranch, title,
+      body: `Opened automatically by LaneConductor on quality-gate pass (merge_mode: pr).`,
+    });
+    console.log(`[pr-flow] Opened PR #${number} for track ${trackNumber}: ${url}`);
+    // Written to the file too (not just the DB via patchTrackPrFields below)
+    // so reconcilePrTracks — which only ever reads files, exactly like
+    // local-fs mode's every other worker-side decision — can find the PR
+    // number to poll without needing a DB round-trip.
+    if (trackDir) {
+      const indexPath = join(tracksDir, trackDir, 'index.md');
+      writeIndexMarker(indexPath, 'PR Number', number);
+      writeIndexMarker(indexPath, 'PR URL', url);
+      writeIndexMarker(indexPath, 'PR Status', 'open');
+    }
+    // Track 10018 Phase 11 (found live by the subprocess E2E test, not code
+    // review): the writes above land ONLY in the worktree's own copy of
+    // index.md. reconcilePrTracks() — the function whose entire job is to
+    // poll this PR — only ever reads the PRIMARY checkout's copy (same as
+    // every other worker-side file read), and the exit handler's generic
+    // artifact-copy already ran earlier in this same run, before these
+    // markers existed to copy. Without this, primary's index.md never gets
+    // a **PR Number**, reconcilePrTracks finds nothing to poll, and a
+    // pr-mode track's PR silently never converges no matter what GitHub
+    // reports — confirmed live: the E2E test hung forever waiting for
+    // pr_status to reach 'merged'. writeIndexMarker() (unlike the shared
+    // mergeIndexMarkers() used for Lane/Progress/etc.) already injects a
+    // missing marker rather than skipping it, so this is correct on a
+    // track's very first PR just as much as on a later status change.
+    const primaryTracksDir = join(primaryRoot, 'conductor', 'tracks');
+    const primaryTrackDir = resolveTrackFolder(primaryTracksDir, trackNumber);
+    if (primaryTrackDir) {
+      const primaryIndexPath = join(primaryTracksDir, primaryTrackDir, 'index.md');
+      writeIndexMarker(primaryIndexPath, 'PR Number', number);
+      writeIndexMarker(primaryIndexPath, 'PR URL', url);
+      writeIndexMarker(primaryIndexPath, 'PR Status', 'open');
+    }
+    await patchTrackPrFields(trackNumber, { pr_number: number, pr_url: url, pr_status: 'open' });
+    await postToCollectors(`/track/${trackNumber}/comment`, {
+      author: 'system', body: `⚠️ Opened PR #${number} for review: ${url}`,
+    }).catch(() => {});
+  } catch (err) {
+    const msg = `Failed to open a PR for track ${trackNumber}: ${err.message}. Branch and worktree left in place; track NOT merged.`;
+    console.error(`[pr-flow] ${msg}`);
+    await postToCollectors(`/track/${trackNumber}/comment`, { author: 'system', body: `⚠️ ${msg}` }).catch(() => {});
+    await patchTrackPrFields(trackNumber, { pr_status: 'error' });
+  }
+}
+
+async function patchTrackPrFields(trackNumber, fields) {
+  if (getIsLocalFs()) return; // no collector to report to
+  const { url, token } = primaryCollector();
+  if (!url) return;
+  await patch(url, token, `/track/${trackNumber}/action`, fields)
+    .catch(err => console.error(`[pr-flow] CRITICAL: failed to persist PR fields for track ${trackNumber}: ${err.message}`));
+}
+
 async function mergeAndRemoveWorktree(trackNumber) {
   const mainBranch = getMainBranch();
 
@@ -3716,6 +3858,11 @@ async function reconcileWorktrees() {
     if (row.classification !== 'mergeable' && row.classification !== 'stranded') continue;
     if (!row.trackNumber) continue;
     if (existsSync(join(lockDir, `${row.trackNumber}.lock`))) continue; // actively claimed — never merge out from under a running worker
+    // Track 10018 (TC-2.5): this safety net must never locally merge a
+    // pr-mode track's branch — that's exactly the "parked, awaiting human
+    // approval" state the mode exists to create. reconcilePrTracks() below
+    // is the pr-mode equivalent of this loop.
+    if (readTrackMergeMode(process.cwd(), row.trackNumber) === 'pr') continue;
 
     const result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: row.trackNumber, mainBranch });
     if (result.merged) {
@@ -3726,12 +3873,144 @@ async function reconcileWorktrees() {
   }
 }
 
+// Track 10018 Phase 3: the pr-mode counterpart to reconcileWorktrees — polls
+// every open-PR track via `gh pr view` and drives its pr_status, converging
+// to the same local cleanup reconcileWorktrees uses once GitHub reports the
+// PR merged. Deliberately does NOT run a local git merge on MERGED — by
+// then the merge commit already exists on the remote; bringing it into the
+// local primary checkout is the existing git-divergence safe-pull
+// mechanism's job (see checkAndPullDivergence below), not this function's.
+// Tolerates `gh` transient failures by simply leaving state untouched
+// (pollTrackPr/resolvePrStatus both return null on failure — see TC-3.5).
+async function reconcilePrTracks() {
+  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+  if (!existsSync(tracksDir)) return;
+
+  const mainBranch = getMainBranch();
+  const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+
+  for (const dirName of readdirSync(tracksDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
+    const trackNumberMatch = dirName.match(/^(\d+)-/);
+    if (!trackNumberMatch) continue;
+    const trackNumber = trackNumberMatch[1];
+    const indexPath = join(tracksDir, dirName, 'index.md');
+    if (!existsSync(indexPath)) continue;
+
+    let content;
+    try { content = readFileSync(indexPath, 'utf8'); } catch { continue; }
+    if (resolveMergeMode({ merge_mode: parseMergeModeMarker(content) }) !== 'pr') continue;
+
+    const prNumberMatch = content.match(/\*\*PR Number\*\*:\s*(\d+)/i);
+    if (!prNumberMatch) {
+      // openTrackPrOnDone is normally fired once, in-process, by spawnCli's
+      // own exit handler right after a track reaches done:success — a
+      // single fire-and-forget call with no retry: a worker restart at the
+      // wrong instant (or anything else interrupting that continuation)
+      // drops it silently, forever, with nothing to notice or retry.
+      // Observed live: tracks sitting at done:success with merge_mode 'pr'
+      // and no PR for DAYS (track 1111, since 2026-08-20) — not just
+      // restart-interrupted ones from the same session. Make PR creation a
+      // reconciled invariant instead of a one-shot action, mirroring how
+      // reconcileWorktrees() already self-heals direct-mode merges the
+      // same way (see its own Track 10018 TC-2.5 comment).
+      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+      const laneStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
+      const isDoneSuccess = laneMatch?.[1]?.trim().toLowerCase() === 'done'
+        && laneStatusMatch?.[1]?.trim().toLowerCase() === 'success';
+      if (!isDoneSuccess) continue; // not finished yet — nothing to open a PR for
+      const worktreePath = join(repoRoot, '.worktrees', trackNumber);
+      if (!existsSync(worktreePath)) continue; // nothing left to push from
+      if (existsSync(join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`))) continue; // actively claimed — don't race a running session
+      console.log(`[reconcile-pr] track ${trackNumber}: done:success with merge_mode=pr and no PR yet — opening one`);
+      await openTrackPrOnDone(trackNumber, worktreePath);
+      continue; // openTrackPrOnDone writes its own PR markers; picked up by polling next cycle
+    }
+    const currentStatusMatch = content.match(/\*\*PR Status\*\*:\s*(\S+)/i);
+    if (currentStatusMatch && ['merged', 'closed'].includes(currentStatusMatch[1].toLowerCase())) continue; // terminal — nothing left to poll
+
+    const prNumber = parseInt(prNumberMatch[1], 10);
+    const poll = pollTrackPr({ repoRoot, prNumber });
+    const newStatus = resolvePrStatus(poll);
+    if (!newStatus) continue; // transient gh failure — leave state exactly as-is (TC-3.5)
+
+    if (currentStatusMatch?.[1]?.toLowerCase() !== newStatus) {
+      console.log(`[reconcile-pr] track ${trackNumber} PR #${prNumber}: ${currentStatusMatch?.[1] || '(none)'} → ${newStatus}`);
+      writeIndexMarker(indexPath, 'PR Status', newStatus);
+      await patchTrackPrFields(trackNumber, { pr_status: newStatus });
+    }
+
+    if (newStatus === 'merged') {
+      await cleanupMergedPrTrack(trackNumber, mainBranch, repoRoot);
+    }
+  }
+}
+
+// Small, self-contained marker writer (mirrors updateHeader's pattern used
+// elsewhere in this file) — kept local rather than exported since it's only
+// ever called against a file this function just read moments ago.
+function writeIndexMarker(indexPath, marker, value) {
+  try {
+    let content = readFileSync(indexPath, 'utf8');
+    const regex = new RegExp(`\\*\\*${marker}\\*\\*:\\s*[^\\n]+`, 'i');
+    content = regex.test(content)
+      ? content.replace(regex, `**${marker}**: ${value}`)
+      : content.trim() + `\n**${marker}**: ${value}\n`;
+    writeFileSync(indexPath, content, 'utf8');
+  } catch (err) {
+    console.warn(`[reconcile-pr] Failed to write **${marker}** marker to ${indexPath}: ${err.message}`);
+  }
+}
+
+// Track 10018 Phase 3: local cleanup once GitHub reports a track's PR
+// merged. Only deletes the local track-N branch once its commits are
+// provably already reachable from local mainBranch — never races ahead of
+// the git-divergence safe-pull that's responsible for actually bringing the
+// merge commit into the local primary checkout. Worktree removal is always
+// safe regardless (it never touches the branch ref).
+async function cleanupMergedPrTrack(trackNumber, mainBranch, repoRoot) {
+  const branch = `track-${trackNumber}`;
+  let isAncestor = false;
+  try {
+    gitExec(`git merge-base --is-ancestor ${branch} ${mainBranch}`, repoRoot);
+    isAncestor = true;
+  } catch { /* not an ancestor yet (or one of the refs isn't local yet) */ }
+
+  await removeWorktree(trackNumber);
+
+  if (isAncestor) {
+    try {
+      gitExec(`git branch -D ${branch}`, repoRoot);
+      console.log(`[reconcile-pr] Deleted local branch ${branch} (merged into ${mainBranch} via GitHub PR)`);
+    } catch (err) {
+      console.warn(`[reconcile-pr] Failed to delete local branch ${branch}: ${err.message}`);
+    }
+  } else {
+    console.log(`[reconcile-pr] track ${trackNumber}: PR merged on GitHub but ${branch} isn't an ancestor of local ${mainBranch} yet — worktree removed, branch left for a later pass once the merge commit is pulled locally`);
+  }
+}
+
+// Track 10018 Phase 11: test-only override for BOTH reconcile loops below,
+// same pattern as LC_HEARTBEAT_INTERVAL_MS above — a real subprocess test
+// exercising reconcilePrTracks (push → gh pr create → poll → cleanup)
+// would otherwise need to wait a full 60s per assertion, or poll flakily.
+// Kept as a single shared constant so the two loops can't drift apart —
+// Phase 3 Task 4's "same cadence" invariant applies to the override too,
+// not just the production default.
+const RECONCILE_INTERVAL_MS = Number(process.env.LC_RECONCILE_INTERVAL_MS) || 60000;
+
 // Track 1112 Phase 3: runs on every worker regardless of mode (local-fs
 // included — worktrees are a git-local concept, not a DB one) so the RC-B
 // safety net applies no matter how a track reached done:success.
 setInterval(() => {
   reconcileWorktrees().catch(err => console.error('[reconcile error]:', err.message));
-}, 60000);
+}, RECONCILE_INTERVAL_MS);
+
+// Track 10018 Phase 3: same cadence as reconcileWorktrees — the pr-mode
+// tracks this polls are a strict subset of what that function already scans
+// (both walk conductor/tracks), so there's no reason for a different period.
+setInterval(() => {
+  reconcilePrTracks().catch(err => console.error('[reconcile-pr error]:', err.message));
+}, RECONCILE_INTERVAL_MS);
 
 // Track 10019 (Phase 4/REQ-8, REQ-9, REQ-12): the board/DB/chat only ever
 // saw a live-worktree track's docs (plan.md/spec.md/test.md/index.md) at
@@ -3870,7 +4149,7 @@ setInterval(() => {
   checkOutOfBandGitSync().catch(err => console.error('[git-sync error]:', err.message));
 }, 30000); // ticks every 30s; actual fetch cadence is governed by git.fetch_interval_ms above
 
-async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null) {
+async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null) {
   let lockFile = null;
   let worktreePath = null;
 
@@ -3880,10 +4159,78 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     projectId = proj?.id;
   }
 
+  // Track 1115: resolve this action's workspace mode BEFORE touching lock/worktree —
+  // 'main' skips createWorktree() entirely (still takes the lock, per D1/REQ-2).
+  // Read from process.cwd(), which at this point is always the primary checkout
+  // (no worktree has been created yet this call).
+  const primaryTracksDir = join(process.cwd(), 'conductor', 'tracks');
+  const primaryTrackDirName = resolveTrackFolder(primaryTracksDir, trackNumber);
+  const primaryIndexPath = primaryTrackDirName ? join(primaryTracksDir, primaryTrackDirName, 'index.md') : null;
+  const primaryIndexContent = primaryIndexPath ? (readIfExists(primaryIndexPath) || '') : '';
+  const workspaceMode = resolveWorkspaceMode({
+    laneStatus,
+    workspaceMarker: parseWorkspaceMarker(primaryIndexContent),
+    trackType: parseTrackKind(primaryIndexContent),
+    trigger,
+    projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+  });
+
+  // D10/REQ-10: main mode must refuse to start on a dirty checkout — any
+  // dirty path outside the track's OWN folder risks an agent's commit
+  // sweeping in unrelated human WIP. The track's own folder is excluded
+  // because the caller has already written **Lane Status**: running into
+  // it just before calling spawnCli.
+  //
+  // Discovered live while testing this guard (not in the original spec):
+  // the worker's OWN runtime bookkeeping — .sync.pid/.sync-N.pid,
+  // .sync.lock-target/.sync-N.lock-target, .worker.tokens.json/
+  // .worker-N.tokens.json, tracks-metadata.json — sits directly under
+  // conductor/ and is legitimately dirty during ordinary operation. A
+  // strict "own folder only" exemption blocked EVERY plan-lane spawn in
+  // ANY normal worker deployment (plan always resolves to 'main' per D6),
+  // confirmed by track-1102-f9-index-producer.test.mjs and others failing
+  // after this guard was added. These are the worker's own operational
+  // state, not human/agent WIP a commit could accidentally sweep in, so
+  // they're exempted the same as the track's own folder.
+  if (workspaceMode === 'main') {
+    const dirtyPaths = (() => {
+      try {
+        return execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
+          .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
+      } catch {
+        return [];
+      }
+    })();
+    const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
+    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json';
+    const disqualifying = dirtyPaths.filter(p =>
+      (!ownFolderPrefix || !p.startsWith(ownFolderPrefix)) && !isWorkerBookkeeping(p)
+    );
+    if (disqualifying.length > 0) {
+      console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder: ${disqualifying.join(', ')}`);
+      if (primaryIndexPath) {
+        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
+      }
+      if (primaryTrackDirName) {
+        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+        const comment = `\n> **system**: ⚠️ Main-mode run blocked — the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}. Not spawning; will retry next cycle once the checkout is clean.\n`;
+        try {
+          appendFileSync(convPath, comment, 'utf8');
+        } catch { /* best-effort — the console.warn above is the durable record either way */ }
+      }
+      const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
+      err.workspaceGuardBlocked = true;
+      throw err;
+    }
+  }
+
   if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
     try {
       lockFile = await checkAndClaimGitLock(trackNumber);
-      worktreePath = await createWorktree(trackNumber);
+      if (workspaceMode === 'branch') {
+        worktreePath = await createWorktree(trackNumber);
+      }
     } catch (err) {
       console.error(`[${label}] Failed to setup lock/worktree for track ${trackNumber}: ${err.message}`);
       if (worktreePath) await removeWorktree(trackNumber).catch(() => { });
@@ -3904,7 +4251,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       'workflow.md': 'conductor/workflow.md'
     };
     for (const [name, path] of Object.entries(docs)) {
-      const content = readIfExists(path);
+      const content = capContentForArgv(readIfExists(path), 10_000);
       if (content) contextPrompt += `\n<project_context file="${name}">\n${content}\n</project_context>\n`;
     }
 
@@ -3913,23 +4260,74 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
     if (trackDirName) {
       const trackPath = join(tracksDir, trackDirName);
+      // Confirmed live (dogfooding 2026-08-24): this whole contextPrompt is
+      // embedded as a single argv element passed to spawn() — and on this
+      // system a single argv element over ~131072 bytes fails with
+      // `spawn E2BIG`, silently making a track undispatchable (not a
+      // content-quality issue, an OS execve() limit). A track's own
+      // conversation.md is the one file here with no natural size bound —
+      // it grows for as long as the track is worked on, so it's the one
+      // most likely to cross that ceiling on any sufficiently long-lived
+      // track, independent of anything unusual about that track's content.
+      // capContentForArgv keeps the TAIL for conversation.md specifically
+      // (most recent activity is what actually matters for continuing
+      // work) and a smaller flat cap for the rest, keeping the worst-case
+      // total safely under the ~131KB ceiling with real margin for the
+      // GOAL/freshness-marker suffix added after this.
       const trackDocs = {
-        'index.md': join(trackPath, 'index.md'),
-        'spec.md': join(trackPath, 'spec.md'),
-        'plan.md': join(trackPath, 'plan.md'),
-        'test.md': join(trackPath, 'test.md'),
-        'conversation.md': join(trackPath, 'conversation.md')
+        'index.md': [join(trackPath, 'index.md'), 12_000, false],
+        'spec.md': [join(trackPath, 'spec.md'), 12_000, false],
+        'plan.md': [join(trackPath, 'plan.md'), 12_000, false],
+        'test.md': [join(trackPath, 'test.md'), 12_000, false],
+        'conversation.md': [join(trackPath, 'conversation.md'), 30_000, true],
       };
-      for (const [name, path] of Object.entries(trackDocs)) {
-        const content = readIfExists(path);
+      for (const [name, [path, maxBytes, keepTail]] of Object.entries(trackDocs)) {
+        const content = capContentForArgv(readIfExists(path), maxBytes, keepTail);
         if (content) contextPrompt += `\n<track_context file="${name}">\n${content}\n</track_context>\n`;
       }
       contextPrompt += `\nYour workspace is at: ${worktreePath || process.cwd()}\n`;
       contextPrompt += `The track you are working on is in: conductor/tracks/${trackDirName}/\n`;
+      // Track 1115 REQ-4: no track branch exists to attribute main-mode
+      // commits to, so ask the agent to reference the track explicitly —
+      // this is what closes the "commits with no track record" gap
+      // motivating this track (see conductor/workflow.md's commit convention).
+      if (workspaceMode === 'main') {
+        contextPrompt += `\nYou are working DIRECTLY on the primary checkout (no worktree, no track branch — this track's workspace mode is 'main'). Every commit you make MUST reference this track, e.g. "feat(track-${trackNumber}): ..." or "fix(track-${trackNumber}): ...", per conductor/workflow.md's commit convention.\n`;
+      }
     }
   } catch (ctxErr) {
     console.warn(`[context] Failed to gather rich context: ${ctxErr.message}`);
   }
+
+  // Track 10020: the moment conversation.md's content was actually read
+  // into contextPrompt above — this run's own knowledge of the human's
+  // side of the conversation is frozen as of here, for however long the
+  // run then takes (seconds to many minutes). Compared against
+  // conversation.md's own mtime in the exit handler below, to detect a
+  // human message that arrived DURING the run and was therefore never
+  // seen by it — not a millisecond race, a deterministic architectural
+  // gap: nothing re-reads this file once the run has started.
+  const contextFrozenAt = Date.now();
+
+  // Track 10020 (fixes a self-inflicted regression from the original
+  // contextFrozenAt-vs-mtime check below): capture which HUMAN messages
+  // were already unanswered at context-freeze time specifically, not just
+  // conversation.md's raw mtime. A plain mtime comparison also fires on the
+  // AGENT's own normal writes during its run (status comments, closing
+  // responses — routine, expected, happens on nearly every dispatch) —
+  // confirmed live: that false positive stuck track 10017's implement
+  // stage in a queue loop twice in a row, since it legitimately posts its
+  // own progress comments as part of real work. Comparing the unanswered-
+  // human-tail specifically (same extractUnansweredHumanTail used for
+  // resumed sessions below) only flags a genuine new human message, not
+  // the agent talking to itself.
+  let humanTailAtFreeze = null;
+  try {
+    const tracksDirForTail = join(worktreePath || process.cwd(), 'conductor', 'tracks');
+    const trackDirForTail = resolveTrackFolder(tracksDirForTail, trackNumber);
+    const convPathForTail = trackDirForTail ? join(tracksDirForTail, trackDirForTail, 'conversation.md') : null;
+    humanTailAtFreeze = convPathForTail ? extractUnansweredHumanTail(readIfExists(convPathForTail)) : null;
+  } catch { /* best-effort baseline — treat as "no prior unanswered tail" */ }
 
   // Inject context into the prompt (usually follows -p) — skipped on a
   // resumed session (track 1086): Claude already has this loaded from
@@ -3944,6 +4342,33 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       // Fallback to last arg if no -p found (custom CLIs)
       const originalPrompt = args[args.length - 1];
       args[args.length - 1] = `${contextPrompt}\n\nGOAL: ${originalPrompt}`;
+    }
+  } else if (session && session.isFresh === false) {
+    // Track 10020: a resumed session skips the full reload above by
+    // design, but that leaves it with no reliable way to learn a human
+    // posted something new since its last turn — it only finds out if it
+    // happens to re-check conversation.md on its own initiative, which is
+    // exactly the inconsistency observed live on track 1102 (some resumed
+    // turns caught a new note, most didn't, including one that explicitly
+    // said "nothing new" while the human's message sat unread). Inject
+    // just the trailing unanswered human message(s), not the whole file —
+    // a small, targeted addition, not the redundant-reload cost this
+    // track exists to avoid.
+    try {
+      const tracksDirForTail = join(worktreePath || process.cwd(), 'conductor', 'tracks');
+      const trackDirForTail = resolveTrackFolder(tracksDirForTail, trackNumber);
+      const convPathForTail = trackDirForTail ? join(tracksDirForTail, trackDirForTail, 'conversation.md') : null;
+      const unansweredTail = convPathForTail ? extractUnansweredHumanTail(readIfExists(convPathForTail)) : null;
+      if (unansweredTail) {
+        const pIndex = args.indexOf('-p');
+        const injectAt = pIndex !== -1 && pIndex + 1 < args.length ? pIndex + 1 : args.length - 1;
+        if (injectAt >= 0) {
+          const originalPrompt = args[injectAt];
+          args[injectAt] = `UNANSWERED MESSAGE(S) FROM THE HUMAN SINCE YOUR LAST TURN — address this before anything else:\n\n${unansweredTail}\n\nGOAL: ${originalPrompt}`;
+        }
+      }
+    } catch (err) {
+      console.warn(`[context] Failed to check for unanswered human messages: ${err.message}`);
     }
   }
 
@@ -4087,6 +4512,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
 
     const isSuccess = code === 0;
+    const logContent = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
 
     // Track 1102 F21 (original variant, distinct from the escalated
     // mid-run-doc-sync-clobber one already fixed): an agent that
@@ -4121,8 +4547,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
-    if (!isSuccess && existsSync(logPath)) {
-      const logContent = readFileSync(logPath, 'utf8');
+    if (!isSuccess && logContent) {
       isExhausted = isProviderExhausted(logContent, cli);
       if (isExhausted) {
         console.log(`[${label}] Provider ${cli} quota exhausted — re-queuing track ${trackNumber} without consuming retry`);
@@ -4139,6 +4564,56 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         console.log(`[${label}] Detected resume failure for track ${trackNumber} (session ${session.claude_session_id}) — invalidating stored session`);
         await invalidateTrackSession(trackNumber);
       }
+    }
+
+    // Track 10020: a dispatched lane action can end its turn on a genuine
+    // blocking question (post_turn_summary status_category === 'blocked')
+    // instead of finishing the work — e.g. "should I apply this DB
+    // migration?". Left undetected, that question is stranded in the raw
+    // transcript: never posted to conversation.md/track_comments (the only
+    // path a human reply flows through), so the Inbox's comment-driven
+    // bucket logic confidently reports nothing's wrong. Detected here,
+    // regardless of exit code, since a clean stop on a question is a
+    // normal end_turn (isSuccess === true).
+    const blockedQuestion = extractBlockedQuestion(logContent);
+    const isBlockedTurn = !!blockedQuestion;
+    if (isBlockedTurn) {
+      console.log(`[${label}] Track ${trackNumber}: ended its turn on a blocking question — flagging for human input instead of transitioning lanes`);
+    }
+
+    // Track 10020: a human can post a conversation.md message any time
+    // after this run's context was frozen (contextFrozenAt / humanTailAtFreeze,
+    // captured right when conversation.md was read into the prompt) — not a
+    // millisecond race, a deterministic gap: nothing re-reads this file for
+    // the rest of the run, however long it takes. If a genuinely NEW
+    // unanswered human message exists now that wasn't there at freeze time,
+    // this run never saw it, regardless of what it concluded ("nothing new
+    // has arrived" can be true from the run's own frozen view and still be
+    // wrong by the time it finishes). Don't let this run's outcome stand as
+    // final — force it back to 'queue' at the same lane so the very next
+    // dispatch starts with fresh context that DOES include the message.
+    //
+    // Deliberately NOT a raw mtime check (that was this fix's own first
+    // draft, and a real regression): the agent's OWN normal writes to
+    // conversation.md during its run — status comments, closing responses,
+    // routine on nearly every dispatch — bump the mtime just as much as a
+    // genuine human message would, incorrectly blocking any session that
+    // posts even one comment from ever advancing a lane. Confirmed live:
+    // stuck track 10017's implement stage in a queue loop twice in a row.
+    // Comparing the unanswered-human-tail specifically (same
+    // extractUnansweredHumanTail used for resumed sessions below) only
+    // flags a genuine new human message, not the agent talking to itself.
+    let isStaleAgainstNewMessage = false;
+    try {
+      const convPath = join(worktreePath || process.cwd(), 'conductor', 'tracks',
+        resolveTrackFolder(join(worktreePath || process.cwd(), 'conductor', 'tracks'), trackNumber) || '', 'conversation.md');
+      const humanTailNow = existsSync(convPath) ? extractUnansweredHumanTail(readIfExists(convPath)) : null;
+      if (humanTailNow && humanTailNow !== humanTailAtFreeze) {
+        isStaleAgainstNewMessage = true;
+        console.log(`[${label}] Track ${trackNumber}: a new unanswered human message arrived after this run's context was frozen — re-queuing instead of finalizing so the next run sees it`);
+      }
+    } catch (err) {
+      console.warn(`[${label}] Failed to check conversation.md freshness for track ${trackNumber}: ${err.message}`);
     }
 
     // 1. Check retry count using latest config (in case workflow.json reloaded)
@@ -4182,14 +4657,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // 2. Resolve target lane and status
     // Conversation/brainstorm runs (local-fs-answer) must not trigger workflow lane transitions
+    // — nor must a blocked turn: advancing the lane on a question that was
+    // never actually answered would misrepresent the track as further along
+    // than it really is (Track 10020).
     const isConversationRun = label === 'local-fs-answer';
-    const transitionValue = isConversationRun
+    const transitionValue = (isConversationRun || isBlockedTurn || isStaleAgainstNewMessage)
       ? null
       : (isSuccess
         ? (currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success)
         : (isMaxRetries ? (currentLaneConfig?.on_failure || workflowConfig?.defaults?.on_failure) : null));
 
     let { lane: targetLane, status: nextActionStatus } = resolveTransition(transitionValue, laneStatus, isSuccess, isMaxRetries);
+    // Force straight back to 'queue' (not resolveTransition's default
+    // 'success' for a same-lane stay) — this run's outcome is genuinely
+    // stale, not a normal success sitting still.
+    if (isStaleAgainstNewMessage) nextActionStatus = 'queue';
 
     // F21: never advance the lane or report success on an ended-mid-work
     // exit — stay put, re-queue, so the next claim resumes (worktree +
@@ -4269,12 +4751,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
           updated = true;
 
-          // 3. Update Progress if success (skip for conversation runs — don't force 100%)
-
-          // 3. Update Progress if success (skip for conversation runs — don't
-          // force 100%; also skip for F21's ended-mid-work case — nothing was
-          // actually verified complete, forcing 100% would be a false signal)
-          if (isSuccess && !isConversationRun && !endedMidWork) {
+          // 3. Update Progress if success (skip for conversation runs, blocked
+          // turns, and stale-against-newer-message runs — don't force 100% on
+          // unfinished work; also skip for F21's ended-mid-work case — nothing
+          // was actually verified complete, forcing 100% would be a false signal)
+          if (isSuccess && !isConversationRun && !isBlockedTurn && !isStaleAgainstNewMessage && !endedMidWork) {
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
@@ -4288,6 +4769,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
               content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: no`);
             }
             patchData.waiting_for_reply = false;
+            updated = true;
+          }
+
+          // 3c. Track 10020: a blocked turn is the opposite of 3b — SET
+          // waitingForReply so the Inbox (comment-driven bucket logic) and
+          // the existing conversation-reply resume path (autoLaunchLocalFs's
+          // waitingForReply handling) both pick this up correctly, exactly
+          // as they already do for a real human-asked question.
+          if (isBlockedTurn) {
+            if (content.match(/\*\*Waiting for reply\*\*:\s*[^\n]+/i)) {
+              content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: yes`);
+            } else {
+              content = content.trim() + `\n**Waiting for reply**: yes\n`;
+            }
+            patchData.waiting_for_reply = true;
             updated = true;
           }
           // 4. Update Last Run
@@ -4415,6 +4911,27 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     }
 
+    // Track 10020: post the blocked question itself as a real claude-authored
+    // conversation.md entry — independent of the `session` gate above, since
+    // a track without a persisted session can still hit a blocking question.
+    // This is what actually closes the gap: once this is a real comment,
+    // the Inbox's existing bucket logic (driven entirely by track_comments)
+    // correctly classifies the track as needing your input, the same way it
+    // already does for any other unresolved claude/gemini comment.
+    if (isBlockedTurn) {
+      try {
+        const tracksDirForBlock = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForBlock = resolveTrackFolder(tracksDirForBlock, trackNumber);
+        if (trackDirForBlock) {
+          const convPath = join(tracksDirForBlock, trackDirForBlock, 'conversation.md');
+          const quoted = blockedQuestion.split('\n').map(l => `> ${l}`).join('\n');
+          appendFileSync(convPath, `\n> **claude**: ⏸️ Needs your input before continuing:\n${quoted}\n`, 'utf8');
+        }
+      } catch (err) {
+        console.warn(`[${label}] Failed to append blocked-question entry to conversation.md: ${err.message}`);
+      }
+    }
+
     // Track 1112 dogfood incident (2026-08-13): this PATCH is the ONLY
     // thing that tells the DB (and therefore the UI) a run finished — the
     // file/git-level update above can succeed while this silently fails
@@ -4452,9 +4969,20 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         if (worktreePath) {
           const lifecycle = getWorktreeLifecycle();
           if (lifecycle === 'per-cycle' && targetLane === 'done' && isSuccess) {
-            // Per-cycle: Merge and remove worktree on done:success
-            console.log(`[worktree] Per-cycle mode: Merging track ${trackNumber} and cleaning up`);
-            await mergeAndRemoveWorktree(trackNumber);
+            // Track 10018: fork on this track's own merge_mode before ever
+            // touching main. 'direct' keeps today's behavior byte-for-byte;
+            // 'pr' (the default) opens a PR instead and leaves the branch/
+            // worktree alone — see openTrackPrOnDone's own doc comment for
+            // why it never falls back to a local merge on failure.
+            const mergeMode = readTrackMergeMode(worktreePath, trackNumber);
+            if (mergeMode === 'direct') {
+              // Per-cycle: Merge and remove worktree on done:success
+              console.log(`[worktree] Per-cycle mode: Merging track ${trackNumber} and cleaning up`);
+              await mergeAndRemoveWorktree(trackNumber);
+            } else {
+              console.log(`[worktree] Per-cycle mode: merge_mode=pr for track ${trackNumber} — opening PR instead of merging`);
+              await openTrackPrOnDone(trackNumber, worktreePath);
+            }
           } else if (lifecycle === 'per-lane') {
             // Per-lane: Always remove after each run
             await removeWorktree(trackNumber);
@@ -4710,7 +5238,7 @@ const CLAIM_STALE_MS = (Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker
 (function clearStaleClaimMarkers() {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /^\d+/.test(d))) {
+  for (const dir of readdirSync(tracksDir).filter(d => /\d+/.test(d))) {
     const claimPath = claimTrackPath(tracksDir, dir);
     if (!existsSync(claimPath)) continue;
     const ageMs = Date.now() - statSync(claimPath).mtimeMs;
@@ -4773,6 +5301,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const track_number = trackNumMatch[1];
 
     const waitingForReply = parseWaitingForReply(content);
+    const autoRun = parseAutoRun(content);
 
     // ── Supervised implement: "done" reply transitions to quality-gate with scheduling ──
     if (waitingForReply && lane_status === 'implement') {
@@ -4845,7 +5374,11 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // same predicate, but it NARROWS ONLY and is NOT bypassed for
     // waitingForReply — see claim-scope.mjs for why that asymmetry is
     // deliberate.
-    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply })) continue;
+    //
+    // Track 10017: a track's own `**Auto Run**` marker (default false) is a
+    // second, independent gate in the same predicate — a queued track is not
+    // auto-picked unless it opts in, bypassed only for waitingForReply.
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
 
     // Passive lanes should not trigger auto-automation actions
     if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;
@@ -4978,7 +5511,11 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       const runningContent = updateHeader(content, 'Lane Status', 'running');
       writeFileSync(indexPath, runningContent, 'utf8');
 
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session);
+      // Track 1115 REQ-3: same call site handles both the normal queue claim
+      // and the waitingForReply answer-flow — trigger is computed inline from
+      // the local already in scope, not threaded from two separate sites.
+      const trigger = waitingForReply ? 'manual-dispatch' : 'auto-queue';
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session, trigger);
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
@@ -5063,9 +5600,31 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
     const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
     return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
   };
+  const originalLaneActionStatus = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim() || 'queue';
   writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
   const proj = getProject();
-  const spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session);
+  // Unlike checkDispatchInbox's identical spawnCli call, this one had no
+  // try/catch — a lock-contention or worktree-setup failure (observed
+  // live: a second auto-complete-track stage racing an already-running
+  // one for the same track) threw straight out of this async function,
+  // permanently stuck the file's Lane Status on 'running' with nothing to
+  // ever revert it, and left the dispatch row silently 'claimed' forever.
+  let spawnedPid;
+  try {
+    spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete');
+  } catch (err) {
+    logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
+    writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+    const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
+    await reportAutoCompleteResult(dispatchId, 'failed', resultText);
+    try {
+      appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+    } catch (writeErr) {
+      logger.warn({ trackNumber, err: writeErr.message }, '[auto-complete] Failed to post spawn-failure conversation comment');
+    }
+    activeAutoComplete.delete(trackNumber);
+    return;
+  }
   logger.info({ trackNumber, currentLane, spawnedPid, dispatchId }, '[auto-complete] stage started');
   // stagesRun is the history BEFORE this stage — appended with the lane
   // just started so reconcileAutoComplete's next check has an accurate
@@ -5075,16 +5634,37 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
 
 async function finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun) {
   activeAutoComplete.delete(trackNumber);
+
+  // Track 1115 REQ-5/D8: a main-mode track was never on a branch, so
+  // "already on main" IS the merged state — no mergeWorktreeBranch() call,
+  // and no `{ merged: false, reason: 'no-branch' }` surfaced as a failure.
+  const finishTracksDir = 'conductor/tracks';
+  const finishTrackDirName = resolveTrackFolder(finishTracksDir, trackNumber);
+  const finishIndexContent = finishTrackDirName ? (readIfExists(join(finishTracksDir, finishTrackDirName, 'index.md')) || '') : '';
+  const finishWorkspaceMode = resolveWorkspaceMode({
+    laneStatus: 'done',
+    workspaceMarker: parseWorkspaceMarker(finishIndexContent),
+    trackType: parseTrackKind(finishIndexContent),
+    trigger: null,
+    projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+  });
+
   let mergeResult;
-  try {
-    mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
-  } catch (err) {
-    mergeResult = { merged: false, reason: 'error', error: err.message };
-  }
   const stageList = stagesRun.join(' → ') || '(already done)';
-  const resultText = mergeResult.merged
-    ? `Completed [${stageList}] and merged track-${trackNumber} into main (${mergeResult.mergeCommit}).`
-    : `Completed [${stageList}] but merge failed: ${mergeResult.reason}${mergeResult.error ? `: ${mergeResult.error}` : ''}${mergeResult.conflictPaths?.length ? ` (${mergeResult.conflictPaths.join(', ')})` : ''}`;
+  let resultText;
+  if (finishWorkspaceMode === 'main') {
+    mergeResult = { merged: true, reason: 'already-on-main' };
+    resultText = `Completed [${stageList}] — already on main, no merge needed.`;
+  } else {
+    try {
+      mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
+    } catch (err) {
+      mergeResult = { merged: false, reason: 'error', error: err.message };
+    }
+    resultText = mergeResult.merged
+      ? `Completed [${stageList}] and merged track-${trackNumber} into main (${mergeResult.mergeCommit}).`
+      : `Completed [${stageList}] but merge failed: ${mergeResult.reason}${mergeResult.error ? `: ${mergeResult.error}` : ''}${mergeResult.conflictPaths?.length ? ` (${mergeResult.conflictPaths.join(', ')})` : ''}`;
+  }
   await reportAutoCompleteResult(dispatchId, mergeResult.merged ? 'done' : 'failed', resultText);
   try {
     const tracksDir = 'conductor/tracks';
@@ -5623,6 +6203,80 @@ async function checkDispatchInbox() {
       } catch (err) {
         logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-worktree conversation comment');
       }
+      continue;
+    }
+
+    // Track 10018: the Worktrees panel's "Create PR" button — the rescue
+    // path for a pr-mode track that's already done:success (via
+    // auditWorktrees, same precondition style as merge-worktree above) but
+    // has no PR yet (e.g. openTrackPrOnDone's own gh-auth/push failure, or
+    // a stranded branch someone wants under PR review after the fact).
+    // Reuses openTrackPrOnDone directly — no second copy of the PR-opening
+    // logic.
+    if (entry.action === 'create-pr') {
+      const trackNumber = entry.payload?.track_number;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] create-pr track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `create-pr track ${trackNumber} (dispatch ${entry.id})`);
+
+      let resultText;
+      try {
+        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        if (!row || !row.hasWorktree) {
+          resultText = 'Not opened: no live worktree found for this track';
+        } else if (row.lane !== 'done' || row.laneStatus !== 'success') {
+          resultText = `Not opened: track is at ${row.lane || '?'}:${row.laneStatus || '?'}, not done:success`;
+        } else if (row.prNumber) {
+          resultText = `PR #${row.prNumber} already exists — nothing to do`;
+        } else {
+          await openTrackPrOnDone(trackNumber, row.worktreePath);
+          resultText = 'PR create dispatched — see track conversation for the result';
+        }
+      } catch (err) {
+        resultText = `Error: ${err.message}`;
+      }
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'done', result: resultText })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report create-pr result'));
+      continue;
+    }
+
+    // Track 10018: the Worktrees panel's "Merge PR" button — merges
+    // through GitHub (never a local git merge), so branch protection and
+    // required checks stay authoritative. Actual local cleanup (worktree
+    // removal, branch deletion, lane transition bookkeeping) happens on
+    // reconcilePrTracks()'s next poll once GitHub reports the merge, same
+    // as a merge done directly in the GitHub UI — this handler's only job
+    // is to trigger it.
+    if (entry.action === 'merge-pr') {
+      const trackNumber = entry.payload?.track_number;
+      if (!trackNumber) {
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
+        continue;
+      }
+      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] merge-pr track ${trackNumber}`);
+      updateWorkerHeartbeat('busy', `merge-pr track ${trackNumber} (dispatch ${entry.id})`);
+
+      let resultText;
+      try {
+        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        if (!row?.prNumber) {
+          resultText = 'Not merged: no open PR number recorded for this track';
+        } else {
+          mergeTrackPr({ repoRoot: resolvePrimaryRepoRoot(process.cwd()), prNumber: parseInt(row.prNumber, 10) });
+          resultText = `Merge requested for PR #${row.prNumber} — GitHub will process it; cleanup follows on the next reconcile pass`;
+        }
+      } catch (err) {
+        resultText = `Error: ${err.message}`;
+      }
+      updateWorkerHeartbeat('idle', null);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: resultText.startsWith('Error') || resultText.startsWith('Not merged') ? 'failed' : 'done', result: resultText })
+        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-pr result'));
       continue;
     }
 
@@ -6270,10 +6924,16 @@ async function checkDispatchInbox() {
       return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
     };
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', 'running'), 'utf8');
+    // Mirrors the failure branch's own DB write below (originalLaneActionStatus) —
+    // without this, lane_action_status stays 'queue' in the DB (and thus the UI)
+    // for the whole run, even though the file and the actual CLI process both
+    // agree the track is running.
+    await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: 'running' })
+      .catch(e => logger.warn({ dispatchId: entry.id, trackNumber, err: e.message }, '[dispatch] Failed to mark lane_action_status running'));
 
     const proj = getProject();
     try {
-      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session);
+      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session, 'manual-dispatch');
       console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
       activeDispatch.set(trackNumber, entry.id);
     } catch (err) {
@@ -6291,6 +6951,19 @@ async function checkDispatchInbox() {
         .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
       await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: originalLaneActionStatus, lane_action_result: err.message })
         .catch(e => logger.warn({ trackNumber, err: e.message }, '[dispatch] Failed to reset track lane_action_status after spawn failure'));
+      // Previously only visible by digging through the dispatch table and
+      // lock files (observed live: a lock-contention rejection — a second
+      // dispatch racing an already-running session for the same track —
+      // left conversation.md and the Inbox with no trace of what happened,
+      // making a completely ordinary "another run was already in
+      // progress" bounce look like an unexplained stall). Post it where a
+      // human is actually looking.
+      try {
+        appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
+          `\n> **system**: ${entry.action} could not start: ${err.message}\n`);
+      } catch (writeErr) {
+        logger.warn({ trackNumber, err: writeErr.message }, '[dispatch] Failed to post spawn-failure conversation comment');
+      }
     }
   }
 }
@@ -6303,7 +6976,22 @@ async function reconcileActiveDispatch() {
   if (!url) return;
   const tracksDir = 'conductor/tracks';
 
+  // Track 10020: reconcileActiveDispatch used to trust the file's current
+  // Lane Status text alone — but the agent doing the actual work can
+  // transiently write a non-"running" value mid-session (e.g. while
+  // investigating something unrelated) without having actually exited.
+  // Caught live: a dispatch got marked done and DB pushed to a stale
+  // resolved state while the underlying CLI process (confirmed via live
+  // PID) kept working for minutes afterward. runningTrackMap is
+  // authoritative here — spawnCli's own proc.on('exit') handler is the
+  // ONLY thing that ever removes an entry from it, so if this process's
+  // own spawned child for a track is still in there, the CLI genuinely
+  // hasn't exited yet, regardless of what the file currently says.
+  const stillRunningTracks = new Set(runningTrackMap.values());
+
   for (const [trackNumber, dispatchId] of activeDispatch) {
+    if (stillRunningTracks.has(trackNumber)) continue;
+
     const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
     const indexPath = trackDirName ? join(tracksDir, trackDirName, 'index.md') : null;
     if (!indexPath || !existsSync(indexPath)) {
@@ -6314,7 +7002,7 @@ async function reconcileActiveDispatch() {
     const content = readFileSync(indexPath, 'utf8');
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     const status = statusMatch?.[1]?.trim();
-    if (status === 'running') continue; // still going
+    if (status === 'running') continue; // belt-and-braces, in case runningTrackMap ever missed it
 
     // Track 1102 F12: the exit handler's own completion PATCH (and
     // copy-back's own DB sync right after it) can both fail — a
@@ -6367,9 +7055,12 @@ async function reconcileActiveDispatch() {
 setInterval(() => {
   checkDispatchInbox().catch(err => console.error('[dispatch error]:', err.message));
 }, Number(process.env.LC_DISPATCH_POLL_MS) || 10000);
+// LC_RECONCILE_ACTIVE_POLL_MS: test-only override (default stays 5s) —
+// Track 10020's regression test needs several reconcile ticks inside a
+// short-lived transient blip to prove the fix doesn't finalize on them.
 setInterval(() => {
   reconcileActiveDispatch().catch(err => console.error('[dispatch-reconcile error]:', err.message));
-}, 5000);
+}, Number(process.env.LC_RECONCILE_ACTIVE_POLL_MS) || 5000);
 setInterval(() => {
   reconcileAutoComplete().catch(err => console.error('[auto-complete-reconcile error]:', err.message));
 }, 5000);

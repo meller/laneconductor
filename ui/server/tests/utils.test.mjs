@@ -43,4 +43,21 @@ describe('utils: trackTemplates', () => {
         expect(t.plan).toContain(desc);
         expect(t.spec).toContain(desc);
     });
+
+    // Track 1115 (TC-30, corrected during implementation — see spec.md D3):
+    // bug tracks emit **Track Kind**, NOT **Workspace** directly. Writing
+    // the resolved workspace mode straight into index.md at creation would
+    // make it indistinguishable from an explicit human override, defeating
+    // resolveWorkspaceMode()'s auto-queue safety check.
+    it('emits **Track Kind**: bug for bug tracks, not **Workspace**', () => {
+        const t = trackTemplates('004', 'My Bug', 'Repro steps', 'bug');
+        expect(t.index).toContain('**Track Kind**: bug');
+        expect(t.index).not.toContain('**Workspace**');
+    });
+
+    it('emits neither **Track Kind** nor **Workspace** for feature tracks', () => {
+        const t = trackTemplates('005', 'My Feature', 'Desc', 'feature');
+        expect(t.index).not.toContain('**Track Kind**');
+        expect(t.index).not.toContain('**Workspace**');
+    });
 });

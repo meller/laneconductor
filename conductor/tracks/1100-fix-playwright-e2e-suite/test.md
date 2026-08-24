@@ -92,6 +92,14 @@ are verified by observed runs rather than by new assertions.
       element a fast-tier spec asserts on, run the tier, confirm it fails
       with a message that identifies the break. Restore, confirm green.
       Record both observations.
+- [x] TC-15 (added implement pass 4, Gap 4): **Concurrent-safety —
+      two `npx playwright test --project=fast` invocations launched truly
+      concurrently (`&` + `wait`) must both pass.** Reproduced the failure
+      first (both runs: `getByText('#19999')` strict-mode violation), fixed
+      `worker-identity.spec.js` and `track-1112-worktree-panel.spec.js` to
+      use pid-unique fixture identities (hostname + fake track numbers)
+      instead of shared literals, re-ran concurrently: both 11 passed / 0
+      failed / 6 skipped. See `plan.md`'s "Gap 4 resolved" section.
 
 ## Acceptance Criteria
 

@@ -95,7 +95,7 @@ function CommentBubble({ comment }) {
   );
 }
 
-export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }) {
+export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTranscriptOpen = false, onClose }) {
   const { apiFetch } = useApi();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -105,6 +105,9 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState('');
   const bottomRef = useRef(null);
+  const conversationScrollRef = useRef(null);
+  const prevConversationTabRef = useRef(false);
+  const prevCommentCountRef = useRef(0);
   const logsEndRef = useRef(null);
   const pollRef = useRef(null);
   const detailPollRef = useRef(null);
@@ -113,6 +116,9 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   // Track 1084 Phase 4: assignee control
   const [members, setMembers] = useState([]);
   const [assigneeSaving, setAssigneeSaving] = useState(false);
+  // Track 10017: auto-run toggle
+  const [autoRunSaving, setAutoRunSaving] = useState(false);
+  const [mergeModeSaving, setMergeModeSaving] = useState(false);
   // Track 1085 Phase 4: manual dispatch — "Run on worker" control + history
   const [projectWorkers, setProjectWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
@@ -171,13 +177,19 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   useEffect(() => {
     setTranscriptState(createTranscriptState());
     autoExpandArmedRef.current = true;
+    // Track 10024: a caller (e.g. the Worktrees panel's running-row link) can
+    // ask to land here with the drawer already open. Open-only — never
+    // setTranscriptOpen(false) here — so this can't fight a manual collapse
+    // (Track 1087 REQ-4: "user can collapse manually at any time") and other
+    // entry points that omit the prop keep today's closed default.
+    if (initialTranscriptOpen) setTranscriptOpen(true);
     apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/transcript`)
       .then(r => r.ok ? r.json() : { events: [] })
       .then(({ events }) => {
         setTranscriptState((events || []).reduce(reduceStreamEvent, createTranscriptState()));
       })
       .catch(() => { });
-  }, [projectId, trackNumber]);
+  }, [projectId, trackNumber, initialTranscriptOpen]);
 
   // Track 1087 Phase 4 Task 2: live continuation over the same WebSocket
   // the rest of the app already uses (Phase 2's notifyApi -> broadcast
@@ -219,6 +231,55 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       if (r.ok) fetchDetail();
     } catch { }
     setAssigneeSaving(false);
+  }
+
+  // Track 10017: whether a sync+poll worker's auto-launch loop may claim
+  // this track from the queue. Default off — see claim-scope.mjs.
+  async function setAutoRunFlag(value) {
+    setAutoRunSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/auto-run`, {
+        method: 'PATCH',
+        body: JSON.stringify({ auto_run: value }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setAutoRunSaving(false);
+  }
+
+  // Track 10018 (REQ-9): writes through the same track-update path lane
+  // changes already use — PATCH .../tracks/:num forwards to the collector's
+  // /track/:num/action, which the sync worker's Phase 1 marker sync then
+  // reflects back into the track's own **Merge Mode** marker in index.md.
+  async function setMergeMode(mode) {
+    setMergeModeSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ merge_mode: mode || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setMergeModeSaving(false);
+  }
+
+  // Track 1115 (REQ-11): same write-through path as setMergeMode above —
+  // PATCH .../tracks/:num forwards to /track/:num/action, which the sync
+  // worker's marker sync reflects into **Workspace** in index.md. Setting
+  // this here is a deliberate, explicit human choice (D2) — it always wins
+  // in resolveWorkspaceMode() except the plan lane, which always runs main
+  // regardless.
+  const [workspaceModeSaving, setWorkspaceModeSaving] = useState(false);
+  async function setWorkspaceMode(mode) {
+    setWorkspaceModeSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ workspace_mode: mode || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setWorkspaceModeSaving(false);
   }
 
   // Track 1116 REQ-7: per-track model override — beats the lane's
@@ -503,10 +564,33 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     return () => clearInterval(pollRef.current);
   }, [projectId, trackNumber]);
 
-  // Scroll to bottom when comments change and Conversation tab is active
+  // Track 1094: auto-scroll to bottom on first opening the Conversation tab
+  // (a sensible "jump to latest" default) and when a genuinely new comment
+  // arrives while the user is already near the bottom — but never on a
+  // plain 2s poll tick with no new content, and never while the user has
+  // deliberately scrolled up to read history. Comments polls every 2s via
+  // fetchComments() above, and setComments(data) always produces a fresh
+  // array reference even when nothing changed, so gating on comments.length
+  // (rather than the array reference alone) is what actually stops this
+  // effect from re-firing — and therefore re-yanking the scroll position —
+  // on every single poll tick.
   useEffect(() => {
-    if (tab === 'conversation') {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (tab !== 'conversation') {
+      prevConversationTabRef.current = false;
+      return;
+    }
+
+    const justOpened = !prevConversationTabRef.current;
+    const grew = comments.length > prevCommentCountRef.current;
+    prevConversationTabRef.current = true;
+    prevCommentCountRef.current = comments.length;
+
+    if (!justOpened && !grew) return; // no new content — leave the user's scroll position alone
+
+    const el = conversationScrollRef.current;
+    const nearBottom = justOpened || !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    if (nearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: justOpened ? 'auto' : 'smooth' });
     }
   }, [comments, tab]);
 
@@ -696,6 +780,53 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                       {detail.assignee_uid ?? detail.created_by_uid ?? 'unassigned'}
                     </span>
                   )}
+                </div>
+                {/* Track 10017: Auto Run control */}
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs text-gray-600 flex items-center gap-1.5 cursor-pointer" title="Whether a sync+poll worker's auto-launch loop may pick this track up from the queue on its own. Manual runs (Run on worker, lc worker run) are unaffected.">
+                    <input
+                      type="checkbox"
+                      checked={!!detail.auto_run}
+                      disabled={autoRunSaving}
+                      onChange={e => setAutoRunFlag(e.target.checked)}
+                      className="disabled:opacity-50"
+                    />
+                    Auto-run: {detail.auto_run ? 'on' : 'off'}
+                  </label>
+                </div>
+                {/* Track 10018 (REQ-9): merge-mode toggle — unspecified/null
+                    shows as "pr" (resolveMergeMode's default), matching what
+                    the Worktrees panel's badge would show for this track. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Merge mode:</span>
+                  <select
+                    value={detail.merge_mode ?? 'pr'}
+                    disabled={mergeModeSaving}
+                    onChange={e => setMergeMode(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    title="pr: opens a GitHub PR on done, pauses for approval. direct: auto-merges on done (today's behavior)."
+                  >
+                    <option value="pr">PR (review required)</option>
+                    <option value="direct">Direct (auto-merge)</option>
+                  </select>
+                </div>
+                {/* Track 1115 (REQ-11): workspace-mode toggle — unspecified/null
+                    falls through to the type-derived or project default
+                    (resolveWorkspaceMode()'s D5 rows 4/5/6), shown here as
+                    "branch" since that's the eventual fallback; the plan lane
+                    always runs main regardless of this setting. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Workspace:</span>
+                  <select
+                    value={detail.workspace_mode ?? 'branch'}
+                    disabled={workspaceModeSaving}
+                    onChange={e => setWorkspaceMode(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    title="main: lane actions run directly in the primary checkout, no worktree/branch. branch: today's default (lock, worktree, track branch, merge at done). The plan lane always runs main regardless."
+                  >
+                    <option value="branch">Branch (isolated worktree)</option>
+                    <option value="main">Main (direct, no worktree)</option>
+                  </select>
                 </div>
                 {/* Track 1116 REQ-7: per-track model override — beats the
                     lane's primary_model and the project default. Provider
@@ -919,7 +1050,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
         {tab === 'conversation' ? (
           <div className="flex flex-col flex-1 min-h-0">
             {/* Comment list */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div ref={conversationScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {comments.length === 0 ? (
                 <p className="text-gray-600 text-sm italic text-center pt-8">
                   No messages yet. Start the conversation below.
