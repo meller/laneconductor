@@ -268,3 +268,86 @@ Playwright fast tier 11/11 (6 known skips), 0 failed, against a freshly
 restarted API server. Beyond the suite: live-verified the actual 8003 race
 end-to-end against the real running server on a disposable scratch track.
 Full write-up in `conversation.md`.
+
+## Phase 6: Phase 5's guard was never actually committed — found and fixed on re-run ✅ COMPLETE
+
+**Context**: this track was re-triggered into `quality-gate` again on
+2026-08-24, after already having reached `done` via the Phase 5 review and
+quality-pass documented above. Re-running the gate from scratch (per its
+own "don't trust marks from a previous run" rule) surfaced that those
+marks were not trustworthy this time.
+
+**What was actually wrong**: `ui/server/tests/track-10013-human-lane-override.test.mjs`
+(the Phase 5 regression suite, committed in `7876ab6`) failed 2/7 against
+this worktree's real `POST /track` handler. Reading `ui/server/index.mjs`
+directly showed the human-lane-override guard code was simply not there —
+`git log -p --all` on that file has zero hits for the guard's own comment
+text or logic, and the "Merge track 10013" commit (`e36f226`) only ever
+touched the two markdown docs (`index.md`, `plan.md`), never `index.mjs`.
+The implementation described in the Phase 5 write-up above — and the two
+"REVIEWED"/"QUALITY PASSED" verdicts that claimed to have verified it live
+against a real server — was never actually persisted to the repository.
+Only the test file and the narrative survived. Whatever review/verification
+happened in that prior session either ran against uncommitted local state
+that was later lost, or didn't happen the way it was described; either way,
+the marks were false confidence, exactly the failure mode
+`conductor/quality-gate.md`'s own warning is about.
+
+**A second, independent bug in the original design**: the guard (as
+specified by the test and the Phase 5 narrative) depends on
+`PATCH /track/:num/lane` — the actual drag/button endpoint — setting
+`last_updated_by = 'human'` on every human-driven move. It never did. That
+endpoint's SQL `sets` array had no such field. So even a byte-for-byte
+correct implementation of the guard as originally designed would never
+have activated for the one scenario (a human dragging a card) it exists to
+protect — it would have silently done nothing.
+
+**Fix** (both in `ui/server/index.mjs`):
+1. Implemented the human-lane-override guard in `POST /track`: computes
+   `isGenuineClaim` (`lane_action_status === 'running'`), `humanOwned`
+   (`oldTrack.last_updated_by === 'human'`), and `laneDisagrees`; skips the
+   `lane_status`/`lane_action_status` SQL clauses entirely when
+   `humanOwned && laneDisagrees && !isGenuineClaim`; only resets
+   `last_updated_by` back to `'worker'` on a genuine claim, leaving it
+   untouched otherwise (so a same-lane echo doesn't clear the flag, per the
+   original design's own stated intent); also guards the "Moved to X (via
+   file sync)" system-comment insert so it doesn't fire when the write was
+   silently skipped.
+2. Fixed `PATCH /track/:num/lane` to actually add
+   `last_updated_by = 'human'` to its `sets` array, so a real human drag
+   now arms the guard as the design always assumed it did.
+
+- [x] Task 1: Run the track's own regression test against this worktree's
+      real code — found 2/7 failing, contradicting the "REVIEWED"/"QUALITY
+      PASSED" history
+- [x] Task 2: Trace why — confirmed via `git log -p --all` that the guard
+      implementation was never committed to `ui/server/index.mjs`
+- [x] Task 3: Implement the guard for real in `POST /track`
+- [x] Task 4: Discover and fix the second bug — `PATCH /track/:num/lane`
+      never set `last_updated_by`, so the guard (even once implemented)
+      could never have activated for a real drag
+- [x] Task 5: Re-run the regression suite (7/7 pass) and the full server
+      suite (312/334 — 22 pre-existing/unrelated failures, zero new,
+      confirmed via `git stash` diff) — no regressions
+- [x] Task 6: Re-verify Phases 1, 2, and 4 are still intact in this
+      worktree (parse-status precedence 4/4, useWebSocket StrictMode fix
+      and SKILL.md Transition guards present by direct inspection)
+
+**Impact**: the human-lane-override protection this track set out to build
+in Phase 5 now actually exists and actually activates on a real drag,
+which it did not before this session despite being marked done twice.
+
+## ✅ QUALITY PASSED (2026-08-24, re-run)
+
+Full write-up in `conversation.md`. Summary: found Phase 5's guard was
+never committed to code despite passing marks from two prior "done" runs;
+self-healed (implemented the guard for real, plus fixed a second bug where
+the drag endpoint never armed it); regression suite 7/7 (was 5/7), full
+server suite 312/334 (22 pre-existing/unrelated, zero new, diffed via
+`git stash`), worker suite 339/403 (57 known environment-dependent E2E
+failures, unrelated to changed files), frontend 76/86 (10 pre-existing
+`WorkflowSettings.test.jsx` failures), build succeeds, security audit
+pre-existing devDependency findings only, stub scan clean. Did not restart
+the shared live `:8091` API (serves the primary checkout, used by other
+in-flight tracks) — verified via real HTTP requests through the actual
+Express app instead (`supertest`, only `pg` mocked).
