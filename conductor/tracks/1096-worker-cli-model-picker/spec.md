@@ -85,18 +85,26 @@ When clicking "Change Model" on a worker card:
 
 ### 3.3 Worker Launch Picker
 Two distinct launch paths exist in `WorkersList.jsx`, and this requirement
-covers both:
+covers both. **Both done** as of Phase 7 (plan.md) — they use two
+different, deliberately different, persistence mechanisms:
 
-- **"+ New Worker"** → `ProvisionWorkerModal.jsx`. **Done.** Picks CLI +
-  model (live `available_models` from the delegating manager worker when
-  reported — track 1099 — otherwise the registry presets) and sends both in
-  the provision dispatch payload.
-- **"Start Sync Worker"** → `handleWorkerAction('start')`, a bare
-  `POST /api/projects/:id/worker/start` shown only on localhost. **Not
-  done.** It has no picker at all: the worker comes up on whatever
-  `.laneconductor.json` already says, which is exactly the "CLI-only, edit
-  the file by hand" problem this track exists to remove. Tracked as Phase 7
-  in plan.md.
+- **"+ New Worker"** → `ProvisionWorkerModal.jsx` → `POST
+  /api/dispatch/provision-worker`. Picks CLI + model (live
+  `available_models` from the delegating manager worker when reported —
+  track 1099 — otherwise the registry presets) and sends both in the
+  provision dispatch payload, which the manager forwards as `lc start
+  --worker-number N --cli … --model …` — in-memory only, per that worker
+  process.
+- **"Start Sync Worker"** → `handleWorkerAction('start')` →
+  `POST /api/projects/:id/worker/start`, shown only on localhost. Now shows
+  a CLI + Model picker (two `<select>`s) before the button; the endpoint
+  validates `cli` against the registry and forwards `{ cli, model }` as
+  `--cli`/`--model` to `lc start` — the same in-memory-only mechanism
+  `ProvisionWorkerModal`'s path already uses, added in track 10011 for
+  exactly this purpose (`bin/lc.mjs` / `laneconductor.sync.mjs`). Neither
+  path writes `.laneconductor.json`; only the "Change Model" flow (§3.2,
+  `set_model` dispatch) does. See §4.1 for why that distinction is
+  intentional, not an inconsistency.
 
 ### 3.4 Worker Card Model Badge — reload caveat
 The badge on the card reflects `workers.cli` / `workers.model`, which the

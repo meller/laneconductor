@@ -13,3 +13,9 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
+
+// jsdom has no scrollIntoView — needed by TrackDetailPanel's transcript
+// drawer autoscroll (Track 1087 Phase 4).
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

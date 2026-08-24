@@ -12,7 +12,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 function git(args, cwd) {
@@ -256,6 +256,37 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     const worktreePath = branchToWorktree.get(branch) ?? null;
     const hasWorktree = worktreePath !== null;
 
+    // openTrackPrOnDone() deliberately writes **PR Number**/**PR URL**/
+    // **PR Status** as raw, UNCOMMITTED file writes (both the worktree's
+    // and primary's own copies of index.md) — committing them would create
+    // branch noise/conflicts with the actual code change. But
+    // readTrackStateFromBranch() above reads via `git show branch:path`,
+    // which can only ever see committed content — a structural blind spot
+    // for exactly these three fields, permanent regardless of how many
+    // times the audit re-runs. Confirmed live: five real done:success
+    // pr-mode tracks stuck reporting prNumber: null indefinitely despite
+    // their working-tree files having the correct **PR Number** marker,
+    // because nothing ever commits it. Read those three fields fresh from
+    // the actual working-tree file when one exists — the only place they
+    // are ever genuinely written — overriding (not replacing) state's
+    // git-show-sourced lane/laneStatus/title/mergeMode, which correctly
+    // stay committed-only per this file's own documented single-code-path
+    // reasoning above.
+    let prFields = { prNumber: state?.prNumber ?? null, prUrl: state?.prUrl ?? null, prStatus: state?.prStatus ?? null };
+    if (hasWorktree && state?.trackDir) {
+      try {
+        const wtIndexContent = readFileSync(join(worktreePath, state.trackDir, 'index.md'), 'utf8');
+        const prNumber = wtIndexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+        if (prNumber) {
+          prFields = {
+            prNumber,
+            prUrl: wtIndexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null,
+            prStatus: wtIndexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null,
+          };
+        }
+      } catch { /* file unreadable — fall back to state's (likely null) values */ }
+    }
+
     const ahead = countCommits(repoRoot, `${mainBranch}..${branch}`);
     const behind = countCommits(repoRoot, `${branch}..${mainBranch}`);
     const dirtyCount = hasWorktree
@@ -295,7 +326,7 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       lane: state?.lane ?? null, laneStatus: state?.laneStatus ?? null, title: state?.title ?? null,
       classification, conflictPaths,
       mergeMode: state?.mergeMode ?? 'pr',
-      prNumber: state?.prNumber ?? null, prUrl: state?.prUrl ?? null, prStatus: state?.prStatus ?? null,
+      ...prFields,
     });
   }
 

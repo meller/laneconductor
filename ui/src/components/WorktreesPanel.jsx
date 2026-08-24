@@ -3,6 +3,7 @@ import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
 import { removeKey, mergeKey, completeKey, forceKey, discardKey, createPrKey, mergePrKey, aiResolveKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
+import { isWorktreeRowRunning } from '../lib/worktreeRunState.js';
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -248,6 +249,11 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   // is pending for this row, the rest are disabled too, not just the one
   // that was clicked.
   const rowBusy = merging || removing || autoCompleting || forceMerging || discarding || creatingPr || mergingPr || aiResolving;
+  // Track 10024: "running" for the purposes of the transcript deep-link below
+  // — either this tab just dispatched something (rowBusy) or the server's own
+  // audit says the track's lane_status is running (e.g. a plain lane
+  // re-dispatch started elsewhere, or state that survived a page reload).
+  const isRunning = isWorktreeRowRunning({ row, busy: rowBusy });
 
   return (
     <div
@@ -264,7 +270,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
                 scratch worktrees) aren't linkable. */}
             {row.track && onSelectTrack ? (
               <button
-                onClick={() => onSelectTrack(row.track)}
+                onClick={() => onSelectTrack(row.track, { transcript: isRunning })}
                 className="font-semibold text-gray-200 hover:text-blue-400 hover:underline"
                 title="Open this track"
               >
@@ -282,6 +288,27 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
           {row.title && <span className="text-xs text-gray-400 truncate">{row.title}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Track 10024: the row's "Running…" state used to be decorative
+              text on a disabled action button — nothing to click, no way to
+              see what the run is actually doing. This badge is clickable and
+              reuses the same onSelectTrack path the #<track> ↗ link already
+              uses, just with transcript:true attached, so it opens
+              TrackDetailPanel with the existing Phase 4 Transcript drawer
+              already expanded instead of a closed one. If the run already
+              finished or never really started (stale lane_status after a
+              crash), the drawer's own "No transcript yet." empty state
+              covers it — nothing new built for that case. */}
+          {isRunning && onSelectTrack && (
+            <button
+              onClick={() => onSelectTrack(row.track, { transcript: true })}
+              data-testid="worktree-running-badge"
+              title="Watch this track's live session transcript. If the run already finished (or the badge is stale after a crash), the transcript will simply be empty."
+              className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-800/70 bg-orange-950/40 text-orange-300 hover:bg-orange-900/50 transition-colors"
+            >
+              <span className="animate-pulse">●</span>
+              <span>Running…</span>
+            </button>
+          )}
           {/* Track 10018: shown on every row, not just pr-open — lets you
               tell at a glance which rows will auto-merge vs pause for
               review without clicking in. */}
@@ -351,7 +378,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
             onClick={() => request(`complete:${row.track}`, () => onAutoComplete(row))}
             disabled={rowBusy}
             data-testid="complete-and-merge-btn"
-            title="Runs this track's remaining lane actions for real (review, quality-gate, ...) and merges once it reaches done:success. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
+            title="This will send the track to an automatic worker to complete it — is that OK? Runs the remaining lane actions for real (review, quality-gate, ...) and merges once it reaches done:success; also marks it auto_run so future queue work on it can be picked up automatically, starting a sync+poll worker first if none is running. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
             className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `complete:${row.track}`
               ? 'border-blue-500 bg-blue-800/60 text-white'
               : 'border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40'
@@ -732,11 +759,46 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
     }
   }
 
+  // Track 10017 Phase 7: "Complete & Merge" already ran a track through the
+  // full pipeline via explicit dispatch, independent of auto_run. This
+  // connects the two: confirming the button now also (a) marks the track
+  // auto_run:true, so a future queue-status lane on it can be picked up by
+  // ordinary polling too, not just this one dispatch, and (b) makes sure a
+  // sync+poll worker actually exists to act on that flag going forward —
+  // otherwise auto_run:true would be a no-op setting nobody ever reads.
+  // The row's existing two-step armed button (see useArmedConfirm) is
+  // already this action's confirmation gate — a native window.confirm()
+  // doesn't reliably fire in this app's runtime (see the Remove-button
+  // comment above), so this reuses that same pattern rather than adding a
+  // second dialog on top of it.
+  async function ensurePollingWorker() {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/workers`);
+      if (!res.ok) return;
+      const workers = await res.json();
+      const hasPoller = (workers || []).some(w => w.mode === 'sync+poll' && w.type !== 'manager');
+      if (hasPoller) return;
+      await apiFetch(`/api/projects/${projectId}/workers/start-new`, {
+        method: 'POST',
+        body: JSON.stringify({ sync_and_work: true }),
+      });
+    } catch {
+      // Best-effort: failing to provision a poller must not block the
+      // dispatch this click already committed to — auto-complete-track
+      // reaches the track's worker_dispatch inbox regardless of mode.
+    }
+  }
+
   async function handleAutoComplete(row) {
     if (!row.track) return;
     setError(null);
     startPending(completeKey(row));
     try {
+      await apiFetch(`/api/projects/${projectId}/tracks/${row.track}/auto-run`, {
+        method: 'PATCH',
+        body: JSON.stringify({ auto_run: true }),
+      }).catch(() => { });
+      await ensurePollingWorker();
       const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
         method: 'POST',
         body: JSON.stringify({ action: 'auto-complete-track', payload: { track_number: row.track } }),
@@ -898,7 +960,7 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
           row={row}
           onMerge={handleMerge}
           merging={Boolean(pendingKeys[mergeKey(row)])}
-          onSelectTrack={onSelectTrack ? (track) => onSelectTrack(projectId, track) : null}
+          onSelectTrack={onSelectTrack ? (track, opts) => onSelectTrack(projectId, track, opts) : null}
           onRemove={handleRemove}
           removing={Boolean(pendingKeys[removeKey(row)])}
           onAutoComplete={handleAutoComplete}

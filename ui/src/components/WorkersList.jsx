@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
 import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
-import { WorkerModelModal } from './WorkerModelModal.jsx';
+import { WorkerModelModal, MODEL_PRESETS, CLI_ENGINES } from './WorkerModelModal.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
@@ -143,6 +143,18 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
   const [visibilityWorker, setVisibilityWorker] = useState(null);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [configWorker, setConfigWorker] = useState(null);
+  // Track 1096 Phase 7: picker state for the "Start Sync Worker" button —
+  // this project's own worker #1, started locally, so (unlike
+  // ProvisionWorkerModal) there's no project/machine choice, just CLI/model.
+  const [startCli, setStartCli] = useState('claude');
+  const [startModel, setStartModel] = useState(MODEL_PRESETS.claude[0].id);
+  const startModelOptions = MODEL_PRESETS[startCli] || [];
+
+  useEffect(() => {
+    if (startModelOptions.length && !startModelOptions.some(m => m.id === startModel)) {
+      setStartModel(startModelOptions[0].id);
+    }
+  }, [startCli, startModelOptions, startModel]);
 
   async function handleStopWorker(worker) {
     try {
@@ -155,13 +167,17 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
     }
   }
 
-  async function handleWorkerAction(action) {
+  async function handleWorkerAction(action, body) {
     if (!projectId) return;
     try {
-      const res = await apiFetch(`/api/projects/${projectId}/worker/${action}`, { method: 'POST' });
+      const res = await apiFetch(`/api/projects/${projectId}/worker/${action}`, {
+        method: 'POST',
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       console.log(`Worker ${action} result:`, data);
+      onRefresh?.();
     } catch (err) {
       console.error(`Failed to ${action} worker:`, err);
       alert(`Failed to ${action} worker: ${err.message}`);
@@ -207,12 +223,32 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                 {/* Project-scoped (`make lc-start` in this project's dir), so
                     it silently did nothing in the All Projects view. */}
                 {IS_LOCAL_HOST && projectId && (
-                  <button
-                    onClick={() => handleWorkerAction('start')}
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
-                  >
-                    Start Sync Worker
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={startCli}
+                      onChange={e => setStartCli(e.target.value)}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                      data-testid="start-worker-cli-select"
+                      title="CLI engine for this worker"
+                    >
+                      {CLI_ENGINES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                    </select>
+                    <select
+                      value={startModel}
+                      onChange={e => setStartModel(e.target.value)}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                      data-testid="start-worker-model-select"
+                      title="Model for this worker"
+                    >
+                      {startModelOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </select>
+                    <button
+                      onClick={() => handleWorkerAction('start', { cli: startCli, model: startModel })}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                      Start Sync Worker
+                    </button>
+                  </div>
                 )}
                 <button
                   onClick={() => setShowProvisionModal(true)}

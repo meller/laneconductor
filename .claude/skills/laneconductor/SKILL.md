@@ -114,7 +114,17 @@ make install-cli
 - `lc worker start [--sync-and-work] [--only-tracks <n,n>] [--once]`: Start the
   heartbeat worker in the background. `--only-tracks` restricts what it may
   claim — it narrows only, and can never widen a server-side permission
-  decision; `--once` exits when that scoped work is finished.
+  decision; `--once` exits when that scoped work is finished. A second,
+  independent gate sits alongside `--only-tracks` and the assignee gate: a
+  track's own `**Auto Run**` marker (default no — see the marker table
+  above) must also be `yes` before `autoLaunchLocalFs`'s auto-launch loop
+  will pick it up from the queue. `--only-tracks` naming a track does NOT
+  bypass `auto_run: false` — it can only narrow further, never force a run;
+  use `lc worker run <track>` for that. Like the assignee gate, this is
+  bypassed for a track that's mid-conversation (`waiting_for_reply: true`),
+  and never applies to `lc worker run <track>` or explicit dispatch
+  (`worker_dispatch`), which are direct human/manager instructions, not
+  auto-picking from the open queue. (Track 10017)
 - `lc worker stop`: Stop the background heartbeat worker.
 - `lc worker restart`: Restart the background heartbeat worker.
 - `lc worker status`: Check the health and PID of the local worker.
@@ -1108,6 +1118,7 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Waiting for reply**: [yes\|no]` | `waiting_for_reply` | Signals that a human comment needs an answer. |
 | `**Workspace**: [main\|branch]` | `workspace_mode` | Track 1115: deliberate, human-set override — `main` runs lane actions directly in the primary checkout (no worktree, no track branch); `branch` is today's default. Set by a human, `lc new --workspace`, or a track detail panel control — never written by an inference (see `**Track Kind**` below for that). Always wins over the auto-derived default, but the `plan` lane itself always runs `main` regardless of this marker, and an auto-queue claim still forces `branch` when nothing set this marker explicitly. |
 | `**Track Kind**: [bug\|feature]` | *(none — narrow, worker-internal)* | Track 1115: records the New Track modal's bug/feature classification, or `/laneconductor plan`'s own classification when creation didn't provide one. Feeds the type-derived workspace default (`bug` → `main`) WITHOUT becoming an unconditional override the way `**Workspace**` is — this is what lets an auto-queue claim still fall back to `branch` for an inferred-but-never-confirmed bug track. Not a general track classification; nothing else should read it. |
+| `**Auto Run**: [yes\|no]` | `auto_run` | Whether a non-sync-only worker's auto-launch loop may claim this track from the queue. Default no — absent marker means not auto-picked (track 10017). |
 
 ### Completion Comment Convention
 
