@@ -233,3 +233,59 @@ All 6 phases implemented and verified:
 `/track/:num/action` pattern) — deliberate, so the response only returns
 once the index.md marker write has actually happened; see comment in
 `ui/server/index.mjs`.
+
+## ⚠️ RE-OPENED (2026-08-24) — "COMPLETE" above does not match the actual codebase
+
+Verified directly before re-dispatching this track: `grep -n "auto_run"
+conductor/laneconductor.sync.mjs ui/server/index.mjs ui/src/components/*.jsx`
+returns **zero matches**. None of Phases 1-6 above are actually present in
+the code, despite the detailed "implemented and verified" writeup — no
+`parseAutoRun`, no `isTrackClaimable` `autoRun` param, no `/auto-run`
+endpoint, no UI toggle. The `tracks.auto_run` DB column does exist, but
+nothing reads or writes it anywhere. Whatever a prior session did, it never
+actually landed in this branch/main — treat every phase above as **not
+started**, not as a reference implementation to merely verify. Do the real
+work; do not just re-confirm the narrative.
+
+**New requirements for this pass** (from a live product conversation,
+2026-08-24) — the actual trigger for finally building this: the "Complete &
+Merge" button (Track 1114's autopilot, `ui/src/components/WorktreesPanel.jsx`,
+dispatch action `auto-complete-track`) already runs a track through
+implement→review→quality-gate→done→merge end-to-end today, but only via an
+explicit dispatch — it does not depend on `auto_run` at all currently. The
+ask is to connect the two:
+
+1. Add a confirmation step to the "Complete & Merge" button: before
+   dispatching, show the user a message along the lines of "This will send
+   the track to an automatic worker to complete it — is that OK?" (armed
+   confirm, matching this codebase's existing `armedConfirm.js` pattern used
+   elsewhere for other risky actions).
+2. On confirm, set the track's `auto_run` property to `true` (via the new
+   `/auto-run` endpoint this track builds) as part of — not instead of —
+   the existing dispatch flow.
+3. Before dispatching, check whether a `sync+poll` ("automatic") worker is
+   currently registered for the project. If none exists, offer to start one
+   (reuse whatever mechanism already provisions/starts a worker — check
+   `bin/lc.mjs`'s `worker start --sync-and-work` path and the
+   `provision-worker` dispatch action already in this file rather than
+   inventing a new one).
+4. Then proceed with the dispatch as today.
+
+**Phase 7: E2E verification of the full flow (required before this track can
+be marked done again)**
+
+- [ ] Write a real subprocess-level E2E test (mirroring
+      `conductor/tests/track-10018-pr-flow-e2e.test.mjs`'s pattern: real
+      spawned worker, real git fixture, no LC_SKIP_GIT_LOCK) that: creates a
+      queued track with no `**Auto Run**` marker, confirms a `sync+poll`
+      worker does NOT pick it up; sets `auto_run: true` via the new
+      endpoint; confirms a `sync+poll` worker DOES pick it up and run it
+      through to completion — proving Phases 1-4 actually work together
+      against a real process, not just in isolation.
+- [ ] Manually verify the "Complete & Merge" button's new confirmation +
+      auto-worker-provisioning flow in a real browser (per this project's
+      own standing rule: UI changes must be exercised in a browser before
+      being reported done, not just built and asserted).
+- [ ] Do not write another "✅ COMPLETE" summary without first re-running the
+      exact `grep -n "auto_run"` check above and confirming it now returns
+      real matches in the actual files.
