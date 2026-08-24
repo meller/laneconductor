@@ -104,8 +104,9 @@ describe('POST /track — waiting_for_reply persistence (Track 10012)', () => {
     const upsert = queryCalls().find(([sql]) => /INSERT INTO tracks/i.test(sql));
     expect(upsert).toBeTruthy();
     expect(upsert[0]).toContain('waiting_for_reply');
-    // $27 = waiting_for_reply; track 10017 appended auto_run as $28 after it,
-    // so this is no longer the last param — index explicitly instead.
+    // $27 = waiting_for_reply; track 10017 appended auto_run as $28 and
+    // track 10018 appended merge_mode as $29 after it, so this is no
+    // longer the last param — index explicitly instead.
     expect(upsert[1][26]).toBe(true);
   });
 
@@ -116,6 +117,39 @@ describe('POST /track — waiting_for_reply persistence (Track 10012)', () => {
     expect(upsert).toBeTruthy();
     expect(upsert[0]).toContain('COALESCE($27, tracks.waiting_for_reply)');
     expect(upsert[1][26]).toBeNull();
+  });
+});
+
+describe('POST /api/projects/:id/tracks/:num/dismiss (Track 10012 follow-up)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(pool.query).mockImplementation(async () => ({ rows: [], rowCount: 0 }));
+  });
+
+  it('sets tracks.dismissed_at in addition to hiding comments — not just the comment hide', async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 42 }] }); // getTrackId
+
+    await request(app)
+      .post('/api/projects/1/tracks/010/dismiss')
+      .expect(200);
+
+    const hideComments = queryCalls().find(([sql]) => /UPDATE track_comments SET is_hidden/i.test(sql));
+    expect(hideComments).toBeTruthy();
+    expect(hideComments[1]).toEqual([42]);
+
+    const setDismissed = queryCalls().find(([sql]) => /UPDATE tracks SET dismissed_at/i.test(sql));
+    expect(setDismissed).toBeTruthy();
+    expect(setDismissed[1]).toEqual([42]);
+  });
+
+  it('404s without touching anything when the track does not exist', async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] }); // getTrackId: not found
+
+    await request(app)
+      .post('/api/projects/1/tracks/999/dismiss')
+      .expect(404);
+
+    expect(queryCalls().find(([sql]) => /UPDATE tracks SET dismissed_at/i.test(sql))).toBeUndefined();
   });
 });
 

@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 71%
-**Phase**: Phases 0-5 complete for their achievable scope. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12. Phase 7 (continuity-first routing) unblocked 2026-08-12, still open. **Phase 8 added 2026-08-17**: watchdog for a worker whose identity never resolved — done, see plan.md.
+**Phase**: Phases 0-5 complete for their achievable scope. Phase 6 (worker lifecycle UI gaps) reopened 2026-08-12. Phase 7 (continuity-first routing) unblocked 2026-08-12, still open. **Phase 8 added…
 **Type**: dev
 **Summary**: Explicit track assignment to end random pickup; worker ownership resolved via workers.user_uid, not a separate pin table.
 

@@ -7,6 +7,8 @@ import { useWebSocket } from '../hooks/useWebSocket.js';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { isWorkerOffline, selectDefaultWorker } from '../lib/workerStatus.js';
 import { PROVIDER_IDS, PROVIDERS, providerLabel, defaultModelFor } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
+import { modelsForProvider } from '../lib/modelOptions.js';
 import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
 
 const CONTENT_TABS = [
@@ -103,6 +105,9 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [sending, setSending] = useState(false);
   const [draft, setDraft] = useState('');
   const bottomRef = useRef(null);
+  const conversationScrollRef = useRef(null);
+  const prevConversationTabRef = useRef(false);
+  const prevCommentCountRef = useRef(0);
   const logsEndRef = useRef(null);
   const pollRef = useRef(null);
   const detailPollRef = useRef(null);
@@ -113,6 +118,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   const [assigneeSaving, setAssigneeSaving] = useState(false);
   // Track 10017: auto-run toggle
   const [autoRunSaving, setAutoRunSaving] = useState(false);
+  const [mergeModeSaving, setMergeModeSaving] = useState(false);
   // Track 1085 Phase 4: manual dispatch — "Run on worker" control + history
   const [projectWorkers, setProjectWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
@@ -233,6 +239,37 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
       if (r.ok) fetchDetail();
     } catch { }
     setAutoRunSaving(false);
+  }
+
+  // Track 10018 (REQ-9): writes through the same track-update path lane
+  // changes already use — PATCH .../tracks/:num forwards to the collector's
+  // /track/:num/action, which the sync worker's Phase 1 marker sync then
+  // reflects back into the track's own **Merge Mode** marker in index.md.
+  async function setMergeMode(mode) {
+    setMergeModeSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ merge_mode: mode || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setMergeModeSaving(false);
+  }
+
+  // Track 1116 REQ-7: per-track model override — beats the lane's
+  // primary_model and the project default. Empty = inherit (unchanged).
+  const [modelOverrideSaving, setModelOverrideSaving] = useState(false);
+  async function setModelOverride(model) {
+    setModelOverrideSaving(true);
+    try {
+      const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/model-override`, {
+        method: 'PATCH',
+        body: JSON.stringify({ model_override: model || null }),
+      });
+      if (r.ok) fetchDetail();
+    } catch { }
+    setModelOverrideSaving(false);
   }
 
   // Track 1085 Phase 4: workers registered to this project, for the "Run on
@@ -502,10 +539,33 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
     return () => clearInterval(pollRef.current);
   }, [projectId, trackNumber]);
 
-  // Scroll to bottom when comments change and Conversation tab is active
+  // Track 1094: auto-scroll to bottom on first opening the Conversation tab
+  // (a sensible "jump to latest" default) and when a genuinely new comment
+  // arrives while the user is already near the bottom — but never on a
+  // plain 2s poll tick with no new content, and never while the user has
+  // deliberately scrolled up to read history. Comments polls every 2s via
+  // fetchComments() above, and setComments(data) always produces a fresh
+  // array reference even when nothing changed, so gating on comments.length
+  // (rather than the array reference alone) is what actually stops this
+  // effect from re-firing — and therefore re-yanking the scroll position —
+  // on every single poll tick.
   useEffect(() => {
-    if (tab === 'conversation') {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (tab !== 'conversation') {
+      prevConversationTabRef.current = false;
+      return;
+    }
+
+    const justOpened = !prevConversationTabRef.current;
+    const grew = comments.length > prevCommentCountRef.current;
+    prevConversationTabRef.current = true;
+    prevCommentCountRef.current = comments.length;
+
+    if (!justOpened && !grew) return; // no new content — leave the user's scroll position alone
+
+    const el = conversationScrollRef.current;
+    const nearBottom = justOpened || !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    if (nearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: justOpened ? 'auto' : 'smooth' });
     }
   }, [comments, tab]);
 
@@ -708,6 +768,41 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
                     />
                     Auto-run: {detail.auto_run ? 'on' : 'off'}
                   </label>
+                </div>
+                {/* Track 10018 (REQ-9): merge-mode toggle — unspecified/null
+                    shows as "pr" (resolveMergeMode's default), matching what
+                    the Worktrees panel's badge would show for this track. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">Merge mode:</span>
+                  <select
+                    value={detail.merge_mode ?? 'pr'}
+                    disabled={mergeModeSaving}
+                    onChange={e => setMergeMode(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                    title="pr: opens a GitHub PR on done, pauses for approval. direct: auto-merges on done (today's behavior)."
+                  >
+                    <option value="pr">PR (review required)</option>
+                    <option value="direct">Direct (auto-merge)</option>
+                  </select>
+                </div>
+                {/* Track 1116 REQ-7: per-track model override — beats the
+                    lane's primary_model and the project default. Provider
+                    isn't selectable here — it stays fixed project-wide
+                    (REQ-3/REQ-7's session-continuity rule) — this only picks
+                    which model to use within that fixed provider. */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600" title="Beats this track's lane model and the project default. Applies in worker mode only (local-fs/local-api/remote-api) — best-effort, an unavailable model fails that run.">Model override:</span>
+                  <select
+                    value={detail.model_override ?? ''}
+                    disabled={modelOverrideSaving}
+                    onChange={e => setModelOverride(e.target.value)}
+                    className="text-xs bg-gray-900 border border-gray-700 rounded px-1.5 py-0.5 text-gray-300 disabled:opacity-50"
+                  >
+                    <option value="">(inherit lane/project default)</option>
+                    {modelsForProvider(getDefaultProviderModel(null, projectWorkers).cli, projectWorkers).map(m => (
+                      <option key={m.id} value={m.id}>{m.label} ({m.id})</option>
+                    ))}
+                  </select>
                 </div>
                 {/* Track 1085 Phase 4: manual dispatch — "Run on worker" */}
                 {DISPATCHABLE_LANES.includes(detail.lane_status) && projectWorkers.length > 0 && (
@@ -912,7 +1007,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
         {tab === 'conversation' ? (
           <div className="flex flex-col flex-1 min-h-0">
             {/* Comment list */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div ref={conversationScrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {comments.length === 0 ? (
                 <p className="text-gray-600 text-sm italic text-center pt-8">
                   No messages yet. Start the conversation below.

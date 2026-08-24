@@ -12,31 +12,73 @@ import { join } from 'node:path';
 // the only thing that ever reaches the primary checkout for that track, so
 // excluding them left the primary checkout frozen at its pre-run lane for
 // the track's entire time in that worktree.
-export function mergeIndexMarkers(existingContent, artifactContent) {
+//
+// `skipStatusMarkers` (Track 1102 F21, 2026-08-20): a reused per-cycle
+// worktree's Lane/Lane Status stays at whatever the PREVIOUS cycle's exit
+// handler last wrote until THIS cycle's own exit handler runs — nothing
+// updates it mid-run. A caller merging mid-run (the periodic doc-sync pass,
+// as opposed to the exit handler or a restart-orphan reconciliation, both of
+// which only ever run once a run has genuinely ended) must not let that
+// stale value overwrite the dispatcher's freshly-written "running" marker
+// on primary — confirmed live on track 10019's review and quality-gate
+// dispatches, both closed out by reconcileActiveDispatch() reading a
+// clobbered "success" while the real agent process was still alive. Every
+// other marker (Progress/Phase/Summary/Waiting for reply) has no such
+// hazard — nothing treats those as a completion signal — so they still flow
+// through for mid-run freshness, which is the whole point of that pass.
+export function mergeIndexMarkers(existingContent, artifactContent, { skipStatusMarkers = false } = {}) {
   const markerPatterns = [
-    { re: /\*\*Lane\*\*:\s*[^\n]+/i },
-    { re: /\*\*Lane Status\*\*:\s*[^\n]+/i },
+    { re: /\*\*Lane\*\*:\s*[^\n]+/i, isStatusMarker: true },
+    { re: /\*\*Lane Status\*\*:\s*[^\n]+/i, isStatusMarker: true },
     { re: /\*\*Progress\*\*:\s*[^\n]+/i },
     { re: /\*\*Phase\*\*:\s*[^\n]+/i },
     { re: /\*\*Summary\*\*:\s*[^\n]+/i },
-    { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i },
+    // Track 10020: unlike the other markers, a track can legitimately go
+    // its whole life without ever needing "Waiting for reply" until the
+    // moment it first does (e.g. a dispatched lane action hitting a
+    // genuine blocking question for the first time) — "not already present
+    // in primary" is the NORMAL case for that first occurrence, not a sign
+    // of reshaping the file. Silently dropping it here undid the exit
+    // handler's own correctly-written marker and the DB patch that
+    // depended on it: caught live on track 1102, where the marker landed
+    // in the worktree's copy and the worker_dispatch completion PATCH
+    // correctly included waiting_for_reply: true, but this merge step
+    // dropped it from primary's copy, and the very next syncTrack() call —
+    // reading primary's now marker-less file — overwrote the DB back to
+    // waiting_for_reply: false, silently undoing the Inbox fix.
+    { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i, alwaysInject: true },
   ];
 
   let merged = existingContent;
-  for (const { re } of markerPatterns) {
+  for (const { re, isStatusMarker, alwaysInject } of markerPatterns) {
+    if (isStatusMarker && skipStatusMarkers) continue;
     const m = artifactContent.match(re);
     if (!m) continue;
     if (re.test(merged)) {
       merged = merged.replace(re, m[0]);
+    } else if (alwaysInject) {
+      merged = merged.trim() + `\n${m[0]}\n`;
     }
-    // If the marker isn't present in the existing file, don't inject it —
-    // preserve the file's own structure rather than reshaping it.
+    // Every other marker: if it isn't present in the existing file, don't
+    // inject it — preserve the file's own structure rather than reshaping
+    // it. (Lane/Lane Status/Progress/Phase/Summary are set at track
+    // creation, so this gap essentially never applies to them.)
   }
   return merged;
 }
 
 const MERGE_ONLY_ARTIFACTS = new Set(['index.md']);
-const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'conversation.md', 'quality-gate.md'];
+// Track 10019 (REQ-10 / D3): conversation.md is deliberately NOT in this
+// list. It has two independent writers — the UI/human posts comments
+// straight into the PRIMARY's copy, while the agent appends its own turns
+// to the WORKTREE's copy — so a blind copy in either direction eats
+// whichever side wrote more recently. This was a live data-loss bug: a
+// human comment posted mid-run was silently overwritten by the worktree's
+// (comment-less) copy at run end, and the shrink guard never caught it
+// (one lost line stays well above its size thresholds). The existing
+// `.conv-cursor` machinery (see laneconductor.sync.mjs's conversation
+// sync) is this file's sole owner; nothing in this module may touch it.
+const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'quality-gate.md'];
 
 // Copies a worktree's track-doc artifacts back onto the primary checkout's
 // copy of the same track — index.md via mergeIndexMarkers() (status markers
@@ -56,11 +98,24 @@ const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'conversation.md
 // laneconductor.sync.mjs and depends on that module's own track-metadata
 // state (ambiguous-folder quarantining), which this module has no business
 // knowing about.
-export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder }) {
+//
+// `skipUnchanged` (track 10019 / REQ-9, default false — existing
+// exit-handler and orphan-reconcile callers keep their exact prior
+// behavior: always attempt every artifact that exists). The periodic
+// mid-run sync pass (syncWorktreeDocsToprimary, below) passes `true` so a
+// quiet repo with N live worktrees costs zero reads/writes for files
+// nobody touched since the last pass — mtime comparison, source strictly
+// newer than dest to copy.
+//
+// `skipped` (track 10019 / REQ-11) records every artifact the shrink guard
+// declined, with enough detail (file, reason, both sizes) for a caller to
+// log it and mark the track's docs as possibly stale — see Phase 5's
+// syncWorktreeDocsToprimary usage.
+export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder, skipUnchanged = false, skipStatusMarkers = false }) {
   const mainTracksDir = join(primaryRoot, 'conductor', 'tracks');
   const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
   const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
-  if (!wtTrackDir) return { copied: [], destDir: null };
+  if (!wtTrackDir) return { copied: [], destDir: null, skipped: [] };
 
   mkdirSync(mainTracksDir, { recursive: true });
   let mainTrackDir = existsSync(mainTracksDir) ? resolveTrackFolder(mainTracksDir, trackNumber) : null;
@@ -71,15 +126,22 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
   }
   const destDir = join(mainTracksDir, mainTrackDir);
   const copied = [];
+  const skipped = [];
 
   for (const file of ARTIFACTS) {
     const src = join(wtTracksDir, wtTrackDir, file);
     const dest = join(destDir, file);
     if (!existsSync(src)) continue;
 
+    if (skipUnchanged && existsSync(dest)) {
+      const srcMtime = statSync(src).mtimeMs;
+      const destMtime = statSync(dest).mtimeMs;
+      if (srcMtime <= destMtime) continue; // untouched since the last pass — no read, no write
+    }
+
     if (MERGE_ONLY_ARTIFACTS.has(file) && existsSync(dest)) {
       const artifact = readFileSync(src, 'utf8');
-      const merged = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact);
+      const merged = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact, { skipStatusMarkers });
 
       const artifactStats = statSync(src);
       const existingStats = statSync(dest);
@@ -87,18 +149,24 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
       // Suspicious if < 10 lines OR < 50% of existing OR < 500 bytes for markdown files
       const isSuspicious = (lineCount < 10) || (artifactStats.size < existingStats.size * 0.5 && existingStats.size > 100);
 
-      if (isSuspicious && !isSuccess) continue;
+      if (isSuspicious && !isSuccess) {
+        skipped.push({ file, reason: 'suspicious-shrink', incomingSize: artifactStats.size, existingSize: existingStats.size });
+        continue;
+      }
       writeFileSync(dest, merged, 'utf8');
     } else {
       const srcStats = statSync(src);
       const destStats = existsSync(dest) ? statSync(dest) : { size: 0 };
       const isSuspicious = srcStats.size < destStats.size * 0.5 && destStats.size > 200;
 
-      if (isSuspicious && !isSuccess) continue;
+      if (isSuspicious && !isSuccess) {
+        skipped.push({ file, reason: 'suspicious-shrink', incomingSize: srcStats.size, existingSize: destStats.size });
+        continue;
+      }
       copyFileSync(src, dest);
     }
     copied.push(file);
   }
 
-  return { copied, destDir };
+  return { copied, destDir, skipped };
 }

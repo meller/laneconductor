@@ -17,7 +17,25 @@
 // existing in-memory-only version of the same idea (laneconductor.sync.mjs)
 // — same semantics, just sourced from a DB-persisted `claimed` dispatch
 // instead of a Map that doesn't survive a restart.
-export function classifyOrphanedDispatch({ laneStatus, lane, action }) {
+// Track 1117 Bug 2: a lane/action mismatch was always treated as a genuine
+// inconsistency — but the NORMAL shape of a successful run is exactly a lane
+// that has advanced past the dispatched action (implement -> review, per
+// workflow.json's on_success). Before flagging a mismatch as suspicious,
+// check whether `lane` is a legal on_success/on_failure destination for
+// `action` per workflow.json's own transition table. Returns which
+// transition matched ('on_success' | 'on_failure'), or null if the
+// mismatch isn't a recognized transition at all (still worth flagging).
+function matchForwardTransition(action, lane, workflowConfig) {
+  const laneConfig = workflowConfig?.lanes?.[action?.trim()];
+  if (!laneConfig || !lane) return null;
+  const targetLaneOf = (transition) => transition?.split(':')[0]?.trim().toLowerCase();
+  const normalizedLane = lane.trim().toLowerCase();
+  if (targetLaneOf(laneConfig.on_success) === normalizedLane) return 'on_success';
+  if (targetLaneOf(laneConfig.on_failure) === normalizedLane) return 'on_failure';
+  return null;
+}
+
+export function classifyOrphanedDispatch({ laneStatus, lane, action, workflowConfig }) {
   const status = laneStatus?.trim();
   if (!status || status.toLowerCase() === 'running') return { orphaned: false };
 
@@ -33,10 +51,24 @@ export function classifyOrphanedDispatch({ laneStatus, lane, action }) {
   // when both are supplied, so existing call sites that don't pass them
   // keep today's behavior unchanged.
   if (action && lane && lane.trim().toLowerCase() !== action.trim().toLowerCase()) {
+    const transition = matchForwardTransition(action, lane, workflowConfig);
+    if (transition) {
+      // Legitimate forward advance — this IS what a clean success (or a
+      // handled failure) normally looks like. Trust the worktree's status
+      // and let the caller copy artifacts back, same as the lane/action
+      // agreement path below.
+      const isFailure = transition === 'on_failure';
+      return {
+        orphaned: true,
+        status: isFailure ? 'failed' : 'done',
+        result: isFailure ? null : (status.toLowerCase() === 'success' ? null : `lane status: ${status} (see track for outcome)`),
+      };
+    }
     return {
       orphaned: true,
       status: 'failed',
       skipArtifactCopy: true,
+      flagForHuman: true,
       result: `Worker restart interrupted this before "${action}" made any recorded progress — worktree still shows lane "${lane}" (status "${status}"), not "${action}". Re-run the ${action} action.`,
     };
   }

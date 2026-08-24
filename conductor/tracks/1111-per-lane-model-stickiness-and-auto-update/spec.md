@@ -49,26 +49,26 @@ already knowing what's currently available.
 
 ## Acceptance Criteria
 
-- [ ] This project's `conductor/workflow.json` has a real `primary_model`
+- [x] This project's `conductor/workflow.json` has a real `primary_model`
       set on every lane, and a live dispatch through each lane uses that
       model (observed, not assumed — e.g. via the transcript/log showing
       the actual `--model` flag passed).
-- [ ] No lane in any updated `workflow.json` (this project or others from
+- [x] No lane in any updated `workflow.json` (this project or others from
       Phase 4) sets `primary_cli` — and the worker warns (does not
       silently accept) if one ever does, per REQ-3's discovered guard
       requirement.
-- [ ] A test proves REQ-2: a worker with a manual model override active
+- [x] A test proves REQ-2: a worker with a manual model override active
       (via 1096's `set_model` dispatch) still uses the lane's configured
       model for an automated action, and falls back to the override only
       when the lane has no `primary_model` set.
-- [ ] REQ-4's decision is implemented and covered by a test — a
+- [x] REQ-4's decision is implemented and covered by a test — a
       `track_chat` dispatch demonstrably uses whichever model the
       decision specifies.
-- [ ] Given a project whose `workflow.json` names a model not present in
+- [x] Given a project whose `workflow.json` names a model not present in
       that worker's latest `available_models` report, the staleness is
       surfaced somewhere a human will actually see it (UI badge, log
       line, or dispatch/notification — decided at planning).
-- [ ] If Phase 6 (auto-update) is implemented: a same-tier newer model
+- [x] Phase 6 (auto-update) is implemented: a same-tier newer model
       replaces the stale one only for projects that opted in, and the
       change is visible in `workflow.json`'s git history / audit trail,
       not silently applied with no record.

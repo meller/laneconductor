@@ -1,9 +1,9 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 100%
-**Phase**: Planning in progress
+**Progress**: 80%
+**Phase**: Plan re-verified against the shipped code — three spec-vs-code mismatches found; Phase 7 opened for the one that needs code (Start-worker launch picker)
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -52,3 +52,4 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (new-worker
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
+**Waiting for reply**: yes
