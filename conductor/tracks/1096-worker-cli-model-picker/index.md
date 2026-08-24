@@ -3,8 +3,8 @@
 **Lane**: plan
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Plan refined — spec.md updated with Phase 6 provider-switch confirmation requirement; ready for implement
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Plan re-verified against the shipped code — three spec-vs-code mismatches found; Phase 7 opened for the one that needs code (Start-worker launch picker)
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -32,10 +32,16 @@ keep this summary in sync with it, don't duplicate task text here).
 - [x] Phase 1: Database Migration & API Server Support
 - [x] Phase 2: Worker Daemon Sync Engine
 - [x] Phase 3: UI Components & Model Picker Modal
-- [x] Phase 4: Integration Testing & Verification — all automated tests
-      pass; Task 4.2 (browser E2E) remains **partial**, see plan.md.
+- [ ] Phase 4: Integration Testing & Verification — automated tests green
+      (8/8, re-run 2026-08-24), but Task 4.2 (browser E2E) has **never been
+      performed**. Previously marked `[x]` here while `plan.md` had it
+      unchecked; `plan.md` was right.
 - [x] Phase 5: UX Fixes (post-implementation)
 - [x] Phase 6: Provider vs. model — session continuity constraint
+- [ ] Phase 7: Gaps found by verifying the spec against the code —
+      7.1/7.2 (doc corrections) done this pass; **7.3 needs code** (the
+      "Start Sync Worker" launch path still has no CLI/model picker, so
+      spec §3.3 is half built) and 7.4 needs a heartbeat test.
 
 ## Depends on
 
