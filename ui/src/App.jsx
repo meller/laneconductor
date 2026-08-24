@@ -171,8 +171,8 @@ function AppContent({ user, logout }) {
     setActiveTrack({ projectId: pid, trackNumber: track.track_number });
   }
 
-  function handleInboxSelect(projectId, trackNumber) {
-    setActiveTrack({ projectId, trackNumber, initialTab: 'conversation' });
+  function handleInboxSelect(projectId, trackNumber, opts) {
+    setActiveTrack({ projectId, trackNumber, initialTab: 'conversation', openTranscript: Boolean(opts?.transcript) });
     setInboxOpen(false);
   }
 
@@ -605,6 +605,7 @@ function AppContent({ user, logout }) {
           projectId={activeTrack.projectId}
           trackNumber={activeTrack.trackNumber}
           initialTab={activeTrack?.initialTab}
+          initialTranscriptOpen={activeTrack?.openTranscript}
           onClose={() => setActiveTrack(null)}
         />
       )}
