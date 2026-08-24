@@ -28,7 +28,7 @@ the worker's own decision loop.
 - [x] Phase 5: UI toggle + SKILL.md docs
 - [x] Phase 6: Tests — unit, API, E2E
 - [x] Phase 7: Connect auto_run to Complete & Merge button + dedicated E2E
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Summary**: All 7 phases implemented, tested with real DB/worker/browser verification (see conversation.md) — grep for "auto_run" now returns real matches across sync.mjs, claim-scope.mjs, index.mjs, and TrackDetailPanel.jsx/WorktreesPanel.jsx.
 **Waiting for reply**: no
