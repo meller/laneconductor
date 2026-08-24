@@ -1,8 +1,9 @@
 # Track 1052: Show HN Post
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: mock (primary)
 **Phase**: KPI Window — waiting 48h
 **Type**: marketing
 **Summary**: Post v2 live at https://news.ycombinator.com/item?id=48046969 — measuring score after 48h window.
