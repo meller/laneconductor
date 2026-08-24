@@ -156,3 +156,16 @@ surface" constraint enforced by inspection rather than assumed.
 - No wiring to `WorkerActivityLatch`, and no third transcript mechanism.
 - No new stale-run detection or "run finished" reconciliation — REQ-6 is
   satisfied by the existing empty state plus an honest tooltip.
+
+## ✅ REVIEWED
+
+All 4 phases verified against the real diff: `git diff --name-only` confirms
+no `ui/server/**`, no `worktree-audit.mjs`, no migration touched (AC-8). Code
+read line-by-line against REQ-1..4. Independently re-ran (not just trusted)
+all 15 vitest cases for this track's own files, the full `cd ui && npm test`
+suite (403 passed / 32 pre-existing-baseline failures, confirmed unrelated via
+`git stash` + rerun against untouched baseline), and the Playwright fast spec
+against a freshly-started scratch UI+API pair from this worktree's own
+checkout (2/2 pass, fixture cleanup confirmed). One non-blocking note left in
+conversation.md about a pre-existing Track 1087 auto-expand race that AC-6
+doesn't cover. Moved to quality-gate.
