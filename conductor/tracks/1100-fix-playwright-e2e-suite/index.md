@@ -1,7 +1,7 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
-**Lane**: implement
-**Lane Status**: queue
+**Lane**: review
+**Lane Status**: success
 **Progress**: 90%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Review #4 FAIL — Gap 4 fix confirmed solid; new related Gap 5 found (API-key revoke count race, not yet fixed); Gap 2 + track-1033-sharing still need the human decision requested 3x in conversation.md
