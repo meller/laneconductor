@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 87%
-**Phase**: 13 of 15 phases done. Walkthrough complete (Activity/Inbox/deploy wizard all confirmed working live, no new findings). Remaining: F10c live-DB apply and F15 live dispatch verification — both…
+**Progress**: 76%
+**Phase**: Implementing Phase 15a — E2E dispatch bridge test on the existing worker harness (unblocked, no live-system access needed)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 

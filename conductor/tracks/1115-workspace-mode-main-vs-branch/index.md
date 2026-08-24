@@ -197,4 +197,4 @@ would be simpler and should be reopened if 10018 lands before Phase 2.
 **Merge Mode**: pr
 **PR Number**: 6
 **PR URL**: https://github.com/meller/laneconductor/pull/6
-**PR Status**: open
+**PR Status**: conflicted
