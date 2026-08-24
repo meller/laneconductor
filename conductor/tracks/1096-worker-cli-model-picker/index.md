@@ -1,9 +1,9 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
-**Phase**: Phase 8 — performed the Task 4.2 browser E2E for real (Playwright reconnected), against an isolated instance of this worktree's code, not the live shared stack. Confirmed the Model Change flow,…
+**Phase**: Review passed — re-ran all 25 tests fresh, read the full diff against main, scanned for stubs/secrets, confirmed no lasting effect from the prior pass's live-project incident. Moved to quality-gate.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
