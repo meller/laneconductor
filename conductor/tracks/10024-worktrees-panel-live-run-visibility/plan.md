@@ -169,3 +169,16 @@ against a freshly-started scratch UI+API pair from this worktree's own
 checkout (2/2 pass, fixture cleanup confirmed). One non-blocking note left in
 conversation.md about a pre-existing Track 1087 auto-expand race that AC-6
 doesn't cover. Moved to quality-gate.
+
+## ✅ QUALITY PASSED
+
+All automated checks re-run for real this session (not carried over from
+track 1117's prior marks in `conductor/quality-gate.md`, which have been
+rewritten). Two large regression suites (`node --test conductor/tests/*`,
+`cd ui && npx vitest run`) confirmed zero attributable failures by
+`git stash`-ing this track's diff and diffing the failure set against the
+untouched baseline. Full fast-tier Playwright suite (23/23, 6 pre-existing
+skips) run against a fresh scratch API+UI pair built from this worktree's
+own checkout — this track has real UI surface, so the E2E section was fully
+in scope, unlike track 1117. No stubs, no deferred capability, acceptance
+criteria describe user-facing outcomes. Moved to done.

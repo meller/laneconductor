@@ -3,6 +3,7 @@ import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
 import { removeKey, mergeKey, completeKey, forceKey, discardKey, createPrKey, mergePrKey, aiResolveKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
+import { isWorktreeRowRunning } from '../lib/worktreeRunState.js';
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -248,6 +249,11 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   // is pending for this row, the rest are disabled too, not just the one
   // that was clicked.
   const rowBusy = merging || removing || autoCompleting || forceMerging || discarding || creatingPr || mergingPr || aiResolving;
+  // Track 10024: "running" for the purposes of the transcript deep-link below
+  // — either this tab just dispatched something (rowBusy) or the server's own
+  // audit says the track's lane_status is running (e.g. a plain lane
+  // re-dispatch started elsewhere, or state that survived a page reload).
+  const isRunning = isWorktreeRowRunning({ row, busy: rowBusy });
 
   return (
     <div
@@ -264,7 +270,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
                 scratch worktrees) aren't linkable. */}
             {row.track && onSelectTrack ? (
               <button
-                onClick={() => onSelectTrack(row.track)}
+                onClick={() => onSelectTrack(row.track, { transcript: isRunning })}
                 className="font-semibold text-gray-200 hover:text-blue-400 hover:underline"
                 title="Open this track"
               >
@@ -282,6 +288,27 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
           {row.title && <span className="text-xs text-gray-400 truncate">{row.title}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Track 10024: the row's "Running…" state used to be decorative
+              text on a disabled action button — nothing to click, no way to
+              see what the run is actually doing. This badge is clickable and
+              reuses the same onSelectTrack path the #<track> ↗ link already
+              uses, just with transcript:true attached, so it opens
+              TrackDetailPanel with the existing Phase 4 Transcript drawer
+              already expanded instead of a closed one. If the run already
+              finished or never really started (stale lane_status after a
+              crash), the drawer's own "No transcript yet." empty state
+              covers it — nothing new built for that case. */}
+          {isRunning && onSelectTrack && (
+            <button
+              onClick={() => onSelectTrack(row.track, { transcript: true })}
+              data-testid="worktree-running-badge"
+              title="Watch this track's live session transcript. If the run already finished (or the badge is stale after a crash), the transcript will simply be empty."
+              className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-orange-800/70 bg-orange-950/40 text-orange-300 hover:bg-orange-900/50 transition-colors"
+            >
+              <span className="animate-pulse">●</span>
+              <span>Running…</span>
+            </button>
+          )}
           {/* Track 10018: shown on every row, not just pr-open — lets you
               tell at a glance which rows will auto-merge vs pause for
               review without clicking in. */}
@@ -933,7 +960,7 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
           row={row}
           onMerge={handleMerge}
           merging={Boolean(pendingKeys[mergeKey(row)])}
-          onSelectTrack={onSelectTrack ? (track) => onSelectTrack(projectId, track) : null}
+          onSelectTrack={onSelectTrack ? (track, opts) => onSelectTrack(projectId, track, opts) : null}
           onRemove={handleRemove}
           removing={Boolean(pendingKeys[removeKey(row)])}
           onAutoComplete={handleAutoComplete}

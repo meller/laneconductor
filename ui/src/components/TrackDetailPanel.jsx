@@ -95,7 +95,7 @@ function CommentBubble({ comment }) {
   );
 }
 
-export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }) {
+export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTranscriptOpen = false, onClose }) {
   const { apiFetch } = useApi();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -177,13 +177,19 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, onClose }
   useEffect(() => {
     setTranscriptState(createTranscriptState());
     autoExpandArmedRef.current = true;
+    // Track 10024: a caller (e.g. the Worktrees panel's running-row link) can
+    // ask to land here with the drawer already open. Open-only — never
+    // setTranscriptOpen(false) here — so this can't fight a manual collapse
+    // (Track 1087 REQ-4: "user can collapse manually at any time") and other
+    // entry points that omit the prop keep today's closed default.
+    if (initialTranscriptOpen) setTranscriptOpen(true);
     apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/transcript`)
       .then(r => r.ok ? r.json() : { events: [] })
       .then(({ events }) => {
         setTranscriptState((events || []).reduce(reduceStreamEvent, createTranscriptState()));
       })
       .catch(() => { });
-  }, [projectId, trackNumber]);
+  }, [projectId, trackNumber, initialTranscriptOpen]);
 
   // Track 1087 Phase 4 Task 2: live continuation over the same WebSocket
   // the rest of the app already uses (Phase 2's notifyApi -> broadcast

@@ -1,7 +1,10 @@
 # Track 10024: Worktrees panel: live run visibility
 
-**Status**: plan
+**Status**: implement
+**Step**: coding
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Waiting for reply**: no
 
 ## Problem
 When a Worktrees panel row is running an action (Complete & Merge, AI resolve conflict, a re-triggered lane dispatch), the row just shows a static 'Running…' badge with no way to see what's actually happening.
@@ -55,11 +58,23 @@ Requirements:
   WorkerActivityLatch by another name.
 
 ## Solution
-To be defined.
+Carry an "open the transcript" intent along the deep-link the Worktrees panel
+already has. A pure `isWorktreeRowRunning()` helper decides if a row is running
+(client-side pending dispatch OR `lane_status === 'running'`); a running row
+renders a clickable `Running…` badge (and its `#<track> ↗` link) that calls the
+existing `onSelectTrack` with `{ transcript: true }`; `App` passes that through
+as a new `initialTranscriptOpen` prop which seeds `TrackDetailPanel`'s existing
+Phase 4 `transcriptOpen` drawer open (open-only — never force-closes). No new
+API endpoint, no worker join, no third transcript mechanism.
 
 ## Phases
-- [ ] Phase 1: Implementation
-**Lane**: quality-gate
-**Lane Status**: running
-**Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no…
-**Waiting for reply**: no
+- [x] Phase 1: Run-state helper (`ui/src/lib/worktreeRunState.js`) + unit tests
+- [x] Phase 2: Clickable Running badge + transcript intent in WorktreesPanel
+- [x] Phase 3: `initialTranscriptOpen` plumbing (App → TrackDetailPanel)
+- [x] Phase 4: Real-browser Playwright verification + no-backend-surface check
+**Lane**: done
+**Lane Status**: success
+**Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no new API or worker join.
+**PR Number**: 8
+**PR URL**: https://github.com/meller/laneconductor/pull/8
+**PR Status**: open
