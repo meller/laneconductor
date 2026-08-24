@@ -1,9 +1,9 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 90%
-**Phase**: Implemented Phase 7 — Start-worker CLI/model picker (course-corrected to reuse track 10011's in-memory --cli/--model mechanism, not a .laneconductor.json write) and the missing heartbeat test. 25/25…
+**Progress**: 100%
+**Phase**: Phase 8 — performed the Task 4.2 browser E2E for real (Playwright reconnected), against an isolated instance of this worktree's code, not the live shared stack. Confirmed the Model Change flow,…
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
