@@ -14,7 +14,7 @@
 
 import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
@@ -130,6 +130,46 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'pr-open');
     assert.equal(row.prNumber, '42');
     assert.equal(row.prUrl, 'https://github.com/org/repo/pull/42');
+    assert.equal(row.prStatus, 'open');
+  });
+
+  it('carries PR Number/URL/Status through even when they are UNCOMMITTED working-tree writes (the real openTrackPrOnDone shape)', async () => {
+    // Dogfooding session 2026-08-24: openTrackPrOnDone() deliberately writes
+    // **PR Number**/**PR URL**/**PR Status** as raw file writes, never
+    // committed — the test above (line 111) commits them, which isn't what
+    // actually happens in production and was masking this exact bug.
+    // Confirmed live: five real done:success pr-mode tracks stuck reporting
+    // prNumber: null indefinitely (Create PR button forever, even after
+    // repeated refreshes) despite their working-tree files having the
+    // correct marker, because readTrackStateFromBranch's `git show` can only
+    // ever see committed content.
+    setupRepo();
+    writeTrackIndex(REPO, '203', 'PR Number Never Committed', 'plan', 'queue', 'Test.', null);
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-203 .worktrees/203 HEAD');
+    const trackDir = join(REPO, '.worktrees/203', 'conductor/tracks/203-pr-number-never-committed');
+    mkdirSync(trackDir, { recursive: true });
+    writeFileSync(join(trackDir, 'index.md'), [
+      '# Track 203: PR Number Never Committed', '',
+      '**Lane**: done', '**Lane Status**: success', '**Progress**: 100%',
+      '**Merge Mode**: pr', '',
+    ].join('\n'));
+    git('add -A', join(REPO, '.worktrees/203'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 203 done, no PR yet"', join(REPO, '.worktrees/203'));
+
+    // The PR fields land AFTER that commit, exactly like openTrackPrOnDone's
+    // real writeIndexMarker calls — never committed.
+    let content = readFileSync(join(trackDir, 'index.md'), 'utf8');
+    content += '**PR Number**: 99\n**PR URL**: https://github.com/org/repo/pull/99\n**PR Status**: open\n';
+    writeFileSync(join(trackDir, 'index.md'), content);
+    assert.equal(git('status --porcelain', join(REPO, '.worktrees/203')).trim().length > 0, true, 'sanity: the PR fields must genuinely be uncommitted for this test to mean anything');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '203');
+    assert.equal(row.classification, 'pr-open');
+    assert.equal(row.prNumber, '99', 'must read the uncommitted working-tree PR Number, not fall back to null from git show');
+    assert.equal(row.prUrl, 'https://github.com/org/repo/pull/99');
     assert.equal(row.prStatus, 'open');
   });
 
