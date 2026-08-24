@@ -1,10 +1,10 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 80%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 90%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Plan re-verified against the shipped code — three spec-vs-code mismatches found; Phase 7 opened for the one that needs code (Start-worker launch picker)
+**Phase**: Implemented Phase 7 — Start-worker CLI/model picker (course-corrected to reuse track 10011's in-memory --cli/--model mechanism, not a .laneconductor.json write) and the missing heartbeat test. 25/25 tests pass. Only Task 4.2 (browser E2E) remains, and could not be attempted this run — see conversation.md.
 **Type**: dev
 **Summary**: No UI exists to choose a worker's CLI/model when starting one, or to change an existing worker's model assignment afterward — today it's CLI-only, via .laneconductor.json's primary/secondary config…
 
@@ -32,16 +32,19 @@ keep this summary in sync with it, don't duplicate task text here).
 - [x] Phase 1: Database Migration & API Server Support
 - [x] Phase 2: Worker Daemon Sync Engine
 - [x] Phase 3: UI Components & Model Picker Modal
-- [ ] Phase 4: Integration Testing & Verification — automated tests green
-      (8/8, re-run 2026-08-24), but Task 4.2 (browser E2E) has **never been
-      performed**. Previously marked `[x]` here while `plan.md` had it
-      unchecked; `plan.md` was right.
+- [ ] Phase 4: Integration Testing & Verification — automated coverage
+      green (25/25 for this track's suites; 327/338 for the full UI test
+      run, 11 pre-existing failures unrelated to this track — confirmed via
+      `git stash`). Task 4.2 (browser E2E) has **still never been
+      performed** — see plan.md for exactly why, and why it's the one
+      thing blocking `done`.
 - [x] Phase 5: UX Fixes (post-implementation)
 - [x] Phase 6: Provider vs. model — session continuity constraint
-- [ ] Phase 7: Gaps found by verifying the spec against the code —
-      7.1/7.2 (doc corrections) done this pass; **7.3 needs code** (the
-      "Start Sync Worker" launch path still has no CLI/model picker, so
-      spec §3.3 is half built) and 7.4 needs a heartbeat test.
+- [x] Phase 7: Gaps found by verifying the spec against the code — 7.1/7.2
+      (doc corrections), 7.3 (Start-worker CLI/model picker — built using
+      track 10011's existing in-memory `--cli`/`--model` mechanism, a
+      correction from the plan's original "write to .laneconductor.json"),
+      and 7.4 (heartbeat test) all done.
 
 ## Depends on
 
@@ -50,4 +53,4 @@ Possibly related to [1089](../1089-remote-worker-provisioning/index.md)
 [1091](../1091-manager-worker-and-new-project-flow/index.md) (new-worker
 creation flow) — worth checking during planning whether this should be a
 shared step in both rather than fully separate.
-**Waiting for reply**: yes
+**Waiting for reply**: no
