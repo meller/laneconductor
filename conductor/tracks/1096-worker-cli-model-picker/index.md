@@ -1,7 +1,7 @@
 # Track 1096: Choose/change a worker's CLI + model from the UI
 
-**Lane**: implement
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 90%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Implemented Phase 7 — Start-worker CLI/model picker (course-corrected to reuse track 10011's in-memory --cli/--model mechanism, not a .laneconductor.json write) and the missing heartbeat test. 25/25 tests pass. Only Task 4.2 (browser E2E) remains, and could not be attempted this run — see conversation.md.

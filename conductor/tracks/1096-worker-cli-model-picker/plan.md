@@ -250,3 +250,15 @@ blockers, checked rather than assumed.
    action the "check before disruptive, shared-system actions" rule exists
    for. Left for a human to run deliberately (or to confirm it's fine to
    restart) rather than done silently.
+
+## ⚠️ PARTIAL — [implement] 2026-08-24
+
+Phase 7 (code + tests) is done and verified (25/25 pass, confirmed no
+regressions via git-stash comparison). All plan.md tasks are now checked
+except Task 4.2, the manual browser E2E — open since the original
+implementation pass, not new work introduced here, and not attempted this
+run for the two concrete reasons recorded under Phase 7's verification
+note above (no Playwright available; the shared dev stack on 8090/8091 is
+live and not safe to restart unilaterally). Moving to `review` per
+`workflow.json`'s `lanes.implement.on_success` — review/quality-gate
+should treat Task 4.2 as the one open item still blocking `done`.
