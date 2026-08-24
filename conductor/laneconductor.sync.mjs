@@ -4185,6 +4185,26 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // gap: nothing re-reads this file once the run has started.
   const contextFrozenAt = Date.now();
 
+  // Track 10020 (fixes a self-inflicted regression from the original
+  // contextFrozenAt-vs-mtime check below): capture which HUMAN messages
+  // were already unanswered at context-freeze time specifically, not just
+  // conversation.md's raw mtime. A plain mtime comparison also fires on the
+  // AGENT's own normal writes during its run (status comments, closing
+  // responses — routine, expected, happens on nearly every dispatch) —
+  // confirmed live: that false positive stuck track 10017's implement
+  // stage in a queue loop twice in a row, since it legitimately posts its
+  // own progress comments as part of real work. Comparing the unanswered-
+  // human-tail specifically (same extractUnansweredHumanTail used for
+  // resumed sessions below) only flags a genuine new human message, not
+  // the agent talking to itself.
+  let humanTailAtFreeze = null;
+  try {
+    const tracksDirForTail = join(worktreePath || process.cwd(), 'conductor', 'tracks');
+    const trackDirForTail = resolveTrackFolder(tracksDirForTail, trackNumber);
+    const convPathForTail = trackDirForTail ? join(tracksDirForTail, trackDirForTail, 'conversation.md') : null;
+    humanTailAtFreeze = convPathForTail ? extractUnansweredHumanTail(readIfExists(convPathForTail)) : null;
+  } catch { /* best-effort baseline — treat as "no prior unanswered tail" */ }
+
   // Inject context into the prompt (usually follows -p) — skipped on a
   // resumed session (track 1086): Claude already has this loaded from
   // earlier in the same session, re-injecting it every call is exactly the
@@ -4407,24 +4427,35 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
 
     // Track 10020: a human can post a conversation.md message any time
-    // after this run's context was frozen (contextFrozenAt, captured right
-    // when conversation.md was read into the prompt) — not a millisecond
-    // race, a deterministic gap: nothing re-reads this file for the rest of
-    // the run, however long it takes. If conversation.md's mtime is newer
-    // than that, this run genuinely never saw it, regardless of what it
-    // concluded ("nothing new has arrived" can be true from the run's own
-    // frozen view and still be wrong by the time it finishes). Don't let
-    // this run's outcome stand as final — force it back to 'queue' at the
-    // same lane so the very next dispatch starts with fresh context that
-    // DOES include the message, instead of silently losing it for a full
-    // cycle or longer.
+    // after this run's context was frozen (contextFrozenAt / humanTailAtFreeze,
+    // captured right when conversation.md was read into the prompt) — not a
+    // millisecond race, a deterministic gap: nothing re-reads this file for
+    // the rest of the run, however long it takes. If a genuinely NEW
+    // unanswered human message exists now that wasn't there at freeze time,
+    // this run never saw it, regardless of what it concluded ("nothing new
+    // has arrived" can be true from the run's own frozen view and still be
+    // wrong by the time it finishes). Don't let this run's outcome stand as
+    // final — force it back to 'queue' at the same lane so the very next
+    // dispatch starts with fresh context that DOES include the message.
+    //
+    // Deliberately NOT a raw mtime check (that was this fix's own first
+    // draft, and a real regression): the agent's OWN normal writes to
+    // conversation.md during its run — status comments, closing responses,
+    // routine on nearly every dispatch — bump the mtime just as much as a
+    // genuine human message would, incorrectly blocking any session that
+    // posts even one comment from ever advancing a lane. Confirmed live:
+    // stuck track 10017's implement stage in a queue loop twice in a row.
+    // Comparing the unanswered-human-tail specifically (same
+    // extractUnansweredHumanTail used for resumed sessions below) only
+    // flags a genuine new human message, not the agent talking to itself.
     let isStaleAgainstNewMessage = false;
     try {
       const convPath = join(worktreePath || process.cwd(), 'conductor', 'tracks',
         resolveTrackFolder(join(worktreePath || process.cwd(), 'conductor', 'tracks'), trackNumber) || '', 'conversation.md');
-      if (existsSync(convPath) && statSync(convPath).mtimeMs > contextFrozenAt) {
+      const humanTailNow = existsSync(convPath) ? extractUnansweredHumanTail(readIfExists(convPath)) : null;
+      if (humanTailNow && humanTailNow !== humanTailAtFreeze) {
         isStaleAgainstNewMessage = true;
-        console.log(`[${label}] Track ${trackNumber}: conversation.md changed after this run's context was frozen — re-queuing instead of finalizing so the next run sees it`);
+        console.log(`[${label}] Track ${trackNumber}: a new unanswered human message arrived after this run's context was frozen — re-queuing instead of finalizing so the next run sees it`);
       }
     } catch (err) {
       console.warn(`[${label}] Failed to check conversation.md freshness for track ${trackNumber}: ${err.message}`);
