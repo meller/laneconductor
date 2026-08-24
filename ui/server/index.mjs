@@ -2376,12 +2376,30 @@ app.post('/track', collectorAuth, async (req, res) => {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
 
     // Fetch old state to detect transitions (index_content included for the
-    // F9 gutted-index guard below).
+    // F9 gutted-index guard below; last_updated_by for the Track 10013
+    // human-lane-override guard below).
     const oldRes = await pool.query(
-      'SELECT id, lane_status, lane_action_status, index_content FROM tracks WHERE project_id = $1 AND track_number = $2',
+      'SELECT id, lane_status, lane_action_status, last_updated_by, index_content FROM tracks WHERE project_id = $1 AND track_number = $2',
       [projectId, track_number]
     );
     const oldTrack = oldRes.rows[0];
+
+    // Track 10013 Phase 5: a stale lane action's completion sync must not
+    // clobber a lane a human has since manually moved the track to.
+    // `/track/:num/lane` marks last_updated_by='human' on every human-driven
+    // move; here, skip the lane_status/lane_action_status write whenever the
+    // row is human-owned AND the incoming lane_status disagrees with it —
+    // unless this sync is a genuine new claim (lane_action_status:'running',
+    // written by a lane action's own "claim the track immediately" step),
+    // which must always be allowed through and clears the human flag so this
+    // new run's own eventual completion isn't itself guarded. A same-lane
+    // echo (human's own write reflected back through the file watcher) must
+    // NOT clear the flag either — only a genuine claim does.
+    const isGenuineClaim = lane_action_status === 'running';
+    const humanOwned = !!(oldTrack && oldTrack.last_updated_by === 'human');
+    const laneDisagrees = !!(oldTrack && lane_status !== null && lane_status !== undefined && oldTrack.lane_status !== lane_status);
+    const humanGuardActive = humanOwned && laneDisagrees && !isGenuineClaim;
+    const preserveHumanFlag = humanOwned && !isGenuineClaim;
 
     // Track 1102 F9: refuse to replace a substantial index_content with a
     // gutted, title-less stub. Observed live: a 263-byte marker-only
@@ -2410,11 +2428,16 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     // Build UPDATE clause — avoid duplicate lane_action_status assignments
     let laneStatusClause = '';
-    const laneChanging = lane_status !== null && oldTrack && oldTrack.lane_status !== lane_status;
-    if (lane_status !== null) {
+    // humanGuardActive: a stale sync disagreeing with a human-set lane —
+    // skip the lane_status/lane_action_status write entirely (see guard
+    // computed above), leaving the human's lane in place.
+    const laneChanging = !humanGuardActive && lane_status !== null && oldTrack && oldTrack.lane_status !== lane_status;
+    if (humanGuardActive) {
+      console.warn(`[API] POST /track #${track_number}: human-lane-override guard — keeping lane_status='${oldTrack.lane_status}' (human-set), ignoring stale sync's lane_status='${lane_status}'. See track 10013.`);
+    } else if (lane_status !== null) {
       laneStatusClause = `lane_status = EXCLUDED.lane_status,`;
     }
-    if (lane_action_status !== null && lane_action_status !== undefined) {
+    if (!humanGuardActive && lane_action_status !== null && lane_action_status !== undefined) {
       // Explicit status wins over lane-change default
       laneStatusClause += ` lane_action_status = $13,`;
       if (laneChanging) {
@@ -2446,6 +2469,13 @@ app.post('/track', collectorAuth, async (req, res) => {
       merge_mode ?? null,
     ];
 
+    // Track 10013 Phase 5: only a genuine new claim (isGenuineClaim) resets
+    // last_updated_by to 'worker'. A human-owned row that isn't being
+    // claimed keeps its flag untouched (whether this sync's lane_status
+    // agreed or was guarded away above) so a later stale completion is
+    // still caught.
+    const lastUpdatedByClause = preserveHumanFlag ? '' : `last_updated_by    = 'worker',`;
+
     const qRes = await pool.query(`
     INSERT INTO tracks
       (project_id, track_number, title, lane_status, progress_percent,
@@ -2469,7 +2499,7 @@ app.post('/track', collectorAuth, async (req, res) => {
       test_content       = COALESCE(EXCLUDED.test_content, tracks.test_content),
       last_heartbeat     = NOW(),
       sync_status        = 'syncing',
-      last_updated_by    = 'worker',
+      ${lastUpdatedByClause}
       track_type         = COALESCE(EXCLUDED.track_type, tracks.track_type, 'dev'),
       kpi_target         = COALESCE(EXCLUDED.kpi_target, tracks.kpi_target),
       kpi_actual         = COALESCE(EXCLUDED.kpi_actual, tracks.kpi_actual),
@@ -2492,9 +2522,11 @@ app.post('/track', collectorAuth, async (req, res) => {
     const trackId = qRes.rows[0]?.id;
 
     // Reset retries by adding a human system comment if lane changed or manual reset to queue
+    // (humanGuardActive: the write above was skipped, so the lane did NOT
+    // actually change — don't post a misleading "Moved to X" comment)
     if (trackId && oldTrack) {
-      const laneChanged = oldTrack.lane_status !== lane_status;
-      const manuallyQueued = oldTrack.lane_action_status === 'failure' && lane_action_status === 'queue';
+      const laneChanged = !humanGuardActive && oldTrack.lane_status !== lane_status;
+      const manuallyQueued = !humanGuardActive && oldTrack.lane_action_status === 'failure' && lane_action_status === 'queue';
 
       if (laneChanged || manuallyQueued) {
         // Use is_replied=true so system-generated lane comments don't trigger auto-answer
@@ -3125,6 +3157,10 @@ app.patch('/track/:num/lane', collectorAuth, async (req, res) => {
       `lane_action_status = '${nextActionStatus}'`,
       `lane_action_result = NULL`,
       `last_heartbeat = NOW()`,
+      // Track 10013 Phase 5: mark this row human-owned so a stale lane
+      // action's later completion sync (POST /track) can't clobber this
+      // move — see the human-lane-override guard there.
+      `last_updated_by = 'human'`,
     ];
     const params = [projectId, req.params.num, lane_status];
     if (phase_step !== undefined) { sets.push(`phase_step = $${params.length + 1} `); params.push(phase_step); }
