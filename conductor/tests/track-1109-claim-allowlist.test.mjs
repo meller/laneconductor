@@ -42,7 +42,11 @@ describe('Track 1109: --only-tracks parsing', () => {
 });
 
 describe('Track 1109: claim gate', () => {
-  const base = { claimableSet: null, onlyTracks: null, waitingForReply: false };
+  // autoRun: true opts these fixtures out of track 10017's separate,
+  // default-closed auto-run gate so this suite continues to isolate the
+  // allowlist/claimableSet behavior it was written to test — see
+  // track-10017-auto-run.test.mjs for the auto-run gate's own coverage.
+  const base = { claimableSet: null, onlyTracks: null, waitingForReply: false, autoRun: true };
 
   it('TC-9: no allowlist and no claimableSet → unchanged (claimable)', () => {
     assert.equal(isTrackClaimable('42', base), true);

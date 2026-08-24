@@ -351,7 +351,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
             onClick={() => request(`complete:${row.track}`, () => onAutoComplete(row))}
             disabled={rowBusy}
             data-testid="complete-and-merge-btn"
-            title="Runs this track's remaining lane actions for real (review, quality-gate, ...) and merges once it reaches done:success. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
+            title="This will send the track to an automatic worker to complete it — is that OK? Runs the remaining lane actions for real (review, quality-gate, ...) and merges once it reaches done:success; also marks it auto_run so future queue work on it can be picked up automatically, starting a sync+poll worker first if none is running. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
             className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `complete:${row.track}`
               ? 'border-blue-500 bg-blue-800/60 text-white'
               : 'border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40'
@@ -732,11 +732,46 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
     }
   }
 
+  // Track 10017 Phase 7: "Complete & Merge" already ran a track through the
+  // full pipeline via explicit dispatch, independent of auto_run. This
+  // connects the two: confirming the button now also (a) marks the track
+  // auto_run:true, so a future queue-status lane on it can be picked up by
+  // ordinary polling too, not just this one dispatch, and (b) makes sure a
+  // sync+poll worker actually exists to act on that flag going forward —
+  // otherwise auto_run:true would be a no-op setting nobody ever reads.
+  // The row's existing two-step armed button (see useArmedConfirm) is
+  // already this action's confirmation gate — a native window.confirm()
+  // doesn't reliably fire in this app's runtime (see the Remove-button
+  // comment above), so this reuses that same pattern rather than adding a
+  // second dialog on top of it.
+  async function ensurePollingWorker() {
+    try {
+      const res = await apiFetch(`/api/projects/${projectId}/workers`);
+      if (!res.ok) return;
+      const workers = await res.json();
+      const hasPoller = (workers || []).some(w => w.mode === 'sync+poll' && w.type !== 'manager');
+      if (hasPoller) return;
+      await apiFetch(`/api/projects/${projectId}/workers/start-new`, {
+        method: 'POST',
+        body: JSON.stringify({ sync_and_work: true }),
+      });
+    } catch {
+      // Best-effort: failing to provision a poller must not block the
+      // dispatch this click already committed to — auto-complete-track
+      // reaches the track's worker_dispatch inbox regardless of mode.
+    }
+  }
+
   async function handleAutoComplete(row) {
     if (!row.track) return;
     setError(null);
     startPending(completeKey(row));
     try {
+      await apiFetch(`/api/projects/${projectId}/tracks/${row.track}/auto-run`, {
+        method: 'PATCH',
+        body: JSON.stringify({ auto_run: true }),
+      }).catch(() => { });
+      await ensurePollingWorker();
       const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
         method: 'POST',
         body: JSON.stringify({ action: 'auto-complete-track', payload: { track_number: row.track } }),
