@@ -1,8 +1,8 @@
 # Track 008: New Track UI Flow
 
-**Lane**: review
+**Lane**: implement
 **Lane Status**: queue
-**Progress**: 100%
+**Progress**: 90%
 **Last Run**: claude/claude-sonnet-5 (primary)
 
 ## Problem
@@ -17,4 +17,4 @@ A "+ New Track" button in the board header. Clicking opens a modal that first ch
 - [x] Phase 3: "+ New Track" button in board header, wired to modal
 - [x] Phase 4: Fix Review Gaps
 - [x] Phase 5: Expose per-track config at creation time
-**Summary**: Phase 5 complete — Merge Mode/Workspace/Auto Run/Model exposed in an Advanced disclosure at track creation, threaded through the POST endpoint and written into index.md only when non-default. Track Kind bug-fix turned out to be already fixed by track 1115; verified and documented rather than re-implemented. Fixed a discovered duplicate/dead NewTrackModal render in App.jsx's cloud-mode path along the way.
+**Summary**: Phase 5 review FAILED — two gaps found: (1) `ui/server/utils.mjs` hardcodes a second copy of the merge/workspace mode allow-lists instead of importing the canonical `VALID_MODES`, contradicting the plan's own "single source" claim, and (2) `spec.md` was never updated with Phase 5's REQs/ACs and its existing ACs are still unticked despite 100% progress. Everything else (tests, build, App.jsx dual-render fix, Track Kind wiring) verified correct. See conversation.md and plan.md's ⚠️ Gaps section.
