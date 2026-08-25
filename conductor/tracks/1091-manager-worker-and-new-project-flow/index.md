@@ -1,7 +1,7 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Quality gate PASSED — done. Both gaps found during review (TC-31 onboarding regression, TC-34 missing test) closed for real, not waived: git-history check + live evidence for TC-31, new 4/4-passing…
@@ -79,3 +79,6 @@ answers upfront into one `scaffold_context` blob and dispatches once on
 submit, matching the existing pattern.
 **Waiting for reply**: no
 **Auto Run**: yes
+**PR Number**: 16
+**PR URL**: https://github.com/meller/laneconductor/pull/16
+**PR Status**: conflicted
