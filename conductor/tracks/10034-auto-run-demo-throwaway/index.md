@@ -12,6 +12,6 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Summary**: Created purely to demonstrate auto_run + a sync+poll worker auto-claiming a queued track live. Safe to discard after.
 **Auto Run**: yes
