@@ -348,6 +348,14 @@ to main via `git merge --no-ff` (preserves history), then the worktree is
 removed. A `main`-mode track is already on main at `done:success` — there
 is no merge step.
 
+**The Worktrees Panel**
+
+A dedicated tab on the Kanban dashboard provides direct control and monitoring over active worktrees:
+- **Worktree List**: Surfaces all current track worktrees, paths, corresponding branch names, and unmerged commits.
+- **Dev-Server Preview**: Swaps the active local dev server to execute code from a specific worktree, making manual testing of in-progress tracks extremely simple.
+- **PR & Integration Hub**: Visualizes open Pull Requests, statuses (e.g., `open`, `conflicted`, `merged`), and provides action buttons to Approve & Merge or clean up/delete the worktree.
+- **Lock visualizer**: Displays current track locks (`.conductor/locks/`).
+
 **Workspace Modes (Track 1115)**
 
 Orthogonal to the lifecycle above: every lane action first resolves to
