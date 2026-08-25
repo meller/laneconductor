@@ -1,7 +1,7 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Waiting for reply**: no
 **Progress**: 100%
 **Last Run**: mock (primary)
