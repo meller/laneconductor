@@ -33,3 +33,4 @@ Give the specs their own infrastructure instead of borrowing shared infrastructu
 **PR Number**: 12
 **PR URL**: https://github.com/meller/laneconductor/pull/12
 **PR Status**: merged
+**Auto Run**: yes
