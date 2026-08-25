@@ -1,9 +1,10 @@
 # Track 1118: Manager worker needs its own credential storage
 
-**Lane**: plan
+**Lane**: review
 **Merge Mode**: direct
-**Lane Status**: success
-**Progress**: 0%
+**Lane Status**: queue
+**Progress**: 100%
+**Last Run**: mock (primary)
 **Phase**: Planned
 **Type**: bug
 **Track Kind**: bug
