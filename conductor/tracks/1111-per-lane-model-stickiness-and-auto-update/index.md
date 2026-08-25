@@ -1,10 +1,10 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: review
-**Lane Status**: running
+**Lane**: quality-gate
+**Lane Status**: queue
 **Waiting for reply**: no
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: mock (primary)
 **Phase**: All 6 phases complete
 **Type**: dev
 **Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness…
