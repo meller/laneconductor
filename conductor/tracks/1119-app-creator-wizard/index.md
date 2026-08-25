@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 33%
+**Progress**: 67%
 **Last Run**: mock (primary)
-**Phase**: Phase 2 of 6 complete — deployment step (reuse deploy UX/domain)
+**Phase**: Phase 4 of 6 complete — deploy-to-URL + app_url plumbing
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
