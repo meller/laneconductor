@@ -993,7 +993,7 @@ showed the **current** code actually **advances the lane forward**
 not merely "reset to queue" as originally written above — either way, a
 run that never finished was being reported as a clean success. Fix: the
 exit handler now reads the worktree's own `index.md` *before* patching
-it; if `**Lane Status**: running` is still there on an otherwise-`isSuccess`
+it; if `**Lane Status**: queue` is still there on an otherwise-`isSuccess`
 exit, the run is treated as `ended_mid_work` instead — lane stays put,
 `Progress` isn't forced to `100%`, and a `⚠️ Run ended mid-work...`
 comment is posted explaining that a re-run resumes (worktree + session
