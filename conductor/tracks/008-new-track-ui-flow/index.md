@@ -1,8 +1,8 @@
 # Track 008: New Track UI Flow
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: queue
-**Progress**: 90%
+**Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 
 ## Problem
