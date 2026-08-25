@@ -9,6 +9,7 @@ import { ConductorPanel } from './components/ConductorPanel.jsx';
 import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
 import { NewTrackModal } from './components/NewTrackModal.jsx';
 import { NewProjectModal } from './components/NewProjectModal.jsx';
+import { FollowBuildView } from './components/wizard/FollowBuildView.jsx';
 import { ProjectsPage } from './components/ProjectsPage.jsx';
 import { RenameProjectModal } from './components/RenameProjectModal.jsx';
 import { DeleteProjectModal } from './components/DeleteProjectModal.jsx';
@@ -104,6 +105,7 @@ function AppContent({ user, logout }) {
   const [newProjectOpen, setNewProjectOpen] = useState(false); // Track 1091 Phase 4
   const [renameTarget, setRenameTarget] = useState(null); // Track 10014
   const [deleteTarget, setDeleteTarget] = useState(null); // Track 10014
+  const [followBuildProjectId, setFollowBuildProjectId] = useState(null); // Track AM-1119 Phase 5
   const [managerWorkers, setManagerWorkers] = useState([]);
   const [knownHostnames, setKnownHostnames] = useState([]);
   const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers' | 'cicd' | 'projects'
@@ -542,6 +544,7 @@ function AppContent({ user, logout }) {
             onRename={p => setRenameTarget(p)}
             onDelete={p => setDeleteTarget(p)}
             onNewProject={openNewProject}
+            onFollowBuild={p => setFollowBuildProjectId(p.id)}
           />
         ) : viewMode === 'workers' ? (
           <WorkersList projectId={selectedProjectId} project={selectedProject} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
@@ -656,6 +659,32 @@ function AppContent({ user, logout }) {
           onClose={() => setNewProjectOpen(false)}
           onCreated={refetch}
         />
+      )}
+
+      {/* Follow Build view (Track AM-1119 Phase 5) — reachable from the
+          project page (ProjectCard) as well as the wizard's own post-Launch
+          handoff inside NewProjectModal. "Needs your input" clicks route
+          through the same handleInboxSelect the Inbox itself uses, so it
+          opens the real TrackDetailPanel, not a dead link. */}
+      {followBuildProjectId && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-24 px-4"
+          onClick={() => setFollowBuildProjectId(null)}
+        >
+          <div
+            className="bg-gray-950 border border-gray-800 rounded-xl w-full max-w-lg shadow-2xl px-5 py-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <FollowBuildView
+              projectId={followBuildProjectId}
+              onClose={() => setFollowBuildProjectId(null)}
+              onOpenTrack={trackNumber => {
+                handleInboxSelect(followBuildProjectId, trackNumber);
+                setFollowBuildProjectId(null);
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {/* Rename / Delete project modals (Track 10014) */}

@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 67%
-**Phase**: Phase 4 of 6 complete — deploy-to-URL + app_url plumbing
+**Progress**: 83%
+**Phase**: Phase 5 of 6 complete — "follow your build" progress view
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
@@ -24,5 +24,5 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [x] Phase 2: Deployment step (reuse deploy UX/domain)
 - [x] Phase 3: Track auto-generation with Auto Run
 - [x] Phase 4: Deploy-to-URL + app_url plumbing
-- [ ] Phase 5: "Follow your build" progress view
+- [x] Phase 5: "Follow your build" progress view
 - [ ] Phase 6: E2E validation — the digger game scenario

@@ -41,9 +41,9 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 - [x] TC-11: ProjectCard shows "Live ↗" link only when app_url set — expected: absent before, present after
 
 ### Phase 5: Follow-build view
-- [ ] TC-12: View lists generated tracks with live lane badges, polling updates within 2s of a DB lane change — expected: lane badge updates without reload
-- [ ] TC-13: Track whose latest system comment starts with ⚠️/❌ renders in "Needs your input" — expected: classification matches Inbox rules
-- [ ] TC-14: When deploy track completes and app_url is set, the live link replaces the placeholder — expected: anchor with app_url href
+- [x] TC-12: View lists generated tracks with live lane badges, polling updates within 2s of a DB lane change — expected: lane badge updates without reload
+- [x] TC-13: Track whose latest system comment starts with ⚠️/❌ renders in "Needs your input" — expected: classification matches Inbox rules
+- [x] TC-14: When deploy track completes and app_url is set, the live link replaces the placeholder — expected: anchor with app_url href
 
 ### Phase 6: E2E
 - [ ] TC-15: Playwright: full wizard walk-through → Launch → follow-build view visible with generated track list — expected: spec passes
@@ -51,6 +51,6 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 
 ## Acceptance Criteria
 - [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6;
-      Phase 3's TC-7..TC-9; Phase 4's TC-10..TC-11 — see plan.md verification notes)*
+      Phase 3's TC-7..TC-9; Phase 4's TC-10..TC-11; Phase 5's TC-12..TC-14 — see plan.md verification notes)*
 - [x] Existing suites (NewProjectModal, CICDView, worker tests) show no regressions *(full ui vitest suite: same 30 pre-existing failures as main, no new failures)*
 - [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded)

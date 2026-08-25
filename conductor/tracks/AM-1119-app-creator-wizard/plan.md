@@ -212,11 +212,60 @@ environment, and REQ-4's autonomous deploy track hasn't run yet — Phase 3 only
 **Problem**: A newcomer who launches the wizard has no idea what the lanes mean, whether things are progressing, or where the app link will appear.
 **Solution**: Post-launch handoff view (`FollowBuildView.jsx`) reachable from the wizard's final screen and the project page.
 
-- [ ] Task 1: Plain-language workflow explainer (plan → implement → review → quality-gate → done) with the generated tracks listed against their current lane, polling live
-- [ ] Task 2: Prominent app-URL slot: "Your app will appear here when the Deploy track finishes" → live link on completion
-- [ ] Task 3: Failure surfacing: tracks whose latest system comment is ⚠️/❌ (Inbox classification) render as "Needs your input" with a link to the track detail panel
+- [x] Task 1: Plain-language workflow explainer (plan → implement → review → quality-gate → done) with the generated tracks listed against their current lane, polling live
+- [x] Task 2: Prominent app-URL slot: "Your app will appear here when the Deploy track finishes" → live link on completion
+- [x] Task 3: Failure surfacing: tracks whose latest system comment is ⚠️/❌ (Inbox classification) render as "Needs your input" with a link to the track detail panel
 
 **Impact**: The e2e promise is legible to a non-expert user.
+
+**Verification (2026-08-25)**: `ui/src/components/wizard/FollowBuildView.jsx` — a single component
+covering all three tasks. Polls `GET /api/projects/:id/tracks` every 2s (default; overridable via
+a `pollIntervalMs` prop used by tests) for live lane badges (Task 1) and reads `app_url` from
+`GET /api/projects` for the URL slot (Task 2) — no new backend endpoints needed, both already
+existed from Phases 3-4. `needsInput()` (Task 3) is a small pure function mirroring `GET
+/api/inbox`'s own SQL bucket rule exactly (`waiting_for_reply`, or the latest comment is a
+`system` author starting with ⚠️/❌) rather than a second poll of `/api/inbox` — `GET
+/api/projects/:id/tracks` already returns `last_comment_body`/`last_comment_author` per row, so
+one poll covers both.
+
+Accepts either a `repoPath` (the wizard's own post-Launch entry point, parsed from
+`dispatch.result`'s "Created at `<path>`" line inside `NewProjectModal.jsx` — a wizard-mode Launch
+that resolves `done` now renders `FollowBuildView` in place of the plain status panel) or a
+`projectId` directly (the new "Follow Build" button on `ProjectCard.jsx`, wired through
+`App.jsx`'s `followBuildProjectId` state, matching the existing rename/delete-modal pattern) —
+covers "reachable from the wizard's final screen and the project page" literally. `repoPath` mode
+polls `GET /api/projects` first to resolve the id, showing "Setting up your project…" for the real
+gap between a dispatch reporting done and that project's own spawned worker completing its DB
+registration. The "link to the track detail panel" half of Task 3 is real, not just visual, from
+the `ProjectCard` entry point: `onOpenTrack` routes through `App.jsx`'s existing
+`handleInboxSelect`, opening the actual `TrackDetailPanel` — the wizard's own in-modal entry point
+intentionally leaves it informational-only (no `onOpenTrack` wired), since `NewProjectModal` has no
+reach into that App-level state and a dead link would be worse than an honest badge.
+
+**Found and fixed a real bug the first test run surfaced**: `FollowBuildView`'s polling
+`useEffect`s list `apiFetch` in their dependency array (same convention as `NewProjectModal`'s own
+pre-existing poll effect) — safe in production since `useApi()` memoizes it via `useCallback`, but
+the test file's initial mock (`useApi: () => ({ apiFetch: (...args) => apiFetchMock(...args) })`,
+copied from `NewProjectModal.test.jsx`'s own working pattern) created a *new* function on every
+render. Confirmed live: this spun the component into a render→effect-refire→render loop pegging
+one CPU core indefinitely (`ps aux` showed a `vitest` worker at 145% CPU, never converging) —
+harmless in `NewProjectModal.test.jsx` only because those tests never wait across multiple poll
+cycles the way TC-12 does, so the same latent issue there never had enough wall-clock time to
+surface. Fixed by passing the `vi.fn()` mock directly as `apiFetch` (referentially stable) instead
+of wrapping it. Also hit, and worked around the same way as Phase 3's `track-1119-phase3-depends-on`
+test: Vitest's own `afterEach(cleanup)` test-runner-internal machinery invokes a mocked function
+with zero arguments during teardown in some runs (confirmed via stack trace: `@vitest/runner`'s
+`callCleanupHooks`, not React or this component) — harmless test-infra noise, handled by falling
+back to an empty response instead of throwing on an unrecognized/undefined url.
+
+New tests, all passing: `ui/src/components/wizard/FollowBuildView.test.jsx` (7 tests — pure
+`needsInput` classification ×3, `repoPath`→projectId resolution, TC-12's live lane-badge update
+across polls, TC-13's Needs-your-input render + `onOpenTrack` callback, TC-14's
+placeholder→live-link transition), `ui/src/components/ProjectCard.test.jsx` unaffected (Follow
+Build button is conditionally rendered only when `onFollowBuild` is passed — existing tests never
+pass it, so it stays absent, exercised instead implicitly by not breaking those 5). Ran the full
+`ui` vitest suite: 523 tests, same 30 pre-existing failures as every prior phase's baseline, zero
+new failures.
 
 ## Phase 6: E2E validation — the digger game scenario
 
