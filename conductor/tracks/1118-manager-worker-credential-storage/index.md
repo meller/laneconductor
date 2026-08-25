@@ -1,6 +1,7 @@
 # Track 1118: Manager worker needs its own credential storage
 
 **Lane**: plan
+**Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: New
@@ -47,3 +48,4 @@ from whatever directory it happens to be started in.
 
 ## Depends on
 [1102](../1102-e2e-session-findings/index.md) F13 (symptom fix, traced this deeper cause), [1091](../1091-manager-worker-and-new-project-flow/index.md) (manager worker design).
+**Auto Run**: yes
