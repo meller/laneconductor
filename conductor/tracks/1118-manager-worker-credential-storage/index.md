@@ -4,7 +4,7 @@
 **Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: mock (primary)
 **Phase**: Planned
 **Type**: bug
 **Track Kind**: bug
