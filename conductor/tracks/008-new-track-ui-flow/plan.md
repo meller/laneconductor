@@ -237,3 +237,15 @@ it has no reason to fetch just to create a track.
       REQs/ACs and tick every criterion that's actually true.
 
 See `conversation.md`'s ⚠️ REVIEW FAILED comment for full detail.
+
+## ❌ QUALITY GATE FAILED (2026-08-25)
+
+Card was found sitting in `quality-gate:queue` at 100% with neither gap
+above actually fixed — `git diff 150b34b HEAD --stat` shows zero code or
+`spec.md` changes since Phase 5's implement commit; only `index.md`'s lane
+marker moved (commit `2476023`, landed 8s after this track's own
+review-FAIL commit, almost certainly a stale/racing process). Both gaps
+re-verified still present. Routed to `plan:queue` per
+`workflow.json`'s `lanes.quality-gate.on_failure` — see
+`conversation.md`'s ❌ QUALITY GATE FAILED comment for full detail. The
+actual fix needed is unchanged from the two items above.
