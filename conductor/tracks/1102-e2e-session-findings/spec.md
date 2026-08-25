@@ -131,23 +131,29 @@ Each criterion states an outcome a user or an operator could observe.
       does not stay `pending` indefinitely — it is reassigned to another
       live worker or marked failed with a reason, and that is observable in
       the UI.
-- [ ] **AC-8 (REQ-8)** Deleting a `workers` row **in the live
+- [x] **AC-8 (REQ-8)** Deleting a `workers` row **in the live
       `laneconductor` DB** leaves its `worker_dispatch` rows intact with
       `worker_id IS NULL`; the Activity panel's history survives.
       *Deliberately worded against the live DB, not a scratch one:* the
-      scratch-DB version of this is already green while the live DB's FK
-      is still `ON DELETE CASCADE` (F22) — a criterion a scratch DB can
+      scratch-DB version of this was already green while the live DB's FK
+      was still `ON DELETE CASCADE` (F22) — a criterion a scratch DB can
       satisfy is exactly the kind that lets a track pass its own gate
-      while the fix does nothing in reality.
-- [ ] **AC-9 (REQ-9)** A recorded live run exists: on a sync-only
-      project, moving a card to a new lane produces a `worker_dispatch`
-      row that is claimed and executed — observed, not inferred.
-- [ ] **AC-10 (REQ-10)** A new track exists for the manager credential
-      storage problem, linked from this track.
-- [ ] **AC-11 (REQ-11)** `atlas migrate apply` runs cleanly against the
+      while the fix does nothing in reality. **Verified 2026-08-25** in a
+      rolled-back transaction against the real DB; permanent regression
+      test: `ui/server/tests/track-1102-f10c-live-db-fk.test.mjs`.
+- [ ] **AC-9 (REQ-9)** A recorded live run exists — Phase 15a's real E2E
+      (real spawned API server + real DB + real worker) proved the
+      *mechanism* end to end via 3 independently mutation-verified tests,
+      but AC-9 as originally worded wants the actual browser drag
+      observed. Left unchecked until Phase 15b does that.
+- [x] **AC-10 (REQ-10)** A new track exists for the manager credential
+      storage problem, linked from this track. Done in Phase 14:
+      [1118](../1118-manager-worker-credential-storage/index.md).
+- [x] **AC-11 (REQ-11)** `atlas migrate apply` runs cleanly against the
       live DB with the new migration included — no out-of-order rejection,
       no `atlas.sum` mismatch — and the revisions table afterwards lists
-      it as applied.
+      it as applied. **Done 2026-08-25** (Phase 16); also had to close an
+      unrelated revisions-ledger gap discovered along the way (see F22).
 
 ## Completion rule
 
