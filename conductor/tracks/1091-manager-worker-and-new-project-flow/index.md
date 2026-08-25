@@ -1,7 +1,7 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: done
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Quality gate PASSED — done. Both gaps found during review (TC-31 onboarding regression, TC-34 missing test) closed for real, not waived: git-history check + live evidence for TC-31, new 4/4-passing…
