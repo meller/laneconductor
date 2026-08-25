@@ -210,6 +210,26 @@ are fixed in the implementation (not just noted):
    fixture file before the worker's own file-watcher reacted to the fresh
    write. `cleanupTrack` now deletes the DB row too.
 
+A fourth attempt — pointing `new-track-plan.spec.js` at a fully isolated
+project (fresh `projects` row, `repo_path` = this worktree, via the new
+`TEST_PROJECT_ID` override) to sidestep the primary checkout's own
+business entirely — surfaced a real limit worth recording rather than
+re-discovering later: `TEST_PROJECT_ID` correctly redirects
+`createTrackViaUI`/`enableAutoRun`/file-existence checks (via
+`resolveProjectRepoPath`), but `spawnScopedWorker` has no equivalent lever
+— the spawned `laneconductor.sync.mjs` resolves its OWN project identity
+from `.laneconductor.json` at startup, not from any CLI flag, so it kept
+registering against project 1 regardless of which project the track was
+actually created under. `--only-tracks 1` (normalized from track "001")
+then matched project 1's OWN pre-existing track 001 ("Core Skill +
+Heartbeat Worker", `lane_status=done`) and correctly reported nothing
+claimable. Not a bug in this track's own code — `.laneconductor.json`
+would need a real per-run project override to close this gap, which is
+out of this track's scope (worker CLI surface, not the Playwright specs).
+Isolated-project testing therefore isn't a way around needing the primary
+checkout quiet for a genuine AC-1 proof; a clean primary checkout is the
+only path.
+
 **What was NOT achieved live**: a fully green `--project=slow` run
 (AC-1/TC-24), and therefore TC-1/TC-9/TC-14's "passes end to end" claims
 specifically. Reason: this repo dogfoods LaneConductor on itself, and by
