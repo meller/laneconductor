@@ -1,7 +1,7 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: implement
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: running
 **Waiting for reply**: no
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
@@ -110,3 +110,4 @@ established practice of confirming before planning fixes.
 **PR Number**: 5
 **PR URL**: https://github.com/meller/laneconductor/pull/5
 **PR Status**: merged
+**Auto Run**: yes
