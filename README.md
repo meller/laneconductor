@@ -30,6 +30,22 @@ LaneConductor is a **sovereign developer environment** that orchestrates AI agen
 
 ---
 
+## 🛰️ Advanced Track Features
+
+Every Track folder under `conductor/tracks/` is controlled by a stateful `index.md` file. You can configure execution and workflow behavior per-track using simple markers:
+
+- **Workspace Mode (`**Workspace**: main|branch`)**:
+  - `branch` (default): Isolation in a dedicated git worktree on a track branch.
+  - `main`: Execution directly in the primary checkout (perfect for local developer-agent pairing or self-hosted worker infrastructure updates).
+- **PR & Merge Mode (`**Merge Mode**: pr|direct`)**:
+  - `pr` (default): Automatically pushes the branch and opens a GitHub Pull Request upon passing the Quality Gate. You can review, preview, and merge it straight from the dashboard.
+  - `direct`: The worker merges the track branch directly to `main` without opening a PR.
+- **Auto-Run Configuration (`**Auto Run**: yes|no`)**:
+  - `yes`: Allows the worker to claim the track from the queue and execute it automatically through planning, implementation, and review.
+  - `no` (or omitted): Restricts execution to manual trigger actions from the UI or CLI.
+
+---
+
 ## 🚀 Quick Start
 
 ### Option A: Standard (CLI-driven)

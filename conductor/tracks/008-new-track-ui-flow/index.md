@@ -17,4 +17,4 @@ A "+ New Track" button in the board header. Clicking opens a modal that first ch
 - [x] Phase 3: "+ New Track" button in board header, wired to modal
 - [x] Phase 4: Fix Review Gaps
 - [x] Phase 5: Expose per-track config at creation time
-**Summary**: Quality gate FAILED — the card had been advanced to quality-gate:queue at 100% with neither of review's two documented gaps actually fixed in code (zero diff since the Phase 5 implement commit; only index.md's lane marker had moved, almost certainly a stale/racing process). Gaps unchanged: (1) `ui/server/utils.mjs` hardcodes a second copy of the merge/workspace mode allow-lists instead of importing the canonical `VALID_MODES`, and (2) `spec.md` was never updated with Phase 5's REQs/ACs. Routed to plan:queue per workflow.json. See conversation.md and plan.md for full detail.
+**Summary**: Quality gate FAILED — the card had been advanced to quality-gate:queue at 100% with neither of review's two documented gaps actually fixed in code (zero diff since the Phase 5 implement commit; only…
