@@ -1,7 +1,8 @@
 # Track 10034: Auto-run demo (throwaway)
 
 **Status**: plan
-**Progress**: 0%
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
 
 ## Problem
 The `**Auto Run**` gate and the sync+poll auto-claim loop are unit-tested but have never been watched working together live on a real project. Mocks can't show a card moving on its own.
