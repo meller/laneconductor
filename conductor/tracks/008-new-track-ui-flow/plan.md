@@ -221,4 +221,19 @@ gating, `--only-tracks`, `auto_run` itself), not a creation-time one —
 conflating them would mean the modal needs live worker-availability data
 it has no reason to fetch just to create a track.
 
-## ✅ COMPLETE
+## ⚠️ Gaps (from review, 2026-08-25)
+
+- [ ] Gap 1: `ui/server/utils.mjs`'s `configMarkerLines()` hardcodes its own
+      `MERGE_MODE_VALID`/`WORKSPACE_MODE_VALID` arrays instead of importing
+      `VALID_MODES` from `conductor/services/merge-mode.mjs` /
+      `workspace-mode.mjs` (the same import `ui/server/index.mjs` already
+      uses). Contradicts Task 2's own "single source, no second allow-list"
+      claim and risks silently dropping a valid marker if either canonical
+      list is ever extended. Fix: import instead of duplicating.
+- [ ] Gap 2: `spec.md` was never updated for Phase 5 — no REQs/ACs for the
+      four Advanced controls, the Track Kind wiring check, or the App.jsx
+      dual-render fix. Separately, every existing AC checkbox is still
+      unticked despite the track reporting 100% progress. Fix: add Phase 5
+      REQs/ACs and tick every criterion that's actually true.
+
+See `conversation.md`'s ⚠️ REVIEW FAILED comment for full detail.
