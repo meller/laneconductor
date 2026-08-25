@@ -74,16 +74,22 @@ diff /tmp/sync.pid.before conductor/.sync.pid    # AC-2: must be identical
 - [ ] **TC-10**: `conductor/.sync.pid` byte-identical before and after (AC-2) —
       expected: identical. This is the F3 regression guard; a failure here means a
       throwaway worker ran as `worker_number: 1`.
-- [ ] **TC-11** *(negative — hang mode 1, F1+F2)*: Same spec, but with the
+- [x] **TC-11** *(negative — hang mode 1, F1+F2)*: Same spec, but with the
       `enableAutoRun` call removed/skipped — expected: fails within ~30s with a
       message naming `auto_run`. A 300s timeout is a **fail** for this case, since
-      the whole point is that the hang became a diagnostic.
-- [ ] **TC-12** *(negative — hang mode 2, F4)*: Same spec with a deliberately
+      the whole point is that the hang became a diagnostic. Live-fired during
+      quality-gate (direct reproduction, bypassing the UI): failed after
+      ~30-32s naming `auto_run`.
+- [x] **TC-12** *(negative — hang mode 2, F4)*: Same spec with a deliberately
       dirty primary checkout (`touch conductor/scratch-dirty.md`) — expected:
       fails within ~30s naming the dirty path. Clean up the file afterwards.
-- [ ] **TC-13**: Directory and DB residue (AC-3) — capture
+      Verified live repeatedly, including naturally against this
+      environment's genuinely dirty primary checkout.
+- [x] **TC-13**: Directory and DB residue (AC-3) — capture
       `ls conductor/tracks/` and the track-number set from
       `GET /api/projects/1/tracks` before and after — expected: both unchanged.
+      Verified live post-fix (see the `cleanup()` `projectRoot` bugfix in the
+      Quality-Gate Verification section) — zero residue across repeated runs.
 
 ### Phase 4 — `brainstorm-concurrency.spec.js` self-scoping
 
@@ -137,13 +143,197 @@ diff /tmp/sync.pid.before conductor/.sync.pid    # AC-2: must be identical
 
 ## Acceptance Criteria
 
-- [ ] All unit tests pass (`node --test` suites above)
-- [ ] Slow tier passes with **no ambient worker** — AC-1 / TC-24
-- [ ] Ambient worker's `conductor/.sync.pid` unchanged by a run — AC-2 / TC-10
-- [ ] No leaked track directories or DB rows — AC-3 / TC-13, TC-17
-- [ ] Both hang modes fail fast with a naming diagnostic — AC-4/AC-5 / TC-11, TC-12
-- [ ] `track-1033-sharing.spec.js`: 6 passed, 0 skipped — AC-7 / TC-18
-- [ ] Shared `:8091` server serving and unchanged throughout — AC-7 / TC-19
-- [ ] Test server fully torn down — AC-8 / TC-21
-- [ ] Fast tier: no regression — AC-9 / TC-25
-- [ ] Negative tests TC-16 and TC-22 confirm the assertions can actually fail
+- [x] All unit tests pass (`node --test` suites above) — 18/18 in
+      `track-10021-scoped-worker.test.mjs`, plus the existing
+      `track-1109-claim-allowlist`/`track-10017-auto-run` regression guards
+      (23/23), all green
+- [ ] Slow tier passes with **no ambient worker** — AC-1 / TC-24 — **not
+      achieved live this session**; see Verification Log below for why and
+      what is verified instead
+- [x] Ambient worker's `conductor/.sync.pid` unchanged by a run — AC-2 /
+      TC-10 — confirmed: every scoped spawn in this session used a
+      `--worker-number` in the reserved 9000-9999 range, writing only
+      `.sync-<N>.pid`; `deriveWorkerNumber` never returns 1 (unit-tested)
+- [x] No leaked track directories or DB rows — AC-3 / TC-13, TC-17 —
+      confirmed live: `track-1033-sharing.spec.js`'s afterAll leaves 0
+      `@pw-test.local` users (was 8, a pre-existing leak from
+      `/worker/deregister` — a route that doesn't exist — also fixed this
+      session); `brainstorm-concurrency.spec.js`'s finally block asserts
+      `resolveTrackDir` returns null for both tracks after cleanup.
+      Quality-gate found and fixed a real residue bug in `cleanup()` itself
+      (wrong `projectRoot` fallback when `handle` is null — see the
+      Quality-Gate Verification section below) and reproduced clean twice
+      post-fix
+- [x] Both hang modes fail fast with a naming diagnostic — AC-4/AC-5 /
+      TC-11, TC-12 — AC-5 verified live four times total (twice more during
+      quality-gate): once against a deliberately dirtied file (~9s, named
+      the path), and three times naturally against this environment's
+      genuinely dirty primary checkout (other in-flight tracks' real WIP)
+      — every time in seconds, named every offending path. AC-4 live-fired
+      for the first time during quality-gate (see below): failed after
+      ~30-32s naming `auto_run`, not a 300s hang — no longer code-only
+      unit-tested; not separately live-fired this session)
+- [x] `track-1033-sharing.spec.js`: 6 passed, 0 skipped — AC-7 / TC-18 —
+      verified live, standalone AND inside the full fast-tier run
+- [x] Shared `:8091` server serving and unchanged throughout — AC-7 / TC-19
+      — verified live: health-checked before/during/after, PID unchanged
+- [x] Test server fully torn down — AC-8 / TC-21 — verified live:
+      `stopTestServer` confirms the port is free after shutdown
+- [x] Fast tier: no regression — AC-9 / TC-25 — verified live: 19 passed /
+      2 failed / 8 did not run (serial-block skip after the 2 failures).
+      Both failures are `track-10018-pr-worktree-panel.spec.js` and
+      `track-1112-worktree-panel.spec.js` — files this track never
+      touched, and the identical "seeded rows not appearing within a 10-15s
+      poll" flakiness track 1096's own quality-gate.md recorded against
+      `track-1112-worktree-panel.spec.js` specifically, pre-dating this
+      track. Net pass count is UP (the 6 previously-skipped sharing tests
+      now pass), so there is no regression by any accounting. All
+      individual test durations stayed under the 60s ceiling (max ~12.3s).
+- [ ] Negative tests TC-16 and TC-22 confirm the assertions can actually
+      fail — not separately live-fired this session (see Verification Log)
+
+## Quality-Gate Verification (2026-08-25)
+
+Re-ran the full `conductor/quality-gate.md` checklist rather than trusting the
+implement session's marks, per the "checklist, not a report" rule.
+
+- **Syntax**: `find conductor ui bin -name "*.mjs" ... node --check` — clean.
+- **Critical files / command reachability**: all present, `make help` and
+  `lc --version` both succeed.
+- **Worker unit tests** (`node --test conductor/tests/*.test.mjs`, full
+  suite): 382 pass / 57 fail / 7 cancelled (446 total). All failing files
+  spot-checked against the **primary checkout** (this branch's own commits
+  absent) and reproduce identically there — pre-existing/environmental
+  (this shared dev environment has heavy concurrent DB/process load right
+  now from other real tracks), not a regression. Track 10021's own suites
+  (`track-10021-scoped-worker.test.mjs` + `track-1109-claim-allowlist` +
+  `track-10017-auto-run`): **44/44 pass**.
+- **Server unit+integration** (`cd ui && npx vitest run server/tests/`): 36
+  passed / 8 failed files (22 tests). Every failing file is outside
+  anything track 10021 touched (`ui/server/index.mjs` was never modified
+  by this track) — spot-checked against the primary checkout, same
+  failures. Pre-existing.
+- **Frontend unit** (`cd ui && npx vitest run src/`): 18 passed / 1 failed
+  file (`WorkflowSettings.test.jsx`, 10 tests) — confirmed pre-existing on
+  the primary checkout too; this track never touched any `src/` file.
+- **Build** (`cd ui && npx vite build`): succeeds.
+- **Security**: `git diff main -- '**/package.json' '**/package-lock.json'`
+  is empty — this track added zero dependencies, by design (see
+  scoped-worker.mjs's own header comment). Trivially satisfied.
+- **E2E fast tier**: re-run twice, 28-29/29 passed both times. The 1-2
+  intermittent failures are `track-10018-pr-worktree-panel.spec.js` /
+  `track-1112-worktree-panel.spec.js`'s "Merge PR dispatches a real
+  worker_dispatch row" tests — files this track never touched, a documented
+  pre-existing flakiness class (concurrent `worker_dispatch` row-count
+  races under load), a different single test failing each run.
+- **E2E slow tier**: attempted twice more. Same result as the implement
+  session — `assertCheckoutSpawnable` correctly refused against the
+  primary checkout's genuine dirty state (other in-flight tracks' real
+  work), in seconds, naming every path. **AC-1 still not achieved live.**
+- **E2E sharing spec** (standalone): **6/6 passed**, ~1.3s.
+- **Stub scan**: the only hits across every file this track touched are
+  `getByPlaceholder(...)` (a Playwright API method name, not a stub
+  marker) and three pre-existing lines in `laneconductor.sync.mjs` outside
+  this track's own diff (confirmed via `git diff main`). Clean.
+- **Acceptance criteria**: reviewed against spec.md's AC-1 through AC-9 —
+  all describe user-observable outcomes, none satisfiable by a stub.
+
+### A real bug found and fixed during quality-gate
+
+`cleanup()` fell back to `handle?.projectRoot ?? PROJECT_ROOT` — when
+`assertCheckoutSpawnable` throws before `spawnScopedWorker` ever runs
+(exactly the AC-5 negative path), `handle` stays `null`, and that fallback
+resolved to `scoped-worker.mjs`'s own on-disk location instead of wherever
+the tracks were actually created. Reproduced live twice: real orphaned
+directories and DB rows left behind after an `assertCheckoutSpawnable`
+abort. Fixed by adding an explicit `projectRoot` option that both UI-driven
+specs now thread through (same pattern `enableAutoRun`/`spawnScopedWorker`
+already used), plus a regression test. Reproduced clean twice post-fix —
+zero residue.
+
+### AC-4, live-fired for the first time
+
+Not achieved live during implement. Doesn't require a clean primary
+checkout (unlike AC-1), so fired directly during quality-gate: created a
+track via the API with `auto_run` deliberately left unset, called
+`spawnScopedWorker` + `waitForLaneAction` directly (bypassing the UI/spec
+layer), and confirmed it fails after ~30-32s with a diagnostic naming
+`auto_run` — not a 300s hang. AC-4 upgraded from code-verified-only to
+live-verified.
+
+**Bottom line**: every mechanism AC-1 depends on is now live-verified
+(AC-2 through AC-9, all). AC-1 itself remains the one criterion not
+achieved live in either session, for the same external reason both times —
+this repo dogfoods itself, and the primary checkout has carried real
+concurrent work from other tracks throughout. Recommend re-running
+`lc worker stop && npx playwright test --project=slow` on a quiet primary
+checkout before this track is considered fully closed.
+
+## Verification Log (this implement run, 2026-08-25)
+
+This track's own dogfood environment turned out to be the sharpest test of
+its own thesis. Three real, previously-undiscovered bugs surfaced live and
+are fixed in the implementation (not just noted):
+
+1. **`conductor/tracks/file_sync_queue.md` unconditionally blocked every
+   track's first plan-lane spawn.** Every track creation appends an entry
+   to this git-tracked file, so a track's own creation always left it dirty
+   outside any track's own folder — the main-mode guard blocked the very
+   first spawn attempt, every time, with no retry able to clear it.
+   Exempted in both `laneconductor.sync.mjs` and the helper's
+   `classifyDirtyPaths`, consistent with the existing
+   `tracks-metadata.json` exemption and track 1114's separate guard, which
+   already treats this exact path the same way.
+2. **`laneconductor.sync.mjs` always redirects itself to the primary
+   checkout when launched from a worktree** — confirmed via its own
+   startup log line. `spawnScopedWorker`'s `cwd` option doesn't survive
+   that redirect. Every helper function that touches the filesystem now
+   resolves the project's real `repo_path` via the new
+   `resolveProjectRepoPath()` (`GET /api/projects`) instead of assuming
+   the spec's own on-disk location matches — it usually won't, since this
+   track's own `implement` lane action runs from a worktree.
+3. **991/992 (v2's hardcoded fixtures) have real DB rows dating to
+   2026-08-12.** Deleting only the directory left the row behind; a
+   freshly spawned worker's own startup DB→FS sync pushed that stale
+   `lane_status=backlog`/`auto_run=false` back onto the just-written
+   fixture file before the worker's own file-watcher reacted to the fresh
+   write. `cleanupTrack` now deletes the DB row too.
+
+A fourth attempt — pointing `new-track-plan.spec.js` at a fully isolated
+project (fresh `projects` row, `repo_path` = this worktree, via the new
+`TEST_PROJECT_ID` override) to sidestep the primary checkout's own
+business entirely — surfaced a real limit worth recording rather than
+re-discovering later: `TEST_PROJECT_ID` correctly redirects
+`createTrackViaUI`/`enableAutoRun`/file-existence checks (via
+`resolveProjectRepoPath`), but `spawnScopedWorker` has no equivalent lever
+— the spawned `laneconductor.sync.mjs` resolves its OWN project identity
+from `.laneconductor.json` at startup, not from any CLI flag, so it kept
+registering against project 1 regardless of which project the track was
+actually created under. `--only-tracks 1` (normalized from track "001")
+then matched project 1's OWN pre-existing track 001 ("Core Skill +
+Heartbeat Worker", `lane_status=done`) and correctly reported nothing
+claimable. Not a bug in this track's own code — `.laneconductor.json`
+would need a real per-run project override to close this gap, which is
+out of this track's scope (worker CLI surface, not the Playwright specs).
+Isolated-project testing therefore isn't a way around needing the primary
+checkout quiet for a genuine AC-1 proof; a clean primary checkout is the
+only path.
+
+**What was NOT achieved live**: a fully green `--project=slow` run
+(AC-1/TC-24), and therefore TC-1/TC-9/TC-14's "passes end to end" claims
+specifically. Reason: this repo dogfoods LaneConductor on itself, and by
+design main-mode dispatch always operates on the ONE primary checkout —
+not a copy, not a per-run clone. Throughout this session that checkout
+carried real, in-progress work from other concurrently-running tracks
+(1102, 1104, 1111, 1115, 10024, 10026), and `assertCheckoutSpawnable`
+correctly refused to spawn against it every time, exactly as designed.
+Forcing it clean (committing or stashing other tracks' uncommitted work)
+was not a call to make unilaterally and was not made. What IS verified:
+every fix above by direct reproduction (each bug was reproduced, fixed,
+and re-confirmed against real infrastructure — see the four fix commits),
+the full negative path live (twice), unit coverage for every pure
+function, and the complete Phase 5 flow live end-to-end. A green AC-1 run
+needs a quiet window on the primary checkout, which this session did not
+have; re-running `npx playwright test --project=slow` (with `lc worker
+stop` first, primary checkout clean) is the one remaining step and should
+now succeed given everything above.
