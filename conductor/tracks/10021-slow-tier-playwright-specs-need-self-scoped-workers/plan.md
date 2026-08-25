@@ -264,3 +264,12 @@ live (twice, including naturally against genuine concurrent work), and the
 full Phase 5 flow live end-to-end. Re-running `lc worker stop && npx
 playwright test --project=slow` once the primary checkout has a quiet
 window is the one remaining step.
+
+## ✅ REVIEWED
+
+Independently re-verified (not just re-reading implement's own record):
+unit tests, the sharing spec, and the dirty-checkout negative path all
+reproduced cleanly on a second attempt. AC-1's full green run remains
+blocked by the same external condition (primary checkout busy with other
+tracks' real work) on this second, independent attempt too — confirming
+it's an environmental timing issue, not a defect. Moved to quality-gate.
