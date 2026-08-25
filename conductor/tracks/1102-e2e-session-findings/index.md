@@ -1,11 +1,14 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Review failed (2026-08-25) on completion bookkeeping, not the engineering: index.md's Phases checklist and plan.md still show Phases 3/8/10 unchecked despite the fixes being verified real (F3/F9b/F6 all re-confirmed via code + passing tests this review); spec.md has 7/11 ACs unchecked, two with a genuine unclosed gap (AC-1's F3 live create+drag check, AC-7's claim-timeout UI visibility). Remaining: correct the stale checkboxes, do AC-1's live check, close or link-out AC-7's UI gap and Phase 7 Task 5's SKILL guidance.
+**Phase**: Quality gate PASSED (2026-08-25). All 17 phases and all 11 acceptance criteria checked. Review's bookkeeping gaps (Phases 3/8/10) corrected against re-verified code+tests; AC-1's live check performed against an isolated instance of this branch's own code; AC-7's UI-visibility gap and Phase 16's migration-mechanism decision each filed as a linked follow-up track (10032, 10033) per this track's own Completion rule.
 **Type**: bug
+**PR Number**: 13
+**PR URL**: https://github.com/meller/laneconductor/pull/13
+**PR Status**: open
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
 ## Problem
@@ -990,7 +993,7 @@ showed the **current** code actually **advances the lane forward**
 not merely "reset to queue" as originally written above — either way, a
 run that never finished was being reported as a clean success. Fix: the
 exit handler now reads the worktree's own `index.md` *before* patching
-it; if `**Lane Status**: queue` is still there on an otherwise-`isSuccess`
+it; if `**Lane Status**: running` is still there on an otherwise-`isSuccess`
 exit, the run is treated as `ended_mid_work` instead — lane stays put,
 `Progress` isn't forced to `100%`, and a `⚠️ Run ended mid-work...`
 comment is posted explaining that a re-run resumes (worktree + session
@@ -1205,21 +1208,21 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 
 - [x] Phase 1: F1 — worker mode for a newly created project. Closed as **not a bug**: `sync-only` is the intended default ("sync + manual UI operations"); the real symptom was F5. Decision locked in by a test asserting `mode === 'sync-only'` deliberately
 - [x] Phase 2: Fix F2 — accurate lane-action button state/tooltip (fixed, unit-tested)
-- [ ] Phase 3: Fix F3 — one status marker, not two (`ui/server/utils.mjs:35,41` still bakes in the legacy `**Status**`; `parse-status.mjs` is the workaround)
+- [x] Phase 3: Fix F3 — one status marker, not two. Fixed, unit-tested (5/5), and live-verified 2026-08-25 (quality-gate): a disposable track created against this branch's own isolated server instance carries only `**Lane**`, and a PATCH lane-change holds without reverting
 - [x] Phase 4: Continue the walkthrough — Activity, Inbox, deploy wizard walked live against the real board, all working correctly, no new findings; stopped before any actual deploy per scope
 - [x] Phase 5: Fix F15 — extend F5's sync-only dispatch bridge to `/track/:num/lane` and `/track/:num/reset` (fixed, unit-tested; live E2E verification is now Phase 15)
 - [x] Phase 6: Fix F16 — worker identity lock path now resolves the primary checkout instead of trusting cwd directly; fixed and live-verified (killed 4 real duplicate processes, confirmed exactly one survives a clean restart)
-- [x] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` is now a distinguishable `ended_mid_work` outcome (lane stays put, no forced 100%, ⚠️ comment posted), fixed and unit-tested; SKILL guidance against ending a turn on a backgrounded command still open
-- [ ] Phase 8: Fix F9b — `workDir` TDZ `ReferenceError` at `laneconductor.sync.mjs:4269` (declared at 4274 in a sibling block), swallowed by an empty catch, so `last_run.log` is never staged
+- [x] Phase 7: Fix F21 (original variant) — exit 0 with `index.md` still at `running` is now a distinguishable `ended_mid_work` outcome (lane stays put, no forced 100%, ⚠️ comment posted), fixed and unit-tested; SKILL guidance against ending a turn on a backgrounded command added to `.claude/skills/laneconductor/SKILL.md` (quality-gate, 2026-08-25). Task 4 (live re-run-to-resume confirmation) remains a separate, still-open follow-up
+- [x] Phase 8: Fix F9b — `workDir` TDZ `ReferenceError` fixed (hoisted to `laneconductor.sync.mjs:4807`), unit-tested (1/1 pass). Checkbox was stale — the fix was actually done and committed (`edb01b0`) in an earlier session but never marked here; confirmed against real code during quality-gate 2026-08-25
 - [x] Phase 9: F20 — investigated live against a real stuck-running card; does not reproduce at realistic viewport width (925px artifact, not a real overlap bug); no fix needed, documented for future reference if it resurfaces
-- [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
-- [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
-- [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
+- [x] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (`bin/lc.mjs:638-648,1636,1770,1873`), unit-tested (4/4 pass), wire values unchanged. Checkbox was stale — confirmed against real code during quality-gate 2026-08-25
+- [x] Phase 11: F19 — regression test confirmed to already exist for `NEXT_LANE.backlog === 'plan'` (`TrackCard.jsx:21`), verified real by mutating and reverting. Task 4 (whether to additionally warn on no-plan-artifacts) is a separate UX decision, deliberately deferred
+- [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested. UI visibility of the outcome filed as [10032](../10032-f18-claim-timeout-ui-visibility/index.md) rather than fixed here (quality-gate, 2026-08-25)
 - [x] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL`. **Live and verified** (2026-08-25, via Phase 16) — deleting a worker row now preserves its dispatch rows with `worker_id` NULL, confirmed in a rolled-back transaction against the real DB
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
 - [x] Phase 15a: F15 — real E2E of the dispatch bridge (real spawned API server + real DB + real worker, not the lightweight mock-collector.mjs). Fixed and mutation-verified; found a second F22 drift instance along the way
 - [x] Phase 15b: F15 — the browser drag *gesture*, confirmed live on the real board (2026-08-25, user-approved): dispatch created + claimed within ~1s of a real drag. Caught and cleaned up an unintended side effect (a real GitHub PR opened by the quality-gate dispatch)
-- [x] Phase 16: F22 — merged main (219 commits, 6 conflicts resolved), found and fixed a third F22 manifestation (an un-ledgered direct-apply gap that blocked every apply regardless of timestamp), then applied F10c to the live DB. Task 6 (deciding the canonical migration mechanism) deliberately left open
+- [x] Phase 16: F22 — merged main (219 commits, 6 conflicts resolved), found and fixed a third F22 manifestation (an un-ledgered direct-apply gap that blocked every apply regardless of timestamp), then applied F10c to the live DB. Task 6 (deciding the canonical migration mechanism) filed as [10033](../10033-canonical-migration-mechanism-decision/index.md) rather than decided inline
 
 **Verified closed while planning** (contradicting an earlier write-up): F8's
 "clear the busy heartbeat" follow-up needs no phase — `spawnCli()` does call
@@ -1231,3 +1234,5 @@ actions do report as busy.
 
 ## Spawned tracks
 [1118](../1118-manager-worker-credential-storage/index.md) — F13's deeper cause (manager credential storage), filed 2026-08-20 rather than fixed inline.
+[10032](../10032-f18-claim-timeout-ui-visibility/index.md) — F18 claim-timeout's UI-visibility half (AC-7), filed 2026-08-25 rather than fixed inline (quality-gate).
+[10033](../10033-canonical-migration-mechanism-decision/index.md) — deciding the canonical migration mechanism (F22 / Phase 16 Task 6), filed 2026-08-25 rather than decided inline (quality-gate).

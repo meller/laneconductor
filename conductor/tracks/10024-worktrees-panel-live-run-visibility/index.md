@@ -77,4 +77,4 @@ API endpoint, no worker join, no third transcript mechanism.
 **Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no…
 **PR Number**: 8
 **PR URL**: https://github.com/meller/laneconductor/pull/8
-**PR Status**: conflicted
+**PR Status**: merged

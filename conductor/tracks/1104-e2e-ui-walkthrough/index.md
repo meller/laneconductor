@@ -81,4 +81,4 @@ describe steps that don't work; one written from memory can and will.
 [1103](../1103-e2e-onboarding-experience/index.md) (the design this validates), [1102](../1102-e2e-session-findings/index.md) (known bugs on this path), [1100](../1100-fix-playwright-e2e-suite/index.md) (Phase 5 needs the fast tier).
 **PR Number**: 4
 **PR URL**: https://github.com/meller/laneconductor/pull/4
-**PR Status**: conflicted
+**PR Status**: merged

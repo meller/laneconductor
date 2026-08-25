@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Phase**: New
 **Type**: bug
-**Summary**: A manager worker has no credential storage of its own — when started from a directory that is also a real project, it authenticates using that co-located project's own machine_token, which caused F13 (track 1102) and could recur in other forms.
+**Summary**: A manager worker has no credential storage of its own — when started from a directory that is also a real project, it authenticates using that co-located project's own machine_token, which caused…
 
 ## Problem
 
