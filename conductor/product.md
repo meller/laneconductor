@@ -1,7 +1,7 @@
 # Product: LaneConductor
 
 ## What It Does
-LaneConductor is the AI orchestration layer for your whole business — not just code. Dev ships features, marketing posts launches, sales runs outreach, support resolves tickets. Every function runs as a **track** on one board, executed or assisted by AI agents, and measured against a KPI so you know what actually worked.
+LaneConductor is the AI orchestration layer for your whole business — not just code. Dev ships features, launch posts launches, market runs outreach, support resolves tickets. Every function runs as a **track** on one board, executed or assisted by AI agents, and measured against a KPI so you know what actually worked.
 
 It is not a project tracker (those are passive — humans do the work). LaneConductor is an **operating layer**: agents execute the work, outcomes are measured, and failed experiments automatically replan with measurement data attached. The Conductor metaphor is exact — it doesn't play the instruments, it orchestrates them.
 
@@ -13,8 +13,8 @@ LaneConductor supports four track domains:
 | Type | What AI does | How success is measured |
 |------|-------------|------------------------|
 | **dev** | Plans, implements, reviews, and ships code | Tests pass, quality gate clears |
-| **marketing** | Drafts launch posts, copy, campaigns — human publishes | KPI: HN score, Reddit upvotes, PH upvotes |
-| **sales** | Writes outreach sequences, pitches, one-pagers — human sends | KPI: replies, conversions |
+| **launch** | Drafts launch posts, copy, campaigns — human publishes | KPI: HN score, Reddit upvotes, PH upvotes |
+| **market** | Writes outreach sequences, pitches, one-pagers — human sends | KPI: replies, conversions |
 | **support** | Drafts responses, knowledge base articles | KPI: resolution rate, CSAT |
 
 Non-dev tracks follow a **supervised implement** flow: AI drafts the content, human publishes it, AI schedules and runs the quality gate when the measurement window closes.
@@ -23,11 +23,11 @@ Non-dev tracks follow a **supervised implement** flow: AI drafts the content, hu
 - Solo founders using AI tools across their whole business — not just engineering
 - Developers who want visibility into multi-agent work across multiple repos
 - Privacy-conscious builders who won't send business data to third-party SaaS
-- Teams running AI-assisted marketing and sales alongside product development
+- Teams running AI-assisted launches and marketing alongside product development
 
 ## Core Goals
 - **Visibility**: Know what every AI agent is doing — code, content, or outreach — without reading terminal output
-- **Multi-function**: Dev, marketing, sales, support all in one board
+- **Multi-function**: Dev, launch, market, support all in one board
 - **Closed loop**: KPI measurement after every non-dev track — did it actually work?
 - **Sovereign**: 100% local — no cloud, no auth, no cost
 - **Agent-First**: Designed for the workflow of AI assistants, not human project managers
@@ -348,6 +348,14 @@ to main via `git merge --no-ff` (preserves history), then the worktree is
 removed. A `main`-mode track is already on main at `done:success` — there
 is no merge step.
 
+**The Worktrees Panel**
+
+A dedicated tab on the Kanban dashboard provides direct control and monitoring over active worktrees:
+- **Worktree List**: Surfaces all current track worktrees, paths, corresponding branch names, and unmerged commits.
+- **Dev-Server Preview**: Swaps the active local dev server to execute code from a specific worktree, making manual testing of in-progress tracks extremely simple.
+- **PR & Integration Hub**: Visualizes open Pull Requests, statuses (e.g., `open`, `conflicted`, `merged`), and provides action buttons to Approve & Merge or clean up/delete the worktree.
+- **Lock visualizer**: Displays current track locks (`.conductor/locks/`).
+
 **Workspace Modes (Track 1115)**
 
 Orthogonal to the lifecycle above: every lane action first resolves to
@@ -360,6 +368,18 @@ unattended auto-queue claim, unlike an explicit `**Workspace**` marker).
 See `conductor/workflow.md`'s "Workspace Modes" section and
 `conductor/tracks/1115-workspace-mode-main-vs-branch/spec.md` for the
 full resolution table.
+
+**PR & Merge Modes (Track 10018)**
+
+Governs how a completed track branch merges back to `main` upon passing the Quality Gate. Resolved per-track via the `**Merge Mode**` marker:
+- **`pr`** (default): Automatically pushes the branch and opens a Pull Request on GitHub. The PR and branch preview can be managed and merged directly inside the UI/Worktrees panel.
+- **`direct`**: The worker merges the track branch straight to `main` without creating a PR.
+
+**Auto-Run Configuration (Track 10017)**
+
+Controls whether background workers automatically pick up queued tracks. Checked per-track via `**Auto Run**` marker:
+- **`yes`**: The track is eligible to be claimed from the queue and executed autonomously by any eligible active worker.
+- **`no`** (default): The track remains in the queue and must be manually run/dispatched via the UI or CLI.
 
 **Lock Synchronization** (when remote collector configured)
 - Local worker creates lock, commits to git

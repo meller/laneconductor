@@ -110,3 +110,17 @@ honored.
   retry/`on_failure` handling applies — it is not blocked ahead of time at
   claim time. (Claim-time capability matching, if wanted later, belongs in
   the claim-allowlist machinery — tracks 1084/1109 — as its own effort.)
+
+## PR & Merge Modes (Track 10018)
+
+Controls how track branches integrate back into the main branch once the Quality Gate passes successfully. This is configured via the `**Merge Mode**: pr|direct` marker in the track's `index.md`:
+
+- **`pr`** (default): Pushes the track branch to GitHub and opens a Pull Request. A human can preview the branch from the Worktrees panel and approve/merge the PR directly in the LaneConductor UI or on GitHub.
+- **`direct`**: The worker automatically merges the track branch straight to `main` via a fast-forward/non-fast-forward merge upon passing the Quality Gate.
+
+## Auto-Run Configuration (Track 10017)
+
+Determines whether a track can be automatically claimed and executed by background workers. Configured via the `**Auto Run**: yes|no` marker in `index.md`:
+
+- **`yes`**: Allows non-sync-only workers to pick up the track from the queue and automatically move it through planning, implementation, and review.
+- **`no`** (or omitted): The track remains in the queue until a developer manually clicks run or dispatch in the UI, ensuring sensitive changes are never run unattended.

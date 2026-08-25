@@ -640,6 +640,7 @@ function AppContent({ user, logout }) {
           projectId={selectedProjectId}
           projects={projects}
           tracks={tracks}
+          workers={workers}
           initialType={newTrackType}
           onClose={() => setNewTrackOpen(false)}
           onCreated={() => { setNewTrackOpen(false); refetch(); }}
@@ -924,7 +925,24 @@ function CloudAppInner() {
       {/* Right panels */}
       <ConductorPanel open={conductorOpen} onClose={() => setConductorOpen(false)} projectId={selectedProjectId} />
       <TrackDetailPanel open={!!activeTrack} track={activeTrack} onClose={() => setActiveTrack(null)} projectId={selectedProjectId} />
-      <NewTrackModal open={newTrackOpen} onClose={() => setNewTrackOpen(false)} projectId={selectedProjectId} type={newTrackType} onSuccess={() => { setNewTrackOpen(false); refetch(); }} />
+      {/* Track 008 Phase 5: was rendered unconditionally with a stale prop
+          shape (open/type/onSuccess) from before NewTrackModal's
+          resume-or-create redesign (Phase 2) — the component has no `open`
+          prop of its own, so this permanently overlaid the Cloud board
+          regardless of newTrackOpen. Gated + re-wired to match AppContent's
+          instance below. */}
+      {newTrackOpen && (
+        <NewTrackModal
+          projectId={selectedProjectId}
+          projects={projects}
+          tracks={tracks}
+          workers={workers}
+          initialType={newTrackType}
+          onClose={() => setNewTrackOpen(false)}
+          onCreated={() => { setNewTrackOpen(false); refetch(); }}
+          onResumed={() => { setNewTrackOpen(false); refetch(); }}
+        />
+      )}
       <InboxPanel open={inboxOpen} onClose={() => setInboxOpen(false)} projectId={selectedProjectId} onTrackClick={handleTrackClick} />
 
       {/* Cloud onboarding modal */}

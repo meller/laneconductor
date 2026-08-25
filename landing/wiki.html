@@ -372,9 +372,12 @@
                 <div class="sidebar-title">Workflow</div>
                 <ul class="sidebar-links">
                     <li><a href="#lifecycle">Track Lifecycle</a></li>
+                    <li><a href="#workspace-modes">Workspace Modes</a></li>
+                    <li><a href="#worktrees-panel">Worktrees &amp; Panel</a></li>
+                    <li><a href="#merge-modes">PR & Merge Modes</a></li>
+                    <li><a href="#auto-run">Auto-Run Configuration</a></li>
                     <li><a href="#llm-config">LLM Configuration</a></li>
                     <li><a href="#quality-gates">Quality Gates</a></li>
-                    <li><a href="#lane-transitions">Lane Transitions</a></li>
                 </ul>
             </div>
             <div class="sidebar-group">
@@ -396,7 +399,7 @@
         <main>
             <header>
                 <h1>Knowledge Base</h1>
-                <p>The AI orchestration layer for your whole business — dev, marketing, sales, support. One board. Closed loop.</p>
+                <p>The AI orchestration layer for your whole business — dev, launch, market, support. One board. Closed loop.</p>
             </header>
 
             <section id="what-is-it">
@@ -803,6 +806,51 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                 <p>Tracks move through the workflow based on the <code>conductor/workflow.json</code> configuration.
                     Transitions can be triggered by the CLI, the UI, or the Agent itself through <code>lc pulse</code>.
                 </p>
+            </section>
+
+            <section id="workspace-modes">
+                <h2>Workspace Modes</h2>
+                <p>Every track resolves to one of two workspace modes at execution time:</p>
+                <ul>
+                    <li><strong><code>branch</code> (Default)</strong>: Runs in an isolated Git worktree on a track-specific branch (e.g., <code>track-NNN</code>) and merges back to main only when the track succeeds. This keeps main clean and isolates autonomous runs.</li>
+                    <li><strong><code>main</code></strong>: Runs directly in the primary checkout on the <code>main</code> branch with no worktree or branch overhead. Ideal for self-hosted infrastructure updates or live developer-agent pairing where changes need immediate local activation.</li>
+                </ul>
+                <p>Workspace mode is controlled using markers in <code>index.md</code>:</p>
+                <ul>
+                    <li><code>**Workspace**: main|branch</code> — Explicit choice.</li>
+                    <li><code>**Track Kind**: bug|feature</code> — Infers the mode (bugs default to <code>main</code>, features default to <code>branch</code>), but auto-run queue pickups default to the safer <code>branch</code> mode if not explicitly overridden.</li>
+                </ul>
+                <p>Note: The <code>plan</code> lane always runs direct on <code>main</code> to generate track docs, lazily creating the worktree on the first <code>implement</code> step if <code>branch</code> mode is active.</p>
+            </section>
+
+            <section id="worktrees-panel">
+                <h2>Worktrees &amp; Panel</h2>
+                <p>When running a track in <code>branch</code> workspace mode, LaneConductor leverages Git Worktrees to provide isolated parallel execution. This isolates the agent's work, ensuring that uncommitted changes and branch states are quarantined. The <strong>Worktrees Panel</strong> on the dashboard provides direct human visibility and control over these environments:</p>
+                <ul>
+                    <li><strong>Active Worktrees Visibility</strong>: Lists all currently checked out track worktrees, their absolute filesystem paths, corresponding branch names, and unmerged commits.</li>
+                    <li><strong>Dev-Server Preview</strong>: Allows developers to swap the active dev server to run code directly from a specific worktree. This enables live manual previewing and verification of the agent's work before it is merged.</li>
+                    <li><strong>PR &amp; Integration Hub</strong>: Displays open Pull Requests, merge statuses (e.g., <code>open</code>, <code>conflicted</code>, <code>merged</code>), and provides direct action buttons (like "Approve &amp; Merge" or "Clean up worktree") to let humans control integration from the UI.</li>
+                    <li><strong>Lock Serialization</strong>: Visualizes track worktree locks (<code>.conductor/locks/</code>) which guarantee that workers do not clash when claiming tasks.</li>
+                </ul>
+            </section>
+
+            <section id="merge-modes">
+                <h2>PR &amp; Merge Modes</h2>
+                <p>Controls how track branches integrate back into the main branch once the Quality Gate passes:</p>
+                <ul>
+                    <li><strong><code>pr</code> (Default)</strong>: Pushes the track branch to GitHub and opens a Pull Request. A human can preview the branch from the Worktrees panel and approve/merge the PR directly in the LaneConductor UI or on GitHub.</li>
+                    <li><strong><code>direct</code></strong>: The worker automatically merges the track branch straight to <code>main</code> via a fast-forward/non-fast-forward merge upon passing the Quality Gate.</li>
+                </ul>
+                <p>Configure this via the FS marker in <code>index.md</code>: <code>**Merge Mode**: pr|direct</code>.</p>
+            </section>
+
+            <section id="auto-run">
+                <h2>Auto-Run Configuration</h2>
+                <p>Determines whether a track can be automatically claimed and executed by background workers without manual human triggering:</p>
+                <ul>
+                    <li><code>**Auto Run**: yes</code>: Allows non-sync-only workers to pick up the track from the queue and automatically move it through planning, implementation, and review.</li>
+                    <li><code>**Auto Run**: no</code> (or omitted): The track remains in the queue until a developer manually clicks run or dispatch in the UI, ensuring sensitive changes are never run unattended.</li>
+                </ul>
             </section>
 
             <section id="quality-gates">

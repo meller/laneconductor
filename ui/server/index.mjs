@@ -18,6 +18,8 @@ import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from
 import { logger } from './logger.mjs';
 import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
 import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
+import { VALID_MODES as MERGE_MODE_VALID_MODES } from '../../conductor/services/merge-mode.mjs';
+import { VALID_MODES as WORKSPACE_MODE_VALID_MODES } from '../../conductor/services/workspace-mode.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -793,8 +795,24 @@ app.patch('/api/projects/:id/tracks/:num', async (req, res) => {
 
 app.post('/api/projects/:id/tracks', async (req, res) => {
   try {
-    const { title, description = '', type = 'feature', trackType = 'dev' } = req.body;
+    const {
+      title, description = '', type = 'feature', trackType = 'dev',
+      merge_mode = null, auto_run = false, workspace_mode = null, model = null,
+    } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' });
+    // Track 008 Phase 5: reject rather than silently coerce — same enums
+    // trackTemplates()'s defense-in-depth check uses, imported from the one
+    // place each is defined (merge-mode.mjs / workspace-mode.mjs) rather
+    // than a third hardcoded copy of either list.
+    if (merge_mode !== null && !MERGE_MODE_VALID_MODES.includes(merge_mode)) {
+      return res.status(400).json({ error: `Invalid merge_mode: "${merge_mode}". Must be "pr" or "direct".` });
+    }
+    if (typeof auto_run !== 'boolean') {
+      return res.status(400).json({ error: 'auto_run must be a boolean' });
+    }
+    if (workspace_mode !== null && !WORKSPACE_MODE_VALID_MODES.includes(workspace_mode)) {
+      return res.status(400).json({ error: `Invalid workspace_mode: "${workspace_mode}". Must be "main" or "branch".` });
+    }
 
     // Get project repo_path
     const projResult = await pool.query(
@@ -823,9 +841,9 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
       // Register in DB - this effectively 'owns' the track number now
       const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
       await client.query(
-        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by, track_type)
-         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human', $5)`,
-        [req.params.id, trackNumber, title.trim(), description.trim(), safeTrackType]
+        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by, track_type, merge_mode, auto_run, workspace_mode)
+         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human', $5, $6, $7, $8)`,
+        [req.params.id, trackNumber, title.trim(), description.trim(), safeTrackType, merge_mode, auto_run, workspace_mode]
       );
       await client.query('COMMIT');
     } catch (dbErr) {
@@ -852,7 +870,9 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
         if (!existsSync(trackPath)) {
           mkdirSync(trackPath, { recursive: true });
           const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
-          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType, 'plan');
+          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType, 'plan', {
+            mergeMode: merge_mode, autoRun: auto_run, workspaceMode: workspace_mode, model,
+          });
           writeFileSync(join(trackPath, 'index.md'), index, 'utf8');
           writeFileSync(join(trackPath, 'plan.md'), plan, 'utf8');
           writeFileSync(join(trackPath, 'spec.md'), spec, 'utf8');
@@ -1748,6 +1768,58 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
 // claimed in seconds; F15 extends the same bridge to /track/:num/lane and
 // /track/:num/reset, which had the same gap).
 //
+// Track 1102 F18 follow-up: phantom-signature exclusion (see
+// dispatchIfSyncOnly's own comment below) stops a *fake* worker absorbing a
+// dispatch, but not a REAL worker that dies (crash, machine sleep, `lc stop`)
+// after being assigned one and before claiming it — same silent starvation,
+// a cause exclusion-by-signature can't cover since the dead worker's row
+// looks completely legitimate. Bounds how long a dispatch may sit
+// 'pending': reassigns it to another live worker for the same project if
+// one exists, or marks it 'failed' with an explicit reason if none does —
+// either way, no dispatch is left to starve silently forever.
+//
+// Deliberately request-adjacent rather than a raw setInterval spun up at
+// module scope: this file has no other background-timer precedent (it's
+// pure request-driven Express elsewhere), and a plain exported function
+// keeps this testable without fake-timer plumbing — production wires it to
+// setInterval once, near server.listen() below.
+async function reapStaleDispatches(pool) {
+  const timeoutMs = Number(process.env.LC_DISPATCH_CLAIM_TIMEOUT_MS) || 300000;
+  const { rows: stale } = await pool.query(
+    `SELECT wd.id, wd.worker_id, w.project_id FROM worker_dispatch wd
+       JOIN workers w ON w.id = wd.worker_id
+      WHERE wd.status = 'pending' AND wd.created_at < NOW() - ($1 * INTERVAL '1 millisecond')`,
+    [timeoutMs]
+  );
+  for (const entry of stale) {
+    try {
+      // Same phantom-worker exclusion as dispatchIfSyncOnly/the /dispatch
+      // fallbacks (F18) — a stale dispatch must not be "reassigned" onto a
+      // Playwright fixture worker either.
+      const { rows: [replacement] } = await pool.query(
+        `SELECT w.id FROM workers w
+          WHERE w.project_id = $1 AND w.id != $2
+            AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+            AND w.pid != 0 AND (w.hostname IS NULL OR w.hostname NOT LIKE 'pw-e2e-%')
+          ORDER BY w.id ASC LIMIT 1`,
+        [entry.project_id, entry.worker_id]
+      );
+      if (replacement) {
+        await pool.query(`UPDATE worker_dispatch SET worker_id = $1 WHERE id = $2`, [replacement.id, entry.id]);
+        console.warn(`[dispatch-reaper] Dispatch ${entry.id} unclaimed for over ${timeoutMs}ms — reassigned from worker ${entry.worker_id} to ${replacement.id}`);
+      } else {
+        await pool.query(
+          `UPDATE worker_dispatch SET status = 'failed', result = $1 WHERE id = $2`,
+          [`timeout: unclaimed for over ${Math.round(timeoutMs / 1000)}s and no other live worker was available to reassign to`, entry.id]
+        );
+        console.warn(`[dispatch-reaper] Dispatch ${entry.id} unclaimed for over ${timeoutMs}ms — no replacement worker available, marked failed`);
+      }
+    } catch (err) {
+      console.warn(`[dispatch-reaper] Failed to reap dispatch ${entry.id}: ${err.message}`);
+    }
+  }
+}
+
 // When a sync+poll worker exists we deliberately do NOT dispatch — its
 // queue poller will claim the track as today, and dispatching too would
 // race the same action into running twice. Managers are never candidates:
@@ -2196,7 +2268,7 @@ function gitGlobalId(gitRemote) {
 
 // ── Exports (for testing) ───────────────────────────────────────────────────
 
-export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus };
+export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus, reapStaleDispatches };
 
 // Load Firebase Admin config (verifies tokens in remote mode)
 import { TEST_MODE as AUTH_TEST_MODE } from './auth.mjs';
@@ -4638,6 +4710,15 @@ if (process.env.NODE_ENV !== 'test') {
       // Not inside a git repo (e.g. a stripped deployment) — nothing to report.
     }
   });
+
+  // Track 1102 F18 follow-up: bound how long a dispatch may sit unclaimed.
+  // LC_DISPATCH_REAP_INTERVAL_MS is test-only (default 60s), matching the
+  // LC_DISPATCH_POLL_MS/LC_WORKER_ID_WATCHDOG_MS pattern already used on
+  // the worker side for the same reason (a test asserting this fires
+  // shouldn't have to wait out real minutes).
+  setInterval(() => {
+    reapStaleDispatches(pool).catch(err => console.warn(`[dispatch-reaper] Reap cycle failed: ${err.message}`));
+  }, Number(process.env.LC_DISPATCH_REAP_INTERVAL_MS) || 60000);
 }
 
 // ── Server Shutdown ────────────────────────────────────────────────────────────

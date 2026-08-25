@@ -77,3 +77,8 @@ conversational flow would need new plumbing for a live back-and-forth with
 the manager worker that doesn't exist today. A form collects the same
 answers upfront into one `scaffold_context` blob and dispatches once on
 submit, matching the existing pattern.
+**Waiting for reply**: no
+**Auto Run**: yes
+**PR Number**: 16
+**PR URL**: https://github.com/meller/laneconductor/pull/16
+**PR Status**: conflicted
