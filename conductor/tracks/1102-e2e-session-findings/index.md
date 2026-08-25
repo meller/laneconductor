@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 94%
+**Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: 16 of 17 phases done. Phase 16 complete — F10c is live and verified. Only Phase 15b remains (real browser drag gesture, user already approved)
+**Phase**: 17 of 17 phases done. Phase 16 (F10c live migration) and Phase 15b (live browser drag verification) both complete 2026-08-25. All acceptance criteria met.
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -633,7 +633,7 @@ transcript) was considered and deferred — the Transcript tab already
 serves that need better than a raw tail would for Claude specifically;
 non-Claude CLIs are unaffected (still populate `last_log_tail` normally).
 
-### F15 — F5's dispatch bridge only covers `/implement`; drag-to-lane and reset still strand sync-only projects 🔴 CONFIRMED & FIXED (real E2E via 15a; browser gesture (15b) still pending)
+### F15 — F5's dispatch bridge only covers `/implement`; drag-to-lane and reset still strand sync-only projects 🔴 CONFIRMED & FIXED (real E2E via 15a; browser gesture confirmed live via 15b — fully proven)
 Found 2026-08-15 while diagnosing why track 10011 sat at `lane_action_status:
 'queue'` indefinitely after being dragged to the Implement lane (root cause
 of *that* specific incident turned out to be unrelated — the real
@@ -677,10 +677,42 @@ DB, not mocked) and a real sync-only worker, sends the actual `PATCH
 `worker_dispatch` row get created and claimed — plus a negative case
 confirming a `sync+poll` worker correctly suppresses the bridge. Each of
 the 3 assertions independently mutation-verified against the real
-production code. This is a genuine E2E of the mechanism the fix claims;
-what's still missing is only the **browser drag gesture itself** (15b) —
-a materially smaller, cosmetic gap now, not "confirmed by unit test
-alone."
+production code.
+
+**Browser gesture confirmed live 2026-08-25 (Phase 15b)**, closing the
+last gap: created a disposable scratch track (#10026, "F15 Phase 15b live
+drag verification") in the real `laneconductor` project on the live
+board, and dragged its card via a real Playwright browser session.
+Non-trivial in practice — this project's workers kept toggling between
+`sync-only` and `sync+poll` mid-session (concurrent real E2E test runs
+were restarting them live, confirmed by a phantom `pw-e2e-worker` fixture
+appearing in the same worker list — a live, unplanned demonstration of
+F18's exclusion signature actually mattering), so the drag had to be
+timed against a polled, confirmed all-`sync-only` window rather than
+performed blind. Once timed correctly: dragging Review → Quality Gate
+produced `worker_dispatch` id 2282 (`action: 'quality-gate'`) within
+about a second, immediately claimed by real worker 998, which then
+genuinely went `busy` running a real quality-gate dispatch against the
+track — the full chain, UI gesture included, observed end to end on the
+actual live system.
+
+**Unintended side effect, caught and cleaned up**: the real quality-gate
+agent that ran against this content-free disposable track did real
+scaffolding work and — per this project's own `merge_mode: pr` PR-flow
+feature (Track 10018) — opened a genuine GitHub PR
+(`meller/laneconductor#11`) with 4 changed files. Not anticipated when
+picking a "disposable" track for this test: a real dispatch has real
+downstream effects, PR creation included, regardless of how empty the
+track's own content is. Closed the PR and deleted its branch
+(`gh pr close 11 --delete-branch`) immediately on discovery, deleted the
+track from the board, and manually removed the leftover
+`.worktrees/10026` worktree and `track-10026` branch that the UI's
+track-delete didn't clean up on its own (a real, if minor, gap — worth
+its own follow-up, not fixed here). **Worth remembering for next time**:
+a live dispatch test needs a track scoped to skip real side effects
+(e.g. deliberately targeting a lane/action pair this project's workflow
+doesn't wire to PR creation), not just a track whose own *content* is
+disposable.
 
 ### F16 — Worker identity lock silently stopped protecting against duplicates when cwd wasn't the primary checkout 🔴 CONFIRMED & FIXED
 Found live (2026-08-17) chasing a "can't delete worktree from the UI"
@@ -1186,7 +1218,7 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [x] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL`. **Live and verified** (2026-08-25, via Phase 16) — deleting a worker row now preserves its dispatch rows with `worker_id` NULL, confirmed in a rolled-back transaction against the real DB
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
 - [x] Phase 15a: F15 — real E2E of the dispatch bridge (real spawned API server + real DB + real worker, not the lightweight mock-collector.mjs). Fixed and mutation-verified; found a second F22 drift instance along the way
-- [ ] Phase 15b: F15 — the browser drag *gesture* on the real board. Still needs an explicit go-ahead or a disposable scratch project; deliberately split so 15a isn't held hostage to it
+- [x] Phase 15b: F15 — the browser drag *gesture*, confirmed live on the real board (2026-08-25, user-approved): dispatch created + claimed within ~1s of a real drag. Caught and cleaned up an unintended side effect (a real GitHub PR opened by the quality-gate dispatch)
 - [x] Phase 16: F22 — merged main (219 commits, 6 conflicts resolved), found and fixed a third F22 manifestation (an un-ledgered direct-apply gap that blocked every apply regardless of timestamp), then applied F10c to the live DB. Task 6 (deciding the canonical migration mechanism) deliberately left open
 
 **Verified closed while planning** (contradicting an earlier write-up): F8's

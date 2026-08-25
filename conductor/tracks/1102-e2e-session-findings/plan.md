@@ -457,16 +457,30 @@ the file this session already flagged as stale. Patched directly on the
 scratch DB (schema.sql itself stays in scope for Phase 16, not duplicated
 here).
 
-### 15b — the browser drag gesture (still needs consent)
-- [ ] Task 5: Drag a card on the real board and observe the row appear
-      — needs either an explicit go-ahead, or a disposable scratch
-      project. Deliberately left as its own small item so 15a isn't held
-      hostage to it
-- [ ] Task 6: Record the observation in F15's body
+### 15b — the browser drag gesture ✅ DONE (2026-08-25, user-approved)
+- [x] Task 5: Created a disposable track (#10026) in the real
+      `laneconductor` project, dragged it via a real Playwright browser
+      session. Had to time the drag against a polled, confirmed
+      all-`sync-only` window — this project's workers were toggling modes
+      live (concurrent real E2E specs restarting them, including a
+      phantom `pw-e2e-worker` fixture appearing in the live worker list —
+      an unplanned live demonstration of F18's exclusion actually
+      mattering). Result: `worker_dispatch` id 2282 created and claimed
+      by real worker 998 within ~1s of the drag, which then genuinely
+      went `busy` running the dispatch
+- [x] Task 6: Recorded in F15's body, including an unintended side effect
+      caught and cleaned up: the real quality-gate dispatch opened a real
+      GitHub PR (`meller/laneconductor#11`) via this project's PR-flow
+      feature — closed + branch deleted immediately, track deleted, and a
+      leftover worktree/branch the UI's delete didn't clean up were
+      removed manually
 
-**Impact**: The mechanism gets real E2E coverage now; only the gesture
-remains gated. Splitting also stops "needs permission" from being an
-excuse that quietly covers work that never needed permission.
+**Impact**: F15 is now fully proven — mechanism (15a) and gesture (15b)
+both observed live, not "confirmed by unit test alone." Also surfaced a
+real, if minor, gap (track-delete doesn't clean up its worktree/branch)
+and a genuine methodology lesson (a "disposable" track's *content* being
+empty doesn't mean a live dispatch against it has no real side effects)
+— both worth remembering, neither blocking this phase.
 
 ---
 

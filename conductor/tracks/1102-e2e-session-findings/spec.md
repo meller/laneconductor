@@ -141,11 +141,11 @@ Each criterion states an outcome a user or an operator could observe.
       while the fix does nothing in reality. **Verified 2026-08-25** in a
       rolled-back transaction against the real DB; permanent regression
       test: `ui/server/tests/track-1102-f10c-live-db-fk.test.mjs`.
-- [ ] **AC-9 (REQ-9)** A recorded live run exists — Phase 15a's real E2E
-      (real spawned API server + real DB + real worker) proved the
-      *mechanism* end to end via 3 independently mutation-verified tests,
-      but AC-9 as originally worded wants the actual browser drag
-      observed. Left unchecked until Phase 15b does that.
+- [x] **AC-9 (REQ-9)** A recorded live run exists — Phase 15a proved the
+      *mechanism* end to end via 3 mutation-verified tests; Phase 15b
+      (2026-08-25) then observed the actual browser drag live: a real
+      card drag on the real board produced a `worker_dispatch` row
+      claimed by a real worker within ~1s.
 - [x] **AC-10 (REQ-10)** A new track exists for the manager credential
       storage problem, linked from this track. Done in Phase 14:
       [1118](../1118-manager-worker-credential-storage/index.md).
