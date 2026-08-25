@@ -27,11 +27,47 @@ real credential check yet — that's Phase 2 REQ-2/TC-5).
 **Problem**: Deployment config lives only in the CLI `lc setup-deploy`; the UI has DeployPanel for *running* deploys but nothing for *configuring* them.
 **Solution**: `steps/DeploymentStep.jsx` — provider choice (Firebase Hosting / GCP Cloud Run / skip), environments, credential status check; output feeds the scaffold dispatch so the worker writes `deploy.json` + `deployment-stack.md` exactly as `setup-deploy generate` does.
 
-- [ ] Task 1: Extract shared deployment config helpers (provider list, env defaults, deploy.json shape) into `ui/src/lib/deployConfig.js`, used by the new step; DeployPanel untouched
-- [ ] Task 2: Credential status endpoint: `GET /api/workers/:id/deploy-credentials?provider=firebase|gcp` — worker-side check (gcloud/firebase auth) reported as verified / NOT CONFIGURED
-- [ ] Task 3: Wizard payload carries `wizard.deployment`; manager worker's create-project flow writes `conductor/deploy.json`, `deployment-stack.md`, `.env.example` from it
+- [x] Task 1: Extract shared deployment config helpers (provider list, env defaults, deploy.json shape) into `ui/src/lib/deployConfig.js`, used by the new step; DeployPanel untouched
+- [x] Task 2: Credential status endpoint: `GET /api/workers/:id/deploy-credentials?provider=firebase|gcp` — worker-side check (gcloud/firebase auth) reported as verified / NOT CONFIGURED
+- [x] Task 3: Wizard payload carries `wizard.deployment`; manager worker's create-project flow writes `conductor/deploy.json`, `deployment-stack.md`, `.env.example` from it
 
 **Impact**: Deployment becomes a first-class wizard step; single source of truth for deploy config shape.
+
+**Verification (2026-08-25)**: `ui/src/lib/deployConfig.js` created (provider list, env defaults,
+`buildDeployJson`/`buildDeploymentStackMd`/`buildEnvExample`, matching the exact shape
+`GET/POST /api/projects/:id/deploy-config` reads/writes) and mirrored byte-for-byte into
+`conductor/deployConfig.mjs` (same pattern as `conductor/providers.mjs` — the sync worker runs
+standalone and can't import `ui/src`). `DeploymentStep.jsx` now imports from the shared lib and
+adds a non-blocking credential-status badge (`data-testid="deploy-credential-status"`) fetched
+from the new `GET /api/workers/:id/deploy-credentials?provider=firebase|gcp` route
+(`ui/server/index.mjs`) — runs `gcloud auth list`/`firebase projects:list` synchronously in the
+API server process (not the async `worker_dispatch` cycle: local-api mode, this wizard's only
+supported mode per spec.md, always runs the Collector API on the same machine as the worker being
+configured, so there's no remote-machine problem to solve). `AppCreatorWizard.jsx` now passes
+`workerId` into the step. `runCreateProject` (`conductor/laneconductor.sync.mjs`) writes
+`conductor/deploy.json` + `deployment-stack.md` + `.env.example` from `entry.payload.wizard.deployment`
+— placed *after* the `setup scaffold generate` AI call, not before, since that skill command
+unconditionally stubs `deployment-stack.md` and would otherwise clobber the wizard-derived
+content. Found and fixed a real bug surfaced by the first test run: writing `.env.example` at the
+target repo root before the git-init step made the git-init step's "only auto-init on an
+untouched scaffold" guard see it as unexpected pre-existing content and abort the *entire*
+`create-project` dispatch (reported `status: 'failed'` even though `deploy.json` itself had
+already been written) — fixed by adding `.env.example` to `SCAFFOLD_ENTRIES` (safe: it's a
+variable-name template with no real values, unlike `.env` itself, which stays excluded).
+
+New/updated tests, all passing: `ui/src/lib/deployConfig.test.js` (11 tests, TC-4's shape
+equality), `ui/server/tests/track-1119-deploy-credentials.test.mjs` (6 tests, TC-5, mocks
+`spawnSync`), `ui/src/components/NewProjectModal.test.jsx` (+1 test: selects Firebase + `prod`,
+asserts the exact `wizard.deployment` payload and the credential badge renders without blocking
+Next/Launch), `conductor/tests/track-1119-wizard-dispatch.test.mjs` (new — 2 tests, spawns a real
+manager worker against a mock collector: firebase+2-envs writes all three artifacts with the
+right shape *and* the dispatch resolves `done` not `failed` — a regression guard for the bug
+above — and `provider: 'skip'` writes no `deploy.json`). Ran the full `ui` vitest suite: 496
+tests, same 30 pre-existing failures as Phase 1's baseline (auth/Firebase-env, track-1116
+model-override, WorkflowSettings — none touch this track's files), zero new failures. Ran the
+targeted conductor suite (`track-1091-create-project-worker`, `create-project-utils`,
+`track-1119-wizard-dispatch`): 11/11 pass. TC-6 (DeployPanel/CICDView unchanged) verified by
+construction — `CICDView.jsx`/`DeployLogView.jsx` were not touched this phase.
 
 ## Phase 3: Track auto-generation with Auto Run
 

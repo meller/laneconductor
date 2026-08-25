@@ -111,4 +111,45 @@ describe('NewProjectModal — Guided wizard (Track AM-1119)', () => {
     expect(screen.getByPlaceholderText(/2D digging\/mining game/)).toHaveValue('Dig for ore');
     expect(screen.getByPlaceholderText('e.g. casual browser-game players')).toHaveValue('kids');
   });
+
+  // Track AM-1119 Phase 2 (Task 2/3, TC-4/TC-5): Deployment step wiring —
+  // selecting a real provider (a) produces a wizard.deployment payload with
+  // that provider's environments, and (b) fetches + renders the worker-side
+  // credential status badge without ever blocking Next/Launch on it.
+  it('selecting Firebase + an environment dispatches wizard.deployment and shows a non-blocking credential badge', async () => {
+    apiFetchMock.mockImplementation(async (url = '') => {
+      if (url.includes('/deploy-credentials')) {
+        return { ok: true, json: async () => ({ provider: 'firebase', status: 'verified', detail: null }) };
+      }
+      return { ok: true, json: async () => ({ id: 42, status: 'pending', result: null }) };
+    });
+
+    render(<NewProjectModal {...baseProps()} />);
+    fireEvent.click(screen.getByText('Guided wizard'));
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Digger Game'), { target: { value: 'Digger Game' } });
+    fireEvent.change(screen.getByPlaceholderText('/home/you/Code/digger-game'), { target: { value: '/home/you/Code/digger-game' } });
+    fireEvent.click(screen.getByTestId('wizard-next-button'));
+
+    fireEvent.change(screen.getByPlaceholderText(/2D digging\/mining game/), { target: { value: 'Dig for ore' } });
+    fireEvent.click(screen.getByTestId('wizard-next-button'));
+
+    fireEvent.click(screen.getByTestId('wizard-next-button')); // Design & Stack — skip
+
+    // Step 4: Deployment
+    fireEvent.click(screen.getByText('Firebase Hosting'));
+    expect(screen.getByTestId('wizard-next-button')).toBeDisabled(); // no environment picked yet
+    fireEvent.click(screen.getByText('prod'));
+    expect(screen.getByTestId('wizard-next-button')).not.toBeDisabled();
+
+    await waitFor(() => expect(screen.getByTestId('deploy-credential-status')).toHaveTextContent(/verified/));
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/workers/1/deploy-credentials?provider=firebase');
+
+    fireEvent.click(screen.getByTestId('wizard-next-button')); // → Review
+    fireEvent.click(screen.getByTestId('wizard-next-button')); // → Launch
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/api/dispatch/create-project', expect.any(Object)));
+    const body = lastPostBody();
+    expect(body.payload.wizard.deployment).toEqual({ provider: 'firebase', environments: ['prod'] });
+  });
 });

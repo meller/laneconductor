@@ -21,9 +21,9 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 - [x] TC-3: "Quick create" toggle renders the legacy single form and submits the same `scaffold_context` payload as before — expected: existing NewProjectModal tests pass unchanged
 
 ### Phase 2: Deployment step
-- [ ] TC-4: Selecting Firebase Hosting + one environment produces a `wizard.deployment` payload matching the `deploy.json` schema (environments, components, secrets strategy) — expected: shape equality
-- [ ] TC-5: Credential check endpoint returns `verified` when the worker machine has firebase auth, `NOT CONFIGURED` otherwise; step renders the status badge — expected: both states render, neither blocks Launch (warning only)
-- [ ] TC-6: DeployPanel (CICDView) renders and deploys as before after helper extraction — expected: existing CICDView behavior/tests unchanged
+- [x] TC-4: Selecting Firebase Hosting + one environment produces a `wizard.deployment` payload matching the `deploy.json` schema (environments, components, secrets strategy) — expected: shape equality
+- [x] TC-5: Credential check endpoint returns `verified` when the worker machine has firebase auth, `NOT CONFIGURED` otherwise; step renders the status badge — expected: both states render, neither blocks Launch (warning only)
+- [x] TC-6: DeployPanel (CICDView) renders and deploys as before after helper extraction — expected: existing CICDView behavior/tests unchanged
 
 ### Phase 3: Track auto-generation
 - [ ] TC-7: create-project dispatch with wizard payload writes 3–6 track folders + queue entries; every generated index.md contains `**Auto Run**: yes`, `**Author**`, `**Created By**` — expected: grep confirms markers
@@ -44,6 +44,6 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 - [ ] TC-16: Manual digger-game run with real Firebase creds: all generated tracks reach done, `curl $app_url` returns HTTP 200 — expected: recorded observation in conversation.md
 
 ## Acceptance Criteria
-- [x] All unit + integration tests above pass *(for Phase 1's TC-1..TC-3 — 3/3 pass, see plan.md verification note)*
+- [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6 — see plan.md verification notes)*
 - [x] Existing suites (NewProjectModal, CICDView, worker tests) show no regressions *(full ui vitest suite: same 30 pre-existing failures as main, no new failures)*
 - [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded)
