@@ -48,14 +48,19 @@ test.describe('Brainstorm & Concurrency E2E', () => {
     // files under the project's DB `repo_path`, not wherever this spec
     // happens to be running from; every filesystem-touching call below
     // needs this value threaded through, not the PROJECT_ROOT default.
-    const projectRoot = await resolveProjectRepoPath();
+    //
+    // TEST_PROJECT_ID (optional, same convention as track-1033-sharing.spec.js):
+    // point at an isolated project instead of the default — see the
+    // identical note in new-track-plan.spec.js.
+    const projectId = process.env.TEST_PROJECT_ID ? parseInt(process.env.TEST_PROJECT_ID, 10) : undefined;
+    const projectRoot = await resolveProjectRepoPath({ projectId });
 
     try {
       // ── 1-2: Create both tracks via the helper ────────────────────────────────
-      ({ trackNumber: trackA, trackDir: dirA } = await createTrackViaUI(page, { title: titleA, description: 'Test description A', projectRoot }));
+      ({ trackNumber: trackA, trackDir: dirA } = await createTrackViaUI(page, { title: titleA, description: 'Test description A', projectId, projectRoot }));
       console.log(`Created Track A: ${trackA} (${dirA})`);
 
-      ({ trackNumber: trackB, trackDir: dirB } = await createTrackViaUI(page, { title: titleB, description: 'Test description B', projectRoot }));
+      ({ trackNumber: trackB, trackDir: dirB } = await createTrackViaUI(page, { title: titleB, description: 'Test description B', projectId, projectRoot }));
       console.log(`Created Track B: ${trackB} (${dirB})`);
 
       // ── 3: Trigger brainstorm on Track B ──────────────────────────────────────
@@ -68,8 +73,8 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       // concurrency assertion below is hermetic instead of racing whatever
       // else happens to be in flight.
       assertCheckoutSpawnable([dirA, dirB], { cwd: projectRoot });
-      await enableAutoRun(request, trackA, { projectRoot });
-      await enableAutoRun(request, trackB, { projectRoot });
+      await enableAutoRun(request, trackA, { projectId, projectRoot });
+      await enableAutoRun(request, trackB, { projectId, projectRoot });
       handle = spawnScopedWorker([trackA, trackB], { projectRoot });
       console.log(`🚀 Spawned scoped worker #${handle.workerNumber} for tracks ${trackA}, ${trackB} — log: ${handle.logPath}`);
 
@@ -78,7 +83,7 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       let running = null;
       const pickupDeadline = Date.now() + 60000;
       while (Date.now() < pickupDeadline && !running) {
-        const [tA, tB] = await Promise.all([getTrackByNumber(trackA), getTrackByNumber(trackB)]);
+        const [tA, tB] = await Promise.all([getTrackByNumber(trackA, { projectId }), getTrackByNumber(trackB, { projectId })]);
         const rA = tA?.lane_action_status === 'running';
         const rB = tB?.lane_action_status === 'running';
         if (rA || rB) {
@@ -95,12 +100,12 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       console.log(`✅ Track ${running} is running — concurrency held at exactly 1`);
 
       // ── 5: Wait for the running track to finish, then the other ───────────────
-      await waitForLaneAction(handle, running, t => t.lane_action_status === 'done' || t.lane_action_result === 'success', { timeoutMs: 180000 });
+      await waitForLaneAction(handle, running, t => t.lane_action_status === 'done' || t.lane_action_result === 'success', { timeoutMs: 180000, projectId });
       console.log(`Track ${running} finished.`);
 
       const other = running === trackA ? trackB : trackA;
       console.log(`Waiting for track ${other} to reach its terminal state...`);
-      await waitForLaneAction(handle, other, t => t.lane_action_status === 'done' || t.lane_action_result === 'success', { timeoutMs: 180000 });
+      await waitForLaneAction(handle, other, t => t.lane_action_status === 'done' || t.lane_action_result === 'success', { timeoutMs: 180000, projectId });
       console.log(`Track ${other} finished.`);
 
       // ── 6: Verify AI reply landed in Track B's conversation.md ────────────────
@@ -110,7 +115,7 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       console.log('✅ AI replied to brainstorm!');
 
       // Verify Lane (Should still be plan)
-      const finalB = await getTrackByNumber(trackB);
+      const finalB = await getTrackByNumber(trackB, { projectId });
       expect(finalB.lane_status, 'Track B should remain in plan lane').toBe('plan');
       console.log('✅ Track B remained in plan lane.');
     } finally {
@@ -118,7 +123,7 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       // residue (no leftover directory for either track number).
       const nums = [trackA, trackB].filter(Boolean);
       if (nums.length) {
-        await cleanup(handle, nums);
+        await cleanup(handle, nums, { projectId });
         for (const n of nums) {
           expect(resolveTrackDir(projectRoot, n), `Track ${n} directory should be gone after cleanup`).toBeNull();
         }
