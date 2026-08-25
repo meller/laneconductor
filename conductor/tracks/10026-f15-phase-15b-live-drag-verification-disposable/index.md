@@ -14,3 +14,4 @@ To be defined.
 **Lane**: quality-gate
 **Lane Status**: queue
 **Summary**: To be defined.
+**Auto Run**: yes
