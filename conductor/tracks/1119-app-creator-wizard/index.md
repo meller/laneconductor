@@ -26,3 +26,4 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [ ] Phase 4: Deploy-to-URL + app_url plumbing
 - [ ] Phase 5: "Follow your build" progress view
 - [ ] Phase 6: E2E validation — the digger game scenario
+**Auto Run**: yes
