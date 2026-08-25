@@ -157,11 +157,55 @@ attributable to Phase 3's code changes.
 **Problem**: Nothing records where the finished app lives.
 **Solution**: `projects.app_url` column + API; the generated deploy track runs `lc deploy`, parses the hosting URL (Firebase CLI output / configured URL), and PATCHes it back.
 
-- [ ] Task 1: Migration `projects.app_url TEXT`; `GET /api/projects/:id` returns it; `PATCH` (or `POST /api/projects/:id/app-url`) sets it
-- [ ] Task 2: Deploy-track template instructs capturing the deployed URL and calling the collector API on success
-- [ ] Task 3: ProjectCard + project header show a "Live ↗" link when `app_url` is set
+- [x] Task 1: Migration `projects.app_url TEXT`; `GET /api/projects/:id` returns it; `PATCH` (or `POST /api/projects/:id/app-url`) sets it
+- [x] Task 2: Deploy-track template instructs capturing the deployed URL and calling the collector API on success
+- [x] Task 3: ProjectCard + project header show a "Live ↗" link when `app_url` is set
 
 **Impact**: The system knows, and shows, the deployed app's address.
+
+**Verification (2026-08-25)**: `ui/server/migrations/011_app_url.sql` adds `projects.app_url TEXT`
+(applies idempotently on server startup, same self-applying mechanism as `006`-`010` — confirmed
+canonical for this repo's day-to-day column additions today; the root `migrations/`+Atlas ledger
+and this mechanism's undocumented split responsibility is a real, already-tracked open decision
+— track 10033 — out of this track's scope to resolve). `POST /api/projects/:id/app-url`
+(`ui/server/index.mjs`) is a dedicated endpoint, not folded into the existing rename `PATCH
+/api/projects/:id`: that route requires `name`, a human-edit contract, whereas `app_url` is set by
+a track's own unattended run — different caller, different validation (400 on a non-http(s),
+non-null value; `null` explicitly clears it). `GET /api/projects` (the list endpoint — spec.md's
+original `GET /api/projects/:id` doesn't exist anywhere in this codebase; amended spec.md to say
+so) now selects `app_url` in both its authenticated-remote and local-mode query branches.
+
+Task 2 is documentation/instruction, not a new automated network call: `deriveTrackPlan`'s deploy
+track Solution text (`wizard-track-plan.mjs`) now names the concrete endpoint, payload shape, and
+where to find the URL to report — deliberately NOT wiring `lc deploy` itself to auto-POST the
+result, since that would require duplicating this repo's collector-auth/token-resolution logic
+(today only inside `laneconductor.sync.mjs`) into `bin/lc.mjs`, unverifiable without real
+Firebase/GCP credentials this environment doesn't have (see spec.md's Out of Scope). What IS real,
+testable code: `conductor/deploy-runner.mjs`'s `runDeploy` now resolves and returns a `url` on
+success — `envConfig.expected_url` when present (Firebase Hosting's default domain is a
+deterministic function of the project id `deployCommandFor` already assumes, computed at
+deploy-config-generation time by `deployConfig.js`'s `buildDeployJson` and stored per-environment),
+otherwise parsed from real captured command output (`Service URL: <url>` for `gcloud run deploy`,
+or a generic `https://…(web.app|firebaseapp.com|run.app|vercel.app)` match) — `null`, never a
+guess, when neither is found. `lc deploy`'s CLI output now prints `🔗 Live URL: <url>` when
+resolved, so a human or an implement-phase AI agent driving it sees the exact value to report.
+
+New/extended tests, all passing: `ui/server/tests/track-1119-app-url.test.mjs` (5 tests — 404/400
+validation, TC-10's round-trip, `null` clears, `GET /api/projects` includes `app_url`),
+`ui/src/components/ProjectCard.test.jsx` (+2 tests — TC-11: no link before, correct `href`/`target`
+after), `ui/src/lib/deployConfig.test.js` (+2 tests — `expected_url` set for firebase matching the
+deploy command's own project-id assumption, absent for gcp), `conductor/tests/deploy-runner.test.mjs`
+(+6 tests — `runDeploy`'s `url` field via `expected_url` / output-parsed / `null`, plus
+`resolveDeployedUrl` directly), `conductor/tests/wizard-track-plan.test.mjs` (+1 test — deploy
+track Solution names the endpoint/payload). Ran the full `ui` vitest suite: 516 tests, same 30
+pre-existing failures as Phases 1-3's baseline, zero new failures. Ran the targeted conductor
+group (create-project-utils, track-1091, wizard-track-plan, deploy-runner, both Phase 3
+integration tests, wizard-dispatch): 35/35 pass.
+
+AC-4/AC-5 (a *real* deploy with a reachable URL, and the progress view showing it) remain
+explicitly deferred to Phases 5-6 — this phase built the plumbing and the honest, tested URL
+resolution logic; it did not attempt a real Firebase/GCP deploy (no credentials in this
+environment, and REQ-4's autonomous deploy track hasn't run yet — Phase 3 only generates it).
 
 ## Phase 5: "Follow your build" progress view
 

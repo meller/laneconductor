@@ -200,7 +200,7 @@ app.get('/api/projects', async (req, res) => {
       result = await pool.query(
         `SELECT p.id, p.name, p.repo_path, p.git_remote,
                 p.primary_cli, p.primary_model, p.secondary_cli, p.secondary_model,
-                p.create_quality_gate, p.created_at
+                p.create_quality_gate, p.created_at, p.app_url
          FROM projects p
          JOIN project_members pm ON pm.project_id = p.id
          WHERE pm.user_uid = $1
@@ -212,7 +212,7 @@ app.get('/api/projects', async (req, res) => {
       result = await pool.query(
         `SELECT id, name, repo_path, git_remote,
                 primary_cli, primary_model, secondary_cli, secondary_model,
-                create_quality_gate, created_at
+                create_quality_gate, created_at, app_url
          FROM projects
          ORDER BY name`
       );
@@ -238,6 +238,36 @@ app.patch('/api/projects/:id', async (req, res) => {
 
     broadcast('conductor:updated', { projectId: req.params.id });
     res.json({ ok: true, name: result.rows[0].name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track AM-1119 Phase 4 (Task 1, REQ-4/TC-10): records the live URL a
+// deployed project is reachable at. Called by the generated "Deploy to
+// <provider>" track's own implement-phase run once it has actually
+// deployed and confirmed a real URL (see deriveTrackPlan's Solution text
+// for that track, wizard-track-plan.mjs) — never set speculatively.
+// Dedicated endpoint rather than folding into the rename PATCH above:
+// that one requires `name`, and app_url is set on a completely different,
+// unattended code path (a track's own run, not a human editing the
+// project). `app_url: null` explicitly clears it (e.g. a redeploy to a
+// new environment invalidating the old link).
+app.post('/api/projects/:id/app-url', async (req, res) => {
+  try {
+    const appUrl = req.body?.app_url ?? null;
+    if (appUrl !== null && (typeof appUrl !== 'string' || !/^https?:\/\//i.test(appUrl))) {
+      return res.status(400).json({ error: 'app_url must be an http(s) URL string, or null to clear it' });
+    }
+
+    const result = await pool.query(
+      'UPDATE projects SET app_url = $1 WHERE id = $2 RETURNING id, app_url',
+      [appUrl, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Project not found' });
+
+    broadcast('conductor:updated', { projectId: req.params.id });
+    res.json({ ok: true, app_url: result.rows[0].app_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

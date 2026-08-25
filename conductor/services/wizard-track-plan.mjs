@@ -72,7 +72,19 @@ export function deriveTrackPlan({ projectName, brainstormSummary, deploymentProv
     tracks.push({
       title: `Deploy to ${label}`,
       problem: 'The app has no live deployment.',
-      solution: `Deploy to ${label} using the configured conductor/deploy.json, and record the live app URL.`,
+      // Track AM-1119 Phase 4 (Task 2): explicit, actionable instruction —
+      // not just "record the URL" — so whoever/whatever executes this
+      // track (a human, or an AI agent's own implement-phase run) has the
+      // concrete endpoint and payload shape, not just an intent. The URL
+      // to report is either deploy.json's own `expected_url` for that
+      // environment (Firebase — deterministic, see deployConfig.js) or
+      // whatever URL `lc deploy` printed (GCP Cloud Run — only knowable
+      // from real deploy output).
+      solution: `Run \`lc deploy <env>\` using the configured conductor/deploy.json. On success, `
+        + `determine the live URL — deploy.json's environments.<env>.expected_url when present, `
+        + `otherwise the URL \`lc deploy\` printed in its output — and record it by calling `
+        + `\`POST /api/projects/${'{project_id}'}/app-url\` with body \`{"app_url": "<url>"}\` `
+        + `against this project's local Collector API (see .laneconductor.json's collectors[0].url).`,
       dependsOnAll: true,
     });
   }
