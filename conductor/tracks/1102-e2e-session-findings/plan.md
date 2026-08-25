@@ -38,7 +38,7 @@ not rediscovered.
 
 ---
 
-## Phase 3: F3 — one status marker, not two
+## Phase 3: F3 — one status marker, not two ✅
 
 **Problem**: `ui/server/utils.mjs:35,41` bakes a legacy `**Status**: <lane>`
 line into every UI-created `index.md`, alongside the authoritative
@@ -61,12 +61,28 @@ legacy fallback for tracks already on disk.
       annotate it as back-compat-only (unreachable for new tracks)
 - [x] Task 4: Re-run `conductor/tests/track-10012-parse-status-precedence.test.mjs`
       unchanged — 4/4 still pass, drift-precedence guarantee survives
-- [ ] Task 5: Verify live — create a track in the UI, grep the file, drag
-      the card between lanes and confirm it does not revert (deferred to
-      Phase 4's walkthrough pass — needs a running local-api stack + browser)
+- [x] Task 5: Verify live (quality-gate, 2026-08-25) — created a real
+      track (disposable #10030) via `POST /api/projects/1/tracks`,
+      confirmed `grep -c '\*\*Status\*\*'` returns 0 and the file has
+      `**Lane**`/`**Lane Status**` only; PATCHed `lane_status` via the
+      exact endpoint the real drag UI calls
+      (`PATCH /api/projects/:id/tracks/:num`), confirmed the change held
+      after a 3s wait with no revert. **Correction**: the live shared API
+      at `:8091` runs the primary checkout's code (currently `main`), not
+      this branch — an identical first attempt against it (disposable
+      #10027) reproduced the ORIGINAL bug (`**Status**: plan` still
+      written), because that server is running pre-fix code, not because
+      the fix is wrong. Redone correctly against an isolated instance of
+      this worktree's own `ui/server/index.mjs` on `:18091`, matching
+      track 1096's own documented lesson for exactly this trap. Both
+      disposable tracks and the isolated server process cleaned up
+      immediately after.
 
-**Status**: code fixed and unit-tested; live verification (Task 5) deferred
-to Phase 4.
+**Status**: code fixed, unit-tested, and now live-verified (2026-08-25)
+against this branch's own code. The fix will not be visible on the live
+shared board until this branch merges to main and the API server
+restarts — same "sat correct but not yet live" caveat F22 established
+for F10c, not a new gap.
 
 **Impact**: New tracks carry one marker; the 10012 revert bug loses its
 underlying cause instead of only its symptom.
@@ -166,10 +182,12 @@ pass), different specific symptom; fix targets what was actually found.
       the work continue, rather than asserting it (deferred — needs a real
       Claude agent run, not the mock-cli reproduction; live verification,
       not unit-testable)
-- [ ] Task 5: Add SKILL guidance — a lane agent must not end its final turn
+- [x] Task 5: Add SKILL guidance — a lane agent must not end its final turn
       on a just-launched background command; the harness kills background
-      children when the session process exits (still open — this phase
-      only made the aftermath visible/non-destructive, doesn't prevent it)
+      children when the session process exits. Added to
+      `.claude/skills/laneconductor/SKILL.md`'s implement step 4, right
+      after the existing verification-before-marking-complete rule
+      (quality-gate, 2026-08-25)
 
 **Impact**: A mid-work exit becomes visible and actionable — lane no
 longer silently advances forward as if the work were verified complete,
@@ -180,7 +198,7 @@ worktree-artifact-merge suite all re-run clean.
 
 ---
 
-## Phase 8: F9b — `workDir` TDZ ReferenceError swallows `last_run.log` staging
+## Phase 8: F9b — `workDir` TDZ ReferenceError swallows `last_run.log` staging ✅
 
 **Problem**: `laneconductor.sync.mjs:4269` runs
 `execSync('git add …', { cwd: workDir })` inside the `if (lastRunLog)`
@@ -192,13 +210,18 @@ file is written to disk but never staged. Confirmed still present.
 **Solution**: Hoist the declaration; stop the empty catch from hiding a
 programming error.
 
-- [ ] Task 1: Write a failing test asserting the log file ends up staged
+- [x] Task 1: Write a failing test asserting the log file ends up staged
       after a run that produced output
-- [ ] Task 2: Hoist `const workDir = worktreePath || process.cwd()` above
+      (`conductor/tests/track-1102-f9b-log-staging.test.mjs`; re-run
+      during this quality-gate: 1/1 pass)
+- [x] Task 2: Hoist `const workDir = worktreePath || process.cwd()` above
       both blocks and remove the duplicate declaration
-- [ ] Task 3: Make the catch log at warn level instead of swallowing
+      (`laneconductor.sync.mjs:4807`, confirmed present during
+      quality-gate — this was done and committed (`edb01b0`) but never
+      marked here)
+- [x] Task 3: Make the catch log at warn level instead of swallowing
       silently — a `ReferenceError` here must never be invisible again
-- [ ] Task 4: Audit the immediate neighbourhood for the same empty-catch
+- [x] Task 4: Audit the immediate neighbourhood for the same empty-catch
       pattern and report (do not mass-refactor)
 
 **Impact**: `last_run.log` reaches git, and the class of bug that hid this
@@ -249,7 +272,7 @@ note for what to capture if it does.
 
 ---
 
-## Phase 10: F6 — MANUAL / AUTOMATIC vocabulary in the CLI
+## Phase 10: F6 — MANUAL / AUTOMATIC vocabulary in the CLI ✅
 
 **Problem**: `sync-only` / `sync+poll` name the mechanism, not the choice,
 and "sync-only" reads as "does nothing but sync" — the exact wrong inference
@@ -260,13 +283,16 @@ that produced F1's misdiagnosis. The UI already renders `MANUAL` /
 **Solution**: Align the CLI's user-facing wording with the UI's. Wire values
 unchanged, so nothing migrates.
 
-- [ ] Task 1: Update `lc worker start` help text to lead with MANUAL /
+- [x] Task 1: Update `lc worker start` help text to lead with MANUAL /
       AUTOMATIC, naming the flag as the mechanism
-- [ ] Task 2: Update `lc worker status` / `lc status` output to show the
-      same two words
-- [ ] Task 3: Confirm `worker.mode` values and `--sync-and-work` still work
-      exactly as before (no config migration)
-- [ ] Task 4: Check `workers.type` (`project` | `manager`) is not conflated
+      (`bin/lc.mjs:638-648`, confirmed present during quality-gate)
+- [x] Task 2: Update `lc worker status` / `lc status` output to show the
+      same two words (`bin/lc.mjs:1636,1770,1873`)
+- [x] Task 3: Confirm `worker.mode` values and `--sync-and-work` still work
+      exactly as before (no config migration) —
+      `conductor/tests/track-1102-f6-cli-mode-vocabulary.test.mjs`, 4/4
+      pass (re-run during this quality-gate)
+- [x] Task 4: Check `workers.type` (`project` | `manager`) is not conflated
       with mode anywhere in the output
 
 **Impact**: One vocabulary across UI and CLI for a distinction that has
@@ -274,7 +300,7 @@ already misled once.
 
 ---
 
-## Phase 11: F19 — lock in and document the backlog → plan fix
+## Phase 11: F19 — lock in and document the backlog → plan fix ✅
 
 **Problem**: `NEXT_LANE.backlog` is `'plan'` in `TrackCard.jsx:21` (verified
 at plan time, with an explanatory comment), but no test asserts it and the
@@ -306,7 +332,7 @@ fails, then reverting.
 
 ---
 
-## Phase 12: F18 follow-up — dispatch claim-timeout
+## Phase 12: F18 follow-up — dispatch claim-timeout ✅
 
 **Problem**: Phantom-fixture exclusion stops a *fake* worker absorbing a
 dispatch, but not a **real** worker that dies after being assigned one. Such
@@ -326,8 +352,11 @@ starvation, from a cause exclusion-by-signature cannot cover.
 - [x] Task 2: Implement the timeout (`reapStaleDispatches()`,
       `ui/server/index.mjs`) — reassign to another live worker; mark
       failed with a reason when none exists
-- [ ] Task 3: Make the outcome visible in the UI, not only in the DB
-      (deferred — needs UI work, out of this phase's scope)
+- [x] Task 3: Make the outcome visible in the UI, not only in the DB —
+      filed as its own track rather than done here: this is real UI work,
+      out of a quality-gate's self-heal scope, and this track's own
+      pattern (F13→1118, F4→1101) is to file, not rush, for exactly this
+      shape of remainder. [10032](../10032-f18-claim-timeout-ui-visibility/index.md)
 - [x] Task 4: Timeout is a distinct window from the poll cadence by
       construction — `LC_DISPATCH_CLAIM_TIMEOUT_MS` (default 5min) vs. a
       worker's own poll interval (seconds); a healthy worker slow to pick
@@ -339,7 +368,7 @@ forever with no error anywhere.
 
 ---
 
-## Phase 13: F10c — `worker_dispatch` FK should be SET NULL
+## Phase 13: F10c — `worker_dispatch` FK should be SET NULL ✅
 
 **Problem**: `migrations/20260809090728_add_worker_dispatch.sql:12` still has
 `ON DELETE CASCADE` on `worker_dispatch.worker_id`. F10's soft
@@ -527,9 +556,10 @@ high-water mark, regenerate the checksum, dry-run, then apply.
 - [x] Task 5: Applied to the live DB with the same two-step fix (close
       ledger gap, then apply). Verified live in a rolled-back transaction:
       FK is `ON DELETE SET NULL`, dispatch rows survive a worker deletion
-- [ ] Task 6: Not done — deciding which migration mechanism is canonical
-      is a real, separate decision that deserves its own attention, not a
-      rushed call at the end of an already-large phase. Left open.
+- [x] Task 6: Filed rather than decided here — this is a real, separate
+      decision that deserves its own attention, not a rushed call at the
+      end of an already-large phase.
+      [10033](../10033-canonical-migration-mechanism-decision/index.md)
 
 **Impact**: F10c's fix is live, not just scratch-tested. Confirmed via
 `track-1102-f10c-live-db-fk.test.mjs` (TC-13.5), which checks the real DB
@@ -551,21 +581,27 @@ narrow bug but a real gap in this repo's migration discipline.
 - New findings from Phase 4 get appended to `index.md` as F22+ and, if they
   need work, their own phase here — they do not expand an existing phase.
 
-## ⚠️ Gaps (review, 2026-08-25)
+## ⚠️ Gaps (review, 2026-08-25) — ✅ all closed (quality-gate, 2026-08-25)
 
-Review FAILED — full write-up in `conversation.md`. Summary:
+Review FAILED — full write-up in `conversation.md`. All 5 items resolved
+during the following quality-gate pass:
 
 1. Phase 3, 8, 10 headers/checkboxes here and in `index.md`'s Phases list
    read as incomplete; re-verified against the actual code and tests
-   during review and they are genuinely done (F3/F9b/F6). Needs correcting
-   so the record matches reality — don't redo the work, just tick it.
+   during review and they are genuinely done (F3/F9b/F6). **Resolved**:
+   all three phases' checkboxes and headers now marked `[x]`/✅.
 2. Phase 3 Task 5 (live UI create + drag-revert check) was never actually
-   performed — genuinely open, not just an unticked box. Do it.
+   performed — genuinely open, not just an unticked box. **Resolved**:
+   performed live during quality-gate against an isolated instance of
+   this branch's own code (see Phase 3's own write-up for the
+   primary-checkout-runs-pre-fix-code gotcha hit and worked around along
+   the way).
 3. Phase 12 Task 3 (surface claim-timeout reassignment/failure in the UI)
-   was deferred out of scope, but AC-7 requires it as written. Either do
-   it or move it to a linked follow-up track per this track's own
-   Completion rule.
+   was deferred out of scope, but AC-7 requires it as written. **Resolved
+   by filing**: [10032](../10032-f18-claim-timeout-ui-visibility/index.md).
 4. Phase 7 Task 5 (SKILL guidance against ending a turn on a backgrounded
-   command) is still open — same choice: close it or link it out.
-5. Phase 16 Task 6 (canonical migration mechanism decision) is still open
-   — same choice.
+   command) is still open. **Resolved**: added to
+   `.claude/skills/laneconductor/SKILL.md`'s implement step 4.
+5. Phase 16 Task 6 (canonical migration mechanism decision) is still open.
+   **Resolved by filing**:
+   [10033](../10033-canonical-migration-mechanism-decision/index.md).
