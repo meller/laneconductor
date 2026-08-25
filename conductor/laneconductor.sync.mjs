@@ -5266,9 +5266,17 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
   const proj = getProject();
   const projectId = proj?.id;
 
+  // Track AM-1119 Phase 6: prefix-agnostic, matching every other track-
+  // folder scan in this file (see "Protocol: Locating Tracks") and `lc
+  // new`'s own naming (bin/lc.mjs) — `INITIALS-NNN-slug` (e.g.
+  // `AM-1000-app-skeleton`), not just the legacy bare `NNN-slug`. Anchoring
+  // to the start of the string here (`/^\d+/`) silently excluded every
+  // prefixed folder from auto-launch entirely — found live via this
+  // track's own Phase 3 auto-generated tracks (which use the modern
+  // prefixed convention) never getting claimed by a real running worker.
   const dirs = readdirSync(tracksDir)
-    .filter(d => /^\d+/.test(d))
-    .sort((a, b) => parseInt(a) - parseInt(b));  // process lowest track numbers first
+    .filter(d => /\d+/.test(d))
+    .sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));  // process lowest track numbers first
 
   const currentlyRunningPerLane = {};
   // Track AM-1119 Phase 3 (Task 2): one pass to know every track's current
@@ -5280,7 +5288,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
     const laneMatchForMap = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
-    const trackNumMatchForMap = dir.match(/^(\d+)/);
+    const trackNumMatchForMap = dir.match(/(\d+)/);
     if (laneMatchForMap && trackNumMatchForMap) {
       laneStatusByTrackNumber[trackNumMatchForMap[1]] = laneMatchForMap[1].trim();
     }
@@ -5310,7 +5318,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const lane_status = laneMatch[1].trim();
     const lane_action_status = statusMatch?.[1]?.trim() ?? 'queue';
 
-    const trackNumMatch = dir.match(/^(\d+)/);
+    const trackNumMatch = dir.match(/(\d+)/);
     if (!trackNumMatch) continue;
     const track_number = trackNumMatch[1];
 

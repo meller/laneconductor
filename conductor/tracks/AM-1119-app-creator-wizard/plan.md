@@ -272,8 +272,71 @@ new failures.
 **Problem**: Only a real run proves the chain (wizard → scaffold → auto tracks → auto run → deploy → link).
 **Solution**: Scripted end-to-end validation on local-api.
 
-- [ ] Task 1: Playwright spec driving the wizard UI through all five steps (mock worker or test manager) asserting dispatch payload shape and post-launch view render
-- [ ] Task 2: Integration test (mock collector pattern from `conductor/tests/`) for create-project → track generation → queue entries with Auto Run markers
-- [ ] Task 3: One real manual run: "digger game" description, real Firebase creds, observe tracks run to done and fetch the live URL; record observations in conversation.md
+- [x] Task 1: Playwright spec driving the wizard UI through all five steps (mock worker or test manager) asserting dispatch payload shape and post-launch view render
+- [x] Task 2: Integration test (mock collector pattern from `conductor/tests/`) for create-project → track generation → queue entries with Auto Run markers
+- [ ] Task 3: One real manual run: "digger game" description, real Firebase creds, observe tracks run to done and fetch the live URL; record observations in conversation.md — **BLOCKED, requires human authorization (see conversation.md)**
 
 **Impact**: AC-1..AC-7 verified against the real product, not just units.
+
+**Verification (2026-08-25)**: **Task 1** — `@playwright/test` was previously only "(planned)" per
+tech-stack.md; this is the first real setup: `ui/playwright.config.js`, `ui/e2e/app-creator-wizard.spec.js`,
+`npm run test:e2e`. Chromium binaries were already cached on this machine, downloaded the current
+version cleanly. The spec mocks the API at the network layer (`page.route`) — no live Collector/DB
+— and drives the real browser through all 5 wizard steps, asserting the exact `wizard.deployment`/
+`repo_source`/`scaffold_context` payload shape and that `FollowBuildView` renders the generated
+track list after Launch. **Found a real environmental hazard writing it**: `webServer.reuseExistingServer`
+defaulting to `!process.env.CI` (true, locally) meant Playwright silently reused an *already-running,
+unrelated, live* Vite dev server on port 8090 — the documented UI port, and this dev machine
+commonly has a real LaneConductor dashboard already running there for actual use (confirmed via
+`lsof`: connected to real browser + Claude Desktop sessions) — serving a build with none of this
+track's UI at all, causing a confusing early failure that had nothing to do with the spec itself.
+Fixed by pinning the config to an isolated port (8190) with `reuseExistingServer: false` always,
+never the CI-conditional default, and documented why in the config file itself.
+
+**Task 2** — `conductor/tests/track-1119-phase6-e2e-autorun.test.mjs`: runs a real create-project
+dispatch (wizard payload, Firebase provider) through to real generated track folders (Phase 3),
+then starts a genuine `--sync-and-work` worker against the new project and proves it actually
+claims the first non-dependent track out of `queue` while the `**Depends On**`-gated deploy track
+stays queued — the full chain Phase 3's own tests proved in two separate halves (generation +
+DB-registration in `track-1119-phase3-track-generation.test.mjs`; the dependency gate itself on
+hand-crafted fixture tracks in `track-1119-phase3-depends-on.test.mjs`), now proven together
+against tracks the real dispatch path actually produced.
+
+**This surfaced a real, previously-invisible production bug**, not just a test gap: writing this
+test's assertion that the worker *actually claims* the generated track (not just that it's
+registered) exposed that `autoLaunchLocalFs`'s directory scan (`conductor/laneconductor.sync.mjs`)
+anchored its digit match to the start of the folder name (`/^\d+/`), which silently excludes every
+`INITIALS-NNN-slug` folder — e.g. this track's own `AM-1000-app-skeleton` — from auto-launch
+entirely, in every operating mode (the function is shared by local-fs and local-api/remote-api).
+Since `lc new` (`bin/lc.mjs`) uses the exact same prefixed naming convention, this bug meant **no
+track created via the modern naming convention could ever be auto-launched by a real running
+worker** — a gap invisible to unit tests because they used bare-numeric fixture folder names
+(`701`, `1000`, …), and invisible to Phase 3's own tests for the same reason. Fixed by making the
+match prefix-agnostic (`/\d+/`, matching every *other* track-folder scan already in this file per
+"Protocol: Locating Tracks") at all three call sites in the function, and added a dedicated
+regression test (`track-1119-phase6-prefixed-folder-autolaunch.test.mjs`) using a prefixed folder
+name specifically, plus reused it as the basis for `track-1119-phase6-e2e-autorun.test.mjs` itself.
+
+New tests, all passing: `track-1119-phase6-e2e-autorun.test.mjs` (1 test),
+`track-1119-phase6-prefixed-folder-autolaunch.test.mjs` (1 test), `e2e/app-creator-wizard.spec.js`
+(1 Playwright test, verified stable across repeated runs). Ran the targeted conductor regression
+group (local-fs-e2e, both Phase 3 tests, wizard-dispatch, track-1091, wizard-track-plan,
+deploy-runner, both new Phase 6 tests) with `LC_SKIP_WORKER_LOCK=1 LC_SKIP_GIT_LOCK=1
+LC_SKIP_CWD_NORMALIZATION=1`: 36/36 pass — the two env vars beyond the usual CWD-normalization one
+were needed because running several test files' spawned workers *concurrently* contends on this
+machine's global worker-identity lock file, a pre-existing environmental characteristic unrelated
+to this phase's changes (each file passes standalone without them; this is not this repo's normal
+CI invocation pattern, which runs one `node --test <file>` at a time per tech-stack.md's own
+testing table). Ran the full `ui` vitest suite: 523 tests, same 30 pre-existing failures as every
+prior phase's baseline, zero new failures.
+
+**Task 3 is deliberately not attempted.** A read-only `gcloud auth list` / `firebase projects:list`
+(no write actions) confirmed this worker machine has real, active credentials for the user's own
+Google/Firebase account, with real production projects already live under it. Scaffolding a
+"digger game" project and running its generated tracks unattended through to a real deploy would
+create and deploy real cloud resources against that same account with no human in the loop — the
+exact class of hard-to-reverse, costly, real-world action that requires explicit authorization
+before proceeding, not something an autonomous `/laneconductor implement` run should decide on its
+own. Flagged in full in conversation.md. AC-4/AC-5 remain genuinely unverified as a result — this
+is the one piece of Phase 6, and of the whole track, that cannot be marked done without a human's
+explicit go-ahead to run it.
