@@ -1,10 +1,10 @@
 # Track 1111: Per-lane model stickiness, correct reset, and auto-update
 
-**Lane**: implement
+**Lane**: done
 **Lane Status**: success
 **Waiting for reply**: no
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: mock (primary)
 **Phase**: All 6 phases complete
 **Type**: dev
 **Summary**: Populated workflow.json's per-lane primary_model (this project + macrodash/coachai), fixed chat dispatch to follow the track's lane model, extracted+tested the precedence rule, added model-staleness…
@@ -109,4 +109,5 @@ references above) rather than assumed behavior, per this session's
 established practice of confirming before planning fixes.
 **PR Number**: 5
 **PR URL**: https://github.com/meller/laneconductor/pull/5
-**PR Status**: conflicted
+**PR Status**: merged
+**Auto Run**: yes
