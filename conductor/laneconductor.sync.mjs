@@ -38,6 +38,7 @@ import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from './stream-json-tail.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
+import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
@@ -5802,6 +5803,32 @@ async function runCreateProject(entry) {
     return { ok: false, error: `setup scaffold generate exited ${scaffoldResult.code} — see ${scaffoldResult.logPath}` };
   }
 
+  // Track AM-1119 Phase 2 (Task 3, REQ-2/AC-2): the wizard's Deployment
+  // step already produced a fully-formed { provider, environments }
+  // choice client-side — no LLM brainstorm needed to turn that into
+  // deploy.json/deployment-stack.md/.env.example, unlike `lc setup-deploy`
+  // (which exists to interview a human about an unknown existing repo).
+  // Written deterministically, same shape the deploy-config API route
+  // reads/writes, so DeployPanel works against it unchanged. MUST run
+  // after the scaffold-generate step above, not before: the skill's
+  // `setup scaffold generate` command unconditionally (re)writes
+  // conductor/deployment-stack.md as an unconfigured stub, so writing
+  // wizard-derived content earlier would just get clobbered. Skipped
+  // entirely when the wizard picked "skip" or wasn't used at all (legacy
+  // Quick create dispatch has no `wizard` key) — deployment-stack.md then
+  // stays the stub `setup scaffold generate` just wrote.
+  const wizardDeployment = entry.payload?.wizard?.deployment;
+  if (wizardDeployment && wizardDeployment.provider !== 'skip') {
+    const projectName = scaffoldContext.project?.name || basename(targetPath);
+    const deployJson = buildDeployJson({ ...wizardDeployment, projectName });
+    if (deployJson) {
+      writeFileSync(join(targetPath, 'conductor', 'deploy.json'), JSON.stringify(deployJson, null, 2) + '\n');
+      writeFileSync(join(targetPath, 'conductor', 'deployment-stack.md'), buildDeploymentStackMd({ ...wizardDeployment, projectName }));
+      const envExample = buildEnvExample({ provider: wizardDeployment.provider });
+      if (envExample) writeFileSync(join(targetPath, '.env.example'), envExample);
+    }
+  }
+
   // Sensible-default .laneconductor.json for the new project — same
   // mode/collector URLs/UI port as this manager's own, so it joins the
   // same LaneConductor instance rather than needing separate onboarding.
@@ -5844,7 +5871,11 @@ async function runCreateProject(entry) {
   // yet to stop it. That's not ours to decide silently, and committing a
   // secret is not cheaply undone. If there's pre-existing content, say so
   // and let the user run git init themselves.
-  const SCAFFOLD_ENTRIES = new Set(['.laneconductor.json', 'conductor', '.claude', '.agents', '.git']);
+  // `.env.example` (Track AM-1119 Phase 2, Task 3) is explicitly safe to
+  // allowlist here despite that warning: it's a template of variable
+  // NAMES only, written by us above from buildEnvExample(), never actual
+  // secret values — unlike `.env` itself, which stays excluded.
+  const SCAFFOLD_ENTRIES = new Set(['.laneconductor.json', 'conductor', '.claude', '.agents', '.git', '.env.example']);
   try {
     const isRepo = existsSync(join(targetPath, '.git'));
     if (!isRepo) {

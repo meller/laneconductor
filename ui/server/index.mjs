@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'crypto';
 import express from 'express';
-import { exec, execFile, spawn } from 'child_process';
+import { exec, execFile, spawn, spawnSync } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -4440,6 +4440,44 @@ app.patch('/api/workers/:id/visibility', requireAuth, async (req, res) => {
     );
     if (rowCount === 0) return res.status(404).json({ error: 'worker not found or not owner' });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track AM-1119 Phase 2 (Task 2, REQ-2/TC-5): App Creator wizard's
+// Deployment step credential status badge. Runs the same gcloud/firebase
+// checks `lc setup-deploy`'s CLI wizard runs (bin/lc.mjs's "Phase 4:
+// Credential verification") — but here, synchronously in the API server
+// process rather than via the async worker_dispatch cycle every other
+// worker-targeted action uses. Deliberate: local-api mode (this wizard's
+// only supported mode per spec.md's Out of Scope) runs the Collector API
+// on the same machine as the worker being configured, so there's no
+// remote-machine problem to solve with dispatch/poll — and a synchronous
+// GET keeps the wizard step simple. Non-blocking: callers must never gate
+// Launch on this response (TC-5) — it is a warning only.
+app.get('/api/workers/:id/deploy-credentials', async (req, res) => {
+  try {
+    const { rows: workers } = await pool.query('SELECT id FROM workers WHERE id = $1', [req.params.id]);
+    if (workers.length === 0) return res.status(404).json({ error: 'worker not found' });
+
+    const provider = req.query.provider;
+    if (provider !== 'firebase' && provider !== 'gcp') {
+      return res.status(400).json({ error: 'provider must be "firebase" or "gcp"' });
+    }
+
+    let status, detail = null;
+    if (provider === 'gcp') {
+      const r = spawnSync('gcloud', ['auth', 'list', '--format=value(account)', '--filter=status=ACTIVE'], { encoding: 'utf8', timeout: 10000 });
+      const account = r.status === 0 && r.stdout?.trim() ? r.stdout.trim().split('\n')[0] : null;
+      status = account ? 'verified' : 'NOT CONFIGURED';
+      detail = account;
+    } else {
+      const r = spawnSync('firebase', ['projects:list', '--json'], { encoding: 'utf8', timeout: 10000 });
+      status = r.status === 0 ? 'verified' : 'NOT CONFIGURED';
+    }
+
+    res.json({ provider, status, detail });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

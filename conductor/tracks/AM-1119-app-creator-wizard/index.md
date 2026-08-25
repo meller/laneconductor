@@ -1,9 +1,9 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 15%
-**Phase**: Phase 1 of 6 complete — wizard shell + step components
+**Lane Status**: queue
+**Progress**: 33%
+**Phase**: Phase 2 of 6 complete — deployment step (reuse deploy UX/domain)
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
@@ -21,7 +21,7 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 ## Phases
 
 - [x] Phase 1: Wizard shell + step components
-- [ ] Phase 2: Deployment step (reuse deploy UX/domain)
+- [x] Phase 2: Deployment step (reuse deploy UX/domain)
 - [ ] Phase 3: Track auto-generation with Auto Run
 - [ ] Phase 4: Deploy-to-URL + app_url plumbing
 - [ ] Phase 5: "Follow your build" progress view

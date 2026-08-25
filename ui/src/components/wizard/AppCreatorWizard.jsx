@@ -99,7 +99,7 @@ export function AppCreatorWizard({ managerWorkers, onLaunch, onCancel, nameInput
         {step === 0 && <BasicsStep value={wizardState.basics} onChange={v => patch('basics', v)} managerWorkers={managerWorkers} nameInputRef={nameInputRef} />}
         {step === 1 && <ProductStep value={wizardState.product} onChange={v => patch('product', v)} />}
         {step === 2 && <DesignStackStep value={wizardState.designStack} onChange={v => patch('designStack', v)} />}
-        {step === 3 && <DeploymentStep value={wizardState.deployment} onChange={v => patch('deployment', v)} />}
+        {step === 3 && <DeploymentStep value={wizardState.deployment} onChange={v => patch('deployment', v)} workerId={wizardState.basics.workerId} />}
         {step === 4 && <ReviewLaunchStep wizardState={wizardState} />}
       </div>
 
