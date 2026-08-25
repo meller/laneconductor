@@ -2,7 +2,7 @@
 
 **Lane**: plan
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: bug
