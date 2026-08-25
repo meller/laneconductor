@@ -4192,6 +4192,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // after this guard was added. These are the worker's own operational
   // state, not human/agent WIP a commit could accidentally sweep in, so
   // they're exempted the same as the track's own folder.
+  //
+  // Track 10021: discovered live that conductor/tracks/file_sync_queue.md
+  // belongs in the same exemption. Every track creation (UI or CLI) appends
+  // an entry to it, so a track's OWN creation always leaves this file dirty
+  // outside its own folder — meaning main-mode's very first plan-lane spawn
+  // attempt for a just-created track was unconditionally blocked by its own
+  // side effect, every time, with no retry ever able to clear it (the next
+  // cycle just appends again for the next track). It's the fs-side half of
+  // the same worker-owned queue mechanism as tracks-metadata.json above —
+  // only humans/Claude/API produce entries, the worker is the sole
+  // consumer — not human/agent WIP a commit could accidentally sweep in.
   if (workspaceMode === 'main') {
     const dirtyPaths = (() => {
       try {
@@ -4202,7 +4213,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     })();
     const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
-    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json';
+    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json' || p === 'conductor/tracks/file_sync_queue.md';
     const disqualifying = dirtyPaths.filter(p =>
       (!ownFolderPrefix || !p.startsWith(ownFolderPrefix)) && !isWorkerBookkeeping(p)
     );
@@ -4514,6 +4525,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     const isSuccess = code === 0;
     const logContent = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
 
+    // Track 1102 F21 (original variant, distinct from the escalated
+    // mid-run-doc-sync-clobber one already fixed): an agent that
+    // backgrounds a long command and lets its own final turn end exits 0
+    // — a clean CLI-session termination — even though the actual coding
+    // work never reached its own completion marker. `isSuccess` alone
+    // can't tell this apart from a genuine pass; the agent's own last
+    // word (the WORKTREE's index.md, read here BEFORE anything below
+    // patches it) can — but ONLY for a real CLI that follows the SKILL's
+    // self-transition protocol ("Transition: ... set **Lane** ... to
+    // exactly what is defined in lanes.X.on_success", written by the
+    // agent itself as its own last action). `cli === 'mock'` is this
+    // codebase's universal test sentinel (see buildCliArgs / the
+    // 'LaneConductor Collectors' log line comment) — mock-cli.mjs never
+    // simulates that self-transition by design, relying entirely on this
+    // exit handler's own Phase 5 write instead, same as every other test
+    // in this suite. Without this gate, EVERY dispatch-driven mock-cli
+    // test would misread as "ended mid-work" (caught via a real
+    // regression: track-1102-f11-progress-keepalive.test.mjs went from
+    // 2/2 to 1/2 before this gate was added).
+    let endedMidWork = false;
+    if (isSuccess && cli !== 'mock') {
+      try {
+        const midWorkCheckDir = worktreePath || process.cwd();
+        const midWorkTrackDir = resolveTrackFolder(join(midWorkCheckDir, 'conductor', 'tracks'), trackNumber);
+        if (midWorkTrackDir) {
+          const rawIndexContent = readFileSync(join(midWorkCheckDir, 'conductor', 'tracks', midWorkTrackDir, 'index.md'), 'utf8');
+          endedMidWork = /\*\*Lane Status\*\*:\s*running/i.test(rawIndexContent);
+        }
+      } catch (e) { /* best-effort detection only — never block the exit handler on it */ }
+    }
+
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
     if (!isSuccess && logContent) {
@@ -4642,12 +4684,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // stale, not a normal success sitting still.
     if (isStaleAgainstNewMessage) nextActionStatus = 'queue';
 
-    console.log(`[${label}] Track ${trackNumber}: ${isSuccess ? 'PASS' : 'FAIL'} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
+    // F21: never advance the lane or report success on an ended-mid-work
+    // exit — stay put, re-queue, so the next claim resumes (worktree +
+    // session both persist) instead of moving forward as if the work were
+    // actually verified complete.
+    if (endedMidWork) {
+      targetLane = laneStatus;
+      nextActionStatus = 'queue';
+    }
+
+    console.log(`[${label}] Track ${trackNumber}: ${endedMidWork ? 'ENDED MID-WORK' : (isSuccess ? 'PASS' : 'FAIL')} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
 
     const patchData = {
       project_id: projectId,
       lane_action_status: nextActionStatus,
-      lane_action_result: isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`)),
+      lane_action_result: endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`))),
       last_log_tail: tailLog(logPath), active_cli: cli,
     };
 
@@ -4711,10 +4762,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
           updated = true;
 
-          // 3. Update Progress if success (skip for conversation runs — don't force 100%)
-
-          // 3. Update Progress if success (skip for conversation runs and blocked turns — don't force 100% on unfinished work)
-          if (isSuccess && !isConversationRun && !isBlockedTurn && !isStaleAgainstNewMessage) {
+          // 3. Update Progress if success (skip for conversation runs, blocked
+          // turns, and stale-against-newer-message runs — don't force 100% on
+          // unfinished work; also skip for F21's ended-mid-work case — nothing
+          // was actually verified complete, forcing 100% would be a false signal)
+          if (isSuccess && !isConversationRun && !isBlockedTurn && !isStaleAgainstNewMessage && !endedMidWork) {
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
@@ -4757,18 +4809,29 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
           updated = true;
 
+          // Track 1102 F9b: workDir used to be declared inside the sibling
+          // `if (updated)` block below, so the `git add` for last_run.log
+          // (which runs before that block) referenced it out of scope —
+          // ReferenceError, swallowed by that call's own empty catch, so
+          // last_run.log was written to disk but never staged. Both blocks
+          // now share this one declaration.
+          const workDir = worktreePath || process.cwd();
+
           // 4. Write last run log to the track folder for worker context
           const lastRunLog = tailLog(logPath, 100);
           if (lastRunLog) {
             const lastRunLogPath = join(tracksDir, trackDir, 'last_run.log');
             writeFileSync(lastRunLogPath, lastRunLog, 'utf8');
             const relLogPath = join('conductor', 'tracks', trackDir, 'last_run.log');
-            try { execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' }); } catch (e) { }
+            try {
+              execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' });
+            } catch (e) {
+              console.warn(`[${label}] Failed to stage last_run.log: ${e.message}`);
+            }
           }
 
           // 5. Write changes and commit to git
           if (updated) {
-            const workDir = worktreePath || process.cwd();
             const relIndexPath = join('conductor', 'tracks', trackDir, 'index.md');
             const targetIndexPath = join(workDir, relIndexPath);
 
@@ -4788,6 +4851,32 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     } catch (err) {
       console.warn(`[${label}] Error updating filesystem for track ${trackNumber}: ${err.message}`);
+    }
+
+    // Track 1102 F21: surface an ended-mid-work exit as its own distinct,
+    // human-visible outcome — not gated on `session` (unlike the audit-trail
+    // block below) so this shows up regardless of CLI/provider, and leads
+    // with ⚠️ per the Completion Comment Convention so the Inbox buckets it
+    // as "needs your input" rather than "recent activity".
+    if (endedMidWork) {
+      try {
+        const tracksDirForMidWork = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForMidWork = resolveTrackFolder(tracksDirForMidWork, trackNumber);
+        if (trackDirForMidWork) {
+          const convPathForMidWork = join(tracksDirForMidWork, trackDirForMidWork, 'conversation.md');
+          appendFileSync(
+            convPathForMidWork,
+            `\n> **system**: ⚠️ Run ended mid-work — the process exited cleanly (code 0) but ` +
+            `the agent's own completion marker was never written (likely a backgrounded ` +
+            `command still running when its final turn ended). Nothing was lost: the ` +
+            `worktree and session both persist. Re-run this lane action to resume where ` +
+            `it left off.\n`,
+            'utf8'
+          );
+        }
+      } catch (e) {
+        console.warn(`[${label}] Failed to post ended-mid-work comment for track ${trackNumber}: ${e.message}`);
+      }
     }
 
     // Track 1086 Phase 4 Task 2: append a lightweight, auto-derived
@@ -5001,7 +5090,15 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     // track-1086-session-worker.test.mjs, which asserts on mock-collector's
     // session state and on context-injection (PRODUCT_MD_MARKER) presence,
     // not on argv content.
-    return [cmd, [...rest, command, trackNumber], 'mock', 'default', 'primary', session];
+    // Track 1102 F21: normally hardcoded 'mock' (the universal test
+    // sentinel other code already relies on — see the LaneConductor
+    // Collectors log line above). LC_MOCK_CLI_REPORTED_CLI lets a test
+    // that specifically needs to exercise cli-identity-gated behavior
+    // (e.g. the F21 ended-mid-work check, which only applies to real CLIs
+    // that follow the SKILL's self-transition protocol) report a
+    // different identity while still running the mock binary.
+    const reportedCli = process.env.LC_MOCK_CLI_REPORTED_CLI || 'mock';
+    return [cmd, [...rest, command, trackNumber], reportedCli, 'default', 'primary', session];
   }
   const proj = getProject();
   // Track 1116 REQ-7: a track's own **Model** marker beats the lane's

@@ -73,7 +73,6 @@ checkout, not this branch) — see the conversation log for why.
 
 ## Regression Checks
 
-<<<<<<< HEAD
 - [x] RC-1: `cd ui && npm test` — completed during review: 403 passed / 32
       failed across 62 files. All 32 failures isolated to 9 files
       unrelated to this track (`auth.test.mjs`, `track-10013-human-lane-override`,
@@ -86,14 +85,6 @@ checkout, not this branch) — see the conversation log for why.
       server/tests/ 312 passed/22 failed (same 8 pre-existing files),
       src/ 91 passed/10 failed (same pre-existing `WorkflowSettings.test.jsx`).
       This track's own new/changed files pass in full both times.
-=======
-- [ ] RC-1: `cd ui && npm test` — full suite green. **Still running** at time
-      of writing (a slow, heavily-loaded shared machine — many other
-      concurrent worktree processes) — not yet ticked. Every individual
-      suite touched by this track (Phase 1-3's own files, plus the sibling
-      `worktreeStats`/`worktreePendingKeys`/`armedConfirm` libs) already
-      passed in isolation above.
->>>>>>> main
 - [x] RC-2: Inbox / Workers list / WorkerActivityLatch deep-links still open the
       track detail with the transcript drawer **closed** — covered by TC-13 at
       component level (their callers pass no 3rd arg, so `opts` is
@@ -111,13 +102,8 @@ checkout, not this branch) — see the conversation log for why.
 
 ## Acceptance Criteria
 
-<<<<<<< HEAD
 - [x] All unit + component tests above pass (`cd ui && npm test`) — RC-1
       resolved during review/quality-gate, see above
-=======
-- [ ] All unit + component tests above pass (`cd ui && npm test`) — RC-1 still
-      pending, see above
->>>>>>> main
 - [x] TC-15…TC-17 pass in a real browser, result recorded in `conversation.md`
 - [x] `git diff --name-only` touches no `ui/server/**`, no
       `conductor/services/worktree-audit.mjs`, no migration (spec AC-8)
