@@ -8,7 +8,7 @@
 **Type**: bug
 **PR Number**: 13
 **PR URL**: https://github.com/meller/laneconductor/pull/13
-**PR Status**: open
+**PR Status**: merged
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
 ## Problem
