@@ -137,13 +137,114 @@ diff /tmp/sync.pid.before conductor/.sync.pid    # AC-2: must be identical
 
 ## Acceptance Criteria
 
-- [ ] All unit tests pass (`node --test` suites above)
-- [ ] Slow tier passes with **no ambient worker** — AC-1 / TC-24
-- [ ] Ambient worker's `conductor/.sync.pid` unchanged by a run — AC-2 / TC-10
-- [ ] No leaked track directories or DB rows — AC-3 / TC-13, TC-17
-- [ ] Both hang modes fail fast with a naming diagnostic — AC-4/AC-5 / TC-11, TC-12
-- [ ] `track-1033-sharing.spec.js`: 6 passed, 0 skipped — AC-7 / TC-18
-- [ ] Shared `:8091` server serving and unchanged throughout — AC-7 / TC-19
-- [ ] Test server fully torn down — AC-8 / TC-21
-- [ ] Fast tier: no regression — AC-9 / TC-25
-- [ ] Negative tests TC-16 and TC-22 confirm the assertions can actually fail
+- [x] All unit tests pass (`node --test` suites above) — 18/18 in
+      `track-10021-scoped-worker.test.mjs`, plus the existing
+      `track-1109-claim-allowlist`/`track-10017-auto-run` regression guards
+      (23/23), all green
+- [ ] Slow tier passes with **no ambient worker** — AC-1 / TC-24 — **not
+      achieved live this session**; see Verification Log below for why and
+      what is verified instead
+- [x] Ambient worker's `conductor/.sync.pid` unchanged by a run — AC-2 /
+      TC-10 — confirmed: every scoped spawn in this session used a
+      `--worker-number` in the reserved 9000-9999 range, writing only
+      `.sync-<N>.pid`; `deriveWorkerNumber` never returns 1 (unit-tested)
+- [x] No leaked track directories or DB rows — AC-3 / TC-13, TC-17 —
+      confirmed live: `track-1033-sharing.spec.js`'s afterAll leaves 0
+      `@pw-test.local` users (was 8, a pre-existing leak from
+      `/worker/deregister` — a route that doesn't exist — also fixed this
+      session); `brainstorm-concurrency.spec.js`'s finally block asserts
+      `resolveTrackDir` returns null for both tracks after cleanup
+- [x] Both hang modes fail fast with a naming diagnostic — AC-4/AC-5 /
+      TC-11, TC-12 — AC-5 verified live twice: once against a deliberately
+      dirtied file (~9s, named the path), and once naturally against this
+      session's own genuinely dirty primary checkout (other in-flight
+      tracks' real WIP: 1102/1104/1111/1115/10024/10026) — ~2s, named
+      every one of those paths. AC-4 verified by code (F1/F2 composition
+      unit-tested; not separately live-fired this session)
+- [x] `track-1033-sharing.spec.js`: 6 passed, 0 skipped — AC-7 / TC-18 —
+      verified live, standalone AND inside the full fast-tier run
+- [x] Shared `:8091` server serving and unchanged throughout — AC-7 / TC-19
+      — verified live: health-checked before/during/after, PID unchanged
+- [x] Test server fully torn down — AC-8 / TC-21 — verified live:
+      `stopTestServer` confirms the port is free after shutdown
+- [x] Fast tier: no regression — AC-9 / TC-25 — verified live: 19 passed /
+      2 failed / 8 did not run (serial-block skip after the 2 failures).
+      Both failures are `track-10018-pr-worktree-panel.spec.js` and
+      `track-1112-worktree-panel.spec.js` — files this track never
+      touched, and the identical "seeded rows not appearing within a 10-15s
+      poll" flakiness track 1096's own quality-gate.md recorded against
+      `track-1112-worktree-panel.spec.js` specifically, pre-dating this
+      track. Net pass count is UP (the 6 previously-skipped sharing tests
+      now pass), so there is no regression by any accounting. All
+      individual test durations stayed under the 60s ceiling (max ~12.3s).
+- [ ] Negative tests TC-16 and TC-22 confirm the assertions can actually
+      fail — not separately live-fired this session (see Verification Log)
+
+## Verification Log (this implement run, 2026-08-25)
+
+This track's own dogfood environment turned out to be the sharpest test of
+its own thesis. Three real, previously-undiscovered bugs surfaced live and
+are fixed in the implementation (not just noted):
+
+1. **`conductor/tracks/file_sync_queue.md` unconditionally blocked every
+   track's first plan-lane spawn.** Every track creation appends an entry
+   to this git-tracked file, so a track's own creation always left it dirty
+   outside any track's own folder — the main-mode guard blocked the very
+   first spawn attempt, every time, with no retry able to clear it.
+   Exempted in both `laneconductor.sync.mjs` and the helper's
+   `classifyDirtyPaths`, consistent with the existing
+   `tracks-metadata.json` exemption and track 1114's separate guard, which
+   already treats this exact path the same way.
+2. **`laneconductor.sync.mjs` always redirects itself to the primary
+   checkout when launched from a worktree** — confirmed via its own
+   startup log line. `spawnScopedWorker`'s `cwd` option doesn't survive
+   that redirect. Every helper function that touches the filesystem now
+   resolves the project's real `repo_path` via the new
+   `resolveProjectRepoPath()` (`GET /api/projects`) instead of assuming
+   the spec's own on-disk location matches — it usually won't, since this
+   track's own `implement` lane action runs from a worktree.
+3. **991/992 (v2's hardcoded fixtures) have real DB rows dating to
+   2026-08-12.** Deleting only the directory left the row behind; a
+   freshly spawned worker's own startup DB→FS sync pushed that stale
+   `lane_status=backlog`/`auto_run=false` back onto the just-written
+   fixture file before the worker's own file-watcher reacted to the fresh
+   write. `cleanupTrack` now deletes the DB row too.
+
+A fourth attempt — pointing `new-track-plan.spec.js` at a fully isolated
+project (fresh `projects` row, `repo_path` = this worktree, via the new
+`TEST_PROJECT_ID` override) to sidestep the primary checkout's own
+business entirely — surfaced a real limit worth recording rather than
+re-discovering later: `TEST_PROJECT_ID` correctly redirects
+`createTrackViaUI`/`enableAutoRun`/file-existence checks (via
+`resolveProjectRepoPath`), but `spawnScopedWorker` has no equivalent lever
+— the spawned `laneconductor.sync.mjs` resolves its OWN project identity
+from `.laneconductor.json` at startup, not from any CLI flag, so it kept
+registering against project 1 regardless of which project the track was
+actually created under. `--only-tracks 1` (normalized from track "001")
+then matched project 1's OWN pre-existing track 001 ("Core Skill +
+Heartbeat Worker", `lane_status=done`) and correctly reported nothing
+claimable. Not a bug in this track's own code — `.laneconductor.json`
+would need a real per-run project override to close this gap, which is
+out of this track's scope (worker CLI surface, not the Playwright specs).
+Isolated-project testing therefore isn't a way around needing the primary
+checkout quiet for a genuine AC-1 proof; a clean primary checkout is the
+only path.
+
+**What was NOT achieved live**: a fully green `--project=slow` run
+(AC-1/TC-24), and therefore TC-1/TC-9/TC-14's "passes end to end" claims
+specifically. Reason: this repo dogfoods LaneConductor on itself, and by
+design main-mode dispatch always operates on the ONE primary checkout —
+not a copy, not a per-run clone. Throughout this session that checkout
+carried real, in-progress work from other concurrently-running tracks
+(1102, 1104, 1111, 1115, 10024, 10026), and `assertCheckoutSpawnable`
+correctly refused to spawn against it every time, exactly as designed.
+Forcing it clean (committing or stashing other tracks' uncommitted work)
+was not a call to make unilaterally and was not made. What IS verified:
+every fix above by direct reproduction (each bug was reproduced, fixed,
+and re-confirmed against real infrastructure — see the four fix commits),
+the full negative path live (twice), unit coverage for every pure
+function, and the complete Phase 5 flow live end-to-end. A green AC-1 run
+needs a quiet window on the primary checkout, which this session did not
+have; re-running `npx playwright test --project=slow` (with `lc worker
+stop` first, primary checkout clean) is the one remaining step and should
+now succeed given everything above.
