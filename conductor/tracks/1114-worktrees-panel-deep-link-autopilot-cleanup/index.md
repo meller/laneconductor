@@ -1,8 +1,9 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: mock (primary)
 **Phase**: Phase 17 complete — live-verified
 **Type**: dev
 **Waiting for reply**: no
