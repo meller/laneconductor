@@ -112,11 +112,39 @@ export async function getTrackByNumber(trackNumber, { apiUrl = DEFAULT_API_URL, 
 }
 
 /**
+ * Discovered live: `PROJECT_ROOT` (derived from this helper file's own
+ * on-disk location) is only correct when the spec runs from the SAME
+ * checkout the target project's DB row points at. ui/server/index.mjs's
+ * track-create handler writes index.md/plan.md/spec.md under the
+ * project's own `repo_path` column — which, for project 1 in this repo,
+ * is the PRIMARY checkout, not whatever worktree a lane action (including
+ * this track's own implement run) happens to execute from. A spec running
+ * from a worktree that assumed `PROJECT_ROOT` would silently look for
+ * newly-created track directories in the wrong tree and get `null` every
+ * time. Callers must resolve this once and thread it through every
+ * subsequent helper call (createTrackViaUI, enableAutoRun,
+ * assertCheckoutSpawnable's `cwd`, spawnScopedWorker) rather than relying
+ * on PROJECT_ROOT for anything that touches a project's own files.
+ */
+export async function resolveProjectRepoPath({ apiUrl = DEFAULT_API_URL, projectId = DEFAULT_PROJECT_ID } = {}) {
+  const r = await fetch(`${apiUrl}/api/projects`);
+  if (!r.ok) throw new Error(`resolveProjectRepoPath: GET /api/projects failed (${r.status})`);
+  const data = await r.json();
+  const list = Array.isArray(data) ? data : data.projects ?? [];
+  const project = list.find(p => String(p.id) === String(projectId));
+  if (!project?.repo_path) {
+    throw new Error(`resolveProjectRepoPath: project ${projectId} not found or has no repo_path`);
+  }
+  return project.repo_path;
+}
+
+/**
  * REQ-1 Task 1: drives the New Track modal, intercepts the track-create
  * response, and resolves the folder it wrote — the UI's POST handler
  * (ui/server/index.mjs) creates index.md/plan.md/spec.md synchronously in
  * the same request, so the folder is guaranteed to exist by the time this
- * returns.
+ * returns, PROVIDED `projectRoot` is the project's actual repo_path (see
+ * resolveProjectRepoPath above) rather than the default.
  */
 export async function createTrackViaUI(page, { title, description = 'Automated Playwright e2e track', projectId = DEFAULT_PROJECT_ID, projectRoot = PROJECT_ROOT } = {}) {
   await page.goto('/');

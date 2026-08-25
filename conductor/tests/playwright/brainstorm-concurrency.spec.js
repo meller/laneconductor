@@ -29,7 +29,7 @@ import {
   cleanup,
   getTrackByNumber,
   resolveTrackDir,
-  PROJECT_ROOT,
+  resolveProjectRepoPath,
 } from './helpers/scoped-worker.mjs';
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -43,16 +43,23 @@ test.describe('Brainstorm & Concurrency E2E', () => {
 
     let trackA = null, trackB = null, dirA = null, dirB = null, handle = null;
 
+    // Track 10021: resolved once — see the identical note in
+    // new-track-plan.spec.js. The UI/API writes a just-created track's
+    // files under the project's DB `repo_path`, not wherever this spec
+    // happens to be running from; every filesystem-touching call below
+    // needs this value threaded through, not the PROJECT_ROOT default.
+    const projectRoot = await resolveProjectRepoPath();
+
     try {
       // ── 1-2: Create both tracks via the helper ────────────────────────────────
-      ({ trackNumber: trackA, trackDir: dirA } = await createTrackViaUI(page, { title: titleA, description: 'Test description A' }));
+      ({ trackNumber: trackA, trackDir: dirA } = await createTrackViaUI(page, { title: titleA, description: 'Test description A', projectRoot }));
       console.log(`Created Track A: ${trackA} (${dirA})`);
 
-      ({ trackNumber: trackB, trackDir: dirB } = await createTrackViaUI(page, { title: titleB, description: 'Test description B' }));
+      ({ trackNumber: trackB, trackDir: dirB } = await createTrackViaUI(page, { title: titleB, description: 'Test description B', projectRoot }));
       console.log(`Created Track B: ${trackB} (${dirB})`);
 
       // ── 3: Trigger brainstorm on Track B ──────────────────────────────────────
-      const convPathB = join(PROJECT_ROOT, 'conductor/tracks', dirB, 'conversation.md');
+      const convPathB = join(projectRoot, 'conductor/tracks', dirB, 'conversation.md');
       appendFileSync(convPathB, '\n\n> **human**: Please brainstorm some ideas for this feature.\n');
       console.log(`Triggered brainstorm in ${convPathB}`);
 
@@ -60,10 +67,10 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       // A closed set — nothing else queued can be claimed into it, so the
       // concurrency assertion below is hermetic instead of racing whatever
       // else happens to be in flight.
-      assertCheckoutSpawnable([dirA, dirB]);
-      await enableAutoRun(request, trackA);
-      await enableAutoRun(request, trackB);
-      handle = spawnScopedWorker([trackA, trackB]);
+      assertCheckoutSpawnable([dirA, dirB], { cwd: projectRoot });
+      await enableAutoRun(request, trackA, { projectRoot });
+      await enableAutoRun(request, trackB, { projectRoot });
+      handle = spawnScopedWorker([trackA, trackB], { projectRoot });
       console.log(`🚀 Spawned scoped worker #${handle.workerNumber} for tracks ${trackA}, ${trackB} — log: ${handle.logPath}`);
 
       // ── 4: Exactly one of A/B runs in the plan lane at the observation point ──
@@ -113,7 +120,7 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       if (nums.length) {
         await cleanup(handle, nums);
         for (const n of nums) {
-          expect(resolveTrackDir(PROJECT_ROOT, n), `Track ${n} directory should be gone after cleanup`).toBeNull();
+          expect(resolveTrackDir(projectRoot, n), `Track ${n} directory should be gone after cleanup`).toBeNull();
         }
         console.log('🧹 Cleaned up tracks and scoped worker — no residue left');
       }
