@@ -361,6 +361,18 @@ See `conductor/workflow.md`'s "Workspace Modes" section and
 `conductor/tracks/1115-workspace-mode-main-vs-branch/spec.md` for the
 full resolution table.
 
+**PR & Merge Modes (Track 10018)**
+
+Governs how a completed track branch merges back to `main` upon passing the Quality Gate. Resolved per-track via the `**Merge Mode**` marker:
+- **`pr`** (default): Automatically pushes the branch and opens a Pull Request on GitHub. The PR and branch preview can be managed and merged directly inside the UI/Worktrees panel.
+- **`direct`**: The worker merges the track branch straight to `main` without creating a PR.
+
+**Auto-Run Configuration (Track 10017)**
+
+Controls whether background workers automatically pick up queued tracks. Checked per-track via `**Auto Run**` marker:
+- **`yes`**: The track is eligible to be claimed from the queue and executed autonomously by any eligible active worker.
+- **`no`** (default): The track remains in the queue and must be manually run/dispatched via the UI or CLI.
+
 **Lock Synchronization** (when remote collector configured)
 - Local worker creates lock, commits to git
 - `POST /track/{track}/lock` syncs to remote DB
