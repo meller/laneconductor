@@ -550,3 +550,22 @@ narrow bug but a real gap in this repo's migration discipline.
   lane actions do show as busy. No phase needed.
 - New findings from Phase 4 get appended to `index.md` as F22+ and, if they
   need work, their own phase here — they do not expand an existing phase.
+
+## ⚠️ Gaps (review, 2026-08-25)
+
+Review FAILED — full write-up in `conversation.md`. Summary:
+
+1. Phase 3, 8, 10 headers/checkboxes here and in `index.md`'s Phases list
+   read as incomplete; re-verified against the actual code and tests
+   during review and they are genuinely done (F3/F9b/F6). Needs correcting
+   so the record matches reality — don't redo the work, just tick it.
+2. Phase 3 Task 5 (live UI create + drag-revert check) was never actually
+   performed — genuinely open, not just an unticked box. Do it.
+3. Phase 12 Task 3 (surface claim-timeout reassignment/failure in the UI)
+   was deferred out of scope, but AC-7 requires it as written. Either do
+   it or move it to a linked follow-up track per this track's own
+   Completion rule.
+4. Phase 7 Task 5 (SKILL guidance against ending a turn on a backgrounded
+   command) is still open — same choice: close it or link it out.
+5. Phase 16 Task 6 (canonical migration mechanism decision) is still open
+   — same choice.
