@@ -1,7 +1,7 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
-**Lane**: review
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Phase 17 complete — live-verified
 **Type**: dev
@@ -273,3 +273,4 @@ the fix now handles automatically.
 ## Related tracks
 - [1112](../1112-git-sync-and-worktree-visibility/index.md) — built the Worktrees panel this extends
 - [1084](../1084-worker-identity-and-assignment/index.md) — `resolveAssignee`/`resolvePinnedWorkers`, same routing `merge-worktree` already uses, reused for `auto-complete-track`
+**Auto Run**: yes
