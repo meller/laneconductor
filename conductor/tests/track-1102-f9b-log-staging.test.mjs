@@ -69,10 +69,16 @@ async function enqueueDispatch(port, entry) {
   return (await r.json()).id;
 }
 
+// Track 1115 (merged into this branch 2026-08 via main): the 'plan' lane
+// is now ALWAYS main-direct (resolveWorkspaceMode() row 1, unconditional,
+// no worktree) — this test originally dispatched 'plan' specifically to
+// get a worktree. Switched to 'implement', which still defaults to
+// 'branch' (today's worktree-per-track behavior) for a manually-dispatched,
+// non-bug track with no explicit **Workspace** marker or project default.
 const PRIMARY_INDEX = [
   '# Track 001: A Track With Log Output',
   '',
-  '**Lane**: plan',
+  '**Lane**: implement',
   '**Lane Status**: queue',
   '**Progress**: 0%',
 ].join('\n');
@@ -93,7 +99,7 @@ function setupProject(collectorPort) {
   writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock' },
-    lanes: { plan: { parallel_limit: 1, max_retries: 1 } },
+    lanes: { implement: { parallel_limit: 1, max_retries: 1 } },
   }, null, 2));
 
   const trackDir = join(TMP, 'conductor/tracks/001-a-track-with-log-output');
@@ -141,7 +147,7 @@ describe('Track 1102 F9b: last_run.log gets staged after a run with log output',
     }, { label: 'worker registered' });
     const workerId = state0.workers[0].id;
 
-    const dispatchId = await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+    const dispatchId = await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'implement', track_number: '001' });
 
     // Wait for the dispatch itself to leave 'claimed' — this is the exit
     // handler's own completion signal, unlike polling index.md's Lane
