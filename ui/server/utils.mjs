@@ -29,7 +29,38 @@ export function slugify(title) {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-export function trackTemplates(trackNumber, title, description, type = 'feature', trackType = 'dev', laneStatus = 'plan') {
+// Track 008 Phase 5: `config` carries the New Track modal's optional
+// Advanced fields (mergeMode/autoRun/workspaceMode/model). Each marker is
+// written ONLY when the caller's value differs from the silent default
+// resolveMergeMode()/parseAutoRun()/resolveWorkspaceMode() already apply
+// when the marker is absent — an always-present default marker on every
+// new track would be pure noise, same reasoning as kindLine's sparse
+// emission below. The endpoint validates mergeMode/workspaceMode against
+// VALID_MODES before calling this; the extra VALID_MODES.includes() checks
+// here are defense in depth so a bad value degrades to "no marker" instead
+// of writing garbage into index.md.
+const MERGE_MODE_VALID = ['pr', 'direct'];
+const WORKSPACE_MODE_VALID = ['main', 'branch'];
+
+function configMarkerLines(type, config = {}) {
+    const { mergeMode, autoRun, workspaceMode, model } = config;
+    let lines = '';
+    if (mergeMode && mergeMode !== 'pr' && MERGE_MODE_VALID.includes(mergeMode)) {
+        lines += `**Merge Mode**: ${mergeMode}\n`;
+    }
+    if (autoRun === true) {
+        lines += '**Auto Run**: yes\n';
+    }
+    if (workspaceMode && workspaceMode !== 'branch' && WORKSPACE_MODE_VALID.includes(workspaceMode)) {
+        lines += `**Workspace**: ${workspaceMode}\n`;
+    }
+    if (model && String(model).trim()) {
+        lines += `**Model**: ${String(model).trim()}\n`;
+    }
+    return lines;
+}
+
+export function trackTemplates(trackNumber, title, description, type = 'feature', trackType = 'dev', laneStatus = 'plan', config = {}) {
     const typeLine = trackType && trackType !== 'dev' ? `**Type**: ${trackType}\n` : '';
     // Track 1115 REQ-6: `**Track Kind**` records the New Track modal's bug/feature
     // selector — a distinct field from **Type** (dev/marketing/sales/support/other)
@@ -41,14 +72,15 @@ export function trackTemplates(trackNumber, title, description, type = 'feature'
     // for 'bug' — 'feature' is the implicit default, same sparse-emission
     // convention as typeLine above.
     const kindLine = type === 'bug' ? '**Track Kind**: bug\n' : '';
+    const configLines = configMarkerLines(type, config);
     if (type === 'bug') {
-        const index = `# Track ${trackNumber}: ${title}\n\n**Lane**: ${laneStatus}\n**Lane Status**: queue\n**Progress**: 0%\n${typeLine}${kindLine}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nInvestigate root cause, fix, and add regression test.\n\n## Phases\n- [ ] Phase 1: Investigate and fix\n`;
+        const index = `# Track ${trackNumber}: ${title}\n\n**Lane**: ${laneStatus}\n**Lane Status**: queue\n**Progress**: 0%\n${typeLine}${kindLine}${configLines}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nInvestigate root cause, fix, and add regression test.\n\n## Phases\n- [ ] Phase 1: Investigate and fix\n`;
         const plan = `# Track ${trackNumber}: ${title}\n\n## Phase 1: Investigate and Fix\n\n**Problem**: ${description || 'To be defined.'}\n**Solution**: Identify root cause, implement fix, verify with regression test.\n\n- [ ] Reproduce the bug\n- [ ] Investigate root cause\n- [ ] Implement fix\n- [ ] Verify fix works\n- [ ] Add regression test\n`;
         const spec = `# Spec: ${title}\n\n## Problem Statement\n${description || 'To be defined.'}\n\n## Steps to Reproduce\n1. \n2. \n\n## Expected Behaviour\n\n## Actual Behaviour\n\n## Acceptance Criteria\n- [ ] Bug no longer reproducible\n- [ ] Regression test added\n`;
         return { index, plan, spec };
     }
     // feature (default)
-    const index = `# Track ${trackNumber}: ${title}\n\n**Lane**: ${laneStatus}\n**Lane Status**: queue\n**Progress**: 0%\n${typeLine}${kindLine}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nTo be defined.\n\n## Phases\n- [ ] Phase 1: Implementation\n`;
+    const index = `# Track ${trackNumber}: ${title}\n\n**Lane**: ${laneStatus}\n**Lane Status**: queue\n**Progress**: 0%\n${typeLine}${kindLine}${configLines}\n## Problem\n${description || 'To be defined.'}\n\n## Solution\nTo be defined.\n\n## Phases\n- [ ] Phase 1: Implementation\n`;
     const plan = `# Track ${trackNumber}: ${title}\n\n## Phase 1: Implementation\n\n**Problem**: ${description || 'To be defined.'}\n**Solution**: To be defined.\n\n- [ ] Task 1: Define requirements\n- [ ] Task 2: Implement\n- [ ] Task 3: Test\n`;
     const spec = `# Spec: ${title}\n\n## Problem Statement\n${description || 'To be defined.'}\n\n## Requirements\n- REQ-1: ...\n\n## Acceptance Criteria\n- [ ] Criterion 1\n`;
     return { index, plan, spec };

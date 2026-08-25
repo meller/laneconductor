@@ -1,5 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
+import { resolveMergeMode } from '../../../conductor/services/merge-mode.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
+import { modelsForProvider } from '../lib/modelOptions.js';
+
+// Track 008 Phase 5: silent defaults these Advanced controls start at —
+// read from the same resolvers the worker uses at spawn/merge time (not a
+// second hardcoded copy) so the toggle's rest position always matches what
+// leaving it alone actually produces. resolveMergeMode(null) is the 'pr'
+// default with no track row to read from yet; 'branch' is
+// resolveWorkspaceMode()'s own row-6 fallback (see workspace-mode.mjs) —
+// the modal doesn't have a way to know a project-level override exists
+// today (`.laneconductor.json`'s `project.workspace_mode` isn't exposed by
+// GET /api/projects — file-only, no DB column), but that's safe rather
+// than wrong: an explicit **Workspace** marker always outranks the
+// project default in resolveWorkspaceMode's own precedence table, so a
+// human's toggle choice here is never silently ignored, just occasionally
+// redundant with what the project would have done anyway.
+const MERGE_MODE_DEFAULT = resolveMergeMode(null);
+const WORKSPACE_MODE_DEFAULT = 'branch';
 
 function matchingTracks(title, type, tracks, activeProjectId) {
   if (title.trim().length < 3) return [];
@@ -15,7 +34,7 @@ function matchingTracks(title, type, tracks, activeProjectId) {
     .slice(0, 3);
 }
 
-export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated, onResumed, initialType = 'feature', initialDescription = '' }) {
+export function NewTrackModal({ projectId, projects, tracks, workers = [], onClose, onCreated, onResumed, initialType = 'feature', initialDescription = '' }) {
   const { apiFetch } = useApi();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState(initialDescription);
@@ -25,6 +44,12 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
   const [error, setError] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? null);
   const [suggestions, setSuggestions] = useState([]);
+
+  // Track 008 Phase 5: Advanced (collapsed-by-default) per-track config.
+  const [mergeMode, setMergeMode] = useState(MERGE_MODE_DEFAULT);
+  const [workspaceMode, setWorkspaceMode] = useState(WORKSPACE_MODE_DEFAULT);
+  const [autoRun, setAutoRun] = useState(false);
+  const [modelOverride, setModelOverride] = useState('');
 
   const titleRef = useRef(null);
 
@@ -41,6 +66,17 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
   }, [onClose]);
 
   const activeProjectId = selectedProjectId ?? projectId;
+  const activeProject = projects?.find(p => p.id === activeProjectId) ?? null;
+  // Track 008 Phase 5: the Model dropdown's options — same
+  // live-worker-merged-with-registry-presets source TrackDetailPanel.jsx's
+  // own per-track model override field already uses (modelOptions.js),
+  // scoped to this project's resolved default CLI. A brand-new track has
+  // no worker of its own yet, so — like WorkflowSettings.jsx's per-lane
+  // model field — this can't be scoped to "the worker that will run it"
+  // and instead uses the project's own default provider across all of the
+  // project's workers.
+  const modelProviderCli = getDefaultProviderModel(activeProject, workers).cli;
+  const modelChoices = modelsForProvider(modelProviderCli, workers);
 
   // Debounced suggestion matching
   useEffect(() => {
@@ -100,9 +136,20 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
     setSubmitting(true);
     setError(null);
     try {
+      // Track 008 Phase 5: only send an Advanced field when it differs from
+      // its own silent default — the server (and trackTemplates()) treat
+      // "absent" as "default" for all three, so sending the default value
+      // explicitly would just be noise (and, if the server didn't also
+      // guard this, would write a pointless marker into index.md).
+      const body = { title: title.trim(), description: description.trim(), type, trackType };
+      if (mergeMode !== MERGE_MODE_DEFAULT) body.merge_mode = mergeMode;
+      if (workspaceMode !== WORKSPACE_MODE_DEFAULT) body.workspace_mode = workspaceMode;
+      if (autoRun) body.auto_run = true;
+      if (modelOverride) body.model = modelOverride;
+
       const r = await apiFetch(`/api/projects/${activeProjectId}/tracks`, {
         method: 'POST',
-        body: JSON.stringify({ title: title.trim(), description: description.trim(), type, trackType }),
+        body: JSON.stringify(body),
       });
       if (r.ok) {
         await r.json();
@@ -287,6 +334,7 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
                 <input
                   ref={titleRef}
                   type="text"
+                  data-testid="title-input"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   placeholder={type === 'bug' ? 'e.g. Login fails on Safari' : 'e.g. Auth middleware'}
@@ -307,6 +355,89 @@ export function NewTrackModal({ projectId, projects, tracks, onClose, onCreated,
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-gray-500"
                 />
               </div>
+
+              {/* Track 008 Phase 5: per-track config, collapsed by default —
+                  none of these four are what most track creations need. */}
+              <details className="group">
+                <summary data-testid="advanced-toggle" className="text-xs text-gray-500 hover:text-gray-300 cursor-pointer select-none list-none flex items-center gap-1">
+                  <span className="transition-transform group-open:rotate-90">▸</span> Advanced
+                </summary>
+                <div className="mt-2 space-y-3 pl-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Merge Mode</span>
+                    <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+                      {[
+                        { value: 'pr', label: 'PR' },
+                        { value: 'direct', label: 'Direct' },
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          data-testid={`merge-mode-${opt.value}`}
+                          onClick={() => setMergeMode(opt.value)}
+                          className={`px-2.5 py-1 transition-colors ${mergeMode === opt.value
+                            ? 'bg-gray-700 text-gray-200'
+                            : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Workspace</span>
+                    <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs">
+                      {[
+                        { value: 'branch', label: 'Branch' },
+                        { value: 'main', label: 'Main' },
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          data-testid={`workspace-mode-${opt.value}`}
+                          onClick={() => setWorkspaceMode(opt.value)}
+                          className={`px-2.5 py-1 transition-colors ${workspaceMode === opt.value
+                            ? 'bg-gray-700 text-gray-200'
+                            : 'bg-gray-900 text-gray-500 hover:text-gray-300'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-xs text-gray-500" title="Whether a non-sync-only worker's auto-launch loop may claim this track from the queue.">
+                      Auto Run
+                    </span>
+                    <input
+                      type="checkbox"
+                      data-testid="auto-run-checkbox"
+                      checked={autoRun}
+                      onChange={e => setAutoRun(e.target.checked)}
+                      className="accent-blue-600"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-gray-500 shrink-0">Model</span>
+                    <select
+                      data-testid="model-select"
+                      value={modelOverride}
+                      onChange={e => setModelOverride(e.target.value)}
+                      className="bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-gray-500"
+                    >
+                      <option value="">Inherit default</option>
+                      {modelChoices.map(m => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </details>
 
               {error && (
                 <p className="text-xs text-red-400">{error}</p>
