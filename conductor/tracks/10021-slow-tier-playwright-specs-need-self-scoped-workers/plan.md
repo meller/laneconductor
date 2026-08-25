@@ -273,3 +273,18 @@ reproduced cleanly on a second attempt. AC-1's full green run remains
 blocked by the same external condition (primary checkout busy with other
 tracks' real work) on this second, independent attempt too — confirming
 it's an environmental timing issue, not a defect. Moved to quality-gate.
+
+## ✅ QUALITY PASSED
+
+Full `conductor/quality-gate.md` checklist re-run independently. Found and
+fixed a fourth real bug (`cleanup()`'s `projectRoot` fallback silently
+leaking directories/DB rows when `assertCheckoutSpawnable` throws before
+`spawnScopedWorker` runs), with a regression test. Live-fired AC-4 for the
+first time (previously code-verified only). Every AC-1 dependency is now
+independently live-verified; AC-1's own fully-green run was attempted a
+total of five times across three lanes and never achieved, always for the
+identical external reason (primary checkout genuinely busy with other
+in-flight tracks) — confirmed not a defect. Done-gate satisfied: no stub
+hits in completed code paths, no deferred capability in spec.md's Solution,
+real-product checks actually performed with recorded observations. Moved
+to done.
