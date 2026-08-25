@@ -46,11 +46,21 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 - [x] TC-14: When deploy track completes and app_url is set, the live link replaces the placeholder — expected: anchor with app_url href
 
 ### Phase 6: E2E
-- [ ] TC-15: Playwright: full wizard walk-through → Launch → follow-build view visible with generated track list — expected: spec passes
+- [x] TC-15: Playwright: full wizard walk-through → Launch → follow-build view visible with generated track list — expected: spec passes
 - [ ] TC-16: Manual digger-game run with real Firebase creds: all generated tracks reach done, `curl $app_url` returns HTTP 200 — expected: recorded observation in conversation.md
+      **BLOCKED — requires explicit human authorization, not attempted.** This worker machine has
+      real, active `gcloud`/`firebase` credentials for the user's own account with real production
+      projects already deployed under it (`laneconductor-site`, `makrodash`, `ocumentor-prod`,
+      `otralingo` — confirmed via a read-only `gcloud auth list` / `firebase projects:list`, no
+      write actions taken). Running this scenario unattended would scaffold a new project and
+      deploy it to that same real account with no human in the loop — a costly, hard-to-reverse,
+      real-world action outside what an autonomous `/laneconductor implement` run should do without
+      being asked. See conversation.md for the full flag.
 
 ## Acceptance Criteria
 - [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6;
-      Phase 3's TC-7..TC-9; Phase 4's TC-10..TC-11; Phase 5's TC-12..TC-14 — see plan.md verification notes)*
+      Phase 3's TC-7..TC-9; Phase 4's TC-10..TC-11; Phase 5's TC-12..TC-14; Phase 6's TC-15 — see
+      plan.md verification notes)*
 - [x] Existing suites (NewProjectModal, CICDView, worker tests) show no regressions *(full ui vitest suite: same 30 pre-existing failures as main, no new failures)*
-- [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded)
+- [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded) — **intentionally
+      not attempted this run; requires explicit human authorization (TC-16, above)**

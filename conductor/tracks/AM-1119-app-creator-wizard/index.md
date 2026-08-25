@@ -2,10 +2,11 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 83%
-**Phase**: Phase 5 of 6 complete — "follow your build" progress view
+**Progress**: 92%
+**Phase**: Phase 6 in progress — Playwright E2E + full auto-run integration test done (Tasks 1-2); real digger-game deploy (Task 3) blocked pending human authorization
 **Type**: dev
 **Track Kind**: feature
+**Waiting for reply**: yes
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
 **Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp with a live app link and a "follow your build" progress view.
