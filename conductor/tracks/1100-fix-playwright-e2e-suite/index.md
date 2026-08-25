@@ -1,10 +1,10 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: success
 **Progress**: 90%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Review #4 FAIL — Gap 4 fix confirmed solid; new related Gap 5 found (API-key revoke count race, not yet fixed); Gap 2 + track-1033-sharing still need the human decision requested 3x in conversation.md
+**Phase**: Quality gate FAIL (4th consecutive FAIL, same reason) — fast tier clean and now concurrency-proven; Gap 2 (slow tier never observed passing) still needs the human decision requested 4x in conversation.md
 **Type**: dev
 **Summary**: 19 Playwright specs exist but are effectively never run: the suite is sequential with multi-minute per-test budgets (worst case ~40min), and 3 of 6 worker-identity specs fail. The quality gate now…
 
