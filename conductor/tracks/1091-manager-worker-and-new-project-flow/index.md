@@ -1,6 +1,6 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: done
+**Lane**: plan
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
