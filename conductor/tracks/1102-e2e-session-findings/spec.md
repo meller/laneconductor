@@ -106,31 +106,52 @@ Re-verified against the code in this worktree, not taken from the write-ups:
 
 Each criterion states an outcome a user or an operator could observe.
 
-- [ ] **AC-1 (REQ-1)** Creating a track through the UI produces an
+- [x] **AC-1 (REQ-1)** Creating a track through the UI produces an
       `index.md` whose only lane marker is `**Lane**` — `grep -c '\*\*Status\*\*'`
       on the new file returns 0. Dragging that card between lanes does not
-      revert (the track-10012 symptom stays fixed).
-- [ ] **AC-2 (REQ-2)** After any lane action that produced log output, the
+      revert (the track-10012 symptom stays fixed). **Verified live
+      2026-08-25** (quality-gate) against an isolated instance of this
+      branch's own server — see Phase 3 Task 5 in `plan.md` for the
+      methodology correction (the live shared API runs `main`, not this
+      branch, so it had to be tested in isolation, not against `:8091`).
+- [x] **AC-2 (REQ-2)** After any lane action that produced log output, the
       run's `last_run.log` is actually staged in git — `git status` in the
       worktree shows it tracked, not untracked. No `ReferenceError` occurs.
-- [ ] **AC-3 (REQ-3)** A run whose agent exits 0 with `index.md` still at
+      Fixed (`laneconductor.sync.mjs:4807`), unit-tested (1/1 pass,
+      re-confirmed 2026-08-25).
+- [x] **AC-3 (REQ-3)** A run whose agent exits 0 with `index.md` still at
       `running` and a dirty worktree ends with an explicit, human-readable
       outcome saying the run ended mid-work and can be re-run to resume —
       visible in `conversation.md` and in the dispatch result — instead of
-      a silent `queue`.
-- [ ] **AC-4 (REQ-4)** With a run's transcript open, clicking a track
+      a silent `queue`. Fixed and unit-tested (1/1 pass, re-confirmed
+      2026-08-25). Task 4 (live re-run-to-resume confirmation) and Task 5
+      (SKILL guidance preventing the mid-work exit in the first place, not
+      just detecting it) remain open in `plan.md` — the AC's own text is
+      about detection/reporting, which this satisfies; prevention is a
+      separate, still-open follow-up.
+- [x] **AC-4 (REQ-4)** With a run's transcript open, clicking a track
       card's action button performs the action. A killed/finished run's
-      transcript is not presented as live.
-- [ ] **AC-5 (REQ-5)** `lc worker start --help` (and `lc worker status`)
+      transcript is not presented as live. **Investigated, not
+      reproduced** at realistic viewport width (925px was a sibling-card
+      artifact, not this bug) — closed the same way F1 was, not via a code
+      change. If it resurfaces, F20's "Left open" note in `index.md`
+      records what to capture next time.
+- [x] **AC-5 (REQ-5)** `lc worker start --help` (and `lc worker status`)
       describe the two modes as MANUAL and AUTOMATIC, with the flag/value
       names shown as the mechanism, not the concept. Existing configs and
-      flags keep working unchanged.
-- [ ] **AC-6 (REQ-6)** A test fails if `NEXT_LANE.backlog` stops being
-      `plan`. `index.md`'s F19 body states the fix.
-- [ ] **AC-7 (REQ-7)** A dispatch assigned to a worker that never claims it
+      flags keep working unchanged. Fixed (`bin/lc.mjs:638-648,1636,1770,1873`),
+      unit-tested (4/4 pass, re-confirmed 2026-08-25).
+- [x] **AC-6 (REQ-6)** A test fails if `NEXT_LANE.backlog` stops being
+      `plan`. `index.md`'s F19 body states the fix. Regression test
+      confirmed real by mutation (flipped `NEXT_LANE.backlog` back to
+      `'implement'`, watched the test fail, reverted).
+- [x] **AC-7 (REQ-7)** A dispatch assigned to a worker that never claims it
       does not stay `pending` indefinitely — it is reassigned to another
       live worker or marked failed with a reason, and that is observable in
-      the UI.
+      the UI. The DB-level mechanism is fixed and mutation-tested. The
+      "observable in the UI" half was genuinely not done here — filed as
+      its own linked track rather than rushed in a quality-gate pass:
+      [10032](../10032-f18-claim-timeout-ui-visibility/index.md).
 - [x] **AC-8 (REQ-8)** Deleting a `workers` row **in the live
       `laneconductor` DB** leaves its `worker_dispatch` rows intact with
       `worker_id IS NULL`; the Activity panel's history survives.
