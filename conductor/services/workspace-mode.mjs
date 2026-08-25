@@ -16,7 +16,7 @@
 // default is an inference, and an unattended queue claim should not act on
 // an inference alone.
 
-const VALID_MODES = ['main', 'branch'];
+export const VALID_MODES = ['main', 'branch'];
 
 // Mirrors merge-mode.mjs's parseMergeModeMarker() shape/behavior exactly —
 // returns null for absent/invalid rather than a default, so the resolver

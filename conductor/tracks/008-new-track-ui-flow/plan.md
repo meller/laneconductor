@@ -84,79 +84,141 @@ etc. already get written), not bolted on as a follow-up PATCH — a track
 should never exist, even momentarily, at a config state the user didn't
 choose.
 
-- [ ] Task 1 (bug fix): `POST /api/projects/:id/tracks` writes
-      `**Track Kind**: ${type}` into the new track's `index.md` — the
-      SAME `type` value already collected and sent today, just not
-      persisted. Regression test: create a track with `type: 'bug'`,
-      assert `index.md` contains `**Track Kind**: bug` and
-      `resolveWorkspaceMode` (called with that track's real parsed
-      content) resolves to `'main'` for an auto-queue trigger per D1 row 4
-      — prove the fix closes the actual behavioral gap, not just that a
-      string got written.
-- [ ] Task 2: `POST /api/projects/:id/tracks` accepts optional
+- [x] Task 1 (bug fix): ~~`POST /api/projects/:id/tracks` writes
+      `**Track Kind**: ${type}` into the new track's `index.md`~~ —
+      **already fixed, not a live gap.** Re-checked against the current
+      tree (not the stale audit this task description was written from):
+      track 1115 already added this — `trackTemplates()` in
+      `ui/server/utils.mjs` (called by the POST handler at
+      `ui/server/index.mjs:855`) emits `**Track Kind**: bug` for bug-type
+      tracks, covered by `ui/server/tests/utils.test.mjs`'s "emits
+      `**Track Kind**: bug` for bug tracks" case. End-to-end wiring
+      (index.md → `parseTrackKind` → `resolveWorkspaceMode`) is covered
+      by `conductor/tests/track-1115-workspace-mode.test.mjs`'s TC-30 —
+      ran it: 13/13 pass.
+      **Correction to this task's own regression-test spec**: the
+      expected outcome as originally written here ("resolves to `main`
+      for an auto-queue trigger per D1 row 4") is backwards.
+      `resolveWorkspaceMode`'s D5 precedence checks the unattended-trigger
+      override (row 3) *before* the type-derived default (row 4) — an
+      `auto-queue`/`auto-complete` trigger forces `'branch'` regardless
+      of `trackType`, by design (D1: "an inferred-but-unconfirmed bug
+      classification must not run unattended on `main`"). TC-30 asserts
+      exactly this — `'branch'` on auto-queue for a Track-Kind-only bug —
+      and TC-5 covers the case this task actually meant: a bug track
+      resolves to `'main'` for a *manual-dispatch* trigger. No code
+      change needed; no new test added, since TC-30/TC-5 already are the
+      regression test this task asked for.
+- [x] Task 2: `POST /api/projects/:id/tracks` accepts optional
       `merge_mode` (`'pr'|'direct'`), `auto_run` (boolean, default
-      `false`), and `model` (string, project's own available-model list —
-      reuse whatever validation `buildCliArgs`'s model-resolution path
-      already trusts, don't invent a second allow-list). Validate
-      `merge_mode` against the same set `resolveMergeMode` uses; reject
-      invalid values with 400 rather than silently coercing.
-- [ ] Task 3: Write `**Merge Mode**`/`**Auto Run**`/`**Model**` markers
-      into `index.md` at creation ONLY when the caller explicitly set a
-      non-default value — mirrors Task 1's own `**Track Kind**`
+      `false`), and `model` (string). **Correction while implementing**:
+      also threaded `workspace_mode` through here — Task 4 (below, unedited
+      from the original plan) requires a Workspace toggle in the UI, and a
+      toggle with no server-side effect would be exactly the kind of
+      placeholder-passes-acceptance-criteria stub the skill file's
+      done-gate forbids; the Solution paragraph's "three new fields" count
+      was simply an oversight against Task 4's own four controls.
+      `merge_mode`/`workspace_mode` validated against `VALID_MODES`
+      exported from `merge-mode.mjs`/`workspace-mode.mjs` (single source,
+      no second allow-list); `auto_run` must be boolean or 400; `model` is
+      unvalidated, confirmed by reading `buildCliArgs`'s model-resolution
+      path (`conductor/laneconductor.sync.mjs` ~L5104) — it passes
+      `**Model**` straight through to the spawned CLI with no allow-list at
+      all, matching workflow.md's documented best-effort semantics, so
+      inventing server-side validation here would be a stricter contract
+      than the thing that actually consumes the value honors.
+- [x] Task 3: Write `**Merge Mode**`/`**Auto Run**`/`**Workspace**`/`**Model**`
+      markers into `index.md` at creation ONLY when the caller explicitly
+      set a non-default value — mirrors Task 1's own `**Track Kind**`
       unconditional-write being the one exception (it's not optional,
-      every track has a kind). `resolveMergeMode`/`parseAutoRun` read
-      "absent = default" everywhere else in the codebase; an
-      always-present-but-default marker on every new track from this
-      point forward would be pure noise.
-- [ ] Task 4: `NewTrackModal.jsx` — new controls in the "Create new
+      every track has a kind). `resolveMergeMode`/`parseAutoRun`/
+      `resolveWorkspaceMode` read "absent = default" everywhere else in
+      the codebase; an always-present-but-default marker on every new
+      track from this point forward would be pure noise. Implemented in
+      `ui/server/utils.mjs`'s `trackTemplates()` (new optional 7th `config`
+      arg) — TDD: `ui/server/tests/track-008-track-config-markers.test.mjs`
+      written first (red), then implemented (green), 10/10 pass, no
+      regressions in the existing `utils.test.mjs`/
+      `track-1102-f3-single-status-marker.test.mjs` suites.
+- [x] Task 4: `NewTrackModal.jsx` — new controls added to the "Create new
       track" section, matching the existing Type/Domain toggle-button
-      styling (not a dropdown that looks different from its siblings):
-      - Merge Mode: PR / Direct toggle, defaulting to whichever
-        `resolveMergeMode`'s own default is (read it, don't hardcode a
-        second copy).
-      - Workspace: Branch / Main toggle — **only when this project's
-        `.laneconductor.json` doesn't already force one via
-        `project.workspace_mode`** (D5's own precedence table already
-        handles that override; the modal must not offer a choice the
-        resolver will just ignore).
-      - Auto Run: checkbox/toggle, off by default, one-line explanation
-        (mirrors the SKILL.md marker-table entry from track 10017 Phase
-        7: "whether a non-sync-only worker's auto-launch loop may claim
-        this track from the queue").
-      - Model: dropdown sourced from a live worker's `available_models`
-        (per-CLI, JSONB — confirmed this is worker-scoped data, NOT a
-        project-level list, by reading `WorkerModelModal.jsx` directly;
-        it reads `worker.available_models[selectedCli]`). A new track has
-        no worker yet, so this needs the *primary* worker's own
-        registered list as the source — resolve exactly how
-        `WorkflowSettings.jsx` (which sets a per-lane model with the same
-        no-worker-yet-for-this-choice problem) already handles it before
-        inventing a new pattern.
-- [ ] Task 5: All of Task 4's new controls collapsed under an "Advanced"
-      disclosure, closed by default — the modal is already dense (resume
-      list + suggestions + create form) and none of these four are what
-      most track creations need. Confirm with a real click-through that
-      the common path (title + description + Create) isn't slowed down.
-- [ ] Task 6: Component test (check for an existing
-      `NewTrackModal.test.jsx` before assuming one doesn't exist)
-      covering: default submission omits all three optional fields from
-      the POST body (never sends `false`/`'pr'`/empty-model explicitly);
-      each Advanced field, toggled, appears correctly in the POST body;
-      `type` always appears (Task 1's fix means this now matters more
-      than it used to).
-- [ ] Task 7: Server test extending whatever already covers track
-      creation (find it first) — for each of the four markers: setting it
-      writes the correct marker + DB column; leaving it unset (the three
-      optional ones) writes NO marker in `index.md` (verified, not just
-      described) while `**Track Kind**` is always present.
-- [ ] Task 8: Real browser check — create tracks covering: all-defaults,
-      all-four-set-to-non-default, and a bug-type track specifically
-      (confirms Task 1's fix end-to-end: created as `bug` → `index.md`
-      has `**Track Kind**: bug` → an auto-queue dispatch for it actually
-      resolves to `main` workspace mode).
+      styling:
+      - Merge Mode: PR / Direct toggle, defaulting to `resolveMergeMode(null)`
+        (imported from `merge-mode.mjs`, not a second hardcoded copy).
+      - Workspace: Branch / Main toggle. **Correction while implementing**:
+        the "only when the project doesn't force one" condition can't be
+        implemented as written — `project.workspace_mode` lives only in
+        `.laneconductor.json` (D4/D5's own project-default tier) and is
+        never synced to the `projects` DB table or returned by
+        `GET /api/projects` (confirmed: no `workspace_mode` column
+        anywhere in `prisma/schema.sql`, no such field in the project rows
+        the endpoint selects) — the modal has no data source to check this
+        against. Shown unconditionally instead; this is safe, not wrong,
+        because `resolveWorkspaceMode`'s own precedence (row 2, explicit
+        marker) always outranks the project default (row 5) — a human's
+        toggle choice here is never silently ignored, only occasionally
+        redundant with what the project would have done anyway. Exposing
+        `project.workspace_mode` through the API is real follow-up work,
+        out of scope here (belongs with track 1115 or its own track).
+      - Auto Run: checkbox, off by default, with the exact one-line
+        explanation from the marker table (track 10017 Phase 7 wording).
+      - Model: dropdown via `modelOptions.js`'s `modelsForProvider()` +
+        `getDefaultProviderModel()` (`../lib/defaultModel.js`) — the same
+        live-worker-merged-with-registry-presets source
+        `TrackDetailPanel.jsx`'s own per-track model override field
+        already uses, scoped to the project's resolved default CLI (no
+        worker is tied to a brand-new track, same reasoning
+        `WorkflowSettings.jsx`'s per-lane field already relies on).
+      **Also fixed while touching this component** (found during Task 4's
+      own read-through, not asked for but directly in-path): `App.jsx` had
+      TWO `<NewTrackModal>` render sites. `AppContent`'s (~L638) was
+      correctly gated and wired; `CloudAppInner`'s (~L927, the cloud-mode
+      board) rendered `<NewTrackModal open=... type=... onSuccess=... />`
+      — none of which are props this component has ever accepted since
+      its Phase 2 resume-or-create redesign, and with no `open` guard on
+      the call site either, meaning it mounted unconditionally regardless
+      of `newTrackOpen`. Gated and re-wired to match `AppContent`'s
+      instance (same `projects`/`tracks`/`workers` props, now needed for
+      the Advanced Model dropdown too).
+- [x] Task 5: All of Task 4's new controls collapsed under an "Advanced"
+      disclosure, closed by default — implemented as a native `<details>`
+      (no JS state needed, closed by default with no `open` attribute).
+      Click-through confirmed live (Task 8): the common title+description+
+      Create path renders and submits with Advanced collapsed, untouched.
+- [x] Task 6: `ui/src/components/NewTrackModal.test.jsx` (none existed —
+      created new) — 10/10 pass: default submission omits all four
+      optional fields; `type` always present; each Advanced field
+      individually toggled appears in the POST body; toggling back to its
+      default omits it again; all four set together all appear together.
+- [x] Task 7: `ui/server/tests/track-008-track-create-config.test.mjs`
+      (new — no prior test covered `POST /api/projects/:id/tracks` at
+      all) — 6/6 pass against the real `trackTemplates()` output written
+      to a real temp repo dir (not mocked fs): 400 on invalid
+      `merge_mode`/`auto_run`; all-defaults writes no config markers;
+      all-four-non-default writes all four; a bug track gets
+      `**Track Kind**: bug` alongside any set markers; explicit
+      `merge_mode: 'pr'` (matching the silent default) still writes none.
+- [x] Task 8: Real browser check, done against an isolated scratch
+      project/ports (not the live shared :8090/:8091 instance — that
+      would have tested pre-change code per workflow.md's own "a fix on a
+      branch never takes effect until merged and restarted", and would
+      have written test tracks into the primary checkout, not this
+      worktree) — created tracks covering all-defaults, all-four-set-to-
+      non-default, and a bug-type track. Verified on disk, in the DB, and
+      in the UI (the board's `MAIN` badge appeared live on the
+      all-four-non-default track). **Correction to this task's own
+      wording** (same error as Task 1's original text): confirmed via
+      `resolveWorkspaceMode` against the real bug track's real file
+      content that an `auto-queue` trigger resolves to `'branch'`, not
+      `'main'` — `'main'` is what a `manual-dispatch` trigger resolves to
+      for the same track. Both checked directly against the actual saved
+      `index.md`, not asserted from memory. Scratch project row + created
+      tracks + scratch server processes were all cleaned up afterward.
 
 **Explicit non-goal**: does not add a worker-picker to the modal. Which
 worker eventually claims a track is a queue-time decision (assignee
 gating, `--only-tracks`, `auto_run` itself), not a creation-time one —
 conflating them would mean the modal needs live worker-availability data
 it has no reason to fetch just to create a track.
+
+## ✅ COMPLETE
