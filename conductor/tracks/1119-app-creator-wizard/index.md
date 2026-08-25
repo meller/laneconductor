@@ -1,7 +1,7 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
 **Lane**: quality-gate
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Phase 1 of 6 complete — wizard shell + step components
