@@ -1,10 +1,10 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
-**Lane**: quality-gate
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 100%
+**Progress**: 33%
 **Last Run**: mock (primary)
-**Phase**: Phase 1 of 6 complete — wizard shell + step components
+**Phase**: Phase 2 of 6 complete — deployment step (reuse deploy UX/domain)
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
@@ -28,3 +28,6 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [ ] Phase 5: "Follow your build" progress view
 - [ ] Phase 6: E2E validation — the digger game scenario
 **Auto Run**: yes
+**PR Number**: 17
+**PR URL**: https://github.com/meller/laneconductor/pull/17
+**PR Status**: open
