@@ -26,7 +26,7 @@ import {
   waitForLaneAction,
   cleanup,
   getTrackByNumber,
-  PROJECT_ROOT,
+  resolveProjectRepoPath,
 } from './helpers/scoped-worker.mjs';
 
 const TEST_TITLE = `E2E Test ${Date.now()}`;
@@ -39,9 +39,17 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
   let trackDir = null;
   let handle = null;
 
+  // Track 10021: resolved once, up front — ui/server/index.mjs writes a
+  // just-created track's files under the PROJECT's own DB `repo_path`, not
+  // wherever this spec file happens to be running from. When this spec runs
+  // from a worktree (as this repo's own lane actions do), those differ.
+  // Every helper call below that touches the filesystem needs this same
+  // value, not the PROJECT_ROOT default.
+  const projectRoot = await resolveProjectRepoPath();
+
   try {
     // ── Step 1-4: create via UI, capture track_number from the API response ──
-    ({ trackNumber, trackDir } = await createTrackViaUI(page, { title: TEST_TITLE, description: TEST_DESC }));
+    ({ trackNumber, trackDir } = await createTrackViaUI(page, { title: TEST_TITLE, description: TEST_DESC, projectRoot }));
     expect(trackNumber, 'API should return track_number').toBeTruthy();
     expect(trackDir, `No track directory resolved for ${trackNumber}`).toBeTruthy();
     console.log(`✅ Track submitted: track_number=${trackNumber}, dir=${trackDir}`);
@@ -50,7 +58,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
     // The create endpoint (ui/server/index.mjs) writes index.md/plan.md/spec.md
     // synchronously in the same request — no separate intake.md is written by
     // any code path anymore, so this checks the file that's actually produced.
-    const indexPath = join(PROJECT_ROOT, 'conductor/tracks', trackDir, 'index.md');
+    const indexPath = join(projectRoot, 'conductor/tracks', trackDir, 'index.md');
     expect(existsSync(indexPath), 'index.md should exist').toBeTruthy();
     expect(readFileSync(indexPath, 'utf8'), 'index.md should contain the new track title').toContain(TEST_TITLE);
     console.log('✅ index.md written to disk with title');
@@ -71,9 +79,9 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
     console.log(`✅ Track #${trackNumber} card visible in Kanban`);
 
     // ── Bring our own worker (REQ-2/REQ-3/REQ-5) ───────────────────────────────
-    assertCheckoutSpawnable([trackDir]);
-    await enableAutoRun(request, trackNumber);
-    handle = spawnScopedWorker([trackNumber]);
+    assertCheckoutSpawnable([trackDir], { cwd: projectRoot });
+    await enableAutoRun(request, trackNumber, { projectRoot });
+    handle = spawnScopedWorker([trackNumber], { projectRoot });
     console.log(`🚀 Spawned scoped worker #${handle.workerNumber} for track ${trackNumber} — log: ${handle.logPath}`);
 
     // ── Step 8: worker picks up the track (running) ────────────────────────────
@@ -92,8 +100,8 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
     console.log(`✅ Planning complete: status=${track.lane_action_status} result=${track.lane_action_result}`);
 
     // ── Step 10: verify spec.md + plan.md on disk ──────────────────────────────
-    const specPath = join(PROJECT_ROOT, 'conductor/tracks', trackDir, 'spec.md');
-    const planPath = join(PROJECT_ROOT, 'conductor/tracks', trackDir, 'plan.md');
+    const specPath = join(projectRoot, 'conductor/tracks', trackDir, 'spec.md');
+    const planPath = join(projectRoot, 'conductor/tracks', trackDir, 'plan.md');
     expect(existsSync(specPath), `spec.md missing in ${trackDir}`).toBeTruthy();
     expect(existsSync(planPath), `plan.md missing in ${trackDir}`).toBeTruthy();
     console.log(`✅ spec.md + plan.md created for track ${trackNumber}`);

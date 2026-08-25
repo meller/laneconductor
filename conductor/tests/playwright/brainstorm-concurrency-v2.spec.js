@@ -27,11 +27,20 @@ import {
 
 const TRACKS_DIR = join(PROJECT_ROOT, 'conductor/tracks');
 
-function cleanupTrack(trackNum) {
+// Track 10021: discovered live — 991/992 are long-lived fixture track
+// numbers with real DB rows going back to 2026-08-12. Deleting only the
+// directory (as this used to) leaves a stale DB row behind; a freshly
+// spawned worker's own startup DB→FS sync then pushes that stale
+// lane_status/auto_run straight back onto the just-written fixture file
+// before the worker's chokidar watcher reacts to the fresh write — the
+// fixture silently reverts to backlog/auto_run:false and is never claimed.
+// Deleting the DB row too closes that race: no stale row, nothing to push.
+async function cleanupTrack(trackNum) {
     const dir = readdirSync(TRACKS_DIR).find(d => d.startsWith(trackNum));
     if (dir) {
         rmSync(join(TRACKS_DIR, dir), { recursive: true, force: true });
     }
+    await fetch(`http://127.0.0.1:8091/api/projects/1/tracks/${trackNum}`, { method: 'DELETE' }).catch(() => {});
 }
 
 function createFileSystemTrack(trackNum, title, lane, status, waitingForReply = 'no') {
@@ -54,9 +63,9 @@ function createFileSystemTrack(trackNum, title, lane, status, waitingForReply = 
 test.describe('Brainstorm & Concurrency strict check', () => {
     test.setTimeout(120000);
 
-    test.beforeEach(() => {
-        cleanupTrack('991');
-        cleanupTrack('992');
+    test.beforeEach(async () => {
+        await cleanupTrack('991');
+        await cleanupTrack('992');
     });
 
     test('Worker pulls only one track and handles brainstorm reply', async ({ page }) => {
