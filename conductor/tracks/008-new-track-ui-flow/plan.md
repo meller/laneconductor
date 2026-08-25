@@ -84,15 +84,31 @@ etc. already get written), not bolted on as a follow-up PATCH — a track
 should never exist, even momentarily, at a config state the user didn't
 choose.
 
-- [ ] Task 1 (bug fix): `POST /api/projects/:id/tracks` writes
-      `**Track Kind**: ${type}` into the new track's `index.md` — the
-      SAME `type` value already collected and sent today, just not
-      persisted. Regression test: create a track with `type: 'bug'`,
-      assert `index.md` contains `**Track Kind**: bug` and
-      `resolveWorkspaceMode` (called with that track's real parsed
-      content) resolves to `'main'` for an auto-queue trigger per D1 row 4
-      — prove the fix closes the actual behavioral gap, not just that a
-      string got written.
+- [x] Task 1 (bug fix): ~~`POST /api/projects/:id/tracks` writes
+      `**Track Kind**: ${type}` into the new track's `index.md`~~ —
+      **already fixed, not a live gap.** Re-checked against the current
+      tree (not the stale audit this task description was written from):
+      track 1115 already added this — `trackTemplates()` in
+      `ui/server/utils.mjs` (called by the POST handler at
+      `ui/server/index.mjs:855`) emits `**Track Kind**: bug` for bug-type
+      tracks, covered by `ui/server/tests/utils.test.mjs`'s "emits
+      `**Track Kind**: bug` for bug tracks" case. End-to-end wiring
+      (index.md → `parseTrackKind` → `resolveWorkspaceMode`) is covered
+      by `conductor/tests/track-1115-workspace-mode.test.mjs`'s TC-30 —
+      ran it: 13/13 pass.
+      **Correction to this task's own regression-test spec**: the
+      expected outcome as originally written here ("resolves to `main`
+      for an auto-queue trigger per D1 row 4") is backwards.
+      `resolveWorkspaceMode`'s D5 precedence checks the unattended-trigger
+      override (row 3) *before* the type-derived default (row 4) — an
+      `auto-queue`/`auto-complete` trigger forces `'branch'` regardless
+      of `trackType`, by design (D1: "an inferred-but-unconfirmed bug
+      classification must not run unattended on `main`"). TC-30 asserts
+      exactly this — `'branch'` on auto-queue for a Track-Kind-only bug —
+      and TC-5 covers the case this task actually meant: a bug track
+      resolves to `'main'` for a *manual-dispatch* trigger. No code
+      change needed; no new test added, since TC-30/TC-5 already are the
+      regression test this task asked for.
 - [ ] Task 2: `POST /api/projects/:id/tracks` accepts optional
       `merge_mode` (`'pr'|'direct'`), `auto_run` (boolean, default
       `false`), and `model` (string, project's own available-model list —

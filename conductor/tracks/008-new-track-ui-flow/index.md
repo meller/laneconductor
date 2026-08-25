@@ -7,7 +7,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 80%
 
 ## Problem
 There is no way to start work from the UI. Creating a track requires the Claude CLI (`/laneconductor newTrack`). The UI should have a "New Track" button that either surfaces an existing track to resume, or creates a new one — without leaving the browser.
@@ -19,4 +19,4 @@ A "+ New Track" button in the board header. Clicking opens a modal that first ch
 - [ ] Phase 1: `POST /api/projects/:id/tracks` endpoint + file creation on server
 - [ ] Phase 2: New Track modal in UI (resume existing or create new)
 - [ ] Phase 3: "+ New Track" button in board header, wired to modal
-**Summary**: No server endpoint to create tracks from the UI.
+**Summary**: Phases 1-4 reviewed and complete. Implementing Phase 5 — per-track config (Track Kind fix + Merge Mode/Workspace/Auto Run/Model) at creation time.
