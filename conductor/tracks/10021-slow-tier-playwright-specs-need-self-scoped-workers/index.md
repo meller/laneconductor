@@ -2,7 +2,7 @@
 
 **Status**: plan
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 
 ## Problem
 Follow-up from track 1100 Review #3's Gap 2 and track-1033-sharing findings (2026-08-20). Both blockers on the slow Playwright tier come down to the same root cause: the specs depend on shared live infrastructure (an ambient sync+poll worker able to claim ANY queued track, or the shared ui/server/index.mjs instance on :8091 that every other in-flight track also depends on) rather than bringing their own isolated infrastructure.
