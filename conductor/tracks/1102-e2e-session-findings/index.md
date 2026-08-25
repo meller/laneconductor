@@ -1,8 +1,8 @@
 # Track 1102: E2E session findings — new project → track → plan flow
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: queue
-**Progress**: 94%
+**Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Review failed (2026-08-25) on completion bookkeeping, not the engineering: index.md's Phases checklist and plan.md still show Phases 3/8/10 unchecked despite the fixes being verified real (F3/F9b/F6 all re-confirmed via code + passing tests this review); spec.md has 7/11 ACs unchecked, two with a genuine unclosed gap (AC-1's F3 live create+drag check, AC-7's claim-timeout UI visibility). Remaining: correct the stale checkboxes, do AC-1's live check, close or link-out AC-7's UI gap and Phase 7 Task 5's SKILL guidance.
 **Type**: bug
