@@ -1,10 +1,10 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: review
-**Lane Status**: running
+**Lane**: quality-gate
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Answered open thread — no human message existed; racing worker PID 2236001 confirmed gone. Track complete and merged (7d865e6 ancestor of HEAD); lane restored to done.
+**Last Run**: mock (primary)
+**Phase**: Quality gate PASSED — done. Both gaps found during review (TC-31 onboarding regression, TC-34 missing test) closed for real, not waived: git-history check + live evidence for TC-31, new 4/4-passing…
 **Type**: dev
 **Summary**: A distinct 'manager' worker type that can act system-wide (create new projects) instead of being scoped to one project like every worker today.
 
