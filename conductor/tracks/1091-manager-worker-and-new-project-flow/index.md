@@ -1,7 +1,7 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Answered open thread — no human message existed; racing worker PID 2236001 confirmed gone. Track complete and merged (7d865e6 ancestor of HEAD); lane restored to done.
@@ -78,3 +78,4 @@ the manager worker that doesn't exist today. A form collects the same
 answers upfront into one `scaffold_context` blob and dispatches once on
 submit, matching the existing pattern.
 **Waiting for reply**: no
+**Auto Run**: yes
