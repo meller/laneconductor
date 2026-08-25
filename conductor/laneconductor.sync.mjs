@@ -1352,7 +1352,23 @@ function resolveTrackFolder(tracksDir, trackNumber) {
     .map(d => d.name)
     .sort();
 
-  if (matches.length <= 1) return matches[0] || null;
+  // Legacy folders are named `${trackNumber}-slug`, matched above. Newer
+  // tracks (since track 10023) use `INITIALS-${trackNumber}-slug`, which
+  // never matches that prefix and previously made this function return
+  // null for every prefixed track — breaking any dispatch path that
+  // resolves the folder by track number alone (e.g. worker_dispatch
+  // lane-action processing, which is also what the UI's "Run" button
+  // ultimately triggers). Fall back to the registered folder_path in
+  // tracks-metadata.json, which newTrack always writes correctly
+  // regardless of naming convention.
+  if (matches.length === 0) {
+    const meta = getTrackMetadata(trackNumber);
+    const registered = meta?.folder_path ? basename(meta.folder_path) : null;
+    if (registered && existsSync(join(tracksDir, registered))) return registered;
+    return null;
+  }
+
+  if (matches.length === 1) return matches[0];
 
   const meta = getTrackMetadata(trackNumber);
   const registered = meta?.folder_path ? basename(meta.folder_path) : null;
