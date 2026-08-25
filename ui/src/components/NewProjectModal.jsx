@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
 import { CreateManagerWorkerForm } from './CreateManagerWorkerForm.jsx';
 import { AppCreatorWizard } from './wizard/AppCreatorWizard.jsx';
+import { FollowBuildView } from './wizard/FollowBuildView.jsx';
 
 const CLOUD_MODE = process.env.VITE_CLOUD_MODE === 'true';
 
@@ -124,7 +125,17 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
           )}
         </div>
 
-        {dispatch ? (
+        {/* Track AM-1119 Phase 5: a wizard-mode Launch that resolved `done`
+            hands off to FollowBuildView instead of the plain status panel
+            below — "Created at <path>" is the first line of every
+            successful create-project dispatch result (runCreateProject,
+            conductor/laneconductor.sync.mjs), parsed here rather than
+            adding a new response field so old/new workers stay compatible. */}
+        {dispatch && dispatch.status === 'done' && mode === 'wizard' && /^Created at (\S+)/.test(dispatch.result || '') ? (
+          <div className="px-5 py-4">
+            <FollowBuildView repoPath={dispatch.result.match(/^Created at (\S+)/)[1]} onClose={onClose} />
+          </div>
+        ) : dispatch ? (
           <div className="px-5 py-4 space-y-3">
             <p className="text-xs text-gray-400">
               Status: <span className="text-gray-200 font-mono">{dispatch.status}</span>

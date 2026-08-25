@@ -30,7 +30,7 @@ function computeStatus({ isOnline, unrepliedCount, laneCounts }) {
   return inFlight > 0 ? 'active' : 'idle';
 }
 
-export function ProjectCard({ project, tracks, workers, onOpen, onManageContext, onRename, onDelete }) {
+export function ProjectCard({ project, tracks, workers, onOpen, onManageContext, onRename, onDelete, onFollowBuild }) {
   const projectTracks = tracks.filter(t => t.project_id === project.id);
   const projectWorkers = workers.filter(w => w.project_id === project.id);
 
@@ -114,6 +114,16 @@ export function ProjectCard({ project, tracks, workers, onOpen, onManageContext,
         >
           Manage Context
         </button>
+        {onFollowBuild && (
+          <button
+            onClick={() => onFollowBuild(project)}
+            title="Follow this project's build progress"
+            data-testid="project-follow-build-button"
+            className="text-[10px] px-2 py-1 rounded border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+          >
+            Follow Build
+          </button>
+        )}
         <div className="flex-1" />
         <button
           onClick={() => onRename(project)}
