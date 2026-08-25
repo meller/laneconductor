@@ -1,10 +1,10 @@
 # Track 1118: Manager worker needs its own credential storage
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned
 **Type**: bug
 **Track Kind**: bug
