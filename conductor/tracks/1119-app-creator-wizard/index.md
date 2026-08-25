@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 67%
+**Progress**: 83%
 **Last Run**: mock (primary)
-**Phase**: Phase 4 of 6 complete — deploy-to-URL + app_url plumbing
+**Phase**: Phase 5 of 6 complete — "follow your build" progress view
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
