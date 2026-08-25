@@ -3,9 +3,12 @@
 //
 // Run modes:
 //
-//   MODE 1 — PW_TEST_MODE (local, no Firebase needed)
-//     Restart server: PW_TEST_MODE=true node ui/server/index.mjs
-//     Run test: PW_TEST_MODE=true npx playwright test track-1033-sharing.spec.js
+//   MODE 1 — default (local, no Firebase needed)
+//     Track 10021: this spec brings its own dedicated PW_TEST_MODE API
+//     server on its own port automatically — no setup required, and the
+//     shared :8091 instance every other in-flight track depends on is never
+//     touched.
+//     Run test: npx playwright test track-1033-sharing.spec.js
 //
 //   MODE 2 — Real Firebase tokens (against local Firebase-enabled server or production)
 //     TEST_TOKEN_A=<firebase-id-token-user-a> \
@@ -14,20 +17,28 @@
 //     TEST_API_URL=https://api.yourdomain.com \   # optional, defaults to localhost:8091
 //     npx playwright test track-1033-sharing.spec.js
 //
+//   MODE 3 — explicit TEST_API_URL, no tokens (point at an already-running
+//     server instead of spinning up a dedicated one). Skips if that server
+//     has auth enabled and no tokens were supplied — the one case this spec
+//     genuinely cannot satisfy on its own.
+//
 // Uses test.describe.serial so all steps share workerId/tokenA/tokenB state.
 
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
 import pg from 'pg';
+import { startTestServer, stopTestServer } from './helpers/test-server.mjs';
 
-const API = process.env.TEST_API_URL || 'http://localhost:8091';
-const PW_TEST_MODE = process.env.PW_TEST_MODE === 'true';
 const FIREBASE_MODE = Boolean(process.env.TEST_TOKEN_A && process.env.TEST_TOKEN_B && process.env.TEST_USER_B_UID);
 
 const DB_URL = process.env.DATABASE_URL || '***REMOVED-SECRET-NEON-CREDENTIAL***:5432/laneconductor';
 
-// Shared state across serial steps
+// Shared state across serial steps. `apiUrl` is resolved at runtime in
+// beforeAll (Track 10021 REQ-10/11) rather than a module-level constant, so
+// it can point at a dedicated server spun up just for this file.
 const state = {
+  apiUrl: null,
+  testServer: null,
   tokenA: null,
   tokenB: null,
   userAUid: null,
@@ -35,7 +46,7 @@ const state = {
   projectId: null,
   workerId: null,
   hostname: null,
-  dbPool: null,      // only used in PW_TEST_MODE for seeding
+  dbPool: null,      // only used against a TEST_MODE server, for seeding
 };
 
 test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
@@ -44,15 +55,40 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
       state.tokenA = process.env.TEST_TOKEN_A;
       state.tokenB = process.env.TEST_TOKEN_B;
       state.userBUid = process.env.TEST_USER_B_UID;
-      console.log(`[sharing] Mode: FIREBASE — API: ${API}`);
-    } else if (PW_TEST_MODE) {
+      state.apiUrl = process.env.TEST_API_URL || 'http://localhost:8091';
+      console.log(`[sharing] Mode: FIREBASE — API: ${state.apiUrl}`);
+    } else if (process.env.TEST_API_URL) {
+      // Explicit override: point at an already-running server (production,
+      // staging, or one started elsewhere) instead of spinning up our own.
+      state.apiUrl = process.env.TEST_API_URL;
+      const configRes = await request.get(`${state.apiUrl}/auth/config`);
+      const { enabled } = await configRes.json();
+      if (!enabled) {
+        console.log('[sharing] Skipping: TEST_API_URL has auth disabled, so per-user visibility cannot be exercised there.');
+        console.log('[sharing] Either omit TEST_API_URL (this spec will start its own PW_TEST_MODE server), or point it at a PW_TEST_MODE-enabled server.');
+        test.skip();
+        return;
+      }
+      console.log('[sharing] Skipping: TEST_API_URL has auth enabled but no test tokens were supplied (TEST_TOKEN_A/B/TEST_USER_B_UID).');
+      test.skip();
+      return;
+    } else {
+      // Track 10021 REQ-10/11: default — bring our own dedicated
+      // PW_TEST_MODE server on its own port instead of requiring the shared
+      // :8091 instance to be manually restarted with auth-bypass enabled.
+      state.testServer = await startTestServer();
+      state.apiUrl = state.testServer.apiUrl;
+      console.log(`[sharing] Mode: PW_TEST_MODE (dedicated server) — API: ${state.apiUrl}`);
+    }
+
+    if (!FIREBASE_MODE) {
       const uidA = 'test_userA_' + randomUUID().slice(0, 8);
       const uidB = 'test_userB_' + randomUUID().slice(0, 8);
       state.tokenA = `MOCK_TOKEN_FOR_${uidA}`;
       state.tokenB = `MOCK_TOKEN_FOR_${uidB}`;
       state.userAUid = uidA;
       state.userBUid = uidB;
-      console.log(`[sharing] Mode: PW_TEST_MODE — A: ${uidA}, B: ${uidB}`);
+      console.log(`[sharing] Test users — A: ${uidA}, B: ${uidB}`);
 
       // Seed test users into DB (workers.user_uid FK requires users to exist)
       state.dbPool = new pg.Pool({ connectionString: DB_URL });
@@ -65,31 +101,19 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
          uidB, `gh_${fakeGhBase}_b`, `test-user-b-${fakeGhBase}`, 'Test User B', 'b@pw-test.local']
       );
       console.log(`[sharing] Seeded test users in DB`);
-    } else {
-      const configRes = await request.get(`${API}/auth/config`);
-      const { enabled } = await configRes.json();
-      if (!enabled) {
-        console.log('[sharing] Skipping: set PW_TEST_MODE=true on the server and re-run with PW_TEST_MODE=true,');
-        console.log('[sharing] or provide TEST_TOKEN_A, TEST_TOKEN_B, TEST_USER_B_UID for Firebase mode.');
-        test.skip();
-        return;
-      }
-      console.log('[sharing] Skipping: auth enabled but no test tokens set (TEST_TOKEN_A/B).');
-      test.skip();
-      return;
     }
 
     // Resolve projectId
     if (process.env.TEST_PROJECT_ID) {
       state.projectId = parseInt(process.env.TEST_PROJECT_ID);
-    } else if (PW_TEST_MODE) {
-      // In PW_TEST_MODE the random test user has no project membership, so we can't use
-      // the auth-scoped GET /api/projects. Default to project_id=1 (local dev project).
-      // Override by setting TEST_PROJECT_ID.
+    } else if (!FIREBASE_MODE) {
+      // The random test user has no project membership, so we can't use the
+      // auth-scoped GET /api/projects. Default to project_id=1 (local dev
+      // project). Override by setting TEST_PROJECT_ID.
       state.projectId = 1;
-      console.log(`[sharing] PW_TEST_MODE: defaulting to project_id=1 (set TEST_PROJECT_ID to override)`);
+      console.log(`[sharing] Defaulting to project_id=1 (set TEST_PROJECT_ID to override)`);
     } else {
-      const res = await request.get(`${API}/api/projects`, {
+      const res = await request.get(`${state.apiUrl}/api/projects`, {
         headers: { Authorization: `Bearer ${state.tokenA}` },
       });
       expect(res.ok(), `GET /api/projects failed: ${res.status()}`).toBeTruthy();
@@ -101,26 +125,35 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
   });
 
   test.afterAll(async ({ request }) => {
-    if (state.hostname && state.tokenA) {
-      await request.post(`${API}/worker/deregister`, {
-        headers: { Authorization: `Bearer ${state.tokenA}` },
-        data: { hostname: state.hostname },
-      }).catch(() => {});
-    }
     if (state.dbPool) {
-      // Clean up seeded test users (cascades to workers and worker_permissions)
+      // Track 10021 TC-23 fix: `/worker/deregister` is not a route this API
+      // exposes (the call below always 404'd, silently swallowed) — the
+      // worker row from Step 1 was never actually removed, and
+      // workers.user_uid -> users.uid has no ON DELETE CASCADE, so deleting
+      // the seeded users below would fail its FK check every single run.
+      // Delete the worker row directly (cascades to worker_permissions,
+      // track_sessions, worker_dispatch) before deleting the users.
+      if (state.workerId) {
+        await state.dbPool.query('DELETE FROM workers WHERE id = $1', [state.workerId]).catch(() => {});
+      }
       await state.dbPool.query(
         `DELETE FROM users WHERE uid IN ($1, $2)`,
         [state.userAUid, state.userBUid]
       ).catch(() => {});
       await state.dbPool.end().catch(() => {});
     }
+    // REQ-10/AC-8: torn down after the run — nothing left listening, no
+    // orphaned process, and the shared :8091 instance was never touched.
+    if (state.testServer) {
+      await stopTestServer(state.testServer);
+      console.log('[sharing] Dedicated test server stopped');
+    }
   });
 
   test('Step 1 — User A registers a private worker', async ({ request }) => {
     state.hostname = `pw-share-${randomUUID().slice(0, 6)}`;
 
-    const res = await request.post(`${API}/worker/register`, {
+    const res = await request.post(`${state.apiUrl}/worker/register`, {
       headers: { Authorization: `Bearer ${state.tokenA}` },
       data: {
         hostname: state.hostname,
@@ -131,7 +164,7 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
     });
     expect(res.ok(), `register failed: ${res.status()} ${await res.text()}`).toBeTruthy();
 
-    const workersRes = await request.get(`${API}/api/projects/${state.projectId}/workers`, {
+    const workersRes = await request.get(`${state.apiUrl}/api/projects/${state.projectId}/workers`, {
       headers: { Authorization: `Bearer ${state.tokenA}` },
     });
     const workers = await workersRes.json();
@@ -143,7 +176,7 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
   });
 
   test("Step 2 — User B cannot see User A's private worker", async ({ request }) => {
-    const res = await request.get(`${API}/api/projects/${state.projectId}/workers`, {
+    const res = await request.get(`${state.apiUrl}/api/projects/${state.projectId}/workers`, {
       headers: { Authorization: `Bearer ${state.tokenB}` },
     });
     expect(res.ok()).toBeTruthy();
@@ -156,13 +189,13 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
   });
 
   test('Step 3 — User A shares with Team + adds User B', async ({ request }) => {
-    const patchRes = await request.patch(`${API}/api/workers/${state.workerId}/visibility`, {
+    const patchRes = await request.patch(`${state.apiUrl}/api/workers/${state.workerId}/visibility`, {
       headers: { Authorization: `Bearer ${state.tokenA}` },
       data: { visibility: 'team' },
     });
     expect(patchRes.ok(), `PATCH visibility=team failed: ${patchRes.status()} ${await patchRes.text()}`).toBeTruthy();
 
-    const grantRes = await request.post(`${API}/api/workers/${state.workerId}/permissions`, {
+    const grantRes = await request.post(`${state.apiUrl}/api/workers/${state.workerId}/permissions`, {
       headers: { Authorization: `Bearer ${state.tokenA}` },
       data: { user_uid: state.userBUid },
     });
@@ -171,7 +204,7 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
   });
 
   test('Step 4 — User B can now see the team worker', async ({ request }) => {
-    const res = await request.get(`${API}/api/projects/${state.projectId}/workers`, {
+    const res = await request.get(`${state.apiUrl}/api/projects/${state.projectId}/workers`, {
       headers: { Authorization: `Bearer ${state.tokenB}` },
     });
     expect(res.ok()).toBeTruthy();
@@ -185,12 +218,12 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
 
   test('Step 5 — User A revokes User B access', async ({ request }) => {
     const revokeRes = await request.delete(
-      `${API}/api/workers/${state.workerId}/permissions/${state.userBUid}`,
+      `${state.apiUrl}/api/workers/${state.workerId}/permissions/${state.userBUid}`,
       { headers: { Authorization: `Bearer ${state.tokenA}` } }
     );
     expect(revokeRes.ok(), `revoke failed: ${revokeRes.status()} ${await revokeRes.text()}`).toBeTruthy();
 
-    const res = await request.get(`${API}/api/projects/${state.projectId}/workers`, {
+    const res = await request.get(`${state.apiUrl}/api/projects/${state.projectId}/workers`, {
       headers: { Authorization: `Bearer ${state.tokenB}` },
     });
     const workers = await res.json();
@@ -202,13 +235,13 @@ test.describe.serial('Track 1033: Multi-user Worker Sharing', () => {
   });
 
   test('Step 6 — User A sets worker to Public (visible to everyone)', async ({ request }) => {
-    const patchRes = await request.patch(`${API}/api/workers/${state.workerId}/visibility`, {
+    const patchRes = await request.patch(`${state.apiUrl}/api/workers/${state.workerId}/visibility`, {
       headers: { Authorization: `Bearer ${state.tokenA}` },
       data: { visibility: 'public' },
     });
     expect(patchRes.ok(), `PATCH visibility=public failed: ${patchRes.status()}`).toBeTruthy();
 
-    const res = await request.get(`${API}/api/projects/${state.projectId}/workers`, {
+    const res = await request.get(`${state.apiUrl}/api/projects/${state.projectId}/workers`, {
       headers: { Authorization: `Bearer ${state.tokenB}` },
     });
     const workers = await res.json();

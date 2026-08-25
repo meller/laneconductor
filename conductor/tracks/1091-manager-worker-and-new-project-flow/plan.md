@@ -366,3 +366,99 @@ server/tests/track-1091-*.test.mjs` (19/19, up from 15 — the 4 new). Stub
 scan clean. No secrets in touched files. Every acceptance criterion in
 spec.md and every TC in test.md is now checked, each against real evidence
 recorded above or in conversation.md — not a rubber stamp.
+
+---
+
+## Phase 6: Manager worker supervises crashed per-project workers (added 2026-08-25)
+
+**Problem**: Nothing on this machine notices when a project worker dies and
+restarts it. Confirmed live this session: the entire per-project worker
+fleet (5 processes) went silently dark at least three separate times during
+one long dogfooding run — no exception, no stack trace, clean process
+exit — leaving every in-flight dispatch stuck reporting `"no worker
+available for this project"` until a human happened to notice and ran
+`lc worker start` by hand for each one. Root cause of the deaths themselves
+was investigated and NOT conclusively found (OOM killer and
+`systemd-oomd` were both directly ruled out via `journalctl`/`dmesg` — no
+kill events logged by either) — this phase is about *detecting and
+recovering* from the crash, not preventing it, since the trigger remains
+unknown.
+
+**Why the manager worker, not a new process**: the manager is already the
+one machine-level singleton per host (`workers_one_manager_per_host`,
+Phase 1), already runs its own dispatch loop independent of any single
+project (Phase 3), and already spawns `lc worker start` at a target
+location as a normal part of its job (Phase 3 Task 5, `create-project`).
+A crashed *project* worker can't restart itself by definition; a
+crashed *manager* is out of scope here (Phase 2's own singleton-lock
+already prevents two managers, and a dead manager is directly visible —
+`lc worker start --manager` just works again, the normal recovery path,
+unlike a project worker's silent multi-process death across all of a
+project's fleet at once). The manager surviving independently of any one
+project's worker fleet is exactly what makes it able to notice their
+absence.
+
+**Solution**: the manager worker's existing polling loop (the same one
+that checks for `create-project` dispatches) also periodically checks a
+listing of this host's workers and, for any whose `last_heartbeat` has
+gone stale-but-not-ancient, resolves that worker's project via
+`repo_path` and respawns it: `lc worker start --worker-number N` (or
+`lc worker start` for worker-number 1), reusing the *exact* spawn call
+Phase 3 Task 5 already makes for `create-project`, not a new one.
+
+**Correction found while planning, not assumed**: the existing
+`GET /api/workers` (Track 1084/1091's own listing endpoint) already
+`WHERE last_heartbeat > NOW() - INTERVAL '60 seconds'` — a genuinely
+stale worker is filtered OUT of the response entirely, not returned with
+a stale timestamp for the caller to notice. This endpoint structurally
+cannot answer "which of my workers went quiet" — there is no existing
+query anywhere in `ui/server/index.mjs` that returns workers without this
+freshness filter (checked: every other `SELECT ... FROM workers` is
+scoped by id/project/machine_token, none list-all-regardless-of-heartbeat).
+
+- [ ] Task 1: New `GET /api/workers/stale?hostname=<h>&maxAgeMs=<n>` (or a
+      `?includeStale=true` param on the existing route — pick whichever
+      reads cleaner against this file's existing route conventions) —
+      returns rows for `hostname` with `last_heartbeat` OLDER than
+      `maxAgeMs` but younger than some upper bound (e.g. 10 minutes) so
+      workers that died hours ago and were never cleaned up don't get
+      endlessly "respawned" forever with no track record of why. Write a
+      small pure helper, `findStaleWorkersOnThisHost(workers, hostname,
+      now, maxAgeMs)`, unit-testable without a DB or HTTP, and a route
+      test asserting the query's own WHERE clause behaves (fresh workers
+      excluded, ancient ones excluded, only the middle band returned).
+- [ ] Task 2: Wire the check into the manager's existing poll loop (same
+      cadence as the `create-project` check — do not add a second
+      `setInterval`). Guarded by `isManager` the same way Phase 3's
+      dispatch-loop check already is.
+- [ ] Task 3: Respawn via the same code path Phase 3 Task 5 uses
+      (`spawn('lc', ['worker', 'start', ...])`, `detached: true`) — extract
+      that spawn call to a shared helper if it isn't already one, rather
+      than writing a second copy of it.
+- [ ] Task 4: A self-lock — the manager must not try to respawn a worker
+      it *just* spawned before that worker's own first heartbeat has had
+      a chance to land (race between "just started" and "looks stale").
+      Skip any worker whose `created_at`/first-registration is younger
+      than the staleness threshold itself.
+- [ ] Task 5: Log every respawn to the manager's own log AND post a
+      `system` comment to... there is no natural per-track home for a
+      machine-level event like this. Log-only is acceptable here — do not
+      invent a track to post to.
+- [ ] Task 6: Real test — spawn a real manager worker + a real project
+      worker (mock collector) against a live mock-collector, kill the
+      project worker's process, confirm the manager notices (stale
+      heartbeat) and a new one registers within the poll interval. Mirror
+      `track-1091-create-project-worker.test.mjs`'s "real spawned worker,
+      not a mock of the handler" standard — this phase's whole point is
+      real recovery, a test that mocks the respawn call proves nothing.
+- [ ] Task 7: Negative test — a worker that's simply idle (heartbeat
+      current, no active dispatch) must never be "respawned" — only
+      genuinely stale heartbeats trigger anything. Confirm no interaction
+      with a normally-idle fleet.
+
+**Explicit non-goals**: does not investigate or fix whatever kills the
+fleet in the first place (unknown, see Problem above) — recovery only.
+Does not supervise workers on OTHER hosts (a manager is host-scoped by
+construction, Phase 2). Does not touch `systemd`/OS-level process
+supervision — see spec.md if that direction is wanted later; this phase
+is the in-app alternative that was chosen instead of it.

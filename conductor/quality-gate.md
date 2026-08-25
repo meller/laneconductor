@@ -8,6 +8,11 @@
 > `Status: PASS` already filled in. That invited rubber-stamping, and it is
 > a direct cause of several tracks reaching `done` with features that did
 > not work (2026-08-12 review). Reset to unchecked deliberately.
+>
+> Per-track run details (what actually passed/failed for track NNN, and
+> why) belong in that track's own `plan.md`/`conversation.md`, not here —
+> this file is the reusable command reference every track's quality-gate
+> phase runs, not a log of the last run.
 
 ## Automated Checks
 
@@ -55,6 +60,10 @@ command actually executed during this run, not a carried-over mark.
 
 ## End-to-End / Real-Product Checks
 
+> Required for any track touching UI or a user-facing flow. Unit tests
+> cannot detect a feature that was never wired up — every UI bug found in
+> the 2026-08-12 review had green unit tests.
+
 **Track 1102 scope note**: this track touches UI-facing behavior (F3's
 track-creation template, F15's dispatch bridge) so the E2E bar applies in
 full.
@@ -63,6 +72,8 @@ full.
       done for the live shared `:8090`/`:8091` stack (other in-flight
       tracks depend on it) — same precedent as track 1096. Real
       verification below used an isolated instance instead.
+- [ ] **E2E fast tier**: `npx playwright test --project=fast` — not run
+      this pass; superseded by the targeted live verification below.
 - [x] **F3 (AC-1) live-verified** — first attempt against the live shared
       API at `:8091` reproduced the *original* bug (`**Status**: plan`
       still written) because that server runs the primary checkout's code
@@ -85,8 +96,23 @@ full.
       row claimed by a real worker within ~1s. An unintended side effect
       (a real GitHub PR opened by the dispatch) was caught and cleaned up
       same-session.
-- [ ] E2E slow tier — not run this pass; none of this track's own fixes
-      touch the worker claim/brainstorm/planning path it covers.
+- [ ] **E2E slow tier** — not run this pass; none of this track's own
+      fixes touch the worker claim/brainstorm/planning path it covers.
+      Track 10021: these specs now bring their own throwaway worker
+      (`conductor/tests/playwright/helpers/scoped-worker.mjs`), scoped to
+      only the track(s) each spec creates, so this tier no longer requires
+      an ambient `lc worker start --sync-and-work` process and is
+      CI-runnable; an ambient worker, if running, must be stopped first so
+      it doesn't claim the tracks before the scoped worker does.
+- [ ] **E2E sharing spec**: `npx playwright test conductor/tests/playwright/track-1033-sharing.spec.js`
+      — not run this pass; unrelated to this track's changes. Runs against
+      a dedicated `PW_TEST_MODE` server on its own port
+      (`conductor/tests/playwright/helpers/test-server.mjs`) — the shared
+      `:8091` instance is never restarted or otherwise touched.
+- [x] If no E2E suite covers the change: drove the flow manually and
+      recorded the observed user-visible result — see the F3/F10c/F15
+      live-verification entries above, each backed by a real API/DB
+      response or Playwright run recorded in this track's own `plan.md`.
 
 ## Manual Quality Review
 

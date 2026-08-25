@@ -4192,6 +4192,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // after this guard was added. These are the worker's own operational
   // state, not human/agent WIP a commit could accidentally sweep in, so
   // they're exempted the same as the track's own folder.
+  //
+  // Track 10021: discovered live that conductor/tracks/file_sync_queue.md
+  // belongs in the same exemption. Every track creation (UI or CLI) appends
+  // an entry to it, so a track's OWN creation always leaves this file dirty
+  // outside its own folder — meaning main-mode's very first plan-lane spawn
+  // attempt for a just-created track was unconditionally blocked by its own
+  // side effect, every time, with no retry ever able to clear it (the next
+  // cycle just appends again for the next track). It's the fs-side half of
+  // the same worker-owned queue mechanism as tracks-metadata.json above —
+  // only humans/Claude/API produce entries, the worker is the sole
+  // consumer — not human/agent WIP a commit could accidentally sweep in.
   if (workspaceMode === 'main') {
     const dirtyPaths = (() => {
       try {
@@ -4202,7 +4213,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     })();
     const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
-    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json';
+    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json' || p === 'conductor/tracks/file_sync_queue.md';
     const disqualifying = dirtyPaths.filter(p =>
       (!ownFolderPrefix || !p.startsWith(ownFolderPrefix)) && !isWorkerBookkeeping(p)
     );
