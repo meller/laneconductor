@@ -292,7 +292,7 @@ export async function waitForLaneAction(handle, trackNumber, predicate, { timeou
  * directories, and deletes the DB rows. Safe to call even when the test body
  * threw (callers should invoke this from a finally/afterEach).
  */
-export async function cleanup(handle, trackNumbers, { apiUrl = DEFAULT_API_URL, projectId = DEFAULT_PROJECT_ID, graceMs = 3000 } = {}) {
+export async function cleanup(handle, trackNumbers, { apiUrl = DEFAULT_API_URL, projectId = DEFAULT_PROJECT_ID, projectRoot, graceMs = 3000 } = {}) {
   if (handle?.proc && handle.proc.exitCode === null && handle.proc.signalCode === null) {
     try {
       handle.proc.kill('SIGTERM');
@@ -306,12 +306,21 @@ export async function cleanup(handle, trackNumbers, { apiUrl = DEFAULT_API_URL, 
     } catch { /* already dead */ }
   }
 
-  const projectRoot = handle?.projectRoot ?? PROJECT_ROOT;
+  // Found live in quality-gate verification: assertCheckoutSpawnable can
+  // throw BEFORE spawnScopedWorker ever runs — exactly this track's own
+  // negative path (F4/AC-5) — leaving `handle` null. The old
+  // `handle?.projectRoot ?? PROJECT_ROOT` fallback then resolved to this
+  // helper file's own on-disk location instead of wherever the tracks were
+  // actually created (createTrackViaUI's caller-resolved repo_path),
+  // silently failing to find and delete the real directories. Callers must
+  // now pass the same `projectRoot` they resolved for creation; PROJECT_ROOT
+  // remains only as a last-resort default when neither is available.
+  const resolvedProjectRoot = projectRoot ?? handle?.projectRoot ?? PROJECT_ROOT;
   for (const trackNumber of trackNumbers) {
     await fetch(`${apiUrl}/api/projects/${projectId}/tracks/${trackNumber}`, { method: 'DELETE' }).catch(() => {});
-    const dirName = resolveTrackDir(projectRoot, trackNumber);
+    const dirName = resolveTrackDir(resolvedProjectRoot, trackNumber);
     if (dirName) {
-      rmSync(join(projectRoot, 'conductor/tracks', dirName), { recursive: true, force: true });
+      rmSync(join(resolvedProjectRoot, 'conductor/tracks', dirName), { recursive: true, force: true });
     }
   }
 }

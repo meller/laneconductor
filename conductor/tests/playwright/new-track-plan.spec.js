@@ -125,7 +125,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
   } finally {
     // REQ-6: cleanup runs even when the body throws.
     if (trackNumber) {
-      await cleanup(handle, [trackNumber], { projectId });
+      await cleanup(handle, [trackNumber], { projectId, projectRoot });
       console.log(`🧹 Cleaned up track ${trackNumber} and its scoped worker`);
     }
   }
