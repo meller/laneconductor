@@ -27,8 +27,10 @@ export function parseStatus(content, Lanes, LaneAliases, createQualityGate = fal
     return l;
   }
 
-  // 2. Try explicit **Status** marker (legacy — only present on UI-created
-  // tracks' initial template, and never updated after creation)
+  // 2. Try explicit **Status** marker (legacy back-compat only — track 1102
+  // F3 removed **Status** from trackTemplates() (ui/server/utils.mjs), so no
+  // *new* track ever reaches this branch; it stays only for tracks already
+  // on disk from before that fix)
   const explicitStatus = content.match(/\*\*Status\*\*:\s*([a-z0-9-]+)/i);
   if (explicitStatus) {
     const s = explicitStatus[1].toLowerCase().trim();

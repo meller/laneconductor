@@ -1449,9 +1449,29 @@ Execute implementation tasks. The Skill Worker communicates purely through files
      non-functional (a hardcoded `null` broke the one code path meant to matter) and neither
      test file had actually been executed — one had a hard import error that any single run
      would have caught immediately.
+   - **Never end a turn having just backgrounded a long-running command and nothing else.**
+     The harness kills background children when the session process exits, so a turn that
+     ends there produces a run that exited 0 mid-work with real work left undone — found and
+     fixed as track 1102's F21 (original variant): the exit handler now recognizes this as a
+     distinguishable `ended_mid_work` outcome instead of silently advancing the lane, but that
+     only makes the aftermath visible; it does not prevent it. If a command needs to run
+     longer than this turn should take, either wait for it to finish before ending the turn,
+     or explicitly hand off with a comment in `conversation.md` naming exactly what is still
+     running and what the next turn should check for.
    - Update `plan.md` (⏳ → ✅ per task as completed)
    - Update `index.md` `**Progress**` marker
    - Commit: `feat(track-NNN): Phase X - description`
+   - **Never end your final turn on a just-launched background command** (a
+     backgrounded shell process, an unresumed `&`, a detached spawn you
+     intend to check on next turn). The harness kills background children
+     when the session process exits, so the work is silently lost, not
+     paused. If a command must run long, run it in the foreground and wait
+     for it, or explicitly hand off with a note in `conversation.md` rather
+     than trusting a background process to survive turn-end. Track 1102 F21
+     made the *aftermath* of this mistake visible (an exit-0-mid-`running`
+     turn now produces a distinguishable outcome instead of a silent
+     `queue`) — that is recovery, not prevention; this rule is the
+     prevention.
 
 5. **Dev track: On complete** (skip for non-dev tracks):
    - Same verification bar as step 4, for the track as a whole, before writing `## ✅ COMPLETE`.

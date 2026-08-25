@@ -12,6 +12,13 @@
 // routed to it sits 'pending'/never-claimed forever with no error anywhere.
 // Confirmed live: dispatching track 10019's plan picked worker 1013
 // (pid 999999) over real workers 1112/1259 because it had the lowest id.
+//
+// Track 1102 (merged into this branch 2026-08-25 via main): the
+// `/dispatch` route's own fallback query gained an idle-worker preference
+// — `ORDER BY (current_task IS NOT NULL), id LIMIT 1` instead of plain
+// `ORDER BY id LIMIT 1` — so this file's mock regexes for that specific
+// endpoint were updated to match. `/worktrees/refresh` still uses the
+// plain form, unchanged.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -52,7 +59,7 @@ describe('POST /api/projects/:id/dispatch — F18 phantom-worker exclusion', () 
         let capturedWorkerId = null;
         vi.mocked(pool.query).mockImplementation(async (sql, params) => {
             if (/SELECT owner_uid FROM projects/.test(sql)) return { rows: [{ owner_uid: null }] };
-            if (/SELECT id FROM workers WHERE project_id.*ORDER BY id LIMIT 1/s.test(sql)) {
+            if (/SELECT id FROM workers WHERE project_id.*ORDER BY \(current_task IS NOT NULL\), id LIMIT 1/s.test(sql)) {
                 const survivors = simulateAnyLiveWorkerQuery(sql, [PHANTOM, PHANTOM_PID0, REAL]);
                 return { rows: survivors.length ? [{ id: survivors[0].id }] : [] };
             }
@@ -76,7 +83,7 @@ describe('POST /api/projects/:id/dispatch — F18 phantom-worker exclusion', () 
         let capturedSql = null;
         vi.mocked(pool.query).mockImplementation(async (sql, params) => {
             if (/SELECT owner_uid FROM projects/.test(sql)) return { rows: [{ owner_uid: null }] };
-            if (/SELECT id FROM workers WHERE project_id.*ORDER BY id LIMIT 1/s.test(sql)) {
+            if (/SELECT id FROM workers WHERE project_id.*ORDER BY \(current_task IS NOT NULL\), id LIMIT 1/s.test(sql)) {
                 capturedSql = sql;
                 return { rows: [{ id: REAL.id }] };
             }
