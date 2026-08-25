@@ -665,3 +665,18 @@ been recorded since review #3 despite three separate requests
 `workflow.json` this transitions to `implement:queue` again. Recording
 plainly, again: nothing here requires further automated cycling to
 resolve — it requires the decision already on the table.
+
+## ❌ Quality Gate (re-run) — 2026-08-24
+
+Invoked again directly, shortly after Review #4. Verified implement pass
+4's fixture-identity fix is real and committed (`a4f1954`), and re-ran the
+fast tier fresh: **11 passed, 0 failed, 6 skipped, 24.9s**. Slow tier still
+not run — no sync+poll worker running (`lc worker status`: STOPPED).
+
+**Verdict: FAIL**, same blocker as review #3, the first quality-gate run,
+and review #4: spec.md's "slow tier passes when explicitly invoked"
+acceptance criterion is still unverified, and no human decision has been
+recorded despite four separate requests now. Per `workflow.json`,
+transitioned to `plan:queue`. Everything code-side is done and verified
+(fast tier fixed, fast, and concurrency-proven); what remains is not
+resolvable by another automated pass.
