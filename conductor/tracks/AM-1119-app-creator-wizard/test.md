@@ -26,9 +26,12 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 - [x] TC-6: DeployPanel (CICDView) renders and deploys as before after helper extraction — expected: existing CICDView behavior/tests unchanged
 
 ### Phase 3: Track auto-generation
-- [ ] TC-7: create-project dispatch with wizard payload writes 3–6 track folders + queue entries; every generated index.md contains `**Auto Run**: yes`, `**Author**`, `**Created By**` — expected: grep confirms markers
-- [ ] TC-8: Generated set always ends with exactly one deploy track referencing the chosen provider — expected: last track slug/title contains deploy + provider
-- [ ] TC-9: Sync worker registers generated tracks in DB on next heartbeat and (in sync+poll mode) claims the first queued track — expected: DB rows exist, first track leaves `queue`
+- [x] TC-7: create-project dispatch with wizard payload writes 3–6 track folders + queue entries; every generated index.md contains `**Auto Run**: yes`, `**Author**`, `**Created By**` — expected: grep confirms markers
+- [x] TC-8: Generated set always ends with exactly one deploy track referencing the chosen provider — expected: last track slug/title contains deploy + provider
+- [x] TC-9: Sync worker registers generated tracks in DB on next heartbeat and (in sync+poll mode) claims the first queued track — expected: DB rows exist, first track leaves `queue`
+      *(DB-registration half verified against a real spawned project worker; "claims the first
+      queued track in sync+poll mode" half verified separately via the **Depends On** gate test —
+      see plan.md's Phase 3 verification note for why these are two different tests.)*
 
 ### Phase 4: app_url
 - [ ] TC-10: `PATCH`/app-url endpoint sets `projects.app_url`; `GET /api/projects/:id` returns it — expected: round-trip
@@ -44,6 +47,7 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 - [ ] TC-16: Manual digger-game run with real Firebase creds: all generated tracks reach done, `curl $app_url` returns HTTP 200 — expected: recorded observation in conversation.md
 
 ## Acceptance Criteria
-- [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6 — see plan.md verification notes)*
+- [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6;
+      Phase 3's TC-7..TC-9 — see plan.md verification notes)*
 - [x] Existing suites (NewProjectModal, CICDView, worker tests) show no regressions *(full ui vitest suite: same 30 pre-existing failures as main, no new failures)*
 - [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded)

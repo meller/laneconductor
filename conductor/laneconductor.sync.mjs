@@ -39,6 +39,8 @@ import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion }
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
+import { deriveTrackPlan } from './services/wizard-track-plan.mjs';
+import { getAuthorInfo } from './services/author.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
@@ -1497,6 +1499,18 @@ function parseWaitingForReply(content) {
 function parseAutoRun(content) {
   const match = content.match(/\*\*Auto Run\*\*:\s*([^\n]+)/i);
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
+}
+
+// Track AM-1119 Phase 3 (Task 2): `**Depends On**: NNN, NNN` — comma-separated
+// track numbers that must all reach lane `done` before this track's own queued
+// lane action may be auto-launched. Used by the wizard's generated track set
+// to gate its final "Deploy to <provider>" track behind the feature tracks
+// ahead of it. Returns normalised (bare, non-zero-padded) track number
+// strings; empty array when the marker is absent — "no dependencies".
+function parseDependsOn(content) {
+  const match = content.match(/\*\*Depends On\*\*:\s*([^\n]+)/i);
+  if (!match) return [];
+  return match[1].split(',').map(s => s.trim().replace(/^0+(?=\d)/, '')).filter(Boolean);
 }
 
 // Track 1116 REQ-7: per-track model override, same marker convention as
@@ -5257,13 +5271,22 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     .sort((a, b) => parseInt(a) - parseInt(b));  // process lowest track numbers first
 
   const currentlyRunningPerLane = {};
+  // Track AM-1119 Phase 3 (Task 2): one pass to know every track's current
+  // lane up front, so the dependency gate below (**Depends On**) can check
+  // "is track X done?" without a second directory scan per candidate.
+  const laneStatusByTrackNumber = {};
   for (const dir of dirs) {
     const indexPath = join(tracksDir, dir, 'index.md');
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
+    const laneMatchForMap = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+    const trackNumMatchForMap = dir.match(/^(\d+)/);
+    if (laneMatchForMap && trackNumMatchForMap) {
+      laneStatusByTrackNumber[trackNumMatchForMap[1]] = laneMatchForMap[1].trim();
+    }
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*running/i);
     if (statusMatch) {
-      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+      const laneMatch = laneMatchForMap;
       if (laneMatch) {
         const lane = laneMatch[1].trim();
         currentlyRunningPerLane[lane] = (currentlyRunningPerLane[lane] || 0) + 1;
@@ -5293,6 +5316,25 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
 
     const waitingForReply = parseWaitingForReply(content);
     const autoRun = parseAutoRun(content);
+
+    // Track AM-1119 Phase 3 (Task 2): a track naming dependencies via
+    // **Depends On** may not be auto-launched until every one of them has
+    // reached lane `done` — used to gate the wizard-generated deploy track
+    // behind its feature tracks. Bypassed for waitingForReply, same as the
+    // autoRun/claimableSet gates above: a track already mid-conversation
+    // must still get answered regardless of unrelated dependency state.
+    // A dependency that doesn't exist (bad data, or it was deleted) is
+    // treated as unmet rather than satisfied — fails closed, not open.
+    if (!waitingForReply) {
+      const dependsOn = parseDependsOn(content);
+      if (dependsOn.length > 0) {
+        const unmet = dependsOn.filter(dep => laneStatusByTrackNumber[dep] !== 'done');
+        if (unmet.length > 0) {
+          console.log(`[local-fs] Track ${track_number}: waiting on dependencies [${unmet.join(', ')}] to reach done — skipping`);
+          continue;
+        }
+      }
+    }
 
     // ── Supervised implement: "done" reply transitions to quality-gate with scheduling ──
     if (waitingForReply && lane_status === 'implement') {
@@ -5738,6 +5780,68 @@ function readManagerProjectsDir() {
 // new location, which self-registers through the exact same
 // upsertWorker()/POST /project/ensure/POST /worker/register pipeline every
 // other project already uses.
+// Track AM-1119 Phase 3 (Task 2): writes the folders + file_sync_queue.md
+// entries for a derived track plan (see services/wizard-track-plan.mjs),
+// mirroring exactly the format `lc new` (bin/lc.mjs) writes for a
+// human-created track — `**Auto Run**: yes` and (on the final track, when
+// present) `**Depends On**` are the only additions beyond that template,
+// since these must run unattended and the deploy track must wait for its
+// siblings. `targetPath` is the NEW project's directory, not this
+// manager's own — getAuthorInfo runs `git config` inside it once it's a
+// repo (falls back to global config exactly like `lc new` does, since git
+// config is inherited unless the new repo has its own local override).
+function writeGeneratedTracks({ targetPath, projectName, brainstormSummary, deploymentProvider }) {
+  const trackPlan = deriveTrackPlan({ projectName, brainstormSummary, deploymentProvider });
+  if (trackPlan.length === 0) return [];
+
+  const tracksDir = join(targetPath, 'conductor', 'tracks');
+  mkdirSync(tracksDir, { recursive: true });
+  const queuePath = join(tracksDir, 'file_sync_queue.md');
+
+  const author = getAuthorInfo(targetPath);
+
+  const existingDirNumStrs = readdirSync(tracksDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name.match(/(\d+)/)?.[1])
+    .filter(Boolean);
+  let nextNum = existingDirNumStrs.length ? Math.max(...existingDirNumStrs.map(s => parseInt(s, 10))) + 1 : 1000;
+
+  const generated = [];
+  for (const t of trackPlan) {
+    const numStr = String(nextNum);
+    const slug = t.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const displayId = `${author.initials}-${numStr}`;
+    const folderName = `${displayId}-${slug}`;
+    const trackPath = join(tracksDir, folderName);
+    mkdirSync(trackPath, { recursive: true });
+
+    // Only the final (deploy) track sets dependsOnAll — depends on every
+    // track generated ahead of it in this same batch (scaffold + feature
+    // tracks), not on anything pre-existing in the project.
+    const dependsLine = t.dependsOnAll && generated.length
+      ? `**Depends On**: ${generated.map(g => g.trackNumber).join(', ')}\n`
+      : '';
+    const summary = `${t.problem} ${t.solution}`.slice(0, 200);
+    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: dev\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
+    writeFileSync(join(trackPath, 'index.md'), indexContent, 'utf8');
+
+    const now = new Date().toISOString();
+    const queueEntry = `\n### Track ${numStr}: ${t.title}\n**Status**: pending\n**Type**: track-create\n**Created**: ${now}\n**Title**: ${t.title}\n**Description**: ${t.solution}\n**Metadata**: { "priority": "medium", "assignee": null }\n`;
+    if (existsSync(queuePath)) {
+      let existingQueue = readFileSync(queuePath, 'utf8');
+      existingQueue = existingQueue.replace(/^(## Config Sync Requests)/m, queueEntry + '$1');
+      writeFileSync(queuePath, existingQueue);
+    } else {
+      writeFileSync(queuePath, `# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n${queueEntry}\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n`);
+    }
+
+    generated.push({ trackNumber: numStr, displayId, folderName, title: t.title });
+    nextNum += 1;
+  }
+
+  return generated;
+}
+
 async function runCreateProject(entry) {
   const repoSource = entry.payload?.repo_source;
   const scaffoldContext = entry.payload?.scaffold_context;
@@ -5829,6 +5933,26 @@ async function runCreateProject(entry) {
     }
   }
 
+  // Track AM-1119 Phase 3 (Task 1-3, REQ-3): generate the initial track
+  // breakdown from the wizard's own product/deployment answers, via the
+  // SAME file_sync_queue.md protocol `/laneconductor newTrack` uses —
+  // folder written directly (for immediate visibility) plus a queue entry
+  // appended (so the normal processFileSyncQueue()/handleTrackCreate()
+  // path registers each one in the DB on the next cycle, same as any
+  // other track). Every generated track carries `**Auto Run**: yes` so a
+  // sync+poll worker claims it with no human dragging. Skipped for legacy
+  // Quick create dispatches (no `wizard` key at all) — deriveTrackPlan
+  // still runs for a wizard dispatch with an empty product step, since it
+  // always yields at least an "App Skeleton" track.
+  const generatedTracks = entry.payload?.wizard
+    ? writeGeneratedTracks({
+        targetPath,
+        projectName: scaffoldContext.project?.name || basename(targetPath),
+        brainstormSummary: scaffoldContext.brainstorm_summary,
+        deploymentProvider: wizardDeployment?.provider,
+      })
+    : [];
+
   // Sensible-default .laneconductor.json for the new project — same
   // mode/collector URLs/UI port as this manager's own, so it joins the
   // same LaneConductor instance rather than needing separate onboarding.
@@ -5913,7 +6037,7 @@ async function runCreateProject(entry) {
   // its own normal upsertWorker() call, same as every other project.
   spawn('lc', ['worker', 'start'], { cwd: targetPath, detached: true, stdio: 'ignore' }).unref();
 
-  return { ok: true, targetPath };
+  return { ok: true, targetPath, generatedTracks };
 }
 
 // Track 1110 Phase 6: runs once, right after this process's first
@@ -6609,9 +6733,17 @@ async function checkDispatchInbox() {
       updateWorkerHeartbeat('busy', `create-project (dispatch ${entry.id})`);
       const result = await runCreateProject(entry);
       updateWorkerHeartbeat('idle', null);
+      // Track AM-1119 Phase 3 (Task 3): append the generated track list so
+      // Phase 5's "follow your build" view (and, until it lands, anyone
+      // polling GET /api/dispatch/:id) can see what was created without a
+      // separate lookup. `Created at ${path}` prefix kept exactly as-is —
+      // existing tests (track-1091-create-project-worker) match on it.
+      const trackListSuffix = result.ok && result.generatedTracks?.length
+        ? `\nGenerated tracks: ${result.generatedTracks.map(t => t.displayId).join(', ')}`
+        : '';
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
         status: result.ok ? 'done' : 'failed',
-        result: result.ok ? `Created at ${result.targetPath}` : result.error,
+        result: result.ok ? `Created at ${result.targetPath}${trackListSuffix}` : result.error,
       }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report create-project result'));
       continue;
     }
