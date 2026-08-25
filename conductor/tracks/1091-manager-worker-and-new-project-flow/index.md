@@ -1,10 +1,10 @@
 # Track 1091: Manager Worker Type & New-Project Flow
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Quality gate PASSED — done. Both gaps found during review (TC-31 onboarding regression, TC-34 missing test) closed for real, not waived: git-history check + live evidence for TC-31, new 4/4-passing…
+**Phase**: Answered open thread — no human message existed; racing worker PID 2236001 confirmed gone. Track complete and merged (7d865e6 ancestor of HEAD); lane restored to done.
 **Type**: dev
 **Summary**: A distinct 'manager' worker type that can act system-wide (create new projects) instead of being scoped to one project like every worker today.
 
@@ -77,4 +77,4 @@ conversational flow would need new plumbing for a live back-and-forth with
 the manager worker that doesn't exist today. A form collects the same
 answers upfront into one `scaffold_context` blob and dispatches once on
 submit, matching the existing pattern.
-**Waiting for reply**: yes
+**Waiting for reply**: no
