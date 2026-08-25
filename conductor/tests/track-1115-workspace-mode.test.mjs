@@ -10,7 +10,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveWorkspaceMode, parseWorkspaceMarker, parseTrackKind } from '../services/workspace-mode.mjs';
+import { resolveWorkspaceMode, parseWorkspaceMarker, parseTrackKind, findDisqualifyingDirtyPaths, isWorkerBookkeepingPath } from '../services/workspace-mode.mjs';
 
 describe('resolveWorkspaceMode', () => {
   it('TC-1: plan lane outranks an explicit branch marker (D6 before D2)', () => {
@@ -135,5 +135,50 @@ describe('resolveWorkspaceMode', () => {
       }),
       'branch'
     );
+  });
+});
+
+describe('findDisqualifyingDirtyPaths (dogfooding 2026-08-25 regression)', () => {
+  it('exempts another track\'s own routinely-resynced status markers (index/plan/spec/test.md)', () => {
+    const dirty = [
+      'conductor/tracks/1091-manager-worker-and-new-project-flow/index.md',
+      'conductor/tracks/1091-manager-worker-and-new-project-flow/plan.md',
+      'conductor/tracks/1102-e2e-session-findings/spec.md',
+      'conductor/tracks/1102-e2e-session-findings/test.md',
+    ];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/1118-manager-worker-credential-storage/'), []);
+  });
+
+  it('does NOT exempt another track\'s conversation.md — a human can genuinely have unsaved work there', () => {
+    const dirty = ['conductor/tracks/1091-manager-worker-and-new-project-flow/conversation.md'];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/1118-manager-worker-credential-storage/'), dirty);
+  });
+
+  it('does NOT exempt a file that merely lives inside a track folder but isn\'t one of the four known names', () => {
+    const dirty = ['conductor/tracks/1091-manager-worker-and-new-project-flow/some-script.mjs'];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/1118-manager-worker-credential-storage/'), dirty);
+  });
+
+  it('still exempts the track\'s own folder, worker bookkeeping, and file_sync_queue.md (pre-existing behavior unchanged)', () => {
+    const dirty = [
+      'conductor/tracks/1118-manager-worker-credential-storage/index.md', // own folder
+      'conductor/.sync.pid',
+      'conductor/tracks-metadata.json',
+      'conductor/tracks/file_sync_queue.md',
+    ];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/1118-manager-worker-credential-storage/'), []);
+  });
+
+  it('a genuinely unrelated dirty file (outside conductor/tracks entirely) still disqualifies', () => {
+    const dirty = ['ui/src/App.jsx', 'conductor/tracks/1091-foo/index.md'];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, null), ['ui/src/App.jsx']);
+  });
+
+  it('isWorkerBookkeepingPath: direct assertions on the four exempt shapes plus one non-match', () => {
+    assert.equal(isWorkerBookkeepingPath('conductor/.sync-2.lock-target'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks-metadata.json'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/file_sync_queue.md'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/042-foo/plan.md'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/042-foo/conversation.md'), false);
   });
 });
