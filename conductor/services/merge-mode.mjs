@@ -13,7 +13,7 @@
 // distinction collapses into a single effective value for callers that just
 // need to know which path to take.
 
-const VALID_MODES = ['pr', 'direct'];
+export const VALID_MODES = ['pr', 'direct'];
 
 export function parseMergeModeMarker(content) {
   const match = content.match(/\*\*Merge Mode\*\*:\s*([a-z]+)/i);
