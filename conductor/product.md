@@ -1,7 +1,7 @@
 # Product: LaneConductor
 
 ## What It Does
-LaneConductor is the AI orchestration layer for your whole business — not just code. Dev ships features, marketing posts launches, sales runs outreach, support resolves tickets. Every function runs as a **track** on one board, executed or assisted by AI agents, and measured against a KPI so you know what actually worked.
+LaneConductor is the AI orchestration layer for your whole business — not just code. Dev ships features, launch posts launches, market runs outreach, support resolves tickets. Every function runs as a **track** on one board, executed or assisted by AI agents, and measured against a KPI so you know what actually worked.
 
 It is not a project tracker (those are passive — humans do the work). LaneConductor is an **operating layer**: agents execute the work, outcomes are measured, and failed experiments automatically replan with measurement data attached. The Conductor metaphor is exact — it doesn't play the instruments, it orchestrates them.
 
@@ -13,8 +13,8 @@ LaneConductor supports four track domains:
 | Type | What AI does | How success is measured |
 |------|-------------|------------------------|
 | **dev** | Plans, implements, reviews, and ships code | Tests pass, quality gate clears |
-| **marketing** | Drafts launch posts, copy, campaigns — human publishes | KPI: HN score, Reddit upvotes, PH upvotes |
-| **sales** | Writes outreach sequences, pitches, one-pagers — human sends | KPI: replies, conversions |
+| **launch** | Drafts launch posts, copy, campaigns — human publishes | KPI: HN score, Reddit upvotes, PH upvotes |
+| **market** | Writes outreach sequences, pitches, one-pagers — human sends | KPI: replies, conversions |
 | **support** | Drafts responses, knowledge base articles | KPI: resolution rate, CSAT |
 
 Non-dev tracks follow a **supervised implement** flow: AI drafts the content, human publishes it, AI schedules and runs the quality gate when the measurement window closes.
@@ -23,11 +23,11 @@ Non-dev tracks follow a **supervised implement** flow: AI drafts the content, hu
 - Solo founders using AI tools across their whole business — not just engineering
 - Developers who want visibility into multi-agent work across multiple repos
 - Privacy-conscious builders who won't send business data to third-party SaaS
-- Teams running AI-assisted marketing and sales alongside product development
+- Teams running AI-assisted launches and marketing alongside product development
 
 ## Core Goals
 - **Visibility**: Know what every AI agent is doing — code, content, or outreach — without reading terminal output
-- **Multi-function**: Dev, marketing, sales, support all in one board
+- **Multi-function**: Dev, launch, market, support all in one board
 - **Closed loop**: KPI measurement after every non-dev track — did it actually work?
 - **Sovereign**: 100% local — no cloud, no auth, no cost
 - **Agent-First**: Designed for the workflow of AI assistants, not human project managers
