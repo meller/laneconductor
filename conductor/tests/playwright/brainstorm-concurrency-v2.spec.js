@@ -13,8 +13,7 @@
 
 import { test, expect } from '@playwright/test';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import {
   assertCheckoutSpawnable,
   spawnScopedWorker,
@@ -22,12 +21,25 @@ import {
   cleanup,
   getTrackByNumber,
   resolveTrackDir,
-  PROJECT_ROOT,
+  resolveProjectRepoPath,
 } from './helpers/scoped-worker.mjs';
 
-const TRACKS_DIR = join(PROJECT_ROOT, 'conductor/tracks');
-
-// Track 10021: discovered live — 991/992 are long-lived fixture track
+// Track 10021: discovered live — laneconductor.sync.mjs ALWAYS redirects
+// itself to the primary checkout when launched from a worktree (main-mode
+// dispatch only ever operates there — see its own "which is not the
+// primary checkout — running from X instead" startup log line), regardless
+// of the `cwd` spawnScopedWorker passes it. Writing these fixtures under
+// this spec file's own on-disk location (a worktree, when this track's own
+// implement run executes from one) put them somewhere the worker would
+// never look: it long-since chdir'd itself back to the primary checkout by
+// the time it evaluates --once's "any scoped work left" check, found
+// nothing there, and exited 1 immediately ("no queued or running track
+// matched") without ever touching the fixtures. Every filesystem-touching
+// call in this file resolves and uses the SAME primary-checkout path the
+// worker will end up using (resolveProjectRepoPath), not a PROJECT_ROOT
+// constant derived from this file's own location.
+//
+// Also: 991/992 are long-lived fixture track
 // numbers with real DB rows going back to 2026-08-12. Deleting only the
 // directory (as this used to) leaves a stale DB row behind; a freshly
 // spawned worker's own startup DB→FS sync then pushes that stale
@@ -35,17 +47,17 @@ const TRACKS_DIR = join(PROJECT_ROOT, 'conductor/tracks');
 // before the worker's chokidar watcher reacts to the fresh write — the
 // fixture silently reverts to backlog/auto_run:false and is never claimed.
 // Deleting the DB row too closes that race: no stale row, nothing to push.
-async function cleanupTrack(trackNum) {
-    const dir = readdirSync(TRACKS_DIR).find(d => d.startsWith(trackNum));
+async function cleanupTrack(tracksDir, trackNum) {
+    const dir = readdirSync(tracksDir).find(d => d.startsWith(trackNum));
     if (dir) {
-        rmSync(join(TRACKS_DIR, dir), { recursive: true, force: true });
+        rmSync(join(tracksDir, dir), { recursive: true, force: true });
     }
     await fetch(`http://127.0.0.1:8091/api/projects/1/tracks/${trackNum}`, { method: 'DELETE' }).catch(() => {});
 }
 
-function createFileSystemTrack(trackNum, title, lane, status, waitingForReply = 'no') {
+function createFileSystemTrack(tracksDir, trackNum, title, lane, status, waitingForReply = 'no') {
     const dirName = `${trackNum}-test-${title.toLowerCase().replace(/\s+/g, '-')}`;
-    const dirPath = join(TRACKS_DIR, dirName);
+    const dirPath = join(tracksDir, dirName);
     if (!existsSync(dirPath)) mkdirSync(dirPath, { recursive: true });
 
     // Track 10021 F1: auto_run defaults false and a worker (scoped or
@@ -63,21 +75,26 @@ function createFileSystemTrack(trackNum, title, lane, status, waitingForReply = 
 test.describe('Brainstorm & Concurrency strict check', () => {
     test.setTimeout(120000);
 
+    let tracksDir;
+
     test.beforeEach(async () => {
-        await cleanupTrack('991');
-        await cleanupTrack('992');
+        const projectRoot = await resolveProjectRepoPath();
+        tracksDir = join(projectRoot, 'conductor/tracks');
+        await cleanupTrack(tracksDir, '991');
+        await cleanupTrack(tracksDir, '992');
     });
 
     test('Worker pulls only one track and handles brainstorm reply', async ({ page }) => {
         let handle = null;
+        const projectRoot = await resolveProjectRepoPath();
 
         try {
             // 1. Create two tracks in 'plan' : 'queue'
             // Track 991: Normal planning
-            createFileSystemTrack('991', 'Normal Plan A', 'plan', 'queue');
+            createFileSystemTrack(tracksDir, '991', 'Normal Plan A', 'plan', 'queue');
 
             // Track 992: Brainstorm B
-            const dirB = createFileSystemTrack('992', 'Brainstorm B', 'plan', 'queue', 'yes');
+            const dirB = createFileSystemTrack(tracksDir, '992', 'Brainstorm B', 'plan', 'queue', 'yes');
             const convPathB = join(dirB, 'conversation.md');
             writeFileSync(convPathB, '> **human** (brainstorm): What are the core requirements?\n');
 
@@ -87,10 +104,10 @@ test.describe('Brainstorm & Concurrency strict check', () => {
             await page.goto('http://localhost:8090/'); // UI Port
 
             // ── Bring our own worker, scoped to BOTH hardcoded tracks ─────────────
-            const dirA991 = resolveTrackDir(PROJECT_ROOT, '991');
-            const dirB992 = resolveTrackDir(PROJECT_ROOT, '992');
-            assertCheckoutSpawnable([dirA991, dirB992]);
-            handle = spawnScopedWorker(['991', '992']);
+            const dirA991 = resolveTrackDir(projectRoot, '991');
+            const dirB992 = resolveTrackDir(projectRoot, '992');
+            assertCheckoutSpawnable([dirA991, dirB992], { cwd: projectRoot });
+            handle = spawnScopedWorker(['991', '992'], { projectRoot });
             console.log(`🚀 Spawned scoped worker #${handle.workerNumber} for tracks 991, 992 — log: ${handle.logPath}`);
 
             // 3. Wait for the worker to pick up exactly one of them (concurrency=1)
@@ -152,8 +169,8 @@ test.describe('Brainstorm & Concurrency strict check', () => {
             // REQ-6/F6: kill the scoped worker; the beforeEach of the next run
             // (or a manual cleanupTrack call here) removes the fixture dirs.
             if (handle) await cleanup(handle, []);
-            cleanupTrack('991');
-            cleanupTrack('992');
+            await cleanupTrack(tracksDir, '991');
+            await cleanupTrack(tracksDir, '992');
         }
     });
 });
