@@ -45,11 +45,20 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
   // from a worktree (as this repo's own lane actions do), those differ.
   // Every helper call below that touches the filesystem needs this same
   // value, not the PROJECT_ROOT default.
-  const projectRoot = await resolveProjectRepoPath();
+  //
+  // TEST_PROJECT_ID (optional, same convention as track-1033-sharing.spec.js):
+  // point at an isolated project instead of the default. Useful when the
+  // default project's repo_path is a shared checkout with unrelated
+  // concurrent work in flight — assertCheckoutSpawnable's dirty-checkout
+  // guard will correctly refuse to spawn into that noise (by design; see
+  // spec.md F4), which is real signal but not this spec's own concern to
+  // fix or wait out.
+  const projectId = process.env.TEST_PROJECT_ID ? parseInt(process.env.TEST_PROJECT_ID, 10) : undefined;
+  const projectRoot = await resolveProjectRepoPath({ projectId });
 
   try {
     // ── Step 1-4: create via UI, capture track_number from the API response ──
-    ({ trackNumber, trackDir } = await createTrackViaUI(page, { title: TEST_TITLE, description: TEST_DESC, projectRoot }));
+    ({ trackNumber, trackDir } = await createTrackViaUI(page, { title: TEST_TITLE, description: TEST_DESC, projectId, projectRoot }));
     expect(trackNumber, 'API should return track_number').toBeTruthy();
     expect(trackDir, `No track directory resolved for ${trackNumber}`).toBeTruthy();
     console.log(`✅ Track submitted: track_number=${trackNumber}, dir=${trackDir}`);
@@ -64,7 +73,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
     console.log('✅ index.md written to disk with title');
 
     // ── Step 6: verify track in DB with plan:queue ─────────────────────────────
-    let track = await getTrackByNumber(trackNumber);
+    let track = await getTrackByNumber(trackNumber, { projectId });
     expect(track, `Track ${trackNumber} not found in API`).toBeTruthy();
     expect(track.lane_status).toBe('plan');
     expect(track.lane_action_status).toBe('queue');
@@ -86,7 +95,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
 
     // ── Step 8: worker picks up the track (running) ────────────────────────────
     console.log(`Waiting for scoped worker to pick up track ${trackNumber}...`);
-    await waitForLaneAction(handle, trackNumber, t => t.lane_action_status === 'running', { timeoutMs: 60000 });
+    await waitForLaneAction(handle, trackNumber, t => t.lane_action_status === 'running', { timeoutMs: 60000, projectId });
     console.log(`✅ Scoped worker picked up track ${trackNumber} (running)`);
 
     // ── Step 9: planning completes (plan:success) ──────────────────────────────
@@ -95,7 +104,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
       handle,
       trackNumber,
       t => t.lane_action_status === 'done' || t.lane_action_result === 'success',
-      { timeoutMs: 180000 }
+      { timeoutMs: 180000, projectId }
     );
     console.log(`✅ Planning complete: status=${track.lane_action_status} result=${track.lane_action_result}`);
 
@@ -116,7 +125,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
   } finally {
     // REQ-6: cleanup runs even when the body throws.
     if (trackNumber) {
-      await cleanup(handle, [trackNumber]);
+      await cleanup(handle, [trackNumber], { projectId });
       console.log(`🧹 Cleaned up track ${trackNumber} and its scoped worker`);
     }
   }
