@@ -1,7 +1,7 @@
 # Track 10032: F18 claim-timeout — surface the outcome in the UI
 
-**Lane**: backlog
-**Lane Status**: queue
+**Lane**: plan
+**Lane Status**: running
 **Progress**: 0%
 **Type**: dev
 **Summary**: Track 1102's Phase 12 added `reapStaleDispatches()` (`ui/server/index.mjs`) — a dispatch left `pending` past a bounded window is reassigned to another live worker, or marked failed with a reason if…
@@ -18,3 +18,4 @@ Surface the outcome somewhere a user would actually see it — likely the Activi
 
 ## Depends on
 - [1102](../1102-e2e-session-findings/index.md) — F18 follow-up (Phase 12), the DB-level mechanism this surfaces
+**Auto Run**: yes
