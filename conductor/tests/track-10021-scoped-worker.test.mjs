@@ -15,8 +15,9 @@ import {
   classifyDirtyPaths,
   isMainModeBlocked,
   resolveTrackDir,
+  cleanup,
 } from '../tests/playwright/helpers/scoped-worker.mjs';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -114,6 +115,41 @@ describe('Track 10021: resolveTrackDir (REQ-1 — tolerates both folder layouts)
   });
 
   it('teardown', () => {
+    rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe('Track 10021: cleanup() projectRoot resolution (quality-gate regression)', () => {
+  // Found live during quality-gate verification: assertCheckoutSpawnable can
+  // throw BEFORE spawnScopedWorker ever runs (this track's own negative
+  // path — F4/AC-5), leaving `handle` null. cleanup() used to fall back to
+  // `handle?.projectRoot ?? PROJECT_ROOT` in that case, which resolved to
+  // this helper file's own on-disk location instead of wherever the tracks
+  // were actually created — silently failing to find and delete the real
+  // directories while the DB row deletion (unrelated to projectRoot)
+  // masked the miss. An explicit `projectRoot` option, threaded through by
+  // every call site the same way enableAutoRun/spawnScopedWorker already
+  // require it, takes precedence over both.
+  let root, origFetch;
+
+  it('setup', () => {
+    root = mkdtempSync(join(tmpdir(), 'track-10021-cleanup-'));
+    mkdirSync(join(root, 'conductor/tracks/10060-test-track'), { recursive: true });
+    origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true });
+  });
+
+  it('with handle=null (assertCheckoutSpawnable-throws case): explicit projectRoot still finds and deletes the real directory', async () => {
+    const dirPath = join(root, 'conductor/tracks/10060-test-track');
+    assert.ok(existsSync(dirPath), 'fixture directory should exist before cleanup');
+
+    await cleanup(null, ['10060'], { projectRoot: root });
+
+    assert.equal(existsSync(dirPath), false, 'cleanup should have deleted the directory using the explicit projectRoot, not a null-handle fallback');
+  });
+
+  it('teardown', () => {
+    globalThis.fetch = origFetch;
     rmSync(root, { recursive: true, force: true });
   });
 });

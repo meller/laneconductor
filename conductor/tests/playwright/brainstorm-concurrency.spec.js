@@ -123,7 +123,7 @@ test.describe('Brainstorm & Concurrency E2E', () => {
       // residue (no leftover directory for either track number).
       const nums = [trackA, trackB].filter(Boolean);
       if (nums.length) {
-        await cleanup(handle, nums, { projectId });
+        await cleanup(handle, nums, { projectId, projectRoot });
         for (const n of nums) {
           expect(resolveTrackDir(projectRoot, n), `Track ${n} directory should be gone after cleanup`).toBeNull();
         }
