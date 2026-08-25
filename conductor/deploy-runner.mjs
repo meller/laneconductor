@@ -43,8 +43,15 @@ export async function runDeploy(projectRoot, env, { echo = false, extraEnv = {} 
   const logFile = join(logsDir, `deploy-${env}-${Date.now()}.log`);
   const logStream = createWriteStream(logFile, { flags: 'a' });
 
+  // Track AM-1119 Phase 4 (Task 2): accumulated so a successful run can
+  // resolve the deployed URL from real command output (GCP Cloud Run —
+  // its URL includes a hash GCP assigns at deploy time, unknowable ahead
+  // of time) when deploy.json didn't already supply a predictable one
+  // (Firebase Hosting — see deployConfig.js's `expected_url`).
+  let capturedOutput = '';
   const log = (line) => {
     logStream.write(line);
+    capturedOutput += line;
     if (echo) process.stdout.write(line);
   };
 
@@ -92,5 +99,26 @@ export async function runDeploy(projectRoot, env, { echo = false, extraEnv = {} 
   const elapsed = ((Date.now() - totalStart) / 1000).toFixed(1);
   log(`✅ Deployment to ${env} complete! (${elapsed}s)\n`);
   logStream.end();
-  return { ok: true, exitCode: 0, logFile };
+
+  const url = resolveDeployedUrl(envConfig, capturedOutput);
+  if (url && echo) process.stdout.write(`🔗 Live URL: ${url}\n`);
+
+  return { ok: true, exitCode: 0, logFile, url };
+}
+
+// Track AM-1119 Phase 4 (Task 2): deploy.json's own `expected_url` (set by
+// deployConfig.js's buildDeployJson for Firebase Hosting, whose default
+// domain is a deterministic function of the project id) wins when present
+// — no parsing needed, and it's right even if the CLI's own wording
+// changes. Otherwise falls back to scanning captured stdout/stderr for a
+// URL a deploy CLI printed — covers GCP Cloud Run (`gcloud run deploy`
+// prints "Service URL: https://...") and anything else that prints a plain
+// https:// URL on its own. Returns null, not a guess, when nothing is
+// found — an absent app_url is honest; a wrong one is not.
+export function resolveDeployedUrl(envConfig, output) {
+  if (envConfig?.expected_url) return envConfig.expected_url;
+  const serviceUrlMatch = output.match(/Service URL:\s*(https?:\/\/\S+)/i);
+  if (serviceUrlMatch) return serviceUrlMatch[1];
+  const genericMatch = output.match(/https?:\/\/\S+\.(?:web\.app|firebaseapp\.com|run\.app|vercel\.app)\S*/i);
+  return genericMatch ? genericMatch[0] : null;
 }

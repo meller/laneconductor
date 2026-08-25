@@ -87,8 +87,8 @@ at each stage.
 ## Data Model Changes
 
 - `projects.app_url TEXT` (nullable) — live deployed URL; set by the deploy track's
-  completion path via the collector API (`PATCH /api/projects/:id` or dedicated
-  endpoint).
+  completion path via the collector API (`POST /api/projects/:id/app-url`; migration:
+  `ui/server/migrations/011_app_url.sql`).
 - `worker_dispatch` payload for `create-project` gains optional
   `wizard: { design, deployment, track_plan_hint }` alongside the existing
   `scaffold_context` — additive, older workers ignore it.
@@ -97,9 +97,12 @@ at each stage.
 
 - `POST /api/dispatch/create-project` — payload extended (additive) with `wizard`
   block; response unchanged.
-- `PATCH /api/projects/:id` accepts `app_url` (or new
-  `POST /api/projects/:id/app-url`).
-- `GET /api/projects/:id` returns `app_url`.
+- `POST /api/projects/:id/app-url` — body `{ "app_url": "<https url>" | null }`; 400 on a
+  non-http(s), non-null value; 404 if the project doesn't exist; sets/clears `projects.app_url`.
+  A dedicated endpoint rather than folding into the existing `PATCH /api/projects/:id` (which
+  requires `name` — a human-rename contract, not this track's own-run reporting contract).
+- `GET /api/projects` (the list endpoint — no single-project `GET /api/projects/:id` route exists
+  in this codebase) now includes `app_url` per row.
 
 ## Out of Scope (explicit — not deferred acceptance criteria)
 

@@ -34,8 +34,11 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
       see plan.md's Phase 3 verification note for why these are two different tests.)*
 
 ### Phase 4: app_url
-- [ ] TC-10: `PATCH`/app-url endpoint sets `projects.app_url`; `GET /api/projects/:id` returns it — expected: round-trip
-- [ ] TC-11: ProjectCard shows "Live ↗" link only when app_url set — expected: absent before, present after
+- [x] TC-10: `POST /api/projects/:id/app-url` endpoint sets `projects.app_url`; `GET /api/projects`
+      returns it per row — expected: round-trip *(no single-project `GET /api/projects/:id` route
+      exists in this codebase — the list endpoint is what ProjectCard/UI actually reads from; see
+      spec.md's amended API Contracts)*
+- [x] TC-11: ProjectCard shows "Live ↗" link only when app_url set — expected: absent before, present after
 
 ### Phase 5: Follow-build view
 - [ ] TC-12: View lists generated tracks with live lane badges, polling updates within 2s of a DB lane change — expected: lane badge updates without reload
@@ -48,6 +51,6 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
 
 ## Acceptance Criteria
 - [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6;
-      Phase 3's TC-7..TC-9 — see plan.md verification notes)*
+      Phase 3's TC-7..TC-9; Phase 4's TC-10..TC-11 — see plan.md verification notes)*
 - [x] Existing suites (NewProjectModal, CICDView, worker tests) show no regressions *(full ui vitest suite: same 30 pre-existing failures as main, no new failures)*
 - [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded)

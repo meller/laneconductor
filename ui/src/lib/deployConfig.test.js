@@ -39,6 +39,22 @@ describe('buildDeployJson', () => {
     const result = buildDeployJson({ provider: 'gcp', environments: ['prod'], projectName: 'Digger Game' });
     expect(result.environments.prod.command).toMatch(/gcloud run deploy/);
   });
+
+  // Track AM-1119 Phase 4 (Task 2): Firebase Hosting's default domain is
+  // predictable from the same project id the deploy command assumes;
+  // GCP Cloud Run's is not (a hash GCP assigns at deploy time), so it must
+  // stay unset here and get resolved from real output instead
+  // (conductor/deploy-runner.mjs's resolveDeployedUrl).
+  it('sets expected_url for firebase environments, matching the project id the deploy command uses', () => {
+    const result = buildDeployJson({ provider: 'firebase', environments: ['prod'], projectName: 'Digger Game' });
+    expect(result.environments.prod.expected_url).toBe('https://digger-game-prod.web.app');
+    expect(result.environments.prod.command).toContain('digger-game-prod');
+  });
+
+  it('does not set expected_url for gcp environments', () => {
+    const result = buildDeployJson({ provider: 'gcp', environments: ['prod'], projectName: 'Digger Game' });
+    expect(result.environments.prod.expected_url).toBeUndefined();
+  });
 });
 
 describe('buildDeploymentStackMd', () => {

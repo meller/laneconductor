@@ -51,6 +51,16 @@ describe('deriveTrackPlan', () => {
     assert.equal(plan.filter(t => /^Deploy to/.test(t.title)).length, 1, 'exactly one deploy track');
   });
 
+  // Track AM-1119 Phase 4 (Task 2): the deploy track's Solution must be an
+  // actionable instruction (endpoint + payload), not just "record the URL".
+  it('the deploy track Solution names the app-url endpoint and payload shape', () => {
+    const plan = deriveTrackPlan({ projectName: 'Digger Game', brainstormSummary: BRAINSTORM_SUMMARY, deploymentProvider: 'firebase' });
+    const deployTrack = plan[plan.length - 1];
+    assert.match(deployTrack.solution, /\/api\/projects\/.*\/app-url/);
+    assert.match(deployTrack.solution, /app_url/);
+    assert.match(deployTrack.solution, /expected_url/);
+  });
+
   it('produces between 3 and 6 tracks for a fully-filled wizard input (TC-7 shape)', () => {
     const plan = deriveTrackPlan({ projectName: 'Digger Game', brainstormSummary: BRAINSTORM_SUMMARY, deploymentProvider: 'gcp' });
     assert.ok(plan.length >= 3 && plan.length <= 6, `expected 3-6 tracks, got ${plan.length}`);
