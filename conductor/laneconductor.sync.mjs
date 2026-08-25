@@ -57,7 +57,7 @@ import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mj
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
-import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind } from './services/workspace-mode.mjs';
+import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -4179,30 +4179,12 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // dirty path outside the track's OWN folder risks an agent's commit
   // sweeping in unrelated human WIP. The track's own folder is excluded
   // because the caller has already written **Lane Status**: running into
-  // it just before calling spawnCli.
-  //
-  // Discovered live while testing this guard (not in the original spec):
-  // the worker's OWN runtime bookkeeping — .sync.pid/.sync-N.pid,
-  // .sync.lock-target/.sync-N.lock-target, .worker.tokens.json/
-  // .worker-N.tokens.json, tracks-metadata.json — sits directly under
-  // conductor/ and is legitimately dirty during ordinary operation. A
-  // strict "own folder only" exemption blocked EVERY plan-lane spawn in
-  // ANY normal worker deployment (plan always resolves to 'main' per D6),
-  // confirmed by track-1102-f9-index-producer.test.mjs and others failing
-  // after this guard was added. These are the worker's own operational
-  // state, not human/agent WIP a commit could accidentally sweep in, so
-  // they're exempted the same as the track's own folder.
-  //
-  // Track 10021: discovered live that conductor/tracks/file_sync_queue.md
-  // belongs in the same exemption. Every track creation (UI or CLI) appends
-  // an entry to it, so a track's OWN creation always leaves this file dirty
-  // outside its own folder — meaning main-mode's very first plan-lane spawn
-  // attempt for a just-created track was unconditionally blocked by its own
-  // side effect, every time, with no retry ever able to clear it (the next
-  // cycle just appends again for the next track). It's the fs-side half of
-  // the same worker-owned queue mechanism as tracks-metadata.json above —
-  // only humans/Claude/API produce entries, the worker is the sole
-  // consumer — not human/agent WIP a commit could accidentally sweep in.
+  // it just before calling spawnCli. What counts as safely-exempt
+  // "worker bookkeeping" vs genuinely disqualifying WIP lives in
+  // findDisqualifyingDirtyPaths (workspace-mode.mjs) — extracted there so
+  // it's unit-testable directly; see its own doc comment for the full
+  // history (worker runtime state, file_sync_queue.md, other tracks'
+  // routinely-resynced status markers).
   if (workspaceMode === 'main') {
     const dirtyPaths = (() => {
       try {
@@ -4213,10 +4195,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     })();
     const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
-    const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json' || p === 'conductor/tracks/file_sync_queue.md';
-    const disqualifying = dirtyPaths.filter(p =>
-      (!ownFolderPrefix || !p.startsWith(ownFolderPrefix)) && !isWorkerBookkeeping(p)
-    );
+    const disqualifying = findDisqualifyingDirtyPaths(dirtyPaths, ownFolderPrefix);
     if (disqualifying.length > 0) {
       console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder: ${disqualifying.join(', ')}`);
       if (primaryIndexPath) {

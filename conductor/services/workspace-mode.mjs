@@ -98,3 +98,41 @@ export function resolveWorkspaceMode({
   // D5 row 6: today's behavior for every track that sets nothing.
   return 'branch';
 }
+
+// D10/REQ-10: main mode must refuse to start on a dirty checkout — any
+// dirty path outside the track's own folder risks an agent's commit
+// sweeping in unrelated human WIP.
+//
+// Dogfooding 2026-08-25: this guard blocked EVERY plan-lane spawn,
+// repeatedly, on a heavily-parallel dogfooding run — not because of real
+// WIP, but because OTHER tracks' own index.md/plan.md/spec.md/test.md are
+// under continuous routine rewrite by this exact sync worker's own normal
+// DB->file sync (every track action anywhere touches its own status
+// markers). That's the identical shape as the worker's own runtime
+// bookkeeping (.sync.pid etc, tracks-metadata.json, file_sync_queue.md —
+// discovered earlier, Track 10021) already exempted below: machine-
+// generated, routinely committed via this codebase's own "chore: sync
+// track state" pattern, never human/agent WIP a commit could dangerously
+// sweep in. conversation.md is deliberately NOT included — unlike the
+// other four, a human can genuinely have an uncommitted, in-progress edit
+// there that this guard exists to protect.
+export function isWorkerBookkeepingPath(p) {
+  return /^conductor\/\.[^/]+$/.test(p)
+    || p === 'conductor/tracks-metadata.json'
+    || p === 'conductor/tracks/file_sync_queue.md'
+    || /^conductor\/tracks\/[^/]+\/(index|plan|spec|test)\.md$/.test(p);
+}
+
+/**
+ * Filters a track's own folder and known worker-bookkeeping/routine-sync
+ * paths out of a raw `git status --porcelain` path list, returning only
+ * the paths that genuinely disqualify a main-mode spawn.
+ *
+ * @param {string[]} dirtyPaths     porcelain-parsed paths (no status prefix)
+ * @param {string|null} ownFolderPrefix  e.g. `conductor/tracks/042-foo/`, or null
+ */
+export function findDisqualifyingDirtyPaths(dirtyPaths, ownFolderPrefix) {
+  return dirtyPaths.filter(p =>
+    (!ownFolderPrefix || !p.startsWith(ownFolderPrefix)) && !isWorkerBookkeepingPath(p)
+  );
+}
