@@ -55,7 +55,12 @@ export function deriveWorkerNumber(pid = process.pid) {
  * worker) — a path is disqualifying only if it falls outside ALL of them.
  */
 export function classifyDirtyPaths(dirtyPaths, trackDirNames = []) {
-  const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json';
+  // Track 10021: file_sync_queue.md is exempted alongside tracks-metadata.json
+  // for the same reason — every track creation appends an entry to it, so a
+  // track's OWN creation always leaves it dirty outside any track's own
+  // folder. Mirrors the identical exemption in laneconductor.sync.mjs's
+  // own main-mode guard (see the comment there for the full discovery).
+  const isWorkerBookkeeping = (p) => /^conductor\/\.[^/]+$/.test(p) || p === 'conductor/tracks-metadata.json' || p === 'conductor/tracks/file_sync_queue.md';
   const isOwnFolder = (p) => trackDirNames.some(name => p.startsWith(`conductor/tracks/${name}/`));
   return dirtyPaths.filter(p => !isOwnFolder(p) && !isWorkerBookkeeping(p));
 }

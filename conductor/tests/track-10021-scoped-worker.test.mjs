@@ -55,6 +55,10 @@ describe('Track 10021: classifyDirtyPaths (mirrors laneconductor.sync.mjs:4206 m
     assert.deepEqual(classifyDirtyPaths(dirty, ['10050-my-track']), []);
   });
 
+  it('file_sync_queue.md is not disqualifying (every track creation appends to it — discovered live)', () => {
+    assert.deepEqual(classifyDirtyPaths(['conductor/tracks/file_sync_queue.md'], ['10050-my-track']), []);
+  });
+
   it('TC-5: a path outside conductor/ entirely is disqualifying (not accidentally matched as bookkeeping)', () => {
     const dirty = ['README.md'];
     assert.deepEqual(classifyDirtyPaths(dirty, ['10050-my-track']), dirty);
