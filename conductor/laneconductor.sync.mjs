@@ -3682,6 +3682,76 @@ async function releaseGitLock(trackNumber) {
   }
 }
 
+// Dogfooding 2026-08-25: checkAndClaimGitLock() above prevents two
+// sessions from claiming the SAME track, but does nothing to stop two
+// DIFFERENT main-mode tracks from running concurrently against the SAME
+// primary checkout — main mode has no worktree, so both sessions share
+// one working directory with no isolation between them at all. Confirmed
+// live: one main-mode session's own file operations (scaffold writes,
+// artifact copies, or a routine sweep — root cause not yet pinned down)
+// deleted a SECOND main-mode track's uncommitted folder mid-run while
+// both were active at once. Per-track locking can't catch this by
+// construction — it's scoped to one track number, and this is a
+// cross-track collision. A single global lock, held for the duration of
+// ANY main-mode spawn (acquired/released exactly where the per-track
+// lock already is, in spawnCli), makes "at most one main-mode session at
+// a time" an actual invariant instead of a probabilistic accident of
+// timing. Branch-mode sessions never touch this — they're already
+// isolated in their own worktree, this lock has nothing to protect there.
+// Mirrors checkAndClaimGitLock's own shape (stale timeout, PID liveness
+// check) deliberately, for one operator-facing lock file family instead
+// of two different ones to reason about.
+async function checkAndClaimGlobalMainModeLock(trackNumber) {
+  const lockDir = join(process.cwd(), '.conductor', 'locks');
+  const lockFile = join(lockDir, '_main-mode-global.lock');
+
+  mkdirSync(lockDir, { recursive: true });
+
+  if (existsSync(lockFile)) {
+    const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
+    const lockAge = Date.now() - new Date(lock.started_at).getTime();
+    const staleTimeout = 5 * 60 * 1000; // 5 minutes — same convention as checkAndClaimGitLock
+    const isSameMachine = lock.machine === os.hostname();
+    let isDead = false;
+    if (isSameMachine && lock.pid) {
+      try {
+        process.kill(lock.pid, 0);
+      } catch (e) {
+        isDead = true;
+      }
+    }
+
+    if (lockAge < staleTimeout && !isDead) {
+      throw new Error(`Main-mode is busy with track ${lock.track_number} (locked by ${lock.user}@${lock.machine}${lock.pid ? ` PID: ${lock.pid}` : ''}, age: ${Math.round(lockAge / 1000)}s)`);
+    }
+
+    console.log(`[main-mode-lock] Removing ${isDead ? 'dead' : 'stale'} global main-mode lock (was held for track ${lock.track_number}, age: ${Math.round(lockAge / 1000)}s)`);
+    rmSync(lockFile);
+  }
+
+  const lockData = {
+    user: process.env.USER || os.userInfo().username || 'unknown',
+    machine: os.hostname(),
+    pid: process.pid,
+    started_at: new Date().toISOString(),
+    track_number: trackNumber,
+  };
+  writeFileSync(lockFile, JSON.stringify(lockData, null, 2), 'utf8');
+  console.log(`[main-mode-lock] Claimed global main-mode lock for track ${trackNumber}`);
+  return lockFile;
+}
+
+async function releaseGlobalMainModeLock() {
+  const lockFile = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
+  try {
+    if (!existsSync(lockFile)) return;
+    rmSync(lockFile);
+    console.log('[main-mode-lock] Released global main-mode lock');
+  } catch (err) {
+    console.error(`[main-mode-lock] Error releasing global main-mode lock: ${err.message}`);
+  }
+}
+
 async function removeWorktree(trackNumber) {
   const repoRoot = resolvePrimaryRepoRoot(process.cwd());
   const worktreePath = join(repoRoot, '.worktrees', `${trackNumber}`);
@@ -4152,6 +4222,7 @@ setInterval(() => {
 async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null) {
   let lockFile = null;
   let worktreePath = null;
+  let globalMainModeLockAcquired = false;
 
   // Fallback to getting projectId if not provided
   if (!projectId) {
@@ -4215,6 +4286,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
   }
 
+  // Dogfooding 2026-08-25: at most one main-mode session may run at a time
+  // — see checkAndClaimGlobalMainModeLock's own doc comment for why
+  // (main mode has no worktree, so two concurrent main-mode sessions share
+  // one working directory with zero isolation; confirmed live, one
+  // deleted another's uncommitted work mid-run). Checked/claimed here,
+  // same guard style as the dirty-checkout block just above, so a
+  // blocked-by-lock main-mode spawn reports and retries exactly the same
+  // way a blocked-by-dirty-checkout one already does.
+  if (workspaceMode === 'main' && !getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
+    try {
+      await checkAndClaimGlobalMainModeLock(trackNumber);
+      globalMainModeLockAcquired = true;
+    } catch (lockErr) {
+      console.warn(`[${label}] Track ${trackNumber}: ${lockErr.message}`);
+      if (primaryIndexPath) {
+        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
+      }
+      if (primaryTrackDirName) {
+        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+        const comment = `\n> **system**: ⚠️ Main-mode run blocked — ${lockErr.message}. Not spawning; will retry next cycle once main-mode is free.\n`;
+        try {
+          appendFileSync(convPath, comment, 'utf8');
+        } catch { /* best-effort — the console.warn above is the durable record either way */ }
+      }
+      const err = new Error(`[workspace-mode] main-mode spawn blocked by global lock for track ${trackNumber}: ${lockErr.message}`);
+      err.workspaceGuardBlocked = true;
+      throw err;
+    }
+  }
+
   if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
     try {
       lockFile = await checkAndClaimGitLock(trackNumber);
@@ -4225,6 +4327,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       console.error(`[${label}] Failed to setup lock/worktree for track ${trackNumber}: ${err.message}`);
       if (worktreePath) await removeWorktree(trackNumber).catch(() => { });
       if (lockFile) await releaseGitLock(trackNumber).catch(() => { });
+      if (globalMainModeLockAcquired) await releaseGlobalMainModeLock().catch(() => { });
       throw err;
     }
   }
@@ -4954,6 +5057,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
         }
         if (lockFile) await releaseGitLock(trackNumber);
+        if (globalMainModeLockAcquired) await releaseGlobalMainModeLock();
 
         // Worktree lifecycle management
         if (worktreePath) {
