@@ -1,7 +1,7 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
-**Lane**: review
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 90%
 **Last Run**: mock (primary)
 **Phase**: Review #4 FAIL — Gap 4 fix confirmed solid; new related Gap 5 found (API-key revoke count race, not yet fixed); Gap 2 + track-1033-sharing still need the human decision requested 3x in conversation.md
