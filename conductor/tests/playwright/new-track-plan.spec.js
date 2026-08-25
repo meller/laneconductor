@@ -89,7 +89,7 @@ test('New Track → Plan: full e2e flow', async ({ page, request }) => {
 
     // ── Bring our own worker (REQ-2/REQ-3/REQ-5) ───────────────────────────────
     assertCheckoutSpawnable([trackDir], { cwd: projectRoot });
-    await enableAutoRun(request, trackNumber, { projectRoot });
+    await enableAutoRun(request, trackNumber, { projectId, projectRoot });
     handle = spawnScopedWorker([trackNumber], { projectRoot });
     console.log(`🚀 Spawned scoped worker #${handle.workerNumber} for track ${trackNumber} — log: ${handle.logPath}`);
 
