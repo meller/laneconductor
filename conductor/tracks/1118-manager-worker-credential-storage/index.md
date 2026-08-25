@@ -1,8 +1,8 @@
 # Track 1118: Manager worker needs its own credential storage
 
-**Lane**: review
+**Lane**: quality-gate
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Planned
