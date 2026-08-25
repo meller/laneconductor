@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Quality gate PASSED — done. Both gaps found during review (TC-31 onboarding regression, TC-34 missing test) closed for real, not waived: git-history check + live evidence for TC-31, new 4/4-passing…
 **Type**: dev
 **Summary**: A distinct 'manager' worker type that can act system-wide (create new projects) instead of being scoped to one project like every worker today.
