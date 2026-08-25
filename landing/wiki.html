@@ -373,6 +373,7 @@
                 <ul class="sidebar-links">
                     <li><a href="#lifecycle">Track Lifecycle</a></li>
                     <li><a href="#workspace-modes">Workspace Modes</a></li>
+                    <li><a href="#worktrees-panel">Worktrees &amp; Panel</a></li>
                     <li><a href="#merge-modes">PR & Merge Modes</a></li>
                     <li><a href="#auto-run">Auto-Run Configuration</a></li>
                     <li><a href="#llm-config">LLM Configuration</a></li>
@@ -820,6 +821,17 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     <li><code>**Track Kind**: bug|feature</code> — Infers the mode (bugs default to <code>main</code>, features default to <code>branch</code>), but auto-run queue pickups default to the safer <code>branch</code> mode if not explicitly overridden.</li>
                 </ul>
                 <p>Note: The <code>plan</code> lane always runs direct on <code>main</code> to generate track docs, lazily creating the worktree on the first <code>implement</code> step if <code>branch</code> mode is active.</p>
+            </section>
+
+            <section id="worktrees-panel">
+                <h2>Worktrees &amp; Panel</h2>
+                <p>When running a track in <code>branch</code> workspace mode, LaneConductor leverages Git Worktrees to provide isolated parallel execution. This isolates the agent's work, ensuring that uncommitted changes and branch states are quarantined. The <strong>Worktrees Panel</strong> on the dashboard provides direct human visibility and control over these environments:</p>
+                <ul>
+                    <li><strong>Active Worktrees Visibility</strong>: Lists all currently checked out track worktrees, their absolute filesystem paths, corresponding branch names, and unmerged commits.</li>
+                    <li><strong>Dev-Server Preview</strong>: Allows developers to swap the active dev server to run code directly from a specific worktree. This enables live manual previewing and verification of the agent's work before it is merged.</li>
+                    <li><strong>PR &amp; Integration Hub</strong>: Displays open Pull Requests, merge statuses (e.g., <code>open</code>, <code>conflicted</code>, <code>merged</code>), and provides direct action buttons (like "Approve &amp; Merge" or "Clean up worktree") to let humans control integration from the UI.</li>
+                    <li><strong>Lock Serialization</strong>: Visualizes track worktree locks (<code>.conductor/locks/</code>) which guarantee that workers do not clash when claiming tasks.</li>
+                </ul>
             </section>
 
             <section id="merge-modes">

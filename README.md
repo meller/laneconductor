@@ -26,6 +26,7 @@ LaneConductor is a **sovereign developer environment** that orchestrates AI agen
 - **Filesystem Message Bus**: Uses simple Markdown files in `conductor/tracks/` as the source of truth, enabling agents and humans to coordinate seamlessly.
 - **Live Kanban Dashboard**: A Vite + React dashboard that syncs in real-time with your filesystem via a local Postgres database.
 - **Quality Gates**: Automated verification (tests, linting, builds) that must pass before any work is considered "Done".
+- **Git Worktree Isolation & Panel**: Automatically isolates branch-mode track execution using Git Worktrees, keeping the main repository clean. The dashboard's **Worktrees Panel** offers live dev-server preview swapping, PR approval, and git lock management.
 - **Multi-Agent Support**: Natively optimized for **Claude Code** and **Gemini**, with support for primary and fallback LLM configurations.
 
 ---
