@@ -16,9 +16,9 @@ Run one live, evidence-recorded auto-claim cycle on this track (plus a negative 
 - [ ] Phase 3: Demonstrate the gate (negative control)
 - [ ] Phase 4: Write up findings
 - [ ] Phase 5: Teardown (human-confirmed — hard delete)
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 **Type**: dev
 **Track Kind**: feature
-**Summary**: Demo/verification track — exercises the existing auto_run gate end to end against a live sync+poll worker. No product code to be written; deliverable is recorded evidence. Safe to discard after.
+**Summary**: Discarded via Worktrees panel — not merging.
 **Auto Run**: yes
