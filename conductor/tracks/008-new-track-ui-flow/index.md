@@ -1,8 +1,8 @@
 # Track 008: New Track UI Flow
 
-**Lane**: quality-gate
+**Lane**: plan
 **Lane Status**: queue
-**Progress**: 100%
+**Progress**: 85%
 **Last Run**: claude/claude-sonnet-5 (primary)
 
 ## Problem
@@ -17,4 +17,4 @@ A "+ New Track" button in the board header. Clicking opens a modal that first ch
 - [x] Phase 3: "+ New Track" button in board header, wired to modal
 - [x] Phase 4: Fix Review Gaps
 - [x] Phase 5: Expose per-track config at creation time
-**Summary**: Phase 5 review FAILED — two gaps found: (1) `ui/server/utils.mjs` hardcodes a second copy of the merge/workspace mode allow-lists instead of importing the canonical `VALID_MODES`, contradicting the plan's own "single source" claim, and (2) `spec.md` was never updated with Phase 5's REQs/ACs and its existing ACs are still unticked despite 100% progress. Everything else (tests, build, App.jsx dual-render fix, Track Kind wiring) verified correct. See conversation.md and plan.md's ⚠️ Gaps section.
+**Summary**: Quality gate FAILED — the card had been advanced to quality-gate:queue at 100% with neither of review's two documented gaps actually fixed in code (zero diff since the Phase 5 implement commit; only index.md's lane marker had moved, almost certainly a stale/racing process). Gaps unchanged: (1) `ui/server/utils.mjs` hardcodes a second copy of the merge/workspace mode allow-lists instead of importing the canonical `VALID_MODES`, and (2) `spec.md` was never updated with Phase 5's REQs/ACs. Routed to plan:queue per workflow.json. See conversation.md and plan.md for full detail.
