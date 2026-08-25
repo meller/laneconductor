@@ -12,5 +12,5 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: quality-gate
-**Lane Status**: running
+**Lane Status**: queue
 **Summary**: To be defined.
