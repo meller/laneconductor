@@ -18,6 +18,8 @@ import { loadAuthConfig, authRouter, requireAuth, AUTH_ENABLED, TEST_MODE } from
 import { logger } from './logger.mjs';
 import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs';
 import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
+import { VALID_MODES as MERGE_MODE_VALID_MODES } from '../../conductor/services/merge-mode.mjs';
+import { VALID_MODES as WORKSPACE_MODE_VALID_MODES } from '../../conductor/services/workspace-mode.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -793,8 +795,24 @@ app.patch('/api/projects/:id/tracks/:num', async (req, res) => {
 
 app.post('/api/projects/:id/tracks', async (req, res) => {
   try {
-    const { title, description = '', type = 'feature', trackType = 'dev' } = req.body;
+    const {
+      title, description = '', type = 'feature', trackType = 'dev',
+      merge_mode = null, auto_run = false, workspace_mode = null, model = null,
+    } = req.body;
     if (!title || !title.trim()) return res.status(400).json({ error: 'title is required' });
+    // Track 008 Phase 5: reject rather than silently coerce — same enums
+    // trackTemplates()'s defense-in-depth check uses, imported from the one
+    // place each is defined (merge-mode.mjs / workspace-mode.mjs) rather
+    // than a third hardcoded copy of either list.
+    if (merge_mode !== null && !MERGE_MODE_VALID_MODES.includes(merge_mode)) {
+      return res.status(400).json({ error: `Invalid merge_mode: "${merge_mode}". Must be "pr" or "direct".` });
+    }
+    if (typeof auto_run !== 'boolean') {
+      return res.status(400).json({ error: 'auto_run must be a boolean' });
+    }
+    if (workspace_mode !== null && !WORKSPACE_MODE_VALID_MODES.includes(workspace_mode)) {
+      return res.status(400).json({ error: `Invalid workspace_mode: "${workspace_mode}". Must be "main" or "branch".` });
+    }
 
     // Get project repo_path
     const projResult = await pool.query(
@@ -823,9 +841,9 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
       // Register in DB - this effectively 'owns' the track number now
       const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
       await client.query(
-        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by, track_type)
-         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human', $5)`,
-        [req.params.id, trackNumber, title.trim(), description.trim(), safeTrackType]
+        `INSERT INTO tracks (project_id, track_number, title, content_summary, lane_status, lane_action_status, progress_percent, last_updated_by, track_type, merge_mode, auto_run, workspace_mode)
+         VALUES ($1, $2, $3, $4, 'plan', 'queue', 0, 'human', $5, $6, $7, $8)`,
+        [req.params.id, trackNumber, title.trim(), description.trim(), safeTrackType, merge_mode, auto_run, workspace_mode]
       );
       await client.query('COMMIT');
     } catch (dbErr) {
@@ -852,7 +870,9 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
         if (!existsSync(trackPath)) {
           mkdirSync(trackPath, { recursive: true });
           const safeTrackType = ['dev', 'marketing', 'sales', 'support', 'other'].includes(trackType) ? trackType : 'dev';
-          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType, 'plan');
+          const { index, plan, spec } = trackTemplates(trackNumber, title.trim(), description.trim(), type, safeTrackType, 'plan', {
+            mergeMode: merge_mode, autoRun: auto_run, workspaceMode: workspace_mode, model,
+          });
           writeFileSync(join(trackPath, 'index.md'), index, 'utf8');
           writeFileSync(join(trackPath, 'plan.md'), plan, 'utf8');
           writeFileSync(join(trackPath, 'spec.md'), spec, 'utf8');
