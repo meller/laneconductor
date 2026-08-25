@@ -1,13 +1,6 @@
 
 ## Track Creation Requests
 
-### Track 1118: Manager worker needs its own credential storage
-**Status**: pending
-**Type**: track-create
-**Created**: 2026-08-20T12:00:00.000Z
-**Title**: Manager worker needs its own credential storage
-**Description**: Filed from 1102 F13 — a manager worker started from a co-located project directory has no credential storage of its own and borrows that project's machine_token, which caused F13's pid-flapping incident (only the symptom was fixed there). Should persist its own token in ~/.laneconductor/manager-config.json instead.
-**Metadata**: { "priority": "medium", "assignee": null }
 
 ## Completed Queue
 
