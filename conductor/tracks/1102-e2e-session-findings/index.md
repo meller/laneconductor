@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 82%
+**Progress**: 94%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: User approved both remaining items — implementing Phase 16 (merge main, 219 commits, re-timestamp, apply F10c to live DB) and Phase 15b (real browser drag gesture)
+**Phase**: 16 of 17 phases done. Phase 16 complete — F10c is live and verified. Only Phase 15b remains (real browser drag gesture, user already approved)
 **Type**: bug
 **Summary**: Umbrella track for bugs found walking the real new-user flow end to end (create project → create track → plan → activity/inbox → deploy wizard). Several are onboarding-fatal: a newly created…
 
@@ -1048,7 +1048,7 @@ still-`running` index.md and generically resets to `queue`) and needs its
 own fix per the "Fix directions" above (a distinguishable "ended mid-work"
 outcome, plus SKILL guidance against backgrounding a final-turn command).
 
-### F22 — A migration authored in a long-lived worktree silently never applies, and lands out-of-order on merge 🔴 CONFIRMED (found while replanning 2026-08-20, not fixed)
+### F22 — A migration authored in a long-lived worktree silently never applies, and lands out-of-order on merge 🔴 CONFIRMED & FIXED (F10c live-applied 2026-08-25; unit-tested via TC-13.5)
 Found while re-planning this track's own Phase 13 (F10c). The previous
 implement session wrote `migrations/20260820101300_worker_dispatch_fk_set_null.sql`,
 tested it against the scratch `laneconductor_dev` DB, committed it, and
@@ -1092,6 +1092,32 @@ Fix directions:
 - Worth deciding explicitly which of the two migration mechanisms is
   canonical for new schema work, since having both undocumented is what
   made the first read of this land on the wrong conclusion.
+
+**Fixed 2026-08-25 (Phase 16)**: merged main (219 commits), re-timestamped
+the migration to `20260825120000` (above the true high-water mark),
+regenerated `atlas.sum`. Dry-running against the scratch DB surfaced yet
+**another** manifestation of this same drift family (chronologically
+after the repo_path one below): `20260820095249_add_auto_run.sql`'s
+DDL had been applied directly to the live DB at some point, bypassing
+`atlas migrate apply` — the column exists and matches the migration file
+exactly, but Atlas's own revisions ledger never recorded it, so *every*
+subsequent apply failed "added out of order" regardless of timestamp
+fixes, no matter how correct the ordering. Diagnosed by mirroring live's
+actual schema + revisions history into the scratch DB (`pg_dump
+--schema-only` + revisions table `--data-only`) instead of replaying full
+history from empty — which hits a separate, unrelated, pre-existing
+Postgres limitation (`ALTER TYPE ... ADD VALUE` can't be used in the same
+transaction as a later statement referencing the new value) on a
+completely different, years-old migration. Closed the ledger gap with a
+direct revision-row `INSERT` matching Atlas's own row shape (not
+re-running the already-applied DDL), verified via `atlas migrate apply`
+dry-run against the scratch DB, then applied the identical two-step fix
+to the live DB. **Verified live** in a rolled-back transaction: deleting
+a worker row now preserves its `worker_dispatch` rows with `worker_id`
+set to `NULL`. New test:
+`ui/server/tests/track-1102-f10c-live-db-fk.test.mjs` (TC-13.5) — targets
+the real local DB directly, the check that would have caught this
+immediately instead of letting the fix sit inert in production for days.
 
 **A second, independent instance found 2026-08-20 (Phase 15a)**, same
 session: standing up `laneconductor_dev`'s schema fresh from
@@ -1157,11 +1183,11 @@ Full task breakdown in `plan.md`; test cases in `test.md`.
 - [ ] Phase 10: Fix F6 — MANUAL/AUTOMATIC vocabulary in the CLI (the UI already does this at `WorkersList.jsx:375,597`; `bin/lc.mjs:640` still says "default is sync-only"). Wire values unchanged
 - [ ] Phase 11: F19 — add the missing regression test for `NEXT_LANE.backlog === 'plan'` (code is fixed and verified at `TrackCard.jsx:21`, but nothing enforces it and the finding body carries no fix note)
 - [x] Phase 12: F18 follow-up — dispatch claim-timeout (`reapStaleDispatches()`), covering a *real* worker that dies after assignment (which signature-exclusion cannot catch); fixed and unit-tested, UI visibility of the outcome still open
-- [ ] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL`. Migration written + scratch-DB tested, but **the live DB's FK is still CASCADE** — the fix does nothing in production yet. Blocked on Phase 16 (not on permission alone, as previously reported). See F22
+- [x] Phase 13: F10(c) — `worker_dispatch.worker_id` `ON DELETE CASCADE` → `SET NULL`. **Live and verified** (2026-08-25, via Phase 16) — deleting a worker row now preserves its dispatch rows with `worker_id` NULL, confirmed in a rolled-back transaction against the real DB
 - [x] Phase 14: F13 deeper cause — filed as [1118](../1118-manager-worker-credential-storage/index.md); not fixed here
 - [x] Phase 15a: F15 — real E2E of the dispatch bridge (real spawned API server + real DB + real worker, not the lightweight mock-collector.mjs). Fixed and mutation-verified; found a second F22 drift instance along the way
 - [ ] Phase 15b: F15 — the browser drag *gesture* on the real board. Still needs an explicit go-ahead or a disposable scratch project; deliberately split so 15a isn't held hostage to it
-- [ ] Phase 16: F22 — make the F10c migration actually applicable: merge main (196 commits behind), re-timestamp above the live high-water mark, regenerate `atlas.sum`, dry-run on scratch, then apply
+- [x] Phase 16: F22 — merged main (219 commits, 6 conflicts resolved), found and fixed a third F22 manifestation (an un-ledgered direct-apply gap that blocked every apply regardless of timestamp), then applied F10c to the live DB. Task 6 (deciding the canonical migration mechanism) deliberately left open
 
 **Verified closed while planning** (contradicting an earlier write-up): F8's
 "clear the busy heartbeat" follow-up needs no phase — `spawnCli()` does call

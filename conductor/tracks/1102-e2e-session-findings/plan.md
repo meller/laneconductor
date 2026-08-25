@@ -366,16 +366,23 @@ live DB's FK actually changes.
       since `atlas migrate diff` bundled in unrelated pre-existing drift
 - [x] Task 3: Audit every read of `worker_dispatch.worker_id` for a null
       it did not previously have to handle
-- [ ] Task 4: Apply the migration and verify against the **real** DB —
-      **blocked on Phase 16** (branch currency + re-timestamp). Verified
-      during replan that the live FK is still `ON DELETE CASCADE`, i.e.
-      this phase's actual goal is not yet achieved
-- [ ] Task 5: Re-run the F10c test suite pointed at the live DB's real
-      schema (not the scratch reconstruction) as the honest AC-8 check
+- [x] Task 4: Applied via Phase 16 (2026-08-25) — `atlas migrate apply`
+      against the live `laneconductor` DB, after closing an unrelated
+      revisions-ledger gap Phase 16 found along the way. Verified live in
+      a rolled-back transaction: FK is `ON DELETE SET NULL`, a deleted
+      worker's dispatch rows survive with `worker_id` NULL
+- [x] Task 5: `ui/server/tests/track-1102-f10c-live-db-fk.test.mjs`
+      (TC-13.5) — targets the real local DB directly (not the scratch
+      reconstruction), asserts the raw `pg_constraint.confdeltype` catalog
+      code (`'n'` for SET NULL), plus a rolled-back-transaction row-survival
+      check. This is the test that would have caught F22 immediately.
 
 **Impact**: Worker history stops being destroyable by a single row
-deletion — *once Task 4 lands*. Today the code is written and proven on a
-scratch DB while production still cascades.
+deletion — live, not just on a scratch DB. Confirmed: the fix sat
+committed and scratch-tested for 5 days (2026-08-20 → 2026-08-25) with
+production still cascading the whole time, which is exactly why AC-8 was
+reworded against the live DB rather than trusting a scratch-DB-passing
+test alone.
 
 ---
 
@@ -463,41 +470,61 @@ excuse that quietly covers work that never needed permission.
 
 ---
 
-## Phase 16: F22 — make the F10c migration actually applicable
+## Phase 16: F22 — make the F10c migration actually applicable ✅ DONE
 
-**Problem**: See F22. The migration authored in Phase 13 sits at version
-`20260820101300`, but this branch is **196 commits behind main**, and the
-live DB has already recorded `20260821120000` and `20260823100000` — both
-sorting above it, and neither present in this worktree. Atlas assumes
-linear history and rejects out-of-order migrations by default;
-`atlas.sum` was regenerated against the stale file set and will conflict
-on merge. The live FK is still `ON DELETE CASCADE`, so Phase 13's fix
-currently does nothing in production.
+**Problem**: See F22. The migration authored in Phase 13 sat at version
+`20260820101300`, but this branch was **196 commits behind main** (219 by
+the time this phase actually ran), and the live DB had already recorded
+`20260821120000` and `20260823100000` — both sorting above it, neither
+present in this worktree. Atlas assumes linear history and rejects
+out-of-order migrations by default; `atlas.sum` was stale against the
+merged tree. The live FK was still `ON DELETE CASCADE`.
 
 **Solution**: Bring the branch current, re-timestamp above the
-high-water mark, regenerate the checksum on the merged tree, then apply.
+high-water mark, regenerate the checksum, dry-run, then apply.
 
-- [ ] Task 1: Merge (or rebase onto) `main` — 196 commits; expect real
-      conflicts in `migrations/atlas.sum` and possibly the F18b/F21 files,
-      since main has moved under all of them
-- [ ] Task 2: Re-run this track's full test set after the merge, before
-      touching anything else — a 196-commit merge is itself a regression
-      risk to everything already landed here
-- [ ] Task 3: Re-timestamp the migration above the live high-water mark
-      (currently `20260823100000`), delete the old file, regenerate
-      `atlas.sum` with `atlas migrate hash`
-- [ ] Task 4: Dry-run against the scratch `laneconductor_dev` DB first —
-      confirm Atlas accepts the ordering and applies cleanly there
-- [ ] Task 5: Only then apply to the live DB (Phase 13 Task 4), with
-      explicit confirmation, and verify the FK actually changed
-- [ ] Task 6: Decide/record which migration mechanism is canonical
-      (`migrations/` + Atlas vs `ui/server/migrations/` + startup
-      `runMigration()`) — having both undocumented is what made the first
-      read of this land on the wrong answer
+- [x] Task 1: Merged `main` (219 commits) — 6 real conflicts:
+      `migrations/atlas.sum`, `prisma/schema.sql` (took main's wholesale),
+      `ui/server/utils.mjs` (combined F3 with main's new kindLine),
+      `conductor/laneconductor.sync.mjs` (combined F21 with main's new
+      isBlockedTurn/isStaleAgainstNewMessage guards), this track's own
+      `index.md`, and `file_sync_queue.md` (textual union, deduplicated)
+- [x] Task 2: Full regression re-run post-merge found 2 real adaptations
+      needed (both from genuine main features, not bugs): F9b's test
+      assumed 'plan' always gets a worktree — Track 1115 made 'plan'
+      unconditionally main-direct, switched to 'implement'; F18-phantom's
+      mock regex assumed `ORDER BY id LIMIT 1` — main added an idle-worker
+      preference, updated the regex to match. Final count: 7 files/20
+      tests failing (was 6/18 pre-merge) — the delta is exactly one file
+      confirmed failing identically on main's own tip, unrelated to this
+      merge
+- [x] Task 3: Re-timestamped to `20260825120000`, regenerated `atlas.sum`
+      via `atlas migrate hash`
+- [x] Task 4: Dry-run against scratch `laneconductor_dev` — found a
+      **third** F22 manifestation first try (`add_auto_run`'s DDL applied
+      live without ever being recorded in Atlas's ledger, blocking every
+      subsequent apply regardless of timestamp correctness). Diagnosed by
+      mirroring live's real schema + revisions history into the scratch
+      DB rather than replaying full history from empty (which hits an
+      unrelated, pre-existing Postgres enum-transaction limitation on a
+      years-old, unrelated migration). Closed the gap with a direct
+      revision-row INSERT matching Atlas's own shape; dry-run then applied
+      cleanly
+- [x] Task 5: Applied to the live DB with the same two-step fix (close
+      ledger gap, then apply). Verified live in a rolled-back transaction:
+      FK is `ON DELETE SET NULL`, dispatch rows survive a worker deletion
+- [ ] Task 6: Not done — deciding which migration mechanism is canonical
+      is a real, separate decision that deserves its own attention, not a
+      rushed call at the end of an already-large phase. Left open.
 
-**Impact**: Turns a schema fix that silently does nothing into one that
-actually ships — and documents the trap for the next track that writes a
-migration from a long-lived worktree.
+**Impact**: F10c's fix is live, not just scratch-tested. Confirmed via
+`track-1102-f10c-live-db-fk.test.mjs` (TC-13.5), which checks the real DB
+directly — the test that would have caught this immediately instead of
+letting it sit inert for 5 days. Also documents, with a live
+reproduction, exactly how a migration authored on a long-lived branch can
+fail to apply in three DIFFERENT ways (out-of-order timestamp, stale
+schema.sql drift, and an un-ledgered direct-apply gap) — not a single
+narrow bug but a real gap in this repo's migration discipline.
 
 ---
 
