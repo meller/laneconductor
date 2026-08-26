@@ -179,8 +179,16 @@ function ConflictDetails({ row }) {
   );
 }
 
-function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onCreatePr, creatingPr, onMergePr, mergingPr, onPreview, isPreviewing, previewLoading, onAiResolve, aiResolving }) {
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onCreatePr, creatingPr, onMergePr, mergingPr, onPreview, isPreviewing, previewLoading, onAiResolve, aiResolving, highlighted }) {
   const { armedKey, request } = useArmedConfirm();
+  // Deep link from a Done-lane card's "View in Worktrees" — this panel can
+  // hold dozens of rows across every unmerged track, so landing on it
+  // without actually surfacing the one the user clicked through for would
+  // defeat the point of the link.
+  const rowRef = useRef(null);
+  useEffect(() => {
+    if (highlighted) rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlighted]);
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
   const canMerge = row.class === 'mergeable' || row.class === 'stranded';
   const isConflicted = row.class === 'conflicted';
@@ -257,9 +265,12 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
 
   return (
     <div
-      className={`border rounded-xl p-4 flex flex-col gap-3 transition-colors shadow-sm ${row.class === 'stranded' ? 'bg-red-950/10 border-red-900/50' : 'bg-gray-900 border-gray-800 hover:border-gray-700'
+      ref={rowRef}
+      className={`border rounded-xl p-4 flex flex-col gap-3 transition-colors shadow-sm ${highlighted ? 'ring-2 ring-blue-500' : ''} ${row.class === 'stranded' ? 'bg-red-950/10 border-red-900/50' : 'bg-gray-900 border-gray-800 hover:border-gray-700'
         }`}
       data-testid="worktree-row"
+      data-track={row.track ?? ''}
+      data-highlighted={highlighted ? 'true' : 'false'}
     >
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5 min-w-0">
@@ -553,7 +564,7 @@ function usePendingActions() {
   return { pendingKeys: pending, start, clear };
 }
 
-export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
+export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers, highlightTrack }) {
   const { apiFetch } = useApi();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -958,6 +969,7 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers }) {
         <WorktreeRow
           key={`${row.host || ''}-${row.track || row.branch || i}`}
           row={row}
+          highlighted={Boolean(highlightTrack) && String(row.track ?? '') === String(highlightTrack)}
           onMerge={handleMerge}
           merging={Boolean(pendingKeys[mergeKey(row)])}
           onSelectTrack={onSelectTrack ? (track, opts) => onSelectTrack(projectId, track, opts) : null}

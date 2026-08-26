@@ -82,6 +82,40 @@ describe('createTrackPr', () => {
     );
     assert.equal(exec.calls.length, 1);
   });
+
+  // Track 1119 (found live): every quality-gate retry re-throws here once a
+  // PR for the branch already exists, permanently stuck the track at
+  // quality-gate. Recover by reusing the existing PR instead of failing.
+  it('recovers the existing PR number+url when gh pr create fails because one already exists', () => {
+    const err = new Error('gh pr create failed');
+    err.stderr = Buffer.from(
+      'Warning: 1 uncommitted change\n' +
+      'a pull request for branch "track-1119" into branch "main" already exists:\n' +
+      'https://github.com/meller/laneconductor/pull/17\n'
+    );
+    const exec = fakeExec([
+      [/^git push /, ''],
+      [/^gh pr create /, err],
+    ]);
+    const result = createTrackPr({
+      repoRoot: '/repo', trackNumber: '1119', mainBranch: 'main',
+      title: 'Track 1119', body: 'b', exec,
+    });
+    assert.deepEqual(result, { number: 17, url: 'https://github.com/meller/laneconductor/pull/17' });
+  });
+
+  it('still throws when gh pr create fails for an unrelated reason', () => {
+    const err = new Error('gh pr create failed');
+    err.stderr = Buffer.from('error connecting to api.github.com: dial tcp: timeout');
+    const exec = fakeExec([
+      [/^git push /, ''],
+      [/^gh pr create /, err],
+    ]);
+    assert.throws(
+      () => createTrackPr({ repoRoot: '/repo', trackNumber: '1', title: 't', body: 'b', exec }),
+      /gh pr create failed/
+    );
+  });
 });
 
 describe('pollTrackPr', () => {

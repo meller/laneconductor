@@ -1,12 +1,14 @@
 # Track 1118: Manager worker needs its own credential storage
 
-**Lane**: plan
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Planned
 **Type**: bug
-**Summary**: A manager worker has no credential storage of its own — when started from a directory that is also a real project, it authenticates using that co-located project's own machine_token, which caused…
+**Track Kind**: bug
+**Summary**: A manager worker has no credential storage or endpoint of its own — started from a directory that is also a real project, it borrows that project's token (from .env, the per-worker token store, AND…
 
 ## Problem
 
@@ -41,10 +43,17 @@ A manager should persist its own `machine_token` in
 from whatever directory it happens to be started in.
 
 ## Phases
-- [ ] Phase 1: Design manager-config.json's token storage/rotation and how a manager registers/obtains its own token
-- [ ] Phase 2: Update resolveCollectorToken() (or add a manager-specific path) to use it instead of falling through to a co-located project's token
-- [ ] Phase 3: Audit every other call site that currently assumes "the manager borrows a co-located project's identity" for similar risk
-- [ ] Phase 4: Regression test — a manager started from inside a real project directory never reads that project's machine_token
+
+Expanded from the four phases originally filed here — see `plan.md` for the
+mapping. The audit (filed Phase 3) ran during planning and found four more
+live defects in this class, which is why it splits into two phases.
+
+- [ ] Phase 1: Server — `POST /worker/register`'s manager branch returns a `machine_token` it never persists (missing from its `ON CONFLICT DO UPDATE`), so every manager restart adopts a dead credential. Hard blocker for the rest.
+- [ ] Phase 2: `manager-config.json` becomes the manager's credential store — shared read/write module, `0600`, `collectors` + `bootstrap_key`, `lc worker start --manager --collector/--key`
+- [ ] Phase 3: Manager token/collector resolution reads only that store — never the launch directory's `.env`, per-worker token store, or `.laneconductor.json`
+- [ ] Phase 4: A manager writes nothing into its launch directory — it currently shares the project worker's `.worker.tokens.json` and `.sync.pid`, scaffolds `conductor/` there, and live-reloads that project's config
+- [ ] Phase 5: Close the remaining borrowed-identity call sites — `DELETE /worker` still carries the exact F13 precedence bug and marks the co-located project worker offline on manager shutdown
+- [ ] Phase 6: Regression tests — decoy-token fixture proving a manager reads none of the four borrowable sources, plus manager/project-worker co-existence
 
 ## Depends on
 [1102](../1102-e2e-session-findings/index.md) F13 (symptom fix, traced this deeper cause), [1091](../1091-manager-worker-and-new-project-flow/index.md) (manager worker design).

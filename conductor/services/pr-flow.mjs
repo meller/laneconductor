@@ -38,13 +38,30 @@ export function createTrackPr({ repoRoot, trackNumber, mainBranch = 'main', titl
 
   exec('git', ['push', '-u', 'origin', branch], { cwd: repoRoot });
 
-  const output = exec('gh', [
-    'pr', 'create',
-    '--base', mainBranch,
-    '--head', branch,
-    '--title', title,
-    '--body', body,
-  ], { cwd: repoRoot });
+  let output;
+  try {
+    output = exec('gh', [
+      'pr', 'create',
+      '--base', mainBranch,
+      '--head', branch,
+      '--title', title,
+      '--body', body,
+    ], { cwd: repoRoot });
+  } catch (err) {
+    // `gh pr create` fails, rather than succeeding idempotently, when a PR
+    // for this branch already exists — e.g. a prior quality-gate pass
+    // already opened one and this run is a retry (found live on track
+    // 1119: every retry threw here, which left the track stuck at
+    // quality-gate forever since the caller treats any throw as a hard
+    // failure). `gh`'s own error message still names the existing PR's
+    // URL, so recover from this one specific case instead of failing.
+    const stderr = err.stderr?.toString?.() || err.message || '';
+    const existingMatch = stderr.match(/already exists:\s*\n?\s*(\S*\/pull\/(\d+))/);
+    if (existingMatch) {
+      return { number: parseInt(existingMatch[2], 10), url: existingMatch[1] };
+    }
+    throw err;
+  }
 
   // `gh pr create` prints the created PR's URL as the last non-empty line
   // of stdout on success (e.g. "https://github.com/org/repo/pull/42").

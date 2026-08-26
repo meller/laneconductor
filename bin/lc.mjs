@@ -155,43 +155,48 @@ function findProjectRoot(startDir = process.cwd()) {
     return null;
 }
 
-/**
- * Returns the PID recorded in pidFile if a live laneconductor.sync.mjs worker
- * still owns it, else null (cleaning up a stale pidfile as a side effect).
- * Guards against PID reuse: a dead worker's PID can be recycled by the OS for
- * an unrelated process, so a bare `process.kill(pid, 0)` liveness check alone
- * isn't enough — cross-check /proc/<pid>/cmdline on Linux where available.
- */
-function getRunningWorkerPid(pidFile) {
-    if (!existsSync(pidFile)) return null;
-    const pid = parseInt(readFileSync(pidFile, 'utf8').trim(), 10);
-    if (!pid || Number.isNaN(pid)) {
-        try { unlinkSync(pidFile); } catch (e) { }
-        return null;
-    }
-    let alive = false;
+function isAlivePid(pid) {
+    if (!pid || Number.isNaN(pid)) return false;
     try {
         process.kill(pid, 0);
-        alive = true;
+        return true;
     } catch (e) {
-        alive = false;
+        return false;
     }
-    if (!alive) {
-        try { unlinkSync(pidFile); } catch (e) { }
-        return null;
-    }
+}
+
+/**
+ * True only if `pid` is both alive and actually a laneconductor.sync.mjs
+ * process. Guards against PID reuse: a dead worker's PID can be recycled by
+ * the OS for an unrelated process, so a bare `process.kill(pid, 0)` liveness
+ * check alone isn't enough — cross-check /proc/<pid>/cmdline on Linux where
+ * available. Shared by getRunningWorkerPid (pidfile-based) and `lc stop`'s
+ * pidfile-mismatch fallback below.
+ */
+function isLiveLaneConductorPid(pid) {
+    if (!isAlivePid(pid)) return false;
     const cmdlinePath = `/proc/${pid}/cmdline`;
     if (existsSync(cmdlinePath)) {
         try {
             const cmdline = readFileSync(cmdlinePath, 'utf8');
-            if (!cmdline.includes('laneconductor.sync.mjs')) {
-                // PID was reused by an unrelated process; the real worker is gone.
-                try { unlinkSync(pidFile); } catch (e) { }
-                return null;
-            }
+            if (!cmdline.includes('laneconductor.sync.mjs')) return false;
         } catch (e) {
             // /proc unreadable (permissions, race) — fall back to trusting the liveness check.
         }
+    }
+    return true;
+}
+
+/**
+ * Returns the PID recorded in pidFile if a live laneconductor.sync.mjs worker
+ * still owns it, else null (cleaning up a stale pidfile as a side effect).
+ */
+function getRunningWorkerPid(pidFile) {
+    if (!existsSync(pidFile)) return null;
+    const pid = parseInt(readFileSync(pidFile, 'utf8').trim(), 10);
+    if (!isLiveLaneConductorPid(pid)) {
+        try { unlinkSync(pidFile); } catch (e) { }
+        return null;
     }
     return pid;
 }
@@ -206,6 +211,16 @@ function resolveWorkerNumber(args) {
     if (idx === -1) return 1;
     const n = parseInt(args[idx + 1], 10);
     return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+// `lc stop`'s fallback PID: a caller that already knows the worker's actual
+// OS pid (e.g. the UI server, from the workers table's last heartbeat) can
+// pass it here so a stale pidfile doesn't make the stop a silent no-op.
+function resolveFallbackPid(args) {
+    const idx = args.indexOf('--pid');
+    if (idx === -1) return null;
+    const n = parseInt(args[idx + 1], 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 // Track 1109: forward --only-tracks / --once to the spawned sync worker.
@@ -1706,12 +1721,38 @@ Please review this, answer any questions (some fields may contain questions rath
     const isManager = args.includes('--manager');
     const workerNumber = isManager ? 1 : resolveWorkerNumber(args);
     const pidFile = isManager ? getManagerPidFilePath() : getPidFilePath(workerRoot, workerNumber);
-    if (!existsSync(pidFile)) {
+
+    const pidFileExists = existsSync(pidFile);
+    const filePid = pidFileExists ? parseInt(readFileSync(pidFile, 'utf8').trim(), 10) : null;
+    const fallbackPid = resolveFallbackPid(args);
+
+    // The pidfile is the primary source of truth — a liveness check alone is
+    // enough here, same as before this fallback existed, since the pidfile
+    // was written by `lc start`/`lc restart` themselves. (No cmdline check:
+    // that's only needed for the externally-supplied fallback below, which
+    // wasn't written by us and could in principle name a reused/unrelated
+    // PID.)
+    //
+    // The pidfile goes stale if the worker process was ever replaced without
+    // going through `lc start`/`lc restart` — in that case the real worker
+    // is still running under a PID this file never recorded. A caller that
+    // already knows the worker's actual PID (e.g. the UI server, from the
+    // workers table's last heartbeat) can pass --pid as a fallback so stop
+    // isn't a silent no-op.
+    let pid = isAlivePid(filePid) ? filePid : null;
+    if (!pid && isLiveLaneConductorPid(fallbackPid)) {
+        pid = fallbackPid;
+        if (pidFileExists) {
+            console.log(`⚠️  Pidfile (${pidFile.split('/').pop()}) pointed at PID ${filePid}, which is not running — using the actual worker PID ${fallbackPid} instead`);
+        }
+    }
+
+    if (!pid) {
         console.log(`⚠️  No heartbeat running (no ${pidFile.split('/').pop()} found)`);
+        if (pidFileExists) { try { unlinkSync(pidFile); } catch (e) { } }
         process.exit(0);
     }
 
-    const pid = readFileSync(pidFile, 'utf8').trim();
     try {
         // Track 1110 Phase 2: must not report success (or delete the
         // pidfile) until the process is actually confirmed dead — the old

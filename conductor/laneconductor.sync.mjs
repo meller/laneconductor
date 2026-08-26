@@ -31,7 +31,7 @@ import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
 import { getBuildById, createBuildArtifact } from '../ui/server/build-manager.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
-import { parseConversationComments } from './sync-conversation-utils.mjs';
+import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
@@ -61,6 +61,7 @@ import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
+import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -1348,6 +1349,23 @@ function updateTrackMetadata(trackNumber, updates) {
 // prefix, which structurally can no longer match `${trackNumber}-` — so the
 // ambiguity is resolved once, not silently re-risked on every future call.
 // Nothing is deleted; renamed folders keep their full content and history.
+// Renames a stray/stale folder aside so resolveTrackFolder's directory
+// scan can never match it again. Shared by both quarantine call sites
+// below (the multi-match branch, and the single-legacy-match-vs-
+// registered-prefixed-folder branch added 2026-08-26).
+function quarantineStaleFolder(tracksDir, staleName) {
+  const from = join(tracksDir, staleName);
+  const to = join(tracksDir, `_duplicate-${staleName}`);
+  try {
+    if (!existsSync(to)) {
+      renameSync(from, to);
+      console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
+    }
+  } catch (err) {
+    console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
+  }
+}
+
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
   const matches = readdirSync(tracksDir, { withFileTypes: true })
@@ -1355,26 +1373,51 @@ function resolveTrackFolder(tracksDir, trackNumber) {
     .map(d => d.name)
     .sort();
 
-  if (matches.length <= 1) return matches[0] || null;
-
   const meta = getTrackMetadata(trackNumber);
   const registered = meta?.folder_path ? basename(meta.folder_path) : null;
-  const canonical = (registered && matches.includes(registered)) ? registered : matches[0];
+  const registeredExists = !!(registered && existsSync(join(tracksDir, registered)));
+
+  // Legacy folders are named `${trackNumber}-slug`, matched above. Newer
+  // tracks (since track 10023) use `INITIALS-${trackNumber}-slug`, which
+  // never matches that prefix and previously made this function return
+  // null for every prefixed track — breaking any dispatch path that
+  // resolves the folder by track number alone (e.g. worker_dispatch
+  // lane-action processing, which is also what the UI's "Run" button
+  // ultimately triggers). Fall back to the registered folder_path in
+  // tracks-metadata.json, which newTrack always writes correctly
+  // regardless of naming convention.
+  if (matches.length === 0) {
+    return registeredExists ? registered : null;
+  }
+
+  // A lone legacy-pattern match is the common, unambiguous case and is
+  // normally trusted immediately — EXCEPT when metadata registers a
+  // DIFFERENT, currently-existing folder. That combination only arises
+  // when a prefixed track (e.g. "AM-1119-...", which structurally can
+  // never land in `matches` — it doesn't start with the bare
+  // `${trackNumber}-` prefix) has a stale legacy-named duplicate sitting
+  // next to it. Confirmed live, track 1119 (2026-08-26): trusting this
+  // branch blindly fed checkAndClaimGitLock's own git-add/commit into
+  // the stale, scaffolded-placeholder folder on every single dispatch,
+  // repeatedly re-committing garbage ("chore(track-1119): sync files
+  // before worktree" — fired 5+ times) while the real, actively-worked
+  // folder sat untouched. Quarantine the stale match instead of trusting
+  // it, the same way the multi-match branch below already does.
+  if (matches.length === 1) {
+    if (registeredExists && registered !== matches[0]) {
+      quarantineStaleFolder(tracksDir, matches[0]);
+      return registered;
+    }
+    return matches[0];
+  }
+
+  const canonical = (registeredExists && matches.includes(registered)) ? registered : matches[0];
 
   console.warn(`[ambiguous-track] Track ${trackNumber} matched ${matches.length} folders (${matches.join(', ')}) — using "${canonical}", quarantining the rest.`);
 
   for (const dupName of matches) {
     if (dupName === canonical) continue;
-    const from = join(tracksDir, dupName);
-    const to = join(tracksDir, `_duplicate-${dupName}`);
-    try {
-      if (!existsSync(to)) {
-        renameSync(from, to);
-        console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
-      }
-    } catch (err) {
-      console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
-    }
+    quarantineStaleFolder(tracksDir, dupName);
   }
 
   updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, canonical) });
@@ -2354,10 +2397,42 @@ async function syncConversation(filepath) {
   return withConvSyncLock(cursorPath, () => syncConversationLocked(filepath, trackNumber, trackDir, cursorPath));
 }
 
+// .conv-cursor is gitignored (per-machine, not committed) — a fresh worktree
+// or a new worker process on a new machine starts with no cursor file even
+// though the project's conversation history may already be fully synced.
+// Defaulting to cursor=0 there re-parses the ENTIRE conversation.md as "new"
+// and re-POSTs every already-synced turn: duplicate rows at best, and if any
+// single turn is large, PayloadTooLargeError in a tight loop at worst (track
+// 10021, 2026-08-26 — a 153KB conversation.md hit Express's 100kb body limit
+// on cold start). Ask the DB how many comments it already has for this track
+// and skip exactly that many locally-parsed turns, so a cold start only
+// (re-)posts content the DB doesn't already have. Best-effort: on any
+// failure (no collector, local-fs mode, network error) this falls back to
+// the old cursor=0 behavior rather than blocking the sync entirely.
+async function seedCursorFromDB(trackNumber, content) {
+  try {
+    const { url, token } = primaryCollector();
+    if (!url) return 0;
+    const track = await get(url, token, `/track/${trackNumber}`).catch(() => null);
+    const remoteCount = track?.comments?.length ?? 0;
+    if (remoteCount === 0) return 0;
+
+    const offsets = findTurnStartOffsets(content);
+    if (remoteCount >= offsets.length) return content.length;
+
+    console.log(`[conv-sync] Track ${trackNumber}: no local cursor — DB already has ${remoteCount} comment(s), seeding cursor past them instead of resyncing from scratch`);
+    return offsets[remoteCount];
+  } catch (err) {
+    console.warn(`[conv-sync] cursor seed for track ${trackNumber} failed, defaulting to 0: ${err.message}`);
+    return 0;
+  }
+}
+
 async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPath) {
   try {
     const content = readFileSync(filepath, 'utf8');
-    const cursor = parseInt(readIfExists(cursorPath) || '0');
+    const storedCursor = readIfExists(cursorPath);
+    const cursor = storedCursor !== null ? parseInt(storedCursor) : await seedCursorFromDB(trackNumber, content);
     const newContent = content.slice(cursor);
     if (!newContent.trim()) return;
 
@@ -3697,6 +3772,76 @@ async function releaseGitLock(trackNumber) {
   }
 }
 
+// Dogfooding 2026-08-25: checkAndClaimGitLock() above prevents two
+// sessions from claiming the SAME track, but does nothing to stop two
+// DIFFERENT main-mode tracks from running concurrently against the SAME
+// primary checkout — main mode has no worktree, so both sessions share
+// one working directory with no isolation between them at all. Confirmed
+// live: one main-mode session's own file operations (scaffold writes,
+// artifact copies, or a routine sweep — root cause not yet pinned down)
+// deleted a SECOND main-mode track's uncommitted folder mid-run while
+// both were active at once. Per-track locking can't catch this by
+// construction — it's scoped to one track number, and this is a
+// cross-track collision. A single global lock, held for the duration of
+// ANY main-mode spawn (acquired/released exactly where the per-track
+// lock already is, in spawnCli), makes "at most one main-mode session at
+// a time" an actual invariant instead of a probabilistic accident of
+// timing. Branch-mode sessions never touch this — they're already
+// isolated in their own worktree, this lock has nothing to protect there.
+// Mirrors checkAndClaimGitLock's own shape (stale timeout, PID liveness
+// check) deliberately, for one operator-facing lock file family instead
+// of two different ones to reason about.
+async function checkAndClaimGlobalMainModeLock(trackNumber) {
+  const lockDir = join(process.cwd(), '.conductor', 'locks');
+  const lockFile = join(lockDir, '_main-mode-global.lock');
+
+  mkdirSync(lockDir, { recursive: true });
+
+  if (existsSync(lockFile)) {
+    const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
+    const lockAge = Date.now() - new Date(lock.started_at).getTime();
+    const staleTimeout = 5 * 60 * 1000; // 5 minutes — same convention as checkAndClaimGitLock
+    const isSameMachine = lock.machine === os.hostname();
+    let isDead = false;
+    if (isSameMachine && lock.pid) {
+      try {
+        process.kill(lock.pid, 0);
+      } catch (e) {
+        isDead = true;
+      }
+    }
+
+    if (lockAge < staleTimeout && !isDead) {
+      throw new Error(`Main-mode is busy with track ${lock.track_number} (locked by ${lock.user}@${lock.machine}${lock.pid ? ` PID: ${lock.pid}` : ''}, age: ${Math.round(lockAge / 1000)}s)`);
+    }
+
+    console.log(`[main-mode-lock] Removing ${isDead ? 'dead' : 'stale'} global main-mode lock (was held for track ${lock.track_number}, age: ${Math.round(lockAge / 1000)}s)`);
+    rmSync(lockFile);
+  }
+
+  const lockData = {
+    user: process.env.USER || os.userInfo().username || 'unknown',
+    machine: os.hostname(),
+    pid: process.pid,
+    started_at: new Date().toISOString(),
+    track_number: trackNumber,
+  };
+  writeFileSync(lockFile, JSON.stringify(lockData, null, 2), 'utf8');
+  console.log(`[main-mode-lock] Claimed global main-mode lock for track ${trackNumber}`);
+  return lockFile;
+}
+
+async function releaseGlobalMainModeLock() {
+  const lockFile = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
+  try {
+    if (!existsSync(lockFile)) return;
+    rmSync(lockFile);
+    console.log('[main-mode-lock] Released global main-mode lock');
+  } catch (err) {
+    console.error(`[main-mode-lock] Error releasing global main-mode lock: ${err.message}`);
+  }
+}
+
 async function removeWorktree(trackNumber) {
   const repoRoot = resolvePrimaryRepoRoot(process.cwd());
   const worktreePath = join(repoRoot, '.worktrees', `${trackNumber}`);
@@ -4167,6 +4312,7 @@ setInterval(() => {
 async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null) {
   let lockFile = null;
   let worktreePath = null;
+  let globalMainModeLockAcquired = false;
 
   // Fallback to getting projectId if not provided
   if (!projectId) {
@@ -4230,6 +4376,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
   }
 
+  // Dogfooding 2026-08-25: at most one main-mode session may run at a time
+  // — see checkAndClaimGlobalMainModeLock's own doc comment for why
+  // (main mode has no worktree, so two concurrent main-mode sessions share
+  // one working directory with zero isolation; confirmed live, one
+  // deleted another's uncommitted work mid-run). Checked/claimed here,
+  // same guard style as the dirty-checkout block just above, so a
+  // blocked-by-lock main-mode spawn reports and retries exactly the same
+  // way a blocked-by-dirty-checkout one already does.
+  if (workspaceMode === 'main' && !getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
+    try {
+      await checkAndClaimGlobalMainModeLock(trackNumber);
+      globalMainModeLockAcquired = true;
+    } catch (lockErr) {
+      console.warn(`[${label}] Track ${trackNumber}: ${lockErr.message}`);
+      if (primaryIndexPath) {
+        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
+      }
+      if (primaryTrackDirName) {
+        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+        const comment = `\n> **system**: ⚠️ Main-mode run blocked — ${lockErr.message}. Not spawning; will retry next cycle once main-mode is free.\n`;
+        try {
+          appendFileSync(convPath, comment, 'utf8');
+        } catch { /* best-effort — the console.warn above is the durable record either way */ }
+      }
+      const err = new Error(`[workspace-mode] main-mode spawn blocked by global lock for track ${trackNumber}: ${lockErr.message}`);
+      err.workspaceGuardBlocked = true;
+      throw err;
+    }
+  }
+
   if (!getIsLocalFs() && !process.env.LC_SKIP_GIT_LOCK) {
     try {
       lockFile = await checkAndClaimGitLock(trackNumber);
@@ -4240,6 +4417,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       console.error(`[${label}] Failed to setup lock/worktree for track ${trackNumber}: ${err.message}`);
       if (worktreePath) await removeWorktree(trackNumber).catch(() => { });
       if (lockFile) await releaseGitLock(trackNumber).catch(() => { });
+      if (globalMainModeLockAcquired) await releaseGlobalMainModeLock().catch(() => { });
       throw err;
     }
   }
@@ -4969,6 +5147,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
         }
         if (lockFile) await releaseGitLock(trackNumber);
+        if (globalMainModeLockAcquired) await releaseGlobalMainModeLock();
 
         // Worktree lifecycle management
         if (worktreePath) {
@@ -5696,6 +5875,34 @@ async function finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun) {
   if (finishWorkspaceMode === 'main') {
     mergeResult = { merged: true, reason: 'already-on-main' };
     resultText = `Completed [${stageList}] — already on main, no merge needed.`;
+  } else if (resolveMergeMode({ merge_mode: parseMergeModeMarker(finishIndexContent) }) === 'pr') {
+    // Found live (track 1119): this function called mergeWorktreeBranch()
+    // unconditionally, regardless of merge_mode — every OTHER place in this
+    // file that reaches "done" forks on mode first (direct: merge locally;
+    // pr: openTrackPrOnDone), e.g. the per-cycle worktree-lifecycle branch
+    // above. This one didn't, so a pr-mode track's "Complete & Merge" tried
+    // a raw local merge, hit a real conflict, and failed with a confusing
+    // message instead of doing what pr-mode actually asked for: push the
+    // branch and open a PR.
+    const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
+    if (!existsSync(worktreePath)) {
+      mergeResult = { merged: false, reason: 'no-worktree-for-pr' };
+      resultText = `Completed [${stageList}] but could not open a PR: no worktree found for track ${trackNumber}.`;
+    } else {
+      await openTrackPrOnDone(trackNumber, worktreePath);
+      // openTrackPrOnDone() handles its own error reporting (a track
+      // comment + pr_status: 'error') and never throws — re-read its own
+      // markers to tell success from failure here, same as reconcilePrTracks
+      // already does elsewhere in this file.
+      const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
+      const wtTrackDir = resolveTrackFolder(wtTracksDir, trackNumber);
+      const wtContent = wtTrackDir ? (readIfExists(join(wtTracksDir, wtTrackDir, 'index.md')) || '') : '';
+      const prNumber = wtContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1];
+      mergeResult = prNumber ? { merged: true, reason: 'pr-opened' } : { merged: false, reason: 'pr-open-failed' };
+      resultText = prNumber
+        ? `Completed [${stageList}] — merge_mode is pr, opened PR #${prNumber} instead of merging locally.`
+        : `Completed [${stageList}] but opening a PR failed — see the track's own comments for details.`;
+    }
   } else {
     try {
       mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
@@ -6046,6 +6253,62 @@ async function runCreateProject(entry) {
   spawn('lc', ['worker', 'start'], { cwd: targetPath, detached: true, stdio: 'ignore' }).unref();
 
   return { ok: true, targetPath, generatedTracks };
+}
+
+// Track 1091 Phase 7: manager-only sweep for laneconductor.sync.mjs
+// processes on this host that aren't any currently-registered worker —
+// see orphan-worker-detection.mjs's doc comment for the incident that
+// motivated this (18 leftover test-harness processes, none registered,
+// 3 spinning at ~80% CPU for 13+ hours against a deleted cwd).
+//
+// Grace period default: long enough that no real test run (seconds to a
+// few minutes) or freshly-spawned real worker (registers within one
+// heartbeat interval, ~10s) is ever mistaken for an orphan.
+const ORPHAN_WORKER_GRACE_MS = 30 * 60 * 1000;
+
+async function reapOrphanedWorkerProcesses() {
+  if (!isManager) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+
+  let rows;
+  try {
+    const psOutput = execSync('ps -eo pid,etimes,args --no-headers', { encoding: 'utf8' });
+    rows = parsePsWorkerRows(psOutput);
+  } catch (err) {
+    logger.warn({ err: err.message }, '[orphan-reap] Failed to list local processes (skipping this cycle)');
+    return;
+  }
+
+  let workers;
+  try {
+    workers = await get(url, token, '/api/workers');
+  } catch (err) {
+    logger.warn({ err: err.message }, '[orphan-reap] Failed to fetch registered workers (skipping this cycle)');
+    return;
+  }
+
+  const registeredPids = new Set(
+    workers.filter(w => w.hostname === hostname && w.pid).map(w => Number(w.pid))
+  );
+
+  const orphans = findOrphanedWorkerProcesses(rows, {
+    registeredPids,
+    selfPid: process.pid,
+    graceMs: ORPHAN_WORKER_GRACE_MS,
+  });
+
+  for (const orphan of orphans) {
+    logger.warn(
+      { pid: orphan.pid, ageMinutes: Math.round(orphan.ageMs / 60000), cmd: orphan.cmd },
+      `[orphan-reap] Killing unregistered laneconductor.sync.mjs process (pid ${orphan.pid}, ${Math.round(orphan.ageMs / 60000)}m old, not in this host's registered worker set)`
+    );
+    try {
+      process.kill(orphan.pid, 'SIGTERM');
+    } catch (err) {
+      logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to kill orphaned process');
+    }
+  }
 }
 
 // Track 1110 Phase 6: runs once, right after this process's first
@@ -6430,6 +6693,23 @@ async function checkDispatchInbox() {
       updateWorkerHeartbeat('idle', null);
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: resultText.startsWith('Error') || resultText.startsWith('Not merged') ? 'failed' : 'done', result: resultText })
         .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-pr result'));
+
+      // Found live (track 1119): unlike merge-worktree/ai-resolve-conflict,
+      // this handler never posted a conversation comment — the dispatch
+      // row's own status/result isn't surfaced anywhere the Kanban card
+      // reads from, so a real failure (e.g. GitHub reports the PR as
+      // CONFLICTING) was completely invisible: the button just reverted to
+      // "Merge PR" with nothing to explain why, indistinguishable from the
+      // click not having registered at all.
+      try {
+        const tracksDir = join(process.cwd(), 'conductor/tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (trackDirName) {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+        }
+      } catch (err) {
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-pr conversation comment');
+      }
       continue;
     }
 
@@ -7028,16 +7308,23 @@ async function checkDispatchInbox() {
         try {
           const cli = entry.payload?.cli;
           const model = entry.payload?.model;
+          // Default to sync+poll (auto): the per-track **Auto Run** marker
+          // (default no) already gates which tracks get picked up
+          // unattended, so the worker-level mode no longer needs to default
+          // to the conservative sync-only — see ProvisionWorkerModal.jsx.
+          // Only an explicit 'sync-only' request skips --sync-and-work.
+          const mode = entry.payload?.mode === 'sync-only' ? 'sync-only' : 'sync+poll';
           let cmd = `lc worker start --worker-number ${workerNumber}`;
           if (cli) cmd += ` --cli ${cli}`;
           if (model) cmd += ` --model ${model}`;
+          if (mode === 'sync+poll') cmd += ' --sync-and-work';
           const { stdout } = await execAsync(cmd, {
             cwd: projectPath,
             timeout: 60_000,
             encoding: 'utf8',
           });
           status = 'done';
-          result = `Started worker #${workerNumber} for "${projectName}" with CLI "${cli || 'default'}" and Model "${model || 'default'}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
+          result = `Started worker #${workerNumber} for "${projectName}" with CLI "${cli || 'default'}", Model "${model || 'default'}", Mode "${mode}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
         } catch (err) {
           status = 'failed';
           const stderr = (err.stderr || '').trim();
@@ -7247,6 +7534,19 @@ setInterval(() => {
   }
   upsertWorker().catch(err => console.error('[health] Retry registration failed:', err.message));
 }, Number(process.env.LC_WORKER_ID_WATCHDOG_MS) || 60000);
+
+// Track 1091 Phase 7: a dedicated interval, not folded into
+// checkDispatchInbox's poll above despite Phase 6's plan.md suggesting
+// "reuse the create-project check's cadence, don't add a second
+// setInterval" — checkDispatchInbox() returns immediately whenever the
+// dispatch queue is empty (`if (!entries || entries.length === 0)
+// return;`), which is true most of the time a manager is otherwise idle.
+// A host-wide process sweep needs to run on its own schedule regardless
+// of queue activity, or it would barely run at all in practice.
+// LC_ORPHAN_REAP_POLL_MS: test-only override (default 5 min in production).
+setInterval(() => {
+  reapOrphanedWorkerProcesses().catch(err => logger.warn({ err: err.message }, '[orphan-reap error]'));
+}, Number(process.env.LC_ORPHAN_REAP_POLL_MS) || 5 * 60 * 1000);
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;
