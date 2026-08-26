@@ -6530,6 +6530,23 @@ async function checkDispatchInbox() {
       updateWorkerHeartbeat('idle', null);
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: resultText.startsWith('Error') || resultText.startsWith('Not merged') ? 'failed' : 'done', result: resultText })
         .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-pr result'));
+
+      // Found live (track 1119): unlike merge-worktree/ai-resolve-conflict,
+      // this handler never posted a conversation comment — the dispatch
+      // row's own status/result isn't surfaced anywhere the Kanban card
+      // reads from, so a real failure (e.g. GitHub reports the PR as
+      // CONFLICTING) was completely invisible: the button just reverted to
+      // "Merge PR" with nothing to explain why, indistinguishable from the
+      // click not having registered at all.
+      try {
+        const tracksDir = join(process.cwd(), 'conductor/tracks');
+        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+        if (trackDirName) {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+        }
+      } catch (err) {
+        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-pr conversation comment');
+      }
       continue;
     }
 
