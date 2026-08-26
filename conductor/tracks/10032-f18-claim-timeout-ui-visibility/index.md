@@ -1,7 +1,7 @@
 # Track 10032: F18 claim-timeout — surface the outcome in the UI
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Type**: dev
