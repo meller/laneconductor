@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 83%
+**Progress**: 92%
 **Last Run**: mock (primary)
-**Phase**: Phase 5 of 6 complete — "follow your build" progress view
+**Phase**: Phase 6 in progress — Playwright E2E + full auto-run integration test done (Tasks 1-2); real digger-game deploy (Task 3) blocked pending human authorization
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
