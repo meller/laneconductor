@@ -5824,6 +5824,34 @@ async function finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun) {
   if (finishWorkspaceMode === 'main') {
     mergeResult = { merged: true, reason: 'already-on-main' };
     resultText = `Completed [${stageList}] — already on main, no merge needed.`;
+  } else if (resolveMergeMode({ merge_mode: parseMergeModeMarker(finishIndexContent) }) === 'pr') {
+    // Found live (track 1119): this function called mergeWorktreeBranch()
+    // unconditionally, regardless of merge_mode — every OTHER place in this
+    // file that reaches "done" forks on mode first (direct: merge locally;
+    // pr: openTrackPrOnDone), e.g. the per-cycle worktree-lifecycle branch
+    // above. This one didn't, so a pr-mode track's "Complete & Merge" tried
+    // a raw local merge, hit a real conflict, and failed with a confusing
+    // message instead of doing what pr-mode actually asked for: push the
+    // branch and open a PR.
+    const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
+    if (!existsSync(worktreePath)) {
+      mergeResult = { merged: false, reason: 'no-worktree-for-pr' };
+      resultText = `Completed [${stageList}] but could not open a PR: no worktree found for track ${trackNumber}.`;
+    } else {
+      await openTrackPrOnDone(trackNumber, worktreePath);
+      // openTrackPrOnDone() handles its own error reporting (a track
+      // comment + pr_status: 'error') and never throws — re-read its own
+      // markers to tell success from failure here, same as reconcilePrTracks
+      // already does elsewhere in this file.
+      const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
+      const wtTrackDir = resolveTrackFolder(wtTracksDir, trackNumber);
+      const wtContent = wtTrackDir ? (readIfExists(join(wtTracksDir, wtTrackDir, 'index.md')) || '') : '';
+      const prNumber = wtContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1];
+      mergeResult = prNumber ? { merged: true, reason: 'pr-opened' } : { merged: false, reason: 'pr-open-failed' };
+      resultText = prNumber
+        ? `Completed [${stageList}] — merge_mode is pr, opened PR #${prNumber} instead of merging locally.`
+        : `Completed [${stageList}] but opening a PR failed — see the track's own comments for details.`;
+    }
   } else {
     try {
       mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
