@@ -462,3 +462,75 @@ Does not supervise workers on OTHER hosts (a manager is host-scoped by
 construction, Phase 2). Does not touch `systemd`/OS-level process
 supervision — see spec.md if that direction is wanted later; this phase
 is the in-app alternative that was chosen instead of it.
+
+## Phase 7: Manager worker reaps orphaned (never-registered) worker processes (added 2026-08-26)
+
+**Problem**: a `laneconductor.sync.mjs` process can exist on this host
+without ever being registered in the DB at all — Phase 6 above only
+catches a worker that registered and then went stale; it cannot see one
+that never registered in the first place. Confirmed live this session:
+18 such processes were running, `GET /api/workers` showed exactly the 2
+legitimate ones (zero overlap) — leftover test-harness workers, each
+spawned by a track-1119 test against its own throwaway mock collector,
+never killed when the test that spawned it was interrupted before its
+cleanup hook ran. 3 of them had been spinning at ~80% CPU each for 13+
+hours against a working directory deleted out from under them, ~2.2GB
+combined RSS, on a host whose load average was sitting at 10+ as a
+result. A heartbeat-staleness check structurally cannot see these.
+
+**Solution**: the manager periodically lists `laneconductor.sync.mjs`
+processes on this host (`ps -eo pid,etimes,args`) and diffs their PIDs
+against `GET /api/workers` filtered to this hostname (the same endpoint
+Phase 6 already identified as the source of truth for "who's currently
+registered here" — no changes needed to it, since an orphan by
+definition never appears in it regardless of its 60s freshness filter).
+Any process not in that registered set, older than a grace period, gets
+`SIGTERM`ed and logged.
+
+- [x] Task 1: Pure helpers in `conductor/services/orphan-worker-detection.mjs`
+      — `parsePsWorkerRows(psOutput)` (parses `ps -eo pid,etimes,args
+      --no-headers`, filters to `laneconductor.sync.mjs` lines) and
+      `findOrphanedWorkerProcesses(rows, {registeredPids, selfPid,
+      graceMs})` (pure filter: not self, not registered, older than
+      grace). No I/O, unit-testable without spawning anything.
+- [x] Task 2: `reapOrphanedWorkerProcesses()` in `laneconductor.sync.mjs`
+      — manager-only (`isManager` guard, mirrors Phase 3's dispatch-loop
+      check), fetches `/api/workers`, shells `ps`, calls the two pure
+      helpers, `SIGTERM`s each orphan with a log line naming pid/age/cmd.
+- [x] Task 3: Wired via a **dedicated** `setInterval` (5 min default,
+      `LC_ORPHAN_REAP_POLL_MS` test override), not folded into
+      `checkDispatchInbox`'s poll despite this doc's own Phase 6 Task 2
+      suggesting cadence reuse — **correction found while implementing**:
+      `checkDispatchInbox()` returns immediately whenever the dispatch
+      queue is empty (`if (!entries || entries.length === 0) return;`),
+      which is true most of the time a manager is otherwise idle. A
+      host-wide sweep needs to run on its own schedule or it would barely
+      run in practice.
+- [x] Task 4: Self-exclusion (`selfPid: process.pid`) — the manager's own
+      process always matches the `laneconductor.sync.mjs` ps filter and
+      must never reap itself.
+- [x] Task 5: Grace period — `ORPHAN_WORKER_GRACE_MS = 30 minutes`,
+      comfortably past any real test's runtime (seconds to a few minutes)
+      or a freshly-spawned real worker's first heartbeat (~10s), so
+      nothing legitimate is ever caught mid-flight.
+- [x] Task 6: Real tests, `conductor/tests/track-1091-orphan-worker-reaping.test.mjs`
+      — spawns a real `laneconductor.sync.mjs --sync-only` process with no
+      reachable collector (never registers, mirroring a real orphan),
+      confirms the real `ps` output identifies it, confirms
+      `findOrphanedWorkerProcesses` flags it once artificially aged past
+      grace, confirms `SIGTERM` actually kills it (`process.kill(pid, 0)`
+      throws afterward). 10/10 tests pass (8 pure unit + 2 real-process).
+- [x] Task 7: Negative test — the same real spawned process, checked
+      immediately (well under the grace period) with zero registered
+      workers, is never flagged. Confirms the grace period, not just the
+      registration check, is what's protecting a freshly-started worker.
+
+**Explicit non-goal**: does not change `GET /api/workers`'s existing
+60-second freshness filter (Phase 6's own concern, still open) — Phase 7
+never needed it, since an orphan never appears in that endpoint's
+response regardless of the filter.
+
+**Result**: killed the 18 confirmed orphans live on this machine after
+implementing (manual one-time cleanup, not test-driven — see the
+session's chat log for the specific pids), confirmed via `ps aux` and
+`GET /api/workers`/`load average` before and after.

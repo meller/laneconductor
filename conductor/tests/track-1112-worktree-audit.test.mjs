@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import os from 'node:os';
 import { execSync } from 'child_process';
 import { auditWorktrees } from '../services/worktree-audit.mjs';
 
@@ -272,6 +273,48 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'conflicted');
   });
 
+  it('still classifies a conflict correctly when the track folder uses the INITIALS-<n>-slug naming convention (track 1119 shape)', async () => {
+    // Found live on track 1119: readTrackStateFromBranch()'s folder match
+    // (`base.startsWith(\`${trackNumber}-\`)`) only recognizes the legacy
+    // `<n>-slug` naming. Newer tracks (since track 10023, per
+    // resolveTrackFolder's own comment in laneconductor.sync.mjs) use
+    // `INITIALS-<n>-slug` (e.g. "AM-1119-app-creator-wizard") — which never
+    // starts with `${trackNumber}-`, so this function silently returns null
+    // for every such track. That makes `state` null, `isDoneSuccess` false,
+    // and the classification permanently 'open' no matter what actually
+    // happened — a real conflict (this test's shape) never surfaces as
+    // 'conflicted', so no merge action or AI Resolve option ever appears
+    // for it in the UI.
+    const folderName = n => `AM-${n}-conflict-track`;
+    function writeInitialsPrefixedIndex(dir, trackNumber, lane, laneStatus, problemText) {
+      const trackDir = join(dir, 'conductor/tracks', folderName(trackNumber));
+      mkdirSync(trackDir, { recursive: true });
+      writeFileSync(join(trackDir, 'index.md'), [
+        `# Track ${trackNumber}: Conflict Track`, '',
+        `**Lane**: ${lane}`, `**Lane Status**: ${laneStatus}`, '**Progress**: 0%',
+        '**Merge Mode**: direct', '',
+        '## Problem', problemText, '',
+      ].join('\n'));
+    }
+
+    setupRepo();
+    writeInitialsPrefixedIndex(REPO, '1119', 'plan', 'queue', 'Original problem text.');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-1119 .worktrees/1119 HEAD');
+    writeInitialsPrefixedIndex(join(REPO, '.worktrees/1119'), '1119', 'done', 'success', 'Branch rewrote this problem text.');
+    git('add -A', join(REPO, '.worktrees/1119'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 1119 done"', join(REPO, '.worktrees/1119'));
+
+    writeInitialsPrefixedIndex(REPO, '1119', 'plan', 'queue', 'Main rewrote this problem text differently.');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main edited the same line, unrelated to lane progress"');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '1119');
+    assert.ok(row, 'an INITIALS-prefixed track must still appear in the audit');
+    assert.equal(row.classification, 'conflicted', 'a real conflict must surface even when the folder is INITIALS-prefixed, not silently fall back to open');
+  });
+
   it('classifies as open (not mergeable) when main independently re-opened the track after the branch diverged', async () => {
     // Real-world trigger, confirmed against this repo's own history (track
     // 1084): an old worktree branch's own tip commit says done:success from
@@ -369,6 +412,40 @@ describe('auditWorktrees()', () => {
     const row = rows.find(r => r.trackNumber === '110');
     assert.ok(row);
     assert.equal(row.classification, 'open', 'a live-locked running run must still block the merge');
+  });
+
+  it('does not trust a lock file left behind by a dead PID as proof of live independent progress', async () => {
+    // Found live on track 1118: the worker that claimed the lock (PID
+    // recorded in the lock file, same machine) had already exited, but
+    // nothing ever deletes an orphaned lock file. mainHasReopenedTrackIndependently()
+    // only checked existsSync() on the lock path — a stale file left by a
+    // dead process was trusted exactly the same as a real, live one,
+    // permanently hiding the branch's real done:success completion behind
+    // 'open' with no way to recover short of a manual `git merge`. A lock
+    // for a PID that's actually dead must be treated the same as no lock
+    // at all — same shape as the no-lock case above, resolving all the way
+    // to 'mergeable'.
+    setupRepo();
+    writeTrackIndex(REPO, '111', 'Orphaned Lock Track', 'review', 'queue');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-111 .worktrees/111 HEAD');
+    writeTrackIndex(join(REPO, '.worktrees/111'), '111', 'Orphaned Lock Track', 'done', 'success');
+    git('add -A', join(REPO, '.worktrees/111'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 111 really finished"', join(REPO, '.worktrees/111'));
+
+    writeTrackIndex(REPO, '111', 'Orphaned Lock Track', 'quality-gate', 'running');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main independently ran this further, then the worker died"');
+    mkdirSync(join(REPO, '.conductor', 'locks'), { recursive: true });
+    writeFileSync(join(REPO, '.conductor', 'locks', '111.lock'), JSON.stringify({
+      user: 't', machine: os.hostname(), pid: 999999999,
+      started_at: new Date().toISOString(), track_number: '111',
+    }));
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '111');
+    assert.ok(row);
+    assert.equal(row.classification, 'mergeable', 'a lock for a dead PID must not block the merge — same as no lock at all');
   });
 
   it('lists a detached-HEAD worktree with no track-* branch as detached, never mergeable', async () => {

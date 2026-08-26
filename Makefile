@@ -160,21 +160,37 @@ api-log:
 	@tail -f $(UI_DIR)/.api.log
 
 ## Start the Vite UI
+# Invoke the vite binary directly (not via npx/npm) so $! captures the real
+# vite process PID. `npx vite` spawns an npm/sh wrapper chain around the
+# actual vite process; killing the wrapper PID in ui-stop left the real
+# process (and the port) orphaned, and each restart added another orphan.
 ui-start:
 	@if [ -f $(UI_DIR)/.ui.pid ] && kill -0 $$(cat $(UI_DIR)/.ui.pid) 2>/dev/null; then \
 	  echo "✅ UI already running (PID: $$(cat $(UI_DIR)/.ui.pid))"; \
 	else \
-	  cd $(UI_DIR) && nohup npx vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
+	  cd $(UI_DIR) && nohup node_modules/.bin/vite >> $(UI_DIR)/.ui.log 2>&1 & echo $$! > $(UI_DIR)/.ui.pid; \
 	  sleep 0.3; \
 	  echo "✅ UI started (PID: $$(cat $(UI_DIR)/.ui.pid)) → http://localhost:8090"; \
 	fi
 
 ## Stop the Vite UI
+# Also clears whatever is actually bound to :8090, not just the tracked PID —
+# closes the gap where orphaned/untracked vite processes (see ui-start note)
+# survive a stop and squat the port for the next ui-start to trip over.
 ui-stop:
-	@if [ -f $(UI_DIR)/.ui.pid ]; then \
-	  kill $$(cat $(UI_DIR)/.ui.pid) 2>/dev/null && rm -f $(UI_DIR)/.ui.pid && echo "✅ UI stopped" || echo "⚠️ UI was not running"; \
+	@TRACKED=""; \
+	if [ -f $(UI_DIR)/.ui.pid ]; then \
+	  TRACKED=$$(cat $(UI_DIR)/.ui.pid); \
+	  kill $$TRACKED 2>/dev/null; \
+	  rm -f $(UI_DIR)/.ui.pid; \
+	fi; \
+	sleep 0.2; \
+	STRAY=$$(lsof -ti:8090 2>/dev/null); \
+	if [ -n "$$STRAY" ]; then kill $$STRAY 2>/dev/null; fi; \
+	if [ -n "$$TRACKED" ] || [ -n "$$STRAY" ]; then \
+	  echo "✅ UI stopped"; \
 	else \
-	  pkill -f "vite" 2>/dev/null && echo "✅ UI stopped" || echo "⚠️ UI pid file not found"; \
+	  echo "⚠️ UI was not running"; \
 	fi
 
 ## Tail the Vite UI log

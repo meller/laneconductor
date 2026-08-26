@@ -17,7 +17,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversationComments } from '../sync-conversation-utils.mjs';
+import { parseConversationComments, findTurnStartOffsets } from '../sync-conversation-utils.mjs';
 
 describe('parseConversationComments', () => {
   it('parses a simple turn', () => {
@@ -105,5 +105,51 @@ describe('parseConversationComments', () => {
     assert.equal(comments.length, 1);
     assert.equal(comments[0].author, 'system');
     assert.match(comments[0].body, /Session turn — dispatch-implement \(resumed session\): PASS/);
+  });
+});
+
+describe('findTurnStartOffsets', () => {
+  it('finds no offsets in content with no turns', () => {
+    assert.deepEqual(findTurnStartOffsets('just some narrative text\nwith multiple lines\n'), []);
+  });
+
+  it('finds the byte offset of each top-level turn start', () => {
+    const content = '> **human**: Hi\n\n> **claude**: Hello, how can I help?\n';
+    const offsets = findTurnStartOffsets(content);
+    assert.equal(offsets.length, 2);
+    assert.equal(offsets[0], 0);
+    assert.equal(content.slice(offsets[1]).startsWith('> **claude**:'), true);
+  });
+
+  it('slicing content at the Nth offset resumes parsing at exactly that turn', () => {
+    // This is the property seedCursorFromDB relies on: cutting at offsets[n]
+    // and re-parsing must yield exactly the turns from n onward, unsplit.
+    const content = [
+      '> **human**: First message',
+      '',
+      '> **claude**: Second message',
+      '> continuation line',
+      '',
+      '> **human**: Third message',
+      '',
+    ].join('\n');
+    const offsets = findTurnStartOffsets(content);
+    assert.equal(offsets.length, 3);
+
+    const resumedFromSecond = parseConversationComments(content.slice(offsets[1]));
+    assert.equal(resumedFromSecond.length, 2);
+    assert.equal(resumedFromSecond[0].author, 'claude');
+    assert.match(resumedFromSecond[0].body, /Second message\ncontinuation line/);
+    assert.equal(resumedFromSecond[1].author, 'human');
+    assert.equal(resumedFromSecond[1].body, 'Third message');
+  });
+
+  it('does not mistake a bolded sub-header in a continuation line for a new turn start', () => {
+    const content = [
+      '> **claude**: Summary.',
+      '>',
+      '> **1.1 Role.** Contractor shall serve as an advisor.',
+    ].join('\n');
+    assert.deepEqual(findTurnStartOffsets(content), [0]);
   });
 });

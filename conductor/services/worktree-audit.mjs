@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import os from 'node:os';
 
 function git(args, cwd) {
   try {
@@ -77,9 +78,19 @@ function countCommits(repoRoot, range) {
 // identically whether or not a worktree currently exists for it.
 function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
   const listing = git(['ls-tree', '--name-only', branch, 'conductor/tracks/'], repoRoot);
+  // Track 1119 (found live): newer tracks (since track 10023) are named
+  // `INITIALS-<n>-slug` (e.g. "AM-1119-app-creator-wizard"), not the legacy
+  // bare `<n>-slug` — a plain startsWith(`${trackNumber}-`) never matches
+  // those, so this returned null (folder "not found") for every one of
+  // them, permanently classifying real mergeable/conflicted/stranded/
+  // pr-open tracks as 'open' with no way to tell. Mirrors the same
+  // INITIALS-prefix awareness resolveTrackFolder() already has in
+  // laneconductor.sync.mjs, adapted for a `git ls-tree` listing instead of
+  // a filesystem readdir.
+  const folderPattern = new RegExp(`^(?:[a-zA-Z0-9]+-)?${trackNumber}-`);
   const dirName = listing.split('\n').map(l => l.trim().replace(/\/$/, '')).find(l => {
     const base = l.split('/').pop();
-    return base && base.startsWith(`${trackNumber}-`);
+    return base && folderPattern.test(base);
   });
   if (!dirName) return null;
   const indexContent = git(['show', `${branch}:${dirName}/index.md`], repoRoot);
@@ -151,6 +162,24 @@ function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, br
     // ordering, no extra git call needed.
     const lockPath = join(primaryPath, '.conductor', 'locks', `${trackNumber}.lock`);
     if (!existsSync(lockPath)) return false; // stale/orphaned — not real independent progress
+
+    // Track 1118 (found live): the lock FILE existing isn't enough — a
+    // worker that claimed it and then exited (crash, restart) leaves it
+    // behind forever, since nothing else deletes it. Mirrors the PID
+    // liveness check checkAndClaimGitLock() already applies when deciding
+    // whether to honor or clear a lock: only trust it as genuinely live
+    // when it names a PID, on this machine, that still exists.
+    try {
+      const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+      const isSameMachine = lock.machine === os.hostname();
+      if (isSameMachine && lock.pid) {
+        try {
+          process.kill(lock.pid, 0);
+        } catch {
+          return false; // dead PID — the lock is orphaned, not real independent progress
+        }
+      }
+    } catch { /* unparsable lock file — conservatively still trust its mere existence */ }
   }
   return true;
 }
