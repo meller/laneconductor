@@ -3,7 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Type**: dev
 **Track Kind**: feature
 **Summary**: Track 1102's Phase 12 added `reapStaleDispatches()` (`ui/server/index.mjs`) — a dispatch left `pending` past a bounded window is reassigned to another live worker, or marked failed with a reason if…
