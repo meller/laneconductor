@@ -7034,16 +7034,23 @@ async function checkDispatchInbox() {
         try {
           const cli = entry.payload?.cli;
           const model = entry.payload?.model;
+          // Default to sync+poll (auto): the per-track **Auto Run** marker
+          // (default no) already gates which tracks get picked up
+          // unattended, so the worker-level mode no longer needs to default
+          // to the conservative sync-only — see ProvisionWorkerModal.jsx.
+          // Only an explicit 'sync-only' request skips --sync-and-work.
+          const mode = entry.payload?.mode === 'sync-only' ? 'sync-only' : 'sync+poll';
           let cmd = `lc worker start --worker-number ${workerNumber}`;
           if (cli) cmd += ` --cli ${cli}`;
           if (model) cmd += ` --model ${model}`;
+          if (mode === 'sync+poll') cmd += ' --sync-and-work';
           const { stdout } = await execAsync(cmd, {
             cwd: projectPath,
             timeout: 60_000,
             encoding: 'utf8',
           });
           status = 'done';
-          result = `Started worker #${workerNumber} for "${projectName}" with CLI "${cli || 'default'}" and Model "${model || 'default'}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
+          result = `Started worker #${workerNumber} for "${projectName}" with CLI "${cli || 'default'}", Model "${model || 'default'}", Mode "${mode}" at ${projectPath} on ${hostname}\n${(stdout || '').trim()}`.trim();
         } catch (err) {
           status = 'failed';
           const stderr = (err.stderr || '').trim();
