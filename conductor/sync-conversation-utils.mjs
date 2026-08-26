@@ -45,3 +45,19 @@ export function parseConversationComments(newContent) {
   if (current) comments.push(current);
   return comments;
 }
+
+// Byte offset of each top-level `> **author**: ...` turn's start line within
+// `content`. Used to seed a fresh sync cursor from the DB's existing comment
+// count (see laneconductor.sync.mjs's seedCursorFromDB): the Nth offset is
+// exactly where content.slice() should resume so parseConversationComments
+// picks up cleanly at a turn boundary instead of splitting one mid-body.
+export function findTurnStartOffsets(content) {
+  const lines = content.split('\n');
+  const offsets = [];
+  let pos = 0;
+  for (const line of lines) {
+    if (/^> \*\*(\w+)\*\*(?:\s*\(([^)]+)\))?: /.test(line)) offsets.push(pos);
+    pos += line.length + 1; // +1 for the '\n' consumed by split
+  }
+  return offsets;
+}

@@ -31,7 +31,7 @@ import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
 import { getBuildById, createBuildArtifact } from '../ui/server/build-manager.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
-import { parseConversationComments } from './sync-conversation-utils.mjs';
+import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
@@ -2382,10 +2382,42 @@ async function syncConversation(filepath) {
   return withConvSyncLock(cursorPath, () => syncConversationLocked(filepath, trackNumber, trackDir, cursorPath));
 }
 
+// .conv-cursor is gitignored (per-machine, not committed) — a fresh worktree
+// or a new worker process on a new machine starts with no cursor file even
+// though the project's conversation history may already be fully synced.
+// Defaulting to cursor=0 there re-parses the ENTIRE conversation.md as "new"
+// and re-POSTs every already-synced turn: duplicate rows at best, and if any
+// single turn is large, PayloadTooLargeError in a tight loop at worst (track
+// 10021, 2026-08-26 — a 153KB conversation.md hit Express's 100kb body limit
+// on cold start). Ask the DB how many comments it already has for this track
+// and skip exactly that many locally-parsed turns, so a cold start only
+// (re-)posts content the DB doesn't already have. Best-effort: on any
+// failure (no collector, local-fs mode, network error) this falls back to
+// the old cursor=0 behavior rather than blocking the sync entirely.
+async function seedCursorFromDB(trackNumber, content) {
+  try {
+    const { url, token } = primaryCollector();
+    if (!url) return 0;
+    const track = await get(url, token, `/track/${trackNumber}`).catch(() => null);
+    const remoteCount = track?.comments?.length ?? 0;
+    if (remoteCount === 0) return 0;
+
+    const offsets = findTurnStartOffsets(content);
+    if (remoteCount >= offsets.length) return content.length;
+
+    console.log(`[conv-sync] Track ${trackNumber}: no local cursor — DB already has ${remoteCount} comment(s), seeding cursor past them instead of resyncing from scratch`);
+    return offsets[remoteCount];
+  } catch (err) {
+    console.warn(`[conv-sync] cursor seed for track ${trackNumber} failed, defaulting to 0: ${err.message}`);
+    return 0;
+  }
+}
+
 async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPath) {
   try {
     const content = readFileSync(filepath, 'utf8');
-    const cursor = parseInt(readIfExists(cursorPath) || '0');
+    const storedCursor = readIfExists(cursorPath);
+    const cursor = storedCursor !== null ? parseInt(storedCursor) : await seedCursorFromDB(trackNumber, content);
     const newContent = content.slice(cursor);
     if (!newContent.trim()) return;
 
