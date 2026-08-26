@@ -10,9 +10,10 @@ export function deriveInitials(name) {
     return initials || 'XX';
 }
 
-export function getAuthorInfo() {
-    const nameResult = spawnSync('git', ['config', 'user.name'], { encoding: 'utf8' });
-    const emailResult = spawnSync('git', ['config', 'user.email'], { encoding: 'utf8' });
+export function getAuthorInfo(cwd) {
+    const opts = { encoding: 'utf8', ...(cwd ? { cwd } : {}) };
+    const nameResult = spawnSync('git', ['config', 'user.name'], opts);
+    const emailResult = spawnSync('git', ['config', 'user.email'], opts);
     const name = nameResult.stdout?.trim() || '';
     const email = emailResult.stdout?.trim() || '';
     return { name, email, initials: deriveInitials(name) };

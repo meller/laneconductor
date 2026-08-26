@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
 import { CreateManagerWorkerForm } from './CreateManagerWorkerForm.jsx';
+import { AppCreatorWizard } from './wizard/AppCreatorWizard.jsx';
+import { FollowBuildView } from './wizard/FollowBuildView.jsx';
 
 const CLOUD_MODE = process.env.VITE_CLOUD_MODE === 'true';
 
@@ -10,6 +12,12 @@ const CLOUD_MODE = process.env.VITE_CLOUD_MODE === 'true';
 // form doesn't. Collects the same answers upfront into one
 // scaffold_context blob, matching conductor/.setup-scaffold-context.json's
 // shape, and dispatches once on submit.
+//
+// Track AM-1119 Phase 1: this "Quick create" single-form path is left
+// unchanged (spec.md REQ-1) — a "Guided wizard" toggle switches to the new
+// AppCreatorWizard stepper instead, which builds a richer payload (adds a
+// `wizard` block alongside `scaffold_context`) but dispatches through the
+// same /api/dispatch/create-project endpoint and the same polling below.
 
 function buildScaffoldContext({ name, hasExistingCode, purpose, techStack, kpis }) {
   const parts = [`Project purpose: ${purpose.trim()}`];
@@ -23,6 +31,7 @@ function buildScaffoldContext({ name, hasExistingCode, purpose, techStack, kpis 
 
 export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, onCreated }) {
   const { apiFetch } = useApi();
+  const [mode, setMode] = useState('quick'); // 'quick' | 'wizard' (Track AM-1119)
   const [name, setName] = useState('');
   const [repoType, setRepoType] = useState('path'); // 'path' | 'git'
   const [repoValue, setRepoValue] = useState('');
@@ -67,19 +76,13 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
 
   const valid = name.trim() && repoValue.trim() && purpose.trim() && workerId;
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!valid) return;
+  async function dispatchCreateProject(payload, dispatchWorkerId) {
     setSubmitting(true);
     setError(null);
     try {
-      const payload = {
-        repo_source: { type: repoType, value: repoValue.trim() },
-        scaffold_context: buildScaffoldContext({ name, hasExistingCode, purpose, techStack, kpis }),
-      };
       const r = await apiFetch('/api/dispatch/create-project', {
         method: 'POST',
-        body: JSON.stringify({ worker_id: workerId, payload }),
+        body: JSON.stringify({ worker_id: dispatchWorkerId, payload }),
       });
       const data = await r.json();
       if (r.ok) {
@@ -91,6 +94,22 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
       setError(err.message);
     }
     setSubmitting(false);
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!valid) return;
+    await dispatchCreateProject(
+      {
+        repo_source: { type: repoType, value: repoValue.trim() },
+        scaffold_context: buildScaffoldContext({ name, hasExistingCode, purpose, techStack, kpis }),
+      },
+      workerId,
+    );
+  }
+
+  async function handleWizardLaunch(wizardPayload, dispatchWorkerId) {
+    await dispatchCreateProject(wizardPayload, dispatchWorkerId);
   }
 
   return (
@@ -106,7 +125,17 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
           )}
         </div>
 
-        {dispatch ? (
+        {/* Track AM-1119 Phase 5: a wizard-mode Launch that resolved `done`
+            hands off to FollowBuildView instead of the plain status panel
+            below — "Created at <path>" is the first line of every
+            successful create-project dispatch result (runCreateProject,
+            conductor/laneconductor.sync.mjs), parsed here rather than
+            adding a new response field so old/new workers stay compatible. */}
+        {dispatch && dispatch.status === 'done' && mode === 'wizard' && /^Created at (\S+)/.test(dispatch.result || '') ? (
+          <div className="px-5 py-4">
+            <FollowBuildView repoPath={dispatch.result.match(/^Created at (\S+)/)[1]} onClose={onClose} />
+          </div>
+        ) : dispatch ? (
           <div className="px-5 py-4 space-y-3">
             <p className="text-xs text-gray-400">
               Status: <span className="text-gray-200 font-mono">{dispatch.status}</span>
@@ -160,7 +189,32 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs w-fit" data-testid="create-mode-toggle">
+              {[{ value: 'quick', label: 'Quick create' }, { value: 'wizard', label: 'Guided wizard' }].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setMode(opt.value)}
+                  className={`px-3 py-1 transition-colors ${mode === opt.value ? 'bg-blue-900 text-blue-300' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {mode === 'wizard' ? (
+              <>
+                <AppCreatorWizard
+                  managerWorkers={managerWorkers}
+                  onLaunch={handleWizardLaunch}
+                  onCancel={onClose}
+                  nameInputRef={nameRef}
+                />
+                {error && <p className="text-xs text-red-400">{error}</p>}
+              </>
+            ) : (
+        <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Project name <span className="text-gray-600">(required)</span></label>
               <input
@@ -261,7 +315,9 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
                 {submitting ? 'Dispatching…' : 'Create Project'}
               </button>
             </div>
-          </form>
+        </form>
+            )}
+          </div>
         )}
       </div>
     </div>
