@@ -10,7 +10,8 @@
     "build:cloud": "VITE_CLOUD_MODE=true vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^6.1.1",
@@ -27,6 +28,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",

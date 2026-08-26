@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runDeploy } from '../deploy-runner.mjs';
+import { runDeploy, resolveDeployedUrl } from '../deploy-runner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -106,5 +106,45 @@ describe('runDeploy', () => {
     const elapsed = Date.now() - start;
     assert.equal(result.ok, false, 'read on closed stdin should fail (EOF), not succeed');
     assert.ok(elapsed < 4000, `expected fast EOF failure, took ${elapsed}ms (stdin may not be closed)`);
+  });
+
+  // Track AM-1119 Phase 4 (Task 2): a successful deploy resolves + returns
+  // the live URL — deploy.json's own `expected_url` (Firebase) or one
+  // parsed from real command output (GCP Cloud Run and friends).
+  it('returns url from deploy.json\'s expected_url when present, without needing to parse output', async () => {
+    writeDeployJson({ environments: { prod: { command: 'echo no url printed here', expected_url: 'https://digger-game-prod.web.app' } } });
+    const result = await runDeploy(TMP, 'prod');
+    assert.equal(result.ok, true);
+    assert.equal(result.url, 'https://digger-game-prod.web.app');
+  });
+
+  it('parses a "Service URL:" line from command output when expected_url is absent (GCP Cloud Run)', async () => {
+    writeDeployJson({ environments: { prod: { command: 'echo Service URL: https://digger-game-abc123-uc.a.run.app' } } });
+    const result = await runDeploy(TMP, 'prod');
+    assert.equal(result.ok, true);
+    assert.equal(result.url, 'https://digger-game-abc123-uc.a.run.app');
+  });
+
+  it('returns url: null, not a guess, when nothing is found', async () => {
+    writeDeployJson({ environments: { prod: { command: 'echo no url here at all' } } });
+    const result = await runDeploy(TMP, 'prod');
+    assert.equal(result.ok, true);
+    assert.equal(result.url, null);
+  });
+});
+
+describe('resolveDeployedUrl', () => {
+  it('prefers envConfig.expected_url over anything in output', () => {
+    const url = resolveDeployedUrl({ expected_url: 'https://a.web.app' }, 'Service URL: https://b.run.app');
+    assert.equal(url, 'https://a.web.app');
+  });
+
+  it('falls back to a generic known-suffix URL in output', () => {
+    const url = resolveDeployedUrl({}, 'Deployed to https://my-app.vercel.app successfully');
+    assert.equal(url, 'https://my-app.vercel.app');
+  });
+
+  it('returns null when nothing matches', () => {
+    assert.equal(resolveDeployedUrl({}, 'no url anywhere in this text'), null);
   });
 });

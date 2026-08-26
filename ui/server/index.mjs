@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'crypto';
 import express from 'express';
-import { exec, execFile, spawn } from 'child_process';
+import { exec, execFile, spawn, spawnSync } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -200,7 +200,7 @@ app.get('/api/projects', async (req, res) => {
       result = await pool.query(
         `SELECT p.id, p.name, p.repo_path, p.git_remote,
                 p.primary_cli, p.primary_model, p.secondary_cli, p.secondary_model,
-                p.create_quality_gate, p.created_at
+                p.create_quality_gate, p.created_at, p.app_url
          FROM projects p
          JOIN project_members pm ON pm.project_id = p.id
          WHERE pm.user_uid = $1
@@ -212,7 +212,7 @@ app.get('/api/projects', async (req, res) => {
       result = await pool.query(
         `SELECT id, name, repo_path, git_remote,
                 primary_cli, primary_model, secondary_cli, secondary_model,
-                create_quality_gate, created_at
+                create_quality_gate, created_at, app_url
          FROM projects
          ORDER BY name`
       );
@@ -238,6 +238,36 @@ app.patch('/api/projects/:id', async (req, res) => {
 
     broadcast('conductor:updated', { projectId: req.params.id });
     res.json({ ok: true, name: result.rows[0].name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track AM-1119 Phase 4 (Task 1, REQ-4/TC-10): records the live URL a
+// deployed project is reachable at. Called by the generated "Deploy to
+// <provider>" track's own implement-phase run once it has actually
+// deployed and confirmed a real URL (see deriveTrackPlan's Solution text
+// for that track, wizard-track-plan.mjs) — never set speculatively.
+// Dedicated endpoint rather than folding into the rename PATCH above:
+// that one requires `name`, and app_url is set on a completely different,
+// unattended code path (a track's own run, not a human editing the
+// project). `app_url: null` explicitly clears it (e.g. a redeploy to a
+// new environment invalidating the old link).
+app.post('/api/projects/:id/app-url', async (req, res) => {
+  try {
+    const appUrl = req.body?.app_url ?? null;
+    if (appUrl !== null && (typeof appUrl !== 'string' || !/^https?:\/\//i.test(appUrl))) {
+      return res.status(400).json({ error: 'app_url must be an http(s) URL string, or null to clear it' });
+    }
+
+    const result = await pool.query(
+      'UPDATE projects SET app_url = $1 WHERE id = $2 RETURNING id, app_url',
+      [appUrl, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Project not found' });
+
+    broadcast('conductor:updated', { projectId: req.params.id });
+    res.json({ ok: true, app_url: result.rows[0].app_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4451,6 +4481,44 @@ app.patch('/api/workers/:id/visibility', requireAuth, async (req, res) => {
     );
     if (rowCount === 0) return res.status(404).json({ error: 'worker not found or not owner' });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track AM-1119 Phase 2 (Task 2, REQ-2/TC-5): App Creator wizard's
+// Deployment step credential status badge. Runs the same gcloud/firebase
+// checks `lc setup-deploy`'s CLI wizard runs (bin/lc.mjs's "Phase 4:
+// Credential verification") — but here, synchronously in the API server
+// process rather than via the async worker_dispatch cycle every other
+// worker-targeted action uses. Deliberate: local-api mode (this wizard's
+// only supported mode per spec.md's Out of Scope) runs the Collector API
+// on the same machine as the worker being configured, so there's no
+// remote-machine problem to solve with dispatch/poll — and a synchronous
+// GET keeps the wizard step simple. Non-blocking: callers must never gate
+// Launch on this response (TC-5) — it is a warning only.
+app.get('/api/workers/:id/deploy-credentials', async (req, res) => {
+  try {
+    const { rows: workers } = await pool.query('SELECT id FROM workers WHERE id = $1', [req.params.id]);
+    if (workers.length === 0) return res.status(404).json({ error: 'worker not found' });
+
+    const provider = req.query.provider;
+    if (provider !== 'firebase' && provider !== 'gcp') {
+      return res.status(400).json({ error: 'provider must be "firebase" or "gcp"' });
+    }
+
+    let status, detail = null;
+    if (provider === 'gcp') {
+      const r = spawnSync('gcloud', ['auth', 'list', '--format=value(account)', '--filter=status=ACTIVE'], { encoding: 'utf8', timeout: 10000 });
+      const account = r.status === 0 && r.stdout?.trim() ? r.stdout.trim().split('\n')[0] : null;
+      status = account ? 'verified' : 'NOT CONFIGURED';
+      detail = account;
+    } else {
+      const r = spawnSync('firebase', ['projects:list', '--json'], { encoding: 'utf8', timeout: 10000 });
+      status = r.status === 0 ? 'verified' : 'NOT CONFIGURED';
+    }
+
+    res.json({ provider, status, detail });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -30,7 +30,7 @@ function computeStatus({ isOnline, unrepliedCount, laneCounts }) {
   return inFlight > 0 ? 'active' : 'idle';
 }
 
-export function ProjectCard({ project, tracks, workers, onOpen, onManageContext, onRename, onDelete }) {
+export function ProjectCard({ project, tracks, workers, onOpen, onManageContext, onRename, onDelete, onFollowBuild }) {
   const projectTracks = tracks.filter(t => t.project_id === project.id);
   const projectWorkers = workers.filter(w => w.project_id === project.id);
 
@@ -51,7 +51,22 @@ export function ProjectCard({ project, tracks, workers, onOpen, onManageContext,
     <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col gap-3 hover:border-gray-700 transition-colors">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-white truncate">{project.name}</h3>
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-sm font-bold text-white truncate">{project.name}</h3>
+            {project.app_url && (
+              <a
+                href={project.app_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                data-testid="project-live-link"
+                title={project.app_url}
+                className="text-[10px] font-bold text-green-400 hover:text-green-300 shrink-0"
+              >
+                Live ↗
+              </a>
+            )}
+          </div>
           <p className="text-[10px] text-gray-500 font-mono truncate">{project.repo_path}</p>
         </div>
         <span
@@ -99,6 +114,16 @@ export function ProjectCard({ project, tracks, workers, onOpen, onManageContext,
         >
           Manage Context
         </button>
+        {onFollowBuild && (
+          <button
+            onClick={() => onFollowBuild(project)}
+            title="Follow this project's build progress"
+            data-testid="project-follow-build-button"
+            className="text-[10px] px-2 py-1 rounded border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+          >
+            Follow Build
+          </button>
+        )}
         <div className="flex-1" />
         <button
           onClick={() => onRename(project)}
