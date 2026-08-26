@@ -1,7 +1,7 @@
 # Track 10032: F18 claim-timeout — surface the outcome in the UI
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Type**: dev
