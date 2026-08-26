@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
 import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
 import { useApi } from '../hooks/useApi';
-import { mergeKey, createPrKey, mergePrKey } from '../lib/worktreePendingKeys.js';
+import { mergeKey, createPrKey, mergePrKey, aiResolveKey } from '../lib/worktreePendingKeys.js';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -346,13 +346,17 @@ function DoneLaneMergeActions({ projectId, track }) {
   }
 
   if (isConflicted) {
+    const key = aiResolveKey(row);
     return (
-      <span
-        className={`${CARD_ACTION_BTN} border-gray-800 text-gray-600 cursor-not-allowed`}
-        title="This branch conflicts with main — resolve manually (lc worktrees merge for details)"
+      <button
+        onClick={e => { e.stopPropagation(); dispatch('ai-resolve-conflict', key); }}
+        disabled={busy}
+        data-testid="card-ai-resolve-btn"
+        title="This branch conflicts with main — have an AI agent resolve the conflict and merge (same action as the Worktrees panel)"
+        className={`${CARD_ACTION_BTN} border-amber-800/60 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40`}
       >
-        Merge to main
-      </span>
+        {pendingKey === key ? 'Resolving…' : 'AI Resolve'}
+      </button>
     );
   }
 
@@ -521,8 +525,8 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
       data-testid="track-card"
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1" data-testid="track-card-header-left">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="min-w-[140px] flex-1" data-testid="track-card-header-left">
           <div className="flex items-center gap-2 flex-wrap" data-testid="track-card-badges-row">
             <span className="text-xs font-mono text-gray-500">#{track.track_number}</span>
             {track.project_name && (
