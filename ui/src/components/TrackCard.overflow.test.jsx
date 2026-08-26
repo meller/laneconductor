@@ -32,10 +32,10 @@ function longDoneTrack(overrides = {}) {
 }
 
 describe('TrackCard — header overflow (track 1118 shape)', () => {
-  it('lets the left title/badges block shrink instead of forcing the right-hand badges off the card', () => {
+  it('lets the left title/badges block shrink (flex-1) instead of forcing the right-hand badges off the card', () => {
     render(<TrackCard track={longDoneTrack()} />);
     const left = screen.getByTestId('track-card-header-left');
-    expect(left.className).toMatch(/\bmin-w-0\b/);
+    expect(left.className).toMatch(/\bflex-1\b/);
   });
 
   it('wraps the left badge row instead of holding it to one non-shrinking line', () => {
