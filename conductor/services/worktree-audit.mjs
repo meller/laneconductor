@@ -78,9 +78,19 @@ function countCommits(repoRoot, range) {
 // identically whether or not a worktree currently exists for it.
 function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
   const listing = git(['ls-tree', '--name-only', branch, 'conductor/tracks/'], repoRoot);
+  // Track 1119 (found live): newer tracks (since track 10023) are named
+  // `INITIALS-<n>-slug` (e.g. "AM-1119-app-creator-wizard"), not the legacy
+  // bare `<n>-slug` — a plain startsWith(`${trackNumber}-`) never matches
+  // those, so this returned null (folder "not found") for every one of
+  // them, permanently classifying real mergeable/conflicted/stranded/
+  // pr-open tracks as 'open' with no way to tell. Mirrors the same
+  // INITIALS-prefix awareness resolveTrackFolder() already has in
+  // laneconductor.sync.mjs, adapted for a `git ls-tree` listing instead of
+  // a filesystem readdir.
+  const folderPattern = new RegExp(`^(?:[a-zA-Z0-9]+-)?${trackNumber}-`);
   const dirName = listing.split('\n').map(l => l.trim().replace(/\/$/, '')).find(l => {
     const base = l.split('/').pop();
-    return base && base.startsWith(`${trackNumber}-`);
+    return base && folderPattern.test(base);
   });
   if (!dirName) return null;
   const indexContent = git(['show', `${branch}:${dirName}/index.md`], repoRoot);
