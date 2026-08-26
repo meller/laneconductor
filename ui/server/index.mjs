@@ -1345,7 +1345,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              active_cli, assignee_uid, created_by_uid, auto_run
+              active_cli, assignee_uid, created_by_uid, auto_run, merge_mode, workspace_mode
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1378,6 +1378,8 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       assignee_uid: t.assignee_uid, // Track 1084
       created_by_uid: t.created_by_uid, // Track 1084
       auto_run: t.auto_run, // Track 10017
+      merge_mode: t.merge_mode,
+      workspace_mode: t.workspace_mode,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
