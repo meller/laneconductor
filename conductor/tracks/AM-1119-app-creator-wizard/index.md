@@ -27,3 +27,6 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [x] Phase 4: Deploy-to-URL + app_url plumbing
 - [x] Phase 5: "Follow your build" progress view
 - [x] Phase 6: E2E validation — the digger game scenario (Task 3 spun out to track 1120)
+**PR Number**: 17
+**PR URL**: https://github.com/meller/laneconductor/pull/17
+**PR Status**: open
