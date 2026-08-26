@@ -537,21 +537,30 @@ app.post('/api/projects/:id/worker/stop', async (req, res) => {
 app.post('/api/workers/:id/stop', requireAuth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT w.id, w.worker_number, w.type, p.repo_path
+      `SELECT w.id, w.worker_number, w.type, w.pid, p.repo_path
          FROM workers w
          LEFT JOIN projects p ON p.id = w.project_id
         WHERE w.id = $1`,
       [parseInt(req.params.id)]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'worker not found' });
-    const { worker_number, type, repo_path } = rows[0];
+    const { worker_number, type, pid, repo_path } = rows[0];
+
+    // The worker's pidfile can go stale (e.g. the process was relaunched by
+    // something other than `lc start`/`lc restart`) — pass the OS pid this
+    // worker last reported in its own heartbeat as a fallback so `lc stop`
+    // can still find and kill the real process instead of silently no-op'ing
+    // on a dead pidfile PID. Sanitized to an integer since it's interpolated
+    // into a shell string below, same as worker_number already was.
+    const fallbackPid = parseInt(pid, 10);
+    const pidFlag = Number.isInteger(fallbackPid) && fallbackPid > 0 ? ` --pid ${fallbackPid}` : '';
 
     // A manager isn't scoped to a project and has no repo_path of its own;
     // its pidfile is global, so `lc worker stop --manager` finds it from
     // anywhere. A project worker's pidfile lives in its project directory.
     const cmd = type === 'manager'
-      ? 'lc worker stop --manager'
-      : `lc worker stop --worker-number ${parseInt(worker_number) || 1}`;
+      ? `lc worker stop --manager${pidFlag}`
+      : `lc worker stop --worker-number ${parseInt(worker_number) || 1}${pidFlag}`;
     const cwd = type === 'manager' ? process.cwd() : repo_path;
     if (type !== 'manager' && !cwd) {
       return res.status(400).json({ error: 'worker has no project directory to stop it in' });
