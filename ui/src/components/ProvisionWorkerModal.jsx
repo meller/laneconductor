@@ -29,6 +29,12 @@ export function ProvisionWorkerModal({ projectId, workers = [], onClose, onProvi
   // the presets are updated (it was pinned to claude-sonnet-4-5 while the
   // list already led with Sonnet 5).
   const [selectedModel, setSelectedModel] = useState(MODEL_PRESETS.claude[0].id);
+  // Default to auto (sync+poll): per-track **Auto Run** (default no) already
+  // gates which tracks a worker may pick up unattended, so worker-level mode
+  // no longer needs to default to the conservative sync-only — that gate is
+  // redundant for "don't run stray tracks" now. Kept as an override for the
+  // coarser "pause everything on this worker" case (maintenance/debugging).
+  const [selectedMode, setSelectedMode] = useState('sync+poll');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [dispatchResult, setDispatchResult] = useState(null);
@@ -106,6 +112,7 @@ export function ProvisionWorkerModal({ projectId, workers = [], onClose, onProvi
             repo_path: selectedProject?.repo_path,
             cli: selectedCli,
             model: selectedModel,
+            mode: selectedMode,
           },
         }),
       });
@@ -248,6 +255,22 @@ export function ProvisionWorkerModal({ projectId, workers = [], onClose, onProvi
                   {modelOptions.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Worker mode</label>
+              <select
+                value={selectedMode}
+                onChange={e => setSelectedMode(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-gray-500"
+                data-testid="provision-mode-select"
+              >
+                <option value="sync+poll">Auto — picks up Auto Run tracks from the queue</option>
+                <option value="sync-only">Manual — file/DB sync only, never runs a track unasked</option>
+              </select>
+              <p className="text-[10px] text-gray-600 mt-1">
+                Auto still only touches tracks with <span className="font-mono">Auto Run: yes</span> — this just controls whether the worker polls for them at all.
+              </p>
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
