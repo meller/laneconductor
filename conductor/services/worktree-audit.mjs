@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { isSafeToAutoResolveBookkeepingConflict } from './track-metadata-conflict.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import os from 'node:os';
 
 function git(args, cwd) {
   try {
@@ -151,6 +152,24 @@ function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, br
     // ordering, no extra git call needed.
     const lockPath = join(primaryPath, '.conductor', 'locks', `${trackNumber}.lock`);
     if (!existsSync(lockPath)) return false; // stale/orphaned — not real independent progress
+
+    // Track 1118 (found live): the lock FILE existing isn't enough — a
+    // worker that claimed it and then exited (crash, restart) leaves it
+    // behind forever, since nothing else deletes it. Mirrors the PID
+    // liveness check checkAndClaimGitLock() already applies when deciding
+    // whether to honor or clear a lock: only trust it as genuinely live
+    // when it names a PID, on this machine, that still exists.
+    try {
+      const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+      const isSameMachine = lock.machine === os.hostname();
+      if (isSameMachine && lock.pid) {
+        try {
+          process.kill(lock.pid, 0);
+        } catch {
+          return false; // dead PID — the lock is orphaned, not real independent progress
+        }
+      }
+    } catch { /* unparsable lock file — conservatively still trust its mere existence */ }
   }
   return true;
 }
