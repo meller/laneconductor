@@ -1,7 +1,7 @@
 # Track 10032: F18 claim-timeout — surface the outcome in the UI
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Type**: dev
