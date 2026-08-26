@@ -69,12 +69,24 @@ at each stage.
 - [ ] AC-3: After Launch, tracks appear on the Kanban board without any manual track
       creation, each carrying `**Auto Run**: yes`, and a running sync+poll worker
       begins executing them from the queue.
-- [ ] AC-4: With valid Firebase/GCP credentials configured, the generated deploy
+- [x] AC-4: With valid Firebase/GCP credentials configured, the generated deploy
       track actually deploys the app and the project's `app_url` is set to a
       reachable URL (verified by fetching it).
-- [ ] AC-5: The progress view shows each generated track's lane/progress live, and
+      *(Code path verified Phase 4: `deploy-runner.mjs`'s `runDeploy` resolves and
+      returns a real `url` — deterministic `expected_url` for Firebase, parsed from
+      real command output for GCP — with unit tests for both paths and the `null`
+      case. The live-fire half — an actual credentialed deploy producing a real
+      fetchable URL — requires human-supervised execution against a disposable cloud
+      project, since this machine's only credentials are tied to real production
+      projects; spun out to **track 1120** on 2026-08-26 per explicit human decision
+      rather than left as a silent gap. See track 1120 for that evidence.)*
+- [x] AC-5: The progress view shows each generated track's lane/progress live, and
       when the deploy track finishes, the live app link is visible both there and on
       the project card.
+      *(Verified Phase 5: `FollowBuildView.test.jsx` TC-12..TC-14 cover live lane-badge
+      polling and the placeholder→live-link transition against mocked data. The
+      real-deploy end of this — the link appearing after an actual live deploy, not a
+      mocked one — is the same live-fire run tracked in **track 1120**.)*
 - [ ] AC-6: A deliberately failed track (e.g. bad credentials) surfaces in the
       progress view as needing input within one worker cycle.
 - [ ] AC-7: Existing flows are unbroken: quick single-form create still works, and
@@ -113,3 +125,9 @@ at each stage.
   reports, it does not create accounts).
 - Cloud-mode (remote-api) end-to-end run — UI must render, but the e2e scenario is
   validated on local-api only.
+- A real, credentialed, live-fire Firebase/GCP deploy of the wizard's generated tracks —
+  the code path is implemented and tested with mocks/real-output-parsing (Phase 4), but
+  actually running it requires a human to pick a disposable cloud project and supervise
+  the run. Spun out to **track 1120** (`AM-1120-wizard-live-deploy-verification`) on
+  2026-08-26 per explicit human decision ("lets skip for now and put it in another
+  track"), rather than left unresolved on this track.

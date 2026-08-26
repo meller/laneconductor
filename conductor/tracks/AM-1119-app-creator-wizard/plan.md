@@ -274,7 +274,10 @@ new failures.
 
 - [x] Task 1: Playwright spec driving the wizard UI through all five steps (mock worker or test manager) asserting dispatch payload shape and post-launch view render
 - [x] Task 2: Integration test (mock collector pattern from `conductor/tests/`) for create-project → track generation → queue entries with Auto Run markers
-- [ ] Task 3: One real manual run: "digger game" description, real Firebase creds, observe tracks run to done and fetch the live URL; record observations in conversation.md — **BLOCKED, requires human authorization (see conversation.md)**
+- [x] Task 3: **Spun out to track 1120** (`AM-1120-wizard-live-deploy-verification`) per explicit
+      human decision on 2026-08-26 ("lets skip for now and put it in another track (phase 6)") —
+      not attempted here. See that track for the disposable-project real deploy run this task
+      originally called for.
 
 **Impact**: AC-1..AC-7 verified against the real product, not just units.
 
@@ -330,13 +333,25 @@ CI invocation pattern, which runs one `node --test <file>` at a time per tech-st
 testing table). Ran the full `ui` vitest suite: 523 tests, same 30 pre-existing failures as every
 prior phase's baseline, zero new failures.
 
-**Task 3 is deliberately not attempted.** A read-only `gcloud auth list` / `firebase projects:list`
-(no write actions) confirmed this worker machine has real, active credentials for the user's own
-Google/Firebase account, with real production projects already live under it. Scaffolding a
-"digger game" project and running its generated tracks unattended through to a real deploy would
-create and deploy real cloud resources against that same account with no human in the loop — the
-exact class of hard-to-reverse, costly, real-world action that requires explicit authorization
-before proceeding, not something an autonomous `/laneconductor implement` run should decide on its
-own. Flagged in full in conversation.md. AC-4/AC-5 remain genuinely unverified as a result — this
-is the one piece of Phase 6, and of the whole track, that cannot be marked done without a human's
-explicit go-ahead to run it.
+**Task 3 was deliberately not attempted, and is now closed out by being moved, not by being
+skipped.** A read-only `gcloud auth list` / `firebase projects:list` (no write actions)
+confirmed this worker machine has real, active credentials for the user's own Google/Firebase
+account, with real production projects already live under it. Scaffolding a "digger game"
+project and running its generated tracks unattended through to a real deploy would create and
+deploy real cloud resources against that same account with no human in the loop — the exact
+class of hard-to-reverse, costly, real-world action that requires explicit authorization before
+proceeding, not something an autonomous `/laneconductor implement` run should decide on its own.
+Flagged in full in conversation.md.
+
+On 2026-08-26 the human reviewed that flag and replied "lets skip for now and put it in another
+track (phase 6)" — explicit authorization to reduce this track's own scope rather than block on
+it. Per that instruction, this run created **track 1120**
+(`conductor/tracks/AM-1120-wizard-live-deploy-verification/`) carrying Task 3's exact remaining
+work (disposable-project selection, the live wizard run, and the reachability check), and
+amended spec.md's Acceptance Criteria / Out of Scope accordingly — see spec.md for the updated
+AC-4/AC-5 wording. This is a scope reduction made explicitly by the human, not an autonomous
+decision to call the work done: the underlying capability (an autonomous deploy track that
+resolves and records a real URL) was fully built and tested in Phase 4; only the one human-gated
+live-fire run against real cloud credentials is now tracked separately.
+
+## ✅ COMPLETE

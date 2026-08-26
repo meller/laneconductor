@@ -1,12 +1,12 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 92%
-**Phase**: Phase 6 in progress — Playwright E2E + full auto-run integration test done (Tasks 1-2); real digger-game deploy (Task 3) blocked pending human authorization
+**Progress**: 100%
+**Phase**: Phase 6 complete — Task 3 (real digger-game deploy) spun out to track 1120 per human decision
 **Type**: dev
 **Track Kind**: feature
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
 **Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp with a live app link and a "follow your build" progress view.
@@ -26,4 +26,4 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [x] Phase 3: Track auto-generation with Auto Run
 - [x] Phase 4: Deploy-to-URL + app_url plumbing
 - [x] Phase 5: "Follow your build" progress view
-- [ ] Phase 6: E2E validation — the digger game scenario
+- [x] Phase 6: E2E validation — the digger game scenario (Task 3 spun out to track 1120)
