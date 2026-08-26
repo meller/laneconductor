@@ -1,15 +1,15 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
-**Lane**: done
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
-**Last Run**: mock (primary)
 **Phase**: Phase 6 complete — Task 3 (real digger-game deploy) spun out to track 1120 per human decision
 **Type**: dev
 **Track Kind**: feature
+**Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp…
+**Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp with a live app link and a "follow your build" progress view.
 
 ## Problem
 
@@ -22,13 +22,8 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 ## Phases
 
 - [x] Phase 1: Wizard shell + step components
-- [ ] Phase 2: Deployment step (reuse deploy UX/domain)
-- [ ] Phase 3: Track auto-generation with Auto Run
-- [ ] Phase 4: Deploy-to-URL + app_url plumbing
-- [ ] Phase 5: "Follow your build" progress view
-- [ ] Phase 6: E2E validation — the digger game scenario
-**Auto Run**: yes
-**PR Number**: 17
-**PR URL**: https://github.com/meller/laneconductor/pull/17
-**PR Status**: open
-**Merge Mode**: direct
+- [x] Phase 2: Deployment step (reuse deploy UX/domain)
+- [x] Phase 3: Track auto-generation with Auto Run
+- [x] Phase 4: Deploy-to-URL + app_url plumbing
+- [x] Phase 5: "Follow your build" progress view
+- [x] Phase 6: E2E validation — the digger game scenario (Task 3 spun out to track 1120)
