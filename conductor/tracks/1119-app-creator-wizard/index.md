@@ -1,10 +1,10 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 92%
+**Progress**: 100%
 **Last Run**: mock (primary)
-**Phase**: Phase 6 in progress — Playwright E2E + full auto-run integration test done (Tasks 1-2); real digger-game deploy (Task 3) blocked pending human authorization
+**Phase**: Phase 6 complete — Task 3 (real digger-game deploy) spun out to track 1120 per human decision
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
