@@ -1,7 +1,7 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Phase 6 complete — Task 3 (real digger-game deploy) spun out to track 1120 per human decision
 **Type**: dev
@@ -9,7 +9,7 @@
 **Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp with a live app link and a "follow your build" progress view.
+**Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp…
 
 ## Problem
 
@@ -27,3 +27,4 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [x] Phase 4: Deploy-to-URL + app_url plumbing
 - [x] Phase 5: "Follow your build" progress view
 - [x] Phase 6: E2E validation — the digger game scenario (Task 3 spun out to track 1120)
+**Merge Mode**: direct
