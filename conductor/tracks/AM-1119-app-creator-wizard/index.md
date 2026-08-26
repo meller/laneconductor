@@ -1,7 +1,7 @@
 # Track AM-1119: App Creator Wizard Mode (E2E New-Project Wizard)
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Phase 6 complete — Task 3 (real digger-game deploy) spun out to track 1120 per human decision
 **Type**: dev
