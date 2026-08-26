@@ -58,6 +58,7 @@ import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
+import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -6005,6 +6006,62 @@ async function runCreateProject(entry) {
   return { ok: true, targetPath };
 }
 
+// Track 1091 Phase 7: manager-only sweep for laneconductor.sync.mjs
+// processes on this host that aren't any currently-registered worker —
+// see orphan-worker-detection.mjs's doc comment for the incident that
+// motivated this (18 leftover test-harness processes, none registered,
+// 3 spinning at ~80% CPU for 13+ hours against a deleted cwd).
+//
+// Grace period default: long enough that no real test run (seconds to a
+// few minutes) or freshly-spawned real worker (registers within one
+// heartbeat interval, ~10s) is ever mistaken for an orphan.
+const ORPHAN_WORKER_GRACE_MS = 30 * 60 * 1000;
+
+async function reapOrphanedWorkerProcesses() {
+  if (!isManager) return;
+  const { url, token } = primaryCollector();
+  if (!url) return;
+
+  let rows;
+  try {
+    const psOutput = execSync('ps -eo pid,etimes,args --no-headers', { encoding: 'utf8' });
+    rows = parsePsWorkerRows(psOutput);
+  } catch (err) {
+    logger.warn({ err: err.message }, '[orphan-reap] Failed to list local processes (skipping this cycle)');
+    return;
+  }
+
+  let workers;
+  try {
+    workers = await get(url, token, '/api/workers');
+  } catch (err) {
+    logger.warn({ err: err.message }, '[orphan-reap] Failed to fetch registered workers (skipping this cycle)');
+    return;
+  }
+
+  const registeredPids = new Set(
+    workers.filter(w => w.hostname === hostname && w.pid).map(w => Number(w.pid))
+  );
+
+  const orphans = findOrphanedWorkerProcesses(rows, {
+    registeredPids,
+    selfPid: process.pid,
+    graceMs: ORPHAN_WORKER_GRACE_MS,
+  });
+
+  for (const orphan of orphans) {
+    logger.warn(
+      { pid: orphan.pid, ageMinutes: Math.round(orphan.ageMs / 60000), cmd: orphan.cmd },
+      `[orphan-reap] Killing unregistered laneconductor.sync.mjs process (pid ${orphan.pid}, ${Math.round(orphan.ageMs / 60000)}m old, not in this host's registered worker set)`
+    );
+    try {
+      process.kill(orphan.pid, 'SIGTERM');
+    } catch (err) {
+      logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to kill orphaned process');
+    }
+  }
+}
+
 // Track 1110 Phase 6: runs once, right after this process's first
 // successful registration. Reconciles dispatches THIS worker claimed but
 // never reported an outcome for — the class of bug where the sync worker
@@ -7196,6 +7253,19 @@ setInterval(() => {
   }
   upsertWorker().catch(err => console.error('[health] Retry registration failed:', err.message));
 }, Number(process.env.LC_WORKER_ID_WATCHDOG_MS) || 60000);
+
+// Track 1091 Phase 7: a dedicated interval, not folded into
+// checkDispatchInbox's poll above despite Phase 6's plan.md suggesting
+// "reuse the create-project check's cadence, don't add a second
+// setInterval" — checkDispatchInbox() returns immediately whenever the
+// dispatch queue is empty (`if (!entries || entries.length === 0)
+// return;`), which is true most of the time a manager is otherwise idle.
+// A host-wide process sweep needs to run on its own schedule regardless
+// of queue activity, or it would barely run at all in practice.
+// LC_ORPHAN_REAP_POLL_MS: test-only override (default 5 min in production).
+setInterval(() => {
+  reapOrphanedWorkerProcesses().catch(err => logger.warn({ err: err.message }, '[orphan-reap error]'));
+}, Number(process.env.LC_ORPHAN_REAP_POLL_MS) || 5 * 60 * 1000);
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;
