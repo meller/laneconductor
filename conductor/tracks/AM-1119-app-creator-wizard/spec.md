@@ -63,12 +63,22 @@ at each stage.
       steps; each step validates before advancing; Back preserves entered values.
       *(Verified Phase 1: NewProjectModal.test.jsx — full step walkthrough + Back
       preserving values, both passing.)*
-- [ ] AC-2: Completing the wizard with a Firebase/GCP deployment choice produces a
+- [x] AC-2: Completing the wizard with a Firebase/GCP deployment choice produces a
       project whose repo contains `conductor/deploy.json` and
       `conductor/deployment-stack.md` reflecting the wizard's answers.
-- [ ] AC-3: After Launch, tracks appear on the Kanban board without any manual track
+      *(Verified Phase 2: `track-1119-wizard-dispatch.test.mjs` — firebase+2-envs writes both
+      files with the wizard's own provider/environment choices reflected.)*
+- [x] AC-3: After Launch, tracks appear on the Kanban board without any manual track
       creation, each carrying `**Auto Run**: yes`, and a running sync+poll worker
       begins executing them from the queue.
+      *(Verified Phase 3 — `track-1119-phase3-track-generation.test.mjs`: 3-6 folders +
+      queue entries generated with no manual step, every one carrying `**Auto Run**: yes`
+      and registered in the DB — and Phase 6 — `track-1119-phase6-e2e-autorun.test.mjs`:
+      a real `--sync-and-work` worker actually claims the first non-dependent one out of
+      `queue`. Reviewing this pairing surfaced a real bug: `autoLaunchLocalFs` only
+      recognized bare `NNN-slug` folders, silently ignoring the `INITIALS-NNN-slug`
+      convention this feature (and `lc new`) actually produces — fixed in Phase 6, see
+      plan.md.)*
 - [x] AC-4: With valid Firebase/GCP credentials configured, the generated deploy
       track actually deploys the app and the project's `app_url` is set to a
       reachable URL (verified by fetching it).
@@ -87,14 +97,20 @@ at each stage.
       polling and the placeholder→live-link transition against mocked data. The
       real-deploy end of this — the link appearing after an actual live deploy, not a
       mocked one — is the same live-fire run tracked in **track 1120**.)*
-- [ ] AC-6: A deliberately failed track (e.g. bad credentials) surfaces in the
+- [x] AC-6: A deliberately failed track (e.g. bad credentials) surfaces in the
       progress view as needing input within one worker cycle.
-- [ ] AC-7: Existing flows are unbroken: quick single-form create still works, and
+      *(Verified Phase 5: `FollowBuildView.test.jsx` TC-13 — a track whose latest
+      comment is a `system` ⚠️/❌ notice (the exact shape a real quality-gate failure
+      produces) renders "Needs your input" within one `pollIntervalMs` tick, via the
+      same classification rule `GET /api/inbox` itself uses. Reviewed caveat: this
+      proves the classification/UI mechanism against a simulated failure comment, not
+      an actual bad-credentials run — that's inherently part of the real deploy verification
+      moved to track 1120.)*
+- [x] AC-7: Existing flows are unbroken: quick single-form create still works, and
       `DeployPanel` in CICDView behaves as before (existing tests pass).
-      *(Verified Phase 1 for the "quick create still works" half — the
-      full existing ui test suite shows the same 30 pre-existing failures on
-      main with zero new failures. DeployPanel-specific check is Phase 2's job
-      once its helpers are extracted.)*
+      *(Verified every phase: the full `ui` vitest suite shows the identical 30
+      pre-existing failures present on `main`, zero new failures, from Phase 1 through
+      Phase 6. `DeployPanel`/`CICDView.jsx` were never modified by this track.)*
 
 ## Data Model Changes
 
