@@ -116,11 +116,21 @@ export function resolveWorkspaceMode({
 // sweep in. conversation.md is deliberately NOT included — unlike the
 // other four, a human can genuinely have an uncommitted, in-progress edit
 // there that this guard exists to protect.
+// Track 1119 root-cause fix (2026-08-26): resolveTrackFolder() now
+// quarantines a stale duplicate track folder by renaming it to
+// `_duplicate-<name>` the moment it's discovered — a machine-generated
+// side effect of resolving ANY track's folder, not a deliberate edit
+// scoped to the track actually being dispatched. Without this exemption,
+// quarantining one track's stale folder could spuriously block a totally
+// unrelated main-mode dispatch's dirty-checkout guard — the exact same
+// false-positive-friction shape the four exemptions above were already
+// built to solve.
 export function isWorkerBookkeepingPath(p) {
   return /^conductor\/\.[^/]+$/.test(p)
     || p === 'conductor/tracks-metadata.json'
     || p === 'conductor/tracks/file_sync_queue.md'
-    || /^conductor\/tracks\/[^/]+\/(index|plan|spec|test)\.md$/.test(p);
+    || /^conductor\/tracks\/[^/]+\/(index|plan|spec|test)\.md$/.test(p)
+    || /^conductor\/tracks\/_duplicate-[^/]+\/?/.test(p);
 }
 
 /**

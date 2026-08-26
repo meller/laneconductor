@@ -1346,12 +1346,33 @@ function updateTrackMetadata(trackNumber, updates) {
 // prefix, which structurally can no longer match `${trackNumber}-` — so the
 // ambiguity is resolved once, not silently re-risked on every future call.
 // Nothing is deleted; renamed folders keep their full content and history.
+// Renames a stray/stale folder aside so resolveTrackFolder's directory
+// scan can never match it again. Shared by both quarantine call sites
+// below (the multi-match branch, and the single-legacy-match-vs-
+// registered-prefixed-folder branch added 2026-08-26).
+function quarantineStaleFolder(tracksDir, staleName) {
+  const from = join(tracksDir, staleName);
+  const to = join(tracksDir, `_duplicate-${staleName}`);
+  try {
+    if (!existsSync(to)) {
+      renameSync(from, to);
+      console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
+    }
+  } catch (err) {
+    console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
+  }
+}
+
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
   const matches = readdirSync(tracksDir, { withFileTypes: true })
     .filter(d => d.isDirectory() && d.name.startsWith(`${trackNumber}-`))
     .map(d => d.name)
     .sort();
+
+  const meta = getTrackMetadata(trackNumber);
+  const registered = meta?.folder_path ? basename(meta.folder_path) : null;
+  const registeredExists = !!(registered && existsSync(join(tracksDir, registered)));
 
   // Legacy folders are named `${trackNumber}-slug`, matched above. Newer
   // tracks (since track 10023) use `INITIALS-${trackNumber}-slug`, which
@@ -1363,32 +1384,37 @@ function resolveTrackFolder(tracksDir, trackNumber) {
   // tracks-metadata.json, which newTrack always writes correctly
   // regardless of naming convention.
   if (matches.length === 0) {
-    const meta = getTrackMetadata(trackNumber);
-    const registered = meta?.folder_path ? basename(meta.folder_path) : null;
-    if (registered && existsSync(join(tracksDir, registered))) return registered;
-    return null;
+    return registeredExists ? registered : null;
   }
 
-  if (matches.length === 1) return matches[0];
+  // A lone legacy-pattern match is the common, unambiguous case and is
+  // normally trusted immediately — EXCEPT when metadata registers a
+  // DIFFERENT, currently-existing folder. That combination only arises
+  // when a prefixed track (e.g. "AM-1119-...", which structurally can
+  // never land in `matches` — it doesn't start with the bare
+  // `${trackNumber}-` prefix) has a stale legacy-named duplicate sitting
+  // next to it. Confirmed live, track 1119 (2026-08-26): trusting this
+  // branch blindly fed checkAndClaimGitLock's own git-add/commit into
+  // the stale, scaffolded-placeholder folder on every single dispatch,
+  // repeatedly re-committing garbage ("chore(track-1119): sync files
+  // before worktree" — fired 5+ times) while the real, actively-worked
+  // folder sat untouched. Quarantine the stale match instead of trusting
+  // it, the same way the multi-match branch below already does.
+  if (matches.length === 1) {
+    if (registeredExists && registered !== matches[0]) {
+      quarantineStaleFolder(tracksDir, matches[0]);
+      return registered;
+    }
+    return matches[0];
+  }
 
-  const meta = getTrackMetadata(trackNumber);
-  const registered = meta?.folder_path ? basename(meta.folder_path) : null;
-  const canonical = (registered && matches.includes(registered)) ? registered : matches[0];
+  const canonical = (registeredExists && matches.includes(registered)) ? registered : matches[0];
 
   console.warn(`[ambiguous-track] Track ${trackNumber} matched ${matches.length} folders (${matches.join(', ')}) — using "${canonical}", quarantining the rest.`);
 
   for (const dupName of matches) {
     if (dupName === canonical) continue;
-    const from = join(tracksDir, dupName);
-    const to = join(tracksDir, `_duplicate-${dupName}`);
-    try {
-      if (!existsSync(to)) {
-        renameSync(from, to);
-        console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
-      }
-    } catch (err) {
-      console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
-    }
+    quarantineStaleFolder(tracksDir, dupName);
   }
 
   updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, canonical) });
