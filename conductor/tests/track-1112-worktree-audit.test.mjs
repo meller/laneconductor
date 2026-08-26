@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import os from 'node:os';
 import { execSync } from 'child_process';
 import { auditWorktrees } from '../services/worktree-audit.mjs';
 
@@ -369,6 +370,40 @@ describe('auditWorktrees()', () => {
     const row = rows.find(r => r.trackNumber === '110');
     assert.ok(row);
     assert.equal(row.classification, 'open', 'a live-locked running run must still block the merge');
+  });
+
+  it('does not trust a lock file left behind by a dead PID as proof of live independent progress', async () => {
+    // Found live on track 1118: the worker that claimed the lock (PID
+    // recorded in the lock file, same machine) had already exited, but
+    // nothing ever deletes an orphaned lock file. mainHasReopenedTrackIndependently()
+    // only checked existsSync() on the lock path — a stale file left by a
+    // dead process was trusted exactly the same as a real, live one,
+    // permanently hiding the branch's real done:success completion behind
+    // 'open' with no way to recover short of a manual `git merge`. A lock
+    // for a PID that's actually dead must be treated the same as no lock
+    // at all — same shape as the no-lock case above, resolving all the way
+    // to 'mergeable'.
+    setupRepo();
+    writeTrackIndex(REPO, '111', 'Orphaned Lock Track', 'review', 'queue');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-111 .worktrees/111 HEAD');
+    writeTrackIndex(join(REPO, '.worktrees/111'), '111', 'Orphaned Lock Track', 'done', 'success');
+    git('add -A', join(REPO, '.worktrees/111'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 111 really finished"', join(REPO, '.worktrees/111'));
+
+    writeTrackIndex(REPO, '111', 'Orphaned Lock Track', 'quality-gate', 'running');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "main independently ran this further, then the worker died"');
+    mkdirSync(join(REPO, '.conductor', 'locks'), { recursive: true });
+    writeFileSync(join(REPO, '.conductor', 'locks', '111.lock'), JSON.stringify({
+      user: 't', machine: os.hostname(), pid: 999999999,
+      started_at: new Date().toISOString(), track_number: '111',
+    }));
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '111');
+    assert.ok(row);
+    assert.equal(row.classification, 'mergeable', 'a lock for a dead PID must not block the merge — same as no lock at all');
   });
 
   it('lists a detached-HEAD worktree with no track-* branch as detached, never mergeable', async () => {
