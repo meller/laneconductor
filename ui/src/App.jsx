@@ -107,6 +107,7 @@ function AppContent({ user, logout }) {
   const [managerWorkers, setManagerWorkers] = useState([]);
   const [knownHostnames, setKnownHostnames] = useState([]);
   const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers' | 'cicd' | 'projects'
+  const [worktreeHighlightTrack, setWorktreeHighlightTrack] = useState(null); // set by a done-lane card's "View in Worktrees" link
   const [inboxOpen, setInboxOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false); // Track 1087 Phase 5: worker activity latch
   const [accountOpen, setAccountOpen] = useState(false);
@@ -337,7 +338,7 @@ function AppContent({ user, logout }) {
                   can't). */}
               {selectedProjectId && (
                 <button
-                  onClick={() => setViewMode('worktrees')}
+                  onClick={() => { setWorktreeHighlightTrack(null); setViewMode('worktrees'); }}
                   className={`text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-md transition-all ${viewMode === 'worktrees'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-gray-500 hover:text-gray-300'
@@ -548,7 +549,7 @@ function AppContent({ user, logout }) {
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
         ) : viewMode === 'worktrees' ? (
-          <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} />
+          <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} highlightTrack={worktreeHighlightTrack} />
         ) : tracks.length === 0 && user && !user.local ? (
           <RemoteEmptyState onOpenAccount={() => setAccountOpen(true)} />
         ) : projects.length === 0 ? (
@@ -581,6 +582,7 @@ function AppContent({ user, logout }) {
                 onRerunImplement={handleRerunImplement}
                 onDeleteTrack={handleDeleteTrack}
                 onMarkPublished={handleMarkPublished}
+                onViewInWorktrees={trackNumber => { setWorktreeHighlightTrack(trackNumber); setViewMode('worktrees'); }}
               />
             ) : (
               <KanbanBoard
@@ -593,6 +595,7 @@ function AppContent({ user, logout }) {
                 onDeleteTrack={handleDeleteTrack}
                 onMarkPublished={handleMarkPublished}
                 onExpandLane={handleExpandLane}
+                onViewInWorktrees={trackNumber => { setWorktreeHighlightTrack(trackNumber); setViewMode('worktrees'); }}
               />
             )}
           </>

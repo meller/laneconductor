@@ -14,13 +14,19 @@ export const LANE_STATUS_CONFIG = {
   waiting: { emoji: '⌛', label: 'Waiting', color: 'text-gray-500', show: true },
   queue: { emoji: '⏳', label: 'Queued', color: 'text-yellow-500', show: true },
   running: { emoji: '🔄', label: 'Running', color: 'text-blue-500', show: true },
+  // Done-lane only (see groupedByStatus below): a done:success track whose
+  // branch hasn't actually merged into main yet — same live worktree_class
+  // signal the per-card UnmergedBadge already uses, surfaced as its own
+  // section instead of being buried inside "Success" alongside tracks that
+  // are genuinely, fully finished.
+  unmerged: { emoji: '🔀', label: 'Unmerged', color: 'text-orange-400', show: true },
   success: { emoji: '✅', label: 'Success', color: 'text-green-500', show: true },
   failure: { emoji: '❌', label: 'Failed', color: 'text-red-500', show: true },
 };
 
 const LANE_EXPAND_THRESHOLD = 5;
 
-export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane }) {
+export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onExpandLane, onViewInWorktrees }) {
   const [dragOverLane, setDragOverLane] = useState(null);
 
   const byLane = Object.fromEntries(
@@ -65,12 +71,21 @@ export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onF
         const visibleTracks = laneTracks.slice(0, LANE_EXPAND_THRESHOLD);
         const hiddenCount = laneTracks.length - visibleTracks.length;
 
-        // Group the visible (truncated) tracks by their lane_action_status
+        // Group the visible (truncated) tracks by their lane_action_status.
+        // Done lane only: split "success" further into unmerged (a live
+        // branch still sitting unmerged — worktree_class is set) and success
+        // (genuinely finished — merged already, or never had a branch).
+        const isSuccess = t => t.lane_action_status === 'success';
         const groupedByStatus = {
           waiting: visibleTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
           queue: visibleTracks.filter(t => t.lane_action_status === 'queue'),
           running: visibleTracks.filter(t => t.lane_action_status === 'running'),
-          success: visibleTracks.filter(t => t.lane_action_status === 'success'),
+          ...(lane.id === 'done'
+            ? {
+              unmerged: visibleTracks.filter(t => isSuccess(t) && t.worktree_class),
+              success: visibleTracks.filter(t => isSuccess(t) && !t.worktree_class),
+            }
+            : { success: visibleTracks.filter(isSuccess) }),
           failure: visibleTracks.filter(t => t.lane_action_status === 'failure'),
         };
 
@@ -104,7 +119,7 @@ export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onF
                 if (tracks.length === 0 || !statusConfig[status]?.show) return null;
                 const config = statusConfig[status];
                 return (
-                  <div key={status} className="space-y-2">
+                  <div key={status} className="space-y-2" data-testid={`lane-group-${lane.id}-${status}`}>
                     <div className={`flex items-center gap-2 px-1 text-[10px] uppercase tracking-wider font-bold`}>
                       <span className={config.color}>{config.emoji}</span>
                       <span className="text-gray-500">{config.label}</span>
@@ -122,6 +137,7 @@ export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onF
                           onRerunImplement={onRerunImplement}
                           onDeleteTrack={onDeleteTrack}
                           onMarkPublished={onMarkPublished}
+                          onViewInWorktrees={onViewInWorktrees}
                         />
                       ))}
                     </div>

@@ -473,7 +473,7 @@ function KpiProgressBar({ kpiActual, kpiTarget }) {
 
 // ── TrackCard ─────────────────────────────────────────────────────────────────
 
-export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished }) {
+export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview, onRerunImplement, onDeleteTrack, onMarkPublished, onViewInWorktrees }) {
   const styles = LANE_STYLES[track.lane_status] ?? LANE_STYLES.backlog;
   // Track 10018 Phase 9: GET /api/projects/:id/tracks doesn't select
   // t.project_id (single-project scoped response, so every row already
@@ -522,8 +522,8 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1" data-testid="track-card-header-left">
+          <div className="flex items-center gap-2 flex-wrap" data-testid="track-card-badges-row">
             <span className="text-xs font-mono text-gray-500">#{track.track_number}</span>
             {track.project_name && (
               <span className="text-[10px] font-mono text-blue-500 font-bold uppercase tracking-tight">
@@ -559,6 +559,15 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
                 prUrl={track.worktree_pr_url}
               />
               <DoneLaneMergeActions projectId={resolvedProjectId} track={track} />
+              {onViewInWorktrees && (
+                <button
+                  onClick={e => { e.stopPropagation(); onViewInWorktrees(track.track_number); }}
+                  className="text-[9px] px-1 py-0.5 text-gray-500 hover:text-gray-300 underline decoration-dotted whitespace-nowrap"
+                  title="Jump to this track's row in the Worktrees panel"
+                >
+                  View in Worktrees →
+                </button>
+              )}
             </div>
           )}
           <AssigneeWorkerStatusBadge status={track.assignee_worker_status} />
