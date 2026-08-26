@@ -181,4 +181,11 @@ describe('findDisqualifyingDirtyPaths (dogfooding 2026-08-25 regression)', () =>
     assert.equal(isWorkerBookkeepingPath('conductor/tracks/042-foo/plan.md'), true);
     assert.equal(isWorkerBookkeepingPath('conductor/tracks/042-foo/conversation.md'), false);
   });
+
+  it('exempts a resolveTrackFolder quarantine artifact (dogfooding 2026-08-26 regression, track 1119)', () => {
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/_duplicate-1119-stale-placeholder/'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/_duplicate-1119-stale-placeholder/index.md'), true);
+    const dirty = ['conductor/tracks/_duplicate-1119-stale-placeholder/'];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/AM-1119-app-creator-wizard/'), []);
+  });
 });
