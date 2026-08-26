@@ -952,20 +952,40 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
                 )}
                 {dispatchHistory.length > 0 && (
                   <div className="mt-1.5 flex flex-col gap-0.5">
-                    {dispatchHistory.slice(0, 3).map(d => (
-                      <div key={d.id} className="text-[10px] text-gray-500 flex items-center gap-1.5">
-                        <span className={
-                          d.status === 'done' ? 'text-green-500' :
-                            d.status === 'failed' ? 'text-red-500' :
-                              d.status === 'claimed' ? 'text-blue-400' : 'text-yellow-500'
-                        }>
-                          {d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : '•'}
-                        </span>
-                        <span>{d.action}</span>
-                        <span className="text-gray-600">{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        {d.result && <span className="text-gray-600 truncate" title={d.result}>— {d.result}</span>}
-                      </div>
-                    ))}
+                    {dispatchHistory.slice(0, 3).map(d => {
+                      // Track 10032: a reassignment (reap_reason set, status
+                      // still 'pending') is otherwise indistinguishable from
+                      // a healthy pending dispatch — the amber ⟳ is the only
+                      // signal a worker went dark and this was rescued. A
+                      // reap that instead failed the dispatch keeps the
+                      // existing red ✗ (status === 'failed' already covers
+                      // it); reap_reason there just supplies the surviving
+                      // reason text (result gets overwritten by later PATCHes,
+                      // reap_reason doesn't).
+                      const isReapedPending = !!d.reap_reason && d.status !== 'failed';
+                      const reasonText = d.reap_reason || d.result;
+                      return (
+                        <div
+                          key={d.id}
+                          className="text-[10px] text-gray-500 flex items-center gap-1.5"
+                          {...(d.reap_reason ? { 'data-testid': `dispatch-reaped-${d.id}` } : {})}
+                        >
+                          <span className={
+                            isReapedPending ? 'text-amber-400' :
+                              d.status === 'done' ? 'text-green-500' :
+                                d.status === 'failed' ? 'text-red-500' :
+                                  d.status === 'claimed' ? 'text-blue-400' : 'text-yellow-500'
+                          }>
+                            {isReapedPending ? '⟳' : d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : '•'}
+                          </span>
+                          <span>{d.action}</span>
+                          <span className="text-gray-600">{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          {reasonText && (
+                            <span className={`truncate ${d.reap_reason ? 'text-amber-500/80' : 'text-gray-600'}`} title={reasonText}>— {reasonText}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {/* Dev Server Status */}
