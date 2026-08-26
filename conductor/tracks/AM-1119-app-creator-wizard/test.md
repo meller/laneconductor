@@ -34,20 +34,37 @@ cd ui && npx playwright test e2e/app-creator-wizard.spec.js
       see plan.md's Phase 3 verification note for why these are two different tests.)*
 
 ### Phase 4: app_url
-- [ ] TC-10: `PATCH`/app-url endpoint sets `projects.app_url`; `GET /api/projects/:id` returns it — expected: round-trip
-- [ ] TC-11: ProjectCard shows "Live ↗" link only when app_url set — expected: absent before, present after
+- [x] TC-10: `POST /api/projects/:id/app-url` endpoint sets `projects.app_url`; `GET /api/projects`
+      returns it per row — expected: round-trip *(no single-project `GET /api/projects/:id` route
+      exists in this codebase — the list endpoint is what ProjectCard/UI actually reads from; see
+      spec.md's amended API Contracts)*
+- [x] TC-11: ProjectCard shows "Live ↗" link only when app_url set — expected: absent before, present after
 
 ### Phase 5: Follow-build view
-- [ ] TC-12: View lists generated tracks with live lane badges, polling updates within 2s of a DB lane change — expected: lane badge updates without reload
-- [ ] TC-13: Track whose latest system comment starts with ⚠️/❌ renders in "Needs your input" — expected: classification matches Inbox rules
-- [ ] TC-14: When deploy track completes and app_url is set, the live link replaces the placeholder — expected: anchor with app_url href
+- [x] TC-12: View lists generated tracks with live lane badges, polling updates within 2s of a DB lane change — expected: lane badge updates without reload
+- [x] TC-13: Track whose latest system comment starts with ⚠️/❌ renders in "Needs your input" — expected: classification matches Inbox rules
+- [x] TC-14: When deploy track completes and app_url is set, the live link replaces the placeholder — expected: anchor with app_url href
 
 ### Phase 6: E2E
-- [ ] TC-15: Playwright: full wizard walk-through → Launch → follow-build view visible with generated track list — expected: spec passes
-- [ ] TC-16: Manual digger-game run with real Firebase creds: all generated tracks reach done, `curl $app_url` returns HTTP 200 — expected: recorded observation in conversation.md
+- [x] TC-15: Playwright: full wizard walk-through → Launch → follow-build view visible with generated track list — expected: spec passes
+- [x] TC-16: Manual digger-game run with real Firebase creds: all generated tracks reach done, `curl $app_url` returns HTTP 200 — expected: recorded observation in conversation.md
+      **Moved to track 1120** (`AM-1120-wizard-live-deploy-verification`), not attempted here.
+      This worker machine has real, active `gcloud`/`firebase` credentials for the user's own
+      account with real production projects already deployed under it (`laneconductor-site`,
+      `makrodash`, `ocumentor-prod`, `otralingo` — confirmed via a read-only `gcloud auth list` /
+      `firebase projects:list`, no write actions taken). Running this scenario unattended would
+      scaffold a new project and deploy it to that same real account with no human in the loop —
+      a costly, hard-to-reverse, real-world action outside what an autonomous
+      `/laneconductor implement` run should do without being asked. Human reviewed this flag on
+      2026-08-26 and asked for it to be tracked separately instead — see track 1120 for the
+      actual test run and its recorded evidence.
 
 ## Acceptance Criteria
 - [x] All unit + integration tests above pass *(Phase 1's TC-1..TC-3 — 3/3; Phase 2's TC-4..TC-6;
-      Phase 3's TC-7..TC-9 — see plan.md verification notes)*
+      Phase 3's TC-7..TC-9; Phase 4's TC-10..TC-11; Phase 5's TC-12..TC-14; Phase 6's TC-15 — see
+      plan.md verification notes)*
 - [x] Existing suites (NewProjectModal, CICDView, worker tests) show no regressions *(full ui vitest suite: same 30 pre-existing failures as main, no new failures)*
-- [ ] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded)
+- [x] AC-4/AC-5 verified by a real deploy with a reachable URL (evidence recorded) — **the
+      live-fire half is intentionally moved to track 1120 per explicit human decision
+      (2026-08-26); code path verified here via tests (Phases 4-5), see spec.md for the exact
+      split.**
