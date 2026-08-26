@@ -14,6 +14,7 @@ export function LaneFocusView({
   onRerunImplement,
   onDeleteTrack,
   onMarkPublished,
+  onViewInWorktrees,
 }) {
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -115,6 +116,7 @@ export function LaneFocusView({
               onRerunImplement={onRerunImplement}
               onDeleteTrack={onDeleteTrack}
               onMarkPublished={onMarkPublished}
+              onViewInWorktrees={onViewInWorktrees}
             />
           ))}
         </div>
