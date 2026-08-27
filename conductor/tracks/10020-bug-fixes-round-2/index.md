@@ -1,7 +1,8 @@
 # Track 10020: Bug fixes round 2
 
 **Status**: plan
-**Progress**: 0%
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
 
 ## Problem
 Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
