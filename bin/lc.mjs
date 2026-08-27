@@ -2319,7 +2319,7 @@ Please review this, answer any questions (some fields may contain questions rath
         desc = '';
     }
 
-    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch]'); process.exit(1); }
+    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch] [--merge-mode direct|pr] [--auto-run yes|no]'); process.exit(1); }
 
     const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
     let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
@@ -2338,6 +2338,34 @@ Please review this, answer any questions (some fields may contain questions rath
         workspaceMode = args[workspaceIdx + 1];
         if (!VALID_WORKSPACE_MODES.includes(workspaceMode)) {
             console.error(`❌ Invalid workspace mode "${workspaceMode}". Must be one of: ${VALID_WORKSPACE_MODES.join(', ')}`);
+            process.exit(1);
+        }
+    }
+
+    // Track 10035 REQ-12: --merge-mode / --auto-run let a track declare its
+    // merge intent at birth ("direct, auto-runnable") instead of needing a
+    // human to edit index.md by hand afterward. Same sparse-emission
+    // convention as --workspace above — absent by default so
+    // resolveMergeMode()/isTrackClaimable()'s own documented defaults
+    // ('pr', not auto-run) still apply when the flag isn't passed.
+    const VALID_MERGE_MODES = ['direct', 'pr'];
+    const mergeModeIdx = args.indexOf('--merge-mode');
+    let mergeMode = null;
+    if (mergeModeIdx !== -1) {
+        mergeMode = args[mergeModeIdx + 1];
+        if (!VALID_MERGE_MODES.includes(mergeMode)) {
+            console.error(`❌ Invalid merge mode "${mergeMode}". Must be one of: ${VALID_MERGE_MODES.join(', ')}`);
+            process.exit(1);
+        }
+    }
+
+    const VALID_AUTO_RUN = ['yes', 'no'];
+    const autoRunIdx = args.indexOf('--auto-run');
+    let autoRun = null;
+    if (autoRunIdx !== -1) {
+        autoRun = args[autoRunIdx + 1];
+        if (!VALID_AUTO_RUN.includes(autoRun)) {
+            console.error(`❌ Invalid --auto-run value "${autoRun}". Must be one of: ${VALID_AUTO_RUN.join(', ')}`);
             process.exit(1);
         }
     }
@@ -2376,7 +2404,9 @@ Please review this, answer any questions (some fields may contain questions rath
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
     const workspaceLine = workspaceMode ? `**Workspace**: ${workspaceMode}\n` : '';
-    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
+    const mergeModeLine = mergeMode ? `**Merge Mode**: ${mergeMode}\n` : '';
+    const autoRunLine = autoRun ? `**Auto Run**: ${autoRun}\n` : '';
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}${mergeModeLine}${autoRunLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types
