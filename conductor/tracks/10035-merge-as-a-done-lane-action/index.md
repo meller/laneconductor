@@ -1,6 +1,6 @@
 # Track TU-10035: Merge As A Done Lane Action
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
@@ -29,3 +29,6 @@ The done lane gets a standard lane action ("merge") claimed and run exactly like
 - [ ] Phase 4: UI consolidation
 - [ ] Phase 5: Deletions, migration, creation-time flags
 - [ ] Phase 6: E2E validation
+**PR Number**: 19
+**PR URL**: https://github.com/meller/laneconductor/pull/19
+**PR Status**: open
