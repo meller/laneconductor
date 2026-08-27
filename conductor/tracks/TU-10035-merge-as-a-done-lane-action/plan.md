@@ -6,16 +6,16 @@
 ships; there is no merge lane action for a worker to run.
 **Solution**: Flip the transition and define the action.
 
-- [ ] Task 1: `workflow.json` — set `lanes.quality-gate.on_success` to
+- [x] Task 1: `workflow.json` — set `lanes.quality-gate.on_success` to
       `done:queue`; add done-lane action config (`primary_model`,
       `max_retries: 1`, `on_failure: done:failure`). (REQ-1)
-- [ ] Task 2: Add `### /laneconductor merge [track-number]` to
+- [x] Task 2: Add `### /laneconductor merge [track-number]` to
       `.claude/skills/laneconductor/SKILL.md`: claim (`done:running`), resolve
       merge mode from index.md, direct → merge to main resolving conflicts
       in-session, pr → push + `gh pr create` + PR markers + exit
       `done:waiting`; completion comment convention; boundary rules. (REQ-2,
       REQ-4, REQ-5)
-- [ ] Task 3: Update SKILL.md's quality-gate section: on PASS the track now
+- [x] Task 3: Update SKILL.md's quality-gate section: on PASS the track now
       lands at `done:queue`, not `done:success`.
 
 **Impact**: The state machine tells the truth; the merge step exists as a
@@ -28,15 +28,18 @@ and lane actions always run in the track's worktree — a merge must run on main
 **Solution**: Teach the claim path that done's action executes in the primary
 checkout via the existing `workspace: main` machinery (track 1115).
 
-- [ ] Task 1: Auto-launch + dispatch claim paths treat `done:queue` as a
+- [x] Task 1: Auto-launch + dispatch claim paths treat `done:queue` as a
       claimable lane action (Auto Run gate, parallel_limit, retries all
       standard). (REQ-2)
-- [ ] Task 2: Force `workspace: main` execution for the merge action —
+- [x] Task 2: Force `workspace: main` execution for the merge action —
       no worktree creation, no track branch checkout; global main-mode lock
       applies. (REQ-3)
-- [ ] Task 3: Single-writer rule: from `done:queue` onward the worker never
+- [x] Task 3: Single-writer rule: from `done:queue` onward the worker never
       writes track files in the branch/worktree copy — primary only. (REQ-8)
-- [ ] Task 4: `finishAutoCompleteWithMerge` no longer merges: auto-complete's
+      Verified by TC-2.6 (`track-10035-merge-lane-action.test.mjs`): a
+      leftover worktree copy of index.md is byte-identical after a
+      done-lane merge run.
+- [x] Task 4: `finishAutoCompleteWithMerge` no longer merges: auto-complete's
       final transition is simply into `done:queue`; the standard machinery
       takes over. (REQ-10, partial)
 
