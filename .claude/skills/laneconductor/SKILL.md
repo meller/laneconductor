@@ -1206,11 +1206,21 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Progress**: 0%
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
+   **Merge Mode**: [direct|pr]        ← only if specified at creation (track 10035 REQ-12)
+   **Auto Run**: [yes|no]             ← only if specified at creation (track 10035 REQ-12)
    **Author**: INITIALS
    **Created By**: user@email.com
    **Summary**: [description]
    ```
-   Default `**Type**` to `dev` unless the user specified a type.
+   Default `**Type**` to `dev` unless the user specified a type. `**Merge
+   Mode**` and `**Auto Run**` are sparse-emission, same convention as
+   `**Workspace**` — omit the line entirely unless the user explicitly
+   asked for one at creation (e.g. "make this direct-mode and
+   auto-runnable"); an absent marker falls through to each field's own
+   documented default (`pr` for merge mode, not-auto-run for Auto Run) via
+   the normal resolution the worker already applies everywhere else. The
+   CLI equivalent is `lc new "Title" "Description" --merge-mode
+   direct|pr --auto-run yes|no`.
 3. Append a typed entry to `conductor/tracks/file_sync_queue.md` (under `## Track Creation Requests`):
    ```markdown
    ### Track NNN: [name]

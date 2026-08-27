@@ -169,8 +169,14 @@ no way to declare merge intent at track creation.
       (`track-10035-migration-cli.test.mjs`): dry-run writes nothing,
       the real run commits the requeue and posts the comment, a
       genuinely-merged track is left untouched, and re-running is a no-op.
-- [ ] Task 4: `lc new --merge-mode direct|pr --auto-run yes|no` writes the
-      markers; document both in SKILL.md newTrack. (REQ-12)
+- [x] Task 4: `lc new --merge-mode direct|pr --auto-run yes|no` writes the
+      markers; document both in SKILL.md newTrack. (REQ-12) Sparse-emission,
+      same convention as the existing `--workspace` flag — both markers
+      omitted from index.md unless explicitly passed. Invalid values are
+      rejected with a usage error and no track is created. Documented in
+      SKILL.md's `newTrack` section (both the CLI flags and the AI-driven
+      skill-command equivalent). 5/5 tests pass
+      (`track-10035-new-track-flags.test.mjs`, AC-8/TC-5.4).
 
 **Impact**: The old paths are gone, not deprecated; legacy tracks converge.
 
