@@ -2,7 +2,7 @@
 
 **Status**: plan
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 
 ## Problem
 Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
@@ -31,6 +31,6 @@ still-genuinely-running orphan is never finalized early.
 **Lane**: implement
 **Track Kind**: bug
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 **Auto Run**: yes
