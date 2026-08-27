@@ -15,6 +15,7 @@ import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
 import { createTrackPr, checkGhAuth } from '../conductor/services/pr-flow.mjs';
+import { planDoneLaneMigration } from '../conductor/services/done-lane-migration.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
 
@@ -3547,6 +3548,97 @@ Please review this, answer any questions (some fields may contain questions rath
 
         console.log(`✅ Opened PR for track-${trackNumber}: ${result.url}`);
         console.log(JSON.stringify({ number: result.number, url: result.url }));
+        process.exit(0);
+    }
+
+    if (sub === 'migrate-done-lane') {
+        // Track 10035 REQ-11 (Phase 5 Task 3): one-time sweep. See
+        // done-lane-migration.mjs's own doc comment for the two
+        // corrections this plans. File-only in local-fs mode (no DB to
+        // correct); local-api/remote-api also corrects tracks.merge_mode
+        // via the primary collector.
+        const dryRun = args.includes('--dry-run');
+        const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+
+        const cfgPath = join(projectRoot, '.laneconductor.json');
+        const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf8')) : {};
+        const enabledCollectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+        const collector = enabledCollectors[0] || null;
+        const collectorIdx = collector ? cfg.collectors.indexOf(collector) : -1;
+        const collectorToken = collector ? getCollectorToken(cfg, collectorIdx, projectRoot) : null;
+        const collectorHeaders = { 'Content-Type': 'application/json', ...(collectorToken ? { Authorization: `Bearer ${collectorToken}` } : {}) };
+
+        const dbMergeModeByTrack = {};
+        if (collector) {
+            for (const row of rows) {
+                if (!row.trackNumber) continue;
+                try {
+                    const url = new URL(`${collector.url}/track/${row.trackNumber}`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    const res = await fetch(url.toString(), { headers: collectorHeaders });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.merge_mode) dbMergeModeByTrack[row.trackNumber] = data.merge_mode;
+                    }
+                } catch { /* best-effort — an unreachable track just gets no merge_mode correction (REQ-11's file-wins rule already handles a missing map entry this way) */ }
+            }
+        }
+
+        const actions = planDoneLaneMigration(rows, dbMergeModeByTrack);
+
+        if (actions.length === 0) {
+            console.log('✅ Nothing to migrate — every done-lane track already agrees with the new model.');
+            process.exit(0);
+        }
+
+        console.log(`${dryRun ? '🔍 DRY RUN — no changes will be written\n' : ''}${actions.length} action(s) planned:`);
+        for (const action of actions) {
+            console.log(`  track-${action.trackNumber}: ${action.type} — ${action.reason}`);
+        }
+        if (dryRun) process.exit(0);
+
+        const tracksDir = join(projectRoot, 'conductor', 'tracks');
+        for (const action of actions) {
+            const trackDirName = readdirSync(tracksDir).find(d => new RegExp(`(^|-)${action.trackNumber}(-|$)`).test(d) && !d.startsWith('_duplicate-'));
+            if (!trackDirName) {
+                console.warn(`⚠️  track-${action.trackNumber}: folder not found locally, skipping`);
+                continue;
+            }
+            const indexPath = join(tracksDir, trackDirName, 'index.md');
+            const conversationPath = join(tracksDir, trackDirName, 'conversation.md');
+
+            if (action.type === 'requeue-done-success' && existsSync(indexPath)) {
+                const content = readFileSync(indexPath, 'utf8').replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+                writeFileSync(indexPath, content, 'utf8');
+                try {
+                    execSync(`git add "${indexPath}"`, { cwd: projectRoot, stdio: 'pipe' });
+                    execSync(`git commit -q -m "Track ${action.trackNumber}: migration — requeue done:success to done:queue (track 10035)"`, { cwd: projectRoot, stdio: 'pipe' });
+                } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: git commit failed: ${e.message}`); }
+                if (collector) {
+                    try {
+                        const url = new URL(`${collector.url}/track/${action.trackNumber}/action`);
+                        if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                        await fetch(url.toString(), { method: 'PATCH', headers: collectorHeaders, body: JSON.stringify({ lane_status: 'done', lane_action_status: 'queue' }) });
+                    } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: failed to sync requeue to DB: ${e.message}`); }
+                }
+            }
+
+            if (action.type === 'correct-merge-mode' && collector) {
+                // The file marker already agrees with action.to (that's why
+                // it won) — only the DB needs correcting here.
+                try {
+                    const url = new URL(`${collector.url}/track/${action.trackNumber}/action`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    await fetch(url.toString(), { method: 'PATCH', headers: collectorHeaders, body: JSON.stringify({ merge_mode: action.to }) });
+                } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: failed to correct merge_mode: ${e.message}`); }
+            }
+
+            try {
+                appendFileSync(conversationPath, `\n> **system**: 🔧 Migration (track 10035): ${action.reason}\n`);
+            } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: failed to post migration comment: ${e.message}`); }
+        }
+
+        console.log(`✅ Migration applied: ${actions.length} action(s).`);
         process.exit(0);
     }
 

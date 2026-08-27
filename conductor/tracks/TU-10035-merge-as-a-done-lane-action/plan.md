@@ -152,10 +152,23 @@ no way to declare merge intent at track creation.
       `conductor/tests/track-10035-removed-dispatch-actions.test.mjs`
       (TC-5.1: all four removed actions fail cleanly; TC-5.2:
       remove-worktree's result reaches conversation.md) — 5/5 pass.
-- [ ] Task 3: Migration sweep: every `done:success` track with a live
+- [x] Task 3: Migration sweep: every `done:success` track with a live
       unmerged branch → `done:queue`; DB `tracks.merge_mode` corrected to
       match the file marker where they disagree. Runs once, logs each change
-      as a system comment. (REQ-11)
+      as a system comment. (REQ-11) Implemented as `lc worktrees
+      migrate-done-lane [--dry-run]`: pure decision logic in
+      `conductor/services/done-lane-migration.mjs` (`planDoneLaneMigration`,
+      9 unit tests), driven off `auditWorktrees()`'s already-resolved
+      lane/laneStatus/classification/mergeMode per row — a genuinely merged
+      branch never reaches the sweep at all (auditWorktrees' own isAncestor
+      early-continue already drops it). DB merge_mode correction goes
+      through the primary collector's HTTP API (`GET`/`PATCH /track/:num`),
+      not a raw DB connection, so it works uniformly in local-api and
+      remote-api mode alike; local-fs (no DB) only gets the file-based
+      requeue. Verified end-to-end against a real git fixture
+      (`track-10035-migration-cli.test.mjs`): dry-run writes nothing,
+      the real run commits the requeue and posts the comment, a
+      genuinely-merged track is left untouched, and re-running is a no-op.
 - [ ] Task 4: `lc new --merge-mode direct|pr --auto-run yes|no` writes the
       markers; document both in SKILL.md newTrack. (REQ-12)
 
