@@ -4035,7 +4035,14 @@ async function reconcilePrTracks() {
   const repoRoot = resolvePrimaryRepoRoot(process.cwd());
 
   for (const dirName of readdirSync(tracksDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)) {
-    const trackNumberMatch = dirName.match(/^(\d+)-/);
+    // Track 1119 (found live, the hard way — a merged PR sat un-reconciled
+    // for hours): this only recognized the legacy `<n>-slug` naming. Newer
+    // tracks use `INITIALS-<n>-slug` (e.g. "AM-1119-app-creator-wizard"),
+    // which never matched, so this function silently never even looked at
+    // any such track — not a polling delay, a permanent skip. Mirrors the
+    // same INITIALS-prefix fix already applied to readTrackStateFromBranch()
+    // in worktree-audit.mjs.
+    const trackNumberMatch = dirName.match(/^(?:[a-zA-Z0-9]+-)?(\d+)-/);
     if (!trackNumberMatch) continue;
     const trackNumber = trackNumberMatch[1];
     const indexPath = join(tracksDir, dirName, 'index.md');
