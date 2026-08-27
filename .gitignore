@@ -30,6 +30,10 @@ conductor/.worker-*.tokens.json
 # Lock files — ephemeral machine-local state, not versioned
 conductor/.locks/
 
+# Track 10020: persistent per-track run markers (pid liveness for orphan
+# reconciliation) — machine-local runtime state, not versioned
+conductor/.runs/
+
 # Runtime state — machine-specific, auto-generated
 .conductor/
 conductor/tracks-metadata.json
