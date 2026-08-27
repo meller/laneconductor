@@ -1,7 +1,7 @@
 # Track TU-10035: Merge As A Done Lane Action
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 5%
 **Phase**: Planned
 **Type**: dev
