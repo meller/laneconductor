@@ -18,7 +18,18 @@ export const LaneActionStatus = {
   RUNNING: 'running', // Worker is currently active
   SUCCESS: 'success', // Last run finished successfully
   FAILURE: 'failure', // Last run failed
-  BLOCKED: 'blocked'  // Max retries reached or human intervention required
+  BLOCKED: 'blocked', // Max retries reached or human intervention required
+  // Track 10035: distinct from QUEUE — a pr-mode done-lane merge action that
+  // successfully opened a PR is genuinely finished with nothing left for a
+  // worker to do, but isn't 'success' either (approval/merge happens on
+  // GitHub, outside this system). Matches the Postgres enum value added by
+  // migrations/20260304181909_enable_rls.sql (`ALTER TYPE "LaneActionStatus"
+  // ADD VALUE 'waiting' AFTER 'queue'`) — the DB already accepted this value
+  // before this file did; ActionStatusAliases below used to alias the
+  // literal string 'waiting' back down to QUEUE, which silently clobbered
+  // every done:waiting write moments after it landed (parseLaneStatus() is
+  // what the generic file-sync path re-derives lane_action_status from).
+  WAITING: 'waiting',
 };
 
 /**
@@ -37,7 +48,6 @@ export const LaneAliases = {
  * Maps old lane status values to the new enum.
  */
 export const ActionStatusAliases = {
-  'waiting': LaneActionStatus.QUEUE,
   'idle': LaneActionStatus.QUEUE,
   'done': LaneActionStatus.SUCCESS,
   'complete': LaneActionStatus.SUCCESS,

@@ -51,14 +51,42 @@ checkout via the existing `workspace: main` machinery (track 1115).
 PR currently has no route back to resolution.
 **Solution**: `done:waiting` + two reconciler transitions.
 
-- [ ] Task 1: Reconciler (existing PR poller): PR merged → `done:success`,
+- [x] Task 1: Reconciler (existing PR poller): PR merged → `done:success`,
       remove worktree, delete local branch (existing cleanup). (REQ-7)
-- [ ] Task 2: Reconciler: PR conflicted → move track to `done:queue` + system
+      Verified E2E (`track-10035-pr-flow-e2e.test.mjs`) against a real
+      worker, real git origin, and mock `gh`.
+- [x] Task 2: Reconciler: PR conflicted → move track to `done:queue` + system
       comment; next merge run updates branch from main, resolves in-session,
       pushes, exits `done:waiting` again. (REQ-7)
-- [ ] Task 3: Retire the reconciler's own one-shot PR-opening self-heal in
+- [x] Task 3: Retire the reconciler's own one-shot PR-opening self-heal in
       favor of the standard retry: a pr-mode track with no PR just sits at
-      `done:queue` and the action (re-)runs.
+      `done:queue` and the action (re-)runs. Deleted the now-obsolete
+      `track-10024-reconcile-missing-pr.test.mjs`, which tested exactly the
+      self-heal this task retires.
+
+**Bugs found and fixed while verifying this phase (not scoped tasks, but
+load-bearing — the E2E test would not pass without them):**
+- `conductor/constants.mjs`'s `LaneActionStatus` enum had no `waiting` value,
+  and `ActionStatusAliases` mapped the literal string `'waiting'` back down
+  to `'queue'` — a leftover from before this track existed. The Postgres
+  enum type already had `'waiting'` (`migrations/20260304181909_enable_rls.sql`),
+  but the JS parser silently downgraded every `done:waiting` write to
+  `queue` the moment the generic file-sync watcher re-derived
+  `lane_action_status` from the file, undoing the exit handler's own
+  correct write moments earlier. Fixed by adding `WAITING: 'waiting'` to the
+  enum and removing the stale alias.
+- `reconcilePrTracks()` never synced `pr_number`/`pr_url`/`pr_status` to the
+  DB the first time `lc worktrees create-pr` wrote them — that command runs
+  as a standalone CLI subprocess with no connection to the collector,
+  unlike the old `openTrackPrOnDone` one-shot (which wrote the file and
+  patched the DB together, in-process). Fixed by making the reconciler
+  unconditionally re-patch those three fields every cycle instead of only
+  on a detected status change.
+- Deleted `conductor/tests/track-10018-pr-flow-e2e.test.mjs` (obsolete — it
+  exercised the removed one-shot PR-open side effect) and replaced it with
+  `conductor/tests/track-10035-pr-flow-e2e.test.mjs`, which drives the full
+  new loop: quality-gate → done:queue → merge action opens a real PR →
+  done:waiting → simulated GitHub merge → done:success + cleanup.
 
 **Impact**: The conflicted-1119 scenario resolves itself through the standard
 path.

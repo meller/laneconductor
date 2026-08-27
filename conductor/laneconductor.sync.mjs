@@ -4069,28 +4069,18 @@ async function reconcilePrTracks() {
 
     const prNumberMatch = content.match(/\*\*PR Number\*\*:\s*(\d+)/i);
     if (!prNumberMatch) {
-      // openTrackPrOnDone is normally fired once, in-process, by spawnCli's
-      // own exit handler right after a track reaches done:success — a
-      // single fire-and-forget call with no retry: a worker restart at the
-      // wrong instant (or anything else interrupting that continuation)
-      // drops it silently, forever, with nothing to notice or retry.
-      // Observed live: tracks sitting at done:success with merge_mode 'pr'
-      // and no PR for DAYS (track 1111, since 2026-08-20) — not just
-      // restart-interrupted ones from the same session. Make PR creation a
-      // reconciled invariant instead of a one-shot action, mirroring how
-      // reconcileWorktrees() already self-heals direct-mode merges the
-      // same way (see its own Track 10018 TC-2.5 comment).
-      const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
-      const laneStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
-      const isDoneSuccess = laneMatch?.[1]?.trim().toLowerCase() === 'done'
-        && laneStatusMatch?.[1]?.trim().toLowerCase() === 'success';
-      if (!isDoneSuccess) continue; // not finished yet — nothing to open a PR for
-      const worktreePath = join(repoRoot, '.worktrees', trackNumber);
-      if (!existsSync(worktreePath)) continue; // nothing left to push from
-      if (existsSync(join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`))) continue; // actively claimed — don't race a running session
-      console.log(`[reconcile-pr] track ${trackNumber}: done:success with merge_mode=pr and no PR yet — opening one`);
-      await openTrackPrOnDone(trackNumber, worktreePath);
-      continue; // openTrackPrOnDone writes its own PR markers; picked up by polling next cycle
+      // Track 10035 REQ-2/Task 3 (retired the old one-shot self-heal here):
+      // opening the PR is now the done-lane merge action's own job (`lc
+      // worktrees create-pr`, run from inside `/laneconductor merge`),
+      // claimed and spawned through the standard queue path exactly like
+      // any other lane action, with the standard retry/on_failure
+      // machinery already covering the "dropped mid-flight" case a
+      // one-shot in-process call couldn't (track 1111's stuck-for-days PR
+      // was a symptom of THAT one-shot having no retry — a pr-mode track
+      // with no PR yet simply sits at done:queue and gets reclaimed next
+      // cycle, same as a track stuck at any other lane). Nothing for the
+      // reconciler to do until a PR actually exists to poll.
+      continue;
     }
     const currentStatusMatch = content.match(/\*\*PR Status\*\*:\s*(\S+)/i);
     if (currentStatusMatch && ['merged', 'closed'].includes(currentStatusMatch[1].toLowerCase())) continue; // terminal — nothing left to poll
@@ -4100,14 +4090,60 @@ async function reconcilePrTracks() {
     const newStatus = resolvePrStatus(poll);
     if (!newStatus) continue; // transient gh failure — leave state exactly as-is (TC-3.5)
 
+    const prUrlMatch = content.match(/\*\*PR URL\*\*:\s*(\S+)/i);
     if (currentStatusMatch?.[1]?.toLowerCase() !== newStatus) {
       console.log(`[reconcile-pr] track ${trackNumber} PR #${prNumber}: ${currentStatusMatch?.[1] || '(none)'} → ${newStatus}`);
       writeIndexMarker(indexPath, 'PR Status', newStatus);
-      await patchTrackPrFields(trackNumber, { pr_status: newStatus });
     }
+    // Track 10035: unconditionally re-patch pr_number/pr_url/pr_status every
+    // cycle, not just on a detected status change — `lc worktrees create-pr`
+    // (the merge action's own pr-mode primitive, REQ-2/REQ-5) writes these
+    // markers to the file directly from a standalone CLI subprocess with no
+    // connection to the collector, unlike the old openTrackPrOnDone one-shot
+    // this replaced (which wrote the file AND patched the DB together,
+    // in-process). Without this, a track whose file already says PR Status:
+    // open on its very first reconcile pass (because create-pr just wrote
+    // it) would never sync pr_number/pr_url/pr_status to the DB at all: the
+    // change-detection guard above compares the file's own value against
+    // itself and never fires. Idempotent and cheap enough to run every
+    // cycle regardless.
+    await patchTrackPrFields(trackNumber, { pr_number: prNumber, pr_url: prUrlMatch?.[1] || null, pr_status: newStatus });
 
+    // Track 10035 REQ-7: the two transitions that close the done-lane merge
+    // action's loop for pr-mode tracks. Both are read-then-write against
+    // the PRIMARY checkout's own index.md (reconcilePrTracks already scopes
+    // to `join(process.cwd(), 'conductor', 'tracks')` above — REQ-8
+    // single-writer holds here too).
+    const laneStatusNow = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim().toLowerCase();
     if (newStatus === 'merged') {
+      // A track sitting at done:waiting only means "PR opened" — GitHub
+      // reporting the merge is what actually makes it shipped. Guarded on
+      // current status so a track already flipped to success (e.g. a
+      // previous cycle beat a slow patch()) doesn't re-log/re-hook every
+      // poll; cleanupMergedPrTrack below is separately idempotent and safe
+      // to call every cycle regardless.
+      if (laneStatusNow !== 'success') {
+        writeIndexMarker(indexPath, 'Lane Status', 'success');
+        await patchTrackPrFields(trackNumber, { lane_status: 'done', lane_action_status: 'success', lane_action_result: 'success' });
+      }
       await cleanupMergedPrTrack(trackNumber, mainBranch, repoRoot);
+    } else if (newStatus === 'conflicted') {
+      // The PR can't be merged as-is — send the track back to done:queue so
+      // the standard retry claims it again and the merge action's own
+      // re-entry path (SKILL.md step 6) updates the branch from main,
+      // resolves in-session, and pushes. No separate "resolve PR conflict"
+      // code path — this is the only trigger.
+      if (laneStatusNow !== 'queue') {
+        const prUrl = content.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] || `PR #${prNumber}`;
+        writeIndexMarker(indexPath, 'Lane Status', 'queue');
+        await patchTrackPrFields(trackNumber, { lane_status: 'done', lane_action_status: 'queue' });
+        try {
+          appendFileSync(join(tracksDir, dirName, 'conversation.md'),
+            `\n> **system**: ⚠️ PR conflicted with ${mainBranch} — moved back to done:queue so the merge action can update the branch, resolve it in-session, and push. ${prUrl}\n`);
+        } catch (err) {
+          console.warn(`[reconcile-pr] Failed to append conflict comment for track ${trackNumber}: ${err.message}`);
+        }
+      }
     }
   }
 }
