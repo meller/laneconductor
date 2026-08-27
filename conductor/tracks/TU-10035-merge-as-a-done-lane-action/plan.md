@@ -212,8 +212,28 @@ prove the loop closes.
       retry (Auto Run: yes) reclaims done:queue and the merge action
       re-runs, reaching done:waiting again. No separate "resolve conflict"
       code path exercised or needed — same mechanism as any other retry.
-- [ ] Task 3: Migration dry-run against this repo's real track set; verify
-      AC-9.
+- [x] Task 3: Migration dry-run against this repo's real track set; verify
+      AC-9. Ran `node .worktrees/10035/bin/lc.mjs worktrees migrate-done-lane
+      --dry-run` from the primary checkout (this repo's own live project,
+      collector at localhost:8091) — real output:
+      ```
+      🔍 DRY RUN — no changes will be written
+      1 action(s) planned:
+        track-10032: correct-merge-mode — DB merge_mode ('direct') disagreed
+        with the file's **Merge Mode** marker ('pr') — file wins
+      ```
+      No `requeue-done-success` actions were planned — no live track in
+      this repo currently sits at done:success with a genuinely unmerged
+      branch. One real `correct-merge-mode` disagreement was found
+      (track-10032), confirming the migration's DB-correction half against
+      genuine production drift, not just synthetic fixtures.
+      **Human review needed before applying**: this is a dry-run report
+      only — running the real sweep would write to this repo's own live
+      DB/git state (shared, hard to reverse), which is outside what an
+      autonomous implement run should do unprompted. Recommend a human (or
+      a follow-up explicitly-approved run) executes
+      `lc worktrees migrate-done-lane` for real to apply the track-10032
+      correction once this track itself has merged.
 
 **Impact**: Proven loop, not a plausible diff.
 
