@@ -20,5 +20,7 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: plan
-**Lane Status**: queue
+**Merge Mode**: direct
+**Lane Status**: running
 **Summary**: Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
+**Auto Run**: yes
