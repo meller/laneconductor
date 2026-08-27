@@ -202,9 +202,16 @@ prove the loop closes.
       workspace:main run, creating a spurious conflict with the real merge
       it was supposed to help prove — fixed by scoping that helper to
       non-`done` commands only.
-- [ ] Task 2: PR-mode E2E with mock gh (existing harness): done:waiting with
+- [x] Task 2: PR-mode E2E with mock gh (existing harness): done:waiting with
       PR link → simulate merge → success + cleanup; simulate conflicted →
-      done:queue → re-run → waiting again. (AC-3, AC-4, AC-5)
+      done:queue → re-run → waiting again. (AC-3, AC-4, AC-5) AC-3/AC-4
+      were already covered by `track-10035-pr-flow-e2e.test.mjs`'s first
+      test (Phase 3's own work); added a second test in the same file for
+      AC-5 specifically: PR reported DIRTY → done:queue + a system comment
+      naming the PR — then GitHub reports it mergeable again → the standard
+      retry (Auto Run: yes) reclaims done:queue and the merge action
+      re-runs, reaching done:waiting again. No separate "resolve conflict"
+      code path exercised or needed — same mechanism as any other retry.
 - [ ] Task 3: Migration dry-run against this repo's real track set; verify
       AC-9.
 
