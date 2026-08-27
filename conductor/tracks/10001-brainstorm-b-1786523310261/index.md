@@ -1,5 +1,5 @@
 **Waiting for reply**: yes
-**Lane**: plan
-**Lane Status**: queue
+**Lane**: backlog
+**Lane Status**: running
 **Progress**: 0%
-**Summary**: Test description
+**Summary**: Answered user question
