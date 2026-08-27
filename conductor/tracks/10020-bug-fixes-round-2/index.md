@@ -15,12 +15,21 @@ Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 100
 2. (Already fixed directly on main, included here for reference/context only — no further action needed) checkDispatchInbox()'s lane-action dispatch branch wrote Lane Status: running to the track's local index.md when spawning a dispatched CLI, but never PATCHed the DB's lane_action_status to match (only the failure path patched DB, reverting it). Result: the UI showed a dispatched track as queued for its entire run. Fixed in commit 0abfcf8 by adding the missing PATCH /track/:num/action lane_action_status=running call, mirroring the failure branch and how claimQueuedTracks() already does this for the other auto-launch path.
 
 ## Solution
-To be defined.
+Give orphan reconciliation a **periodic tick** (not just a one-shot at worker startup) plus a
+**cross-process liveness signal** — a persistent per-track run marker holding the spawned CLI's
+pid — so a dispatch that becomes orphaned *mid-run* is closed out within one tick, while a
+still-genuinely-running orphan is never finalized early.
 
 ## Phases
-- [ ] Phase 1: Implementation
+- [ ] Phase 1: Persistent run marker (`conductor/.runs/<track>.json`) written by spawnCli, removed on exit
+- [ ] Phase 2: Periodic `reconcileOrphanedDispatches()` tick with liveness/grace guards
+- [ ] Phase 3: Crashed-run detection (pid dead while Lane Status still `running`)
+- [ ] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
+- [ ] Phase 5: Docs + code comments for the new markers and env overrides
+
 **Lane**: plan
+**Track Kind**: bug
 **Merge Mode**: direct
-**Lane Status**: running
-**Summary**: Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
+**Lane Status**: success
+**Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 **Auto Run**: yes
