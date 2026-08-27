@@ -96,16 +96,37 @@ path.
 **Problem**: Two bespoke button surfaces duplicate the merge machinery.
 **Solution**: Standard lane affordances only.
 
-- [ ] Task 1: KanbanBoard done-lane groups: queue renders as "Unmerged",
+- [x] Task 1: KanbanBoard done-lane groups: queue renders as "Unmerged",
       waiting renders as "PR open"; drop the worktree_class-based Unmerged
       split (lane_action_status is now the truth). (REQ-9)
-- [ ] Task 2: TrackCard: standard ▶ run on `done:queue`, transcript link on
+- [x] Task 2: TrackCard: standard ▶ run on `done:queue`, transcript link on
       `done:running`, PR link on `done:waiting`; DELETE DoneLaneMergeActions.
       (REQ-6, REQ-9)
-- [ ] Task 3: WorktreesPanel: same three affordances on rows; DELETE Merge to
+- [x] Task 3: WorktreesPanel: same three affordances on rows; DELETE Merge to
       main / Create PR / Merge PR / AI Resolve / Force Merge; keep Discard +
       Remove Worktree; Complete & Merge relabeled to reflect it ends at
       done:queue. (REQ-6, REQ-9)
+
+**Bug found and fixed while verifying this phase:** `auditWorktrees()`
+(`conductor/services/worktree-audit.mjs`) still gated its
+mergeable/stranded/conflicted/pr-open classification on
+`laneStatus === 'success'` — a leftover from before this track, when
+reaching the done lane and reaching done:success were the same moment. A
+track sitting at done:queue/done:waiting/done:failure (the normal,
+common state right after quality-gate hands off) would have misclassified
+as `'open'` (still mid-pipeline), hiding it from the Worktrees panel's
+merge affordances entirely and breaking WorktreesPanel's new "Run merge
+action" button. Fixed by gating on `lane === 'done'` alone — a genuinely
+merged branch never reaches that check at all (the existing isAncestor
+early-continue drops it first). Covered by three new parametrized cases in
+`track-1112-worktree-audit.test.mjs`.
+
+**UI test updates**: deleted `TrackCard.aiResolve.test.jsx` (tested the
+removed AI Resolve button) and rewrote `TrackCard.viewInWorktrees.test.jsx`
+/`KanbanBoard.test.jsx`'s outdated worktree_class-based assertions to match
+the new lane_action_status-driven behavior. Full UI suite: 543 tests, 513
+pass — the 30 failures across 8 files are pre-existing (auth/DB-dependent
+tests failing identically on the unmodified tree, unrelated to this track).
 
 **Impact**: One mental model in both views; the completion link is always
 visible when a human is the blocker.

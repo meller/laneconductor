@@ -14,14 +14,21 @@ export const LANE_STATUS_CONFIG = {
   waiting: { emoji: '⌛', label: 'Waiting', color: 'text-gray-500', show: true },
   queue: { emoji: '⏳', label: 'Queued', color: 'text-yellow-500', show: true },
   running: { emoji: '🔄', label: 'Running', color: 'text-blue-500', show: true },
-  // Done-lane only (see groupedByStatus below): a done:success track whose
-  // branch hasn't actually merged into main yet — same live worktree_class
-  // signal the per-card UnmergedBadge already uses, surfaced as its own
-  // section instead of being buried inside "Success" alongside tracks that
-  // are genuinely, fully finished.
-  unmerged: { emoji: '🔀', label: 'Unmerged', color: 'text-orange-400', show: true },
   success: { emoji: '✅', label: 'Success', color: 'text-green-500', show: true },
   failure: { emoji: '❌', label: 'Failed', color: 'text-red-500', show: true },
+};
+
+// Track 10035: done-lane-only label overrides. done:queue means "unmerged,
+// waiting for the merge action" and done:waiting means "PR open, waiting
+// for human review on GitHub" — lane_action_status alone is now the truth
+// (REQ-9), replacing the old worktree_class-based split that used to carve
+// an extra "Unmerged" group out of "Success" (back when done:success was
+// set at quality-gate exit, before anything actually merged — a genuinely
+// merged track never reaches "success" without having shipped now, so
+// there's nothing left to split out of it).
+const DONE_LANE_STATUS_CONFIG = {
+  queue: { emoji: '🔀', label: 'Unmerged', color: 'text-orange-400', show: true },
+  waiting: { emoji: '🔵', label: 'PR open', color: 'text-blue-400', show: true },
 };
 
 const LANE_EXPAND_THRESHOLD = 5;
@@ -71,25 +78,19 @@ export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onF
         const visibleTracks = laneTracks.slice(0, LANE_EXPAND_THRESHOLD);
         const hiddenCount = laneTracks.length - visibleTracks.length;
 
-        // Group the visible (truncated) tracks by their lane_action_status.
-        // Done lane only: split "success" further into unmerged (a live
-        // branch still sitting unmerged — worktree_class is set) and success
-        // (genuinely finished — merged already, or never had a branch).
-        const isSuccess = t => t.lane_action_status === 'success';
+        // Group the visible (truncated) tracks by their lane_action_status —
+        // uniform across every lane now, including done (REQ-9).
         const groupedByStatus = {
           waiting: visibleTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
           queue: visibleTracks.filter(t => t.lane_action_status === 'queue'),
           running: visibleTracks.filter(t => t.lane_action_status === 'running'),
-          ...(lane.id === 'done'
-            ? {
-              unmerged: visibleTracks.filter(t => isSuccess(t) && t.worktree_class),
-              success: visibleTracks.filter(t => isSuccess(t) && !t.worktree_class),
-            }
-            : { success: visibleTracks.filter(isSuccess) }),
+          success: visibleTracks.filter(t => t.lane_action_status === 'success'),
           failure: visibleTracks.filter(t => t.lane_action_status === 'failure'),
         };
 
-        const statusConfig = LANE_STATUS_CONFIG;
+        const statusConfig = lane.id === 'done'
+          ? { ...LANE_STATUS_CONFIG, ...DONE_LANE_STATUS_CONFIG }
+          : LANE_STATUS_CONFIG;
 
         return (
           <div

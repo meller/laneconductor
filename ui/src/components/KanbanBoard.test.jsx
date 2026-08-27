@@ -1,12 +1,15 @@
-// KanbanBoard — Done lane unmerged/success split.
+// KanbanBoard — Done lane groups.
 //
-// Every lane already sub-groups its cards by lane_action_status
-// (waiting/queue/running/success/failure). The Done lane specifically
-// conflates two very different things under "success": a track whose
-// branch is still sitting unmerged (worktree_class set) and one that's
-// genuinely finished (merged or never had a branch). Splits the done
-// lane's "success" bucket into "unmerged" and "success" so the board
-// surfaces the difference the same way it already surfaces queue/running.
+// Track 10035: every lane already sub-groups its cards by
+// lane_action_status (waiting/queue/running/success/failure); the done
+// lane used to further split its "success" bucket by worktree_class (a
+// live-git cross-reference) into "unmerged"/"success", back when
+// done:success was set at quality-gate exit before anything actually
+// merged. Now done:success means actually shipped (REQ-1/REQ-7), so
+// lane_action_status alone carries the truth (REQ-9): done:queue renders
+// as "Unmerged" (waiting for the merge action), done:waiting renders as
+// "PR open" (waiting for human review on GitHub), done:success is
+// genuinely finished.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { KanbanBoard } from './KanbanBoard.jsx';
@@ -24,43 +27,57 @@ function doneTrack(overrides = {}) {
   };
 }
 
-describe('KanbanBoard — Done lane unmerged/success split', () => {
-  it('groups a done track with a live unmerged branch under the "unmerged" lane-group section, not "success"', () => {
+describe('KanbanBoard — Done lane groups', () => {
+  it('renders a done:queue track under the "Unmerged" lane-group section, not "Queued"', () => {
     render(
       <KanbanBoard
-        tracks={[doneTrack({ track_number: '101', worktree_class: 'mergeable' })]}
+        tracks={[doneTrack({ track_number: '101', lane_action_status: 'queue' })]}
       />
     );
-    expect(screen.getByTestId('lane-group-done-unmerged')).toBeTruthy();
-    expect(screen.queryByTestId('lane-group-done-success')).toBeNull();
+    const group = screen.getByTestId('lane-group-done-queue');
+    expect(group).toBeTruthy();
+    expect(group.textContent).toMatch(/Unmerged/i);
   });
 
-  it('groups a done track with no live branch under the "success" lane-group section, not "unmerged"', () => {
+  it('renders a done:waiting track under the "PR open" lane-group section, not the generic "Waiting"', () => {
     render(
       <KanbanBoard
-        tracks={[doneTrack({ track_number: '102', worktree_class: null })]}
+        tracks={[doneTrack({ track_number: '102', lane_action_status: 'waiting', pr_url: 'https://github.com/org/repo/pull/1' })]}
       />
     );
-    expect(screen.getByTestId('lane-group-done-success')).toBeTruthy();
-    expect(screen.queryByTestId('lane-group-done-unmerged')).toBeNull();
+    const group = screen.getByTestId('lane-group-done-waiting');
+    expect(group).toBeTruthy();
+    expect(group.textContent).toMatch(/PR open/i);
   });
 
-  it('does not introduce an "unmerged" lane-group section on non-done lanes', () => {
+  it('does not relabel queue/waiting on non-done lanes', () => {
     render(
       <KanbanBoard
-        tracks={[doneTrack({
-          track_number: '103', lane_status: 'review', worktree_class: 'mergeable',
-        })]}
+        tracks={[
+          doneTrack({ track_number: '103', lane_status: 'review', lane_action_status: 'queue' }),
+        ]}
       />
     );
-    expect(screen.queryByTestId('lane-group-review-unmerged')).toBeNull();
+    const group = screen.getByTestId('lane-group-review-queue');
+    expect(group.textContent).toMatch(/Queued/i);
+    expect(group.textContent).not.toMatch(/Unmerged/i);
+  });
+
+  it('groups a genuinely shipped done:success track under plain "Success", same as any other lane', () => {
+    render(
+      <KanbanBoard
+        tracks={[doneTrack({ track_number: '104', lane_action_status: 'success' })]}
+      />
+    );
+    const group = screen.getByTestId('lane-group-done-success');
+    expect(group.textContent).toMatch(/Success/i);
   });
 
   it('forwards onViewInWorktrees down to the card and calls it with the track number', () => {
     const onViewInWorktrees = vi.fn();
     render(
       <KanbanBoard
-        tracks={[doneTrack({ track_number: '1118', worktree_class: 'mergeable' })]}
+        tracks={[doneTrack({ track_number: '1118', lane_action_status: 'queue' })]}
         onViewInWorktrees={onViewInWorktrees}
       />
     );
