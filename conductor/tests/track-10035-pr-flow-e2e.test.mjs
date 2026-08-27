@@ -304,4 +304,69 @@ describe('Track 10035 Phase 3: done-lane merge action pr-mode E2E', () => {
       await sleep(500);
     }
   });
+
+  it('TC-3.3/AC-5: a conflicted PR sends the track back to done:queue with a system comment, and the next merge run reaches done:waiting again', async () => {
+    await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
+    setupFixture(collectorPort);
+
+    worker = startWorker();
+    try {
+      // ── Phase A: reach done:waiting with an open PR, same as the happy path ──
+      await poll(async () => {
+        const s = await getState(collectorPort);
+        const t = s.tracks[TRACK_NUM];
+        return t?.pr_status === 'open' ? t : null;
+      }, { label: 'pr_status → open', timeout: 30000 });
+
+      // ── Phase B: GitHub now reports the PR conflicted with main ──────────
+      writeGhScript({
+        'auth status': { exitCode: 0 },
+        'pr create': { stdout: 'https://github.com/example/repo/pull/778', exitCode: 0 },
+        'pr view': { stdout: JSON.stringify({ state: 'OPEN', mergeStateStatus: 'DIRTY', statusCheckRollup: [] }), exitCode: 0 },
+        'pr merge': { exitCode: 0 },
+      });
+
+      const afterConflict = await poll(async () => {
+        const s = await getState(collectorPort);
+        const t = s.tracks[TRACK_NUM];
+        return t?.pr_status === 'conflicted' ? t : null;
+      }, { label: 'pr_status → conflicted (reconcilePrTracks picked up the DIRTY poll)', timeout: 15000 });
+
+      // REQ-7: conflicted sends the track back to done:queue, not done:success.
+      assert.equal(afterConflict.lane_status, 'done');
+      await poll(async () => {
+        const s = await getState(collectorPort);
+        return s.tracks[TRACK_NUM]?.lane_action_status === 'queue' ? true : null;
+      }, { label: 'lane_action_status → queue after conflict', timeout: 10000 });
+
+      const conflictedIndex = readFileSync(primaryIndexPath(), 'utf8');
+      assert.match(conflictedIndex, /\*\*Lane Status\*\*:\s*queue/i, "the primary checkout's own index.md must reflect done:queue after a conflict");
+      const conversation = readFileSync(join(LOCAL, 'conductor/tracks', TRACK_DIR_NAME, 'conversation.md'), 'utf8');
+      assert.match(conversation, /> \*\*system\*\*: ⚠️ PR conflicted/, 'a system comment must explain why the track went back to queue');
+
+      // ── Phase C: GitHub reports the conflict resolved (mergeable again) —
+      // the standard retry (Auto Run: yes) reclaims done:queue and the merge
+      // action re-runs, reaching done:waiting again. No separate "resolve
+      // conflict" code path — this is the same merge action, same as any
+      // other retry. ────────────────────────────────────────────────────────
+      writeGhScript({
+        'auth status': { exitCode: 0 },
+        'pr create': { stdout: 'https://github.com/example/repo/pull/778', exitCode: 0 },
+        'pr view': { stdout: JSON.stringify({ state: 'OPEN', mergeStateStatus: 'CLEAN', statusCheckRollup: [] }), exitCode: 0 },
+        'pr merge': { exitCode: 0 },
+      });
+
+      await poll(async () => {
+        const s = await getState(collectorPort);
+        const t = s.tracks[TRACK_NUM];
+        return t?.lane_action_status === 'waiting' ? t : null;
+      }, { label: 're-run reaches done:waiting again', timeout: 20000 });
+
+      const finalIndex = readFileSync(primaryIndexPath(), 'utf8');
+      assert.match(finalIndex, /\*\*Lane Status\*\*:\s*waiting/i);
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
 });
