@@ -1,18 +1,5 @@
-# Track 10001: Brainstorm B 1786523310261
-
-**Status**: plan
+**Waiting for reply**: yes
+**Lane**: plan
+**Lane Status**: queue
 **Progress**: 0%
-**Last Run**: mock (primary)
-
-## Problem
-Test description
-
-## Solution
-To be defined.
-
-## Phases
-- [ ] Phase 1: Implementation
-**Lane**: backlog
-**Lane Status**: success
-**Summary**: Answered user question
-**Waiting for reply**: no
+**Summary**: Test description
