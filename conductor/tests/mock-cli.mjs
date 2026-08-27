@@ -102,8 +102,16 @@ const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
 // Lets a direct-mode merge E2E test prove AC-1 ("its commits are reachable
 // from local main") against a branch that's actually ahead of main by a
 // real commit, not just a no-op merge of two identical trees.
+//
+// Deliberately excluded for command === 'done': that run's cwd is the
+// PRIMARY checkout itself (workspace:main), not the track's own worktree —
+// committing there would land an unrelated change directly on main, not on
+// the branch being merged, which then makes `lc worktrees merge` see a
+// genuine (spurious) conflict between that stray commit and the real one
+// on the track branch — confirmed live in this exact test file before this
+// guard existed.
 const commitFile = process.env.MOCK_CLI_COMMIT_FILE;
-if (commitFile) {
+if (commitFile && command !== 'done') {
   try {
     writeFileSync(join(process.cwd(), commitFile), `written by mock-cli for ${command} track=${trackNumber}\n`);
     execFileSync('git', ['add', commitFile], { cwd: process.cwd() });
