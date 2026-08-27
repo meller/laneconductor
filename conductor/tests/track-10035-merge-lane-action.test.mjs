@@ -64,6 +64,14 @@ function setupProject() {
     ui: { port: 8090 },
   }, null, 2));
 
+  // Mirrors the real repo's .gitignore (`.worktrees/`) — TC-2.6 plants a
+  // leftover worktree directory to prove the merge action never writes to
+  // it, and without this the dirty-checkout guard (workspace-mode.mjs)
+  // would see it as an untracked path outside the track's own folder and
+  // block the main-mode spawn entirely, which is a different failure mode
+  // than the one that test is checking for.
+  writeFileSync(join(TMP, '.gitignore'), '.worktrees/\n');
+
   mkdirSync(join(TMP, 'conductor/tracks'), { recursive: true });
   // git never tracks an empty directory — without a placeholder, adding a
   // NEW track subfolder later makes `git status --porcelain` report the
@@ -198,6 +206,49 @@ describe('Track 10035: done lane is a standard, claimable lane action', () => {
       const content = readIndex(tracksDir, '703');
       assert.equal(getLaneStatus(content), 'queue', 'no Auto Run marker — must not be auto-claimed');
       assert.equal(getLane(content), 'done');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
+  it('TC-2.6: single-writer — the merge action never touches a leftover worktree copy of index.md', async () => {
+    setupProject();
+    const tracksDir = join(TMP, 'conductor/tracks');
+    createDoneQueueTrack(tracksDir, '704', 'direct');
+
+    // Simulate a worktree left behind by an earlier branch-mode lane action
+    // (implement/review/quality-gate) — REQ-8 requires that from
+    // done:queue onward, this copy is never written again. workspace:main
+    // (Track 1115) forces worktreePath=null for the 'done' lane before
+    // spawnCli ever touches lock/worktree machinery, so this directory
+    // should be completely untouched by the run below — not merely
+    // deleted-and-recreated, but byte-identical.
+    const staleWorktreeDir = join(TMP, '.worktrees', '704', 'conductor', 'tracks', '704-test-track-704');
+    mkdirSync(staleWorktreeDir, { recursive: true });
+    const staleContent = [
+      '# Track 704: Test Track 704',
+      '',
+      '**Lane**: done',
+      '**Lane Status**: queue',
+      '**Progress**: 100%',
+      '**Merge Mode**: direct',
+      '',
+      '## Problem',
+      'Stale worktree copy — must never be written to from done:queue onward.',
+    ].join('\n');
+    const staleIndexPath = join(staleWorktreeDir, 'index.md');
+    writeFileSync(staleIndexPath, staleContent);
+
+    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0' });
+    try {
+      await poll(() => {
+        const c = readIndex(tracksDir, '704');
+        return getLaneStatus(c) === 'success' ? c : null;
+      }, { label: 'track 704 → done:success', timeout: 10000 });
+
+      assert.equal(readFileSync(staleIndexPath, 'utf8'), staleContent,
+        'the leftover worktree copy of index.md must be byte-identical — the merge action must never write to it');
     } finally {
       worker.kill('SIGTERM');
       await sleep(500);

@@ -94,19 +94,32 @@ if (progressIntervalMs > 0 && !resumeFailure) {
 const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
 
 // Track 10035: MOCK_CLI_WRITE_LANE_STATUS=<value> — if set, patch
-// **Lane Status** in the track's own index.md (found under cwd, same
-// INITIALS-NNN-slug-tolerant match as resolveTrackFolder) to <value> right
-// before exiting — simulates an agent's own self-transition write as its
-// last action (e.g. the done-lane merge action writing "waiting" after
-// opening a PR), so a test can drive the real exit handler's
+// **Lane Status** in the track's own index.md to <value> right before
+// exiting — simulates an agent's own self-transition write as its last
+// action (e.g. the done-lane merge action writing "waiting" after opening
+// a PR), so a test can drive the real exit handler's
 // agent-self-reported-outcome detection against a genuinely spawned
 // process instead of just unit-testing that logic in isolation.
+//
+// Deliberately does NOT resolve the track by matching `trackNumber` from
+// argv against folder names: spawnCli's context-injection fallback
+// overwrites the trailing argv slot (normally trackNumber) with the
+// injected prompt text for any CLI whose last arg looks like a prompt —
+// mock-cli.mjs included, see the MOCK_CLI_CLAIM_MARKER comment above — so
+// `trackNumber` here is frequently the whole context+goal string, not a
+// number, and a regex built from it never matches any folder. Instead,
+// find the one track folder the caller already marked running (spawnCli
+// writes **Lane Status**: running into it just before spawning) — exactly
+// as unambiguous in these single-track-at-a-time tests, and immune to the
+// same argv-clobbering.
 const writeLaneStatus = process.env.MOCK_CLI_WRITE_LANE_STATUS;
-if (writeLaneStatus && trackNumber) {
+if (writeLaneStatus) {
   try {
     const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-    const nameRe = new RegExp(`(^|-)${trackNumber}(-|$)`);
-    const trackDir = readdirSync(tracksDir).find(d => nameRe.test(d));
+    const trackDir = readdirSync(tracksDir).find(d => {
+      const p = join(tracksDir, d, 'index.md');
+      return existsSync(p) && /\*\*Lane Status\*\*:\s*running/i.test(readFileSync(p, 'utf8'));
+    });
     if (trackDir) {
       const indexPath = join(tracksDir, trackDir, 'index.md');
       const content = readFileSync(indexPath, 'utf8');
