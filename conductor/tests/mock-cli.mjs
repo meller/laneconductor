@@ -50,7 +50,8 @@
 //                               out of the per-track log file spawnCli
 //                               already writes).
 
-import { existsSync, appendFileSync } from 'node:fs';
+import { existsSync, appendFileSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const [,, command, trackNumber] = process.argv;
 const sentinelPath = process.env.MOCK_CLI_RESUME_FAILURE_SENTINEL;
@@ -91,6 +92,29 @@ if (progressIntervalMs > 0 && !resumeFailure) {
 // its actual isBlockedTurn path against a real spawned process, not just
 // extractBlockedQuestion() in isolation.
 const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
+
+// Track 10035: MOCK_CLI_WRITE_LANE_STATUS=<value> — if set, patch
+// **Lane Status** in the track's own index.md (found under cwd, same
+// INITIALS-NNN-slug-tolerant match as resolveTrackFolder) to <value> right
+// before exiting — simulates an agent's own self-transition write as its
+// last action (e.g. the done-lane merge action writing "waiting" after
+// opening a PR), so a test can drive the real exit handler's
+// agent-self-reported-outcome detection against a genuinely spawned
+// process instead of just unit-testing that logic in isolation.
+const writeLaneStatus = process.env.MOCK_CLI_WRITE_LANE_STATUS;
+if (writeLaneStatus && trackNumber) {
+  try {
+    const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+    const nameRe = new RegExp(`(^|-)${trackNumber}(-|$)`);
+    const trackDir = readdirSync(tracksDir).find(d => nameRe.test(d));
+    if (trackDir) {
+      const indexPath = join(tracksDir, trackDir, 'index.md');
+      const content = readFileSync(indexPath, 'utf8');
+      const patched = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${writeLaneStatus}`);
+      writeFileSync(indexPath, patched, 'utf8');
+    }
+  } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }
+}
 
 setTimeout(() => {
   if (progressTimer) clearInterval(progressTimer);

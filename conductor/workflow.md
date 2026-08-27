@@ -27,7 +27,11 @@ Transitions can specify just a lane (defaults: moving → `queue`, staying → `
 | plan         | plan:success | backlog      |
 | implement    | review:queue | implement:failure |
 | review       | quality-gate:queue | implement:queue |
-| quality-gate | done:success | plan:queue   |
+| quality-gate | done:queue   | plan:queue   |
+| done         | done:success | done:failure |
+
+`done`'s "on success" is the merge action (track 10035) actually landing the code — see
+**Merge As A Done Lane Action** below. `quality-gate` no longer declares `done:success` directly.
 
 ## Workflow Configuration
 Machine-readable config lives in `conductor/workflow.json`.
@@ -111,12 +115,49 @@ honored.
   claim time. (Claim-time capability matching, if wanted later, belongs in
   the claim-allowlist machinery — tracks 1084/1109 — as its own effort.)
 
-## PR & Merge Modes (Track 10018)
+## PR & Merge Modes (Track 10018, superseded by Track 10035)
 
-Controls how track branches integrate back into the main branch once the Quality Gate passes successfully. This is configured via the `**Merge Mode**: pr|direct` marker in the track's `index.md`:
+Controls how track branches integrate back into the main branch. This is configured via the `**Merge Mode**: pr|direct` marker in the track's `index.md`, read by the `done`-lane merge action (see below):
 
-- **`pr`** (default): Pushes the track branch to GitHub and opens a Pull Request. A human can preview the branch from the Worktrees panel and approve/merge the PR directly in the LaneConductor UI or on GitHub.
-- **`direct`**: The worker automatically merges the track branch straight to `main` via a fast-forward/non-fast-forward merge upon passing the Quality Gate.
+- **`pr`** (default): Pushes the track branch to GitHub and opens a Pull Request, landing the track at `done:waiting`. A human can preview the branch from the Worktrees panel and approve/merge the PR directly on GitHub — there is no in-app Merge PR button.
+- **`direct`**: The merge action merges the track branch straight to `main` in-session, resolving real conflicts as part of the same run, landing the track at `done:success` once merged.
+
+## Merge As A Done Lane Action (Track 10035)
+
+Merging is a standard lane action, not a special case. Once quality-gate passes, the track lands
+at `done:queue` — "unmerged," not "done." A worker claims it (Auto Run or a manual ▶, exactly
+like any other lane action) and runs `/laneconductor merge`, which executes in the **primary
+checkout** (`workspace: main` — the only lane action for which that's forced rather than
+inferred, since there is nothing to run on a track's own branch when the point of the run is to
+integrate that branch into `main`). The session produces a live transcript like every other lane
+action.
+
+```
+quality-gate ──success──▶ done:queue      "unmerged", waiting for the merge action
+                              │
+                    worker claims it (auto-run or ▶)
+                              ▼
+                         done:running     merge skill session, live transcript
+                              │
+        direct mode ──────────┼────────── pr mode
+        merge to main,        │           push branch, gh pr create
+        resolve conflicts     │                   │
+        in-session            ▼                   ▼
+                         done:success        done:waiting  ← card + worktree row show
+                              ▲              "PR open → [GitHub link]"
+                              │                   │
+                              └──── reconciler ───┤ PR merged → success (+ cleanup)
+                                                  └ PR conflicted → back to done:queue
+```
+
+`done:success` means the code is actually reachable from local `main` (direct mode) or the PR
+has actually been merged on GitHub (pr mode) — never anything less. A conflicted PR routes back
+to `done:queue` with a system comment; the next merge run updates the branch from `main`,
+resolves in-session, and returns to `done:waiting`. See
+`conductor/tracks/10035-merge-as-a-done-lane-action/spec.md` for the full requirements and the
+five specific bugs (dead-PID lock trust, folder-matching, auto-complete ignoring merge_mode,
+merge-pr posting no result, stale DB `merge_mode`) this replaces the old four-dispatch-handler
+machinery to fix.
 
 ## Auto-Run Configuration (Track 10017)
 

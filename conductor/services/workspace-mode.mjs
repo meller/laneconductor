@@ -72,6 +72,13 @@ export function resolveWorkspaceMode({
   // checked first so it outranks even an explicit **Workspace**: branch marker.
   if (laneStatus === 'plan') return 'main';
 
+  // Track 10035 REQ-3: done (the merge action) is always main-direct too,
+  // for the same reason and at the same precedence tier as plan — there is
+  // nothing to run in a track's own worktree when the entire point of the
+  // run is to integrate that worktree's branch into main. Outranks even an
+  // explicit **Workspace**: branch marker.
+  if (laneStatus === 'done') return 'main';
+
   // D5 row 2 / D1: an explicit marker is a human decision and wins over
   // everything below, INCLUDING the auto-queue/auto-complete override in
   // row 3. This is deliberate: forcing 'branch' on a track explicitly
