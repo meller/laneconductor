@@ -51,8 +51,11 @@
 //                               already writes).
 
 import { existsSync, appendFileSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const [,, command, trackNumber] = process.argv;
 const sentinelPath = process.env.MOCK_CLI_RESUME_FAILURE_SENTINEL;
 const resumeFailure = !!sentinelPath && existsSync(sentinelPath);
@@ -112,19 +115,65 @@ const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
 // writes **Lane Status**: running into it just before spawning) — exactly
 // as unambiguous in these single-track-at-a-time tests, and immune to the
 // same argv-clobbering.
+function findRunningTrackDir() {
+  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+  const trackDir = readdirSync(tracksDir).find(d => {
+    const p = join(tracksDir, d, 'index.md');
+    return existsSync(p) && /\*\*Lane Status\*\*:\s*running/i.test(readFileSync(p, 'utf8'));
+  });
+  return trackDir ? { tracksDir, trackDir, indexPath: join(tracksDir, trackDir, 'index.md') } : null;
+}
+
+// Track 10035: MOCK_CLI_RUN_LC_CREATE_PR=1 — for a done-lane ('merge'
+// action) invocation, actually shell out to `lc worktrees create-pr
+// <track-number>` (the exact primitive SKILL.md's merge command documents
+// running in pr-mode) before exiting, so a PR-mode E2E test exercises the
+// real push + `gh pr create` + PR-marker-write code path
+// (conductor/services/pr-flow.mjs + bin/lc.mjs) instead of only simulating
+// its end state via MOCK_CLI_WRITE_LANE_STATUS below. Resolves the track
+// number from the running track's own folder name (see
+// MOCK_CLI_WRITE_LANE_STATUS's comment below for why argv can't be
+// trusted), same as that flag does.
+if (process.env.MOCK_CLI_RUN_LC_CREATE_PR && command === 'done') {
+  const running = findRunningTrackDir();
+  const numMatch = running?.trackDir.match(/(?:^|-)(\d+)-/);
+  if (numMatch) {
+    try {
+      execFileSync('node', [join(__dirname, '..', '..', 'bin', 'lc.mjs'), 'worktrees', 'create-pr', numMatch[1]],
+        { cwd: process.cwd(), stdio: 'inherit' });
+    } catch (e) {
+      console.error(`[mock-cli] lc worktrees create-pr ${numMatch[1]} failed: ${e.message}`);
+    }
+  }
+}
+
+// Track 10035: MOCK_CLI_WRITE_LANE_STATUS=<value> — if set, patch
+// **Lane Status** in the track's own index.md to <value> right before
+// exiting — simulates an agent's own self-transition write as its last
+// action (e.g. the done-lane merge action writing "waiting" after opening
+// a PR), so a test can drive the real exit handler's
+// agent-self-reported-outcome detection against a genuinely spawned
+// process instead of just unit-testing that logic in isolation.
+//
+// Deliberately does NOT resolve the track by matching `trackNumber` from
+// argv against folder names: spawnCli's context-injection fallback
+// overwrites the trailing argv slot (normally trackNumber) with the
+// injected prompt text for any CLI whose last arg looks like a prompt —
+// mock-cli.mjs included, see the MOCK_CLI_CLAIM_MARKER comment above — so
+// `trackNumber` here is frequently the whole context+goal string, not a
+// number, and a regex built from it never matches any folder. Instead,
+// find the one track folder the caller already marked running (spawnCli
+// writes **Lane Status**: running into it just before spawning) — exactly
+// as unambiguous in these single-track-at-a-time tests, and immune to the
+// same argv-clobbering.
 const writeLaneStatus = process.env.MOCK_CLI_WRITE_LANE_STATUS;
 if (writeLaneStatus) {
   try {
-    const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-    const trackDir = readdirSync(tracksDir).find(d => {
-      const p = join(tracksDir, d, 'index.md');
-      return existsSync(p) && /\*\*Lane Status\*\*:\s*running/i.test(readFileSync(p, 'utf8'));
-    });
-    if (trackDir) {
-      const indexPath = join(tracksDir, trackDir, 'index.md');
-      const content = readFileSync(indexPath, 'utf8');
+    const running = findRunningTrackDir();
+    if (running) {
+      const content = readFileSync(running.indexPath, 'utf8');
       const patched = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${writeLaneStatus}`);
-      writeFileSync(indexPath, patched, 'utf8');
+      writeFileSync(running.indexPath, patched, 'utf8');
     }
   } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }
 }
