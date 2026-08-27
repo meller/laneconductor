@@ -1,6 +1,6 @@
 # Track TU-10035: Merge As A Done Lane Action
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
