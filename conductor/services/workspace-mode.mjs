@@ -125,11 +125,20 @@ export function resolveWorkspaceMode({
 // unrelated main-mode dispatch's dirty-checkout guard — the exact same
 // false-positive-friction shape the four exemptions above were already
 // built to solve.
+//
+// Track 10020 investigation (2026-08-27): .conv-cursor (and its .lock)
+// churns on every conversation.md sync — same routine-machine-write shape
+// as index/plan/spec/test.md above — but 27 of them were committed to git
+// before .conv-cursor was added to .gitignore, so git status --porcelain
+// still reports them as dirty on every advance. Exempted here alongside
+// the file itself being untracked (git rm --cached) so this doesn't
+// recur even where a stray .conv-cursor slips back into the index.
 export function isWorkerBookkeepingPath(p) {
   return /^conductor\/\.[^/]+$/.test(p)
     || p === 'conductor/tracks-metadata.json'
     || p === 'conductor/tracks/file_sync_queue.md'
     || /^conductor\/tracks\/[^/]+\/(index|plan|spec|test)\.md$/.test(p)
+    || /^conductor\/tracks\/[^/]+\/\.conv-cursor(\.lock)?$/.test(p)
     || /^conductor\/tracks\/_duplicate-[^/]+\/?/.test(p);
 }
 
