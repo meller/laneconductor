@@ -52,7 +52,7 @@ import { capContentForArgv } from './services/context-cap.mjs';
 import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
-import { checkGhAuth, createTrackPr, pollTrackPr, resolvePrStatus, mergeTrackPr } from './services/pr-flow.mjs';
+import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
 import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
@@ -3889,78 +3889,25 @@ function readTrackMergeMode(root, trackNumber) {
   }
 }
 
-// Track 10018 Phase 2: the PR-mode counterpart to mergeAndRemoveWorktree —
-// pushes the branch and opens a PR instead of merging locally, and leaves
-// the worktree/branch fully intact (the reconcile loop's PR poller, not
-// this function, is what eventually cleans up once GitHub reports MERGED).
-// Never falls back to a local merge on failure — per spec, a `gh`
-// precondition failure must be loud (a track comment + pr_status note),
-// not a silent divergence from the mode the track asked for.
-async function openTrackPrOnDone(trackNumber, worktreePath) {
-  const mainBranch = getMainBranch();
-  const primaryRoot = resolvePrimaryRepoRoot(worktreePath);
-
-  const auth = checkGhAuth({ cwd: worktreePath });
-  if (!auth.ok) {
-    const msg = `gh CLI is not authenticated — cannot open a PR for track ${trackNumber} (merge_mode: pr). Run 'gh auth login' on this machine. Branch and worktree left in place; track NOT merged.`;
-    console.error(`[pr-flow] ${msg}`);
-    await postToCollectors(`/track/${trackNumber}/comment`, { author: 'system', body: `⚠️ ${msg}` }).catch(() => {});
-    await patchTrackPrFields(trackNumber, { pr_status: 'error' });
-    return;
-  }
-
-  const tracksDir = join(worktreePath, 'conductor', 'tracks');
-  const trackDir = resolveTrackFolder(tracksDir, trackNumber);
-  const titleMatch = trackDir && readIfExists(join(tracksDir, trackDir, 'index.md'))?.match(/^#\s*(.+)$/m);
-  const title = titleMatch ? titleMatch[1].trim() : `Track ${trackNumber}`;
-
+// Track 10035 REQ-13: every dispatch handler posts its result to
+// conversation.md through this one shared helper — visibility by
+// construction, not by each handler remembering to. Before this track,
+// remove-worktree posted nothing at all, and merge-pr's own missing
+// comment (fixed ad hoc, then deleted along with the handler in this same
+// track) was found live only because a real failure went completely
+// invisible. `trackNumber` may legitimately be null (e.g. a detached
+// worktree with no track) — a silent no-op, not an error, since there's
+// nowhere to post to.
+async function postDispatchResultComment(trackNumber, resultText) {
+  if (!trackNumber) return;
   try {
-    const { number, url } = createTrackPr({
-      repoRoot: worktreePath, trackNumber, mainBranch, title,
-      body: `Opened automatically by LaneConductor on quality-gate pass (merge_mode: pr).`,
-    });
-    console.log(`[pr-flow] Opened PR #${number} for track ${trackNumber}: ${url}`);
-    // Written to the file too (not just the DB via patchTrackPrFields below)
-    // so reconcilePrTracks — which only ever reads files, exactly like
-    // local-fs mode's every other worker-side decision — can find the PR
-    // number to poll without needing a DB round-trip.
-    if (trackDir) {
-      const indexPath = join(tracksDir, trackDir, 'index.md');
-      writeIndexMarker(indexPath, 'PR Number', number);
-      writeIndexMarker(indexPath, 'PR URL', url);
-      writeIndexMarker(indexPath, 'PR Status', 'open');
+    const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+    const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+    if (trackDirName) {
+      appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
     }
-    // Track 10018 Phase 11 (found live by the subprocess E2E test, not code
-    // review): the writes above land ONLY in the worktree's own copy of
-    // index.md. reconcilePrTracks() — the function whose entire job is to
-    // poll this PR — only ever reads the PRIMARY checkout's copy (same as
-    // every other worker-side file read), and the exit handler's generic
-    // artifact-copy already ran earlier in this same run, before these
-    // markers existed to copy. Without this, primary's index.md never gets
-    // a **PR Number**, reconcilePrTracks finds nothing to poll, and a
-    // pr-mode track's PR silently never converges no matter what GitHub
-    // reports — confirmed live: the E2E test hung forever waiting for
-    // pr_status to reach 'merged'. writeIndexMarker() (unlike the shared
-    // mergeIndexMarkers() used for Lane/Progress/etc.) already injects a
-    // missing marker rather than skipping it, so this is correct on a
-    // track's very first PR just as much as on a later status change.
-    const primaryTracksDir = join(primaryRoot, 'conductor', 'tracks');
-    const primaryTrackDir = resolveTrackFolder(primaryTracksDir, trackNumber);
-    if (primaryTrackDir) {
-      const primaryIndexPath = join(primaryTracksDir, primaryTrackDir, 'index.md');
-      writeIndexMarker(primaryIndexPath, 'PR Number', number);
-      writeIndexMarker(primaryIndexPath, 'PR URL', url);
-      writeIndexMarker(primaryIndexPath, 'PR Status', 'open');
-    }
-    await patchTrackPrFields(trackNumber, { pr_number: number, pr_url: url, pr_status: 'open' });
-    await postToCollectors(`/track/${trackNumber}/comment`, {
-      author: 'system', body: `⚠️ Opened PR #${number} for review: ${url}`,
-    }).catch(() => {});
   } catch (err) {
-    const msg = `Failed to open a PR for track ${trackNumber}: ${err.message}. Branch and worktree left in place; track NOT merged.`;
-    console.error(`[pr-flow] ${msg}`);
-    await postToCollectors(`/track/${trackNumber}/comment`, { author: 'system', body: `⚠️ ${msg}` }).catch(() => {});
-    await patchTrackPrFields(trackNumber, { pr_status: 'error' });
+    logger.warn({ trackNumber, err: err.message }, '[dispatch] Failed to post result conversation comment');
   }
 }
 
@@ -6542,187 +6489,20 @@ async function checkDispatchInbox() {
       continue;
     }
 
-    // Track 1112 Phase 7 (D-7): the "Merge to main" button's target — a
-    // pure git operation with no LLM context needed, but still routed
-    // through the assignee's own worker (the API resolves worker_id via
-    // 1084's resolveAssignee/resolvePinnedWorkers before creating this
-    // dispatch entry) so it's consistent with every other track-scoped
-    // dispatch. Calls Phase 4's shared mergeWorktreeBranch() primitive —
-    // no second copy of the merge logic.
-    if (entry.action === 'merge-worktree') {
-      const trackNumber = entry.payload?.track_number;
-      const force = entry.payload?.force === true;
-      if (!trackNumber) {
-        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
-        continue;
-      }
-      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] merge-worktree track ${trackNumber}`);
-      updateWorkerHeartbeat('busy', `merge-worktree track ${trackNumber} (dispatch ${entry.id})`);
-
-      const mainBranch = getMainBranch();
-      let result;
-      let forcedDoneWithoutChecks = false;
-      try {
-        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
-        const row = rows.find(r => r.trackNumber === String(trackNumber));
-        const isDoneSuccess = row?.lane === 'done' && row?.laneStatus === 'success';
-        if (!row) {
-          result = { merged: false, reason: 'not-found' };
-        } else if (!isDoneSuccess && !force) {
-          result = { merged: false, reason: 'not-done-success' };
-        } else {
-          // Track 1114 (explicit request — "not recommended, but allow
-          // it"): force on a track that hasn't actually reached
-          // done:success also marks it done:success first, on the
-          // BRANCH itself, before merging — otherwise the code lands in
-          // main while the board still shows "review"/"implement", a
-          // confusing split state where the merge silently happened but
-          // the card looks untouched. Only handles the case where a
-          // worktree is actually checked out (the realistic case for
-          // in-progress work); if none exists, falls through to a plain
-          // git-only force merge exactly like before, with the branch's
-          // own lane state left as-is.
-          if (!isDoneSuccess && force && row.hasWorktree && row.worktreePath) {
-            const wtIndexPath = join(row.worktreePath, 'conductor', 'tracks', resolveTrackFolder(join(row.worktreePath, 'conductor', 'tracks'), trackNumber) || '', 'index.md');
-            if (existsSync(wtIndexPath)) {
-              const wtContent = readFileSync(wtIndexPath, 'utf8');
-              const updateHeader = (c, h, v) => {
-                const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
-                return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
-              };
-              let updated = updateHeader(wtContent, 'Lane', 'done');
-              updated = updateHeader(updated, 'Lane Status', 'success');
-              writeFileSync(wtIndexPath, updated, 'utf8');
-              try {
-                gitExec(`git add "${wtIndexPath}"`, row.worktreePath);
-                gitExec(`git commit -m "Track ${trackNumber}: force-marked done:success (review/quality-gate skipped)"`, row.worktreePath);
-                forcedDoneWithoutChecks = true;
-              } catch (commitErr) {
-                logger.warn({ dispatchId: entry.id, trackNumber, err: commitErr.message }, '[dispatch] force-merge: failed to commit done:success marker');
-              }
-            }
-          }
-          result = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch });
-          if (result.merged && forcedDoneWithoutChecks) {
-            await patch(url, token, `/track/${trackNumber}/action`, {
-              project_id: (getProject())?.id, lane_status: 'done', lane_action_status: 'success', progress_percent: 100,
-            }).catch(err => logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, '[dispatch] force-merge: failed to sync done:success to DB'));
-          }
-        }
-      } catch (err) {
-        result = { merged: false, reason: 'error', error: err.message };
-      }
-      updateWorkerHeartbeat('idle', null);
-
-      const resultText = result.merged
-        ? `Merged track-${trackNumber} into ${mainBranch} (${result.mergeCommit})${forcedDoneWithoutChecks ? ' — ⚠️ forced done:success without running review/quality-gate' : ''}`
-        : `Not merged: ${result.reason}${result.conflictPaths?.length ? ` (${result.conflictPaths.join(', ')})` : ''}${result.error ? `: ${result.error}` : ''}`;
-
+    // Track 10035 REQ-10: merge-worktree/create-pr/merge-pr/ai-resolve-conflict
+    // were deleted along with the UI buttons that dispatched them —
+    // merging is the done lane's own standard lane action now (SKILL.md's
+    // `/laneconductor merge`, claimed via the normal `entry.track_number`
+    // + lane_status path below). Rejected explicitly here rather than
+    // falling through to the generic "Lane action dispatch" fallback,
+    // which would otherwise try to spawn a CLI against a nonsense
+    // 'merge-worktree'-shaped command for any stray dispatch (e.g. a
+    // cached UI tab that hasn't reloaded since this track shipped).
+    if (['merge-worktree', 'create-pr', 'merge-pr', 'ai-resolve-conflict'].includes(entry.action)) {
       await patch(url, token, `/worker-dispatch/${entry.id}`, {
-        status: result.merged ? 'done' : 'failed',
-        result: resultText,
-      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-worktree result'));
-
-      try {
-        const tracksDir = join(process.cwd(), 'conductor/tracks');
-        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
-        if (trackDirName) {
-          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
-        }
-      } catch (err) {
-        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-worktree conversation comment');
-      }
-      continue;
-    }
-
-    // Track 10018: the Worktrees panel's "Create PR" button — the rescue
-    // path for a pr-mode track that's already done:success (via
-    // auditWorktrees, same precondition style as merge-worktree above) but
-    // has no PR yet (e.g. openTrackPrOnDone's own gh-auth/push failure, or
-    // a stranded branch someone wants under PR review after the fact).
-    // Reuses openTrackPrOnDone directly — no second copy of the PR-opening
-    // logic.
-    if (entry.action === 'create-pr') {
-      const trackNumber = entry.payload?.track_number;
-      if (!trackNumber) {
-        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
-        continue;
-      }
-      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] create-pr track ${trackNumber}`);
-      updateWorkerHeartbeat('busy', `create-pr track ${trackNumber} (dispatch ${entry.id})`);
-
-      let resultText;
-      try {
-        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
-        const row = rows.find(r => r.trackNumber === String(trackNumber));
-        if (!row || !row.hasWorktree) {
-          resultText = 'Not opened: no live worktree found for this track';
-        } else if (row.lane !== 'done' || row.laneStatus !== 'success') {
-          resultText = `Not opened: track is at ${row.lane || '?'}:${row.laneStatus || '?'}, not done:success`;
-        } else if (row.prNumber) {
-          resultText = `PR #${row.prNumber} already exists — nothing to do`;
-        } else {
-          await openTrackPrOnDone(trackNumber, row.worktreePath);
-          resultText = 'PR create dispatched — see track conversation for the result';
-        }
-      } catch (err) {
-        resultText = `Error: ${err.message}`;
-      }
-      updateWorkerHeartbeat('idle', null);
-      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'done', result: resultText })
-        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report create-pr result'));
-      continue;
-    }
-
-    // Track 10018: the Worktrees panel's "Merge PR" button — merges
-    // through GitHub (never a local git merge), so branch protection and
-    // required checks stay authoritative. Actual local cleanup (worktree
-    // removal, branch deletion, lane transition bookkeeping) happens on
-    // reconcilePrTracks()'s next poll once GitHub reports the merge, same
-    // as a merge done directly in the GitHub UI — this handler's only job
-    // is to trigger it.
-    if (entry.action === 'merge-pr') {
-      const trackNumber = entry.payload?.track_number;
-      if (!trackNumber) {
-        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
-        continue;
-      }
-      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] merge-pr track ${trackNumber}`);
-      updateWorkerHeartbeat('busy', `merge-pr track ${trackNumber} (dispatch ${entry.id})`);
-
-      let resultText;
-      try {
-        const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
-        const row = rows.find(r => r.trackNumber === String(trackNumber));
-        if (!row?.prNumber) {
-          resultText = 'Not merged: no open PR number recorded for this track';
-        } else {
-          mergeTrackPr({ repoRoot: resolvePrimaryRepoRoot(process.cwd()), prNumber: parseInt(row.prNumber, 10) });
-          resultText = `Merge requested for PR #${row.prNumber} — GitHub will process it; cleanup follows on the next reconcile pass`;
-        }
-      } catch (err) {
-        resultText = `Error: ${err.message}`;
-      }
-      updateWorkerHeartbeat('idle', null);
-      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: resultText.startsWith('Error') || resultText.startsWith('Not merged') ? 'failed' : 'done', result: resultText })
-        .catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report merge-pr result'));
-
-      // Found live (track 1119): unlike merge-worktree/ai-resolve-conflict,
-      // this handler never posted a conversation comment — the dispatch
-      // row's own status/result isn't surfaced anywhere the Kanban card
-      // reads from, so a real failure (e.g. GitHub reports the PR as
-      // CONFLICTING) was completely invisible: the button just reverted to
-      // "Merge PR" with nothing to explain why, indistinguishable from the
-      // click not having registered at all.
-      try {
-        const tracksDir = join(process.cwd(), 'conductor/tracks');
-        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
-        if (trackDirName) {
-          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
-        }
-      } catch (err) {
-        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post merge-pr conversation comment');
-      }
+        status: 'failed',
+        result: `Unknown action '${entry.action}' — this dispatch action was removed (track 10035); merging is now the done lane's standard lane action.`,
+      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report removed-action result'));
       continue;
     }
 
@@ -6745,6 +6525,7 @@ async function checkDispatchInbox() {
       updateWorkerHeartbeat('busy', `remove-worktree (dispatch ${entry.id})`);
 
       let result;
+      let matchedTrackNumber = null;
       try {
         const rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch: getMainBranch() });
         const row = rows.find(r => r.hasWorktree && (
@@ -6753,6 +6534,7 @@ async function checkDispatchInbox() {
         if (!row) {
           result = { removed: false, reason: 'not-found — no live worktree matches that branch/path' };
         } else {
+          matchedTrackNumber = row.trackNumber;
           gitExec(`git worktree remove --force "${row.worktreePath}"`, process.cwd());
           result = { removed: true, path: row.worktreePath, branch: row.branch };
         }
@@ -6769,6 +6551,7 @@ async function checkDispatchInbox() {
         status: result.removed ? 'done' : 'failed',
         result: resultText,
       }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report remove-worktree result'));
+      await postDispatchResultComment(matchedTrackNumber, resultText);
       continue;
     }
 
@@ -6866,135 +6649,7 @@ async function checkDispatchInbox() {
         status: result.discarded ? 'done' : 'failed',
         result: resultText,
       }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report discard-track result'));
-
-      try {
-        const tracksDir = join(repoRoot, 'conductor', 'tracks');
-        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
-        if (trackDirName) {
-          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
-        }
-      } catch (err) {
-        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post discard-track conversation comment');
-      }
-      continue;
-    }
-
-    // Track 1114 Phase 18b: "AI resolve conflict" — for `conflicted` rows
-    // Phase 17's bookkeeping-only auto-resolve doesn't cover (a real
-    // content conflict). Deliberately NOT built on spawnCli — that
-    // machinery is lane-workflow-shaped (creates its own worktree, moves
-    // Lane/Lane Status through workflow.json, git-locks) and this is a
-    // one-off remediation, not a lane. Runs a REAL `git merge` (not the
-    // dry-run `merge-tree` check auditWorktrees uses for classification)
-    // directly in the track's existing worktree, spawns a scoped one-shot
-    // Claude session to resolve the resulting conflict markers (same raw
-    // spawn pattern as the `track_chat`/`worker_adhoc_chat` handler
-    // above — a single prompt/response turn, no lane semantics), then
-    // verifies nothing is left unresolved before ever committing anything.
-    // Explicitly conservative: if verification doesn't clearly show a
-    // clean, agent-staged resolution, this aborts the merge and reports
-    // failure rather than guessing — same philosophy as
-    // mergeWorktreeBranch's own "never call it mergeable without
-    // positively confirming a clean merge."
-    if (entry.action === 'ai-resolve-conflict') {
-      const trackNumber = entry.payload?.track_number;
-      if (!trackNumber) {
-        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'payload.track_number is required' }).catch(() => { });
-        continue;
-      }
-      logger.info({ dispatchId: entry.id, trackNumber }, `[dispatch] ai-resolve-conflict ${trackNumber}`);
-      updateWorkerHeartbeat('busy', `ai-resolve-conflict ${trackNumber} (dispatch ${entry.id})`);
-
-      const repoRoot = resolvePrimaryRepoRoot(process.cwd());
-      const mainBranch = getMainBranch();
-      let result;
-      try {
-        const rows = await auditWorktrees({ repoRoot, mainBranch });
-        const row = rows.find(r => r.trackNumber === String(trackNumber));
-
-        if (!row?.hasWorktree || !row.worktreePath) {
-          result = { resolved: false, reason: 'no-worktree — a live worktree is required to run the merge in' };
-        } else {
-          const worktreePath = row.worktreePath;
-          let hadConflict = false;
-          try {
-            gitExec(`git merge "${mainBranch}" --no-edit`, worktreePath);
-          } catch (mergeErr) {
-            hadConflict = true; // `git merge` exits non-zero when it leaves real conflict markers
-          }
-
-          if (!hadConflict) {
-            // State moved on since classification (e.g. someone else already
-            // fixed it) — merged cleanly with no AI involvement needed.
-            const mergeResult = await mergeWorktreeBranch({ repoRoot, trackNumber: String(trackNumber), mainBranch });
-            result = { resolved: true, aiInvolved: false, merged: mergeResult.merged, mergeCommit: mergeResult.mergeCommit };
-          } else {
-            const prompt = `You are resolving a real git merge conflict. The current directory is a git worktree mid-merge (\`git merge ${mainBranch}\` was just run and produced conflicts). Run \`git status\` to see which files conflict. Open each one, resolve the conflict markers by understanding BOTH sides' intent — this branch's own changes AND ${mainBranch}'s changes — do not blindly prefer one side. Do not drop functionality from either side unless it is genuinely redundant or superseded. Once every file is resolved, stage them with \`git add\`. Do NOT run \`git commit\` yourself — leave the merge staged; a separate step finalizes it. If you cannot confidently resolve a conflict, leave it unresolved (unstaged) and say why in your final message instead of guessing.`;
-
-            const { stdout: agentOutput } = await new Promise((resolvePromise) => {
-              const proc = spawn('claude', ['--dangerously-skip-permissions', '-p', prompt], { cwd: worktreePath, stdio: ['ignore', 'pipe', 'pipe'] });
-              let out = '';
-              proc.stdout.on('data', d => { out += d.toString(); });
-              proc.stderr.on('data', d => { out += d.toString(); });
-              proc.on('exit', () => resolvePromise({ stdout: out }));
-              proc.on('error', e => resolvePromise({ stdout: e.message }));
-            });
-
-            // A linked worktree's `.git` is a FILE pointing at the real
-            // gitdir (`.git/worktrees/<name>/`), not a directory — joining
-            // `worktreePath, '.git', 'MERGE_HEAD'` directly resolves to a
-            // path that can never exist, silently reporting "no merge in
-            // progress" even when one genuinely is (found live verifying
-            // this very fixture: a real agent-resolved merge would have
-            // been misreported as failed). `git rev-parse` resolves refs
-            // correctly from any worktree's cwd regardless of this layout.
-            let mergeHeadExists = true;
-            try { gitExec('git rev-parse -q --verify MERGE_HEAD', worktreePath); } catch { mergeHeadExists = false; }
-            const statusLines = gitExec('git status --porcelain', worktreePath).toString().split('\n').filter(Boolean);
-            const stillUnmerged = statusLines.some(l => /^(UU|AA|DD|AU|UA|UD|DU) /.test(l));
-
-            if (!mergeHeadExists || stillUnmerged) {
-              // Either the agent committed/aborted on its own (unexpected —
-              // instructed not to) or real conflicts remain either way, too
-              // ambiguous to trust silently. Abort if a merge is still
-              // genuinely in progress; otherwise leave state as the agent
-              // left it for a human to inspect.
-              if (mergeHeadExists) gitExec('git merge --abort', worktreePath);
-              result = { resolved: false, reason: stillUnmerged ? 'unresolved-conflicts-remain' : 'agent-did-not-leave-a-clean-staged-merge', agentOutput: agentOutput.slice(-2000) };
-            } else {
-              gitExec('git commit --no-edit', worktreePath);
-              const mergeResult = await mergeWorktreeBranch({ repoRoot, trackNumber: String(trackNumber), mainBranch });
-              result = mergeResult.merged
-                ? { resolved: true, aiInvolved: true, merged: true, mergeCommit: mergeResult.mergeCommit }
-                : { resolved: true, aiInvolved: true, merged: false, reason: mergeResult.reason, note: 'conflict resolved and committed on the branch, but the merge-into-main step itself failed — branch left in its resolved state for manual merge' };
-            }
-          }
-        }
-      } catch (err) {
-        result = { resolved: false, reason: 'error', error: err.message };
-      }
-      updateWorkerHeartbeat('idle', null);
-
-      const resultText = result.resolved
-        ? (result.merged
-          ? `AI-resolved and merged track-${trackNumber} into ${mainBranch}${result.aiInvolved ? '' : ' (no real conflict encountered)'} (${result.mergeCommit}) — review the merge commit`
-          : `AI resolved the conflict on track-${trackNumber}'s branch, but merging into ${mainBranch} still failed: ${result.reason}`)
-        : `Not resolved: ${result.reason}${result.error ? `: ${result.error}` : ''}`;
-
-      await patch(url, token, `/worker-dispatch/${entry.id}`, {
-        status: result.resolved ? 'done' : 'failed',
-        result: resultText,
-      }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report ai-resolve-conflict result'));
-
-      try {
-        const tracksDir = join(repoRoot, 'conductor', 'tracks');
-        const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
-        if (trackDirName) {
-          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
-        }
-      } catch (err) {
-        logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to post ai-resolve-conflict conversation comment');
-      }
+      await postDispatchResultComment(trackNumber, resultText);
       continue;
     }
 

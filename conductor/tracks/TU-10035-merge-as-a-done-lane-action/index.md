@@ -1,8 +1,8 @@
 # Track TU-10035: Merge As A Done Lane Action
 
 **Lane**: implement
-**Lane Status**: queue
-**Progress**: 5%
+**Lane Status**: running
+**Progress**: 75%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned
 **Type**: dev
@@ -23,9 +23,9 @@ The done lane gets a standard lane action ("merge") claimed and run exactly like
 
 ## Phases
 
-- [ ] Phase 1: Workflow semantics + skill command
-- [ ] Phase 2: Worker claims and runs the merge action
-- [ ] Phase 3: PR waiting + reconciler loop
-- [ ] Phase 4: UI consolidation
-- [ ] Phase 5: Deletions, migration, creation-time flags
+- [x] Phase 1: Workflow semantics + skill command
+- [x] Phase 2: Worker claims and runs the merge action
+- [x] Phase 3: PR waiting + reconciler loop
+- [x] Phase 4: UI consolidation
+- [ ] Phase 5: Deletions, migration, creation-time flags (Tasks 1-2 done, 3-4 remaining)
 - [ ] Phase 6: E2E validation

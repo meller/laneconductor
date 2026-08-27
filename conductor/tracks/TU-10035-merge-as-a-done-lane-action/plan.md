@@ -137,10 +137,21 @@ visible when a human is the blocker.
 no way to declare merge intent at track creation.
 **Solution**: Remove, sweep, correct, extend.
 
-- [ ] Task 1: DELETE dispatch handlers `merge-worktree`, `create-pr`,
+- [x] Task 1: DELETE dispatch handlers `merge-worktree`, `create-pr`,
       `merge-pr`, `ai-resolve-conflict` (UI no longer sends them). (REQ-10)
-- [ ] Task 2: Shared result-comment helper used by every surviving handler.
-      (REQ-13)
+      A stray dispatch of one of these actions now fails cleanly with an
+      "unknown action — removed (track 10035)" result instead of falling
+      through to the generic lane-action spawn path. `openTrackPrOnDone`
+      and `mergeTrackPr`/`checkGhAuth`/`createTrackPr` imports removed
+      (unused now); `mergeWorktreeBranch` remains as a primitive, still
+      called from the merge action's own code path.
+- [x] Task 2: Shared result-comment helper used by every surviving handler.
+      (REQ-13) Added `postDispatchResultComment(trackNumber, resultText)`;
+      `remove-worktree` (previously posted nothing at all) and
+      `discard-track` both migrated to call it. Verified by
+      `conductor/tests/track-10035-removed-dispatch-actions.test.mjs`
+      (TC-5.1: all four removed actions fail cleanly; TC-5.2:
+      remove-worktree's result reaches conversation.md) — 5/5 pass.
 - [ ] Task 3: Migration sweep: every `done:success` track with a live
       unmerged branch → `done:queue`; DB `tracks.merge_mode` corrected to
       match the file marker where they disagree. Runs once, logs each change
