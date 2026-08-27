@@ -179,17 +179,22 @@ pure modules cannot show the real thing works.
 
 ## Phase 5: Docs
 
-- [ ] Task 1: Header comment on `run-marker.mjs` explaining *why* it exists (the in-memory
+- [x] Task 1: Header comment on `run-marker.mjs` explaining *why* it exists (the in-memory
       `runningTrackMap` gap), in this file's established "explain the incident" comment style.
-- [ ] Task 2: Update `reconcileOrphanedDispatches()`'s existing header comment — it currently opens
+- [x] Task 2: Update `reconcileOrphanedDispatches()`'s existing header comment — it currently opens
       with "runs once, right after this process's first successful registration", which becomes
       wrong in Phase 2.
-- [ ] Task 3: Document `conductor/.runs/` in `conductor/product.md`'s File Roles table (owner:
+- [x] Task 3: Document `conductor/.runs/` in `conductor/product.md`'s File Roles table (owner:
       sync worker; reader: sync worker) so it isn't mistaken for a committed artifact.
-- [ ] Task 4: Document `LC_ORPHAN_RECONCILE_POLL_MS` / `LC_ORPHAN_RECONCILE_GRACE_MS` inline at
+- [x] Task 4: Document `LC_ORPHAN_RECONCILE_POLL_MS` / `LC_ORPHAN_RECONCILE_GRACE_MS` inline at
       their `setInterval`, matching `LC_DISPATCH_POLL_MS`'s existing style.
 
 **Impact**: Docs match the code; the next person doesn't re-derive why the one-shot gate went away.
+
+**Done** (2026-08-27): Written directly as part of Phases 1-2's own edits (`run-marker.mjs`'s header,
+`reconcileOrphanedDispatches()`'s updated header, the `LC_ORPHAN_RECONCILE_POLL_MS`/
+`LC_ORPHAN_RECONCILE_GRACE_MS` inline comments at their `setInterval`/const sites) plus
+`conductor/product.md`'s File Roles table entry for `conductor/.runs/<track_number>.json`.
 
 ---
 
