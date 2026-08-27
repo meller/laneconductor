@@ -9,7 +9,7 @@
 **Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp…
+**Summary**: Multi-step App Creator wizard (product, KPIs, design/tech stack, deployment via reused deploy UX) that auto-generates Auto-Run tracks and drives them end-to-end to a deployed Firebase/GCP webapp with a live app link and a "follow your build" progress view.
 
 ## Problem
 
@@ -27,4 +27,6 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [x] Phase 4: Deploy-to-URL + app_url plumbing
 - [x] Phase 5: "Follow your build" progress view
 - [x] Phase 6: E2E validation — the digger game scenario (Task 3 spun out to track 1120)
-**Merge Mode**: direct
+**PR Number**: 17
+**PR URL**: https://github.com/meller/laneconductor/pull/17
+**PR Status**: open

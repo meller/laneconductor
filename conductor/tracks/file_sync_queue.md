@@ -1,5 +1,13 @@
 ## Track Creation Requests
 
+### Track 1120: Wizard Real-Deploy Verification (Digger Game, Live Firebase)
+**Status**: pending
+**Type**: track-create
+**Created**: 2026-08-26T09:19:06Z
+**Title**: Wizard Real-Deploy Verification (Digger Game, Live Firebase)
+**Description**: Spun out of track 1119 (App Creator Wizard) — human-supervised real run of the wizard against a disposable Firebase/GCP project, confirming generated Auto-Run tracks reach done and the recorded app_url is actually live. Satisfies 1119's originally-deferred TC-16/AC-4/AC-5.
+**Author**: AM
+**Metadata**: { "priority": "medium", "assignee": null }
 
 ## Completed Queue
 
