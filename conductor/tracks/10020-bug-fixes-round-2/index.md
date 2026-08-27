@@ -31,6 +31,6 @@ still-genuinely-running orphan is never finalized early.
 **Lane**: review
 **Track Kind**: bug
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 **Auto Run**: yes
