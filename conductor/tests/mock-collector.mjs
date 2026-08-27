@@ -142,11 +142,23 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { entries });
   }
 
+  // Track 10020 Phase 2/4: mirrors the real server's GET
+  // /worker/:id/dispatch/claimed (ui/server/index.mjs) — periodic orphan
+  // reconciliation reads this to find dispatches this worker claimed but
+  // never reported an outcome for.
+  if ((params = route('GET', '/worker/:id/dispatch/claimed', req)) !== null) {
+    const entries = state.dispatch.filter(d => String(d.worker_id) === params.id && d.status === 'claimed');
+    return reply(res, 200, { entries });
+  }
+
   if ((params = route('PATCH', '/worker-dispatch/:id', req)) !== null) {
     const entry = state.dispatch.find(d => String(d.id) === params.id);
     if (!entry) return reply(res, 404, { error: 'dispatch entry not found' });
     entry.status = body.status;
     if (body.result !== undefined) entry.result = body.result;
+    // Mirrors the real server's `claimed_at = NOW()` write on a transition
+    // to 'claimed' — Phase 2's grace-period guard reads this.
+    if (body.status === 'claimed') entry.claimed_at = new Date().toISOString();
     return reply(res, 200, { ok: true });
   }
 

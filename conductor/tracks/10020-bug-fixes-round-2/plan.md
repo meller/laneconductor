@@ -24,27 +24,41 @@ before anything depends on it.
 is in-memory — worthless for exactly the orphan case, where the process holding it is gone.
 **Solution**: Mirror it to disk at spawn time so any later process can ask the OS.
 
-- [ ] Task 1: Create `conductor/services/run-marker.mjs` (pure, no I/O — mirrors
+- [x] Task 1: Create `conductor/services/run-marker.mjs` (pure, no I/O — mirrors
       `workspace-mode.mjs` / `orphaned-dispatch.mjs` extraction style):
-    - [ ] `runMarkerPath(primaryRoot, trackNumber)` → `<root>/conductor/.runs/<track>.json`
-    - [ ] `buildRunMarker({ pid, pgid, workerPid, trackNumber, dispatchId, action, command, now })`
-    - [ ] `parseRunMarker(json)` — tolerant: returns `null` on malformed/partial JSON rather than
+    - [x] `runMarkerPath(primaryRoot, trackNumber)` → `<root>/conductor/.runs/<track>.json`
+    - [x] `buildRunMarker({ pid, pgid, workerPid, trackNumber, dispatchId, action, command, now })`
+    - [x] `parseRunMarker(json)` — tolerant: returns `null` on malformed/partial JSON rather than
           throwing (a corrupt marker must never take the reconcile loop down)
-    - [ ] `isRunMarkerLive(marker, { isPidAlive, readProcessCommand })` → `{ live, reason }`,
+    - [x] `isRunMarkerLive(marker, { isPidAlive, readProcessCommand })` → `{ live, reason }`,
           implementing REQ-2: pid alive **and** the live process's command still matches the
           recorded `command`; unreadable command ⇒ not live (never block forever)
-- [ ] Task 2: Wire writes into `spawnCli` (`laneconductor.sync.mjs`, alongside
+- [x] Task 2: Wire writes into `spawnCli` (`laneconductor.sync.mjs`, alongside
       `runningTrackMap.set(proc.pid, trackNumber)` at ~`:4675`) — write the marker to
       `process.cwd()` (the primary checkout, same base `conductor/logs/` uses), *not* `worktreePath`.
       Thread `dispatchId`/`action` in from the caller; default `null` for auto-launch/chat spawns.
-- [ ] Task 3: Remove the marker in `proc.on('exit')` (~`:4686`), unconditionally and best-effort
+- [x] Task 3: Remove the marker in `proc.on('exit')` (~`:4686`), unconditionally and best-effort
       (`try/catch`, same shape as `releaseTrackClaim`) so a kill/crash path still clears it.
-- [ ] Task 4: Add `conductor/.runs/` to `.gitignore` (next to the existing `conductor/.sync*`
+- [x] Task 4: Add `conductor/.runs/` to `.gitignore` (next to the existing `conductor/.sync*`
       runtime entries).
-- [ ] Task 5: Unit tests for the pure module — see `test.md` TC-1.1…TC-1.6.
+- [x] Task 5: Unit tests for the pure module — see `test.md` TC-1.1…TC-1.6.
 
 **Impact**: New gitignored runtime artifact. No behavior change yet — nothing reads the marker
 until Phase 2.
+
+**Done** (2026-08-27): `conductor/services/run-marker.mjs` created with all 5 exports
+(`runMarkerPath`, `buildRunMarker`, `parseRunMarker`, `isRunMarkerLive`, plus `isPidAlive` and
+`readProcessCommand` — the injectable OS probes `isRunMarkerLive` takes as params, homed here
+rather than inline in `laneconductor.sync.mjs` per Phase 2 Task 4). Wired into `spawnCli`:
+`dispatchId`/`action` added as new trailing params, threaded from all three call sites
+(`checkDispatchInbox` gets the real `entry.id`/`entry.action`; auto-launch and
+`startNextAutoCompleteStage` pass `null` for `dispatchId` per REQ-1, with their own action name).
+Marker written right after `runningTrackMap.set`, removed unconditionally in `proc.on('exit')`.
+`conductor/.runs/` added to `.gitignore`. Tests:
+`conductor/tests/track-10020-run-marker.test.mjs` (9/9, TC-1.1..1.8 plus a `{}`-input variant of
+TC-1.3) and `conductor/tests/track-10020-run-marker-lifecycle.test.mjs` (3/3, TC-1.9..1.12,
+spawning a real mock CLI through a real worker + mock collector). No regression in
+`track-10020-reconcile-premature-finalize.test.mjs`.
 
 ---
 
