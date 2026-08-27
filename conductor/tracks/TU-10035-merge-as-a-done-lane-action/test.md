@@ -4,6 +4,8 @@
 ```bash
 # Worker/services unit + integration tests
 node --test conductor/tests/track-10035-merge-lane-action.test.mjs
+node --test conductor/tests/track-10035-pr-flow-e2e.test.mjs
+node --test conductor/tests/track-10035-removed-dispatch-actions.test.mjs
 
 # Existing suites that must stay green (regression guard)
 node --test conductor/tests/track-1112-worktree-audit.test.mjs
@@ -66,9 +68,9 @@ cd ui && npx vitest run src/components/KanbanBoard.test.jsx src/components/Track
       Discard and Remove Worktree still work.
 
 ### Phase 5: Deletions, migration, creation-time flags
-- [ ] TC-5.1: Dispatching `merge-worktree` / `create-pr` / `merge-pr` /
+- [x] TC-5.1: Dispatching `merge-worktree` / `create-pr` / `merge-pr` /
       `ai-resolve-conflict` returns failed/unknown-action (handlers deleted).
-- [ ] TC-5.2: Every surviving handler's result appears as a conversation.md
+- [x] TC-5.2: Every surviving handler's result appears as a conversation.md
       system comment (shared helper) — checked for at least discard-track and
       remove-worktree.
 - [ ] TC-5.3: Migration sweep on a fixture repo with (a) done:success +
