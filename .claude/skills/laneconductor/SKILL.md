@@ -849,7 +849,8 @@ Transitions are NOT hardcoded. You MUST read `conductor/workflow.json` at the st
 - **`/laneconductor plan`**: ONLY produces documentation. **NEVER** write application code. On completion, set `**Lane**` to the value of `lanes.plan.on_success` from `workflow.json`.
 - **`/laneconductor implement`**: ONLY executes the `plan.md`. On completion, set `**Lane**` to the value of `lanes.implement.on_success` from `workflow.json`.
 - **`/laneconductor review`**: ONLY evaluates code. **NEVER** fix bugs. On success/failure, set `**Lane**` to the target specified in `lanes.review` (`on_success` or `on_failure`).
-- **`/laneconductor quality-gate`**: Final verification. On completion, set `**Lane**` to the value of `lanes.quality-gate.on_success` from `workflow.json`.
+- **`/laneconductor quality-gate`**: Final verification. On completion, set `**Lane**` to the value of `lanes.quality-gate.on_success` from `workflow.json` (`done:queue` — quality-gate never sets `done:success` directly; that is the merge action's job).
+- **`/laneconductor merge`**: ONLY merges/opens a PR for already-reviewed, already-gated code. **NEVER** write feature code or fix bugs beyond what's needed to resolve a merge conflict. Runs in the primary checkout (`workspace: main`), never in the track's worktree. On a clean direct-mode merge or a merged PR, sets `**Lane Status**: success` (meaning `done:success` — actually shipped). On pr-mode push, sets `**Lane Status**: waiting`. On an unresolvable conflict, sets `**Lane Status**` to the value of `lanes.done.on_failure` from `workflow.json`.
 
 **🛑 BOUNDARY ENFORCEMENT**: Never override the workflow. Use `workflow.json` as the sole authority for target lanes. Do NOT assume `implement` always follows `plan`; the project may be configured with a `review` lane in between.
 
@@ -1119,10 +1120,12 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Workspace**: [main\|branch]` | `workspace_mode` | Track 1115: deliberate, human-set override — `main` runs lane actions directly in the primary checkout (no worktree, no track branch); `branch` is today's default. Set by a human, `lc new --workspace`, or a track detail panel control — never written by an inference (see `**Track Kind**` below for that). Always wins over the auto-derived default, but the `plan` lane itself always runs `main` regardless of this marker, and an auto-queue claim still forces `branch` when nothing set this marker explicitly. |
 | `**Track Kind**: [bug\|feature]` | *(none — narrow, worker-internal)* | Track 1115: records the New Track modal's bug/feature classification, or `/laneconductor plan`'s own classification when creation didn't provide one. Feeds the type-derived workspace default (`bug` → `main`) WITHOUT becoming an unconditional override the way `**Workspace**` is — this is what lets an auto-queue claim still fall back to `branch` for an inferred-but-never-confirmed bug track. Not a general track classification; nothing else should read it. |
 | `**Auto Run**: [yes\|no]` | `auto_run` | Whether a non-sync-only worker's auto-launch loop may claim this track from the queue. Default no — absent marker means not auto-picked (track 10017). |
+| `**Merge Mode**: [direct\|pr]` | `merge_mode` | Track 10035: how the `done`-lane merge action integrates the branch. `direct` merges straight to main in-session; `pr` pushes the branch and opens a GitHub PR, landing at `done:waiting`. Default `pr`. Settable at creation (`lc new --merge-mode`) or by hand; the file marker is authoritative over the DB's `tracks.merge_mode` column — the migration sweep corrects any DB value that disagrees with it. |
+| `**PR URL**: [url]` | `pr_url` | Track 10035: the GitHub PR link written by the merge action in pr-mode, once `gh pr create` returns. This is the completion affordance shown on both the Kanban card and the Worktrees row while the track sits at `done:waiting`. |
 
 ### Completion Comment Convention
 
-Every terminal lane-action outcome (`plan`, `implement`, `review`, `quality-gate`) appends
+Every terminal lane-action outcome (`plan`, `implement`, `review`, `quality-gate`, `merge`) appends
 **exactly one** structured comment to `conversation.md` on completion, always authored `system`
 and always leading with one of these three emoji as the very first character of the body (the
 Inbox's classification matches on this leading character — see `/api/inbox`):
@@ -1637,8 +1640,10 @@ Runs automated checks and updates status files based on results.
      comment posted in step 4 (it's still valid information), and note there that the lane
      transition was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
-   - **Done-gate — a track may only reach `done` at 100% if the feature
-     actually works end to end.** Before setting a `done` lane, confirm
+   - **Done-gate — a track may only reach `done` (queued for merge) at 100% if the feature
+     actually works end to end.** Reaching `done:queue` here is not itself "shipped" — the
+     merge action (`/laneconductor merge`, track 10035) is what later sets `done:success` once
+     the code actually lands on `main`. Before setting the `done` lane, confirm
      all of:
      1. Step 2b's stub scan found nothing in `[x]` code paths.
      2. No capability named in `spec.md`'s Solution is marked FFU /
@@ -1654,6 +1659,98 @@ Runs automated checks and updates status files based on results.
    - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
    - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
    - Update `**Lane Status**` to `queue`.
+
+---
+
+### `/laneconductor merge [track-number]`
+
+The `done` lane's standard lane action (track 10035). Claimed and run exactly like
+plan/implement/review/quality-gate — Auto Run gate, parallel_limit, retries, and per-lane model
+all apply unchanged. The one structural difference: this action runs in the **primary
+checkout**, on `main` — never in the track's own worktree (`workspace: main`, track 1115's
+machinery). `done:success` means the code is actually reachable from local `main` (direct mode)
+or the PR has actually been merged on GitHub (pr mode) — never anything less.
+
+0. **Claim the track immediately** — write `**Lane**: done` and `**Lane Status**: running` to
+   `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor
+   implement`'s step 0 for why `**Lane**` needs setting explicitly).
+1. **Run in the primary checkout, not a worktree.** Do not call `/laneconductor lock` to create
+   a track worktree for this action — take the project's global main-mode lock instead (the same
+   lock other `workspace: main` lane actions use) and operate directly in the repo root the
+   worker is already running from. Every commit made during this run still references the track
+   (`feat(track-NNN): ...` / `Merge track-NNN` / etc.) per the Commit Strategy.
+2. **Load context** (**skip if `FRESH_SESSION: false`** and you already read these earlier this
+   session — see **Protocol: Session Continuity** — except `conversation.md`, always re-read):
+   read `conductor/tracks/NNN-*/index.md` for `**Merge Mode**` (default `pr` if absent) and
+   `conductor/tracks/NNN-*/conversation.md` for any human instructions (e.g. a reconciler
+   comment about a conflicted PR — see step 6 below).
+3. **Single-writer rule (REQ-8)**: from this point on, only the primary checkout's copy of
+   `conductor/tracks/NNN-*/*.md` is ever written. Never write to the branch's/worktree's copy —
+   there should be no worktree checked out for this action in the first place, but if one still
+   exists for this track (leftover from `implement`/`review`), do not touch its files.
+4. **Direct mode** (`**Merge Mode**: direct`):
+   a. Run `lc worktrees merge NNN` (`bin/lc.mjs`'s `worktrees merge` subcommand, backed by the
+      shared `mergeWorktreeBranch()` primitive in `conductor/services/worktree-merge.mjs`). This
+      does the whole clean-merge path atomically: scratch-worktree merge, auto-resolves
+      bookkeeping-only conflicts via the existing `isSafeToAutoResolveBookkeepingConflict` check,
+      compare-and-swap `main` ref update, resync of the primary checkout's working tree, removal
+      of the track's own worktree, and local branch deletion. Prints
+      `✅ Merged track-NNN into main (<sha>)` and exits 0 on success — go straight to step 4e.
+      If it instead reports **`track-NNN branch not found`**: this is expected, not a failure,
+      for a track whose `**Workspace**: main` marker meant every prior lane action (implement,
+      review, quality-gate) already ran directly on `main` — there was never a branch to merge in
+      the first place, the code is already there. Treat this the same as a successful merge and
+      go straight to step 4e.
+   b. If it exits non-zero with a **conflict** (stderr lists the conflicting paths, branch and
+      worktree deliberately left intact): this is a **real** conflict the shared primitive
+      refused to guess at. Resolve it **in-session** instead — `git fetch origin`, then
+      `git merge --no-ff track-NNN` directly in the primary checkout (this run already holds the
+      global main-mode lock, so this is safe), read the conflicting hunks, understand both sides'
+      intent (this track's plan.md/spec.md vs. the conflicting main-side change), and produce a
+      correct merged result. This replaces the old separate `ai-resolve-conflict` action — there
+      is no other path for a real conflict.
+   c. If step 4b's manual merge succeeds: `git push origin main`, then delete the track's worktree
+      and branch by hand (`git worktree remove --force .worktrees/NNN`, `git branch -d track-NNN`,
+      `git push origin --delete track-NNN`) — same cleanup `lc worktrees merge` would have done.
+   d. If a conflict cannot be safely resolved even in-session (semantic ambiguity, not just
+      textual overlap): do **not** guess or force it. Set `**Lane Status**` to the value of
+      `lanes.done.on_failure` (`done:failure`) and write exactly what's conflicting to
+      `conversation.md` — never fall silently back to `queue` (AC-6).
+   e. On any successful merge (4a or 4c): set `**Lane Status**: success` (→ `done:success`).
+5. **PR mode** (`**Merge Mode**: pr`, or marker absent):
+   a. Run `lc worktrees create-pr NNN` (backed by `createTrackPr()` in
+      `conductor/services/pr-flow.mjs`, the same primitive `merge-pr`/`create-pr` used to use).
+      It pushes the branch, checks `gh auth status` first (never silently falls back to a local
+      merge if `gh` isn't authenticated), runs `gh pr create` if no open PR exists yet for this
+      branch (idempotent — if one already exists, it reports that PR instead of erroring), and
+      writes `**PR Number**` / `**PR URL**` / `**PR Status**` markers into the **primary
+      checkout's own** `index.md` only (REQ-8 — this command always runs from the repo root, so
+      there is no worktree copy for it to accidentally touch).
+   b. If step 5a is a re-run after a conflict (see step 6): the branch was already updated from
+      `main` and (force-)pushed in step 6's conflict-resolution flow before reaching here — the
+      existing PR reflects the new push automatically; `lc worktrees create-pr` detects the
+      already-open PR and is a no-op beyond reporting it.
+   c. Set `**Lane Status**: waiting` (→ `done:waiting`). Within the done lane, `waiting` means
+      exactly "waiting on a human outside the system" — there is nothing further for this
+      session to do. **Do not** merge the PR yourself; approval/merge happens on GitHub, and the
+      reconciler (not this command) observes that and closes the loop.
+6. **Re-entry after a conflicted PR**: if this run was triggered by the reconciler moving the
+   track back to `done:queue` after detecting a PR conflict (see the reconciler's conflicted-PR
+   handling below), treat it exactly like a normal pr-mode run (step 5) — but first, `git fetch
+   origin` and `git merge origin/main` (or rebase) into `track-NNN` directly, resolve any real
+   conflict in-session (same rules as step 4b), and push (force-push if the branch was rebased)
+   *before* running `lc worktrees create-pr NNN` — pushing first is what makes step 5a's
+   already-open-PR detection pick up the new commits automatically. This is what closes REQ-7's
+   loop — there is no separate "resolve PR conflict" code path.
+7. **Post a completion comment** (see **Completion Comment Convention**): on direct-mode success,
+   `> **system**: ✅ Merged track-NNN to main.`; on pr-mode push,
+   `> **system**: ⚠️ PR opened — waiting for review: <url>.` (⚠️ because it needs human action,
+   not because anything failed); on an unresolved conflict,
+   `> **system**: ❌ Merge conflict could not be resolved automatically — see details above.`
+
+**🛑 BOUNDARY ENFORCEMENT**: This command only merges/opens PRs for code that already passed
+review and quality-gate. Never write new feature code here — the only code changes permitted are
+those strictly required to resolve a merge conflict between the track branch and `main`.
 
 ---
 
@@ -2082,6 +2179,7 @@ sites have been migrated so far (proof of concept, not a full migration) — new
 | `/laneconductor comment [NNN] [body]` | Post comment as AI agent (⚠️ BLOCKED / ℹ️ NOTE) |
 | `/laneconductor delete [NNN]` | Hard-delete track: remove folder + DB row + git lock |
 | `/laneconductor review [NNN]` | Review track against plan + guidelines → post result, auto-transition lane |
+| `/laneconductor merge [NNN]` | Done-lane merge action: direct merge to main or open a PR, in the primary checkout |
 | `/laneconductor remote-sync [track-num?]` | Sync track changes from API to local files (Phase 5) |
 | `/laneconductor init-tracks-summary` | Regenerate conductor/tracks.md from all track files (Phase 6) |
 | `lc brainstorm <track>` | Start brainstorm dialogue for a track via conversation.md |

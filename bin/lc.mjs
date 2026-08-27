@@ -14,6 +14,7 @@ import { runDeploy } from '../conductor/deploy-runner.mjs';
 import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
+import { createTrackPr, checkGhAuth } from '../conductor/services/pr-flow.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
 
@@ -3435,14 +3436,18 @@ Please review this, answer any questions (some fields may contain questions rath
 
         const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
         const row = rows.find(r => r.trackNumber === String(trackNumber));
-        const isDoneSuccess = row?.lane === 'done' && row?.laneStatus === 'success';
+        // Track 10035: 'queue' is the normal state a direct-mode track sits in
+        // while waiting for the merge lane action to claim it — quality-gate
+        // no longer sets done:success itself. 'success' is also accepted so
+        // this stays idempotent/safe to re-run by hand.
+        const isMergeable = row?.lane === 'done' && (row?.laneStatus === 'queue' || row?.laneStatus === 'success');
 
         if (!row) {
             console.error(`❌ No unmerged track-${trackNumber} branch found (already merged, or never existed).`);
             process.exit(1);
         }
-        if (!isDoneSuccess && !force) {
-            console.error(`❌ Track ${trackNumber} is not at done:success (lane: ${row.lane ?? 'unknown'}, status: ${row.laneStatus ?? 'unknown'}) — refusing to merge. Pass --force to override.`);
+        if (!isMergeable && !force) {
+            console.error(`❌ Track ${trackNumber} is not at done:queue or done:success (lane: ${row.lane ?? 'unknown'}, status: ${row.laneStatus ?? 'unknown'}) — refusing to merge. Pass --force to override.`);
             process.exit(1);
         }
 
@@ -3471,6 +3476,78 @@ Please review this, answer any questions (some fields may contain questions rath
             console.error(`❌ Branch track-${trackNumber} not found.`);
             process.exit(1);
         }
+    }
+
+    if (sub === 'create-pr') {
+        // Track 10035: the pr-mode half of the done-lane merge action —
+        // pushes the branch and opens the PR via the same pure primitive
+        // `lc worktrees merge` uses for direct mode (conductor/services/pr-flow.mjs),
+        // then writes the PR markers into ONLY the primary checkout's own
+        // index.md (REQ-8 single-writer — this command always runs from
+        // projectRoot, never a track's own worktree).
+        const trackNumber = args[2];
+        if (!trackNumber) {
+            console.error('Usage: lc worktrees create-pr <track-number>');
+            process.exit(2);
+        }
+
+        const authCheck = checkGhAuth({ cwd: projectRoot });
+        if (!authCheck.ok) {
+            console.error(`❌ gh is not authenticated: ${authCheck.error}`);
+            process.exit(1);
+        }
+
+        const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        if (!row) {
+            console.error(`❌ No unmerged track-${trackNumber} branch found (already merged, or never existed).`);
+            process.exit(1);
+        }
+        if (row.prNumber) {
+            console.log(`ℹ️  track-${trackNumber} already has an open PR: ${row.prUrl}`);
+            console.log(JSON.stringify({ number: parseInt(row.prNumber, 10), url: row.prUrl }));
+            process.exit(0);
+        }
+
+        const title = row.title || `Track ${trackNumber}`;
+        const body = `Automated PR for track-${trackNumber}, opened by the LaneConductor done-lane merge action.\n\nSee \`conductor/tracks/\` in this repo for the track's plan/spec.`;
+
+        let result;
+        try {
+            result = createTrackPr({ repoRoot: projectRoot, trackNumber: String(trackNumber), mainBranch, title, body });
+        } catch (e) {
+            console.error(`❌ Failed to open PR for track-${trackNumber}: ${e.message}`);
+            process.exit(1);
+        }
+
+        const tracksDir = join(projectRoot, 'conductor', 'tracks');
+        // Deliberately NOT `d.startsWith(trackNumber + '-')` — that pattern
+        // misses INITIALS-NNN-slug folders (the exact bug fixed elsewhere in
+        // this track's spec for reconcile-pr/worktree-audit; matching it
+        // here too, rather than reproducing it in new code).
+        const trackNameRe = new RegExp(`(^|-)${trackNumber}(-|$)`);
+        const trackDirName = existsSync(tracksDir)
+            ? readdirSync(tracksDir).find(d => trackNameRe.test(d) && !d.startsWith('_duplicate-'))
+            : null;
+        if (trackDirName) {
+            const indexPath = join(tracksDir, trackDirName, 'index.md');
+            let content = readFileSync(indexPath, 'utf8');
+            const markerLines = [
+                [/\*\*PR Number\*\*:\s*\d+/i, `**PR Number**: ${result.number}`],
+                [/\*\*PR URL\*\*:\s*\S+/i, `**PR URL**: ${result.url}`],
+                [/\*\*PR Status\*\*:\s*\S+/i, `**PR Status**: open`],
+            ];
+            for (const [re, line] of markerLines) {
+                content = re.test(content)
+                    ? content.replace(re, line)
+                    : content.replace(/(\*\*Lane Status\*\*:\s*[^\n]+)/i, `$1\n${line}`);
+            }
+            writeFileSync(indexPath, content, 'utf8');
+        }
+
+        console.log(`✅ Opened PR for track-${trackNumber}: ${result.url}`);
+        console.log(JSON.stringify({ number: result.number, url: result.url }));
+        process.exit(0);
     }
 
     const asJson = args.includes('--json');

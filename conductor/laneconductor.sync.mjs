@@ -4724,6 +4724,28 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // regression: track-1102-f11-progress-keepalive.test.mjs went from
     // 2/2 to 1/2 before this gate was added).
     let endedMidWork = false;
+    // Track 10035: the done lane's merge action has a third terminal
+    // outcome the binary success/failure transition model below has no way
+    // to express — a pr-mode run that cleanly opened a PR is a genuine
+    // success (exit 0), but must land at done:waiting, not done:success
+    // (approval/merge happens on GitHub, not in this run). Read the
+    // agent's own last-written Lane Status the same way the ended-mid-work
+    // check above does (its file write is the agent's own last action,
+    // read here BEFORE the block below unconditionally overwrites it) —
+    // deliberately NOT gated on `cli !== 'mock'` like endedMidWork is,
+    // since a mock-cli fixture testing the pr-mode path needs to be able
+    // to simulate exactly this by writing **Lane Status**: waiting itself.
+    let agentReportedWaiting = false;
+    if (isSuccess && laneStatus === 'done') {
+      try {
+        const doneCheckDir = worktreePath || process.cwd();
+        const doneTrackDir = resolveTrackFolder(join(doneCheckDir, 'conductor', 'tracks'), trackNumber);
+        if (doneTrackDir) {
+          const rawIndexContent = readFileSync(join(doneCheckDir, 'conductor', 'tracks', doneTrackDir, 'index.md'), 'utf8');
+          agentReportedWaiting = /\*\*Lane Status\*\*:\s*waiting/i.test(rawIndexContent);
+        }
+      } catch (e) { /* best-effort detection only — never block the exit handler on it */ }
+    }
     if (isSuccess && cli !== 'mock') {
       try {
         const midWorkCheckDir = worktreePath || process.cwd();
@@ -4870,6 +4892,15 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     if (endedMidWork) {
       targetLane = laneStatus;
       nextActionStatus = 'queue';
+    }
+
+    // Track 10035: a pr-mode merge run that opened a PR is a genuine
+    // success, just not a terminal one — override AFTER endedMidWork so a
+    // truly-abandoned mid-work run (Lane Status still 'running', not
+    // 'waiting') isn't misread as this case.
+    if (!endedMidWork && agentReportedWaiting) {
+      targetLane = 'done';
+      nextActionStatus = 'waiting';
     }
 
     console.log(`[${label}] Track ${trackNumber}: ${endedMidWork ? 'ENDED MID-WORK' : (isSuccess ? 'PASS' : 'FAIL')} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
@@ -5157,28 +5188,25 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         if (globalMainModeLockAcquired) await releaseGlobalMainModeLock();
 
         // Worktree lifecycle management
+        //
+        // Track 10035: merging is no longer an automatic side effect of a
+        // lane action's own exit — it's the done lane's own lane action
+        // (`/laneconductor merge`), claimed and spawned through the normal
+        // queue path exactly like any other lane, and it runs in the
+        // primary checkout (workspace: main), never in a track's own
+        // worktree. So there is nothing for this exit handler to merge:
+        // whatever lane action just finished (most commonly quality-gate,
+        // landing the track at done:queue), its worktree is simply
+        // preserved per-cycle until the merge action (direct mode) or the
+        // PR reconciler (pr mode, after the PR actually merges) removes it.
         if (worktreePath) {
           const lifecycle = getWorktreeLifecycle();
-          if (lifecycle === 'per-cycle' && targetLane === 'done' && isSuccess) {
-            // Track 10018: fork on this track's own merge_mode before ever
-            // touching main. 'direct' keeps today's behavior byte-for-byte;
-            // 'pr' (the default) opens a PR instead and leaves the branch/
-            // worktree alone — see openTrackPrOnDone's own doc comment for
-            // why it never falls back to a local merge on failure.
-            const mergeMode = readTrackMergeMode(worktreePath, trackNumber);
-            if (mergeMode === 'direct') {
-              // Per-cycle: Merge and remove worktree on done:success
-              console.log(`[worktree] Per-cycle mode: Merging track ${trackNumber} and cleaning up`);
-              await mergeAndRemoveWorktree(trackNumber);
-            } else {
-              console.log(`[worktree] Per-cycle mode: merge_mode=pr for track ${trackNumber} — opening PR instead of merging`);
-              await openTrackPrOnDone(trackNumber, worktreePath);
-            }
-          } else if (lifecycle === 'per-lane') {
+          if (lifecycle === 'per-lane') {
             // Per-lane: Always remove after each run
             await removeWorktree(trackNumber);
           } else if (lifecycle === 'per-cycle') {
-            // Per-cycle: Keep worktree if not done or not success
+            // Per-cycle: Keep worktree until the done-lane merge action or
+            // PR reconciler removes it.
             console.log(`[worktree] Per-cycle mode: Preserving worktree for track ${trackNumber} (target lane: ${targetLane}, success: ${isSuccess})`);
           }
         }
@@ -5341,6 +5369,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
   // Map lane-based commands to Skill command internal names if different
   let skillCommand = command;
   if (command === 'quality-gate') skillCommand = 'qualityGate';
+  if (command === 'done') skillCommand = 'merge'; // Track 10035: done lane's action is /laneconductor merge
 
   const prompt = customPrompt || `/${skill} ${skillCommand} ${trackNumber}`;
 
@@ -5607,8 +5636,12 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // auto-picked unless it opts in, bypassed only for waitingForReply.
     if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
 
-    // Passive lanes should not trigger auto-automation actions
-    if ((lane_status === 'done' || lane_status === 'backlog') && !waitingForReply) continue;
+    // Passive lanes should not trigger auto-automation actions.
+    // Track 10035: 'done' is no longer passive — a done:queue track is
+    // "unmerged", waiting for the merge lane action, and gets claimed
+    // exactly like any other queued lane action below (still gated by
+    // Auto Run/assignee/parallel_limit/retries same as everything else).
+    if (lane_status === 'backlog' && !waitingForReply) continue;
 
     let laneConfig = workflowConfig?.lanes?.[lane_status];
     if (!laneConfig && waitingForReply) laneConfig = {}; // Allow auto-answer on any lane
@@ -5654,7 +5687,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (waitingForReply) {
       label = 'local-fs-answer';
       // Respect the current lane's skill if it's an active one, otherwise fallback to implement
-      if (['plan', 'implement', 'review', 'quality-gate'].includes(lane_status)) {
+      if (['plan', 'implement', 'review', 'quality-gate', 'done'].includes(lane_status)) {
         cmd_type = lane_status;
       } else {
         cmd_type = 'implement';
@@ -5800,14 +5833,11 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
   const currentLane = laneMatch?.[1]?.trim();
 
-  if (currentLane === 'done') {
-    // Already done when this stage would have started (e.g. dispatched
-    // against a track that reached done:success some other way) — skip
-    // straight to merge instead of trying to "run" a done lane.
-    await finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun);
-    return;
-  }
-
+  // Track 10035: 'done' is now a normal spawnable lane (its own
+  // workflowConfig entry, mapped by buildCliArgs to /laneconductor merge)
+  // — a track already sitting at done:queue when this stage starts just
+  // flows through the same general path below like any other lane,
+  // instead of a special-cased synchronous merge.
   const laneConfig = workflowConfig?.lanes?.[currentLane];
   if (!currentLane || !laneConfig) {
     await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: track ${trackNumber} is in an unrecognized lane "${currentLane}"`);
@@ -5859,77 +5889,6 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   activeAutoComplete.set(trackNumber, { dispatchId, stagesRun: [...stagesRun, currentLane], currentLane });
 }
 
-async function finishAutoCompleteWithMerge(trackNumber, dispatchId, stagesRun) {
-  activeAutoComplete.delete(trackNumber);
-
-  // Track 1115 REQ-5/D8: a main-mode track was never on a branch, so
-  // "already on main" IS the merged state — no mergeWorktreeBranch() call,
-  // and no `{ merged: false, reason: 'no-branch' }` surfaced as a failure.
-  const finishTracksDir = 'conductor/tracks';
-  const finishTrackDirName = resolveTrackFolder(finishTracksDir, trackNumber);
-  const finishIndexContent = finishTrackDirName ? (readIfExists(join(finishTracksDir, finishTrackDirName, 'index.md')) || '') : '';
-  const finishWorkspaceMode = resolveWorkspaceMode({
-    laneStatus: 'done',
-    workspaceMarker: parseWorkspaceMarker(finishIndexContent),
-    trackType: parseTrackKind(finishIndexContent),
-    trigger: null,
-    projectWorkspaceMode: getProject()?.workspace_mode ?? null,
-  });
-
-  let mergeResult;
-  const stageList = stagesRun.join(' → ') || '(already done)';
-  let resultText;
-  if (finishWorkspaceMode === 'main') {
-    mergeResult = { merged: true, reason: 'already-on-main' };
-    resultText = `Completed [${stageList}] — already on main, no merge needed.`;
-  } else if (resolveMergeMode({ merge_mode: parseMergeModeMarker(finishIndexContent) }) === 'pr') {
-    // Found live (track 1119): this function called mergeWorktreeBranch()
-    // unconditionally, regardless of merge_mode — every OTHER place in this
-    // file that reaches "done" forks on mode first (direct: merge locally;
-    // pr: openTrackPrOnDone), e.g. the per-cycle worktree-lifecycle branch
-    // above. This one didn't, so a pr-mode track's "Complete & Merge" tried
-    // a raw local merge, hit a real conflict, and failed with a confusing
-    // message instead of doing what pr-mode actually asked for: push the
-    // branch and open a PR.
-    const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
-    if (!existsSync(worktreePath)) {
-      mergeResult = { merged: false, reason: 'no-worktree-for-pr' };
-      resultText = `Completed [${stageList}] but could not open a PR: no worktree found for track ${trackNumber}.`;
-    } else {
-      await openTrackPrOnDone(trackNumber, worktreePath);
-      // openTrackPrOnDone() handles its own error reporting (a track
-      // comment + pr_status: 'error') and never throws — re-read its own
-      // markers to tell success from failure here, same as reconcilePrTracks
-      // already does elsewhere in this file.
-      const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
-      const wtTrackDir = resolveTrackFolder(wtTracksDir, trackNumber);
-      const wtContent = wtTrackDir ? (readIfExists(join(wtTracksDir, wtTrackDir, 'index.md')) || '') : '';
-      const prNumber = wtContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1];
-      mergeResult = prNumber ? { merged: true, reason: 'pr-opened' } : { merged: false, reason: 'pr-open-failed' };
-      resultText = prNumber
-        ? `Completed [${stageList}] — merge_mode is pr, opened PR #${prNumber} instead of merging locally.`
-        : `Completed [${stageList}] but opening a PR failed — see the track's own comments for details.`;
-    }
-  } else {
-    try {
-      mergeResult = await mergeWorktreeBranch({ repoRoot: process.cwd(), trackNumber: String(trackNumber), mainBranch: getMainBranch() });
-    } catch (err) {
-      mergeResult = { merged: false, reason: 'error', error: err.message };
-    }
-    resultText = mergeResult.merged
-      ? `Completed [${stageList}] and merged track-${trackNumber} into main (${mergeResult.mergeCommit}).`
-      : `Completed [${stageList}] but merge failed: ${mergeResult.reason}${mergeResult.error ? `: ${mergeResult.error}` : ''}${mergeResult.conflictPaths?.length ? ` (${mergeResult.conflictPaths.join(', ')})` : ''}`;
-  }
-  await reportAutoCompleteResult(dispatchId, mergeResult.merged ? 'done' : 'failed', resultText);
-  try {
-    const tracksDir = 'conductor/tracks';
-    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
-    if (trackDirName) appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
-  } catch (err) {
-    logger.warn({ trackNumber, err: err.message }, '[auto-complete] Failed to post completion conversation comment');
-  }
-}
-
 // Poll in-flight auto-complete sequences for the CURRENT stage's
 // completion, same 5s cadence as reconcileActiveDispatch.
 async function reconcileAutoComplete() {
@@ -5968,8 +5927,19 @@ async function reconcileAutoComplete() {
       continue;
     }
 
-    if (outcome.action === 'merge') {
-      await finishAutoCompleteWithMerge(trackNumber, dispatchId, [...stagesRun, afterLane]);
+    if (outcome.action === 'complete') {
+      // Track 10035: the merge action (a normal spawned stage, same as any
+      // other lane) already did the actual merging/PR-opening and wrote
+      // done:success or done:waiting itself — there's nothing left for
+      // this reconciler to do but report the sequence finished.
+      activeAutoComplete.delete(trackNumber);
+      const resultText = `Completed [${[...stagesRun, afterLane].join(' → ')}] — ${outcome.reason}.`;
+      await reportAutoCompleteResult(dispatchId, 'done', resultText);
+      try {
+        if (trackDirName) appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+      } catch (err) {
+        logger.warn({ trackNumber, err: err.message }, '[auto-complete] Failed to post completion conversation comment');
+      }
       continue;
     }
 
