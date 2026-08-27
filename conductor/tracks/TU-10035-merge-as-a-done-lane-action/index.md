@@ -1,9 +1,8 @@
 # Track TU-10035: Merge As A Done Lane Action
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: mock (primary)
 **Phase**: Planned
 **Type**: dev
 **Track Kind**: feature
