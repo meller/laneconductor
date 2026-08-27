@@ -28,7 +28,7 @@ still-genuinely-running orphan is never finalized early.
 - [ ] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
 - [ ] Phase 5: Docs + code comments for the new markers and env overrides
 
-**Lane**: review
+**Lane**: quality-gate
 **Track Kind**: bug
 **Merge Mode**: direct
 **Lane Status**: queue
