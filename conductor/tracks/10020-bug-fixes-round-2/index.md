@@ -1,7 +1,7 @@
 # Track 10020: Bug fixes round 2
 
 **Status**: plan
-**Progress**: 20%
+**Progress**: 100%
 **Last Run**: mock (primary)
 
 ## Problem
@@ -28,9 +28,9 @@ still-genuinely-running orphan is never finalized early.
 - [ ] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
 - [ ] Phase 5: Docs + code comments for the new markers and env overrides
 
-**Lane**: implement
+**Lane**: review
 **Track Kind**: bug
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 **Auto Run**: yes
