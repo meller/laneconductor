@@ -49,4 +49,18 @@ describe('ProjectCard', () => {
     render(<ProjectCard project={project} tracks={tracks} workers={[]} onOpen={noop} onManageContext={noop} onRename={noop} onDelete={noop} />);
     expect(screen.getByTestId('project-unreplied-count')).toHaveTextContent('2');
   });
+
+  // Track AM-1119 Phase 4 (Task 3, TC-11): "Live ↗" link only when app_url is set.
+  it('TC-11 (AM-1119): shows no Live link when app_url is not set', () => {
+    render(<ProjectCard project={project} tracks={[]} workers={[]} onOpen={noop} onManageContext={noop} onRename={noop} onDelete={noop} />);
+    expect(screen.queryByTestId('project-live-link')).not.toBeInTheDocument();
+  });
+
+  it('TC-11 (AM-1119): shows a Live link pointing at app_url once set', () => {
+    const deployedProject = { ...project, app_url: 'https://digger-game-prod.web.app' };
+    render(<ProjectCard project={deployedProject} tracks={[]} workers={[]} onOpen={noop} onManageContext={noop} onRename={noop} onDelete={noop} />);
+    const link = screen.getByTestId('project-live-link');
+    expect(link).toHaveAttribute('href', 'https://digger-game-prod.web.app');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
 });
