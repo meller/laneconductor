@@ -14,4 +14,5 @@ To be defined.
 - [ ] Phase 1: Implementation
 **Lane**: backlog
 **Lane Status**: success
-**Summary**: Test description
+**Summary**: Answered user question
+**Waiting for reply**: no
