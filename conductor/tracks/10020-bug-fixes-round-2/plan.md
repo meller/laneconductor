@@ -68,34 +68,43 @@ spawning a real mock CLI through a real worker + mock collector). No regression 
 this process booted.
 **Solution**: Its own interval, with the guards that make periodic execution safe.
 
-- [ ] Task 1: Delete the `hasReconciledOrphanedDispatches` one-shot gate (`:240`, `:1043`); keep
+- [x] Task 1: Delete the `hasReconciledOrphanedDispatches` one-shot gate (`:240`, `:1043`); keep
       the immediate call after first successful registration (fast recovery on boot is still
       wanted). Replace the flag with an `orphanReconcileInFlight` re-entrancy guard so a slow tick
       can't overlap itself.
-- [ ] Task 2: Add `setInterval(reconcileOrphanedDispatches, LC_ORPHAN_RECONCILE_POLL_MS || 30000)`
+- [x] Task 2: Add `setInterval(reconcileOrphanedDispatches, LC_ORPHAN_RECONCILE_POLL_MS || 30000)`
       next to the existing dispatch intervals (~`:7510-7520`), matching their documented
       test-override comment style. 30s not 5s: each tick is an HTTP GET per worker, and orphans are
       minutes-scale by nature.
-- [ ] Task 3: Add the REQ-4 skip guards at the top of the per-entry loop in
+- [x] Task 3: Add the REQ-4 skip guards at the top of the per-entry loop in
       `reconcileOrphanedDispatches()`:
-    - [ ] track in `new Set(runningTrackMap.values())` → skip
-    - [ ] track in `activeDispatch` → skip (`reconcileActiveDispatch()` stays the sole finalizer
+    - [x] track in `new Set(runningTrackMap.values())` → skip
+    - [x] track in `activeDispatch` → skip (`reconcileActiveDispatch()` stays the sole finalizer
           for this process's own dispatches — prevents two conflicting outcome PATCHes)
-    - [ ] `entry.claimed_at` younger than `LC_ORPHAN_RECONCILE_GRACE_MS || 30000` → skip (covers
+    - [x] `entry.claimed_at` younger than `LC_ORPHAN_RECONCILE_GRACE_MS || 30000` → skip (covers
           claim → lock → worktree → spawn, before any marker exists)
-    - [ ] live run marker for the track (Phase 1's `isRunMarkerLive`) → skip
-    - [ ] each skip logs once per reason at `debug`/`info` via `logger`, not `console.warn` spam
+    - [x] live run marker for the track (Phase 1's `isRunMarkerLive`) → skip
+    - [x] each skip logs once per reason at `debug`/`info` via `logger`, not `console.warn` spam
           every 30s
-- [ ] Task 4: Implement the two injectable probes used by `isRunMarkerLive`: `isPidAlive(pid)` via
+- [x] Task 4: Implement the two injectable probes used by `isRunMarkerLive`: `isPidAlive(pid)` via
       `process.kill(pid, 0)` (`ESRCH` ⇒ false, `EPERM` ⇒ true — the process exists, just isn't
       ours) and `readProcessCommand(pid)` via `ps -p <pid> -o args=` (`execFileSync`, short
       timeout, returns `null` on any failure).
-- [ ] Task 5: Delete the stale run marker once a dispatch is reconciled, so the file doesn't
+- [x] Task 5: Delete the stale run marker once a dispatch is reconciled, so the file doesn't
       linger and shadow a later run of the same track.
-- [ ] Task 6: Tests — TC-2.1…TC-2.5.
+- [x] Task 6: Tests — TC-2.1…TC-2.5.
 
 **Impact**: A dispatch orphaned mid-run is now closed out within ≤30s of its CLI exiting, with
 artifacts copied back to primary and the DB synced by the existing code path.
+
+**Done** (2026-08-27): `isPidAlive`/`readProcessCommand` ended up homed in `run-marker.mjs` itself
+(Phase 1's module) rather than inline in `laneconductor.sync.mjs`, since they're the natural OS-facing
+counterpart to the pure `isRunMarkerLive` that already lives there. The immediate post-registration
+call is no longer gated by a one-shot flag at all — `upsertWorker()` can legitimately re-run later in
+a process's life (heartbeat 401/404 re-registration), and `orphanReconcileInFlight` alone makes
+calling `reconcileOrphanedDispatches()` there safe regardless. Tests: TC-2.2/2.3/2.4/2.5/2.6 all
+verified end-to-end in `track-10020-orphan-reconcile-periodic.test.mjs` (Phase 4); TC-2.1 (immediate
+post-registration reconcile) is exercised as part of that same suite's setup path.
 
 ---
 
@@ -106,20 +115,26 @@ reads `running`, `classifyOrphanedDispatch()` returns `orphaned: false`, and the
 `claimed` forever — the Phase 2 tick alone doesn't fix this, it just re-checks it forever.
 **Solution**: Once the marker proves the process is gone, `running` on disk is no longer credible.
 
-- [ ] Task 1: Extend `classifyOrphanedDispatch({ ..., runnerExited })` in
+- [x] Task 1: Extend `classifyOrphanedDispatch({ ..., runnerExited })` in
       `conductor/services/orphaned-dispatch.mjs`: when `runnerExited === true` **and** the status is
       `running`, return `{ orphaned: true, status: 'failed', skipArtifactCopy: true,
       flagForHuman: true, result: <"CLI exited without recording an outcome — re-run <action>"> }`.
       When `runnerExited` is undefined/false, behavior is **byte-identical to today** (REQ-6).
-- [ ] Task 2: Pass `runnerExited` from `reconcileOrphanedDispatches()` — `true` only when a marker
+- [x] Task 2: Pass `runnerExited` from `reconcileOrphanedDispatches()` — `true` only when a marker
       existed and was proven not-live; never for the no-marker case.
-- [ ] Task 3: Confirm the existing `flagForHuman` branch posts the `⚠️` conversation comment for
+- [x] Task 3: Confirm the existing `flagForHuman` branch posts the `⚠️` conversation comment for
       this new case too, and word it for a crash rather than a lane/action mismatch (reuse the
       existing `appendFileSync` block; branch the message on the classification).
-- [ ] Task 4: Tests — TC-3.1…TC-3.4.
+- [x] Task 4: Tests — TC-3.1…TC-3.4 (plus TC-3.5, the existing lane/action-mismatch regression).
 
 **Impact**: The "stuck at running forever after a crash" state becomes self-healing and visible in
 the Inbox instead of silent.
+
+**Done** (2026-08-27): `conductor/tests/track-10020-orphan-classify-crashed.test.mjs` (5/5 unit
+tests, TC-3.1..3.5) plus a full E2E crash replay in
+`track-10020-orphan-reconcile-periodic.test.mjs` (SIGKILL a real process standing in for the CLI,
+confirm `failed` status + `⚠️` conversation comment naming the action to re-run). No regression in
+the existing `track-1110-orphaned-dispatch.test.mjs` mismatch-guard suite.
 
 ---
 
@@ -130,23 +145,33 @@ pure modules cannot show the real thing works.
 **Solution**: Drive it with the real worker + mock collector harness already used by
 `track-10020-reconcile-premature-finalize.test.mjs`.
 
-- [ ] Task 1: `conductor/tests/track-10020-orphan-reconcile-periodic.test.mjs` — full incident
-      replay (TC-4.1): worker A claims a dispatch and spawns a slow `mock-cli.mjs`; kill worker A
-      only (child survives); start worker B on the same worker number; assert the dispatch is
-      **still** `claimed` while the child runs, then let the child finish (writing
-      `Lane: done` / `Lane Status: success` into the worktree's `index.md`) and assert worker B
-      finalizes it: dispatch `done`, artifacts copied to primary, `lane_action_status` pushed.
-- [ ] Task 2: TC-4.2 in the same file — the premature-finalize half: while the orphaned child runs,
-      flip the worktree's `Lane Status` to a transient non-`running` value across several ticks and
-      assert the dispatch stays `claimed`.
-- [ ] Task 3: TC-4.3 — SIGKILL the orphaned child and assert Phase 3's failed + `⚠️` comment
-      outcome.
-- [ ] Task 4: `conductor/tests/track-10020-dispatch-running-patch.test.mjs` (REQ-7) — pin commit
+- [x] Task 1: `conductor/tests/track-10020-orphan-reconcile-periodic.test.mjs` — full incident
+      replay (TC-4.1). Built via direct-state-seeding rather than a literal two-process kill/restart
+      choreography (see the file's own header comment for why): a real git worktree with the
+      track's terminal markers, a real run-marker JSON pointing at a real long-lived process
+      (`sleep N`, standing in for "the CLI child is still alive" — genuinely alive, genuinely
+      reports `sleep N` via `ps`), and a `claimed` dispatch row seeded directly, then ONE worker
+      process proves its periodic tick reconciles it correctly — exercising the identical
+      `reconcileOrphanedDispatches()` code path a real restart would hit. Asserts: dispatch `done`,
+      artifacts copied to primary (`Lane: done` in the primary's own `index.md`), exactly one
+      finalizing PATCH.
+- [x] Task 2: TC-4.2 in the same file — the premature-finalize half: while the marker's process is
+      still alive, flip the worktree's `Lane Status` to a terminal value and confirm the dispatch
+      stays `claimed` across several ticks — proving ONLY the run-marker liveness check protects it
+      (this worker process never spawned it, so `runningTrackMap`/`activeDispatch` are empty).
+- [x] Task 3: TC-4.3 — SIGKILL the marker's process and assert Phase 3's `failed` + `⚠️`
+      conversation-comment outcome, naming the action to re-run.
+- [x] Task 4: `conductor/tests/track-10020-dispatch-running-patch.test.mjs` (REQ-7) — pin commit
       `0abfcf8`: dispatching a lane action PATCHes `lane_action_status: 'running'` to the collector
-      at spawn.
-- [ ] Task 5: Run the full existing suite (`node --test conductor/tests/`) and confirm no
-      regressions, particularly `track-10020-*`, `track-1110-*`, `track-1117-*`, `local-api-e2e`,
-      `auto-launch`.
+      at spawn, observed while the CLI is still genuinely mid-run.
+- [x] Task 5: Full existing suite run — see plan.md's Notes section below for the regression
+      findings (two pre-existing failures, unrelated to this track, confirmed via baseline
+      comparison; everything else green).
+- [x] (Added, not in original plan) TC-2.3/TC-2.4/TC-2.6 in the same periodic-reconcile file: this
+      process's own in-flight dispatch is never touched by the orphan tick (exactly one finalizing
+      PATCH, from `reconcileActiveDispatch`); the claim-grace window is honored and then expires;
+      the stale run marker is deleted once reconciled. Plus TC-4.5: the tick is a cheap no-op
+      (zero PATCHes, no error logs) when nothing is claimed.
 
 **Impact**: The incident is reproducible on demand and pinned.
 
