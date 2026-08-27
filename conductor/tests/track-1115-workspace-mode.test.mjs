@@ -188,4 +188,14 @@ describe('findDisqualifyingDirtyPaths (dogfooding 2026-08-25 regression)', () =>
     const dirty = ['conductor/tracks/_duplicate-1119-stale-placeholder/'];
     assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/AM-1119-app-creator-wizard/'), []);
   });
+
+  it('exempts another track\'s .conv-cursor and .conv-cursor.lock (dogfooding 2026-08-27 regression, track 10020)', () => {
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/1052-show-hn/.conv-cursor'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/1052-show-hn/.conv-cursor.lock'), true);
+    const dirty = [
+      'conductor/tracks/1052-show-hn/.conv-cursor',
+      'conductor/tracks/999-canary/.conv-cursor.lock',
+    ];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/10020-bug-fixes-round-2/'), []);
+  });
 });

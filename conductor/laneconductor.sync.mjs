@@ -4354,18 +4354,38 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // history (worker runtime state, file_sync_queue.md, other tracks'
   // routinely-resynced status markers).
   if (workspaceMode === 'main') {
-    const dirtyPaths = (() => {
-      try {
-        return execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
-          .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
-      } catch {
-        return [];
-      }
-    })();
     const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
-    const disqualifying = findDisqualifyingDirtyPaths(dirtyPaths, ownFolderPrefix);
+    const checkDirty = () => {
+      const dirtyPaths = (() => {
+        try {
+          return execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
+            .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
+        } catch {
+          return [];
+        }
+      })();
+      return findDisqualifyingDirtyPaths(dirtyPaths, ownFolderPrefix);
+    };
+
+    // Dogfooding 2026-08-27 (track 10020): a hard fail on the first dirty
+    // read punished every plan-lane spawn for transient dirtiness — another
+    // live worker mid-write to a file that isn't yet exempted, or about to
+    // commit its own change seconds later — forcing a wait for "next cycle"
+    // (which can be minutes away) even though the checkout is clean again
+    // almost immediately. Give it a short bounded window to settle before
+    // giving up: same pass/fail criteria as before, just not evaluated at a
+    // single unlucky instant.
+    const DIRTY_RETRY_INTERVAL_MS = 5000;
+    const DIRTY_RETRY_MAX_MS = 30000;
+    let disqualifying = checkDirty();
+    let waitedMs = 0;
+    while (disqualifying.length > 0 && waitedMs < DIRTY_RETRY_MAX_MS) {
+      await new Promise(resolve => setTimeout(resolve, DIRTY_RETRY_INTERVAL_MS));
+      waitedMs += DIRTY_RETRY_INTERVAL_MS;
+      disqualifying = checkDirty();
+    }
     if (disqualifying.length > 0) {
-      console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder: ${disqualifying.join(', ')}`);
+      console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder (still dirty after ${waitedMs / 1000}s of retries): ${disqualifying.join(', ')}`);
       if (primaryIndexPath) {
         const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
         writeFileSync(primaryIndexPath, revertedContent, 'utf8');
