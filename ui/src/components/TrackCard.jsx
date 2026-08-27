@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
 import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
 import { useApi } from '../hooks/useApi';
-import { mergeKey, createPrKey, mergePrKey, aiResolveKey } from '../lib/worktreePendingKeys.js';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -218,200 +217,32 @@ function BranchIndicator({ branch }) {
   );
 }
 
-// ── Unmerged-branch badge (Track 10018) ──────────────────────────────────────
+// ── Done-lane PR link (Track 10035) ──────────────────────────────────────────
 //
-// A track at lane_status='done' means the lane ACTION finished — it does not
-// mean the code shipped. worktree_class (see GET /api/projects/:id/tracks,
-// cross-referenced against the same live worktree data the Worktrees panel
-// uses) is null exactly when there's no live unmerged branch left for this
-// track — either it never had one, or it's already fully merged. Anything
-// else means "still sitting unmerged," regardless of whether that's a plain
-// direct-mode mergeable/stranded/conflicted branch or a pr-mode PR still
-// awaiting approval — this card is not the full truth without it.
-const UNMERGED_BADGE = {
-  mergeable: { label: 'Unmerged', icon: '⏳', color: 'bg-gray-800 text-gray-400 border-gray-700' },
-  stranded: { label: 'Unmerged', icon: '🔴', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
-  conflicted: { label: 'Conflict', icon: '⚠️', color: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
-  open: { label: 'Unmerged', icon: '⏳', color: 'bg-gray-800 text-gray-400 border-gray-700' },
-};
-const UNMERGED_PR_BADGE = {
-  open: { label: 'PR open', icon: '🔵', color: 'bg-blue-950/40 text-blue-300 border-blue-800/80' },
-  'checks-failed': { label: 'PR checks failed', icon: '❌', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
-  conflicted: { label: 'PR conflict', icon: '🟠', color: 'bg-amber-950/40 text-amber-300 border-amber-800/80' },
-  closed: { label: 'PR closed', icon: '🚫', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
-  merged: { label: 'Merging…', icon: '✅', color: 'bg-green-950/40 text-green-300 border-green-800/80' },
-  error: { label: 'PR failed to open', icon: '⚠️', color: 'bg-red-950/40 text-red-300 border-red-800/80' },
-};
-
-function UnmergedBadge({ worktreeClass, prStatus, prUrl }) {
-  if (!worktreeClass) return null; // no live unmerged branch — this really is done
-  const style = worktreeClass === 'pr-open'
-    ? (UNMERGED_PR_BADGE[prStatus] ?? UNMERGED_PR_BADGE.open)
-    : (UNMERGED_BADGE[worktreeClass] ?? UNMERGED_BADGE.open);
-
-  const content = (
-    <span
-      className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${style.color}`}
-      title={worktreeClass === 'pr-open'
-        ? 'This track is marked done, but its PR has not merged yet — see the Worktrees panel'
-        : 'This track is marked done, but its branch has not merged into main yet — see the Worktrees panel'}
+// Merging is now a standard lane action (see the ▶ run button and the
+// Queued/Running/Failure indicators below, all lane-agnostic) — the only
+// done-lane-specific affordance left is the completion link a `done:waiting`
+// (pr-mode) track needs: a human has to go approve/merge the PR on GitHub,
+// and this is the one place that link is surfaced. Driven directly by the
+// track's own `pr_url`/`pr_status` columns (written by the merge action +
+// reconcilePrTracks — lane_action_status is the truth, REQ-9), not by
+// cross-referencing live worktree state the way the old worktree_class-based
+// UnmergedBadge/DoneLaneMergeActions did.
+function DonePrLink({ track }) {
+  if (track.lane_status !== 'done' || track.lane_action_status !== 'waiting' || !track.pr_url) return null;
+  return (
+    <a
+      href={track.pr_url}
+      target="_blank"
+      rel="noreferrer"
+      onClick={e => e.stopPropagation()}
+      className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-medium bg-blue-950/40 text-blue-300 border-blue-800/80"
+      title="PR open — review & merge on GitHub"
     >
-      <span>{style.icon}</span>
-      <span>{style.label}</span>
-    </span>
-  );
-
-  return worktreeClass === 'pr-open' && prUrl ? (
-    <a href={prUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>
-      {content}
+      <span>🔵</span>
+      <span>PR open →</span>
     </a>
-  ) : content;
-}
-
-// ── Done-lane merge/PR actions (Track 10018 Phase 9) ─────────────────────────
-//
-// Direct human feedback on Phase 7's read-only badge: "status and the
-// action for it should be in the same place" — acting on an unmerged
-// done-lane card shouldn't require leaving it to find the same track's row
-// in the Worktrees panel. Reuses the exact same dispatch actions
-// (merge-worktree/create-pr/merge-pr) and gating WorktreesPanel.jsx already
-// has for a matching class, so the two surfaces never disagree about what's
-// safe to click — no new backend work.
-//
-// Click behavior deliberately matches the PANEL'S ACTUAL code, not plan.md
-// Phase 9 Task 1's "armed-confirm" wording verbatim: WorktreeRow's own
-// "Merge to main"/"Create PR" buttons are single-click (no arming) — only
-// "Merge PR" is armed two-click there. Matching the real panel behavior is
-// what "never disagree about what's safe to click" actually requires;
-// mirrored here exactly rather than following the plan text over the code.
-const PENDING_TIMEOUT_MS = 3 * 60 * 1000;
-const CARD_ACTION_BTN = 'text-[9px] px-1.5 py-0.5 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-
-function DoneLaneMergeActions({ projectId, track }) {
-  const { apiFetch } = useApi();
-  const [pendingKey, setPendingKey] = useState(null);
-  const [armed, setArmed] = useState(false);
-  const pendingTimerRef = useRef(null);
-  const armTimerRef = useRef(null);
-
-  useEffect(() => () => {
-    clearTimeout(pendingTimerRef.current);
-    clearTimeout(armTimerRef.current);
-  }, []);
-
-  const worktreeClass = track.worktree_class;
-  if (!worktreeClass) return null;
-
-  // Same identity-key pattern worktreePendingKeys.js uses for the panel's
-  // own pending state — card-scoped (this component's own local state, not
-  // shared React state with the panel), but keyed identically so the two
-  // surfaces are never contradictory about which underlying dispatch a
-  // pending state refers to.
-  const row = { track: track.track_number };
-  const isPrOpen = worktreeClass === 'pr-open';
-  const canMerge = worktreeClass === 'mergeable' || worktreeClass === 'stranded';
-  const isConflicted = worktreeClass === 'conflicted';
-  const canCreatePr = isPrOpen && !track.worktree_pr_number;
-  const canMergePr = isPrOpen && track.worktree_pr_number && track.worktree_pr_status === 'open';
-  const busy = pendingKey !== null;
-
-  async function dispatch(action, key) {
-    setPendingKey(key);
-    try {
-      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
-        method: 'POST',
-        body: JSON.stringify({ action, payload: { track_number: track.track_number } }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
-    } catch (err) {
-      console.error(`[TrackCard] Failed to dispatch ${action} for #${track.track_number}:`, err.message);
-    }
-    clearTimeout(pendingTimerRef.current);
-    pendingTimerRef.current = setTimeout(() => setPendingKey(null), PENDING_TIMEOUT_MS);
-  }
-
-  if (canMerge) {
-    const key = mergeKey(row);
-    return (
-      <button
-        onClick={e => { e.stopPropagation(); dispatch('merge-worktree', key); }}
-        disabled={busy}
-        data-testid="card-merge-to-main-btn"
-        title="Merge this track's branch into main"
-        className={`${CARD_ACTION_BTN} border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40`}
-      >
-        {pendingKey === key ? 'Merging…' : 'Merge to main'}
-      </button>
-    );
-  }
-
-  if (isConflicted) {
-    const key = aiResolveKey(row);
-    return (
-      <button
-        onClick={e => { e.stopPropagation(); dispatch('ai-resolve-conflict', key); }}
-        disabled={busy}
-        data-testid="card-ai-resolve-btn"
-        title="This branch conflicts with main — have an AI agent resolve the conflict and merge (same action as the Worktrees panel)"
-        className={`${CARD_ACTION_BTN} border-amber-800/60 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40`}
-      >
-        {pendingKey === key ? 'Resolving…' : 'AI Resolve'}
-      </button>
-    );
-  }
-
-  if (canCreatePr) {
-    const key = createPrKey(row);
-    return (
-      <button
-        onClick={e => { e.stopPropagation(); dispatch('create-pr', key); }}
-        disabled={busy}
-        data-testid="card-create-pr-btn"
-        title={track.worktree_pr_status === 'error' ? 'A previous attempt to open a PR failed — retry' : 'Push this branch and open a PR for review'}
-        className={`${CARD_ACTION_BTN} border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40`}
-      >
-        {pendingKey === key ? 'Opening…' : 'Create PR'}
-      </button>
-    );
-  }
-
-  if (canMergePr) {
-    const key = mergePrKey(row);
-    return (
-      <button
-        onClick={e => {
-          e.stopPropagation();
-          clearTimeout(armTimerRef.current);
-          if (armed) {
-            setArmed(false);
-            dispatch('merge-pr', key);
-          } else {
-            setArmed(true);
-            armTimerRef.current = setTimeout(() => setArmed(false), 4000);
-          }
-        }}
-        disabled={busy}
-        data-testid="card-merge-pr-btn"
-        title="Merges PR through GitHub (gh pr merge) — branch protection and required checks still apply"
-        className={`${CARD_ACTION_BTN} ${armed ? 'border-green-500 bg-green-800/60 text-white' : 'border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40'}`}
-      >
-        {pendingKey === key ? 'Merging…' : armed ? 'Click again to merge PR' : 'Merge PR'}
-      </button>
-    );
-  }
-
-  if (isPrOpen) {
-    return (
-      <span
-        className={`${CARD_ACTION_BTN} border-gray-800 text-gray-600 cursor-not-allowed`}
-        title={track.worktree_pr_status === 'merged' ? 'PR merged — cleanup runs on the next reconcile pass' : 'Resolve on GitHub before this can merge (checks failing, conflicts, or closed unmerged)'}
-      >
-        Merge PR
-      </span>
-    );
-  }
-
-  return null;
+  );
 }
 
 // ── KPI window countdown ─────────────────────────────────────────────────────
@@ -555,14 +386,9 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}>
             {track.lane_status}
           </span>
-          {track.lane_status === 'done' && track.worktree_class && (
+          {track.lane_status === 'done' && (
             <div className="flex items-center gap-1">
-              <UnmergedBadge
-                worktreeClass={track.worktree_class}
-                prStatus={track.worktree_pr_status}
-                prUrl={track.worktree_pr_url}
-              />
-              <DoneLaneMergeActions projectId={resolvedProjectId} track={track} />
+              <DonePrLink track={track} />
               {onViewInWorktrees && (
                 <button
                   onClick={e => { e.stopPropagation(); onViewInWorktrees(track.track_number); }}
@@ -669,11 +495,15 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
         </div>
       )}
 
-      {/* Queued state indicator (worker waiting to process) */}
-      {track.lane_action_status === 'queue' && track.lane_status !== 'done' && (
+      {/* Queued state indicator (worker waiting to process). Track 10035:
+          done:queue means "unmerged, waiting for the merge lane action" —
+          same indicator, lane-specific label. */}
+      {track.lane_action_status === 'queue' && (
         <div className="flex items-center gap-2 px-2 py-1 rounded bg-yellow-900/20 border border-yellow-800/30">
           <span className="text-yellow-600 text-xs">⏳</span>
-          <span className="text-[10px] text-yellow-400">Queued for automation</span>
+          <span className="text-[10px] text-yellow-400">
+            {track.lane_status === 'done' ? 'Unmerged — queued for the merge action' : 'Queued for automation'}
+          </span>
         </div>
       )}
 
@@ -738,9 +568,16 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
                 (queue) or a failed one had no way to be started from the
                 UI at all, while a pulsing "Plan" indicator claimed work
                 was happening. Now: runnable when queued/failed/succeeded;
-                only an actually-running action hides it. */}
-            {['plan', 'implement', 'review', 'quality-gate'].includes(track.lane_status)
-              && ['success', 'queue', 'failure', 'failed'].includes(track.lane_action_status) && (
+                only an actually-running action hides it.
+                Track 10035: `done` is a standard lane action too (the
+                merge action) — queue/failure get the same ▶, but NOT
+                success (the branch/worktree are already gone — nothing
+                left to re-merge) or waiting (DonePrLink is the affordance
+                there instead). */}
+            {((['plan', 'implement', 'review', 'quality-gate'].includes(track.lane_status)
+                && ['success', 'queue', 'failure', 'failed'].includes(track.lane_action_status))
+              || (track.lane_status === 'done' && ['queue', 'failure', 'failed'].includes(track.lane_action_status))
+            ) && (
               <button
                 disabled={launching}
                 onClick={async e => {

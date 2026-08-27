@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
-import { removeKey, mergeKey, completeKey, forceKey, discardKey, createPrKey, mergePrKey, aiResolveKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
+import { removeKey, mergeKey, completeKey, discardKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
 import { isWorktreeRowRunning } from '../lib/worktreeRunState.js';
 
 const REC_STYLE = {
@@ -179,7 +179,7 @@ function ConflictDetails({ row }) {
   );
 }
 
-function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onForceMerge, forceMerging, onDiscard, discarding, onCreatePr, creatingPr, onMergePr, mergingPr, onPreview, isPreviewing, previewLoading, onAiResolve, aiResolving, highlighted }) {
+function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing, onAutoComplete, autoCompleting, onDiscard, discarding, onPreview, isPreviewing, previewLoading, highlighted }) {
   const { armedKey, request } = useArmedConfirm();
   // Deep link from a Done-lane card's "View in Worktrees" — this panel can
   // hold dozens of rows across every unmerged track, so landing on it
@@ -190,27 +190,25 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
     if (highlighted) rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [highlighted]);
   const badge = CLASS_BADGE[row.class] || CLASS_BADGE.open;
-  const canMerge = row.class === 'mergeable' || row.class === 'stranded';
   const isConflicted = row.class === 'conflicted';
-  // Track 10018: the pr-mode approval station. A pr-open row already
-  // reached done:success (see auditWorktrees) but is deliberately excluded
-  // from `canMerge` above — approval here always goes through GitHub.
+  // Track 10018: the pr-mode approval station.
   const isPrOpen = row.class === 'pr-open';
   const modeBadge = MERGE_MODE_BADGE[row.merge_mode] || MERGE_MODE_BADGE.pr;
   const prStatusBadge = row.pr_status ? PR_STATUS_BADGE[row.pr_status] : null;
-  // "Create PR" rescues a pr-open row whose PR creation failed earlier
-  // (pr_status: 'error') or never ran (no pr_number yet, e.g. a rescued
-  // stranded branch someone just switched to pr mode).
-  const canCreatePr = isPrOpen && !row.pr_number;
-  // Disabled for every known blocker (conflicted/checks-failed/closed/
-  // merged) — 'open' also covers "checks still pending" (pr_status is
-  // deliberately coarse; see services/pr-flow.mjs's resolvePrStatus), so a
-  // click here while checks are still running is possible. That's safe:
-  // the actual `gh pr merge` call is what GitHub enforces branch
-  // protection/required-checks against, never bypassed locally (REQ-5) —
-  // a premature click is simply rejected by GitHub, surfaced as a failed
-  // dispatch result, not a silent bad merge.
-  const canMergePr = isPrOpen && row.pr_number && row.pr_status === 'open';
+  // Track 10035: merging is a standard lane action now (the done lane's
+  // own `/laneconductor merge`) — one "Run merge action" button replaces
+  // the old Merge to main / Create PR / AI Resolve trio. Covers every
+  // shape of "this track's merge action needs to (re-)run": a plain
+  // unmerged direct-mode branch (mergeable/stranded), a conflicted one
+  // (the merge action resolves real conflicts in-session now — REQ-4,
+  // there is no separate AI-resolve action anymore), and a pr-mode track
+  // that hasn't opened its PR yet (no pr_number — the merge action is what
+  // opens it, replacing the old standalone "Create PR" button). Excluded
+  // once a PR is open and awaiting human approval on GitHub (`pr-open` +
+  // pr_number) — DonePrLink-equivalent block below is the affordance then.
+  const canRunMergeAction = Boolean(row.track)
+    && (row.class === 'mergeable' || row.class === 'stranded' || row.class === 'conflicted'
+      || (isPrOpen && !row.pr_number));
   // Track 1114: initially scoped to `detached` only, widened after
   // finding real backlog-lane rows in this repo's own data — they turned
   // out to be leftover test fixtures from this project's own concurrency/
@@ -232,31 +230,26 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
   const canRemove = Boolean(row.worktree_path);
   const hasWorktreeToPreview = Boolean(row.worktree_path);
   // Complete & Merge is for rows still genuinely mid-pipeline (`open`
-  // with a real track) — mergeable/stranded already have their own
-  // direct "Merge to main"; conflicted needs manual resolution first;
-  // detached has no track to run lane actions against at all.
+  // with a real track) — mergeable/stranded/conflicted/pr-open-without-PR
+  // already get the standard "Run merge action" button above; detached has
+  // no track to run lane actions against at all. Track 10035: relabeled
+  // (see the button below) — it no longer merges itself, it just runs the
+  // remaining lane actions and lands the track at done:queue, where the
+  // standard merge action (same one the button above dispatches) takes
+  // over like it does for any other track.
   const canAutoComplete = row.class === 'open' && row.track;
-  // Track 1114: explicitly requested — "not recommended, but allow it."
-  // Skips review/quality-gate's real verification entirely; distinct from
-  // Complete & Merge, which runs them for real. Same `open`+track gate.
-  const canForceMerge = row.class === 'open' && row.track;
   // Track 1114 Phase 15: any row with a real track can be discarded —
-  // unlike Complete/Force Merge this is deliberately NOT gated to `open`;
-  // a `mergeable`/`stranded` track can just as legitimately turn out to
-  // be unwanted work someone decided not to ship. `conflicted` can be
-  // discarded too — there's nothing to resolve if it's never merging.
-  // `detached` has no track to move to backlog against.
+  // deliberately NOT gated to `open`; a `mergeable`/`stranded` track can
+  // just as legitimately turn out to be unwanted work someone decided not
+  // to ship. `conflicted` can be discarded too — there's nothing to
+  // resolve if it's never merging. `detached` has no track to move to
+  // backlog against.
   const canDiscard = Boolean(row.track);
-  // Track 1114 Phase 18b: only a real content conflict with a live
-  // worktree to run the merge in — Phase 17 already auto-resolves the
-  // bookkeeping-only case, so a `conflicted` row reaching here is
-  // genuinely one AI resolution could help with.
-  const canAiResolve = isConflicted && row.track && row.worktree_path;
-  // A row's five actions can conflict with each other (e.g. force-merging
-  // while a Complete & Merge sequence is still running) — while ANY one
-  // is pending for this row, the rest are disabled too, not just the one
-  // that was clicked.
-  const rowBusy = merging || removing || autoCompleting || forceMerging || discarding || creatingPr || mergingPr || aiResolving;
+  // A row's actions can conflict with each other (e.g. running the merge
+  // action while a Complete & Merge sequence is still running) — while ANY
+  // one is pending for this row, the rest are disabled too, not just the
+  // one that was clicked.
+  const rowBusy = merging || removing || autoCompleting || discarding;
   // Track 10024: "running" for the purposes of the transcript deep-link below
   // — either this tab just dispatched something (rowBusy) or the server's own
   // audit says the track's lane_status is running (e.g. a plain lane
@@ -389,93 +382,42 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
             onClick={() => request(`complete:${row.track}`, () => onAutoComplete(row))}
             disabled={rowBusy}
             data-testid="complete-and-merge-btn"
-            title="This will send the track to an automatic worker to complete it — is that OK? Runs the remaining lane actions for real (review, quality-gate, ...) and merges once it reaches done:success; also marks it auto_run so future queue work on it can be picked up automatically, starting a sync+poll worker first if none is running. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
+            title="This will send the track to an automatic worker to complete it — is that OK? Runs the remaining lane actions for real (review, quality-gate, ...) and lands it at done:queue; also marks it auto_run so the standard merge action (and any future queue work) can be picked up automatically, starting a sync+poll worker first if none is running. Stops and leaves it for you if any stage genuinely fails — no auto-retry."
             className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `complete:${row.track}`
               ? 'border-blue-500 bg-blue-800/60 text-white'
               : 'border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40'
               }`}
           >
-            {autoCompleting ? 'Running…' : armedKey === `complete:${row.track}` ? 'Click again to run' : 'Complete & merge'}
+            {autoCompleting ? 'Running…' : armedKey === `complete:${row.track}` ? 'Click again to run' : 'Complete'}
           </button>
         )}
-        {canForceMerge && (
-          <button
-            onClick={() => request(`force:${row.track}`, () => onForceMerge(row))}
-            disabled={rowBusy}
-            data-testid="force-merge-btn"
-            title="Marks this track done and merges it WITHOUT running review or quality-gate — not recommended. Only the branch's own uncommitted-work risk applies; use Complete & Merge instead unless you specifically want to skip verification."
-            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `force:${row.track}`
-              ? 'border-amber-400 bg-amber-800/60 text-white'
-              : 'border-amber-800/60 bg-amber-950/30 text-amber-400 hover:bg-amber-900/40'
-              }`}
-          >
-            {forceMerging ? 'Merging…' : armedKey === `force:${row.track}` ? 'Click again to skip checks' : 'Force merge (skip checks)'}
-          </button>
-        )}
-        {canMerge && (
+        {/* Track 10035: the done lane's standard lane action — same
+            single button whether the branch is a plain unmerged one, a
+            conflicted one (resolved in-session now, REQ-4), or a pr-mode
+            track whose PR hasn't been opened yet. Replaces the old Merge
+            to main / Create PR / AI Resolve / Force Merge buttons. */}
+        {canRunMergeAction && (
           <button
             onClick={() => onMerge(row)}
             disabled={rowBusy}
-            data-testid="merge-to-main-btn"
+            data-testid="run-merge-action-btn"
+            title={isConflicted
+              ? 'Runs the merge action — it fetches main, resolves the conflict in-session, and merges (or opens/updates the PR in pr-mode)'
+              : row.merge_mode === 'direct'
+                ? 'Runs the merge action — merges this branch into main'
+                : 'Runs the merge action — pushes the branch and opens a PR for review'}
             className="text-[10px] px-2.5 py-1 border border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold uppercase tracking-wider transition-colors"
           >
-            {merging ? 'Merging…' : 'Merge to main'}
+            {merging ? 'Running…' : 'Run merge action'}
           </button>
         )}
-        {isConflicted && (
+        {isPrOpen && row.pr_number && (
           <span
             className="text-[10px] px-2.5 py-1 border border-gray-800 text-gray-600 rounded font-bold uppercase tracking-wider cursor-not-allowed"
-            title="This branch conflicts with main — resolve locally (see the file list above) or try AI resolve"
+            title={row.pr_status === 'merged' ? 'PR merged — cleanup runs on the next reconcile pass' : 'Waiting on GitHub — approve/merge the PR there (see the PR link above)'}
           >
-            Merge to main
+            Awaiting PR
           </span>
-        )}
-        {canCreatePr && (
-          <button
-            onClick={() => onCreatePr(row)}
-            disabled={rowBusy}
-            data-testid="create-pr-btn"
-            title={row.pr_status === 'error' ? 'A previous attempt to open a PR failed — retry' : 'Push this branch and open a PR for review'}
-            className="text-[10px] px-2.5 py-1 border border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed rounded font-bold uppercase tracking-wider transition-colors"
-          >
-            {creatingPr ? 'Opening…' : 'Create PR'}
-          </button>
-        )}
-        {canMergePr && (
-          <button
-            onClick={() => request(`merge-pr:${row.track}`, () => onMergePr(row))}
-            disabled={rowBusy}
-            data-testid="merge-pr-btn"
-            title="Merges PR through GitHub (gh pr merge) — branch protection and required checks still apply. Cleanup (worktree/branch removal) follows automatically once GitHub reports it merged."
-            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `merge-pr:${row.track}`
-              ? 'border-green-500 bg-green-800/60 text-white'
-              : 'border-green-800/60 bg-green-950/30 text-green-300 hover:bg-green-900/40'
-              }`}
-          >
-            {mergingPr ? 'Merging…' : armedKey === `merge-pr:${row.track}` ? 'Click again to merge PR' : 'Merge PR'}
-          </button>
-        )}
-        {isPrOpen && !canCreatePr && !canMergePr && (
-          <span
-            className="text-[10px] px-2.5 py-1 border border-gray-800 text-gray-600 rounded font-bold uppercase tracking-wider cursor-not-allowed"
-            title={row.pr_status === 'merged' ? 'PR merged — cleanup runs on the next reconcile pass' : 'Resolve on GitHub before this can merge (checks failing, conflicts, or closed unmerged)'}
-          >
-            Merge PR
-          </span>
-        )}
-        {canAiResolve && (
-          <button
-            onClick={() => request(`ai-resolve:${row.track}`, () => onAiResolve(row))}
-            disabled={rowBusy}
-            data-testid="ai-resolve-conflict-btn"
-            title="Runs a real merge in this worktree and has an AI session resolve the conflict markers, then merges — review the resulting merge commit afterward, this is not guaranteed correct."
-            className={`text-[10px] px-2.5 py-1 border rounded font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${armedKey === `ai-resolve:${row.track}`
-              ? 'border-purple-400 bg-purple-800/60 text-white'
-              : 'border-purple-800/60 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40'
-              }`}
-          >
-            {aiResolving ? 'Resolving…' : armedKey === `ai-resolve:${row.track}` ? 'Click again — review after' : 'AI resolve conflict'}
-          </button>
         )}
         {canDiscard && (
           <button
@@ -728,19 +670,25 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers, highli
     }
   }
 
+  // Track 10035: merging is a standard lane action now — this dispatches
+  // it exactly the way TrackCard's own ▶ run button does (re-queue +
+  // dispatch whatever lane action the track is currently sitting at),
+  // rather than the old bespoke 'merge-worktree'/'create-pr' dispatch
+  // actions. Works identically for a plain unmerged branch, a conflicted
+  // one, or a pr-mode track with no PR yet — the merge action itself forks
+  // on merge_mode/conflict state (SKILL.md's `/laneconductor merge`).
   async function handleMerge(row) {
     if (!row.track) return;
     setError(null);
     startPending(mergeKey(row));
     try {
-      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
+      const res = await apiFetch(`/api/projects/${projectId}/tracks/${row.track}/implement`, {
         method: 'POST',
-        body: JSON.stringify({ action: 'merge-worktree', payload: { track_number: row.track } }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
       fetchRows();
     } catch (err) {
-      setError(`Failed to dispatch merge for #${row.track}: ${err.message}`);
+      setError(`Failed to run the merge action for #${row.track}: ${err.message}`);
       clearPending(mergeKey(row));
     }
   }
@@ -845,79 +793,6 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers, highli
     }
   }
 
-  async function handleAiResolve(row) {
-    if (!row.track) return;
-    setError(null);
-    startPending(aiResolveKey(row));
-    try {
-      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'ai-resolve-conflict', payload: { track_number: row.track } }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
-      // Runs a real merge + a full Claude turn inside the worktree — can
-      // take minutes, not seconds. Same bounded-pending pattern as
-      // Complete & Merge; the row's own class flips once the next audit
-      // cycle sees the outcome (merged → drops out, still conflicted →
-      // stays, unchanged).
-      fetchRows();
-    } catch (err) {
-      setError(`Failed to dispatch AI-resolve for #${row.track}: ${err.message}`);
-      clearPending(aiResolveKey(row));
-    }
-  }
-
-  async function handleForceMerge(row) {
-    if (!row.track) return;
-    setError(null);
-    startPending(forceKey(row));
-    try {
-      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'merge-worktree', payload: { track_number: row.track, force: true } }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
-      fetchRows();
-    } catch (err) {
-      setError(`Failed to dispatch force-merge for #${row.track}: ${err.message}`);
-      clearPending(forceKey(row));
-    }
-  }
-
-  async function handleCreatePr(row) {
-    if (!row.track) return;
-    setError(null);
-    startPending(createPrKey(row));
-    try {
-      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'create-pr', payload: { track_number: row.track } }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
-      fetchRows();
-    } catch (err) {
-      setError(`Failed to dispatch create-pr for #${row.track}: ${err.message}`);
-      clearPending(createPrKey(row));
-    }
-  }
-
-  async function handleMergePr(row) {
-    if (!row.track) return;
-    setError(null);
-    startPending(mergePrKey(row));
-    try {
-      const res = await apiFetch(`/api/projects/${projectId}/dispatch`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'merge-pr', payload: { track_number: row.track } }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || await res.text());
-      fetchRows();
-    } catch (err) {
-      setError(`Failed to dispatch merge-pr for #${row.track}: ${err.message}`);
-      clearPending(mergePrKey(row));
-    }
-  }
-
   const sorted = [...rows].sort((a, b) => (CLASS_SORT_ORDER[a.class] ?? 9) - (CLASS_SORT_ORDER[b.class] ?? 9));
   const hosts = [...new Set(rows.map(r => r.host).filter(Boolean))];
   const groupByHost = hosts.length > 1;
@@ -977,19 +852,11 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers, highli
           removing={Boolean(pendingKeys[removeKey(row)])}
           onAutoComplete={handleAutoComplete}
           autoCompleting={Boolean(pendingKeys[completeKey(row)])}
-          onForceMerge={handleForceMerge}
-          forceMerging={Boolean(pendingKeys[forceKey(row)])}
           onDiscard={handleDiscard}
           discarding={Boolean(pendingKeys[discardKey(row)])}
-          onCreatePr={handleCreatePr}
-          creatingPr={Boolean(pendingKeys[createPrKey(row)])}
-          onMergePr={handleMergePr}
-          mergingPr={Boolean(pendingKeys[mergePrKey(row)])}
           onPreview={handlePreview}
           isPreviewing={Boolean(row.track) && String(row.track) === String(previewTrack)}
           previewLoading={previewLoading}
-          onAiResolve={handleAiResolve}
-          aiResolving={Boolean(pendingKeys[aiResolveKey(row)])}
         />
       ))}
     </div>

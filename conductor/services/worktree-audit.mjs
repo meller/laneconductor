@@ -211,10 +211,10 @@ function getConflictPaths(repoRoot, mainBranch, branch) {
  * track-* naming convention): { trackNumber, branch, worktreePath,
  * hasWorktree, ahead, behind, dirtyCount, lane, laneStatus, title,
  * classification }. classification is one of:
- *   'open'        — track not yet done:success (working as designed)
- *   'mergeable'   — done:success, worktree present, clean merge available
- *   'stranded'    — done:success, worktree directory gone (RC-A)
- *   'conflicted'  — done:success, merge would conflict
+ *   'open'        — track not yet in the done lane (working as designed)
+ *   'mergeable'   — done lane, worktree present, clean merge available
+ *   'stranded'    — done lane, worktree directory gone (RC-A)
+ *   'conflicted'  — done lane, merge would conflict
  *   'detached'    — worktree present but no track-* branch to classify
  *                   against (e.g. a nested scratch worktree at a detached
  *                   HEAD) — never mergeable, since there is no branch to
@@ -322,7 +322,20 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       ? git(['status', '--porcelain'], worktreePath).split('\n').filter(Boolean).length
       : null;
 
-    const isDoneSuccess = state?.lane === 'done' && state?.laneStatus === 'success';
+    // Track 10035: this used to require laneStatus === 'success' too — back
+    // when quality-gate.on_success set done:success directly, "reached
+    // done at all" and "reached done:success" were the same moment. Now
+    // done:success means actually shipped (merged), which the isAncestor
+    // early-continue above already filters out entirely (a truly-merged
+    // branch never reaches this line) — so by the time we're here, ANY
+    // done-lane status (queue/running/waiting/failure) on an unmerged
+    // branch means exactly what 'mergeable'/'stranded'/'pr-open'/
+    // 'conflicted' are for: the done lane's own merge action needs to
+    // (re-)run. Gating on laneStatus === 'success' as before would
+    // misclassify every done:queue/done:waiting/done:failure track as
+    // 'open' (still-mid-pipeline), hiding it from the panel's merge
+    // affordances entirely.
+    const isDone = state?.lane === 'done';
     const superseded = state?.trackDir
       ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber)
       : false;
@@ -331,12 +344,12 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     // to main" button, which would silently defeat the whole point of
     // pausing for PR review/approval. 'pr-open' is its own classification
     // so the panel can render PR-specific actions instead (Phase 4 UI).
-    // Still subject to the same isDoneSuccess/superseded gate as
+    // Still subject to the same isDone/superseded gate as
     // mergeable/stranded — a pr-mode track that isn't done yet is still
     // just 'open', same as today.
     let classification;
     let conflictPaths = [];
-    if (!isDoneSuccess || superseded) {
+    if (!isDone || superseded) {
       classification = 'open';
     } else if (state?.mergeMode === 'pr') {
       classification = 'pr-open';
