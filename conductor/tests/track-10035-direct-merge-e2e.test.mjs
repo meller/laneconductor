@@ -200,8 +200,12 @@ describe('Track 10035 Phase 6 Task 1: direct-mode merge E2E (AC-1, AC-2)', () =>
       const finalIndex = readFileSync(primaryIndexPath(), 'utf8');
       assert.match(finalIndex, /\*\*Lane Status\*\*:\s*success/i);
 
+      // The branch ref itself is deleted as part of the merge's own cleanup
+      // (verified separately below) — check ancestry against the commit
+      // SHA captured in Phase A, before that cleanup ever ran, not the
+      // (by-now-gone) branch name.
       assert.doesNotThrow(
-        () => git(`merge-base --is-ancestor track-${TRACK_NUM} main`),
+        () => git(`merge-base --is-ancestor ${branchTipAfterQg} main`),
         'the quality-gate commit must be reachable from local main after the merge action ran'
       );
       assert.ok(existsSync(join(LOCAL, 'shipped-feature.txt')), 'the merged file must actually be present on main\'s working tree');

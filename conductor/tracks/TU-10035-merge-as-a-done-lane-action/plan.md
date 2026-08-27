@@ -186,10 +186,22 @@ no way to declare merge intent at track creation.
 prove the loop closes.
 **Solution**: Drive real tracks through the full cycle.
 
-- [ ] Task 1: Direct-mode E2E: disposable track through
+- [x] Task 1: Direct-mode E2E: disposable track through
       implement → review → quality-gate → done:queue → merge action →
       done:success; verify commits on main, transcript existed, no bespoke
-      buttons involved. (AC-1, AC-2)
+      buttons involved. (AC-1, AC-2) `track-10035-direct-merge-e2e.test.mjs`:
+      a real worker process runs quality-gate (real worktree, real commit),
+      done:queue is claimed, the merge action runs the real `lc worktrees
+      merge` primitive (via mock-cli's new `MOCK_CLI_RUN_LC_MERGE` flag),
+      and the quality-gate commit is proven reachable from local main by
+      SHA (not just by branch name, since the branch is deleted as part of
+      the same cleanup) — plus worktree/branch cleanup and done:success.
+      Found and fixed a real bug while building this: mock-cli's own
+      `MOCK_CLI_COMMIT_FILE` helper (added for this test) was committing
+      directly into the primary checkout during the done-lane's own
+      workspace:main run, creating a spurious conflict with the real merge
+      it was supposed to help prove — fixed by scoping that helper to
+      non-`done` commands only.
 - [ ] Task 2: PR-mode E2E with mock gh (existing harness): done:waiting with
       PR link → simulate merge → success + cleanup; simulate conflicted →
       done:queue → re-run → waiting again. (AC-3, AC-4, AC-5)
