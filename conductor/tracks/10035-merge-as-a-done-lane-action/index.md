@@ -1,6 +1,6 @@
 # Track TU-10035: Merge As A Done Lane Action
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: mock (primary)
