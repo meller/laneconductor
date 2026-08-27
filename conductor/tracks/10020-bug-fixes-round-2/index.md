@@ -1,8 +1,8 @@
 # Track 10020: Bug fixes round 2
 
-**Status**: implement
-**Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Status**: plan
+**Progress**: 20%
+**Last Run**: mock (primary)
 
 ## Problem
 Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
@@ -22,16 +22,15 @@ pid — so a dispatch that becomes orphaned *mid-run* is closed out within one t
 still-genuinely-running orphan is never finalized early.
 
 ## Phases
-- [x] Phase 1: Persistent run marker (`conductor/.runs/<track>.json`) written by spawnCli, removed on exit
+- [ ] Phase 1: Persistent run marker (`conductor/.runs/<track>.json`) written by spawnCli, removed on exit
 - [ ] Phase 2: Periodic `reconcileOrphanedDispatches()` tick with liveness/grace guards
 - [ ] Phase 3: Crashed-run detection (pid dead while Lane Status still `running`)
 - [ ] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
 - [ ] Phase 5: Docs + code comments for the new markers and env overrides
 
-**Lane**: implement
+**Lane**: quality-gate
 **Track Kind**: bug
 **Merge Mode**: direct
-**Lane Status**: success
+**Lane Status**: running
 **Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 **Auto Run**: yes
-**Waiting for reply**: yes
