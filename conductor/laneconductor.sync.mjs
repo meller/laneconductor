@@ -58,6 +58,7 @@ import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-mod
 import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
 import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
+import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand } from './services/run-marker.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
@@ -4316,7 +4317,7 @@ setInterval(() => {
   checkOutOfBandGitSync().catch(err => console.error('[git-sync error]:', err.message));
 }, 30000); // ticks every 30s; actual fetch cadence is governed by git.fetch_interval_ms above
 
-async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null) {
+async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null, dispatchId = null, action = null) {
   let lockFile = null;
   let worktreePath = null;
   let globalMainModeLockAcquired = false;
@@ -4693,6 +4694,29 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   runningPids.add(proc.pid);
   runningLaneMap.set(proc.pid, laneStatus);
   runningTrackMap.set(proc.pid, trackNumber);
+  // Track 10020 Phase 1: mirror runningTrackMap to disk, in the PRIMARY
+  // checkout (process.cwd(), same base conductor/logs/ uses — never
+  // worktreePath, which may not exist for main-mode or may be removed
+  // before a later process goes looking). This is what lets a REPLACEMENT
+  // worker process — which has no memory of this Map — answer "is my
+  // predecessor's child still alive?" by asking the OS instead. See
+  // run-marker.mjs's header comment for the full incident.
+  try {
+    const markerPath = runMarkerPath(process.cwd(), trackNumber);
+    mkdirSync(dirname(markerPath), { recursive: true });
+    const marker = buildRunMarker({
+      pid: proc.pid,
+      pgid: proc.pid, // detached: true makes the child its own process-group leader
+      workerPid: process.pid,
+      trackNumber,
+      dispatchId,
+      action,
+      command,
+    });
+    writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf8');
+  } catch (err) {
+    console.warn(`[${label}] Track ${trackNumber}: failed to write run marker (non-fatal): ${err.message}`);
+  }
   // Track 1086: persist the session id only now that we know the process
   // actually spawned — resolving it earlier (buildCliArgs) and persisting
   // there would orphan a session row on any bail-out (no provider
@@ -4706,6 +4730,15 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     runningPids.delete(proc.pid);
     runningLaneMap.delete(proc.pid);
     runningTrackMap.delete(proc.pid);
+    // Track 10020 Phase 1: unconditional, best-effort — same shape as
+    // releaseTrackClaim just below — so a kill/crash path still clears the
+    // marker, not just a clean exit.
+    try {
+      const markerPath = runMarkerPath(process.cwd(), trackNumber);
+      if (existsSync(markerPath)) rmSync(markerPath);
+    } catch (err) {
+      console.warn(`[${label}] Track ${trackNumber}: failed to remove run marker (non-fatal): ${err.message}`);
+    }
     updateWorkerHeartbeat('idle', null);
 
     // Track 1110 Phase 4: release this track's local-fs claim marker, if
@@ -5762,7 +5795,7 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       // and the waitingForReply answer-flow — trigger is computed inline from
       // the local already in scope, not threaded from two separate sites.
       const trigger = waitingForReply ? 'manual-dispatch' : 'auto-queue';
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session, trigger);
+      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session, trigger, null, cmd_type);
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
@@ -5858,7 +5891,7 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   // ever revert it, and left the dispatch row silently 'claimed' forever.
   let spawnedPid;
   try {
-    spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete');
+    spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete', null, currentLane);
   } catch (err) {
     logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
@@ -7408,7 +7441,7 @@ async function checkDispatchInbox() {
 
     const proj = getProject();
     try {
-      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session, 'manual-dispatch');
+      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session, 'manual-dispatch', entry.id, entry.action);
       console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
       activeDispatch.set(trackNumber, entry.id);
     } catch (err) {
