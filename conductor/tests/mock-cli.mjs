@@ -96,6 +96,23 @@ if (progressIntervalMs > 0 && !resumeFailure) {
 // extractBlockedQuestion() in isolation.
 const blockedSummary = process.env.MOCK_CLI_EMIT_BLOCKED_SUMMARY;
 
+// Track 10035: MOCK_CLI_COMMIT_FILE=<filename> — if set, writes a small
+// distinguishing file and commits it in cwd (the track's own worktree
+// during a branch-mode lane action, e.g. quality-gate) before exiting.
+// Lets a direct-mode merge E2E test prove AC-1 ("its commits are reachable
+// from local main") against a branch that's actually ahead of main by a
+// real commit, not just a no-op merge of two identical trees.
+const commitFile = process.env.MOCK_CLI_COMMIT_FILE;
+if (commitFile) {
+  try {
+    writeFileSync(join(process.cwd(), commitFile), `written by mock-cli for ${command} track=${trackNumber}\n`);
+    execFileSync('git', ['add', commitFile], { cwd: process.cwd() });
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', `mock-cli: ${command} wrote ${commitFile}`], { cwd: process.cwd() });
+  } catch (e) {
+    console.error(`[mock-cli] MOCK_CLI_COMMIT_FILE failed: ${e.message}`);
+  }
+}
+
 // Track 10035: MOCK_CLI_WRITE_LANE_STATUS=<value> — if set, patch
 // **Lane Status** in the track's own index.md to <value> right before
 // exiting — simulates an agent's own self-transition write as its last
@@ -143,6 +160,27 @@ if (process.env.MOCK_CLI_RUN_LC_CREATE_PR && command === 'done') {
         { cwd: process.cwd(), stdio: 'inherit' });
     } catch (e) {
       console.error(`[mock-cli] lc worktrees create-pr ${numMatch[1]} failed: ${e.message}`);
+    }
+  }
+}
+
+// Track 10035: MOCK_CLI_RUN_LC_MERGE=1 — the direct-mode counterpart to
+// MOCK_CLI_RUN_LC_CREATE_PR above: for a done-lane ('merge' action)
+// invocation, actually shell out to `lc worktrees merge <track-number>`
+// (the primitive SKILL.md's merge command documents running in direct
+// mode) so a direct-mode E2E test exercises the real
+// merge-into-main + worktree/branch cleanup code path
+// (conductor/services/worktree-merge.mjs + bin/lc.mjs), not just a
+// simulated end state.
+if (process.env.MOCK_CLI_RUN_LC_MERGE && command === 'done') {
+  const running = findRunningTrackDir();
+  const numMatch = running?.trackDir.match(/(?:^|-)(\d+)-/);
+  if (numMatch) {
+    try {
+      execFileSync('node', [join(__dirname, '..', '..', 'bin', 'lc.mjs'), 'worktrees', 'merge', numMatch[1]],
+        { cwd: process.cwd(), stdio: 'inherit' });
+    } catch (e) {
+      console.error(`[mock-cli] lc worktrees merge ${numMatch[1]} failed: ${e.message}`);
     }
   }
 }

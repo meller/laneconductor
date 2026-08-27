@@ -1,8 +1,8 @@
 # Track TU-10035: Merge As A Done Lane Action
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 75%
+**Lane**: quality-gate
+**Lane Status**: queue
+**Progress**: 80%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned
 **Type**: dev
