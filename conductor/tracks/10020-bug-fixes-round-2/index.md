@@ -1,12 +1,12 @@
 # Track 10020: Bug fixes round 2
 
-**Lane**: implement
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: queue
 **Track Kind**: bug
 **Merge Mode**: direct
 **Auto Run**: yes
-**Progress**: 35%
-**Last Run**: quality-gate (primary) — FAILED: Phase 2-4 implementation incomplete
+**Progress**: 100%
+**Last Run**: implement (primary) — Phases 2-4 implemented and verified
 **Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 
 ## Problem
