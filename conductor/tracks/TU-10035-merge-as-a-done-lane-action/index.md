@@ -3,8 +3,8 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: mock (primary)
-**Phase**: Planned
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Phase**: Complete
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
@@ -23,9 +23,9 @@ The done lane gets a standard lane action ("merge") claimed and run exactly like
 
 ## Phases
 
-- [ ] Phase 1: Workflow semantics + skill command
-- [ ] Phase 2: Worker claims and runs the merge action
-- [ ] Phase 3: PR waiting + reconciler loop
-- [ ] Phase 4: UI consolidation
-- [ ] Phase 5: Deletions, migration, creation-time flags
-- [ ] Phase 6: E2E validation
+- [x] Phase 1: Workflow semantics + skill command
+- [x] Phase 2: Worker claims and runs the merge action
+- [x] Phase 3: PR waiting + reconciler loop
+- [x] Phase 4: UI consolidation
+- [x] Phase 5: Deletions, migration, creation-time flags
+- [x] Phase 6: E2E validation

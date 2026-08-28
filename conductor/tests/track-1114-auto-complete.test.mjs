@@ -24,12 +24,30 @@ describe('classifyAutoCompleteOutcome', () => {
     assert.deepEqual(result, { action: 'advance', nextLane: 'review' });
   });
 
-  it('merges once the lane is done with success', () => {
-    const result = classifyAutoCompleteOutcome({ beforeLane: 'quality-gate', afterLane: 'done', afterStatus: 'success' });
-    assert.deepEqual(result, { action: 'merge' });
+  it('(track 10035) advances into the done lane when quality-gate hands off to done:queue', () => {
+    const result = classifyAutoCompleteOutcome({ beforeLane: 'quality-gate', afterLane: 'done', afterStatus: 'queue' });
+    assert.deepEqual(result, { action: 'advance', nextLane: 'done' });
   });
 
-  it('stops if it reached done without success (should not happen, but be conservative)', () => {
+  it('(track 10035) completes once the merge action actually merges (done:success)', () => {
+    const result = classifyAutoCompleteOutcome({ beforeLane: 'done', afterLane: 'done', afterStatus: 'success' });
+    assert.equal(result.action, 'complete');
+    assert.match(result.reason, /merged/i);
+  });
+
+  it('(track 10035) completes (not stop) when the merge action opens a PR (done:waiting)', () => {
+    const result = classifyAutoCompleteOutcome({ beforeLane: 'done', afterLane: 'done', afterStatus: 'waiting' });
+    assert.equal(result.action, 'complete');
+    assert.match(result.reason, /PR/i);
+  });
+
+  it('(track 10035) stops (not infinite-advances) when the merge action itself requeues without merging', () => {
+    const result = classifyAutoCompleteOutcome({ beforeLane: 'done', afterLane: 'done', afterStatus: 'queue' });
+    assert.equal(result.action, 'stop');
+    assert.match(result.reason, /done did not advance/i);
+  });
+
+  it('stops if it reached done with an unexpected status (should not happen, but be conservative)', () => {
     const result = classifyAutoCompleteOutcome({ beforeLane: 'quality-gate', afterLane: 'done', afterStatus: 'failure' });
     assert.equal(result.action, 'stop');
     assert.match(result.reason, /done.*failure/i);

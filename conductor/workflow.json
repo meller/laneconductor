@@ -33,11 +33,14 @@
       "parallel_limit": 1,
       "max_retries": 1,
       "primary_model": "claude-haiku-4-5-20251001",
-      "on_success": "done:success",
+      "on_success": "done:queue",
       "on_failure": "plan:queue"
     },
     "done": {
       "parallel_limit": 1,
+      "max_retries": 1,
+      "primary_model": "claude-sonnet-5",
+      "on_failure": "done:failure",
       "hooks": [
         {
           "on": "success",

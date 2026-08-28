@@ -27,6 +27,20 @@ describe('resolveWorkspaceMode', () => {
     );
   });
 
+  it('TC-2b (track 10035): done lane outranks an explicit branch marker, same as plan', () => {
+    assert.equal(
+      resolveWorkspaceMode({ laneStatus: 'done', workspaceMarker: 'branch' }),
+      'main'
+    );
+  });
+
+  it('TC-2c (track 10035): done lane outranks the auto-queue trigger too', () => {
+    assert.equal(
+      resolveWorkspaceMode({ laneStatus: 'done', trigger: 'auto-queue' }),
+      'main'
+    );
+  });
+
   it('TC-3: explicit main marker WINS over auto-queue (D1 refinement)', () => {
     assert.equal(
       resolveWorkspaceMode({
