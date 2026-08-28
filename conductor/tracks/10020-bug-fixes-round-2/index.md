@@ -1,7 +1,7 @@
 # Track 10020: Bug fixes round 2
 
 **Lane**: quality-gate
-**Lane Status**: queue
+**Lane Status**: running
 **Track Kind**: bug
 **Merge Mode**: direct
 **Auto Run**: yes
