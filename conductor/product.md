@@ -104,6 +104,7 @@ Every file in the conductor system has one owner and one purpose. Claude agents 
 | `conductor/tech-stack.md` | humans, Claude | Claude agents | Technology choices and stack decisions |
 | `conductor/quality-gate.md` | humans, Claude | Claude agents (quality-gate phase) | Quality gate check definitions |
 | `conductor/code_styleguides/*.md` | humans, Claude | Claude agents | Coding standards per language |
+| `conductor/.runs/<track_number>.json` | sync worker (`spawnCli`) | sync worker (`reconcileOrphanedDispatches`) | Track 10020: gitignored, primary checkout only — a persistent, cross-process liveness marker (pid, command, dispatch id) for the CLI child a lane action spawned, so a REPLACEMENT worker process can tell a dispatch orphaned by a restart is still genuinely running apart from one that finished or crashed. Not a committed artifact. |
 
 **Rules:**
 - Only the **sync worker** writes `tracks.md` — it is a view, not a source

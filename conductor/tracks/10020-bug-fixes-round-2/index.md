@@ -27,8 +27,8 @@ pid — so a dispatch that becomes orphaned *mid-run* is closed out within one t
 still-genuinely-running orphan is never finalized early.
 
 ## Phases
-- [ ] Phase 1: Persistent run marker (`conductor/.runs/<track>.json`) written by spawnCli, removed on exit
-- [ ] Phase 2: Periodic `reconcileOrphanedDispatches()` tick with liveness/grace guards
-- [ ] Phase 3: Crashed-run detection (pid dead while Lane Status still `running`)
-- [ ] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
-- [ ] Phase 5: Docs + code comments for the new markers and env overrides
+- [x] Phase 1: Persistent run marker (`conductor/.runs/<track>.json`) written by spawnCli, removed on exit
+- [x] Phase 2: Periodic `reconcileOrphanedDispatches()` tick with liveness/grace guards
+- [x] Phase 3: Crashed-run detection (pid dead while Lane Status still `running`)
+- [x] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
+- [x] Phase 5: Docs + code comments for the new markers and env overrides
