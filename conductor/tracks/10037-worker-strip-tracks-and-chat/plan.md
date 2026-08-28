@@ -5,8 +5,8 @@
 **Problem**: The UI has no way to know which track a worker last worked on (and thus holds a warm session for).
 **Solution**: Enrich the worker list endpoints server-side from `track_sessions` — no schema change.
 
-- [ ] Task 1: In `ui/server/index.mjs`, find every endpoint that returns worker rows consumed by WorkersList / Machine Workers view (`GET /api/workers`, project-scoped variant) and add a `LEFT JOIN LATERAL` on `track_sessions` (order `last_used_at DESC LIMIT 1`) exposing `last_track_number`, `last_track_used_at`; set `last_track_project_id` from `w.project_id`.
-- [ ] Task 2: Unit/integration test: seed a worker + two `track_sessions` rows with different `last_used_at`; assert the endpoint returns the newer `track_number` and that workers with no sessions return `last_track_number: null`.
+- [x] Task 1: In `ui/server/index.mjs`, find every endpoint that returns worker rows consumed by WorkersList / Machine Workers view (`GET /api/workers`, project-scoped variant) and add a `LEFT JOIN LATERAL` on `track_sessions` (order `last_used_at DESC LIMIT 1`) exposing `last_track_number`, `last_track_used_at`; set `last_track_project_id` from `w.project_id`.
+- [x] Task 2: Unit/integration test: seed a worker + two `track_sessions` rows with different `last_used_at`; assert the endpoint returns the newer `track_number` and that workers with no sessions return `last_track_number: null`.
 
 **Impact**: Every worker payload carries its last-context track; no consumer breaks (additive fields only).
 
