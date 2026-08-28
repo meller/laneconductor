@@ -4,7 +4,7 @@
 // show — a track's live transcript, or a deploy dispatch's raw log.
 
 import { describe, it, expect } from 'vitest';
-import { parseWorkerTask } from './workerTaskInfo.js';
+import { parseWorkerTask, resolveWorkerChatTarget } from './workerTaskInfo.js';
 
 describe('parseWorkerTask', () => {
   it('returns null for an idle worker (no current_task)', () => {
@@ -33,5 +33,44 @@ describe('parseWorkerTask', () => {
 
   it('returns null for an unrecognized task string rather than guessing', () => {
     expect(parseWorkerTask('something unexpected')).toBeNull();
+  });
+});
+
+// Track 10037 REQ-5/REQ-7: target-track resolution matrix for worker chat.
+describe('resolveWorkerChatTarget', () => {
+  it('returns null for a manager, even a busy one with a track task', () => {
+    const worker = { type: 'manager', current_task: 'implement track 42', last_track_number: '41' };
+    expect(resolveWorkerChatTarget(worker, 1)).toBeNull();
+  });
+
+  it('prefers the running track over the last-context track', () => {
+    const worker = {
+      type: 'project', project_id: 5, current_task: 'implement track 42',
+      last_track_number: '10', last_track_project_id: 5,
+    };
+    expect(resolveWorkerChatTarget(worker, 1)).toEqual({ trackNumber: '42', projectId: 5, source: 'running' });
+  });
+
+  it('falls back to last_track_number when idle', () => {
+    const worker = {
+      type: 'project', project_id: 5, current_task: null,
+      last_track_number: '10', last_track_project_id: 5,
+    };
+    expect(resolveWorkerChatTarget(worker, 1)).toEqual({ trackNumber: '10', projectId: 5, source: 'last' });
+  });
+
+  it('returns null when the worker has neither a running nor a last track', () => {
+    const worker = { type: 'project', project_id: 5, current_task: null, last_track_number: null };
+    expect(resolveWorkerChatTarget(worker, 1)).toBeNull();
+  });
+
+  it('falls back to fallbackProjectId when the worker itself has none', () => {
+    const worker = { type: 'project', project_id: null, current_task: null, last_track_number: '10', last_track_project_id: null };
+    expect(resolveWorkerChatTarget(worker, 7)).toEqual({ trackNumber: '10', projectId: 7, source: 'last' });
+  });
+
+  it('returns null for a null/undefined worker', () => {
+    expect(resolveWorkerChatTarget(null, 1)).toBeNull();
+    expect(resolveWorkerChatTarget(undefined, 1)).toBeNull();
   });
 });
