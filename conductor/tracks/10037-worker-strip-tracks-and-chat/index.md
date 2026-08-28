@@ -1,9 +1,9 @@
 # Track AM-10037: Worker Strip — Running/Last Track + Chat With Worker
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: Planned — ready for implement
+**Progress**: 100%
+**Phase**: Implemented — ready for review
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
