@@ -1,7 +1,7 @@
 # Track 10020: Bug fixes round 2
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 35%
 **Last Run**: quality-gate (primary) — FAILED: Phase 2-4 implementation incomplete
 
