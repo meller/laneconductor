@@ -1,8 +1,9 @@
 # Track 10020: Bug fixes round 2
 
-**Status**: plan
-**Progress**: 20%
-**Last Run**: mock (primary)
+**Lane**: implement
+**Lane Status**: queue
+**Progress**: 35%
+**Last Run**: quality-gate (primary) — FAILED: Phase 2-4 implementation incomplete
 
 ## Problem
 Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
