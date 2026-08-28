@@ -1,6 +1,6 @@
 # Track AM-10037: Worker Strip — Running/Last Track + Chat With Worker
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
