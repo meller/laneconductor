@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { WorkerVisibilityDialog } from './WorkerVisibilityDialog.jsx';
 import { ProvisionWorkerModal } from './ProvisionWorkerModal.jsx';
 import { WorkerModelModal, MODEL_PRESETS, CLI_ENGINES } from './WorkerModelModal.jsx';
+import { WorkerChatPanel } from './WorkerChatPanel.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { parseWorkerTask } from '../lib/workerTaskInfo.js';
+import { sortWorkersForStrip } from '../lib/workerSort.js';
 import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
 import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
@@ -27,6 +29,15 @@ const VISIBILITY_BADGE = {
 // Claude model id for a non-Claude worker — see track 10011).
 function workerModelLabel(worker) {
   return worker.model || defaultModelFor(worker.cli) || 'model not reported yet';
+}
+
+// Track 10037 REQ-2: current_task is "<lane action> track <NNN>" (see
+// updateWorkerHeartbeat call sites in laneconductor.sync.mjs) — the chip
+// wants both halves, not just the raw string parseWorkerTask already
+// reduces to a bare track number.
+function laneActionLabel(currentTask) {
+  if (!currentTask) return '';
+  return currentTask.replace(/\s+track\s+\S+$/, '').trim();
 }
 
 function ProviderStatus({ providers }) {
@@ -143,6 +154,11 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
   const [visibilityWorker, setVisibilityWorker] = useState(null);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [configWorker, setConfigWorker] = useState(null);
+  // Track 10037 Phase 3/4: which worker's chat panel is open, and whether
+  // it's pinned to a specific track (last-track chip) or should resolve
+  // via the default running > last priority (general chat trigger).
+  const [chatTarget, setChatTarget] = useState(null);
+  const openChat = (worker, forcedTrackNumber) => setChatTarget({ worker, forcedTrackNumber });
   // Track 1096 Phase 7: picker state for the "Start Sync Worker" button —
   // this project's own worker #1, started locally, so (unlike
   // ProvisionWorkerModal) there's no project/machine choice, just CLI/model.
@@ -455,7 +471,7 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                       </div>
                     </div>
 
-                    <div className="flex-1 min-h-[3rem]">
+                    <div className="flex-1 min-h-[3rem] flex flex-col gap-2">
                       {worker.current_task ? (
                         <div className="flex flex-col gap-1">
                           <span className={`text-[10px] uppercase font-bold tracking-tight ${worker.status === 'busy' ? 'text-amber-500' : 'text-gray-500'}`}>
@@ -478,8 +494,9 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                                 onClick={() => onSelectTrack(worker.project_id ?? projectId, trackNumber)}
                                 className={`${badgeClass} text-left hover:brightness-110 transition-all cursor-pointer`}
                                 title="Open this track"
+                                data-testid="worker-running-track-chip"
                               >
-                                {worker.current_task} ↗
+                                ▶ #{trackNumber} · {laneActionLabel(worker.current_task)} ↗
                               </button>
                             ) : (
                               <p className={badgeClass}>{worker.current_task}</p>
@@ -491,6 +508,24 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                           <span className="text-[11px] text-gray-600 italic">Idle — waiting for task</span>
                         </div>
                       )}
+                      {/* Track 10037 REQ-3: last-context track chip — the
+                          worker holds a warm session for this track even
+                          when it isn't the one currently running. */}
+                      {(() => {
+                        const runningTask = parseWorkerTask(worker.current_task);
+                        const runningTrackNumber = runningTask?.kind === 'track' ? runningTask.trackNumber : null;
+                        if (!worker.last_track_number || worker.last_track_number === runningTrackNumber) return null;
+                        return (
+                          <button
+                            onClick={() => openChat(worker, worker.last_track_number)}
+                            className="self-start flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded border border-gray-700 bg-gray-950/60 text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+                            title="This worker still has session context for this track — talking about it is cheap."
+                            data-testid="worker-last-track-chip"
+                          >
+                            last: #{worker.last_track_number}
+                          </button>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center justify-between bg-gray-950/60 px-2 py-1.5 rounded-lg border border-gray-800/80 my-2">
                       <div className="flex items-center gap-1.5 overflow-hidden">
@@ -500,13 +535,25 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                           {workerModelLabel(worker)}
                         </span>
                       </div>
-                      <button
-                        onClick={() => setConfigWorker(worker)}
-                        className="text-[10px] px-2 py-0.5 border border-purple-800/60 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40 rounded font-bold transition-colors shrink-0 ml-2"
-                        data-testid="change-worker-model-btn"
-                      >
-                        Change Model
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        {worker.type !== 'manager' && (
+                          <button
+                            onClick={() => openChat(worker)}
+                            className="text-[10px] px-2 py-0.5 border border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 rounded font-bold transition-colors"
+                            data-testid="worker-chat-btn"
+                            title="Chat with this worker"
+                          >
+                            💬 Chat
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setConfigWorker(worker)}
+                          className="text-[10px] px-2 py-0.5 border border-purple-800/60 bg-purple-950/30 text-purple-300 hover:bg-purple-900/40 rounded font-bold transition-colors"
+                          data-testid="change-worker-model-btn"
+                        >
+                          Change Model
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-800/50">
@@ -576,6 +623,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             }}
           />
         )}
+        {chatTarget && (
+          <WorkerChatPanel
+            worker={chatTarget.worker}
+            projectId={chatTarget.worker.project_id ?? projectId}
+            forcedTrackNumber={chatTarget.forcedTrackNumber}
+            onClose={() => setChatTarget(null)}
+            onSelectTrack={onSelectTrack}
+          />
+        )}
       </>
     );
   }
@@ -604,9 +660,13 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             ⚠ No worker for this project
           </span>
         )}
-        {workers.map(worker => (
+        {/* Track 10037 REQ-1: active-first ordering — busy workers (or ones
+            with a task already in flight) can't be scrolled out of view by
+            idle ones. */}
+        {sortWorkersForStrip(workers).map(worker => (
           <div
             key={worker.id}
+            data-testid="worker-strip-item"
             className={`flex items-center gap-2 bg-gray-950 border rounded px-2 py-0.5 whitespace-nowrap transition-colors ${worker.status === 'busy' ? 'border-amber-700/50 bg-amber-900/10' : 'border-gray-800'
               }`}
             title={`PID: ${worker.pid} | Last beat: ${new Date(worker.last_heartbeat).toLocaleTimeString()}`}
@@ -646,6 +706,8 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                 {worker.project_name}
               </span>
             ) : null}
+            {/* Track 10037 REQ-2: promoted running-track chip — track
+                number + lane action, not just the raw current_task text. */}
             {worker.current_task && (() => {
               const task = parseWorkerTask(worker.current_task);
               const trackNumber = task?.kind === 'track' ? task.trackNumber : null;
@@ -654,15 +716,44 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
               return trackNumber && onSelectTrack ? (
                 <button
                   onClick={() => onSelectTrack(worker.project_id ?? projectId, trackNumber)}
-                  className={`${spanClass} hover:brightness-125 cursor-pointer`}
+                  className={`${spanClass} hover:brightness-125 cursor-pointer font-medium`}
                   title="Open this track"
+                  data-testid="worker-running-track-chip"
                 >
-                  {worker.current_task} ↗
+                  ▶ #{trackNumber} · {laneActionLabel(worker.current_task)} ↗
                 </button>
               ) : (
                 <span className={spanClass}>{worker.current_task}</span>
               );
             })()}
+            {/* Track 10037 REQ-3: last-context track chip. */}
+            {(() => {
+              const runningTask = parseWorkerTask(worker.current_task);
+              const runningTrackNumber = runningTask?.kind === 'track' ? runningTask.trackNumber : null;
+              if (!worker.last_track_number || worker.last_track_number === runningTrackNumber) return null;
+              return (
+                <button
+                  onClick={() => openChat(worker, worker.last_track_number)}
+                  className="text-[10px] border-l border-gray-800 pl-2 text-gray-500 hover:text-gray-300 transition-colors"
+                  title="This worker still has session context for this track — talking about it is cheap."
+                  data-testid="worker-last-track-chip"
+                >
+                  last: #{worker.last_track_number}
+                </button>
+              );
+            })()}
+            {/* Track 10037 REQ-5: open the chat panel, defaulting to
+                running > last priority via resolveWorkerChatTarget. */}
+            {worker.type !== 'manager' && (
+              <button
+                onClick={() => openChat(worker)}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-blue-800/50 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40 transition-colors ml-1"
+                data-testid="worker-chat-btn-strip"
+                title="Chat with this worker"
+              >
+                💬
+              </button>
+            )}
             <button
               onClick={() => setConfigWorker(worker)}
               className="text-[10px] font-mono text-purple-300 bg-purple-950/40 hover:bg-purple-900/40 px-1.5 py-0.5 rounded border border-purple-800/50 transition-colors flex items-center gap-1 ml-2"
@@ -716,6 +807,16 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             onRefresh?.();
             setConfigWorker(null);
           }}
+        />
+      )}
+
+      {chatTarget && (
+        <WorkerChatPanel
+          worker={chatTarget.worker}
+          projectId={chatTarget.worker.project_id ?? projectId}
+          forcedTrackNumber={chatTarget.forcedTrackNumber}
+          onClose={() => setChatTarget(null)}
+          onSelectTrack={onSelectTrack}
         />
       )}
     </div>

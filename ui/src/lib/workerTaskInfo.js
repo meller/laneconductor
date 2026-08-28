@@ -23,3 +23,32 @@ export function parseWorkerTask(currentTask) {
 
   return null;
 }
+
+// Track 10037 REQ-5/REQ-7: which track should a chat with this worker be
+// scoped to? Running track wins (parseWorkerTask(current_task)); otherwise
+// fall back to the last track the worker holds a warm session for
+// (last_track_number, from track_sessions — see the /api/workers /
+// /api/projects/:id/workers enrichment). Managers and idle workers with no
+// last-context track have nothing to talk about — null, not a guess.
+export function resolveWorkerChatTarget(worker, fallbackProjectId) {
+  if (!worker || worker.type === 'manager') return null;
+
+  const task = parseWorkerTask(worker.current_task);
+  if (task?.kind === 'track') {
+    return {
+      trackNumber: task.trackNumber,
+      projectId: worker.project_id ?? fallbackProjectId,
+      source: 'running',
+    };
+  }
+
+  if (worker.last_track_number) {
+    return {
+      trackNumber: worker.last_track_number,
+      projectId: worker.last_track_project_id ?? worker.project_id ?? fallbackProjectId,
+      source: 'last',
+    };
+  }
+
+  return null;
+}

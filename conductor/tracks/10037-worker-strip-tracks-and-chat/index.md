@@ -3,6 +3,7 @@
 **Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implemented — ready for review
 **Type**: dev
 **Track Kind**: feature
