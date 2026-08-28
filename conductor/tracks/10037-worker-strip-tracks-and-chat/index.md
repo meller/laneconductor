@@ -1,6 +1,6 @@
 # Track AM-10037: Worker Strip — Running/Last Track + Chat With Worker
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
