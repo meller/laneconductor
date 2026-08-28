@@ -41,8 +41,8 @@
 **Solution**: Wire the chat into the grid layout and `WorkerActivityLatch`.
 
 - [x] Task 1: Grid layout worker cards (`WorkersList.jsx` grid branch): add the same running/last chips and 💬 chat affordance.
-- [ ] Task 2: `WorkerActivityLatch.jsx`: its transcript pane gains the message input (same component/hook as Phase 3 — compose, don't duplicate), so selecting a worker there shows transcript + chat in place.
-- [ ] Task 3: Component tests for both surfaces (AC-6).
+- [x] Task 2: `WorkerActivityLatch.jsx`: its transcript pane gains the message input (same component/hook as Phase 3 — compose, don't duplicate), so selecting a worker there shows transcript + chat in place.
+- [x] Task 3: Component tests for both surfaces (AC-6).
 
 **Impact**: Watching and talking to workers is consistent everywhere workers are shown.
 
