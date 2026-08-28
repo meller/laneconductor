@@ -1,7 +1,7 @@
 # Track AM-10038: Widen Bookkeeping-Conflict Auto-Resolve to Checkbox Mirroring
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Queued for implement
