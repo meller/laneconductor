@@ -16,7 +16,7 @@
       "on_failure": "backlog"
     },
     "implement": {
-      "parallel_limit": 1,
+      "parallel_limit": 2,
       "max_retries": 3,
       "primary_model": "claude-sonnet-5",
       "on_success": "review:queue",
