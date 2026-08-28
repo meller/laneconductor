@@ -374,6 +374,7 @@
                     <li><a href="#lifecycle">Track Lifecycle</a></li>
                     <li><a href="#workspace-modes">Workspace Modes</a></li>
                     <li><a href="#worktrees-panel">Worktrees &amp; Panel</a></li>
+                    <li><a href="#concurrency-model">Concurrency &amp; Locking</a></li>
                     <li><a href="#merge-modes">PR & Merge Modes</a></li>
                     <li><a href="#auto-run">Auto-Run Configuration</a></li>
                     <li><a href="#llm-config">LLM Configuration</a></li>
@@ -832,6 +833,36 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     <li><strong>PR &amp; Integration Hub</strong>: Displays open Pull Requests, merge statuses (e.g., <code>open</code>, <code>conflicted</code>, <code>merged</code>), and provides direct action buttons (like "Approve &amp; Merge" or "Clean up worktree") to let humans control integration from the UI.</li>
                     <li><strong>Lock Serialization</strong>: Visualizes track worktree locks (<code>.conductor/locks/</code>) which guarantee that workers do not clash when claiming tasks.</li>
                 </ul>
+            </section>
+
+            <section id="concurrency-model">
+                <h2>Concurrency &amp; Locking</h2>
+                <p>Four independent constraints govern how many track sessions can run at once, stacked together
+                    rather than substituting for one another:</p>
+                <ul>
+                    <li><strong>Per-lane limit</strong> — <code>lanes.&lt;lane&gt;.parallel_limit</code> in
+                        <code>conductor/workflow.json</code> caps how many sessions of <em>that one lane</em> (e.g.
+                        <code>implement</code>) may run concurrently.</li>
+                    <li><strong>Project-wide limit</strong> — <code>global.total_parallel_limit</code> (default
+                        <code>3</code>) is a second, separate ceiling across <em>all</em> lanes combined, checked
+                        independently of the per-lane limit above.</li>
+                    <li><strong>Per-track lock</strong> — <code>.conductor/locks/&lt;N&gt;.lock</code> (the same lock
+                        the Worktrees panel visualizes) guarantees at most one concurrent session for a given track
+                        number, regardless of lane or workspace mode. This alone is sufficient in <code>branch</code>
+                        mode, since every track already has its own isolated worktree — two <em>different</em>
+                        tracks can never collide with each other there.</li>
+                    <li><strong>Global main-mode lock</strong> — <code>main</code>-mode work has no worktree
+                        isolation at all: it runs directly in the one primary checkout, which every worker shares.
+                        A per-track lock can't prevent two <em>different</em> tracks' main-mode sessions from
+                        stomping on the same files, so an additional, narrower lock exists purely for this case — at
+                        most one <code>main</code>-mode session may run project-wide, across every lane and every
+                        track, until it releases. A track waiting on this isn't stuck; it retries each poll cycle and
+                        proceeds automatically once the checkout is clean.</li>
+                </ul>
+                <p>In practice: <code>branch</code>-mode tracks parallelize freely up to the lane and project-wide
+                    limits above. <code>main</code>-mode tracks (including every <code>plan</code> lane run, which
+                    always executes on <code>main</code>) are additionally serialized to one at a time, since they
+                    share a single unprotected checkout instead of an isolated worktree.</p>
             </section>
 
             <section id="merge-modes">

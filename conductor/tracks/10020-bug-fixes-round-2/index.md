@@ -2,8 +2,12 @@
 
 **Lane**: implement
 **Lane Status**: running
+**Track Kind**: bug
+**Merge Mode**: direct
+**Auto Run**: yes
 **Progress**: 35%
 **Last Run**: quality-gate (primary) — FAILED: Phase 2-4 implementation incomplete
+**Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 
 ## Problem
 Follow-up sync-worker/dispatch reliability bugs found while dogfooding track 10018's merge (2026-08-20).
@@ -28,10 +32,3 @@ still-genuinely-running orphan is never finalized early.
 - [ ] Phase 3: Crashed-run detection (pid dead while Lane Status still `running`)
 - [ ] Phase 4: E2E regression tests (worker-restart orphan; bug 2 dispatch→DB `running`)
 - [ ] Phase 5: Docs + code comments for the new markers and env overrides
-
-**Lane**: quality-gate
-**Track Kind**: bug
-**Merge Mode**: direct
-**Lane Status**: running
-**Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
-**Auto Run**: yes

@@ -159,6 +159,11 @@ const server = createServer(async (req, res) => {
     // Mirrors the real server's `claimed_at = NOW()` write on a transition
     // to 'claimed' — Phase 2's grace-period guard reads this.
     if (body.status === 'claimed') entry.claimed_at = new Date().toISOString();
+    // Track 10020 Phase 4 (TC-2.3): count TERMINAL-outcome PATCHes only
+    // (not the claim-time PATCH above) so a test can assert
+    // reconcileActiveDispatch() and the periodic orphan-reconcile tick
+    // never both finalize the same dispatch.
+    if (body.status !== 'claimed') entry.finalizePatchCount = (entry.finalizePatchCount || 0) + 1;
     return reply(res, 200, { ok: true });
   }
 
