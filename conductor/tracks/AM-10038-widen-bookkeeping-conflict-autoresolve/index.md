@@ -1,9 +1,9 @@
 # Track AM-10038: Widen Bookkeeping-Conflict Auto-Resolve to Checkbox Mirroring
 
-**Lane**: done
-**Lane Status**: queue
+**Lane**: implement
+**Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Queued for implement
 **Type**: dev
 **Track Kind**: bug
@@ -18,3 +18,4 @@ Track 10037 hit a "Conflicted" merge state purely because the live sync worker h
 
 ## Solution
 Extend the auto-resolve safety check with a second, narrower rule: for files in the same bookkeeping whitelist, if main's full content (after normal stripping) is otherwise identical to the **branch's** content for that file (not just the base's), it's provably safe to auto-resolve by taking theirs — main and the branch converged on the same real state independently, so there is no actual conflict of intent, only of history. This subsumes the existing header-only case without changing its behavior, and additionally covers checkbox-line and other benign field mirroring (e.g. a future field the header whitelist hasn't been extended to yet) — as long as the *result* on both sides is identical, no whitelist maintenance is required going forward.
+**Waiting for reply**: yes
