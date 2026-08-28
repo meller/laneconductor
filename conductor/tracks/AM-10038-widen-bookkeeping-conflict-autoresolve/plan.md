@@ -76,5 +76,8 @@ continue to block.
 
 ## ✅ REVIEWED
 
-All 24 tests pass (8 new from this track + 16 existing regression suite). No regressions.
-Ready for quality-gate verification.
+Re-verified after a human rebase removed an unrelated polluted commit (`6bc8856`, from a test
+bug in an earlier implement run that accidentally committed a stray `.claude/.claude/` directory
+into this branch's history) — confirmed independently, not taken on faith: pollution gone from
+the tree, 8/8 track tests pass, 36/36 existing regression tests pass, syntax check clean, working
+tree clean. Ready for quality-gate verification.
