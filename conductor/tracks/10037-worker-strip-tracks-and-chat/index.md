@@ -1,10 +1,10 @@
 # Track AM-10037: Worker Strip — Running/Last Track + Chat With Worker
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
-**Phase**: Implemented — ready for review
+**Phase**: Merged to main
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
