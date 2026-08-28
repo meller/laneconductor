@@ -1,7 +1,7 @@
 # Track AM-10037: Worker Strip — Running/Last Track + Chat With Worker
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — ready for implement
