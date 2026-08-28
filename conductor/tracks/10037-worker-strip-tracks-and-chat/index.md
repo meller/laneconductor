@@ -1,7 +1,7 @@
 # Track AM-10037: Worker Strip — Running/Last Track + Chat With Worker
 
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: queue
 **Progress**: 100%
 **Phase**: Implemented — ready for review
 **Type**: dev
