@@ -87,6 +87,35 @@ describe('auditWorktrees()', () => {
     assert.equal(row.mergeMode, 'direct');
   });
 
+  // Track 10035: done:success now means actually shipped (merged) — a
+  // track that reached the done lane but hasn't been merged yet (the
+  // normal, common state right after quality-gate hands off) sits at
+  // done:queue, done:waiting, or done:failure, never done:success. Before
+  // this track, classification gated on `laneStatus === 'success'`
+  // specifically, which would have misclassified every one of these as
+  // 'open' (still mid-pipeline) — hiding them from the panel's merge
+  // affordances entirely. isDone (lane === 'done', any status) is the
+  // correct gate now; a genuinely merged branch never reaches this check
+  // at all (the isAncestor early-continue above already dropped it).
+  for (const laneStatus of ['queue', 'waiting', 'failure']) {
+    it(`classifies a done:${laneStatus} branch with its worktree present as mergeable, same as done:success used to`, async () => {
+      setupRepo();
+      writeTrackIndex(REPO, '101', 'Mergeable Track', 'plan', 'queue');
+      git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+      git('worktree add -q -B track-101 .worktrees/101 HEAD');
+      writeTrackIndex(join(REPO, '.worktrees/101'), '101', 'Mergeable Track', 'done', laneStatus);
+      git('add -A', join(REPO, '.worktrees/101'));
+      git(`-c user.email=t@t -c user.name=t commit -q -m "track 101 done:${laneStatus}"`, join(REPO, '.worktrees/101'));
+
+      const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+      const row = rows.find(r => r.trackNumber === '101');
+      assert.ok(row, 'track 101 should appear in the audit');
+      assert.equal(row.classification, 'mergeable');
+      assert.equal(row.hasWorktree, true);
+    });
+  }
+
   // Track 10018 (TC-4.1-ish, at the audit layer): a pr-mode track that's
   // otherwise identical to the 'mergeable' fixture above must NEVER
   // classify as mergeable — that classification is what the panel wires

@@ -14,6 +14,8 @@ import { runDeploy } from '../conductor/deploy-runner.mjs';
 import { createBuildArtifact, getBuilds, getBuildById } from '../ui/server/build-manager.mjs';
 import { auditWorktrees } from '../conductor/services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from '../conductor/services/worktree-merge.mjs';
+import { createTrackPr, checkGhAuth } from '../conductor/services/pr-flow.mjs';
+import { planDoneLaneMigration } from '../conductor/services/done-lane-migration.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
 
@@ -2317,7 +2319,7 @@ Please review this, answer any questions (some fields may contain questions rath
         desc = '';
     }
 
-    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch]'); process.exit(1); }
+    if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch] [--merge-mode direct|pr] [--auto-run yes|no]'); process.exit(1); }
 
     const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
     let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
@@ -2336,6 +2338,34 @@ Please review this, answer any questions (some fields may contain questions rath
         workspaceMode = args[workspaceIdx + 1];
         if (!VALID_WORKSPACE_MODES.includes(workspaceMode)) {
             console.error(`❌ Invalid workspace mode "${workspaceMode}". Must be one of: ${VALID_WORKSPACE_MODES.join(', ')}`);
+            process.exit(1);
+        }
+    }
+
+    // Track 10035 REQ-12: --merge-mode / --auto-run let a track declare its
+    // merge intent at birth ("direct, auto-runnable") instead of needing a
+    // human to edit index.md by hand afterward. Same sparse-emission
+    // convention as --workspace above — absent by default so
+    // resolveMergeMode()/isTrackClaimable()'s own documented defaults
+    // ('pr', not auto-run) still apply when the flag isn't passed.
+    const VALID_MERGE_MODES = ['direct', 'pr'];
+    const mergeModeIdx = args.indexOf('--merge-mode');
+    let mergeMode = null;
+    if (mergeModeIdx !== -1) {
+        mergeMode = args[mergeModeIdx + 1];
+        if (!VALID_MERGE_MODES.includes(mergeMode)) {
+            console.error(`❌ Invalid merge mode "${mergeMode}". Must be one of: ${VALID_MERGE_MODES.join(', ')}`);
+            process.exit(1);
+        }
+    }
+
+    const VALID_AUTO_RUN = ['yes', 'no'];
+    const autoRunIdx = args.indexOf('--auto-run');
+    let autoRun = null;
+    if (autoRunIdx !== -1) {
+        autoRun = args[autoRunIdx + 1];
+        if (!VALID_AUTO_RUN.includes(autoRun)) {
+            console.error(`❌ Invalid --auto-run value "${autoRun}". Must be one of: ${VALID_AUTO_RUN.join(', ')}`);
             process.exit(1);
         }
     }
@@ -2374,7 +2404,9 @@ Please review this, answer any questions (some fields may contain questions rath
     if (!existsSync(trackPath)) mkdirSync(trackPath, { recursive: true });
     const indexPath = join(trackPath, 'index.md');
     const workspaceLine = workspaceMode ? `**Workspace**: ${workspaceMode}\n` : '';
-    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
+    const mergeModeLine = mergeMode ? `**Merge Mode**: ${mergeMode}\n` : '';
+    const autoRunLine = autoRun ? `**Auto Run**: ${autoRun}\n` : '';
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}${mergeModeLine}${autoRunLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types
@@ -3435,14 +3467,18 @@ Please review this, answer any questions (some fields may contain questions rath
 
         const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
         const row = rows.find(r => r.trackNumber === String(trackNumber));
-        const isDoneSuccess = row?.lane === 'done' && row?.laneStatus === 'success';
+        // Track 10035: 'queue' is the normal state a direct-mode track sits in
+        // while waiting for the merge lane action to claim it — quality-gate
+        // no longer sets done:success itself. 'success' is also accepted so
+        // this stays idempotent/safe to re-run by hand.
+        const isMergeable = row?.lane === 'done' && (row?.laneStatus === 'queue' || row?.laneStatus === 'success');
 
         if (!row) {
             console.error(`❌ No unmerged track-${trackNumber} branch found (already merged, or never existed).`);
             process.exit(1);
         }
-        if (!isDoneSuccess && !force) {
-            console.error(`❌ Track ${trackNumber} is not at done:success (lane: ${row.lane ?? 'unknown'}, status: ${row.laneStatus ?? 'unknown'}) — refusing to merge. Pass --force to override.`);
+        if (!isMergeable && !force) {
+            console.error(`❌ Track ${trackNumber} is not at done:queue or done:success (lane: ${row.lane ?? 'unknown'}, status: ${row.laneStatus ?? 'unknown'}) — refusing to merge. Pass --force to override.`);
             process.exit(1);
         }
 
@@ -3471,6 +3507,169 @@ Please review this, answer any questions (some fields may contain questions rath
             console.error(`❌ Branch track-${trackNumber} not found.`);
             process.exit(1);
         }
+    }
+
+    if (sub === 'create-pr') {
+        // Track 10035: the pr-mode half of the done-lane merge action —
+        // pushes the branch and opens the PR via the same pure primitive
+        // `lc worktrees merge` uses for direct mode (conductor/services/pr-flow.mjs),
+        // then writes the PR markers into ONLY the primary checkout's own
+        // index.md (REQ-8 single-writer — this command always runs from
+        // projectRoot, never a track's own worktree).
+        const trackNumber = args[2];
+        if (!trackNumber) {
+            console.error('Usage: lc worktrees create-pr <track-number>');
+            process.exit(2);
+        }
+
+        const authCheck = checkGhAuth({ cwd: projectRoot });
+        if (!authCheck.ok) {
+            console.error(`❌ gh is not authenticated: ${authCheck.error}`);
+            process.exit(1);
+        }
+
+        const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+        const row = rows.find(r => r.trackNumber === String(trackNumber));
+        if (!row) {
+            console.error(`❌ No unmerged track-${trackNumber} branch found (already merged, or never existed).`);
+            process.exit(1);
+        }
+        if (row.prNumber) {
+            console.log(`ℹ️  track-${trackNumber} already has an open PR: ${row.prUrl}`);
+            console.log(JSON.stringify({ number: parseInt(row.prNumber, 10), url: row.prUrl }));
+            process.exit(0);
+        }
+
+        const title = row.title || `Track ${trackNumber}`;
+        const body = `Automated PR for track-${trackNumber}, opened by the LaneConductor done-lane merge action.\n\nSee \`conductor/tracks/\` in this repo for the track's plan/spec.`;
+
+        let result;
+        try {
+            result = createTrackPr({ repoRoot: projectRoot, trackNumber: String(trackNumber), mainBranch, title, body });
+        } catch (e) {
+            console.error(`❌ Failed to open PR for track-${trackNumber}: ${e.message}`);
+            process.exit(1);
+        }
+
+        const tracksDir = join(projectRoot, 'conductor', 'tracks');
+        // Deliberately NOT `d.startsWith(trackNumber + '-')` — that pattern
+        // misses INITIALS-NNN-slug folders (the exact bug fixed elsewhere in
+        // this track's spec for reconcile-pr/worktree-audit; matching it
+        // here too, rather than reproducing it in new code).
+        const trackNameRe = new RegExp(`(^|-)${trackNumber}(-|$)`);
+        const trackDirName = existsSync(tracksDir)
+            ? readdirSync(tracksDir).find(d => trackNameRe.test(d) && !d.startsWith('_duplicate-'))
+            : null;
+        if (trackDirName) {
+            const indexPath = join(tracksDir, trackDirName, 'index.md');
+            let content = readFileSync(indexPath, 'utf8');
+            const markerLines = [
+                [/\*\*PR Number\*\*:\s*\d+/i, `**PR Number**: ${result.number}`],
+                [/\*\*PR URL\*\*:\s*\S+/i, `**PR URL**: ${result.url}`],
+                [/\*\*PR Status\*\*:\s*\S+/i, `**PR Status**: open`],
+            ];
+            for (const [re, line] of markerLines) {
+                content = re.test(content)
+                    ? content.replace(re, line)
+                    : content.replace(/(\*\*Lane Status\*\*:\s*[^\n]+)/i, `$1\n${line}`);
+            }
+            writeFileSync(indexPath, content, 'utf8');
+        }
+
+        console.log(`✅ Opened PR for track-${trackNumber}: ${result.url}`);
+        console.log(JSON.stringify({ number: result.number, url: result.url }));
+        process.exit(0);
+    }
+
+    if (sub === 'migrate-done-lane') {
+        // Track 10035 REQ-11 (Phase 5 Task 3): one-time sweep. See
+        // done-lane-migration.mjs's own doc comment for the two
+        // corrections this plans. File-only in local-fs mode (no DB to
+        // correct); local-api/remote-api also corrects tracks.merge_mode
+        // via the primary collector.
+        const dryRun = args.includes('--dry-run');
+        const rows = await auditWorktrees({ repoRoot: projectRoot, mainBranch });
+
+        const cfgPath = join(projectRoot, '.laneconductor.json');
+        const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf8')) : {};
+        const enabledCollectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+        const collector = enabledCollectors[0] || null;
+        const collectorIdx = collector ? cfg.collectors.indexOf(collector) : -1;
+        const collectorToken = collector ? getCollectorToken(cfg, collectorIdx, projectRoot) : null;
+        const collectorHeaders = { 'Content-Type': 'application/json', ...(collectorToken ? { Authorization: `Bearer ${collectorToken}` } : {}) };
+
+        const dbMergeModeByTrack = {};
+        if (collector) {
+            for (const row of rows) {
+                if (!row.trackNumber) continue;
+                try {
+                    const url = new URL(`${collector.url}/track/${row.trackNumber}`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    const res = await fetch(url.toString(), { headers: collectorHeaders });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.merge_mode) dbMergeModeByTrack[row.trackNumber] = data.merge_mode;
+                    }
+                } catch { /* best-effort — an unreachable track just gets no merge_mode correction (REQ-11's file-wins rule already handles a missing map entry this way) */ }
+            }
+        }
+
+        const actions = planDoneLaneMigration(rows, dbMergeModeByTrack);
+
+        if (actions.length === 0) {
+            console.log('✅ Nothing to migrate — every done-lane track already agrees with the new model.');
+            process.exit(0);
+        }
+
+        console.log(`${dryRun ? '🔍 DRY RUN — no changes will be written\n' : ''}${actions.length} action(s) planned:`);
+        for (const action of actions) {
+            console.log(`  track-${action.trackNumber}: ${action.type} — ${action.reason}`);
+        }
+        if (dryRun) process.exit(0);
+
+        const tracksDir = join(projectRoot, 'conductor', 'tracks');
+        for (const action of actions) {
+            const trackDirName = readdirSync(tracksDir).find(d => new RegExp(`(^|-)${action.trackNumber}(-|$)`).test(d) && !d.startsWith('_duplicate-'));
+            if (!trackDirName) {
+                console.warn(`⚠️  track-${action.trackNumber}: folder not found locally, skipping`);
+                continue;
+            }
+            const indexPath = join(tracksDir, trackDirName, 'index.md');
+            const conversationPath = join(tracksDir, trackDirName, 'conversation.md');
+
+            if (action.type === 'requeue-done-success' && existsSync(indexPath)) {
+                const content = readFileSync(indexPath, 'utf8').replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
+                writeFileSync(indexPath, content, 'utf8');
+                try {
+                    execSync(`git add "${indexPath}"`, { cwd: projectRoot, stdio: 'pipe' });
+                    execSync(`git commit -q -m "Track ${action.trackNumber}: migration — requeue done:success to done:queue (track 10035)"`, { cwd: projectRoot, stdio: 'pipe' });
+                } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: git commit failed: ${e.message}`); }
+                if (collector) {
+                    try {
+                        const url = new URL(`${collector.url}/track/${action.trackNumber}/action`);
+                        if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                        await fetch(url.toString(), { method: 'PATCH', headers: collectorHeaders, body: JSON.stringify({ lane_status: 'done', lane_action_status: 'queue' }) });
+                    } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: failed to sync requeue to DB: ${e.message}`); }
+                }
+            }
+
+            if (action.type === 'correct-merge-mode' && collector) {
+                // The file marker already agrees with action.to (that's why
+                // it won) — only the DB needs correcting here.
+                try {
+                    const url = new URL(`${collector.url}/track/${action.trackNumber}/action`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    await fetch(url.toString(), { method: 'PATCH', headers: collectorHeaders, body: JSON.stringify({ merge_mode: action.to }) });
+                } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: failed to correct merge_mode: ${e.message}`); }
+            }
+
+            try {
+                appendFileSync(conversationPath, `\n> **system**: 🔧 Migration (track 10035): ${action.reason}\n`);
+            } catch (e) { console.warn(`⚠️  track-${action.trackNumber}: failed to post migration comment: ${e.message}`); }
+        }
+
+        console.log(`✅ Migration applied: ${actions.length} action(s).`);
+        process.exit(0);
     }
 
     const asJson = args.includes('--json');
