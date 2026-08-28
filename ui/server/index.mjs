@@ -352,9 +352,14 @@ app.get('/api/projects/:id/workers', async (req, res) => {
 
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name
+              w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name,
+              w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
+       LEFT JOIN LATERAL (
+         SELECT track_number, last_used_at FROM track_sessions
+         WHERE worker_id = w.id ORDER BY last_used_at DESC LIMIT 1
+       ) ts ON true
        WHERE (w.project_id = $1 OR w.type = 'manager') AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;
     const params = [projectId];
@@ -431,9 +436,14 @@ app.get('/api/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
-              p.id AS project_id, p.name AS project_name, p.repo_path
+              p.id AS project_id, p.name AS project_name, p.repo_path,
+              w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
+       LEFT JOIN LATERAL (
+         SELECT track_number, last_used_at FROM track_sessions
+         WHERE worker_id = w.id ORDER BY last_used_at DESC LIMIT 1
+       ) ts ON true
        WHERE w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;
     const params = [];
