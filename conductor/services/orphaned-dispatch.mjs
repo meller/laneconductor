@@ -35,9 +35,31 @@ function matchForwardTransition(action, lane, workflowConfig) {
   return null;
 }
 
-export function classifyOrphanedDispatch({ laneStatus, lane, action, workflowConfig }) {
+// Track 10020 Phase 3 (REQ-5): a CLI killed outright (SIGKILL, OOM) never
+// writes a terminal **Lane Status** — the worktree stays at "running"
+// forever, which this function otherwise reads as "still genuinely in
+// progress" and never closes out. `runnerExited` is the run-marker's
+// verdict (conductor/services/run-marker.mjs's isRunMarkerLive) that the
+// process which would have written that terminal status is provably gone.
+// Only the caller decides when it's safe to pass `true` — a marker existed
+// AND was proven not-live (never for the no-marker case, so callers that
+// don't pass it at all see byte-identical behavior to before this phase —
+// REQ-6).
+export function classifyOrphanedDispatch({ laneStatus, lane, action, workflowConfig, runnerExited }) {
   const status = laneStatus?.trim();
-  if (!status || status.toLowerCase() === 'running') return { orphaned: false };
+  const statusIsRunning = Boolean(status) && status.toLowerCase() === 'running';
+
+  if (statusIsRunning && runnerExited === true) {
+    return {
+      orphaned: true,
+      status: 'failed',
+      skipArtifactCopy: true,
+      flagForHuman: true,
+      result: `The CLI running "${action}" exited without recording an outcome (crash or kill) — worktree still shows Lane Status "running". Re-run the ${action} action.`,
+    };
+  }
+
+  if (!status || statusIsRunning) return { orphaned: false };
 
   // track 10014's own incident: the worktree's Lane Status can be a real,
   // terminal-looking value (success/failure/queue) while still belonging

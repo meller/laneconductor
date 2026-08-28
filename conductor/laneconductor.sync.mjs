@@ -238,7 +238,17 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
 // tracks may I claim" during auto-launch. Null until the first successful
 // registration (e.g. local-fs mode, where there's no DB/registration at all).
 let myWorkerId = null;
-let hasReconciledOrphanedDispatches = false;
+// Track 10020 Phase 2: reconcileOrphanedDispatches() used to be gated by a
+// one-shot `hasReconciledOrphanedDispatches` flag, so it only ever ran once
+// per process, immediately after first registration — a dispatch orphaned
+// mid-run (worker replaced while its detached CLI child keeps running) was
+// never noticed, since the one-shot check already ran and found nothing
+// before the child finished. Now it also runs on its own poll interval (see
+// LC_ORPHAN_RECONCILE_POLL_MS below); this flag is a re-entrancy guard, not
+// a run-once gate — it only prevents a slow tick from overlapping the next
+// one, and upsertWorker() re-running later in a process's life (heartbeat
+// 401/404 re-registration) is safe to call this from unconditionally.
+let orphanReconcileInFlight = false;
 
 // Track 1084 Phase 8 (2026-08-17 incident): heartbeat and dispatch-polling
 // turned out to have fully independent success conditions.
@@ -1041,8 +1051,7 @@ async function upsertWorker() {
 
       if (res.id) myWorkerId = res.id;
 
-      if (!hasReconciledOrphanedDispatches && myWorkerId) {
-        hasReconciledOrphanedDispatches = true;
+      if (myWorkerId) {
         reconcileOrphanedDispatches().catch(err => console.error('[orphan-reconcile error]:', err.message));
       }
 
@@ -6324,24 +6333,59 @@ async function reapOrphanedWorkerProcesses() {
   }
 }
 
-// Track 1110 Phase 6: runs once, right after this process's first
-// successful registration. Reconciles dispatches THIS worker claimed but
-// never reported an outcome for — the class of bug where the sync worker
-// process restarts while a dispatch's spawned CLI child is still running,
-// orphaning the in-memory `on('exit')` listener that would normally
-// finalize it. The child keeps running independently and finishes on its
-// own; nothing else ever notices. Detection reads the WORKTREE's own
-// index.md `**Lane Status**` marker (written by the agent doing the actual
-// lane work, independent of whether the wrapping exit-handler machinery
-// ever runs) rather than a specific commit shape — an earlier version of
-// this fix looked for the exit handler's own completion commit, which is
-// wrong: that commit is written BY the exit handler, the exact code that
-// never runs in this bug. Same semantics as reconcileActiveDispatch()'s
-// existing in-memory-only version of this idea, sourced from a
-// DB-persisted `claimed` dispatch instead of a Map that doesn't survive a
-// restart.
+// Track 1110 Phase 6, extended by Track 10020 Phase 2: reconciles
+// dispatches THIS worker claimed but never reported an outcome for — the
+// class of bug where the sync worker process restarts while a dispatch's
+// spawned CLI child is still running, orphaning the in-memory `on('exit')`
+// listener that would normally finalize it. The child keeps running
+// independently and finishes on its own; nothing else ever notices.
+// Detection reads the WORKTREE's own index.md `**Lane Status**` marker
+// (written by the agent doing the actual lane work, independent of whether
+// the wrapping exit-handler machinery ever runs) rather than a specific
+// commit shape — an earlier version of this fix looked for the exit
+// handler's own completion commit, which is wrong: that commit is written
+// BY the exit handler, the exact code that never runs in this bug. Same
+// semantics as reconcileActiveDispatch()'s existing in-memory-only version
+// of this idea, sourced from a DB-persisted `claimed` dispatch instead of a
+// Map that doesn't survive a restart.
+//
+// Runs both immediately after this process's first successful registration
+// (fast recovery on boot, unchanged from before) AND on its own poll
+// interval (LC_ORPHAN_RECONCILE_POLL_MS below) — a one-shot check can only
+// ever catch dispatches that were ALREADY orphaned when this process
+// booted; it can't catch one that becomes orphaned mid-run, which is
+// exactly the live 10018 incident this phase fixes. `orphanReconcileInFlight`
+// guards against a slow tick overlapping the next one, not against running
+// more than once.
+//
+// Four skip guards (REQ-4) keep the periodic tick from finalizing a dispatch
+// that is still genuinely running — the same premature-finalize bug this
+// track already fixed once for reconcileActiveDispatch(), now also possible
+// across a process restart where `runningTrackMap` is empty by definition:
+//   1. this process's own runningTrackMap (it spawned it, it's alive)
+//   2. this process's own activeDispatch (reconcileActiveDispatch() stays
+//      the sole finalizer for dispatches THIS process is tracking — no
+//      double-PATCH race)
+//   3. claimed_at younger than the grace window (claim → lock → worktree →
+//      spawn can legitimately take seconds before any marker exists)
+//   4. a live run marker (conductor/services/run-marker.mjs) — the
+//      cross-process replacement for runningTrackMap when a DIFFERENT
+//      process spawned the child
+// When a marker exists but is proven not-live, `runnerExited: true` is
+// passed to classifyOrphanedDispatch so a crashed run (pid dead, worktree
+// still "running") is closed out instead of polling it forever (REQ-5).
 async function reconcileOrphanedDispatches() {
   if (getIsLocalFs() || !myWorkerId) return;
+  if (orphanReconcileInFlight) return;
+  orphanReconcileInFlight = true;
+  try {
+    await reconcileOrphanedDispatchesInner();
+  } finally {
+    orphanReconcileInFlight = false;
+  }
+}
+
+async function reconcileOrphanedDispatchesInner() {
   const { url, token } = primaryCollector();
   if (!url) return;
 
@@ -6354,9 +6398,48 @@ async function reconcileOrphanedDispatches() {
   }
   if (!entries || entries.length === 0) return;
 
+  const stillRunningTracks = new Set(runningTrackMap.values());
+  const graceMs = Number(process.env.LC_ORPHAN_RECONCILE_GRACE_MS) || 30000;
+
   for (const entry of entries) {
     const trackNumber = entry.track_number;
     if (!trackNumber) continue; // not track-scoped (e.g. refresh-worktrees) — nothing to reconcile from
+
+    // REQ-4 guard 1/2: this process's own in-flight dispatches are never
+    // touched here — reconcileActiveDispatch() is their sole finalizer.
+    if (stillRunningTracks.has(trackNumber)) {
+      logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — tracked in this process\'s own runningTrackMap');
+      continue;
+    }
+    if (activeDispatch.has(trackNumber)) {
+      logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — owned by this process\'s activeDispatch');
+      continue;
+    }
+
+    // REQ-4 guard 3: covers the claim → lock → worktree → spawn window,
+    // before any run marker exists yet.
+    const claimedAtMs = entry.claimed_at ? new Date(entry.claimed_at).getTime() : NaN;
+    if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs < graceMs) {
+      logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — inside claim grace window');
+      continue;
+    }
+
+    // REQ-4 guard 4 + REQ-5: a live run marker means SOME process's child
+    // is still genuinely alive for this track — never finalize early. A
+    // marker that exists but is proven not-live instead marks this as a
+    // crashed run (runnerExited: true) rather than "no signal at all".
+    const markerPath = runMarkerPath(process.cwd(), trackNumber);
+    let runnerExited; // stays undefined when no marker exists — REQ-6
+    if (existsSync(markerPath)) {
+      const marker = parseRunMarker(readFileSync(markerPath, 'utf8'));
+      const liveness = isRunMarkerLive(marker, { isPidAlive, readProcessCommand });
+      if (liveness.live) {
+        logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — live run marker');
+        continue;
+      }
+      runnerExited = true;
+    }
+
     const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
     if (!existsSync(worktreePath)) continue; // no worktree left to check — genuinely nothing recoverable here
 
@@ -6368,10 +6451,15 @@ async function reconcileOrphanedDispatches() {
     const wtIndexContent = readFileSync(wtIndexPath, 'utf8');
     const laneStatus = wtIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
     const wtLane = wtIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
-    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action, workflowConfig });
+    const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action, workflowConfig, runnerExited });
     if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
 
     console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
+
+    // Task 5: the run marker (if any) has now served its purpose for this
+    // dispatch — delete it so it doesn't linger and shadow a later run of
+    // the same track.
+    rmSync(markerPath, { force: true });
 
     // A lane/action mismatch means the worktree's markers belong to a
     // phase EARLIER than the one this dispatch was for — copying/syncing
@@ -7233,6 +7321,15 @@ setInterval(() => {
 setInterval(() => {
   reconcileAutoComplete().catch(err => console.error('[auto-complete-reconcile error]:', err.message));
 }, 5000);
+// LC_ORPHAN_RECONCILE_POLL_MS: test-only override (default stays 30s) —
+// deliberately slower than the other dispatch intervals: each tick is an
+// HTTP GET per worker, and a dispatch orphaned by a worker restart is
+// minutes-scale by nature, not seconds-scale. Track 10020 Phase 2: this is
+// what catches a dispatch that becomes orphaned MID-RUN (previously only
+// caught if already orphaned at process boot).
+setInterval(() => {
+  reconcileOrphanedDispatches().catch(err => console.error('[orphan-reconcile error]:', err.message));
+}, Number(process.env.LC_ORPHAN_RECONCILE_POLL_MS) || 30000);
 
 // Track 1084 Phase 8 (2026-08-17 incident, see the comment above
 // workerStartedAt): heartbeat gives zero signal that dispatch-polling is
