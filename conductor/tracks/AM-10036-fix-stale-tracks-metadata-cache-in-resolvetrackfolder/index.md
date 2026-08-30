@@ -1,9 +1,10 @@
 # Track AM-10036: Fix stale tracks-metadata cache in resolveTrackFolder
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Planned — Phase 1 ready to implement
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
@@ -18,8 +19,10 @@ Follow-up from TU-10035 (merged 2026-08-27, commit 393fa1b): the root cause behi
 
 ## Solution
 
-Add a chokidar watch on `conductor/tracks-metadata.json` that reloads the in-memory `tracksMetadata` cache on change, mirroring the exact pattern `workflow.json` already uses.
+Add a chokidar watch on `conductor/tracks-metadata.json` that reloads the in-memory `tracksMetadata` cache on change, mirroring the pattern `workflow.json` already uses — hardening the loader and the writer first, since a watch turns the loader's silent empty-default-on-parse-failure into an active cache-wiping hazard.
+
+Planning correction: a reload *does* already exist (`laneconductor.sync.mjs:7437`), but it sits inside the API-mode branch of the auto-launch interval behind four gates — `syncOnly`, at-capacity, `local-fs`, and `pullWorkflow()` failure — any of which strands the cache indefinitely. See spec.md's Root Cause.
 
 ## Phases
 
-- [ ] Phase 1: Add the file watch + reload, with a regression test
+- [ ] Phase 1: Make the reload safe (strict loader + atomic save), then make it event-driven (the watch), with real-worker regression tests
