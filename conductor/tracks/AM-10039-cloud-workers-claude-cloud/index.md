@@ -3,8 +3,8 @@
 **Lane**: implement
 **Lane Status**: running
 **Waiting for reply**: yes
-**Progress**: 10%
-**Phase**: Phase 1 — Feasibility spike: NO-GO, awaiting human decision on fallback
+**Progress**: 15%
+**Phase**: Phase 1b — Managed Agents spike BLOCKED: workspace has no funded API credits (billing action needed)
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
