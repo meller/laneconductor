@@ -1,10 +1,11 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — Phase 1 ready to implement
 **Type**: dev
+**Track Kind**: bug
 **Auto Run**: yes
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
