@@ -6,22 +6,41 @@
 the credential artifact it needs are unverified — everything else depends on them.
 **Solution**: Build a throwaway-quality but real prototype driver and prove the loop once.
 
-- [ ] Task 1: Research the current programmatic surface for Claude cloud sessions (API/SDK/CLI
+- [x] Task 1: Research the current programmatic surface for Claude cloud sessions (API/SDK/CLI
       `claude` cloud capabilities as of now) — document findings in `spec.md` under a new
       "Phase 1 findings" section: how a session is created with a prompt, how status is polled,
       what credential is required and how a user obtains it, the deep-link URL format, session
       limits/expiry semantics.
-- [ ] Task 2: Prototype `conductor/services/cloud-session-driver.mjs`: `createSession({prompt,
+      → Done. See spec.md "Phase 1 Findings". Two unrelated surfaces exist (claude.ai/code vs.
+      the Managed Agents API); claude.ai/code has no headless creation path (confirmed live —
+      `claude --cloud` hard-requires a TTY, and `claude setup-token`'s headless-capable
+      credential explicitly can't reach connector-backed sessions either).
+- [x] Task 2: Prototype `conductor/services/cloud-session-driver.mjs`: `createSession({prompt,
       repo, credential})`, `getSessionStatus(id)`, `getSessionUrl(id)` — exercised by a manual
       script against a scratch GitHub repo with the Claude GitHub App installed.
+      → Written, but incomplete by necessity, not oversight: `createSession` shells to the real
+      `claude --cloud` and reproduces the exact blocking error live (verified — see spec.md).
+      `getSessionStatus`/`getSessionUrl` are left explicitly unimplemented (throw with a pointer
+      to spec.md) because no documented or discovered API surface exists for either — writing a
+      guessed implementation would misrepresent what Phase 1 actually established.
 - [ ] Task 3: Run the loop once for real: launch a session with a trivial change prompt on the
       scratch repo → poll to completion → observe the pushed branch/PR. Record the session URL,
       PR URL, and observed status transitions in `conversation.md`.
-- [ ] Task 4: GO/NO-GO checkpoint comment in `conversation.md`. On NO-GO (surface unusable):
+      → **Could not run, structurally, not just practically**: `--cloud` refuses any
+      non-interactive caller, including this one — there is no TTY to give it from an automated
+      session. No scratch repo was set up for the same reason (no point provisioning one against
+      a mechanism confirmed blocked at the invocation step). This absence is itself part of the
+      Phase 1 finding, not a skipped step.
+- [x] Task 4: GO/NO-GO checkpoint comment in `conversation.md`. On NO-GO (surface unusable):
       stop, set **Waiting for reply**: yes, and put the fallback decision (option B pivot) to a
       human — do not proceed silently.
+      → NO-GO posted, with fallback options, per this run's explicit scope (Phase 1 only, stop
+      after this comment regardless of outcome).
 
-**Impact**: De-risks the whole track; produces the driver every later phase builds on.
+**Impact**: De-risked the track earlier than a full build would have — the specific mechanism
+D-1/D-5 assumed (headless dispatcher shelling to `claude --cloud`) is confirmed non-viable
+before any of Phases 2-7's implementation cost was spent. A human decision on the fallback path
+is needed before this track can continue (see conversation.md).
 
 ## Phase 2: Executor seam — refactor with zero behavior change
 

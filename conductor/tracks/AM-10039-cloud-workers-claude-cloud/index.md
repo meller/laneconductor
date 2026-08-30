@@ -1,10 +1,10 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
 **Lane**: implement
-**Lane Status**: running
-**Waiting for reply**: no
-**Progress**: 0%
-**Phase**: Planned
+**Lane Status**: waiting
+**Waiting for reply**: yes
+**Progress**: 10%
+**Phase**: Phase 1 — Feasibility spike: NO-GO, awaiting human decision on fallback
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
