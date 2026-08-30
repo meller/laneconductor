@@ -1,14 +1,14 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
-**Lane**: done
-**Lane Status**: queue
-**Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
-**Phase**: Phases 1–2 complete (of 7) — Phase 3 (folder resolver) next
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 43%
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Phases 1–3 complete (of 7) — Phase 4 (invalid resting states) next
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: branch
-**Auto Run**: yes
+**Auto Run**: no
 **Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
@@ -60,8 +60,8 @@ Ordered by live damage rate, not by the order the findings were written. The ori
 phases are now 5–7; Findings 4–7 produced the four that go first.
 
 - [x] Phase 1: One lane list + claims that say why they failed (REQ-13, 14 — Finding 5)
-- [ ] Phase 2: Stale-process containment, then detection (REQ-12, 11 — Finding 4)
-- [ ] Phase 3: One folder resolver, skill included (REQ-15 — Finding 6)
+- [x] Phase 2: Stale-process containment, then detection (REQ-12, 11 — Finding 4)
+- [x] Phase 3: One folder resolver, skill included (REQ-15 — Finding 6)
 - [ ] Phase 4: Invalid resting states (REQ-16, 17 — Finding 7)
 - [ ] Phase 5: Pre-spawn block counting + escalation to failure (REQ-1, 2, 3, 8, 9, 10 — Finding 1)
 - [ ] Phase 6: Manager sweep — phantom markers, wedged lanes, dead-cwd workers (REQ-4, 5, 6)

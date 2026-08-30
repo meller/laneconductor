@@ -192,38 +192,78 @@ consequences:
 AM-10040 itself, quarantined during its own planning. Four `_duplicate-*` folders are present in
 total (10036, 10038, 10039, 10040).
 
-- [ ] Task 1: Extract the canonical resolver into a shared module
-    - [ ] New `conductor/services/track-folder.mjs`. Move the *decision* out of
+- [x] Task 1: Extract the canonical resolver into a shared module
+    - [x] New `conductor/services/track-folder.mjs`. Move the *decision* out of
           `resolveTrackFolder` (`laneconductor.sync.mjs:1396`) as a pure function:
           `decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists })` →
           `{ folder, quarantine: [names], metadataUpdate }`.
-    - [ ] The effects (`quarantineStaleFolder`'s rename, `updateTrackMetadata`) stay in the worker,
+    - [x] The effects (`quarantineStaleFolder`'s rename, `updateTrackMetadata`) stay in the worker,
           applied from the returned decision. This separation is what lets a **read-only** consumer
           resolve a folder without renaming anything — a CLI lookup must never mutate the tree as a
           side effect of answering a question.
-    - [ ] `laneconductor.sync.mjs`'s `resolveTrackFolder` becomes a thin wrapper. Behavior must be
-          byte-identical — its quarantine semantics are load-bearing (track 1119).
-- [ ] Task 2: `lc track-dir <number>` — the resolver as an interface the skill can actually call
-    - [ ] New subcommand in `bin/lc.mjs`: prints the resolved folder path to stdout, exit 0; exit
-          non-zero with a diagnostic when nothing resolves. `--json` for
-          `{ folder, matches, registered }`. Read-only: never quarantines, never writes metadata.
-    - [ ] Handles both conventions and consults `conductor/tracks-metadata.json`, because it is the
-          same code the worker runs.
-- [ ] Task 3: Rewrite the skill's instructions to use it (REQ-15's substance)
-    - [ ] **Protocol: Locating Tracks** — replace the hand-rolled scan with `lc track-dir NNN` as
-          step 1, keeping the manual scan as an explicitly-labelled fallback for skill-only
-          environments with no `lc` on PATH, corrected to match `INITIALS-NNN-slug` as well.
-    - [ ] `/laneconductor plan` step 2 — scaffold only after `lc track-dir` reports nothing, and
-          scaffold at `INITIALS-NNN-slug` (the documented convention), never `NNN-slug`.
-    - [ ] **Scaffolding over an existing track number is an error, not a fallback.** If any folder
-          resolves for that number under any convention, the session must use it and say so — the
-          skill must never create a second folder for a number that already has one.
-- [ ] Task 4: Clean up the four `_duplicate-*` folders currently on disk, after confirming each
-      one's content is fully represented in its canonical sibling. (Phase 6 Task 1 fixes the
-      *mechanism* that lets them hold lane slots; this is the one-time cleanup of today's set.)
+    - [x] `laneconductor.sync.mjs`'s `resolveTrackFolder` becomes a thin wrapper. Behavior must be
+          byte-identical — its quarantine semantics are load-bearing (track 1119). Confirmed
+          byte-identical against `main`'s pre-extraction implementation (diffed directly).
+    - [x] TC-84..88, 5/5 pure tests green (`track-10040-track-folder.test.mjs`), plus two extra
+          edge-case tests beyond the plan's own list.
+- [x] Task 2: `lc track-dir <number>` — the resolver as an interface the skill can actually call
+    - [x] New subcommand in `bin/lc.mjs` (`command === 'track-dir'`): prints the resolved folder
+          path to stdout, exit 0; exit non-zero with a diagnostic on stderr when nothing resolves,
+          stdout left empty. `--json` for `{ folder, matches, registered }`. Read-only: calls
+          `decideTrackFolder` directly and applies none of its `quarantine`/`metadataUpdate`
+          effects.
+    - [x] Handles both conventions and consults `conductor/tracks-metadata.json`, the same code the
+          worker runs.
+    - [x] TC-89..92, 4/4 green plus one extra legacy-convention regression test
+          (`track-10040-track-dir-cli.test.mjs`, real subprocess invocations against throwaway
+          fixtures).
+- [x] Task 3: Rewrite the skill's instructions to use it (REQ-15's substance)
+    - [x] **Protocol: Locating Tracks** — step 1 is now `lc track-dir NNN`; the manual scan is
+          step 2, explicitly labelled as the skill-only/no-`lc`-on-PATH fallback, and corrected to
+          check both `INITIALS-NNN-slug` and legacy `NNN-slug`.
+    - [x] `/laneconductor plan` step 1/2 — locate via `lc track-dir` first; scaffold only runs if it
+          exits non-zero (nothing found under any convention), and scaffolds at `INITIALS-NNN-slug`
+          only, never the bare legacy form.
+    - [x] **Scaffolding-is-an-error banner** added directly under the Folder Naming Convention line
+          in **Protocol: Locating Tracks**, plus the same rule restated inline in `/laneconductor
+          plan` step 2 — a folder existing under any convention makes scaffolding an error, not a
+          fallback, stated at both the point of general guidance and the point of actual risk.
+- [x] Task 4: Clean up the `_duplicate-*` folders reachable from this track's own worktree
+    - [x] `_duplicate-10040-manager-stuck-track-healing/` (this track's own quarantine artifact,
+          produced live during its own planning) — content confirmed fully superseded by its
+          canonical `AM-10040-manager-stuck-track-healing/` sibling (same file set, canonical
+          strictly more complete: has `conversation.md` and `last_run.log` the duplicate lacks, and
+          a materially fuller `test.md`, 396 vs 15 lines) — removed via `git rm -r`.
+    - [ ] **Scope note, flagged rather than silently expanded or silently dropped**: two more
+          `_duplicate-*` folders exist, but on the **primary checkout's own working directory**
+          (`/home/meller/Code/laneconductor/conductor/tracks/_duplicate-10039-...` and a second copy
+          of `_duplicate-10040-...`), not inside this track's own worktree. This session runs
+          isolated to `.worktrees/10040/` per `**Workspace**: branch` — reaching into the primary
+          checkout's filesystem from here would cross exactly the isolation boundary Phase 2's
+          path-isolation and REQ-8's single-writer rule exist to enforce elsewhere in this project.
+          Left for a human or a `workspace: main`-scoped action to clean up; not touched here.
 
 **Impact**: The duplicate factory shuts down. Without this, Phase 6's cleanup is Sisyphean — every
 sweep finds new duplicates manufactured since the last one.
+
+## ✅ COMPLETE (Phase 3)
+
+16/16 tests green across `track-10040-track-folder.test.mjs` (5) and
+`track-10040-track-dir-cli.test.mjs` (5), plus the pre-existing Phase 1–2 suite (32) still green —
+48 total. `lc track-dir` verified against real subprocess invocations, not just unit-level pure
+function calls. SKILL.md's `/laneconductor plan` and Protocol: Locating Tracks sections both now
+route through the shared resolver.
+
+**Gap, flagged rather than silently skipped**: test.md's TC-93/94/95
+(`track-10040-skill-folder-scaffold.test.mjs`, "drive the real implement skill path against a
+fixture") are not automated. They require actually invoking an LLM agent to follow SKILL.md's
+prose instructions and observing what it scaffolds — there is no existing harness anywhere in this
+repo's test suite that spawns a real Claude session inside a `node --test` run, and building one is
+outside this phase's scope. Covered instead by direct inspection: SKILL.md's `/laneconductor plan`
+step 1/2 (verified above) now unconditionally routes through `lc track-dir` before any scaffold
+decision, and Task 2's CLI tests (TC-89/90/92) already prove that resolver correctly finds a
+prefixed-only folder and never mutates the tree — the two preconditions TC-93 would need to hold
+for the skill to behave correctly. Same category of gap as Phase 1's TC-60/63/64.
 
 ---
 
