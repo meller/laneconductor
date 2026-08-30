@@ -1,10 +1,10 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
 **Lane**: implement
-**Lane Status**: running
+**Lane Status**: queue
 **Waiting for reply**: no
-**Progress**: 15%
-**Phase**: Phase 1b — Managed Agents spike BLOCKED: workspace has no funded API credits (billing action needed)
+**Progress**: 35%
+**Phase**: Phase 2 COMPLETE (executor seam, zero regressions verified) — Phases 3/3b/4+ remain
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
