@@ -161,6 +161,14 @@ seatbelt is cheaper.
 an undetected stale process can no longer drag a shipped track backwards, and a detected one is
 named in the log with the exact commit distance.
 
+## ✅ QUALITY PASSED (Phase 1–2)
+
+32 tests passing:
+- Phase 1: Lane constants (3/3), API (9/9)
+- Phase 2: Lane-regression-guard (9/9), Worker-code-staleness (7/7), Stale-write-containment (4/4)
+
+Syntax check clean, no stubs, no regressions.
+
 ---
 
 ## Phase 3: One folder resolver, including the skill's own (REQ-15)
