@@ -32,6 +32,16 @@ export const LaneActionStatus = {
   WAITING: 'waiting',
 };
 
+// Track 10040 REQ-13: the single source of truth for "which lanes can a
+// worker claim a queued action in" and "which lanes can a track be placed
+// in at all". Adding a lane means editing exactly this file — every SQL/JS
+// site that used to hand-list lane names (and silently missed one when
+// track 10035 added DONE as claimable) now derives from these instead.
+export const CLAIMABLE_LANES = [Lanes.PLAN, Lanes.IMPLEMENT, Lanes.REVIEW, Lanes.QUALITY_GATE, Lanes.DONE];
+// backlog is deliberately absent — nothing auto-claims a backlog track.
+
+export const MOVABLE_LANES = [...CLAIMABLE_LANES, Lanes.BACKLOG];
+
 /**
  * Maps common variations/aliases to the canonical lane names.
  */

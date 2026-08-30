@@ -12,7 +12,7 @@ import { promisify } from 'util';
 import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
-import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
+import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases, CLAIMABLE_LANES } from './constants.mjs';
 import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from './providers.mjs';
 import {
   readJiraConfig,
@@ -5785,7 +5785,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (waitingForReply) {
       label = 'local-fs-answer';
       // Respect the current lane's skill if it's an active one, otherwise fallback to implement
-      if (['plan', 'implement', 'review', 'quality-gate', 'done'].includes(lane_status)) {
+      if (CLAIMABLE_LANES.includes(lane_status)) {
         cmd_type = lane_status;
       } else {
         cmd_type = 'implement';
@@ -5831,9 +5831,25 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
     if (!getIsLocalFs() && !waitingForReply) {
       try {
         const { url, token } = primaryCollector();
-        const { tracks: won } = await post(url, token, '/tracks/claim-queue', { limit: 1, track_number });
+        const { tracks: won, reason } = await post(url, token, '/tracks/claim-queue', { limit: 1, track_number });
         if (!won || won.length === 0) {
-          console.log(`[local-fs] Track ${track_number}: lost the DB claim race this cycle (another worker already has it). Skipping.`);
+          // Track 10040 REQ-14: log the server's own diagnosed reason
+          // instead of asserting a cause it never verified. Only
+          // 'already_claimed' is a genuine lost race; every other reason
+          // means this worker's own view of what's claimable disagrees
+          // with the server's — that is a bug, not contention, so it logs
+          // at warn to stay visible instead of blending into idle noise.
+          if (reason === 'already_claimed') {
+            console.log(`[local-fs] Track ${track_number}: lost the DB claim race this cycle (another worker already has it). Skipping.`);
+          } else if (reason === 'no_candidates') {
+            console.log(`[local-fs] Track ${track_number}: claim-queue found no candidate (reason: no_candidates). Skipping.`);
+          } else if (reason === 'lane_not_claimable' || reason === 'not_permitted') {
+            logger.warn({ trackNumber: track_number, reason }, `[local-fs] Track ${track_number}: claim-queue refused (reason: ${reason}) — worker's own candidate selection disagrees with the server.`);
+          } else {
+            // Older collector that predates REQ-14, or a shape we don't
+            // recognize — never fall back to the old unverified assertion.
+            console.log(`[local-fs] Track ${track_number}: no rows returned (collector did not report a reason). Skipping.`);
+          }
           continue;
         }
       } catch (err) {
