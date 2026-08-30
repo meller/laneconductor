@@ -121,6 +121,82 @@ All criteria are user-observable outcomes; none are satisfiable by stubs.
   `failure` with exactly one ❌ Inbox comment within N cycles (no infinite requeue loop).
 - [ ] AC-7: full existing test suite passes with `runtime: machine` defaults (parity, REQ-9).
 
+## Phase 1 Findings (2026-08-30 spike)
+
+Research (official Anthropic docs) plus live probing of the installed `claude` CLI (v2.1.223,
+logged in as this project's own Pro account — `claude auth status` confirms `authMethod:
+"claude.ai"`). Findings are marked **[confirmed live]** where verified by actually running a
+command in this sandbox, vs **[docs]** where sourced from documentation only.
+
+### Two distinct, unrelated cloud-execution surfaces exist
+
+1. **"Claude Code on the web" (claude.ai/code)** — this is literally what D-1 named. Clones a
+   GitHub repo into an Anthropic-managed VM, works, pushes a branch, and creates a PR — the
+   repo-clone/branch/PR behavior D-4/REQ-5 wants comes for free. **[docs]**
+2. **Managed Agents API** (`api.anthropic.com/v1/sessions`, beta header
+   `managed-agents-2026-04-01`) — a fully separate, genuinely headless HTTP API: `x-api-key`
+   auth, `POST /v1/sessions` with an `agent` (a *custom* agent you define — model, system
+   prompt, tools, MCP servers) and an `environment_id` (Anthropic-hosted or self-hosted
+   sandbox), then `POST /v1/sessions/{id}/events` to drive it and poll/stream for status. This
+   is a real, scriptable, API-key-based session lifecycle — but it is **not** "Claude Code": it
+   has no built-in repo clone/branch/PR behavior. Getting that would mean building our own
+   clone→edit→test→push→PR agent logic on top of it (give it a `bash` tool + a GitHub MCP
+   server and prompt it to do what Claude Code does natively). This is architecturally much
+   closer to the brainstorm's rejected **option B** (build our own agent) than D-1's "ride
+   claude.ai cloud sessions," just with Anthropic hosting the sandbox instead of us
+   provisioning one. **[docs]**
+
+### Surface 1 (claude.ai/code) has no headless creation path — confirmed live
+
+- The only two ways to start a session are (a) the browser at claude.ai/code — a
+  **[docs]**-documented URL pre-fill (`?prompt=...&repositories=...`) exists for building
+  "a button in your issue tracker," but it still requires a human logged into a browser to
+  click submit; and (b) the `claude` CLI's `--cloud` flag (undocumented in `--help` in this
+  build, but real — confirmed by running it).
+- **[confirmed live]**: `timeout 8 claude --cloud </dev/null` returned immediately with:
+  `Error: --cloud requires an interactive terminal. Non-interactive invocations (piped stdout,
+  --init-only, --sdk-url) run locally and would silently ignore --cloud. Drop --cloud, or run
+  from a TTY.` This is a hard, deliberate product-level block on headless invocation, not a
+  missing-credential error — it fired before any auth/repo check. A background dispatcher
+  process (no TTY, no human present) cannot invoke `--cloud` as the product exists today.
+- **[confirmed live]**: `claude auth status` shows this environment already has a live
+  claude.ai Pro login (`authMethod: "claude.ai"`) — so the TTY block is the actual obstacle,
+  not missing credentials.
+- **[confirmed live]**: `claude setup-token` exists and (per **[docs]**, corroborated by
+  `--help`'s own description "requires Claude subscription") produces a 1-year
+  `CLAUDE_CODE_OAUTH_TOKEN` meant exactly for headless/CI use — but Anthropic's own docs state
+  this token "can only make model requests, so it can't establish Remote Control sessions or
+  fetch claude.ai connectors." GitHub-connector-backed cloud sessions fall under "connectors,"
+  so this credential doesn't unlock `--cloud` even where TTY weren't a problem. There is
+  currently **no credential artifact that both (a) works headlessly and (b) can drive a cloud
+  session** — this sinks REQ-3 as scoped ("per-user Claude credential storage... validated
+  live") for this specific surface.
+- Consequently **Task 2/3's planned live exercise (prototype driver hitting a real scratch
+  repo) could not be run**: not merely "not attempted," but structurally blocked from *any*
+  non-interactive process, including this one. That absence is itself part of the finding, not
+  a gap in this spike.
+
+### D-2 correction (repo access mechanism)
+
+The plan's D-2 said repo access "comes from the user installing Claude's GitHub App," not our
+OAuth. Per **[docs]** (`code.claude.com/docs/en/web-quickstart`), that's not quite right: base
+repo access for a cloud session comes from the **GitHub account the user connects directly to
+claude.ai** (an OAuth grant to Anthropic) — "sessions can reach any repository your GitHub
+account can see," independent of the App. The **Claude GitHub App is optional**, needed only
+for *Auto-fix* (Claude reacting to CI failures / review comments on already-open PRs), not for
+a session's base ability to clone/push. REQ-4 check (b) ("Claude's GitHub App is installed on
+that repo") should be corrected to "the user's GitHub-to-claude.ai connection can see this
+repo" if Surface 1 is pursued further.
+
+### GO/NO-GO
+
+**NO-GO** for the specific mechanism D-1/D-5 assumed — a dispatcher/worker process headlessly
+invoking `claude --cloud` per lane action and polling status, reusing the existing
+`spawnCli`-shaped executor seam. Both legs of that design are confirmed blocked (no non-TTY
+invocation; no headless-capable credential that reaches connector-backed sessions), not merely
+undocumented. See the GO/NO-GO comment in `conversation.md` for the fallback options put to the
+human, per this phase's own checkpoint rule (do not pivot silently).
+
 ## Data Model Changes
 
 - `workers.runtime TEXT NOT NULL DEFAULT 'machine'` — `machine|cloud`.
