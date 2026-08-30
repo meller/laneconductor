@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Waiting for reply**: no
-**Progress**: 0%
-**Phase**: Replanned (rev. 2 — Managed Agents pivot)
+**Waiting for reply**: yes
+**Progress**: 10%
+**Phase**: Phase 1 — Feasibility spike: NO-GO, awaiting human decision on fallback
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
