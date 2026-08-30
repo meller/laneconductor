@@ -242,6 +242,45 @@ against `workflow.json`'s own transition table.
   takes the global main-mode lock before touching the index and commits the change. A tool that
   wedges tracks should not earn unattended write access to `main` on the same release that fixes
   the wedging.
+- **D5 — `code_sha` is the *install dir's* HEAD, not the managed project's.** REQ-11 says "the
+  repo's current `HEAD` for its project"; that is wrong for the common case. A worker's **code**
+  lives at the LaneConductor install path (`~/.laneconductorrc`), while the projects it manages
+  are separate repos that may have no relationship to it at all — the manager worker registers
+  with `project_id: null` and has no project repo whatsoever. Staleness is therefore always
+  measured against the install dir's `HEAD`. Captured **once** at module load into a
+  module-level const and sent only on `/worker/register`, never refreshed on the heartbeat: a
+  value that updates itself defeats the entire purpose, which is to record what this process
+  actually loaded into memory.
+- **D6 — Containment before detection (Phase 2 internal ordering).** REQ-12's write guard lands
+  before REQ-11's staleness detection. The guard is a pure invariant that holds against stale
+  code, third-party processes, and races alike, including every case detection misses; detection
+  only raises an alarm a human still has to act on. Cheaper, stronger, and it would have
+  contained the live incident on its own.
+- **D7 — Cause-removal before safety-net (Phase 3 before Phase 4).** Finding 6's duplicate
+  factory is generating duplicates *now* (one for this very track), and those untracked folders
+  are themselves a leading cause of the dirty checkouts Finding 1 escalates on. Fixing the
+  factory shrinks the problem Phase 4 nets. The two phases are technically independent and may
+  be swapped without cost.
+- **D8 — `claim-queue`'s reason set gained a fourth value.** REQ-14 names three
+  (`already_claimed`, `lane_not_claimable`, `no_candidates`); planning added `not_permitted` for
+  a row that exists and is queued in a claimable lane but was excluded by the visibility /
+  `worker_permissions` filter. Without it that case reports `no_candidates`, which is exactly
+  the "asserting a cause it never verified" failure REQ-14 exists to end. The diagnostic query
+  runs only for **targeted** claims (`track_number` present) — an untargeted claim returning
+  zero rows is normal idle polling, and a second query on every idle beat of every worker is
+  real cost for no signal.
+- **D9 — Finding 7's inverse case (REQ-17) escalates only; it is never auto-repaired.** A track
+  whose merge commit is reachable from `main` while its markers read an earlier lane is
+  *corrupt*, and both available repairs are wrong to automate: re-running it repeats exactly the
+  damage (10038 was re-implemented after it had already shipped), and writing its markers
+  forward to `done` asserts a merge nobody verified. REQ-16's forward case may `reapply` the
+  configured transition when the lane's completion markers are present and consistent; REQ-17's
+  case always stops at a ⚠️ for a human.
+- **D10 — Every detector must be idempotent from its first commit, not as a follow-up.** Finding
+  7's check, the phantom-marker check, and the resting-state check all run on an interval against
+  states that persist *by definition* — an unconditional comment from any of them reproduces the
+  191-comment incident this track exists to end, in a new place. All of them route through
+  REQ-1's counter (with their own `kind`) rather than inventing per-detector suppression.
 
 ## Acceptance Criteria
 
