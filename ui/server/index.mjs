@@ -3092,6 +3092,46 @@ app.get('/track/:num/retry-count', collectorAuth, async (req, res) => {
   }
 });
 
+// Track 10040 Phase 5 (REQ-1, 8): pre-spawn block counter — a cause-generic
+// (kind-tagged) counter of consecutive pre-spawn blocks, DB-persisted so
+// track 10039's dispatcher-only mode (no local conductor/tracks/) can
+// reuse this mechanism rather than rebuilding it. AC-7: readable with zero
+// filesystem access, and survives a worker process restart (it's a DB
+// row, not in-memory state).
+app.post('/track/:num/prespawn-block', collectorAuth, async (req, res) => {
+  try {
+    const { kind, reason } = req.body;
+    if (!kind) return res.status(400).json({ error: 'kind is required' });
+    const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
+    const r = await pool.query(
+      `UPDATE tracks SET prespawn_block_count = prespawn_block_count + 1,
+              prespawn_block_kind = $3, prespawn_block_reason = $4, prespawn_blocked_at = NOW()
+       WHERE project_id = $1 AND track_number = $2
+       RETURNING prespawn_block_count AS count, prespawn_block_kind AS kind, prespawn_block_reason AS reason`,
+      [projectId, req.params.num, kind, reason ?? null]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'track not found' });
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/track/:num/prespawn-block/reset', collectorAuth, async (req, res) => {
+  try {
+    const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
+    await pool.query(
+      `UPDATE tracks SET prespawn_block_count = 0, prespawn_block_kind = NULL,
+              prespawn_block_reason = NULL, prespawn_blocked_at = NULL
+       WHERE project_id = $1 AND track_number = $2`,
+      [projectId, req.params.num]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/tracks/reset-stuck-actions', collectorAuth, async (req, res) => {
   try {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
@@ -3257,6 +3297,17 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
        WHERE id = $1 AND lane_status = ANY($2)
          AND lane_action_status != 'running'`,
         [trackId, CLAIMABLE_LANES]
+      );
+      // Track 10040 Phase 5 Task 4 (REQ-1): human intervention resets the
+      // pre-spawn block streak, same as any other human touch clears the
+      // implement retry counter — a human commenting means "I looked at
+      // this," which should give the next cycle a clean slate rather than
+      // counting toward an escalation the human may already be addressing.
+      await pool.query(
+        `UPDATE tracks SET prespawn_block_count = 0, prespawn_block_kind = NULL,
+                prespawn_block_reason = NULL, prespawn_blocked_at = NULL
+         WHERE id = $1`,
+        [trackId]
       );
     } else if (body.includes('Answered') || body.toLowerCase().includes('i updated') || body.toLowerCase().includes('done')) {
       await pool.query(
