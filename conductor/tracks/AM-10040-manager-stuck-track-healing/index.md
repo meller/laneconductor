@@ -1,10 +1,10 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 28%
+**Lane Status**: queue
+**Progress**: 64%
 **Last Run**: mock (primary)
-**Phase**: Phase 1 complete (of 7) — Phase 2 (stale-process containment) next
+**Phase**: Phases 1–5 complete (of 7, Phase 5 has one flagged gap) — Phase 6 (manager sweep) next
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: branch
