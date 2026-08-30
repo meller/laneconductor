@@ -1,6 +1,6 @@
 # Track 1108: Worker VM provisioning from the remote app (first-host onboarding)
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: success
 **Progress**: 100%
 **Phase**: New
