@@ -244,20 +244,6 @@ multi-project visibility) is written down nowhere.
       profile; show `ant auth status` verification and the ANTHROPIC_API_KEY-shadowing trap),
       and the WIF alternative for servers/CI. This is the canonical credential setup for
       cloud workers.
-      **Must state plainly (human request, 2026-08-30, Phase 1b BLOCKED finding)**: a
-      claude.ai / Claude Code subscription (Free/Pro/Max) does **not** cover cloud workers,
-      even though `ant auth login` uses the same account/email. Two separate Anthropic
-      products, two separate billing systems: the subscription authorizes interactive use of
-      claude.ai and the `claude` CLI (exactly what `runtime: machine` workers use — free under
-      the plan, no separate credits needed, unchanged by this track); Managed Agents is part
-      of the API platform (`api.anthropic.com`/platform.claude.com), billed by metered token
-      usage against a **prepaid API credit balance**, regardless of subscription tier. This
-      is not a missing feature or a rough edge — it is the actual trade a cloud worker makes:
-      "runs without you or your laptop present" in exchange for "not covered by your existing
-      plan." State this trade explicitly rather than implying cloud workers are a free
-      extension of a Max/Pro plan. Link directly to platform.claude.com → Plans & Billing for
-      adding credits, and reference the REQ-4 preflight check (Phase 3) that catches a
-      zero-balance workspace before it wastes a dispatch.
 - [ ] Task 3: README/wiki section "LaneConductor vs. raw Managed Agents" (what orchestration
       adds on top of one agent in one sandbox). Landing-page copy is NOT this track — create a
       `marketing`-type track for it when Phase 7 lands, seeded from this section.
