@@ -64,6 +64,7 @@ import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
+import { decideTrackFolder } from './services/track-folder.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -1429,62 +1430,37 @@ function isTrackDirName(name) {
   return /\d+/.test(name) && !name.startsWith('_duplicate-');
 }
 
+// Track 10040 Phase 3 (REQ-15): thin wrapper — the actual decision lives
+// in decideTrackFolder (conductor/services/track-folder.mjs), pure and
+// I/O-free so `lc track-dir` can resolve a folder read-only. This function
+// supplies the fs facts the pure function needs and applies its decision
+// as real effects (quarantine renames, metadata writes). Behavior must
+// stay byte-identical to the pre-extraction version — the quarantine
+// semantics are load-bearing (track 1119).
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
-  const matches = readdirSync(tracksDir, { withFileTypes: true })
-    .filter(d => d.isDirectory() && d.name.startsWith(`${trackNumber}-`))
-    .map(d => d.name)
-    .sort();
+  const dirNames = readdirSync(tracksDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name);
 
   const meta = getTrackMetadata(trackNumber);
-  const registered = meta?.folder_path ? basename(meta.folder_path) : null;
-  const registeredExists = !!(registered && existsSync(join(tracksDir, registered)));
+  const registeredFolder = meta?.folder_path ? basename(meta.folder_path) : null;
+  const registeredExists = !!(registeredFolder && existsSync(join(tracksDir, registeredFolder)));
 
-  // Legacy folders are named `${trackNumber}-slug`, matched above. Newer
-  // tracks (since track 10023) use `INITIALS-${trackNumber}-slug`, which
-  // never matches that prefix and previously made this function return
-  // null for every prefixed track — breaking any dispatch path that
-  // resolves the folder by track number alone (e.g. worker_dispatch
-  // lane-action processing, which is also what the UI's "Run" button
-  // ultimately triggers). Fall back to the registered folder_path in
-  // tracks-metadata.json, which newTrack always writes correctly
-  // regardless of naming convention.
-  if (matches.length === 0) {
-    return registeredExists ? registered : null;
+  const decision = decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists });
+
+  if (decision.quarantine.length > 1) {
+    const allMatches = [decision.folder, ...decision.quarantine].sort();
+    console.warn(`[ambiguous-track] Track ${trackNumber} matched ${allMatches.length} folders (${allMatches.join(', ')}) — using "${decision.folder}", quarantining the rest.`);
   }
-
-  // A lone legacy-pattern match is the common, unambiguous case and is
-  // normally trusted immediately — EXCEPT when metadata registers a
-  // DIFFERENT, currently-existing folder. That combination only arises
-  // when a prefixed track (e.g. "AM-1119-...", which structurally can
-  // never land in `matches` — it doesn't start with the bare
-  // `${trackNumber}-` prefix) has a stale legacy-named duplicate sitting
-  // next to it. Confirmed live, track 1119 (2026-08-26): trusting this
-  // branch blindly fed checkAndClaimGitLock's own git-add/commit into
-  // the stale, scaffolded-placeholder folder on every single dispatch,
-  // repeatedly re-committing garbage ("chore(track-1119): sync files
-  // before worktree" — fired 5+ times) while the real, actively-worked
-  // folder sat untouched. Quarantine the stale match instead of trusting
-  // it, the same way the multi-match branch below already does.
-  if (matches.length === 1) {
-    if (registeredExists && registered !== matches[0]) {
-      quarantineStaleFolder(tracksDir, matches[0]);
-      return registered;
-    }
-    return matches[0];
-  }
-
-  const canonical = (registeredExists && matches.includes(registered)) ? registered : matches[0];
-
-  console.warn(`[ambiguous-track] Track ${trackNumber} matched ${matches.length} folders (${matches.join(', ')}) — using "${canonical}", quarantining the rest.`);
-
-  for (const dupName of matches) {
-    if (dupName === canonical) continue;
+  for (const dupName of decision.quarantine) {
     quarantineStaleFolder(tracksDir, dupName);
   }
+  if (decision.metadataUpdate) {
+    updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, decision.metadataUpdate.folder_path) });
+  }
 
-  updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, canonical) });
-  return canonical;
+  return decision.folder;
 }
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
