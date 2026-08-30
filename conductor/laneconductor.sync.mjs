@@ -65,6 +65,7 @@ import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqual
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
 import { decideTrackFolder } from './services/track-folder.mjs';
+import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -4372,6 +4373,73 @@ setInterval(() => {
   checkOutOfBandGitSync().catch(err => console.error('[git-sync error]:', err.message));
 }, 30000); // ticks every 30s; actual fetch cadence is governed by git.fetch_interval_ms above
 
+// Track 10040 Phase 5 (REQ-1,2,3,8,9,10): shared handler for every
+// pre-spawn block site (dirty-checkout, main-mode-lock, and future
+// callers — Phase 4's invalid-resting-state, Phase 6's phantom-running).
+// Increments a cause-generic counter (DB when available, local-fs sibling
+// files otherwise — REQ-8), applies decidePreSpawnBlockOutcome's decision,
+// and writes AT MOST one comment (REQ-10: warn on first block, silent
+// mid-streak, escalate to failure at the threshold — never the 191-comment
+// shape). The Lane Status write goes through applyGuardedLaneWrite like
+// every other marker write (same lane, so the guard's rank check is a
+// formality here, but it must go through, not around).
+async function handlePreSpawnBlock({ trackNumber, kind, reason, primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId }) {
+  let countBefore = 0;
+
+  if (getIsLocalFs()) {
+    if (primaryTrackDirName) {
+      const countPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-count');
+      const kindPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-kind');
+      // Reset on cause change too — same ".retry-lane"-style guard as the
+      // exit handler's own retry counter: a different kind means a
+      // different streak, not a continuation of the old one.
+      const lastKind = readIfExists(kindPath);
+      countBefore = (lastKind === kind) ? parseInt(readIfExists(countPath) || '0') : 0;
+      writeFileSync(countPath, String(countBefore + 1), 'utf8');
+      writeFileSync(kindPath, kind, 'utf8');
+    }
+  } else {
+    try {
+      const { url, token } = primaryCollector();
+      const res = await post(url, token, `/track/${trackNumber}/prespawn-block?project_id=${projectId}`, { kind, reason });
+      countBefore = Math.max(0, (res.count ?? 1) - 1);
+    } catch (err) {
+      // A broken counter call must never silently escalate — fail safe to
+      // "first block of a streak" (warn, don't escalate) rather than
+      // guessing a count that might already be past threshold.
+      console.warn(`[${label}] Track ${trackNumber}: failed to record prespawn-block via API (${err.message}) — treating as first-of-streak.`);
+      countBefore = 0;
+    }
+  }
+
+  const outcome = decidePreSpawnBlockOutcome({ kind, reason, countBefore });
+  const commentBody = formatBlockComment(outcome);
+
+  if (primaryIndexPath && primaryIndexContent) {
+    const currentLane = extractLaneFromIndex(primaryIndexContent);
+    const targetStatus = outcome.action === 'escalate' ? 'failure' : 'queue';
+    const guardResult = applyGuardedLaneWrite(primaryIndexContent, {
+      intendedLane: currentLane,
+      intendedStatus: targetStatus,
+      producedByThisRun: true, // this run IS the one deciding this status transition
+    });
+    if (!guardResult.blocked) {
+      writeFileSync(primaryIndexPath, guardResult.content, 'utf8');
+    } else {
+      console.warn(`[${label}] Track ${trackNumber}: lane-regression guard unexpectedly blocked a same-lane prespawn-block status write (${guardResult.reason})`);
+    }
+  }
+
+  if (commentBody && primaryTrackDirName) {
+    const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+    try {
+      appendFileSync(convPath, `\n> **system**: ${commentBody}\n`, 'utf8');
+    } catch { /* best-effort — the console.warn in the caller is the durable record either way */ }
+  }
+
+  return outcome;
+}
+
 async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null, dispatchId = null, action = null) {
   let lockFile = null;
   let worktreePath = null;
@@ -4442,19 +4510,14 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
     if (disqualifying.length > 0) {
       console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder (still dirty after ${waitedMs / 1000}s of retries): ${disqualifying.join(', ')}`);
-      if (primaryIndexPath) {
-        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
-        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
-      }
-      if (primaryTrackDirName) {
-        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
-        const comment = `\n> **system**: ⚠️ Main-mode run blocked — the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}. Not spawning; will retry next cycle once the checkout is clean.\n`;
-        try {
-          appendFileSync(convPath, comment, 'utf8');
-        } catch { /* best-effort — the console.warn above is the durable record either way */ }
-      }
+      const outcome = await handlePreSpawnBlock({
+        trackNumber, kind: 'dirty-checkout',
+        reason: `the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}`,
+        primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId,
+      });
       const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
       err.workspaceGuardBlocked = true;
+      err.preSpawnBlock = outcome;
       throw err;
     }
   }
@@ -4473,20 +4536,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       globalMainModeLockAcquired = true;
     } catch (lockErr) {
       console.warn(`[${label}] Track ${trackNumber}: ${lockErr.message}`);
-      if (primaryIndexPath) {
-        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
-        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
-      }
-      if (primaryTrackDirName) {
-        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
-        const comment = `\n> **system**: ⚠️ Main-mode run blocked — ${lockErr.message}. Not spawning; will retry next cycle once main-mode is free.\n`;
-        try {
-          appendFileSync(convPath, comment, 'utf8');
-        } catch { /* best-effort — the console.warn above is the durable record either way */ }
-      }
+      const outcome = await handlePreSpawnBlock({
+        trackNumber, kind: 'main-mode-lock', reason: lockErr.message,
+        primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId,
+      });
       const err = new Error(`[workspace-mode] main-mode spawn blocked by global lock for track ${trackNumber}: ${lockErr.message}`);
       err.workspaceGuardBlocked = true;
+      err.preSpawnBlock = outcome;
       throw err;
+    }
+  }
+
+  // Track 10040 Phase 5, TC-12: both pre-spawn guards cleared — zero the
+  // block counter now, regardless of how the spawned run itself later
+  // turns out. This is deliberately NOT tied to the exit handler's
+  // isSuccess: a transient dirty-checkout that resolves by the next cycle
+  // must not keep counting toward escalation just because the run it
+  // finally allowed happened to fail for an unrelated reason (blocks and
+  // run-failures are separate counters — see the existing .retry-count).
+  if (primaryTrackDirName) {
+    if (getIsLocalFs()) {
+      const countPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-count');
+      const kindPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-kind');
+      if (existsSync(countPath)) rmSync(countPath);
+      if (existsSync(kindPath)) rmSync(kindPath);
+    } else {
+      try {
+        const { url, token } = primaryCollector();
+        await post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {});
+      } catch (err) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block counter via API (${err.message}) — a stale count may persist until the next successful spawn.`);
+      }
     }
   }
 
@@ -4965,10 +5045,25 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           if (existsSync(retryPath)) rmSync(retryPath);
           if (existsSync(retryLanePath)) rmSync(retryLanePath);
         }
+
+        // Track 10040 Phase 5 Task 4: a spawn that got THIS FAR ran — it
+        // got past both pre-spawn guards, which is exactly what
+        // "consecutive" in "consecutive blocks" means. Clear regardless of
+        // whether the run itself later succeeds or fails; a run failure is
+        // a different counter (.retry-count, above) — blocks and
+        // run-failures are not the same signal.
+        const blockCountPath = join(tracksDir, trackDir, '.prespawn-block-count');
+        const blockKindPath = join(tracksDir, trackDir, '.prespawn-block-kind');
+        if (existsSync(blockCountPath)) rmSync(blockCountPath);
+        if (existsSync(blockKindPath)) rmSync(blockKindPath);
       }
     } else {
       const res = await get(url, token, `/track/${trackNumber}/retry-count`).catch(() => ({ count: 0 }));
       failCountBefore = res.count ?? 0;
+      // Same reasoning as the local-fs branch above: reaching the exit
+      // handler at all means both pre-spawn guards were passed this cycle.
+      post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {})
+        .catch(err => console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block count (${err.message})`));
     }
 
     // A failure triggers 'max_retries_reached' only if the count BEFORE this failure 
@@ -5911,7 +6006,15 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
-      console.error(`[local-fs] Failed to spawn track ${track_number}:`, err.message);
+      // Track 10040 Phase 5 Task 5: a pre-spawn block is an EXPECTED,
+      // already-handled outcome — handlePreSpawnBlock already logged/
+      // commented/escalated as appropriate. Logging it again here at
+      // error level would misrepresent a handled block as a crash.
+      if (err.workspaceGuardBlocked) {
+        console.log(`[local-fs] Track ${track_number}: spawn blocked (${err.preSpawnBlock?.action ?? 'pre-spawn guard'}) — see handlePreSpawnBlock's own logging above.`);
+      } else {
+        console.error(`[local-fs] Failed to spawn track ${track_number}:`, err.message);
+      }
     }
   }
 }
@@ -6002,6 +6105,16 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   try {
     spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete', null, currentLane);
   } catch (err) {
+    // Track 10040 Phase 5 Task 5: a pre-spawn block already got its own
+    // comment (at most one, per REQ-10) from handlePreSpawnBlock — posting
+    // a SECOND "Stopped after..." comment here would double the count for
+    // exactly this trigger path. Report the outcome without re-announcing it.
+    if (err.workspaceGuardBlocked) {
+      logger.info({ trackNumber, currentLane, dispatchId, action: err.preSpawnBlock?.action }, '[auto-complete] spawn blocked (pre-spawn guard) — not a crash');
+      await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: ${currentLane} spawn blocked (${err.preSpawnBlock?.action ?? 'pre-spawn guard'})`);
+      activeAutoComplete.delete(trackNumber);
+      return;
+    }
     logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
     const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
@@ -7335,6 +7448,16 @@ async function checkDispatchInbox() {
       // stuck on the 'running' just written above, with nothing to ever
       // revert either. Report failure the same way the others do, and put
       // the file/DB status back to what it was before this attempt.
+      // Track 10040 Phase 5 Task 5: a pre-spawn block already wrote its own
+      // Lane Status (via handlePreSpawnBlock's guarded write) and posted
+      // its own single comment (REQ-10) — don't clobber that write with a
+      // raw revert to originalLaneActionStatus, and don't double-report.
+      if (err.workspaceGuardBlocked) {
+        logger.info({ dispatchId: entry.id, trackNumber, action: err.preSpawnBlock?.action }, `[dispatch] spawn blocked (pre-spawn guard) for ${entry.action} — not a crash`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: `spawn blocked (${err.preSpawnBlock?.action ?? 'pre-spawn guard'})` })
+          .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
+        continue;
+      }
       logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, `[dispatch] spawnCli failed for ${entry.action}`);
       writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: err.message })
