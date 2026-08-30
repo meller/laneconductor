@@ -4,7 +4,7 @@
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Merged to main
+**Phase**: Merged to main (a897323) — complete
 **Waiting for reply**: no
 **Type**: dev
 **Track Kind**: bug

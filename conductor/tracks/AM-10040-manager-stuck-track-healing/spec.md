@@ -115,6 +115,32 @@ instance of "cannot resolve the real folder"; the skill-side path is a separate,
 instance of the same class. Any duplicate-cleanup work here will keep finding new duplicates
 until that path is fixed too.
 
+## Finding 7 — `<non-terminal-lane>:success` is an unreachable resting state
+
+Workers only ever claim `lane_action_status = 'queue'`. So the moment a track lands in a
+non-terminal lane with status `success`, nothing polls it, nothing escalates it, and it sits
+there indefinitely with no error and no Inbox entry — indistinguishable at a glance from healthy
+completed work, because `success` reads as good news.
+
+Per `workflow.json`, the only legitimate `*:success` resting states are `done:success` (shipped)
+and `plan:success` (this project deliberately sets `plan.on_success: "plan:success"`, meaning
+"planned, awaiting a human to start implement"). Every other combination is unreachable-by-design:
+`implement.on_success` is `review:queue`, `review.on_success` is `quality-gate:queue`,
+`quality-gate.on_success` is `done:queue`.
+
+Found live 2026-08-30 by querying for the shape:
+
+- **10038** at `implement:success` — had already *merged to main* (`a897323`) hours earlier and
+  been dragged backwards by Finding 6's duplicate folders. It would have sat there forever.
+- **1100** at `quality-gate:success` (90%) — stranded, age unknown.
+- **10039** at `implement:success` (15%) — stranded (this one is not Auto Run, so a human was
+  expected to move it, but the resting state is still not one the workflow can produce).
+
+This is the detection rule that would have caught Findings 4 and 6 automatically instead of
+requiring a human to notice a card sitting in the wrong column: the invalid resting state is
+trivially queryable, and it is a *derived* check — it needs no new bookkeeping, just a comparison
+against `workflow.json`'s own transition table.
+
 ## Requirements
 
 - REQ-1: Count consecutive workspace-guard blocks per track (persisted; e.g. a
@@ -174,6 +200,16 @@ until that path is fixed too.
   `lane_not_claimable` vs `no_candidates`), and the worker logs that reason verbatim. The current
   message asserts a cause it never verified, which is what disguised a permanent bug as transient
   contention for hours.
+- REQ-16 (Finding 7): the manager sweep detects tracks resting in a state `workflow.json` cannot
+  produce — `lane_action_status = 'success'` in a lane whose `on_success` moves elsewhere — and
+  either re-applies the configured transition (when the lane's work is genuinely complete) or
+  escalates. The valid-resting-state set is *derived from `workflow.json`*, never hardcoded, so a
+  project that configures `plan.on_success: "plan:success"` does not get its planned tracks
+  falsely flagged.
+- REQ-17 (Finding 7): the same rule catches the inverse corruption — a track whose lane markers
+  were moved *backwards* past a merge that already happened. If a track's merge commit is
+  reachable from `main` but its lane is earlier than `done`, that is an invalid state and must be
+  reported, not silently re-run. (10038 was re-implemented after it had already shipped.)
 - REQ-15 (Finding 6): the implement skill's own folder resolution uses the same canonical
   resolver as the worker (single implementation, not a parallel one), so a skill session cannot
   scaffold a duplicate folder for a track that already exists under the `INITIALS-NNN-slug`
@@ -256,6 +292,14 @@ until that path is fixed too.
 - Fixing the stale `tracksMetadata` cache itself — that is track 10036's job (shipped as
   `fa85a9c`). This track handles the *consequences* (duplicates, phantom markers, wedged lanes)
   and the escalation path. Note Finding 6 is **not** covered by 10036 and is in scope here.
+
+- [ ] AC-16 (Finding 7): a query for tracks in an invalid resting state (`lane_action_status
+      = 'success'` in a lane whose `on_success` targets a different lane) returns 10038's and
+      1100's shapes against a seeded fixture, and returns **zero** false positives for
+      `plan:success` under this project's own `workflow.json`.
+- [ ] AC-17 (Finding 7): a track whose merge commit is reachable from `main` but whose lane is
+      earlier than `done` is reported as invalid — reproduced with 10038's exact shape (merged at
+      `a897323`, markers reading `implement:success`).
 
 ## Live Incident Log (2026-08-30)
 
