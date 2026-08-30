@@ -79,4 +79,4 @@ answers upfront into one `scaffold_context` blob and dispatches once on
 submit, matching the existing pattern.
 **PR Number**: 16
 **PR URL**: https://github.com/meller/laneconductor/pull/16
-**PR Status**: conflicted
+**PR Status**: merged

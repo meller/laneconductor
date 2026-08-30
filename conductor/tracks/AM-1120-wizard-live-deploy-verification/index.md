@@ -9,7 +9,7 @@
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
 **Auto Run**: no
-**Summary**: Spun out of track 1119 (App Creator Wizard) — the one remaining unverified piece: a human-supervised real run of the wizard against a disposable Firebase/GCP project (the "digger game" scenario), confirming the generated Auto-Run tracks reach done and the recorded `app_url` is actually live.
+**Summary**: Spun out of track 1119 (App Creator Wizard) — the one remaining unverified piece: a human-supervised real run of the wizard against a disposable Firebase/GCP project (the "digger game" scenario),…
 
 ## Problem
 
