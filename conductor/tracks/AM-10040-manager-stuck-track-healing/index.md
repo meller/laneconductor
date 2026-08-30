@@ -1,13 +1,15 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 0%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Replanned (7 phases) — Phase 1 ready to implement
 **Type**: dev
 **Track Kind**: bug
+**Workspace**: branch
 **Auto Run**: yes
+**Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
 **Summary**: Stuck-track detection exists (reset-stuck-actions stamps stuck_timeout) but its only remedy is re-queue, so a track blocked by a *permanent* cause loops forever — track 10036 bounced…
