@@ -26,7 +26,11 @@ const BOOKKEEPING_FILENAMES = new Set(['index.md', 'plan.md', 'spec.md', 'test.m
  */
 export function isTrackBookkeepingConflict(conflictPaths, trackNumber) {
   if (!Array.isArray(conflictPaths) || conflictPaths.length === 0) return false;
-  const dirPattern = new RegExp(`^conductor/tracks/${trackNumber}-[^/]+/([^/]+)$`);
+  // Folder name is either the legacy `NNN-slug` or the current
+  // `INITIALS-NNN-slug` convention (e.g. `AM-10038-widen-...`) — an
+  // optional leading `<letters>-` covers both without matching the
+  // track number itself as part of the initials.
+  const dirPattern = new RegExp(`^conductor/tracks/(?:[A-Za-z]+-)?${trackNumber}-[^/]+/([^/]+)$`);
   return conflictPaths.every(p => {
     const m = p.match(dirPattern);
     return !!m && BOOKKEEPING_FILENAMES.has(m[1]);
