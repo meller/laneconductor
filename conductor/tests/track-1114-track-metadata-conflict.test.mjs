@@ -20,6 +20,16 @@ describe('isTrackBookkeepingConflict()', () => {
     ], '10014'), true);
   });
 
+  it('is true for the current INITIALS-NNN-slug folder convention, not just the legacy NNN-slug one (track 10038)', () => {
+    assert.equal(isTrackBookkeepingConflict(['conductor/tracks/AM-10038-widen-bookkeeping-conflict-autoresolve/index.md'], '10038'), true);
+    assert.equal(isTrackBookkeepingConflict([
+      'conductor/tracks/AM-10038-widen-bookkeeping-conflict-autoresolve/index.md',
+      'conductor/tracks/AM-10038-widen-bookkeeping-conflict-autoresolve/plan.md',
+    ], '10038'), true);
+    // A prefixed OTHER track's folder must still not match this track's number.
+    assert.equal(isTrackBookkeepingConflict(['conductor/tracks/AM-10039-other/index.md'], '10038'), false);
+  });
+
   it('is false when any conflicting path is real code, even alongside bookkeeping conflicts', () => {
     assert.equal(isTrackBookkeepingConflict([
       'conductor/tracks/10014-project-management-page/index.md',
