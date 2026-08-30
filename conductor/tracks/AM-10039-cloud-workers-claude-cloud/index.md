@@ -1,15 +1,15 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
 **Lane**: implement
-**Lane Status**: waiting
-**Waiting for reply**: yes
-**Progress**: 10%
-**Phase**: Phase 1 — Feasibility spike: NO-GO, awaiting human decision on fallback
+**Lane Status**: running
+**Waiting for reply**: no
+**Progress**: 0%
+**Phase**: Replanned (rev. 2 — Managed Agents pivot)
 **Type**: dev
 **Track Kind**: feature
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Cloud-runtime workers executing lane actions in claude.ai cloud sessions (option A), via an executor seam over the existing worker, with per-user Claude credential storage, 4-check preflight,…
+**Summary**: Cloud-runtime workers executing lane actions in Managed Agents sessions (pivot after Phase 1 NO-GO on claude.ai/code). Executor seam over the existing worker; track=session 1:1; per-user Anthropic…
 
 ## Problem
 
@@ -59,6 +59,16 @@ hold the Claude account credentials such a dispatch requires.
 - [10011](../10011-new-worker-providers-support/index.md) — worker provider abstraction
 
 ## Phases
+
+- [x] Phase 1: claude.ai/code feasibility spike — COMPLETE, verdict NO-GO → pivot
+- [ ] Phase 1b: Managed Agents live-validation spike (GO/NO-GO for rev. 2)
+- [ ] Phase 2: Executor seam — refactor with zero behavior change
+- [ ] Phase 3: Credentials (API key + vault GitHub token), preflight, runtime field
+- [ ] Phase 4: CloudSessionExecutor + implement lane in the cloud
+- [ ] Phase 5: All lanes cloud + merge/conflict handling
+- [ ] Phase 6: Dispatcher-only worker mode
+- [ ] Phase 7: Docs, fundamentals reconciliation + positioning
+- [ ] Phase 8: Webhook push updates (v2 — out of this pass, deliberately unchecked)
 
 - [ ] Phase 1: Feasibility spike — cloud session driver prototype (GO/NO-GO)
 - [ ] Phase 2: Executor seam — refactor with zero behavior change

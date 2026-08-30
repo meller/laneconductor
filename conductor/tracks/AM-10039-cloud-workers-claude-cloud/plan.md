@@ -1,6 +1,11 @@
-# Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
+# Track AM-10039: Cloud Workers — Managed Agents Sessions as Workers (rev. 2, post-pivot)
 
-## Phase 1: Feasibility spike — cloud session driver prototype (GO/NO-GO)
+> Rev. 2 (2026-08-30): Phase 1's NO-GO on claude.ai/code triggered a human-approved pivot to
+> the Managed Agents API (see PIVOT RECORDED in conversation.md and spec.md rev. 2). Phase 1
+> is preserved below as completed history; Phase 1b is the new live-validation spike for the
+> replacement surface; Phases 2–8 are re-planned around Managed Agents.
+
+## Phase 1: Feasibility spike — claude.ai/code driver prototype (COMPLETE — verdict NO-GO)
 
 **Problem**: The programmatic surface for claude.ai cloud sessions (create/drive/poll/link) and
 the credential artifact it needs are unverified — everything else depends on them.
@@ -23,24 +28,57 @@ the credential artifact it needs are unverified — everything else depends on t
       `getSessionStatus`/`getSessionUrl` are left explicitly unimplemented (throw with a pointer
       to spec.md) because no documented or discovered API surface exists for either — writing a
       guessed implementation would misrepresent what Phase 1 actually established.
-- [ ] Task 3: Run the loop once for real: launch a session with a trivial change prompt on the
+- [x] Task 3: Run the loop once for real: launch a session with a trivial change prompt on the
       scratch repo → poll to completion → observe the pushed branch/PR. Record the session URL,
       PR URL, and observed status transitions in `conversation.md`.
-      → **Could not run, structurally, not just practically**: `--cloud` refuses any
-      non-interactive caller, including this one — there is no TTY to give it from an automated
-      session. No scratch repo was set up for the same reason (no point provisioning one against
-      a mechanism confirmed blocked at the invocation step). This absence is itself part of the
-      Phase 1 finding, not a skipped step.
+      → **Closed as structurally-blocked, not skipped**: `--cloud` refuses any non-interactive
+      caller, so no automated process can run this exercise. That impossibility IS the Phase 1
+      result (it's what forced the pivot); the live end-to-end exercise moves to Phase 1b
+      against the Managed Agents surface.
 - [x] Task 4: GO/NO-GO checkpoint comment in `conversation.md`. On NO-GO (surface unusable):
       stop, set **Waiting for reply**: yes, and put the fallback decision (option B pivot) to a
       human — do not proceed silently.
-      → NO-GO posted, with fallback options, per this run's explicit scope (Phase 1 only, stop
-      after this comment regardless of outcome).
+      → NO-GO posted with fallback options; human chose the Managed Agents pivot (recorded in
+      conversation.md). Phase complete.
 
-**Impact**: De-risked the track earlier than a full build would have — the specific mechanism
-D-1/D-5 assumed (headless dispatcher shelling to `claude --cloud`) is confirmed non-viable
-before any of Phases 2-7's implementation cost was spent. A human decision on the fallback path
-is needed before this track can continue (see conversation.md).
+**Impact**: De-risked the track before Phases 2+ spent any implementation cost on a non-viable
+mechanism; produced the pivot decision this rev. 2 plan is built on.
+
+## Phase 1b: Managed Agents live-validation spike (GO/NO-GO for rev. 2)
+
+**Problem**: Everything known about Managed Agents is docs-grade; the rev. 2 design leans on
+five specific platform behaviors that must be proven live before building on them.
+**Solution**: A real agent + environment + session driving one trivial change end to end on a
+scratch repo, exercising exactly the features D-8/D-9 depend on.
+
+- [ ] Task 0: Auth per the keyless-only policy: install the `ant` CLI and use `ant auth
+      login` (OAuth profile) — no ANTHROPIC_API_KEY anywhere; verify the Managed Agents
+      beta accepts profile auth end to end (a finding in its own right — record it).
+- [ ] Task 1: Provision via `ant` CLI: agent YAML (model, system prompt with laneconductor
+      skill invocation, bash/code-exec tools) + environment YAML under `conductor/cloud/`;
+      record resulting ids. Create a scratch GitHub repo containing a minimal `conductor/`
+      + `.claude/skills/laneconductor` symlink-resolved copy.
+- [ ] Task 2: Rewrite `conductor/services/cloud-session-driver.mjs` against
+      `/v1/sessions` (beta `managed-agents-2026-04-01`): `createSession({trackNumber, repo,
+      budget})` (mounts the repo resource + vault GitHub credential), `sendEvent(id, message)`,
+      `pollEvents(id)`, `getTraceUrl(id)` — thin, real HTTP, no mocks.
+- [ ] Task 3: Live end-to-end: session with mounted scratch repo → prompt a trivial tracked
+      change → verify in-sandbox skill auto-discovery ran, commit + push succeeded via the
+      vault credential (token never visible in transcript), branch appears on GitHub → open PR
+      (record which side opened it — agent via prompt vs dispatcher via API — and standardize).
+      Record session id, trace URL, PR URL, observed event/status transitions, and
+      `cache_read_input_tokens` evidence in `conversation.md`.
+- [ ] Task 4: Verify the operational envelope: session budget set + budget-reached behavior
+      (drive a tiny-budget session to its cap), session resume after idle (second event to the
+      same session), and session lifetime semantics (does an idle session survive long enough
+      to span a multi-day track? → decides D-8 track↔session vs session-per-lane-action —
+      record the decision in spec.md).
+- [ ] Task 5: GO/NO-GO checkpoint comment in `conversation.md`. On NO-GO: stop, set
+      **Waiting for reply**: yes, put the next fallback (self-provisioned sandboxes / wait for
+      GA) to a human.
+
+**Impact**: Converts every docs-grade assumption the rev. 2 design rests on into confirmed-live
+facts (or kills them cheaply); delivers the real driver Phase 4 wraps.
 
 ## Phase 2: Executor seam — refactor with zero behavior change
 
@@ -50,7 +88,8 @@ is needed before this track can continue (see conversation.md).
 
 - [ ] Task 1: Define the executor interface in `conductor/services/executor.mjs`:
       `run(prompt, ctx) → {id}`, `poll(id) → {state, detail}`, `result(id)`; states map onto the
-      existing dispatch outcome vocabulary (running/success/error/timeout/needs-input).
+      existing dispatch outcome vocabulary (running/success/error/timeout/needs-input) plus
+      `budget-reached`.
 - [ ] Task 2: `LocalCliExecutor` wrapping the existing `buildCliArgs` → `spawnCli` path —
       behavior-identical (same logs, same exit handling, same retry accounting).
 - [ ] Task 3: Route all four call sites through the seam: `autoLaunchLocalFs`,
@@ -59,78 +98,83 @@ is needed before this track can continue (see conversation.md).
 - [ ] Task 4: Full existing suite green (`node --test conductor/tests/`), plus the local-fs and
       local-api E2E suites — this phase must be invisible to machine workers (REQ-9/AC-7).
 
-**Impact**: The single seam that makes every LLM-triggering path cloud-capable later.
+**Impact**: The single seam that makes every LLM-triggering path cloud-capable.
 
 ## Phase 3: Credentials, preflight, and the `runtime` field
 
-**Problem**: Nowhere to store/validate Claude credentials or express "this worker is cloud".
-**Solution**: Schema + storage + preflight checks + creation UX.
+**Problem**: Nowhere to store/validate the Anthropic API key or GitHub token, or to express
+"this worker is cloud".
+**Solution**: Schema + storage + vault registration + preflight checks + creation UX.
 
 - [ ] Task 1: Migration: `workers.runtime` (default `'machine'`); `tracks.cloud_session_id`,
-      `tracks.cloud_session_url`. (Prisma schema + Atlas migration per tech-stack workflow.)
-- [ ] Task 2: Credential storage per Phase 1 findings, following 1118/1033 patterns (env/secret
-      store; never in `.laneconductor.json`/git). Include live validation (`validateClaude
-      Credential()` doing a cheap real check, not presence-only).
+      `tracks.cloud_session_url`, `tracks.cloud_session_budget`. (Prisma schema + Atlas
+      migration per tech-stack workflow.)
+- [ ] Task 2: Anthropic auth resolution (REQ-3, keyless-only): resolve via SDK chain
+      restricted to profile/WIF (explicitly reject a configured ANTHROPIC_API_KEY with a
+      policy message); `validateAnthropicAuth()` does a cheap real call and reports the mode.
+      GitHub token: secret store + vault registration for in-sandbox use;
+      `validateGithubToken(repo)` (real repo-visibility check) — not presence-only.
 - [ ] Task 3: Preflight module `conductor/services/cloud-preflight.mjs` implementing REQ-4's
-      four checks (Claude credential live check; GitHub remote; Claude GitHub App installed on
-      repo; dispatcher GitHub token) — each failure returns a machine-usable reason + fix-it
-      guidance string.
+      four checks (profile/WIF identity live + mode reported; Managed Agents beta reachable; GitHub remote exists; GitHub
+      token sees the repo) — each failure returns a machine-usable reason + fix-it guidance.
 - [ ] Task 4: Creation UX: `lc worker start --runtime cloud` (and setup wizard question where
       worker creation already exists) runs preflight and refuses to register on failure,
       printing the guidance. UI: workers list shows a CLOUD runtime badge (same pattern as the
       1042 mode badge).
-- [ ] Task 5: Tests: preflight matrix (each check failing alone), credential validation
-      mocked-live, migration idempotence, machine-worker default untouched.
+- [ ] Task 5: Tests: preflight matrix (each check failing alone), validation mocked-live,
+      migration idempotence, machine-worker default untouched, no credential material in
+      git-tracked files.
 
 **Impact**: AC-1; the trust groundwork for every dispatch.
 
 ## Phase 4: CloudSessionExecutor + implement lane in the cloud
 
-**Problem**: No executor can run a lane action in a cloud session yet.
-**Solution**: Wrap the Phase 1 driver as the second executor; wire the implement lane first.
+**Problem**: No executor can run a lane action in a Managed Agents session yet.
+**Solution**: Wrap the Phase 1b driver as the second executor; wire the implement lane first.
 
-- [ ] Task 1: `CloudSessionExecutor` implementing the Phase 2 interface over the Phase 1
-      driver; persists `cloud_session_id`/`cloud_session_url` on the track; maps session states
-      to executor states.
+- [ ] Task 1: `CloudSessionExecutor` implementing the Phase 2 interface over the Phase 1b
+      driver: resolves the track's session (create-on-first-use with repo mount + vault
+      credential + budget, per D-8; resume otherwise — honoring Phase 1b's lifetime decision),
+      sends the lane action as an event, maps session/event states to executor states
+      (including budget-reached), persists `cloud_session_id`/`cloud_session_url`.
 - [ ] Task 2: Cloud lane-action prompt assembly: reuse `buildCliArgs`'s prompt content (skill
-      invocation + track number) adapted for a session that clones from GitHub (context files
-      ship inside the repo already — conductor/ is committed).
+      invocation + track number; the mounted repo carries conductor/ context and the skill —
+      D-9), adjusted for the session's FRESH/RESUMED semantics.
 - [ ] Task 3: Claim path: a `runtime: cloud` worker claiming an implement-lane track dispatches
-      via `CloudSessionExecutor`; the existing poll loop watches session state instead of child
-      exit; on completion, existing `reconcilePrTracks` machinery picks up the PR (extend its
-      PR-state source so the dispatcher can use the GitHub API token from preflight instead of
-      requiring local `gh`).
-- [ ] Task 4: Kanban card: show cloud status chip + deep link (`cloud_session_url`) while
-      active (AC-3).
-- [ ] Task 5: Tests with a mock session API server (same zero-dep Node http pattern as
-      `conductor/tests/mock-collector.mjs`): dispatch → poll transitions → PR-detected → lane
-      transition. Then AC-2 once for real against the scratch repo; record evidence in
-      conversation.md.
+      via `CloudSessionExecutor`; the existing poll loop watches session events instead of
+      child exit; on completion, `reconcilePrTracks` picks up the PR (extend its PR-state
+      source to use the stored GitHub token / GitHub API instead of requiring local `gh`).
+- [ ] Task 4: Kanban card: cloud status chip (running/idle/needs-input/budget-reached) + trace
+      deep link (`cloud_session_url`) + session token/cost from usage events (AC-3, REQ-7).
+- [ ] Task 5: Tests with a mock sessions API server (same zero-dep Node http pattern as
+      `conductor/tests/mock-collector.mjs`): dispatch → event transitions → PR-detected → lane
+      transition; budget-reached path (AC-8). Then AC-2 once for real against the scratch
+      repo; record evidence in conversation.md.
 
-**Impact**: AC-2/AC-3 — the core feature works end to end for the expensive lane.
+**Impact**: AC-2/AC-3/AC-8 — the core feature works end to end for the expensive lane.
 
 ## Phase 5: All lanes cloud + merge/conflict handling
 
 **Problem**: plan/review/quality-gate/merge still assume local execution for cloud workers.
-**Solution**: Same executor, per-lane prompt/outcome mapping; merge via GitHub API + cloud
-conflict sessions.
+**Solution**: Same executor and session, per-lane prompt/outcome mapping; merge via GitHub API
++ session conflict turns.
 
 - [ ] Task 1: plan lane in cloud: session commits spec/plan/test/index updates to the repo
       (branch or direct per workspace rules); dispatcher reads resulting lane marker via GitHub
       contents API to advance state.
-- [ ] Task 2: review + quality-gate lanes in cloud: sessions run the project's test commands in
-      the sandbox on the track branch; verdict returns via the committed conversation/index
-      updates on the branch (outbound-only, D-3).
+- [ ] Task 2: review + quality-gate lanes in cloud: session turns run the project's test
+      commands in the sandbox on the track branch; verdict returns via the committed
+      conversation/index updates on the branch (outbound-only, D-3).
 - [ ] Task 3: merge lane: clean PR → merge via GitHub API call (no local git); conflicted PR →
-      dispatch a cloud merge session with the same intent as the local merge action ("merge
-      main into track branch, resolve using plan/spec intent, push"), then re-check
-      mergeability (AC-4). Reuse `reconcilePrTracks`' CONFLICTING detection.
+      send the session a conflict-resolution turn with the same intent as the local merge
+      action ("merge main into track branch, resolve using plan/spec intent, push"), then
+      re-check mergeability (AC-4). Reuse `reconcilePrTracks`' CONFLICTING detection.
 - [ ] Task 4: Mid-run board freshness: dispatcher polls the track branch's `index.md`/`plan.md`
       via GitHub contents API on the reconcile cadence (bounded calls; respect rate limits).
-- [ ] Task 5: Tests: per-lane mock-session flows; conflicted-PR → merge-session → mergeable
+- [ ] Task 5: Tests: per-lane mock-session flows; conflicted-PR → conflict-turn → mergeable
       sequence against a mock GitHub API.
 
-**Impact**: D-4 fulfilled — a cloud worker can carry a track through its whole lifecycle.
+**Impact**: D-4 fulfilled — a cloud worker carries a track through its whole lifecycle.
 
 ## Phase 6: Dispatcher-only worker mode
 
@@ -146,20 +190,22 @@ subsystems and expects a repo checkout — the multi-tenant scaling blocker.
       inbox, auto-complete chains — all verified to function with no `conductor/` directory
       present at all.
 - [ ] Task 3: Permanent-failure escalation (REQ-8): classify permanent vs transient executor/
-      preflight errors; DB-persisted attempt counters; escalate to `failure` + single ❌ Inbox
-      comment after N attempts. Coordinate the shared shape with track 10040 (see both
-      conversations) — if 10040 has landed its counter, reuse it; if not, build DB-side here
-      and note it on 10040.
-- [ ] Task 4: E2E test: dispatcher-only worker + mock session API + mock GitHub API + real
+      preflight errors (revoked key, dead GitHub token, org budget exhaustion); DB-persisted
+      attempt counters; escalate to `failure` + single ❌ Inbox comment after N attempts.
+      Coordinate the shared shape with track 10040 (see both conversations) — if 10040 has
+      landed its counter, reuse it; if not, build DB-side here and note it on 10040.
+- [ ] Task 4: E2E test: dispatcher-only worker + mock sessions API + mock GitHub API + real
       Collector/DB path drives a track plan → implement → PR → merged with zero filesystem
       writes outside logs (AC-5); revoked-credential loop test (AC-6).
 
 **Impact**: The scaling answer — orchestration cost per project drops to a few HTTP calls.
 
-## Phase 7: Docs + fundamentals reconciliation
+## Phase 7: Docs, fundamentals reconciliation + positioning
 
 **Problem**: product.md and tech-stack.md describe only the local-sovereign profile (flagged as
-a fundamentals conflict in conversation.md).
+a fundamentals conflict in conversation.md); and the LaneConductor-over-raw-Managed-Agents
+value story (board, lanes, gates, per-track sessions, PR review flow, retries/escalation, KPIs,
+multi-project visibility) is written down nowhere.
 **Solution**: Human-reviewed doc updates, not silent edits.
 
 - [ ] Task 1: Draft updates presenting cloud workers as an opt-in runtime alongside the
@@ -167,16 +213,25 @@ a fundamentals conflict in conversation.md).
       coordination profile (tech-stack.md, workflow.md's Workspace/coordination notes) — post
       the draft for human review per the guardrail before committing.
 - [ ] Task 2: SKILL.md / lc help: document `--runtime cloud`, `--dispatcher`, preflight
-      requirements, and the v1 outbound-only status model.
+      requirements, credentials, budgets, and the v1 outbound-only status model.
+- [ ] Task 2b: README + wiki "Keyless cloud-worker setup" guide (human request, 2026-08-30):
+      install the Anthropic CLI (`ant`) from github.com/anthropics/anthropic-cli/releases —
+      NOT apt/snap `ant`, which is Apache Ant — then `ant auth login` (ADC-style OAuth
+      profile; show `ant auth status` verification and the ANTHROPIC_API_KEY-shadowing trap),
+      and the WIF alternative for servers/CI. This is the canonical credential setup for
+      cloud workers.
+- [ ] Task 3: README/wiki section "LaneConductor vs. raw Managed Agents" (what orchestration
+      adds on top of one agent in one sandbox). Landing-page copy is NOT this track — create a
+      `marketing`-type track for it when Phase 7 lands, seeded from this section.
 
-**Impact**: The docs stop contradicting the shipped architecture.
+**Impact**: Docs stop contradicting the shipped architecture; the differentiation story exists.
 
-## Phase 8: Inbound live-progress callbacks (v2 — OUT OF THIS PASS)
+## Phase 8: Webhook push updates (v2 — OUT OF THIS PASS)
 
-Deliberately unchecked and excluded from this track's acceptance criteria (D-3). Requires an
-internet-reachable Collector and scoped short-lived callback keys injected into sessions.
-Do NOT mark this track done against this phase; it moves to its own track (or 017) when
-prioritized.
+Deliberately unchecked and excluded from this track's acceptance criteria (D-3). Managed
+Agents webhooks can push session events to us, replacing polling — but require an
+internet-reachable Collector endpoint (auth model + exposure design). Do NOT mark this track
+done against this phase; it moves to its own track (or 017) when prioritized.
 
-- [ ] (deferred) Scoped short-lived callback tokens; Collector exposure model; per-phase live
-      progress posting from sessions.
+- [ ] (deferred) Webhook endpoint + auth on the Collector; replace/augment session polling;
+      reconcile with the outbound-only status model.
