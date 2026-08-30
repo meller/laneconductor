@@ -56,12 +56,24 @@ function gitShow(repoRoot, ref, path) {
 /**
  * The git-aware counterpart to isTrackBookkeepingConflict(): confirms not
  * just that every conflicting path is one of this track's own bookkeeping
- * files, but that main's OWN side of the conflict only ever touched known
- * status-header lines relative to the merge-base — i.e. main's copy is
- * genuinely just the sync-mirror artifact, not a human hand-editing
- * Problem/Solution prose directly on main (which must still block, even
- * though it's the "same" file path). Whatever the branch changed is never
- * restricted — it's the authoritative completion record once done:success.
+ * files, but that main's side of the conflict is provably not real,
+ * independent content — via either of two rules (either is sufficient):
+ *
+ *  1. Header-only (track 1114): main only ever touched known status-header
+ *     lines relative to the merge-base — main's copy is genuinely just the
+ *     sync-mirror artifact, not a human hand-editing Problem/Solution prose
+ *     directly on main (which must still block, even though it's the
+ *     "same" file path).
+ *  2. Identical-to-branch (track 10038): main's raw content is byte-
+ *     identical to the branch's raw content for that path — main and the
+ *     branch independently converged on the same real state (e.g. the live
+ *     sync worker mirroring the same checkbox ticks the branch's own
+ *     commits made), so there is no actual conflict of intent, only of
+ *     history. No stripping needed here — the two sides already agree
+ *     byte-for-byte.
+ *
+ * Whatever the branch changed is never restricted by either rule — it's
+ * the authoritative completion record once done:success.
  * @returns {boolean}
  */
 export function isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, branch, conflictPaths, trackNumber }) {
@@ -76,8 +88,11 @@ export function isSafeToAutoResolveBookkeepingConflict({ repoRoot, mainBranch, b
   for (const path of conflictPaths) {
     const baseContent = gitShow(repoRoot, base, path);
     const mainContent = gitShow(repoRoot, mainBranch, path);
-    if (baseContent === null || mainContent === null) return false;
-    if (stripHeaderLines(baseContent) !== stripHeaderLines(mainContent)) return false;
+    const branchContent = gitShow(repoRoot, branch, path);
+    if (baseContent === null || mainContent === null || branchContent === null) return false;
+    const headerOnly = stripHeaderLines(baseContent) === stripHeaderLines(mainContent);
+    const identicalToBranch = mainContent === branchContent;
+    if (!headerOnly && !identicalToBranch) return false;
   }
   return true;
 }

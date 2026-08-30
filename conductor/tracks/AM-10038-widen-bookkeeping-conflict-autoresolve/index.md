@@ -1,10 +1,11 @@
 # Track AM-10038: Widen Bookkeeping-Conflict Auto-Resolve to Checkbox Mirroring
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: mock (primary)
-**Phase**: Queued for implement
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Quality gate passed — queued for merge
+**Waiting for reply**: no
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct
