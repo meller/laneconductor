@@ -1294,18 +1294,28 @@ function loadWorkflowConfig() {
 
 let tracksMetadata = null;
 
-function loadTracksMetadata() {
+// Track 10036: unlike loadTracksMetadata() below, this never substitutes the
+// empty default on failure — it returns null so a caller (specifically the
+// tracks-metadata.json watch) can tell "parsed fine, file just doesn't exist
+// yet" apart from "read/parse failed" and refuse to clobber a known-good
+// in-memory cache with an empty one on a transient bad read (e.g. chokidar
+// firing mid-write).
+function loadTracksMetadataStrict() {
   const metadataPath = 'conductor/tracks-metadata.json';
   try {
-    if (existsSync(metadataPath)) {
-      const content = readFileSync(metadataPath, 'utf8');
-      return JSON.parse(content);
+    if (!existsSync(metadataPath)) {
+      return { format: '1.0', last_checked: new Date().toISOString(), tracks: {} };
     }
+    const content = readFileSync(metadataPath, 'utf8');
+    return JSON.parse(content);
   } catch (err) {
     console.warn('[metadata] Failed to load metadata:', err.message);
+    return null;
   }
-  // Return default empty metadata
-  return {
+}
+
+function loadTracksMetadata() {
+  return loadTracksMetadataStrict() ?? {
     format: '1.0',
     last_checked: new Date().toISOString(),
     tracks: {}
@@ -1313,9 +1323,16 @@ function loadTracksMetadata() {
 }
 
 function saveTracksMetadata(metadata) {
+  const metadataPath = 'conductor/tracks-metadata.json';
   try {
     metadata.last_checked = new Date().toISOString();
-    writeFileSync('conductor/tracks-metadata.json', JSON.stringify(metadata, null, 2), 'utf8');
+    // Track 10036: write-then-rename so a concurrent reader (the
+    // tracks-metadata.json watch) can never observe a partially-written
+    // file — rename is atomic within a filesystem, so the temp file must
+    // live in the same directory as the target.
+    const tmpPath = `${metadataPath}.tmp-${process.pid}-${Date.now()}`;
+    writeFileSync(tmpPath, JSON.stringify(metadata, null, 2), 'utf8');
+    renameSync(tmpPath, metadataPath);
   } catch (err) {
     console.error('[metadata] Failed to save metadata:', err.message);
   }
@@ -2586,6 +2603,26 @@ watch([
 // Reload workflow config when workflow.json changes (local-fs canonical source)
 watch('conductor/workflow.json', { ignoreInitial: true })
   .on('change', () => { workflowConfig = loadWorkflowConfig(); console.log('[config] workflow.json reloaded'); });
+
+// Track 10036: event-driven reload of tracksMetadata, mirroring the
+// workflow.json watch above. Before this, the only reload was the
+// `tracksMetadata = loadTracksMetadata()` line inside the API-mode branch
+// of the auto-launch setInterval further down — reached only when the
+// worker is not sync-only, not local-fs, below its parallel limit, and
+// pullWorkflow() succeeds. Any one of those conditions stranded a
+// long-lived worker's cache indefinitely. Uses the strict loader so a
+// transient bad read (e.g. this watch firing on a partial write) never
+// clobbers a known-good cache with an empty one.
+watch('conductor/tracks-metadata.json', { ignoreInitial: true })
+  .on('change', () => {
+    const next = loadTracksMetadataStrict();
+    if (!next) {
+      console.warn('[config] tracks-metadata.json reload skipped — parse failed, keeping last good cache');
+      return;
+    }
+    tracksMetadata = next;
+    console.log('[config] tracks-metadata.json reloaded');
+  });
 
 watch('conductor/tracks/file_sync_queue.md', { ignoreInitial: true })
   .on('change', () => debounce('file-queue', () => processFileSyncQueue().catch(e => console.error('[file-queue error]:', e.message)), 1000))
