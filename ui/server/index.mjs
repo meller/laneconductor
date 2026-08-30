@@ -2915,7 +2915,7 @@ async function claimQueuedTracks(req, res) {
       FROM (
         SELECT id FROM tracks
         WHERE project_id = $1 AND lane_action_status = 'queue'
-          AND lane_status IN ('plan', 'implement', 'review', 'quality-gate')
+          AND lane_status IN ('plan', 'implement', 'review', 'quality-gate', 'done')
     `;
     const params = [projectId, req.body.limit || 5, req.machine_token];
 
