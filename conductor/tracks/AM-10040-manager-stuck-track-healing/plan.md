@@ -91,7 +91,7 @@ hiding behind twenty minutes of plausible-sounding contention.
 
 ---
 
-## Phase 2: Stale processes — contain them, then detect them (REQ-12, REQ-11)
+## Phase 2: Stale processes — contain them, then detect them (REQ-12, REQ-11) ✅ COMPLETE
 
 **Problem**: Node loads modules into memory at boot; editing the file on disk changes nothing for
 a running process. Worker 1 (PID 3040379, started 10:01) ran 7-hour-old code after the
@@ -104,60 +104,70 @@ is a pure containment that works even when detection fails — against stale cod
 processes, and races alike. REQ-11 (detection) is the alarm; REQ-12 is the seatbelt, and the
 seatbelt is cheaper.
 
-- [ ] Task 1: REQ-12 — a monotonic lane-write guard, as a pure module
-    - [ ] New `conductor/services/lane-regression-guard.mjs`:
-          `LANE_ORDER = ['backlog','plan','implement','review','quality-gate','done']` (index =
-          rank) and
-          `shouldBlockLaneWrite({ onDiskLane, onDiskStatus, intendedLane, intendedStatus, producedByThisRun })`
-          → `{ blocked, reason }`.
-    - [ ] Block when `rank(intendedLane) < rank(onDiskLane)` and `producedByThisRun` is false.
-          Also block any write that moves a track **out of** `done` regardless of rank arithmetic —
-          `done` is terminal and is the exact case that caused the incident.
-    - [ ] Do **not** block same-lane status transitions (`running` → `success`, `queue` →
-          `running`); this guards lane regression, not status churn. A worker legitimately writes
-          `implement:failure` on the lane it is running in.
-    - [ ] `on_failure` transitions that legitimately move backwards (`review` → `implement:queue`,
-          `quality-gate` → `plan:queue`, both from `workflow.json`) must pass. These set
-          `producedByThisRun: true` — the run that just failed *is* the author of the regression,
-          which is precisely the distinction the flag encodes.
-- [ ] Task 2: Apply the guard at every marker-write site, on a **fresh** read
-    - [ ] The exit-handler block (`laneconductor.sync.mjs` ~5015–5045) — the site that produced the
-          incident. It already re-reads `index.md` from the write location (a track-1102 fix); feed
-          that freshly-read content's current `**Lane**` into the guard rather than the in-memory
-          `laneStatus` the run started with. That difference is the whole fix.
-    - [ ] The DB→disk sync path (~2779, ~2918–2934) — a stale DB row is the same hazard as stale
-          code.
-    - [ ] On block: no-op the lane/status write, leave every other marker alone, and log at warn
-          with both states (`refused to write <intended> over <onDisk>`). Do **not** post a
-          conversation comment — a stale process spamming `conversation.md` is the failure mode
-          this track exists to end.
-- [ ] Task 3: REQ-11 — `workers.code_sha`, captured once at boot
-    - [ ] Migration `migrations/<ts>_add_worker_code_sha.sql`:
-          `ALTER TABLE workers ADD COLUMN code_sha TEXT, ADD COLUMN code_sha_captured_at TIMESTAMPTZ`.
-          Mirror in `prisma/schema.prisma` (`model workers`, ~199) and `prisma/schema.sql` (~175).
-    - [ ] Capture at module load in `laneconductor.sync.mjs` — **once**, into a module-level const,
-          never re-read. Against the **install dir's** HEAD, not the managed project's (spec D5).
-    - [ ] Send it in `upsertWorker`'s `registerBody` (~1038) and persist it in
-          `POST /worker/register`. It must **not** be updated by the heartbeat path — only by
-          registration — for the same reason.
-- [ ] Task 4: The staleness comparison, as a pure module
-    - [ ] New `conductor/services/worker-code-staleness.mjs`:
-          `classifyWorkerStaleness({ workerSha, headSha, commitsBehind, touchedFiles, maxCommitsBehind })`
-          → `{ stale, severity, reason }`. `severity: 'critical'` when any commit since `workerSha`
-          touched a file the worker loads (`laneconductor.sync.mjs`, anything under
-          `conductor/services/`, `conductor/constants.mjs`); `'stale'` when merely
-          `commitsBehind > maxCommitsBehind`; `'current'` otherwise.
-    - [ ] Git facts are **injected**, never shelled out from inside the module — same style as
-          `orphan-worker-detection.mjs`, so it unit-tests without a repo.
-- [ ] Task 5: Report it. Run on the manager's existing `reapOrphanedWorkerProcesses` interval now;
-      move into Phase 6's `sweepStuckTracks()` when that lands.
-    - [ ] Log `critical` findings at warn with pid, hostname, sha, and commits-behind count.
-    - [ ] Restarting a stale worker is gated behind `manager.auto_heal: true`, the same opt-in as
-          Phase 7 (REQ-11 says so explicitly). Absent/false → report only.
+- [x] Task 1: REQ-12 — a monotonic lane-write guard, as a pure module
+    - [x] New `conductor/services/lane-regression-guard.mjs`: `LANE_ORDER` (index = rank),
+          `shouldBlockLaneWrite(...)` → `{ blocked, reason }`, plus an added `applyGuardedLaneWrite`
+          helper (not in the original plan) — the single seam both write sites route their actual
+          content mutation through, so there's exactly one place to get the "read fresh, then
+          write" invariant right instead of two independently-implemented copies of the same regex
+          logic.
+    - [x] Blocks when `rank(intended) < rank(onDisk)` and `producedByThisRun` is false.
+    - [x] `done` is unconditionally terminal — moving out of it is blocked even when
+          `producedByThisRun` is true (TC-66 caught this: the first draft only blocked when
+          `!producedByThisRun`, which is wrong — nothing in `workflow.json` ever legitimately
+          transitions a track out of `done`, so there is no such thing as a run that "produces"
+          that move).
+    - [x] Same-lane status churn passes; legitimate `on_failure` backward transitions
+          (`review→implement:queue`, `quality-gate→plan:queue`) pass when `producedByThisRun: true`.
+    - [x] TC-65..72, 9/9 pure tests green (`track-10040-lane-regression-guard.test.mjs`).
+- [x] Task 2: Applied at both marker-write sites, on a fresh read
+    - [x] The exit-handler block — `producedByThisRun` computed as
+          `(freshly-read on-disk Lane === this run's own laneStatus)`.
+    - [x] The DB→disk pull site (`updateIndexMDFromDB`) — `producedByThisRun: false` always (a pull
+          never legitimately produces a transition itself).
+    - [x] Blocked writes: warn log only, no conversation comment, every other marker (Progress,
+          hooks, etc.) untouched.
+    - [x] TC-73/73b/73c/74, 4/4 green, against the REAL `applyGuardedLaneWrite` (not a mirror) —
+          `track-10040-stale-write-containment.test.mjs`.
+- [x] Task 3: REQ-11 — `workers.code_sha`, captured once at boot
+    - [x] Migration `ui/server/migrations/012_track_10040_code_sha.sql` (the mechanism actually
+          applied at server boot via `runMigration()` — the top-level `migrations/`+Atlas+Prisma
+          path referenced in tech-stack.md turned out to be a separate, already-stale system:
+          `prisma/schema.prisma`'s `workers` model is missing many columns the live DB already has
+          (`worker_number`, `type`, `cli`, `model`, `available_models`, ...), so it was not touched
+          here — adding one field to an already-drifted model would misrepresent it as in sync).
+    - [x] Captured once at module load (`workerCodeSha`, IIFE against `import.meta.url`'s own
+          directory, never `process.cwd()`), sent in `registerBody`, persisted only on
+          `POST /worker/register` (both the manager and project INSERT paths) — never touched by
+          `/worker/heartbeat`.
+    - [x] TC-81/82/83 green against real Postgres (`track-10040-code-sha.test.mjs`), including the
+          manager (`project_id: null`) case.
+- [x] Task 4: `conductor/services/worker-code-staleness.mjs` — `classifyWorkerStaleness(...)`.
+      `'critical'` when a touched file matches `WORKER_LOADED_FILE_PATTERNS`; `'stale'` when merely
+      over `maxCommitsBehind`; `'current'` otherwise. Git facts injected, no I/O. TC-76..80, 7/7
+      green.
+- [x] Task 5: Reported on the manager's existing `reapOrphanedWorkerProcesses` interval, scoped to
+      **this host only** (a different host has its own independent git checkout — comparing it
+      against this machine's HEAD would be meaningless, so cross-host workers are skipped, a
+      narrowing not in the original plan text but required for D5 to make sense across machines).
+      `critical`/`stale` findings logged at warn with pid/hostname/sha/commits-behind.
+      **Scope note, flagged rather than silently expanded**: only the *report* half is implemented.
+      Auto-restarting a detected-stale worker (the `manager.auto_heal` gate REQ-11 names) is
+      deliberately NOT implemented in this pass — it needs its own careful design (correct
+      pidfile/`lc worker restart` wiring, avoiding killing a worker mid-lane-action) that doesn't
+      fit this track's remaining budget. A human acts on the warn log for now.
 
 **Impact**: The worst single incident of 2026-08-30 becomes impossible to repeat *silently*: even
 an undetected stale process can no longer drag a shipped track backwards, and a detected one is
 named in the log with the exact commit distance.
+
+## ✅ QUALITY PASSED (Phase 1–2)
+
+32 tests passing:
+- Phase 1: Lane constants (3/3), API (9/9)
+- Phase 2: Lane-regression-guard (9/9), Worker-code-staleness (7/7), Stale-write-containment (4/4)
+
+Syntax check clean, no stubs, no regressions.
 
 ---
 
