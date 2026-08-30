@@ -168,8 +168,46 @@ Two distinct defects:
 2. **Lane advancement is not gated on evidence.** A transition to `quality-gate` at 100% was
    written with no commit, no checked phase, and no diff. Progress is asserted, never verified.
 
+## Finding 9 — A turn ending is not the same as the work being done
+
+Confirmed live 2026-08-30, on this track's own implement run, and likely the single largest
+contributor to today's churn. `isSuccess` (`laneconductor.sync.mjs:4802`) is defined as:
+
+```js
+const isSuccess = code === 0;
+```
+
+That is the *entire* signal. It has no awareness of how many phases `plan.md` lists, how many are
+checked off, or whether the skill itself considers the lane action complete — only whether the
+`claude` CLI process's exit code was 0. A resumed multi-turn implement session's turn ending
+cleanly (normal Claude Code behavior — a turn ends and control returns to the caller; this is not
+an error condition) is indistinguishable, at this check, from "the whole multi-phase implement
+action is finished."
+
+Observed directly: this track's own Phase 1 (of 7) was completed and committed
+(`d3eafc3 fix(track-10040): Phase 1 — one lane list, honest claim failures`) — genuine, real
+progress. Within minutes the track's markers read `**Lane**: done`, `**Lane Status**: queue`,
+`**Progress**: 100%`. Six phases had not been started. Each clean turn-exit had walked the lane
+one step further along `implement.on_success → review.on_success → quality-gate.on_success →
+done`, compounding across several resumed turns, not just one.
+
+This also explains, retroactively, some of the day's earlier churn that Findings 6–8 only
+partially accounted for: several premature-completion incidents may not have needed a duplicate
+folder or a concurrent session at all — an ordinary multi-turn implement run against this specific
+lane-transition logic can produce the same symptom on its own.
+
+Note the existing `endedMidWork` guard (F21, `laneconductor.sync.mjs` ~4974) is a different, narrower
+case — it catches a still-running backgrounded process at exit, not a cleanly-exited turn that
+simply hasn't finished all its phases. It does not cover this.
+
 ## Requirements
 
+- REQ-20 (Finding 9): a resumed session's clean exit must not be treated as the lane action's
+  final success unless the skill's own work is actually complete. At minimum, `isSuccess`'s
+  transition-triggering effect should require corroborating evidence in the same spirit as
+  REQ-19 — e.g. every `plan.md` phase checkbox for this run is checked, or the skill explicitly
+  signals completion (a marker distinct from the routine per-phase **Progress** update) — rather
+  than firing on exit code alone.
 - REQ-18 (Finding 8): a claim is a **lease held for the duration of the run**, not a one-shot
   check. A session must not start against a track another live session holds; the lease is
   released by the exit handler or by expiry, and expiry must be longer than the spawn timeout.

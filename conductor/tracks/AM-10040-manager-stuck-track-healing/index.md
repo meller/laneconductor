@@ -1,8 +1,8 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
-**Lane**: done
+**Lane**: implement
 **Lane Status**: queue
-**Progress**: 100%
+**Progress**: 14%
 **Last Run**: mock (primary)
 **Phase**: Plan final (7 phases) — REQ-11/REQ-13 corrections inline; Phase 1 ready
 **Type**: dev
@@ -59,7 +59,7 @@ sweep — it's the one worker with cross-project scope and no per-project claim 
 Ordered by live damage rate, not by the order the findings were written. The original three
 phases are now 5–7; Findings 4–7 produced the four that go first.
 
-- [ ] Phase 1: One lane list + claims that say why they failed (REQ-13, 14 — Finding 5)
+- [x] Phase 1: One lane list + claims that say why they failed (REQ-13, 14 — Finding 5)
 - [ ] Phase 2: Stale-process containment, then detection (REQ-12, 11 — Finding 4)
 - [ ] Phase 3: One folder resolver, skill included (REQ-15 — Finding 6)
 - [ ] Phase 4: Invalid resting states (REQ-16, 17 — Finding 7)
