@@ -69,6 +69,52 @@ same day (PID 1736711, ~17% CPU for 2 days against a deleted cwd) because that p
 registered itself in the workers table at startup. Registered-but-useless is invisible to the
 sweep's orphan definition.
 
+## Finding 4 — A fix on disk is not a fix in production (stale in-memory code)
+
+Confirmed live 2026-08-30, and the single most damaging pattern of the day. Worker 1
+(PID 3040379) started at 10:01. The `tracksMetadata` fix (`fa85a9c`) was committed at 17:02 —
+**7 hours later**. Node had long since loaded the old module into memory, and editing the file on
+disk does nothing for a running process. So for 7 hours a worker kept manufacturing duplicate
+folders using code that had already been fixed, and every "did we fix it?" check against the
+source said yes.
+
+The damage was not limited to new tracks. In its final cycles before being killed, worker 1
+overwrote track 10036's **own canonical `index.md`** from `done:queue` back to
+`implement:success`, regenerated two duplicate folders for it, and caused a correctly-coded
+worker to spawn a redundant `/laneconductor implement 10036` on an already-merged feature. A
+track that had genuinely shipped was dragged backwards through the pipeline by a stale process.
+
+There is no mechanism anywhere that detects "this running process is older than the code it
+claims to run." Every recovery today was a human noticing and restarting by hand.
+
+## Finding 5 — `done` became an active lane without updating every consumer
+
+Track 10035 made `done` a real, claimable lane action (the merge step). The worker's poll loop was
+updated. Two SQL consumers were not:
+
+- `POST /tracks/claim-queue` (`ui/server/index.mjs:2918`) filtered
+  `lane_status IN ('plan','implement','review','quality-gate')` — no `'done'`. **Every** claim
+  attempt on a `done:queue` track returned zero rows, forever, for every worker. Callers logged
+  it as `lost the DB claim race` (`laneconductor.sync.mjs:5820`), which read as transient
+  contention but was a permanent silent exclusion. Tracks 10036, 10020 and 10026 all sat
+  unclaimable at `done:queue`; 10036 was stuck ~20 minutes with two idle workers polling it.
+  Fixed 2026-08-30 in `bede5ab` — but the *class* of bug is what matters here.
+- The comment webhook (`ui/server/index.mjs:3219`) has the identical omission: a human comment on
+  a `done`-lane track does not re-wake the worker. **Still unfixed.**
+
+The lesson generalizes past these two call sites: lane-name lists are duplicated across the
+worker and the API with no shared definition, so adding a lane silently half-lands.
+
+## Finding 6 — Folder-duplication is not solely the worker's stale cache
+
+After worker 1 was killed and only correctly-coded workers remained, a fresh
+`/laneconductor implement 10036` session **still** scaffolded duplicate legacy `NNN-slug`
+folders. The short-lived `claude -p` skill session performs its own folder resolution,
+independent of the long-lived worker's `tracksMetadata` cache that 10036 fixed. 10036 closed one
+instance of "cannot resolve the real folder"; the skill-side path is a separate, still-open
+instance of the same class. Any duplicate-cleanup work here will keep finding new duplicates
+until that path is fixed too.
+
 ## Requirements
 
 - REQ-1: Count consecutive workspace-guard blocks per track (persisted; e.g. a
@@ -105,6 +151,34 @@ sweep's orphan definition.
   A ⚠️ comment is posted only on the **first** block of a streak; blocks 2..N−1 are logged only;
   block N posts the single ❌. A permanent block therefore produces exactly two comments total
   (one ⚠️, one ❌) rather than 191.
+- REQ-11 (Finding 4): every worker records the git commit SHA of the code it loaded at startup
+  (`workers.code_sha`, captured once at boot). The manager sweep compares each registered
+  worker's `code_sha` against the repo's current `HEAD` for its project and flags — or, behind
+  the same `manager.auto_heal` gate as REQ-7, restarts — any worker running code older than N
+  commits or older than a fix that touched files it depends on. A stale worker is a *correctness*
+  hazard, not just a staleness annoyance: worker 1 rewrote a shipped track's canonical `index.md`
+  backwards.
+- REQ-12 (Finding 4): a worker must never write a track's `**Lane**`/`**Lane Status**` backwards
+  past a terminal state it did not itself produce. Concretely: a process may not move a track out
+  of `done` (or from a later lane to an earlier one) based solely on its own in-memory view — it
+  must re-read the current marker first and no-op if the on-disk state is ahead of what it
+  expects. This is a last line of defence that would have contained Finding 4's damage even with
+  stale code running.
+- REQ-13 (Finding 5): the set of claimable/active lanes is defined **once**, in one shared module
+  imported by both the worker and the API, replacing every duplicated
+  `lane_status IN ('plan','implement','review','quality-gate'[,'done'])` literal. Adding a lane
+  must be a one-line change that cannot half-land. Includes fixing the still-broken comment
+  webhook (`ui/server/index.mjs:3219`).
+- REQ-14 (Finding 5): a claim attempt that returns zero rows must be distinguishable from a lost
+  race. `claim-queue` returns *why* nothing was claimed (`already_claimed` vs
+  `lane_not_claimable` vs `no_candidates`), and the worker logs that reason verbatim. The current
+  message asserts a cause it never verified, which is what disguised a permanent bug as transient
+  contention for hours.
+- REQ-15 (Finding 6): the implement skill's own folder resolution uses the same canonical
+  resolver as the worker (single implementation, not a parallel one), so a skill session cannot
+  scaffold a duplicate folder for a track that already exists under the `INITIALS-NNN-slug`
+  convention. Scaffolding a new track folder when a folder for that track number already exists
+  in any naming convention is an error, not a fallback.
 
 ## Design Decisions (resolved in planning)
 
@@ -156,8 +230,43 @@ sweep's orphan definition.
       — the ❌ comment names `git rm -r --cached ui/node_modules` and the git index is verifiably
       unchanged. With it enabled, the same scenario ends with the path untracked, the checkout
       clean, and the previously-stuck track spawning on the next cycle.
+- [ ] AC-10 (Finding 4): a worker started before a commit that touches its own source is detected
+      as stale — `workers.code_sha` differs from `HEAD` — and surfaced by the manager sweep.
+      Verified against a real worker process, not a fabricated row.
+- [ ] AC-11 (Finding 4): a stale process cannot drag a shipped track backwards. Reproduce the live
+      incident: with a track at `done:queue`, have a process holding an older in-memory view
+      attempt to write `implement:success` to its `index.md`; the write must no-op and log, and
+      the track must remain at `done:queue`.
+- [ ] AC-12 (Finding 5): a `done:queue` track is claimable — `POST /tracks/claim-queue` returns it
+      and the merge action actually spawns. Regression guard for `bede5ab`; must fail against the
+      pre-fix filter.
+- [ ] AC-13 (Finding 5): every lane list is sourced from the single shared definition — grep the
+      repo for a hardcoded `'plan', 'implement', 'review', 'quality-gate'` literal in a SQL or
+      claim path and find none. A human comment on a `done`-lane track re-wakes the worker.
+- [ ] AC-14 (Finding 5): a zero-row claim reports a specific reason (`already_claimed` /
+      `lane_not_claimable` / `no_candidates`), and the worker logs that reason rather than
+      asserting "lost the claim race".
+- [ ] AC-15 (Finding 6): an implement skill session for a track that already has an
+      `INITIALS-NNN-slug` folder does not create an `NNN-slug` duplicate. Run the real skill path
+      against a fixture with an existing prefixed folder and assert exactly one folder exists
+      afterwards.
 
 ## Out of Scope
 
-- Fixing the stale `tracksMetadata` cache itself — that is track 10036's job. This track handles
-  the *consequences* (duplicates, phantom markers, wedged lanes) and the escalation path.
+- Fixing the stale `tracksMetadata` cache itself — that is track 10036's job (shipped as
+  `fa85a9c`). This track handles the *consequences* (duplicates, phantom markers, wedged lanes)
+  and the escalation path. Note Finding 6 is **not** covered by 10036 and is in scope here.
+
+## Live Incident Log (2026-08-30)
+
+The session that produced Findings 4–6, for whoever implements this. Every item was diagnosed
+from live state, not theory:
+
+| Symptom | Real cause | Status |
+|---|---|---|
+| 10036 wedged 2 days, 191 ⚠️ comments | `ui/node_modules` committed as a symlink → permanently dirty checkout → guard blocked every spawn, never escalated | root cause fixed; escalation is REQ-1/2 |
+| implement lane "at limit 2" with 0 running | `_duplicate-*` folders' embalmed `running` markers ate parallel slots | REQ-4 |
+| 24 workers, ~47% CPU | leaked test-harness workers; 2 ignored SIGTERM and needed SIGKILL | REQ-6 (+ reaper must escalate to SIGKILL) |
+| 10036 `done:queue` unclaimable for 20 min with 2 idle workers | `claim-queue` SQL omitted `'done'` | fixed `bede5ab`; REQ-13/14 |
+| shipped track 10036 dragged back to `implement` | worker 1 running 7-hour-old in-memory code | REQ-11/12 |
+| duplicates regenerated *after* the cache fix | skill-side folder resolution is a separate code path | REQ-15 |
