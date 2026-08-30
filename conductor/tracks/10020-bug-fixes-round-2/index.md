@@ -6,7 +6,7 @@
 **Merge Mode**: direct
 **Auto Run**: yes
 **Progress**: 100%
-**Last Run**: implement (primary) — Phases 2-4 implemented and verified
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Summary**: Orphaned dispatches are only reconciled once at worker startup, so a dispatch orphaned mid-run stays frozen forever; make reconciliation periodic and add a cross-process CLI-liveness signal.
 
 ## Problem
