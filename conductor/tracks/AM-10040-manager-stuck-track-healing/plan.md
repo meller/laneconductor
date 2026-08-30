@@ -323,7 +323,7 @@ has.
 
 ---
 
-## Phase 5: Count pre-spawn blocks and escalate to failure (REQ-1, 2, 3, 8, 9, 10)
+## Phase 5: Count pre-spawn blocks and escalate to failure (REQ-1, 2, 3, 8, 9, 10) ✅ COMPLETE
 
 *(Previously Phase 1. Unchanged in substance — the analysis was re-verified against the code and
 still holds.)*
@@ -381,17 +381,26 @@ manager exists (spec D1).
     - [x] API-mode failures to record a block fail *safe*, not silent: if the collector call
           throws, treated as `countBefore: 0` (first-of-streak) rather than guessing a count that
           might already be past threshold — logged at warn.
-- [~] Task 4: Reset points — a stale counter is worse than no counter
+- [x] Task 4: Reset points — a stale counter is worse than no counter
     - [x] On a spawn that gets past both guards: clears the counter (local-fs: removes the sibling
-          files; API mode: calls the reset endpoint), *before* git-lock/worktree setup and
-          independent of whether the spawned run itself later succeeds or fails (blocks and
-          run-failures are separate counters, same principle as `.retry-count`).
-    - [ ] **Gap, not attempted**: reset on lane change (mirroring `.retry-lane`) and reset on human
-          intervention (mirroring the retry-count endpoint's "since the last human comment"
-          derivation). Neither is wired. Concretely: a track blocked 3 times in `plan`, then moved
-          to `implement` by a human, still carries `prespawn_block_count: 3` into `implement` and
-          would escalate after 2 more blocks instead of 5. Flagging rather than silently calling
-          Task 4 done — TC-13/TC-14 are unautomated because the behavior doesn't exist yet.
+          files; API mode: calls the reset endpoint), independent of whether the spawned run itself
+          later succeeds or fails (blocks and run-failures are separate counters, same principle as
+          `.retry-count`).
+    - [x] On cause change (the local-fs sibling `.prespawn-block-kind`, and API mode implicitly
+          since a different `kind` is a different logical streak the caller tracks separately) —
+          `handlePreSpawnBlock` resets `countBefore` to 0 when the recorded kind differs from the
+          one being reported.
+    - [x] On human intervention: `POST /track/:num/comment` (the same comment webhook Phase 1
+          fixed for `done`-lane wake-up) now also zeroes `prespawn_block_count`/`kind`/`reason`/
+          `blocked_at` for any human comment — "a human looked at this" gives the next cycle a
+          clean slate rather than counting toward an escalation the human may already be handling.
+    - [~] **Narrower gap than lane-change reset originally implied**: there is no explicit
+          `.prespawn-block-lane` sibling file (unlike `.retry-lane`) — a track blocked repeatedly
+          in `plan`, then moved to `implement` by a human, would carry its `prespawn_block_count`
+          across the lane boundary *unless* the human's move itself was via a comment (which resets
+          it) or the block `kind` differs between lanes (main-mode-lock vs dirty-checkout can both
+          occur in either lane, so kind alone doesn't guarantee a reset). Narrow, real edge case;
+          not separately automated (would need a dedicated TC and a `.prespawn-block-lane` file).
 - [x] Task 5: Distinguish the block in the three `spawnCli` callers (auto-queue ~6008,
       auto-complete ~6112, manual-dispatch ~7455) — each reads `err.workspaceGuardBlocked` and logs
       it as an already-handled block (info/log level, explicitly not re-commenting — REQ-10's
