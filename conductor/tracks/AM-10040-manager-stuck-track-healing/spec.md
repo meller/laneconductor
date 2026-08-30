@@ -90,6 +90,48 @@ sweep's orphan definition.
 - REQ-7: Where a dirty path is provably junk (e.g. a tracked-but-deleted ignorable build output),
   the manager may propose or apply the fix. Exact safety boundary decided in planning — anything
   ambiguous escalates only, never auto-fixes.
+- REQ-8 (added in planning, from [[AM-10039-cloud-workers-claude-cloud]]'s cross-track note): the
+  block counter and escalation state are persisted in the **database** (`tracks` columns), not
+  only as filesystem sibling files. 10039's dispatcher-only mode has no local `conductor/tracks/`
+  to hold a `.guard-block-count`, so a file-only design would force it to rebuild the mechanism.
+  Local-fs mode still writes sibling files — it has no DB — but the DB is the canonical store
+  wherever one exists.
+- REQ-9 (added in planning): the counter is **cause-generic**, not dirty-checkout-specific. Every
+  record carries a `kind` discriminator (`dirty-checkout`, `main-mode-lock`, and, reserved for
+  10039, `expired-credentials` / `github-app-missing` / `preflight-failed`). Escalation logic
+  keys off count + kind, never off the dirty-path shape, so 10039 reuses it by passing a new
+  `kind`.
+- REQ-10 (added in planning): the ⚠️ spam is fixed at the source, not merely capped at escalation.
+  A ⚠️ comment is posted only on the **first** block of a streak; blocks 2..N−1 are logged only;
+  block N posts the single ❌. A permanent block therefore produces exactly two comments total
+  (one ⚠️, one ❌) rather than 191.
+
+## Design Decisions (resolved in planning)
+
+- **D1 — Who escalates.** Both, splitting by what each can see. The *blocking worker* escalates
+  inline at block time (Phase 1): it is the only component that knows the cause, it works in
+  local-fs where no manager exists, and it has no sweep latency. The *manager sweep* (Phase 2)
+  handles what the guard structurally cannot see — phantom `running` markers left by a process
+  that died, quarantined folders holding lane slots, and dead-cwd workers. The shared
+  classification/threshold logic lives in one pure module used by both, so the two paths can
+  never disagree.
+- **D2 — Escalation terminal state.** `**Lane Status**: failure` on the track's own lane (not a
+  lane change). Verified this genuinely stops the loop: `autoLaunchLocalFs` skips any track whose
+  `lane_action_status !== 'queue'` (`laneconductor.sync.mjs:5703`), and `resetStuckActions` only
+  rewrites `running` rows, so nothing re-queues it. Any human intervention (comment, drag) clears
+  it via the existing retry-reset path.
+- **D3 — Phase 3 auto-heal safety boundary.** A dirty path is healable **only** when all three
+  hold: (a) `git status --porcelain` reports it deleted-from-worktree (`D`), (b) `git check-ignore`
+  confirms it is currently git-ignored, and (c) its basename is on a closed allowlist of build
+  output (`node_modules`, `dist`, `build`, `out`, `.next`, `coverage`, `.venv`, `__pycache__`,
+  `.turbo`). The only permitted remedy is `git rm -r --cached <path>` — index-only. Never a
+  filesystem delete, never a content edit, never a path failing any of (a)–(c).
+- **D4 — Propose before apply.** Default behavior is **propose**: the ❌ escalation comment
+  includes the exact remedy command for a human to run. Applying it automatically requires an
+  explicit `manager.auto_heal: true` opt-in in `.laneconductor.json`; when enabled the manager
+  takes the global main-mode lock before touching the index and commits the change. A tool that
+  wedges tracks should not earn unattended write access to `main` on the same release that fixes
+  the wedging.
 
 ## Acceptance Criteria
 
@@ -102,6 +144,18 @@ sweep's orphan definition.
 - [ ] AC-4: A registered worker process whose cwd is deleted is reaped (Finding 3's zombie case).
 - [ ] AC-5: Escalated tracks appear in the Inbox's "Needs your input" bucket, verified against a
       real `/api/inbox` response, not just a unit assertion.
+- [ ] AC-6: A permanently-blocked track produces exactly **two** system comments across the whole
+      streak (one ⚠️ at the first block, one ❌ at escalation) — counted from a real
+      `conversation.md` after N+2 auto-launch cycles, not asserted from the formatting function.
+- [ ] AC-7: The block counter survives a worker process restart and is readable without the
+      filesystem — after escalation, `GET /track/:num` (or the tracks row) reports the recorded
+      count, kind, and reason, so 10039's dispatcher-only mode can consume it.
+- [ ] AC-8: A transient block does **not** escalate: a checkout that is dirty for the first block
+      and clean by the next cycle spawns normally, and the recorded count is back to 0 afterwards.
+- [ ] AC-9: With `manager.auto_heal` unset, a healable `D ui/node_modules` path is only *proposed*
+      — the ❌ comment names `git rm -r --cached ui/node_modules` and the git index is verifiably
+      unchanged. With it enabled, the same scenario ends with the path untracked, the checkout
+      clean, and the previously-stuck track spawning on the next cycle.
 
 ## Out of Scope
 
