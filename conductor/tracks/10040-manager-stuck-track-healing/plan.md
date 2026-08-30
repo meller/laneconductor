@@ -454,7 +454,15 @@ cause still escalates to a person rather than spinning.
   counter.
 - **`_duplicate-*` folders will keep reappearing until Phase 3 lands** — including for this track.
   Do not treat a fresh one as evidence that Phase 3 regressed; check whether the session that
-  created it predates the fix.
+  created it predates the fix. Confirmed again at replan time: an untracked
+  `conductor/tracks/_duplicate-10040-manager-stuck-track-healing/` (`implement:queue`) had already
+  regenerated. This is expected, not a regression, and is not the implementer's doing.
+- **`**Workspace**: branch` on this track is a deliberate human override, and a temporary one.**
+  Set 2026-08-30. This track is `Track Kind: bug`, which would normally default it to main-mode —
+  but its own Finding 6 duplicate factory is still live and continuously re-dirties the primary
+  checkout, and a main-mode track cannot be blocked by the very bug it exists to fix. **Phase 3
+  removes the need for the workaround**; once it lands, this marker can be reconsidered. Do not
+  "correct" it back to main-mode before then.
 - **This track is itself blocked by the bugs it fixes.** Its own plan runs were blocked by dirty
   paths from 10036 and 10039, and it has already grown its own `_duplicate-` folder. Expect
   implement to hit the same guards; that is a live test, not an obstacle to route around.

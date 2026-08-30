@@ -1,7 +1,7 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Plan final (7 phases) — REQ-11/REQ-13 corrections inline; Phase 1 ready
