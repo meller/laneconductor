@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync, readlinkSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync, exec } from 'child_process';
@@ -1409,6 +1409,22 @@ function quarantineStaleFolder(tracksDir, staleName) {
     if (!existsSync(to)) {
       renameSync(from, to);
       console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
+      // Track 10040 Phase 6 Task 1 (REQ-4), second belt: isTrackDirName
+      // already excludes `_duplicate-*` from every concurrency scan, but
+      // rewrite the marker too — so a quarantined folder can never
+      // resurrect a phantom `running` slot even via a future scan that
+      // forgets to filter, e.g. a direct grep-based tool outside this file.
+      try {
+        const indexPath = join(to, 'index.md');
+        if (existsSync(indexPath)) {
+          const content = readFileSync(indexPath, 'utf8');
+          if (/\*\*Lane Status\*\*:\s*running/i.test(content)) {
+            writeFileSync(indexPath, content.replace(/\*\*Lane Status\*\*:\s*running/i, '**Lane Status**: quarantined'), 'utf8');
+          }
+        }
+      } catch (statusErr) {
+        console.error(`[ambiguous-track] Failed to clear running status in quarantined folder ${to}:`, statusErr.message);
+      }
     }
   } catch (err) {
     console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
@@ -6488,6 +6504,23 @@ async function runCreateProject(entry) {
 // heartbeat interval, ~10s) is ever mistaken for an orphan.
 const ORPHAN_WORKER_GRACE_MS = 30 * 60 * 1000;
 
+// Track 10040 Phase 6 Task 4 (REQ-6): a REGISTERED worker whose heartbeat
+// is at least this stale is reaped too, same reasoning as
+// ORPHAN_WORKER_GRACE_MS above but for a worker that registered once and
+// then genuinely died without de-registering (vs. a fresh worker that
+// hasn't heartbeat yet — GET /api/workers already filters those out via
+// its own 60s heartbeat-freshness WHERE clause, so anything reaching this
+// function was recently alive by definition).
+const ORPHAN_WORKER_STALE_HEARTBEAT_MS = 5 * 60 * 1000;
+
+// How long to wait after a SIGTERM before escalating to SIGKILL — two of
+// the 24 leaked workers observed live ignored SIGTERM outright.
+const ORPHAN_SIGKILL_GRACE_MS = 60 * 1000;
+
+// pid -> ms timestamp a SIGTERM was sent, so a subsequent sweep can tell
+// "still there after being asked nicely" apart from "just discovered".
+const orphanSigtermSentAt = new Map();
+
 async function reapOrphanedWorkerProcesses() {
   if (!isManager) return;
   const { url, token } = primaryCollector();
@@ -6510,23 +6543,64 @@ async function reapOrphanedWorkerProcesses() {
     return;
   }
 
-  const registeredPids = new Set(
-    workers.filter(w => w.hostname === hostname && w.pid).map(w => Number(w.pid))
-  );
+  // Track 10040 Phase 6 Task 4 (REQ-6): widened beyond "unregistered" — a
+  // registered worker on THIS host is also an orphan if its cwd has been
+  // deleted out from under it, or its heartbeat has gone stale. The real
+  // zombie this was written for (PID 1736711, ~17% CPU for 2 days against
+  // a deleted cwd) was invisible to the original rule: it had registered.
+  const registeredWorkers = workers
+    .filter(w => w.hostname === hostname && w.pid)
+    .map(w => ({ pid: Number(w.pid), last_heartbeat: w.last_heartbeat }));
+
+  const cwdExists = (pid) => {
+    try {
+      const target = readlinkSync(`/proc/${pid}/cwd`);
+      return !target.endsWith(' (deleted)');
+    } catch {
+      // /proc unreadable (non-Linux, or the process already exited) —
+      // fail toward NOT reaping on this signal alone; other conditions
+      // (unregistered, stale heartbeat) still apply independently.
+      return true;
+    }
+  };
 
   const orphans = findOrphanedWorkerProcesses(rows, {
-    registeredPids,
+    registeredWorkers,
     selfPid: process.pid,
     graceMs: ORPHAN_WORKER_GRACE_MS,
+    staleHeartbeatMs: ORPHAN_WORKER_STALE_HEARTBEAT_MS,
+    cwdExists,
   });
 
+  const stillAlivePids = new Set(orphans.map(o => o.pid));
+  // Forget SIGTERM history for anything that's no longer in the orphan
+  // list (either reaped successfully or re-registered/healed).
+  for (const pid of orphanSigtermSentAt.keys()) {
+    if (!stillAlivePids.has(pid)) orphanSigtermSentAt.delete(pid);
+  }
+
   for (const orphan of orphans) {
+    const sentAt = orphanSigtermSentAt.get(orphan.pid);
+    if (sentAt && (Date.now() - sentAt) >= ORPHAN_SIGKILL_GRACE_MS) {
+      // Track 10040 Phase 6 Task 4: two of the 24 leaked workers observed
+      // live ignored SIGTERM outright — escalate rather than repeating a
+      // request that already proved ineffective.
+      logger.warn({ pid: orphan.pid, ageMinutes: Math.round(orphan.ageMs / 60000) }, `[orphan-reap] Escalating to SIGKILL — pid ${orphan.pid} ignored SIGTERM`);
+      try {
+        process.kill(orphan.pid, 'SIGKILL');
+        orphanSigtermSentAt.delete(orphan.pid);
+      } catch (err) {
+        logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to SIGKILL orphaned process');
+      }
+      continue;
+    }
     logger.warn(
       { pid: orphan.pid, ageMinutes: Math.round(orphan.ageMs / 60000), cmd: orphan.cmd },
       `[orphan-reap] Killing unregistered laneconductor.sync.mjs process (pid ${orphan.pid}, ${Math.round(orphan.ageMs / 60000)}m old, not in this host's registered worker set)`
     );
     try {
       process.kill(orphan.pid, 'SIGTERM');
+      orphanSigtermSentAt.set(orphan.pid, Date.now());
     } catch (err) {
       logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to kill orphaned process');
     }
