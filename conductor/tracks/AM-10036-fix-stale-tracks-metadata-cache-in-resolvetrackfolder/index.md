@@ -1,6 +1,6 @@
 # Track AM-10036: Fix stale tracks-metadata cache in resolveTrackFolder
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
