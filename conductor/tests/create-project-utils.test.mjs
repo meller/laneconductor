@@ -27,10 +27,19 @@ describe('resolveRepoTarget', () => {
   it('type: path uses the given value directly, no clone needed', () => {
     const result = resolveRepoTarget({
       repoSource: { type: 'path', value: '/home/user/existing-project' },
-      scaffoldContext: { project: { name: 'existing-project' } },
+      scaffoldContext: { project: { name: 'existing-project', has_existing_code: true } },
       projectsDir: null,
     });
-    assert.deepEqual(result, { ok: true, targetPath: '/home/user/existing-project', needsClone: false });
+    assert.deepEqual(result, { ok: true, targetPath: '/home/user/existing-project', needsClone: false, needsMkdir: false });
+  });
+
+  it('type: path with has_existing_code: false flags needsMkdir (brand new project, path not required to exist yet)', () => {
+    const result = resolveRepoTarget({
+      repoSource: { type: 'path', value: '/home/user/new-project' },
+      scaffoldContext: { project: { name: 'new-project', has_existing_code: false } },
+      projectsDir: null,
+    });
+    assert.deepEqual(result, { ok: true, targetPath: '/home/user/new-project', needsClone: false, needsMkdir: true });
   });
 
   it('type: git with an explicit target_path uses it, ignoring projectsDir', () => {
