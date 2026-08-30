@@ -437,6 +437,7 @@ app.get('/api/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
+              w.code_sha, w.code_sha_captured_at,
               p.id AS project_id, p.name AS project_name, p.repo_path,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
        FROM workers w
@@ -3519,6 +3520,10 @@ app.post('/worker/register', async (req, res, next) => {
     const cli = req.body.cli ? normalizeProviderId(req.body.cli) : null;
     const model = req.body.model || null;
     const available_models = req.body.available_models ? JSON.stringify(req.body.available_models) : null;
+    // Track 10040 REQ-11: only written on registration, never on the
+    // heartbeat path — a value that updates itself defeats the purpose of
+    // recording what this process actually loaded into memory.
+    const code_sha = req.body.code_sha || null;
     // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
     // pid changes on every restart, which under the old (project_id,
     // hostname, pid) key minted a brand-new row per restart and orphaned
@@ -3542,17 +3547,18 @@ app.post('/worker/register', async (req, res, next) => {
     if (type === 'manager') {
       const machine_token = randomUUID();
       const { rows: [{ id: workerId }] } = await pool.query(`
-        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, last_heartbeat)
-        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, NOW())
+        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, code_sha, code_sha_captured_at, last_heartbeat)
+        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, $11, NOW(), NOW())
         ON CONFLICT (hostname) WHERE type = 'manager' DO UPDATE SET
         status = 'idle', pid = EXCLUDED.pid, user_uid = EXCLUDED.user_uid,
         mode = EXCLUDED.mode,
         cli = COALESCE(EXCLUDED.cli, workers.cli),
         model = COALESCE(EXCLUDED.model, workers.model),
         available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
+        code_sha = EXCLUDED.code_sha, code_sha_captured_at = NOW(),
         last_heartbeat = NOW()
         RETURNING id
-      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
+      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha]);
       broadcast('worker:updated', { projectId: null });
       return res.json({ ok: true, machine_token, id: workerId });
     }
@@ -3569,17 +3575,18 @@ app.post('/worker/register', async (req, res, next) => {
     }
 
     const { rows: [{ id: workerId }] } = await pool.query(`
-    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, last_heartbeat)
-    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, NOW())
+    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, code_sha, code_sha_captured_at, last_heartbeat)
+    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
     ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
     status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
     cli = COALESCE(EXCLUDED.cli, workers.cli),
     model = COALESCE(EXCLUDED.model, workers.model),
     available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
+    code_sha = EXCLUDED.code_sha, code_sha_captured_at = NOW(),
     last_heartbeat = NOW()
     RETURNING id
-  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
+  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha]);
 
 
     broadcast('worker:updated', { projectId });

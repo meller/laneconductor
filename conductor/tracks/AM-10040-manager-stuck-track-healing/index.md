@@ -1,9 +1,9 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 14%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Phase 1 complete (of 7) — Phase 2 (stale-process containment) next
 **Type**: dev
 **Track Kind**: bug

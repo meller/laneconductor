@@ -62,6 +62,8 @@ import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAl
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
+import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
+import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -981,6 +983,23 @@ function primaryCollector() {
 const hostname = os.hostname();
 const pid = process.pid;
 
+// Track 10040 REQ-11 (Finding 4), spec D5: captured ONCE at module load —
+// never re-read on the heartbeat — because the whole point is to record
+// what THIS process actually loaded into memory, not what's on disk right
+// now (a value that updates itself defeats the purpose). Measured against
+// the INSTALL DIR's HEAD (where this file itself lives — `import.meta.url`,
+// not `process.cwd()`), because a worker's code is separate from any
+// project repo it manages; the manager worker in particular has no project
+// repo at all (project_id: null).
+const workerCodeSha = (() => {
+  try {
+    const installDir = dirname(fileURLToPath(import.meta.url));
+    return execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
+  } catch {
+    return null; // not a git checkout (e.g. packaged install) — staleness detection simply skips this worker
+  }
+})();
+
 function getUserToken() {
   const authFile = join(os.homedir(), '.laneconductor-auth.json');
   if (existsSync(authFile)) {
@@ -1044,7 +1063,8 @@ async function upsertWorker() {
         worker_number: workerNumber,
         cli: primary.cli || 'claude',
         model: primary.model || null,
-        available_models: cachedModels || undefined
+        available_models: cachedModels || undefined,
+        code_sha: workerCodeSha,
       };
       if (isManager) registerBody.type = 'manager';
       const res = await post(url, token, '/worker/register', registerBody);
@@ -1873,8 +1893,22 @@ function updateIndexMDFromDB(trackFolder, dbTrack) {
     };
 
     // Update markers from DB values
+    //
+    // Track 10040 REQ-12: a stale DB row is the same regression hazard as
+    // stale in-memory code — this pull is purely observational (it never
+    // decides a transition itself), so it can never legitimately be the
+    // producer of a backwards move. Guard it the same way as the worker's
+    // own exit-handler write.
     if (dbTrack.lane_status) {
-      content = updateMarker(content, 'Lane', dbTrack.lane_status);
+      const pullGuard = applyGuardedLaneWrite(content, {
+        intendedLane: dbTrack.lane_status,
+        producedByThisRun: false,
+      });
+      if (pullGuard.blocked) {
+        console.warn(`[sync] Track ${dbTrack.track_number}: lane-regression guard blocked DB->disk pull (${pullGuard.reason}). Leaving Lane untouched.`);
+      } else {
+        content = pullGuard.content;
+      }
     }
     if (dbTrack.progress_percent !== undefined && dbTrack.progress_percent !== null) {
       content = updateMarker(content, 'Progress', `${dbTrack.progress_percent}%`);
@@ -5036,27 +5070,35 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           let content = readFileSync(indexPath, 'utf8');
           let updated = false;
 
-          // 1. Always write the correct Lane from workflow.json (ignore whatever agent wrote)
+          // Track 10040 REQ-12 (Finding 4): guard against this run's own
+          // in-memory `laneStatus`/`targetLane` being stale relative to
+          // what's actually on disk right now — applyGuardedLaneWrite reads
+          // the on-disk lane FRESH from `content`, before any mutation.
+          // `producedByThisRun` is true only when the disk's current lane
+          // still matches the lane this run actually executed in; if
+          // something else (a human, a stale-but-different process, the
+          // real merge action) already moved it elsewhere, this run is not
+          // the legitimate author of whatever transition it's about to
+          // write. Confirmed live: a 7-hour-stale worker process overwrote
+          // a shipped track's done:queue back to implement:success.
           const effectiveLane = targetLane || laneStatus || Lanes.PLAN;
-          if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
-            content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${effectiveLane}`);
-          } else if (content.match(/(# [^\n]+\n)/i)) {
-            content = content.replace(/(# [^\n]+\n)/i, `$1\n**Lane**: ${effectiveLane}\n`);
+          const preWriteOnDiskLaneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+          const preWriteOnDiskLane = preWriteOnDiskLaneMatch ? preWriteOnDiskLaneMatch[1].trim() : effectiveLane;
+          const laneWriteGuard = applyGuardedLaneWrite(content, {
+            intendedLane: effectiveLane,
+            intendedStatus: nextActionStatus,
+            producedByThisRun: preWriteOnDiskLane === laneStatus,
+          });
+
+          if (laneWriteGuard.blocked) {
+            // Do NOT post a conversation comment here — a stale process
+            // spamming conversation.md on every cycle is the exact failure
+            // mode this track exists to end. A warn log is durable enough.
+            console.warn(`[${label}] Track ${trackNumber}: lane-regression guard blocked write (${laneWriteGuard.reason}). Leaving Lane/Lane Status untouched.`);
           } else {
-            content = `**Lane**: ${effectiveLane}\n` + content;
+            content = laneWriteGuard.content;
+            updated = true;
           }
-          updated = true;
-          // 2. Update Lane Status
-          if (content.match(/\*\*Lane Status\*\*:\s*\w+/i)) {
-            content = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, `**Lane Status**: ${nextActionStatus}`);
-          } else if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
-            content = content.replace(/(\*\*Lane\*\*:\s*[^\n]+)/i, `$1\n**Lane Status**: ${nextActionStatus}`);
-          } else if (content.match(/(# [^\n]+\n)/i)) {
-            content = content.replace(/(# [^\n]+\n)/i, `$1\n**Lane Status**: ${nextActionStatus}\n`);
-          } else {
-            content = `**Lane Status**: ${nextActionStatus}\n` + content;
-          }
-          updated = true;
 
           // ── Integration Hooks ──
           if (isSuccess) {
@@ -5065,7 +5107,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             executeIntegrationHooks(trackNumber, laneStatus, 'failure');
           }
 
-          if (targetLane && targetLane !== laneStatus) {
+          if (targetLane && targetLane !== laneStatus && !laneWriteGuard.blocked) {
             patchData.lane_status = targetLane;
           }
           updated = true;
@@ -6398,6 +6440,52 @@ async function reapOrphanedWorkerProcesses() {
       process.kill(orphan.pid, 'SIGTERM');
     } catch (err) {
       logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to kill orphaned process');
+    }
+  }
+
+  // Track 10040 REQ-11 (Finding 4): report — never silently restart —
+  // any registered worker ON THIS HOST whose loaded code has fallen behind
+  // this install dir's own HEAD. Cross-host workers are out of scope: a
+  // different host has its own independent git checkout, and comparing it
+  // against this machine's HEAD would be meaningless. Restarting a
+  // detected-stale worker automatically is explicitly NOT implemented here
+  // — report-only, gated the same way Phase 7's auto-heal is, but the
+  // restart mechanism itself (which needs correct pidfile/lc-worker-restart
+  // wiring) is out of scope for this pass; a human acts on the warn log.
+  if (workerCodeSha) {
+    try {
+      const installDir = dirname(fileURLToPath(import.meta.url));
+      const headSha = execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
+      const localWorkers = workers.filter(w => w.hostname === hostname && w.code_sha);
+      for (const w of localWorkers) {
+        if (w.code_sha === headSha) continue;
+        let commitsBehind = 0;
+        let touchedFiles = [];
+        try {
+          commitsBehind = parseInt(execSync(`git rev-list --count ${w.code_sha}..${headSha}`, { cwd: installDir, encoding: 'utf8' }).trim(), 10) || 0;
+          touchedFiles = execSync(`git diff --name-only ${w.code_sha} ${headSha}`, { cwd: installDir, encoding: 'utf8' })
+            .split('\n').map(l => l.trim()).filter(Boolean);
+        } catch (err) {
+          // w.code_sha may no longer exist locally (rebased history, etc.)
+          // — skip classification for this worker rather than guessing.
+          logger.warn({ pid: w.pid, err: err.message }, '[worker-staleness] Could not diff worker code_sha against HEAD (skipping)');
+          continue;
+        }
+        const classification = classifyWorkerStaleness({ workerSha: w.code_sha, headSha, commitsBehind, touchedFiles });
+        if (classification.severity === 'critical') {
+          logger.warn(
+            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+            `[worker-staleness] Worker pid ${w.pid} is running CRITICALLY stale code: ${classification.reason}`
+          );
+        } else if (classification.severity === 'stale') {
+          logger.warn(
+            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+            `[worker-staleness] Worker pid ${w.pid} is stale: ${classification.reason}`
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, '[worker-staleness] Failed to check worker code staleness (skipping this cycle)');
     }
   }
 }
