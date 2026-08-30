@@ -1,9 +1,10 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
 **Lane**: implement
-**Lane Status**: running
+**Lane Status**: queue
 **Waiting for reply**: no
 **Progress**: 0%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Replanned (rev. 2 — Managed Agents pivot)
 **Type**: dev
 **Track Kind**: feature
