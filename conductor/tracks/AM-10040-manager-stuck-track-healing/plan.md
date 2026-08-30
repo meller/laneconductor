@@ -22,7 +22,7 @@ Line numbers are from the working tree as of 2026-08-30 — **re-locate by symbo
 
 ---
 
-## Phase 1: One lane list, and claims that say why they failed (REQ-13, REQ-14)
+## Phase 1: One lane list, and claims that say why they failed (REQ-13, REQ-14) ✅ COMPLETE
 
 **Problem**: Lane-name lists are duplicated as inline SQL/JS literals across the worker and the
 API. Adding `done` as a claimable lane (track 10035) updated some and missed others, and the miss
@@ -42,44 +42,48 @@ by the worker (`laneconductor.sync.mjs:15`); `ui/server/index.mjs` already impor
 `../../conductor/*.mjs` in four places (lines 19–22). This is an *extend and adopt*, not a new
 module.
 
-- [ ] Task 1: Extend `conductor/constants.mjs` with the two lane **sets**, named so they cannot be
+- [x] Task 1: Extend `conductor/constants.mjs` with the two lane **sets**, named so they cannot be
       confused with each other
-    - [ ] `CLAIMABLE_LANES` — lanes a worker may claim a queued action in:
+    - [x] `CLAIMABLE_LANES` — lanes a worker may claim a queued action in:
           `[PLAN, IMPLEMENT, REVIEW, QUALITY_GATE, DONE]`. Note `backlog` is deliberately absent.
-    - [ ] `MOVABLE_LANES` — every lane a track may be *placed* in, i.e. today's `VALID_LANES`
+    - [x] `MOVABLE_LANES` — every lane a track may be *placed* in, i.e. today's `VALID_LANES`
           (`CLAIMABLE_LANES` + `BACKLOG`). Replaces the two `VALID_LANES` literals.
-    - [ ] A one-line doc comment on each stating the invariant: *adding a lane means editing
+    - [x] A one-line doc comment on each stating the invariant: *adding a lane means editing
           exactly this file*.
-- [ ] Task 2: Adopt them everywhere, and make SQL take the list as a **parameter**, not a literal
-    - [ ] `ui/server/index.mjs:2918` → `AND lane_status = ANY($n)` with `CLAIMABLE_LANES` pushed
-          onto `params`. Parameterizing is the part that matters: a `$n` binding cannot silently
-          drift from the constant the way a hand-typed `IN (...)` list did.
-    - [ ] `ui/server/index.mjs:3219` (comment webhook) → same treatment. **This is the live fix**
-          in this task — it currently omits `done`.
-    - [ ] `ui/server/index.mjs:819`, `:3320` → `MOVABLE_LANES`.
-    - [ ] `conductor/laneconductor.sync.mjs:5772` → `CLAIMABLE_LANES.includes(...)`.
-- [ ] Task 3: REQ-14 — `claim-queue` reports *why* zero rows came back
-    - [ ] In `claimQueuedTracks` (`ui/server/index.mjs:2890`), when the `UPDATE ... RETURNING`
-          yields no rows, run one diagnostic `SELECT lane_status, lane_action_status` inside the
-          **same transaction** (before `COMMIT`, so the answer is consistent with the attempt) and
-          map it to a reason: `no_candidates` (no matching row at all) · `already_claimed`
-          (`lane_action_status <> 'queue'`) · `lane_not_claimable` (`lane_status` not in
-          `CLAIMABLE_LANES`) · `not_permitted` (row exists and is queued in a claimable lane, but
-          the visibility/permission filter excluded it — see spec D8).
-    - [ ] Response shape becomes `{ tracks: [...], reason }`, `reason` null when
-          `tracks.length > 0`. Additive — existing callers reading `.tracks` are unaffected.
-    - [ ] Only run the diagnostic for a **targeted** claim (`req.body.track_number` present). An
-          untargeted "give me up to N" claim returning zero is normal idle polling; a second query
-          on every idle beat of every worker is real cost for no signal.
-- [ ] Task 4: The worker logs the reason verbatim instead of asserting a cause
-    - [ ] `conductor/laneconductor.sync.mjs:5820` — replace the hardcoded `lost the DB claim race
-          this cycle (another worker already has it)` with the server's `reason`. Only
-          `already_claimed` may be described as a lost race; `lane_not_claimable` must be logged
-          at **warn**, since it is by definition a bug (the worker chose a candidate the server
-          refuses to claim — the two disagree about what is claimable).
-    - [ ] Keep the message readable when `reason` is absent (older collector) — fall back to a
-          neutral `no rows returned (collector did not report a reason)`, never to the old
-          unverified assertion.
+- [x] Task 2: Adopt them everywhere, and make SQL take the list as a **parameter**, not a literal
+    - [x] `ui/server/index.mjs` `claimQueuedTracks` → `AND lane_status = ANY($4)` with
+          `CLAIMABLE_LANES` pushed onto `params`. Parameterizing is the part that matters: a `$n`
+          binding cannot silently drift from the constant the way a hand-typed `IN (...)` list did.
+    - [x] `ui/server/index.mjs` comment webhook (`POST /track/:num/comment`) → same treatment.
+          **This was the live fix** — it omitted `done`, so a human comment on a done-lane track
+          never re-woke the worker. Fixed and regression-tested (TC-56, real DB).
+    - [x] `ui/server/index.mjs` both `VALID_LANES` sites (`PATCH .../tracks/:num` and
+          `PATCH /track/:num/lane`) → `MOVABLE_LANES`.
+    - [x] `conductor/laneconductor.sync.mjs`'s `['plan','implement','review','quality-gate','done'].includes(...)`
+          site (auto-launch answer-flow skill dispatch) → `CLAIMABLE_LANES.includes(...)`.
+- [x] Task 3: REQ-14 — `claim-queue` reports *why* zero rows came back
+    - [x] In `claimQueuedTracks`, when the `UPDATE ... RETURNING` yields no rows, run one
+          diagnostic `SELECT lane_status, lane_action_status` inside the **same transaction**
+          (before `COMMIT`) and map it to a reason: `no_candidates` · `already_claimed` ·
+          `lane_not_claimable` · `not_permitted` (spec D8).
+    - [x] Response shape is now `{ tracks: [...], reason }`, `reason` null when `tracks.length > 0`.
+          Additive — existing callers reading `.tracks` are unaffected.
+    - [x] Diagnostic only runs for a **targeted** claim (`req.body.track_number` present) —
+          untargeted zero-row claims stay a single query (TC-62).
+- [x] Task 4: The worker logs the reason verbatim instead of asserting a cause
+    - [x] Replaced the hardcoded `lost the DB claim race this cycle` with a reason-driven branch:
+          `already_claimed` → same wording (it's the one case that genuinely is a lost race);
+          `no_candidates` → neutral info log; `lane_not_claimable`/`not_permitted` → **warn**, since
+          those mean the worker's own candidate selection disagrees with the server; absent/unknown
+          `reason` → neutral `no rows returned (collector did not report a reason)` fallback, never
+          the old unverified assertion.
+    - [x] TC-52/53/54 (pure, `conductor/tests/track-10040-lane-constants.test.mjs`) and
+          TC-55/56/57/58/59/61/62 (real-DB API, `ui/server/tests/track-10040-claim-reason.test.mjs`)
+          all green. TC-60 (`not_permitted`) and TC-63/64 (exact log-message assertions) not
+          separately automated — `not_permitted` requires `AUTH_ENABLED` team/private visibility
+          plumbing that isn't exercised by any existing test infra either; the branch is covered by
+          code inspection and the same `if/else if` structure as the tested branches, not by a
+          dedicated test. Flagging as a gap rather than silently calling it done.
 
 **Impact**: The class of bug dies, not just the instance. A `done`-lane comment wakes the worker.
 A permanent exclusion announces itself as `lane_not_claimable` in the first log line instead of
