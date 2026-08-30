@@ -1,7 +1,7 @@
 # Track AM-10036: Fix stale tracks-metadata cache in resolveTrackFolder
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -10,7 +10,7 @@
 **Auto Run**: yes
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: resolveTrackFolder()'s tracksMetadata is loaded once per worker process and never invalidated. A long-lived worker whose cache predates a track's creation permanently can't resolve that track's folder. Traced to three real incidents on track 10035 (2026-08-27): a duplicate scaffold folder during implement, a wrong PR-vs-direct decision at quality-gate exit, and a stuck ai-resolve-conflict session. Fix: watch conductor/tracks-metadata.json and reload on change, mirroring the existing workflow.json pattern.
+**Summary**: resolveTrackFolder()'s tracksMetadata is loaded once per worker process and never invalidated. A long-lived worker whose cache predates a track's creation permanently can't resolve that track's…
 
 ## Problem
 
