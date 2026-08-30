@@ -1,7 +1,7 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
-**Lane**: implement
-**Lane Status**: queue
+**Lane**: plan
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Replanned (7 phases) — Phase 1 ready to implement
@@ -64,3 +64,4 @@ phases are now 5–7; Findings 4–7 produced the four that go first.
 - [ ] Phase 5: Pre-spawn block counting + escalation to failure (REQ-1, 2, 3, 8, 9, 10 — Finding 1)
 - [ ] Phase 6: Manager sweep — phantom markers, wedged lanes, dead-cwd workers (REQ-4, 5, 6)
 - [ ] Phase 7: Known-safe auto-heal, propose-by-default (REQ-7)
+**Waiting for reply**: yes
