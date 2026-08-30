@@ -26,7 +26,7 @@ beforeEach(() => {
   mockApiFetch.mockReset();
   mockApiFetch.mockImplementation((path) => {
     if (path.includes('/transcript')) return jsonResponse({ events: [], rawLog: null });
-    return jsonResponse({});
+    return jsonResponse([]);
   });
 });
 
@@ -73,7 +73,7 @@ describe('WorkerChatPanel — sending a message', () => {
       if (path.endsWith('/comments') && opts?.method === 'POST') {
         return jsonResponse({ id: 999, author: 'human', body: JSON.parse(opts.body).body });
       }
-      return jsonResponse({});
+      return jsonResponse([]);
     });
 
     render(<WorkerChatPanel worker={busyWorker()} projectId={1} onClose={() => { }} />);
@@ -83,7 +83,7 @@ describe('WorkerChatPanel — sending a message', () => {
     fireEvent.click(screen.getByTestId('worker-chat-send'));
 
     await waitFor(() => {
-      const call = mockApiFetch.mock.calls.find(([p]) => p.endsWith('/comments'));
+      const call = mockApiFetch.mock.calls.find(([p, opts]) => p.endsWith('/comments') && opts?.method === 'POST');
       expect(call).toBeTruthy();
       expect(call[0]).toBe('/api/projects/1/tracks/42/comments');
       const body = JSON.parse(call[1].body);
@@ -107,7 +107,7 @@ describe('WorkerChatPanel — transcript rendering', () => {
           rawLog: null,
         });
       }
-      return jsonResponse({});
+      return jsonResponse([]);
     });
 
     render(<WorkerChatPanel worker={busyWorker()} projectId={1} onClose={() => { }} />);

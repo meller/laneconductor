@@ -1,7 +1,8 @@
-import { useState } from 'react';
 import { TranscriptView } from './TranscriptView.jsx';
 import { TrackChatComposer } from './TrackChatComposer.jsx';
+import { CommentBubble } from './CommentBubble.jsx';
 import { useTrackTranscript } from '../lib/useTrackTranscript.js';
+import { useTrackComments } from '../lib/useTrackComments.js';
 import { resolveWorkerChatTarget } from '../lib/workerTaskInfo.js';
 
 // Track 10037 Phase 3: a chat panel for ONE worker, openable from the
@@ -15,7 +16,6 @@ import { resolveWorkerChatTarget } from '../lib/workerTaskInfo.js';
 // that specific track even when resolveWorkerChatTarget would otherwise
 // prefer the worker's currently-running track.
 export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose, onSelectTrack }) {
-  const [localComments, setLocalComments] = useState([]);
   const isManager = worker?.type === 'manager';
 
   const target = forcedTrackNumber
@@ -27,6 +27,7 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
     : resolveWorkerChatTarget(worker, projectId);
 
   const { blocks, rawLog } = useTrackTranscript(target?.projectId, target?.trackNumber);
+  const { comments, setComments } = useTrackComments(target?.projectId, target?.trackNumber);
 
   const hostname = worker?.hostname || 'worker';
 
@@ -71,13 +72,9 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
             <p className="text-gray-600 text-sm italic pt-4">No transcript yet.</p>
           )}
 
-          {localComments.length > 0 && (
-            <div className="mt-4 space-y-2 border-t border-gray-800 pt-4">
-              {localComments.map(c => (
-                <div key={c.id} className="text-xs text-blue-300 bg-blue-950/30 border border-blue-900/40 rounded-lg px-3 py-2">
-                  {c.body}
-                </div>
-              ))}
+          {comments.length > 0 && (
+            <div className="mt-4 space-y-3 border-t border-gray-800 pt-4">
+              {comments.map(c => <CommentBubble key={c.id} comment={c} />)}
             </div>
           )}
         </div>
@@ -92,7 +89,7 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
               : 'No track to talk about — this worker has no running or last-context track'
           }
           placeholder={`Send a message about track #${target?.trackNumber}…`}
-          onSent={(comment) => setLocalComments(prev => [...prev, comment])}
+          onSent={(comment) => setComments(prev => [...prev, comment])}
         />
       </div>
     </>
