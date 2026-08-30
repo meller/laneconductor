@@ -1393,6 +1393,22 @@ function quarantineStaleFolder(tracksDir, staleName) {
   }
 }
 
+// A quarantined duplicate (`_duplicate-<name>`, written by
+// quarantineStaleFolder above) is dead bookkeeping, not a live track, and
+// must never be scanned as one. Every track-directory scan in this file
+// finds track folders with a bare `/\d+/` test — and `_duplicate-10040-foo`
+// contains digits, so it passes that test as "track 10040". Two live
+// failures came from exactly that (both documented in track 10040's spec):
+// a quarantined folder's stale `**Lane Status**: running` marker counted
+// toward its lane's parallel_limit forever, permanently burning a slot
+// (Finding 2); and the auto-launch loop scanned a legacy folder, had it
+// renamed out from under it by a concurrent quarantine, then tried to spawn
+// from the pre-rename path (`ENOENT ... 10040-manager-stuck-track-healing/
+// index.md`), reverting the track to queue on every cycle (Finding 6).
+function isTrackDirName(name) {
+  return /\d+/.test(name) && !name.startsWith('_duplicate-');
+}
+
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
   const matches = readdirSync(tracksDir, { withFileTypes: true })
@@ -2771,7 +2787,7 @@ setInterval(pullTracksMetadataFromDB, 5000);
 (function resetFilesystemRunningStatus() {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /\d+/.test(d))) {
+  for (const dir of readdirSync(tracksDir).filter(isTrackDirName)) {
     const indexPath = join(tracksDir, dir, 'index.md');
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
@@ -5540,7 +5556,7 @@ const CLAIM_STALE_MS = (Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker
 (function clearStaleClaimMarkers() {
   const tracksDir = 'conductor/tracks';
   if (!existsSync(tracksDir)) return;
-  for (const dir of readdirSync(tracksDir).filter(d => /\d+/.test(d))) {
+  for (const dir of readdirSync(tracksDir).filter(isTrackDirName)) {
     const claimPath = claimTrackPath(tracksDir, dir);
     if (!existsSync(claimPath)) continue;
     const ageMs = Date.now() - statSync(claimPath).mtimeMs;
@@ -5572,7 +5588,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
   // track's own Phase 3 auto-generated tracks (which use the modern
   // prefixed convention) never getting claimed by a real running worker.
   const dirs = readdirSync(tracksDir)
-    .filter(d => /\d+/.test(d))
+    .filter(isTrackDirName)
     .sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));  // process lowest track numbers first
 
   const currentlyRunningPerLane = {};
