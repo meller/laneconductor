@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Plan final (7 phases) — REQ-11/REQ-13 corrections inline; Phase 1 ready
 **Type**: dev
 **Track Kind**: bug
