@@ -141,8 +141,41 @@ requiring a human to notice a card sitting in the wrong column: the invalid rest
 trivially queryable, and it is a *derived* check — it needs no new bookkeeping, just a comparison
 against `workflow.json`'s own transition table.
 
+## Finding 8 — Two sessions can hold one track, and the loser can advance the winner's lane
+
+Confirmed live 2026-08-30 on this track itself. Two `claude` sessions were started ~90s apart
+against track 10040 (pids 3499007 and a second). The second session behaved *correctly*: it
+detected the first had legitimately claimed the canonical folder, and stopped rather than write
+markers onto a file an active session was using — explicitly citing the hazard class in Findings
+2/5/6. Good judgment, and it is the only reason this was recoverable.
+
+The damage happened anyway. While session 1 was still working — its `node --test` child
+(pid 3519242) was mid-run, verifiable by process parentage — the track's markers were advanced to
+`quality-gate:queue` at `**Progress**: 100%`. Ground truth at that moment: **zero** phases checked
+off, **zero** commits on `track-10040`, and a total branch diff of six lines of lane bookkeeping.
+No implementation existed at all.
+
+Had a worker claimed `quality-gate:queue` in that window, the gate would have run against an empty
+branch while the implementer was still writing — and a gate that passes on nothing is far worse
+than one that fails, because `done:success` on an empty branch is indistinguishable from shipped
+work. This is Finding 7's inverse: not a track stranded below its true state, but a track
+advanced *above* it.
+
+Two distinct defects:
+1. **Nothing enforces single-claim per track across sessions.** The DB claim (`claim-queue`,
+   `FOR UPDATE SKIP LOCKED`) is per *claim attempt*, not a lease held for the run's duration, so a
+   second session can start against a track a first is actively working.
+2. **Lane advancement is not gated on evidence.** A transition to `quality-gate` at 100% was
+   written with no commit, no checked phase, and no diff. Progress is asserted, never verified.
+
 ## Requirements
 
+- REQ-18 (Finding 8): a claim is a **lease held for the duration of the run**, not a one-shot
+  check. A session must not start against a track another live session holds; the lease is
+  released by the exit handler or by expiry, and expiry must be longer than the spawn timeout.
+- REQ-19 (Finding 8): lane advancement past `implement` requires **evidence**, not assertion — at
+  minimum a commit on the track branch, or a non-bookkeeping diff. A transition to
+  `quality-gate`/`done` at 100% with an empty branch is refused and reported, never written.
 - REQ-1: Count consecutive workspace-guard blocks per track (persisted; e.g. a
   `.guard-block-count` sibling to the existing `.retry-count`), reset on any successful spawn or
   human intervention. The blocking guard increments it.
