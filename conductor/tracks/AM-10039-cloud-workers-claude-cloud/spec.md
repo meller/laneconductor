@@ -102,6 +102,13 @@ the bottom of this file). The pivot to the Managed Agents API was decided by the
   1. Anthropic auth resolvable via profile or WIF (never a key) AND live-validated, mode
      reported;
   2. Managed Agents beta reachable for that identity (cheap sessions-API probe);
+  2b. **(new, Phase 1b finding)** workspace has a non-zero Anthropic API credit balance —
+      separate from the Claude.ai/Code subscription tied to the same login; a profile/WIF
+      identity can be perfectly valid and still unable to create a session. Checked via a
+      cheap real create-then-delete probe (e.g. a throwaway environment), not a balance
+      lookup (OAuth-profile auth cannot reach `/v1/organizations/me` — confirmed live, 403
+      "Authentication method not allowed for this endpoint" — so there is no direct balance
+      read available to this credential type);
   3. project has a GitHub remote;
   4. GitHub token present AND can access that repo (live check).
 - REQ-5 **Cloud lane actions, all lanes**: a cloud-runtime worker claims a queued track
@@ -251,6 +258,87 @@ invoking `claude --cloud` per lane action and polling status, reusing the existi
 invocation; no headless-capable credential that reaches connector-backed sessions), not merely
 undocumented. See the GO/NO-GO comment in `conversation.md` for the fallback options put to the
 human, per this phase's own checkpoint rule (do not pivot silently).
+
+## Phase 1b Findings (2026-08-30 live-validation spike)
+
+Live probing with the real `ant` CLI (v1.28.0) against the real Managed Agents API, using ONLY
+the keyless OAuth profile (`ant auth login`, profile "default", Asaf's Individual Org) —
+`ANTHROPIC_API_KEY` explicitly unset for every call. Findings marked **[confirmed live]** were
+actually executed against `api.anthropic.com`; **[docs]** are documentation-only.
+
+### Task 0 — keyless auth: CONFIRMED live, fully headless
+
+`env -u ANTHROPIC_API_KEY ant beta:agents list --format json` returned real `HTTP/2.0 200 OK`
+with body `{"data":[]}` (checked with `--debug`). The Managed Agents beta accepts the OAuth
+profile with **zero API key anywhere** — a sharp, confirmed contrast with Phase 1's `claude
+--cloud` (which refused any non-interactive caller regardless of credential). This resolves
+rev. 2 REQ-3/REQ-4(1) for read paths. **[confirmed live]**
+
+### D-9 corrections — the pivot's docs review was mostly right; two things needed exact citations
+
+- **Repo mounting is real, but lives in a different resource than expected**: not an
+  `environments` config field (that only has `packages`/`networking`) — it's a
+  `github_repository` entry in a **session's `resources` array**
+  (`platform.claude.com/docs/en/managed-agents/github`): `{"type": "github_repository", "url",
+  "authorization_token", "mount_path"}`. Confirms D-9's claim; the earlier doubt raised while
+  re-deriving this from `environments` docs alone was a wrong turn, corrected before spending
+  anything. **[docs]**
+- **Skills auto-discovery from a mounted repo's `.claude/skills` is real and automatic**,
+  scanned once at session start, requires the agent's default `read` tool (on by default in
+  `agent_toolset_20260401`). Confirms D-9 point 2 exactly. **[docs]**
+- **The GitHub token does not strictly need the vault mechanism**: a `github_repository`
+  resource's `authorization_token` is itself documented as "not echoed in API responses" —
+  the same write-only guarantee vault credentials give. Vault (`environment_variable` or
+  `mcp_oauth`/`static_bearer` credential type) is still the right mechanism for the *separate*
+  GitHub MCP server Anthropic's docs use for PR creation (`api.githubcopilot.com/mcp/`) — but
+  that's an additional, optional layer for PR-opening specifically, not a hard requirement for
+  clone/commit/push. Simplifies REQ-3's original "always vault the GitHub token" framing;
+  Phase 3 can choose either path per its own cost/complexity tradeoff.
+
+### New, blocking precondition found — NOT in rev. 2's preflight list
+
+**`beta:agents create` failed live**: `POST /v1/agents` → `400 invalid_request_error`,
+`"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to
+upgrade or purchase credits."` **[confirmed live]**, reproduced on retry. Read-only calls
+(`beta:agents list`, and creating pure control-plane resources with no model reference —
+`beta:vaults create`, `beta:environments create` both succeeded live) are unaffected; anything
+that provisions a resource referencing a model (an agent, and by extension any session) is
+gated on the **workspace having a funded Anthropic API credit balance** — a separate thing
+from the Claude.ai/Code Pro subscription this same login already has. This is a real,
+previously-unknown precondition: **rev. 2 REQ-4 needs a new preflight check** ("workspace has
+a non-zero API credit balance," checked via a cheap real resource-create-and-immediately-delete
+probe, not merely presence of a profile/WIF identity). Environment (`env_01UvpowJ9L2J6E61sqimGiRs`)
+and a test vault (`vlt_011CeZAn57t1pMfJrXzrzjLq`) were created live to isolate this finding, then
+deleted (`ant beta:environments delete` / `ant beta:vaults delete`, both confirmed live) — no
+resources left behind.
+
+### Tasks 1/3/4 — BLOCKED, not run
+
+Agent creation is a prerequisite for a session; with it blocked, no session could be created,
+so the live end-to-end exercise (mounted-repo edit → commit → push → PR), the budget-reached
+test, and the resume/lifetime test could not execute. This is an **account-provisioning gap,
+not a surface-viability finding** — unlike Phase 1's structural TTY block, this blocker is a
+one-time human action (add billing/credits to "Asaf's Individual Org" at
+platform.claude.com → Plans & Billing) away from being resolved. Prepared and left in place for
+when it is: the scratch repo (`github.com/meller/laneconductor-cloud-worker-scratch`) is seeded
+with a minimal `conductor/tracks/DEMO-001-cloud-agent-trial/index.md` (a trivial one-line edit
+task) and a trimmed `.claude/skills/laneconductor/SKILL.md` stub that asks the agent to echo
+`SKILL_DISCOVERED_OK` if skill auto-discovery worked; `conductor/services/cloud-session-driver.mjs`
+is rewritten against the confirmed real command shapes (`ant beta:sessions create
+--agent/--environment-id/--resource/--budget/--initial-event`, `ant beta:sessions:events
+send/list`, `ant beta:sessions retrieve`) and its command construction was checked against a
+fake session ID, which correctly reached the real API and returned a clean validation error
+rather than a CLI parsing failure — confirming the argv shape is right even though the full
+lifecycle remains unexercised. `getTraceUrl`'s URL format is still **unverified** (no session
+ever existed to check it against).
+
+### Outcome
+
+**Neither GO nor NO-GO — BLOCKED pending a human billing action.** Everything checked came back
+positive for the Managed Agents surface (headless keyless auth confirmed, repo mounting and
+skill discovery confirmed real, driver command shapes confirmed reaching the real API). Nothing
+found here argues against rev. 2's design. But Tasks 1/3/4 cannot complete, and this track
+should not claim GO on an unexercised live path. See the GO/NO-GO comment in conversation.md.
 
 ## Data Model Changes
 
