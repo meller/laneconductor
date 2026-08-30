@@ -1,7 +1,7 @@
 # Track AM-10036: Fix stale tracks-metadata cache in resolveTrackFolder
 
-**Lane**: done
-**Lane Status**: queue
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planned — Phase 1 ready to implement
@@ -26,3 +26,4 @@ Planning correction: a reload *does* already exist (`laneconductor.sync.mjs:7437
 ## Phases
 
 - [ ] Phase 1: Make the reload safe (strict loader + atomic save), then make it event-driven (the watch), with real-worker regression tests
+**Waiting for reply**: yes
