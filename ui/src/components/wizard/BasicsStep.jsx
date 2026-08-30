@@ -4,7 +4,7 @@ import React from 'react';
 // source, manager worker. Same fields/behavior as the legacy NewProjectModal
 // form, extracted so both the wizard and "Quick create" can render them.
 export function BasicsStep({ value, onChange, managerWorkers, nameInputRef }) {
-  const { name, repoType, repoValue, hasExistingCode, workerId } = value;
+  const { name, repoType, repoValue, hasExistingCode, kind = 'app', workerId } = value;
 
   function set(patch) {
     onChange({ ...value, ...patch });
@@ -22,6 +22,27 @@ export function BasicsStep({ value, onChange, managerWorkers, nameInputRef }) {
           placeholder="e.g. Digger Game"
           className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500"
         />
+      </div>
+
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Project type</label>
+        <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs w-fit">
+          {[{ value: 'app', label: 'Software app' }, { value: 'marketing', label: 'Marketing / growth (no code)' }].map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => set({ kind: opt.value })}
+              className={`px-3 py-1 transition-colors ${kind === opt.value ? 'bg-blue-900 text-blue-300' : 'bg-gray-900 text-gray-500 hover:text-gray-300'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {kind === 'marketing' && (
+          <p className="text-[11px] text-gray-500 mt-1">
+            Skips Design/Stack and Deployment — tracks are generated from the marketing skills instead of app scaffolding.
+          </p>
+        )}
       </div>
 
       <div>
