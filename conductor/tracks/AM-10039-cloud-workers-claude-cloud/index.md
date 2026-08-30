@@ -1,14 +1,15 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
-**Lane**: plan
-**Lane Status**: queue
-**Waiting for reply**: yes
+**Lane**: implement
+**Lane Status**: running
+**Waiting for reply**: no
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned
 **Type**: dev
+**Track Kind**: feature
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Support "cloud workers": when creating a worker, choose machine-based (today's model) or a Claude cloud instance. Cloud workers need stored Claude account auth (per logged-in user) to launch cloud…
+**Summary**: Cloud-runtime workers executing lane actions in claude.ai cloud sessions (option A), via an executor seam over the existing worker, with per-user Claude credential storage, 4-check preflight,…
 
 ## Problem
 
@@ -58,5 +59,14 @@ hold the Claude account credentials such a dispatch requires.
 - [10011](../10011-new-worker-providers-support/index.md) — worker provider abstraction
 
 ## Phases
+
+- [ ] Phase 1: Feasibility spike — cloud session driver prototype (GO/NO-GO)
+- [ ] Phase 2: Executor seam — refactor with zero behavior change
+- [ ] Phase 3: Credentials, preflight, and the runtime field
+- [ ] Phase 4: CloudSessionExecutor + implement lane in the cloud
+- [ ] Phase 5: All lanes cloud + merge/conflict handling
+- [ ] Phase 6: Dispatcher-only worker mode
+- [ ] Phase 7: Docs + fundamentals reconciliation
+- [ ] Phase 8: Inbound live callbacks (v2 — out of this pass, deliberately unchecked)
 
 - [ ] Phase 1: Feasibility spike — cloud execution surface + auth flow (planning output)
