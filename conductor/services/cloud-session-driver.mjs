@@ -1,22 +1,28 @@
 // conductor/services/cloud-session-driver.mjs
-// Track 10039 Phase 1: throwaway-quality feasibility prototype for a driver
-// that would launch/poll a claude.ai cloud session ("Claude Code on the
-// web", the surface D-1 picked as option A).
+// Track 10039 Phase 1b: driver over the Managed Agents API
+// (`api.anthropic.com/v1/sessions`, beta `managed-agents-2026-04-01`), the
+// surface the track pivoted to after Phase 1's claude.ai/code NO-GO.
 //
-// THIS IS NOT A WORKING DRIVER. It exists to make the Phase 1 spike's
-// finding executable rather than just asserted: createSession() shells out
-// to the real `claude --cloud` flag (confirmed to exist despite being
-// undocumented in `--help`) and surfaces the exact failure a headless
-// dispatcher hits. See conversation.md's GO/NO-GO comment and spec.md's
-// "Phase 1 Findings" section for the full writeup — the short version is
-// that `--cloud` hard-requires an interactive terminal, which a background
-// worker process structurally does not have, so this module cannot be
-// completed into the createSession/getSessionStatus/getSessionUrl trio the
-// plan asked for until that's resolved (or the execution surface changes —
-// see the GO/NO-GO comment's fallback options).
+// Shells out to the `ant` CLI (same injectable-exec pattern as
+// conductor/services/pr-flow.mjs) rather than hand-rolling HTTP + the OAuth
+// profile/WIF auth chain — `ant` already implements exactly that chain,
+// which is the whole point of the keyless-only credential policy (REQ-3):
+// this driver never touches ANTHROPIC_API_KEY, so callers must invoke it
+// with that variable unset (see `env -u ANTHROPIC_API_KEY` at every call
+// site in Phase 1b's manual verification — not yet enforced in code here).
 //
-// Same injectable-exec pattern as conductor/services/pr-flow.mjs so a real
-// test can assert on argv without shelling out for real.
+// VERIFICATION STATUS (2026-08-30, Phase 1b): command *shapes* below are
+// confirmed against `ant --help` output and the live Managed Agents docs
+// (platform.claude.com/docs/en/managed-agents/*), and read-only calls
+// (`beta:agents list`, `beta:environments create`, `beta:vaults create`)
+// were run for real and succeeded. `createSession`, `sendEvent`,
+// `pollEvents`, and `getSessionStatus` were NOT exercised end-to-end: this
+// workspace's Anthropic org has no funded API credit balance, so
+// `beta:agents create` (a prerequisite for any session) fails with a 400
+// `credit balance is too low` error before a session can ever be created —
+// see spec.md's Phase 1b findings and the GO/NO-GO comment in
+// conversation.md. Treat this file as "correct per the documented contract,
+// unverified live" until that billing gap is resolved and Phase 1b resumes.
 
 import { execFileSync } from 'node:child_process';
 
@@ -24,70 +30,139 @@ function defaultExec(cmd, args, opts) {
   return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
 }
 
-/**
- * Attempts to launch a claude.ai cloud session for the given prompt against
- * a repo already accessible to the invoking account's GitHub connection.
- *
- * Confirmed (Phase 1 spike, 2026-08-30): this throws every time when called
- * from a non-interactive process (no TTY) — `claude --cloud` refuses to run
- * without one, regardless of whether the account is authenticated. That is
- * exactly the environment a dispatcher/worker runs in, so this function is
- * not a viable path today. It's kept (rather than deleted) so a future spike
- * re-run against a newer CLI build, or a pty-wrapped invocation the team
- * explicitly decides to pursue, has a single place to plug that in — see the
- * GO/NO-GO comment before extending this rather than guessing.
- *
- * @param {{prompt: string, repo: string, cwd?: string, exec?: Function}} opts
- * @returns {{id: string}} never actually returns in the current environment
- * @throws {Error} always, from a non-interactive caller — see message
- */
-export function createSession({ prompt, repo, cwd, exec = defaultExec }) {
-  if (!prompt) throw new Error('createSession: prompt is required');
-  if (!repo) throw new Error('createSession: repo is required');
+function runAnt(args, { exec = defaultExec, input } = {}) {
+  const env = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
+  const out = exec('ant', [...args, '--format', 'json'], { input, env });
+  return JSON.parse(out);
+}
 
-  // `claude --cloud` takes the prompt as its positional argument, the same
-  // as a local invocation; repo/environment selection in the real product is
-  // done via the browser's repo selector or `--add-dir`-style flags we have
-  // not been able to reach because the TTY check fires first. This argv is
-  // therefore best-effort/unverified beyond "the flag exists."
-  try {
-    const output = exec('claude', ['--cloud', prompt], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-    // Never reached in the confirmed-blocked environment, but if a future
-    // CLI build allows headless --cloud, the real session id would need to
-    // be parsed out of whatever machine-readable output that build adds.
-    return { id: output.trim() };
-  } catch (err) {
-    const stderr = err.stderr?.toString?.() || err.message;
-    throw new Error(
-      `createSession failed — this is the Phase 1 spike's confirmed blocker, not a bug: ${stderr}`
+/**
+ * Creates a Managed Agents session mounting a single GitHub repo, with a
+ * hard budget cap (REQ-10), and optionally seeds it with the lane-action
+ * prompt as an initial user.message (starts the session running in one
+ * call rather than create-then-send).
+ *
+ * @param {object} opts
+ * @param {string} opts.agentId - agent_... id (created once, shared config)
+ * @param {string} opts.environmentId - env_... id
+ * @param {string} opts.repoUrl - https://github.com/<owner>/<repo>, no .git suffix
+ * @param {string} opts.repoToken - GitHub token with `repo` scope; NEVER
+ *   logged or echoed — the Managed Agents API itself treats this as a
+ *   write-only field (not returned in any response), same guarantee the
+ *   vault mechanism gives, so no separate vault credential was needed for
+ *   this specific use (a simplification vs. rev. 2 spec's original assumption
+ *   that the GitHub token would go through a vault `environment_variable`
+ *   credential — see Phase 1b findings for why the simpler path suffices).
+ * @param {string} [opts.mountPath] - defaults to /workspace/<repo-name>
+ * @param {string} [opts.prompt] - lane-action prompt; if given, session
+ *   starts running immediately (initial_events)
+ * @param {number} [opts.budgetCents] - hard cap in US cents (REQ-10)
+ * @returns {{id: string}}
+ */
+export function createSession({
+  agentId,
+  environmentId,
+  repoUrl,
+  repoToken,
+  mountPath,
+  prompt,
+  budgetCents,
+  exec = defaultExec,
+}) {
+  if (!agentId) throw new Error('createSession: agentId is required');
+  if (!environmentId) throw new Error('createSession: environmentId is required');
+  if (!repoUrl) throw new Error('createSession: repoUrl is required');
+  if (!repoToken) throw new Error('createSession: repoToken is required');
+
+  const resource = {
+    type: 'github_repository',
+    url: repoUrl,
+    authorization_token: repoToken,
+    ...(mountPath ? { mount_path: mountPath } : {}),
+  };
+
+  const args = [
+    'beta:sessions',
+    'create',
+    '--agent',
+    agentId,
+    '--environment-id',
+    environmentId,
+    '--resource',
+    JSON.stringify(resource),
+  ];
+
+  if (budgetCents != null) {
+    args.push(
+      '--budget',
+      JSON.stringify({ type: 'limit', max_list_cost: { amount: String(budgetCents), currency: 'USD' } })
     );
   }
+
+  if (prompt) {
+    args.push(
+      '--initial-event',
+      JSON.stringify({ type: 'user.message', content: [{ type: 'text', text: prompt }] })
+    );
+  }
+
+  const session = runAnt(args, { exec });
+  return { id: session.id, raw: session };
 }
 
 /**
- * Not implemented. No documented (or discovered) way exists to poll a
- * claude.ai cloud session's status from outside the browser/CLI session
- * that created it — `claude agents --json` lists local background agents
- * (started with `--bg`), not claude.ai/code cloud sessions specifically,
- * and was not confirmed to include them. Left unimplemented rather than
- * guessed at, per the "no stubs that pass as done" rule — this would need
- * its own verification pass before Phase 4 could build on it.
+ * Sends a follow-up message to an existing session — used both for
+ * multi-lane session reuse (D-8's track=session mapping, if Phase 1b
+ * confirms session lifetime supports it) and for the resume-after-idle
+ * check in Phase 1b Task 4.
  */
-export function getSessionStatus(_id) {
-  throw new Error(
-    'getSessionStatus: no confirmed API/CLI surface for polling a claude.ai/code cloud ' +
-      'session — see spec.md Phase 1 Findings before implementing this.'
+export function sendEvent(sessionId, text, { exec = defaultExec } = {}) {
+  if (!sessionId) throw new Error('sendEvent: sessionId is required');
+  runAnt(
+    [
+      'beta:sessions:events',
+      'send',
+      '--session-id',
+      sessionId,
+      '--event',
+      JSON.stringify({ type: 'user.message', content: [{ type: 'text', text }] }),
+    ],
+    { exec }
   );
 }
 
 /**
- * Not implemented for the same reason as getSessionStatus. The deep-link
- * format for an individual claude.ai/code session was not discovered during
- * this spike (only the pre-fill *creation* URL shape is documented).
+ * Lists events on a session since a given cursor/time — the poll
+ * primitive the dispatcher's loop uses instead of watching a child
+ * process's exit code.
  */
-export function getSessionUrl(_id) {
-  throw new Error(
-    'getSessionUrl: no confirmed deep-link format for an existing claude.ai/code cloud ' +
-      'session — see spec.md Phase 1 Findings before implementing this.'
-  );
+export function pollEvents(sessionId, { sinceIso, exec = defaultExec } = {}) {
+  if (!sessionId) throw new Error('pollEvents: sessionId is required');
+  const args = ['beta:sessions:events', 'list', '--session-id', sessionId];
+  if (sinceIso) args.push('--created-at-gt', sinceIso);
+  return runAnt(args, { exec });
+}
+
+/**
+ * Retrieves the session resource itself — status/state, budget spend so
+ * far, and (per D-9's claim, NOT yet verified live — see file header) the
+ * fields a Console trace URL would be built from.
+ */
+export function getSessionStatus(sessionId, { exec = defaultExec } = {}) {
+  if (!sessionId) throw new Error('getSessionStatus: sessionId is required');
+  return runAnt(['beta:sessions', 'retrieve', '--session-id', sessionId], { exec });
+}
+
+/**
+ * Best-effort Console trace URL. UNVERIFIED (see file header): Phase 1b
+ * could not create a real session to confirm this format, because agent
+ * creation — a session's prerequisite — is blocked by this workspace's
+ * empty API credit balance. Do not treat this as confirmed until a real
+ * session has been created and this URL checked in a browser.
+ */
+export function getTraceUrl(sessionId, { workspaceId } = {}) {
+  if (!sessionId) throw new Error('getTraceUrl: sessionId is required');
+  if (!workspaceId) throw new Error('getTraceUrl: workspaceId is required (unverified format)');
+  return `https://platform.claude.com/workspaces/${workspaceId}/sessions/${sessionId}`;
 }

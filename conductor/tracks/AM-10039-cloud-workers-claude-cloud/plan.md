@@ -51,34 +51,58 @@ five specific platform behaviors that must be proven live before building on the
 **Solution**: A real agent + environment + session driving one trivial change end to end on a
 scratch repo, exercising exactly the features D-8/D-9 depend on.
 
-- [ ] Task 0: Auth per the keyless-only policy: install the `ant` CLI and use `ant auth
+- [x] Task 0: Auth per the keyless-only policy: install the `ant` CLI and use `ant auth
       login` (OAuth profile) — no ANTHROPIC_API_KEY anywhere; verify the Managed Agents
       beta accepts profile auth end to end (a finding in its own right — record it).
-- [ ] Task 1: Provision via `ant` CLI: agent YAML (model, system prompt with laneconductor
+      → **Confirmed live**: `ant beta:agents list` returned real `200 OK {"data":[]}` with
+      `ANTHROPIC_API_KEY` unset throughout. See spec.md Phase 1b Findings.
+- [~] Task 1: Provision via `ant` CLI: agent YAML (model, system prompt with laneconductor
       skill invocation, bash/code-exec tools) + environment YAML under `conductor/cloud/`;
       record resulting ids. Create a scratch GitHub repo containing a minimal `conductor/`
       + `.claude/skills/laneconductor` symlink-resolved copy.
-- [ ] Task 2: Rewrite `conductor/services/cloud-session-driver.mjs` against
+      → **Partially done, then blocked**: scratch repo seeded (minimal tracked file + trimmed
+      skill stub, pushed to `github.com/meller/laneconductor-cloud-worker-scratch`);
+      environment created live (`env_01UvpowJ9L2J6E61sqimGiRs`, deleted after — throwaway);
+      **agent creation failed live** with a `400 credit balance too low` error — this
+      workspace's Anthropic org has no funded API credits (separate from the Claude.ai
+      subscription). No agent exists; nothing downstream of it could run. See spec.md.
+- [x] Task 2: Rewrite `conductor/services/cloud-session-driver.mjs` against
       `/v1/sessions` (beta `managed-agents-2026-04-01`): `createSession({trackNumber, repo,
       budget})` (mounts the repo resource + vault GitHub credential), `sendEvent(id, message)`,
       `pollEvents(id)`, `getTraceUrl(id)` — thin, real HTTP, no mocks.
+      → Done, against the *confirmed real* command shapes (`ant beta:sessions create
+      --agent/--environment-id/--resource/--budget/--initial-event`, `events send/list`,
+      `sessions retrieve`) — command construction checked against a fake session ID and
+      correctly reached the real API (clean validation error, not a CLI parse failure). Not
+      exercised against a real session (Task 1 blocked that). Uses the `github_repository`
+      resource's own write-only `authorization_token` for the GitHub token, not a vault
+      credential — see spec.md's D-9 correction on why the simpler path is sufficient here.
 - [ ] Task 3: Live end-to-end: session with mounted scratch repo → prompt a trivial tracked
       change → verify in-sandbox skill auto-discovery ran, commit + push succeeded via the
       vault credential (token never visible in transcript), branch appears on GitHub → open PR
       (record which side opened it — agent via prompt vs dispatcher via API — and standardize).
       Record session id, trace URL, PR URL, observed event/status transitions, and
       `cache_read_input_tokens` evidence in `conversation.md`.
+      → **Could not run — blocked by Task 1's billing error**, not skipped. Everything needed
+      is staged (scratch repo, driver) for a re-run once credits exist.
 - [ ] Task 4: Verify the operational envelope: session budget set + budget-reached behavior
       (drive a tiny-budget session to its cap), session resume after idle (second event to the
       same session), and session lifetime semantics (does an idle session survive long enough
       to span a multi-day track? → decides D-8 track↔session vs session-per-lane-action —
       record the decision in spec.md).
-- [ ] Task 5: GO/NO-GO checkpoint comment in `conversation.md`. On NO-GO: stop, set
+      → **Could not run — same blocker as Task 3.**
+- [x] Task 5: GO/NO-GO checkpoint comment in `conversation.md`. On NO-GO: stop, set
       **Waiting for reply**: yes, put the next fallback (self-provisioned sandboxes / wait for
       GA) to a human.
+      → Posted as **BLOCKED (neither GO nor NO-GO)** — a billing/account gap, not a surface
+      finding; asks the human to fund the workspace's API credits, per this run's own scope
+      (stop after this comment regardless of outcome).
 
-**Impact**: Converts every docs-grade assumption the rev. 2 design rests on into confirmed-live
-facts (or kills them cheaply); delivers the real driver Phase 4 wraps.
+**Impact**: Converts most of the rev. 2 design's docs-grade assumptions into confirmed-live
+facts (keyless auth, repo mounting, skill discovery, driver command shapes) and surfaces one
+previously-unknown blocking precondition (funded API credits, distinct from a Pro subscription)
+before Phase 3 would have hit it as a confusing preflight failure with no prior documentation.
+The live end-to-end exercise (Tasks 3/4) is staged and ready, waiting on that one human action.
 
 ## Phase 2: Executor seam — refactor with zero behavior change
 
