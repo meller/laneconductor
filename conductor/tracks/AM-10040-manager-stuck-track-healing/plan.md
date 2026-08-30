@@ -282,40 +282,40 @@ ones are a single query. It is also the *generic* detector that would have caugh
 automatically rather than requiring a human to notice a card in the wrong column — which is why it
 sits ahead of the escalation counter rather than in the sweep phase.
 
-- [ ] Task 1: New pure module `conductor/services/resting-state.mjs`
-    - [ ] `deriveValidRestingStates(workflow)` → the set of `lane:status` pairs the configured
-          workflow can actually produce and leave alone. Derived, **never hardcoded** (REQ-16): for
-          this project it yields `plan:success` (because `plan.on_success` is literally
-          `"plan:success"`), `done:success`, `done:waiting`, and every `*:failure` /
-          `*:queue` / `*:running`. A project configuring `plan.on_success: "implement:queue"`
-          must get `plan:success` flagged, and this project must not.
-    - [ ] `findInvalidRestingStates(tracks, validSet)` → the offenders, each with the transition
-          `workflow.json` says *should* have been applied.
-    - [ ] `classifyRestingState(track)` → `reapply` (the lane's work is genuinely complete — apply
-          the configured `on_success` transition) vs `escalate` (ambiguous — post a ⚠️ and leave
-          it). Default to `escalate`; `reapply` only when the lane's completion markers are
-          present and consistent.
-- [ ] Task 2: REQ-17 — the inverse corruption (merged, but the lane says otherwise)
-    - [ ] `classifyMergedButNotDone({ trackNumber, mergeCommitReachable, lane })` → invalid when a
-          track's merge commit is reachable from `main` but its lane ranks earlier than `done`.
-          This is 10038's exact shape.
-    - [ ] Reachability is **injected** (a `isReachableFromMain(sha)` probe), keeping the module
-          pure and testable without a repo.
-    - [ ] This state is **always** `escalate`, never auto-repaired. Re-running a merged track is
-          precisely the damage (10038 was re-implemented after shipping); moving its markers
-          forward to `done` without a human confirming the merge is the mirror-image mistake.
-- [ ] Task 3: Wire it up — same host pattern as Phase 2 Task 5 (manager's existing interval now,
-      Phase 6's `sweepStuckTracks()` once that exists)
-    - [ ] Escalations post one ⚠️ comment naming the invalid state and the transition that should
-          have applied, and go through Phase 2's lane-regression guard like every other write.
-    - [ ] Post **at most one** comment per track per invalid state — this detector runs on every
-          sweep against a state that persists by definition, so it is a 191-comment machine unless
-          it is idempotent from the start. Reuse Phase 5's counter (`kind: 'invalid-resting-state'`)
-          rather than inventing a second suppression mechanism.
-- [ ] Task 4: Resolve the three live instances (10038, 1100, 10039) as part of this phase, each
-      with a recorded decision — 10038 in particular needs its markers reconciled with the fact
-      that it already merged, **by a human decision recorded in its conversation.md**, not by an
-      automated forward-write.
+- [x] Task 1: New pure module `conductor/services/resting-state.mjs`
+    - [x] `deriveValidRestingStates(workflow)` → derived, never hardcoded. TC-96 proves this
+          project's real `workflow.json` (`plan.on_success: "plan:success"`) does NOT flag
+          `plan:success`; TC-97 proves a *different* workflow configuring
+          `plan.on_success: "implement:queue"` DOES flag it — the set genuinely tracks the config,
+          it isn't a lookup table with this project's answer baked in.
+    - [x] `findInvalidRestingStates(tracks, validSet, workflow)` → offenders with
+          `expectedTransition`. TC-98 reproduces 10038's and 1100's exact shapes against the real
+          `workflow.json` and gets `review:queue` / `done:queue` back, while a `plan:success` track
+          in the same fixture is correctly NOT flagged.
+    - [x] `classifyRestingState({ completionMarkersPresent, completionMarkersConsistent })` →
+          `reapply` only when both are true; every other combination (including both omitted)
+          defaults to `escalate` — TC-100/101.
+- [x] Task 2: REQ-17 — `classifyMergedButNotDone({ trackNumber, mergeCommitReachable, lane })`,
+      reusing `LANE_ORDER` from Phase 2's `lane-regression-guard.mjs` rather than a second rank
+      table. Reachability is injected. TC-102 reproduces 10038's exact shape (merged, lane
+      `implement`); TC-103 asserts across every lane that the action is never anything but
+      `escalate`/`null` — a future change that adds an auto-repair path fails this test.
+      TC-96..103, 8/8 pure tests green (`track-10040-resting-state.test.mjs`).
+- [ ] Task 3: Wire it up — **deferred to land together with Phase 5's counter module**, not
+      skipped. This task's own plan text says "reuse Phase 5's counter (`kind:
+      'invalid-resting-state'`)" — that counter (`conductor/services/prespawn-block.mjs`) does not
+      exist yet at this point in phase order. Building the sweep wiring against a counter that
+      doesn't exist would mean either duplicating suppression logic (exactly what Phase 5's design
+      exists to prevent — see spec D10) or wiring against a stub. The two pure modules above are
+      genuinely complete and independently useful; the manager-sweep host and comment-posting are
+      implemented once, together, when Phase 5 and Phase 6's `sweepStuckTracks()` land.
+- [ ] Task 4: **Needs a human decision, not attempted here.** The task's own text is explicit:
+      10038's markers must be reconciled "by a human decision recorded in its conversation.md, not
+      by an automated forward-write." Resolving 10038/1100/10039 requires deciding, for each, was
+      the lane's work actually complete (reapply) or not (escalate) — a judgment call about
+      real project tracks this implementation session should not make unilaterally, and per spec
+      D9 an automated agent must never resolve REQ-17's merged-but-not-done shape by writing
+      markers forward regardless. Flagging for a human rather than guessing.
 
 **Impact**: The failure mode that hides best — a track that looks finished and is simply
 abandoned — becomes a queryable, self-reporting condition, using configuration the project already
