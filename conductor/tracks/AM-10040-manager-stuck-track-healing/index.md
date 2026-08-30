@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: queue
-**Progress**: 29%
+**Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Phases 1–2 complete (of 7) — Phase 3 (folder resolver) next
 **Type**: dev
