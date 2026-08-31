@@ -1837,10 +1837,13 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
 // setInterval once, near server.listen() below.
 async function reapStaleDispatches(pool) {
   const timeoutMs = Number(process.env.LC_DISPATCH_CLAIM_TIMEOUT_MS) || 300000;
+  // Track 10032: reaped_at IS NULL keeps an already-reaped-but-still-pending
+  // (reassigned) row from being reaped — and re-commented on — every cycle.
   const { rows: stale } = await pool.query(
-    `SELECT wd.id, wd.worker_id, w.project_id FROM worker_dispatch wd
+    `SELECT wd.id, wd.worker_id, wd.track_number, wd.action, w.project_id FROM worker_dispatch wd
        JOIN workers w ON w.id = wd.worker_id
-      WHERE wd.status = 'pending' AND wd.created_at < NOW() - ($1 * INTERVAL '1 millisecond')`,
+      WHERE wd.status = 'pending' AND wd.created_at < NOW() - ($1 * INTERVAL '1 millisecond')
+        AND wd.reaped_at IS NULL`,
     [timeoutMs]
   );
   for (const entry of stale) {
@@ -1856,15 +1859,46 @@ async function reapStaleDispatches(pool) {
           ORDER BY w.id ASC LIMIT 1`,
         [entry.project_id, entry.worker_id]
       );
+      let reapReason;
       if (replacement) {
+        reapReason = `reassigned from worker ${entry.worker_id} to worker ${replacement.id} after ${Math.round(timeoutMs / 1000)}s unclaimed`;
+        // Kept as its own statement (rather than folded into the worker_id
+        // UPDATE below) so the reassignment call stays byte-for-byte what
+        // track-1102-f18b-dispatch-claim-timeout.test.mjs already asserts on.
         await pool.query(`UPDATE worker_dispatch SET worker_id = $1 WHERE id = $2`, [replacement.id, entry.id]);
+        await pool.query(`UPDATE worker_dispatch SET reaped_at = NOW(), reap_reason = $1 WHERE id = $2`, [reapReason, entry.id]);
         console.warn(`[dispatch-reaper] Dispatch ${entry.id} unclaimed for over ${timeoutMs}ms — reassigned from worker ${entry.worker_id} to ${replacement.id}`);
       } else {
+        reapReason = `timeout: unclaimed for over ${Math.round(timeoutMs / 1000)}s and no other live worker was available to reassign to`;
         await pool.query(
-          `UPDATE worker_dispatch SET status = 'failed', result = $1 WHERE id = $2`,
-          [`timeout: unclaimed for over ${Math.round(timeoutMs / 1000)}s and no other live worker was available to reassign to`, entry.id]
+          `UPDATE worker_dispatch SET status = 'failed', result = $1, reaped_at = NOW(), reap_reason = $3 WHERE id = $2`,
+          [reapReason, entry.id, reapReason]
         );
         console.warn(`[dispatch-reaper] Dispatch ${entry.id} unclaimed for over ${timeoutMs}ms — no replacement worker available, marked failed`);
+      }
+
+      // Track-scoped reap: tell the user via the Inbox's existing ⚠️/❌
+      // system-comment convention (GET /api/inbox's bucket classification
+      // matches on the leading emoji). track_number IS NULL dispatches
+      // (deploy, create-project, ...) have no track to comment on —
+      // CICDView's dispatch history is their only surface for this.
+      if (entry.track_number != null) {
+        const { rows: [track] } = await pool.query(
+          'SELECT id FROM tracks WHERE project_id = $1 AND track_number = $2',
+          [entry.project_id, entry.track_number]
+        );
+        // A miss is normal and non-fatal (dispatch for a track deleted
+        // since) — skip the comment, don't throw.
+        if (track) {
+          const commentBody = replacement
+            ? `⚠️ Dispatch ${entry.action} was unclaimed for over ${Math.round(timeoutMs / 1000)}s — worker ${entry.worker_id} appears dead; reassigned to worker ${replacement.id}.`
+            : `❌ Dispatch ${entry.action} failed: unclaimed for over ${Math.round(timeoutMs / 1000)}s and no other live worker was available to reassign to.`;
+          await pool.query(
+            `INSERT INTO track_comments(track_id, author, body, is_replied) VALUES ($1, 'system', $2, false)`,
+            [track.id, commentBody]
+          );
+          broadcast('track:updated', { projectId: entry.project_id, trackNumber: entry.track_number });
+        }
       }
     } catch (err) {
       console.warn(`[dispatch-reaper] Failed to reap dispatch ${entry.id}: ${err.message}`);
