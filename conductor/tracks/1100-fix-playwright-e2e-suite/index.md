@@ -1,8 +1,11 @@
 # Track 1100: Make the Playwright E2E suite actually runnable in the quality gate
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: waiting
 **Progress**: 90%
+**PR Number**: 21
+**PR URL**: https://github.com/meller/laneconductor/pull/21
+**PR Status**: open
 **Last Run**: mock (primary)
 **Phase**: Quality gate FAIL (4th consecutive FAIL, same reason) — fast tier clean and now concurrency-proven; Gap 2 (slow tier never observed passing) still needs the human decision requested 4x in…
 **Type**: dev
