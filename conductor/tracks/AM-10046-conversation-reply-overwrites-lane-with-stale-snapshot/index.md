@@ -34,6 +34,49 @@ This is a race on `**Lane**` itself, not merely a display/sync-timing issue (con
 [[AM-10044-running-state-stuck-in-queue-display]], which is about `lane_action_status`
 staleness) — a genuinely wrong value can be written back to disk.
 
+## Finding 2 (2026-08-31, track AM-10040) — `waiting_for_reply` is conflated with "lane action needs a retry"
+
+Distinct mechanism, same code region. `**Waiting for reply**: yes` is documented (SKILL.md's
+marker table) as meaning "a human comment needs an answer" — but the dispatch code
+(`laneconductor.sync.mjs` ~6005-6011) does this when `waitingForReply` is true:
+
+```js
+label = 'local-fs-answer';
+if (CLAIMABLE_LANES.includes(lane_status)) {
+  cmd_type = lane_status;   // e.g. 'done'
+} else {
+  cmd_type = 'implement';
+}
+```
+
+For a track sitting in a claimable lane (now including `done`, per Finding 5/track 10040) with
+`waiting_for_reply: yes` set, this doesn't "answer a question" at all — it runs the **actual
+lane action** (`cmd_type = 'done'` → `/laneconductor merge`) under the `local-fs-answer` label.
+No human conversation is involved; the flag is being used as a generic "please retry this
+lane's action" signal, indistinguishable from its documented meaning.
+
+**Confirmed live**: track AM-10040 had a stray `**Waiting for reply**: yes` (leftover from an
+unrelated leaked test-fixture dispatch, tracks 10044/10045's own root cause) long after it had
+genuinely shipped (`done:success`, PR merged). Every worker poll cycle re-triggered a `merge`
+retry labeled `local-fs-answer`, which collided with whatever else held the main-mode lock,
+got blocked, and reverted `**Lane Status**` to `queue` as a side effect — with no distinct
+signal anywhere that the track was "waiting to retry a merge" rather than "waiting for a
+human's reply" or "broken." The board just looked like it kept becoming unmerged.
+
+The pre-spawn-block machinery (`handlePreSpawnBlock`, track 10040 Phase 1) *does* fire
+correctly for this case and even logs it — but under the misleading `local-fs-answer` label,
+so its own diagnostic output reads as if a conversation-reply attempt failed, not a merge
+retry.
+
+**Added requirement**: `waiting_for_reply` must never be treated as "retry this lane's action."
+A track resuming because a lane action needs to retry (e.g. blocked on main-mode lock, blocked
+on a transient failure) needs its own distinct signal — surfaced to the human as something like
+"⏳ waiting to merge — blocked by [reason]" — clearly different from "💬 needs your reply."
+Concretely: `cmd_type` should never be set to the current `lane_status` inside the
+`waitingForReply` branch; a genuine lane-action retry should go through the normal
+claim/dispatch path (which already labels itself correctly, e.g. `local-fs-done`), not through
+the conversation-reply path at all.
+
 ## Solution (to be refined at planning)
 
 - Locate the `local-fs-answer` / conversation-reply-turn code path (likely near
