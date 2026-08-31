@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync, readlinkSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync, exec } from 'child_process';
@@ -12,7 +12,7 @@ import { promisify } from 'util';
 import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
-import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
+import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases, CLAIMABLE_LANES } from './constants.mjs';
 import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from './providers.mjs';
 import {
   readJiraConfig,
@@ -62,6 +62,11 @@ import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAl
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
+import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
+import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
+import { decideTrackFolder } from './services/track-folder.mjs';
+import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
+import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -981,6 +986,23 @@ function primaryCollector() {
 const hostname = os.hostname();
 const pid = process.pid;
 
+// Track 10040 REQ-11 (Finding 4), spec D5: captured ONCE at module load —
+// never re-read on the heartbeat — because the whole point is to record
+// what THIS process actually loaded into memory, not what's on disk right
+// now (a value that updates itself defeats the purpose). Measured against
+// the INSTALL DIR's HEAD (where this file itself lives — `import.meta.url`,
+// not `process.cwd()`), because a worker's code is separate from any
+// project repo it manages; the manager worker in particular has no project
+// repo at all (project_id: null).
+const workerCodeSha = (() => {
+  try {
+    const installDir = dirname(fileURLToPath(import.meta.url));
+    return execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
+  } catch {
+    return null; // not a git checkout (e.g. packaged install) — staleness detection simply skips this worker
+  }
+})();
+
 function getUserToken() {
   const authFile = join(os.homedir(), '.laneconductor-auth.json');
   if (existsSync(authFile)) {
@@ -1044,7 +1066,8 @@ async function upsertWorker() {
         worker_number: workerNumber,
         cli: primary.cli || 'claude',
         model: primary.model || null,
-        available_models: cachedModels || undefined
+        available_models: cachedModels || undefined,
+        code_sha: workerCodeSha,
       };
       if (isManager) registerBody.type = 'manager';
       const res = await post(url, token, '/worker/register', registerBody);
@@ -1387,6 +1410,22 @@ function quarantineStaleFolder(tracksDir, staleName) {
     if (!existsSync(to)) {
       renameSync(from, to);
       console.warn(`[ambiguous-track] Quarantined duplicate folder: ${from} -> ${to}`);
+      // Track 10040 Phase 6 Task 1 (REQ-4), second belt: isTrackDirName
+      // already excludes `_duplicate-*` from every concurrency scan, but
+      // rewrite the marker too — so a quarantined folder can never
+      // resurrect a phantom `running` slot even via a future scan that
+      // forgets to filter, e.g. a direct grep-based tool outside this file.
+      try {
+        const indexPath = join(to, 'index.md');
+        if (existsSync(indexPath)) {
+          const content = readFileSync(indexPath, 'utf8');
+          if (/\*\*Lane Status\*\*:\s*running/i.test(content)) {
+            writeFileSync(indexPath, content.replace(/\*\*Lane Status\*\*:\s*running/i, '**Lane Status**: quarantined'), 'utf8');
+          }
+        }
+      } catch (statusErr) {
+        console.error(`[ambiguous-track] Failed to clear running status in quarantined folder ${to}:`, statusErr.message);
+      }
     }
   } catch (err) {
     console.error(`[ambiguous-track] Failed to quarantine ${from}:`, err.message);
@@ -1409,62 +1448,37 @@ function isTrackDirName(name) {
   return /\d+/.test(name) && !name.startsWith('_duplicate-');
 }
 
+// Track 10040 Phase 3 (REQ-15): thin wrapper — the actual decision lives
+// in decideTrackFolder (conductor/services/track-folder.mjs), pure and
+// I/O-free so `lc track-dir` can resolve a folder read-only. This function
+// supplies the fs facts the pure function needs and applies its decision
+// as real effects (quarantine renames, metadata writes). Behavior must
+// stay byte-identical to the pre-extraction version — the quarantine
+// semantics are load-bearing (track 1119).
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
-  const matches = readdirSync(tracksDir, { withFileTypes: true })
-    .filter(d => d.isDirectory() && d.name.startsWith(`${trackNumber}-`))
-    .map(d => d.name)
-    .sort();
+  const dirNames = readdirSync(tracksDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name);
 
   const meta = getTrackMetadata(trackNumber);
-  const registered = meta?.folder_path ? basename(meta.folder_path) : null;
-  const registeredExists = !!(registered && existsSync(join(tracksDir, registered)));
+  const registeredFolder = meta?.folder_path ? basename(meta.folder_path) : null;
+  const registeredExists = !!(registeredFolder && existsSync(join(tracksDir, registeredFolder)));
 
-  // Legacy folders are named `${trackNumber}-slug`, matched above. Newer
-  // tracks (since track 10023) use `INITIALS-${trackNumber}-slug`, which
-  // never matches that prefix and previously made this function return
-  // null for every prefixed track — breaking any dispatch path that
-  // resolves the folder by track number alone (e.g. worker_dispatch
-  // lane-action processing, which is also what the UI's "Run" button
-  // ultimately triggers). Fall back to the registered folder_path in
-  // tracks-metadata.json, which newTrack always writes correctly
-  // regardless of naming convention.
-  if (matches.length === 0) {
-    return registeredExists ? registered : null;
+  const decision = decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists });
+
+  if (decision.quarantine.length > 1) {
+    const allMatches = [decision.folder, ...decision.quarantine].sort();
+    console.warn(`[ambiguous-track] Track ${trackNumber} matched ${allMatches.length} folders (${allMatches.join(', ')}) — using "${decision.folder}", quarantining the rest.`);
   }
-
-  // A lone legacy-pattern match is the common, unambiguous case and is
-  // normally trusted immediately — EXCEPT when metadata registers a
-  // DIFFERENT, currently-existing folder. That combination only arises
-  // when a prefixed track (e.g. "AM-1119-...", which structurally can
-  // never land in `matches` — it doesn't start with the bare
-  // `${trackNumber}-` prefix) has a stale legacy-named duplicate sitting
-  // next to it. Confirmed live, track 1119 (2026-08-26): trusting this
-  // branch blindly fed checkAndClaimGitLock's own git-add/commit into
-  // the stale, scaffolded-placeholder folder on every single dispatch,
-  // repeatedly re-committing garbage ("chore(track-1119): sync files
-  // before worktree" — fired 5+ times) while the real, actively-worked
-  // folder sat untouched. Quarantine the stale match instead of trusting
-  // it, the same way the multi-match branch below already does.
-  if (matches.length === 1) {
-    if (registeredExists && registered !== matches[0]) {
-      quarantineStaleFolder(tracksDir, matches[0]);
-      return registered;
-    }
-    return matches[0];
-  }
-
-  const canonical = (registeredExists && matches.includes(registered)) ? registered : matches[0];
-
-  console.warn(`[ambiguous-track] Track ${trackNumber} matched ${matches.length} folders (${matches.join(', ')}) — using "${canonical}", quarantining the rest.`);
-
-  for (const dupName of matches) {
-    if (dupName === canonical) continue;
+  for (const dupName of decision.quarantine) {
     quarantineStaleFolder(tracksDir, dupName);
   }
+  if (decision.metadataUpdate) {
+    updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, decision.metadataUpdate.folder_path) });
+  }
 
-  updateTrackMetadata(trackNumber, { folder_path: join(tracksDir, canonical) });
-  return canonical;
+  return decision.folder;
 }
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
@@ -1873,8 +1887,22 @@ function updateIndexMDFromDB(trackFolder, dbTrack) {
     };
 
     // Update markers from DB values
+    //
+    // Track 10040 REQ-12: a stale DB row is the same regression hazard as
+    // stale in-memory code — this pull is purely observational (it never
+    // decides a transition itself), so it can never legitimately be the
+    // producer of a backwards move. Guard it the same way as the worker's
+    // own exit-handler write.
     if (dbTrack.lane_status) {
-      content = updateMarker(content, 'Lane', dbTrack.lane_status);
+      const pullGuard = applyGuardedLaneWrite(content, {
+        intendedLane: dbTrack.lane_status,
+        producedByThisRun: false,
+      });
+      if (pullGuard.blocked) {
+        console.warn(`[sync] Track ${dbTrack.track_number}: lane-regression guard blocked DB->disk pull (${pullGuard.reason}). Leaving Lane untouched.`);
+      } else {
+        content = pullGuard.content;
+      }
     }
     if (dbTrack.progress_percent !== undefined && dbTrack.progress_percent !== null) {
       content = updateMarker(content, 'Progress', `${dbTrack.progress_percent}%`);
@@ -4362,6 +4390,73 @@ setInterval(() => {
   checkOutOfBandGitSync().catch(err => console.error('[git-sync error]:', err.message));
 }, 30000); // ticks every 30s; actual fetch cadence is governed by git.fetch_interval_ms above
 
+// Track 10040 Phase 5 (REQ-1,2,3,8,9,10): shared handler for every
+// pre-spawn block site (dirty-checkout, main-mode-lock, and future
+// callers — Phase 4's invalid-resting-state, Phase 6's phantom-running).
+// Increments a cause-generic counter (DB when available, local-fs sibling
+// files otherwise — REQ-8), applies decidePreSpawnBlockOutcome's decision,
+// and writes AT MOST one comment (REQ-10: warn on first block, silent
+// mid-streak, escalate to failure at the threshold — never the 191-comment
+// shape). The Lane Status write goes through applyGuardedLaneWrite like
+// every other marker write (same lane, so the guard's rank check is a
+// formality here, but it must go through, not around).
+async function handlePreSpawnBlock({ trackNumber, kind, reason, primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId }) {
+  let countBefore = 0;
+
+  if (getIsLocalFs()) {
+    if (primaryTrackDirName) {
+      const countPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-count');
+      const kindPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-kind');
+      // Reset on cause change too — same ".retry-lane"-style guard as the
+      // exit handler's own retry counter: a different kind means a
+      // different streak, not a continuation of the old one.
+      const lastKind = readIfExists(kindPath);
+      countBefore = (lastKind === kind) ? parseInt(readIfExists(countPath) || '0') : 0;
+      writeFileSync(countPath, String(countBefore + 1), 'utf8');
+      writeFileSync(kindPath, kind, 'utf8');
+    }
+  } else {
+    try {
+      const { url, token } = primaryCollector();
+      const res = await post(url, token, `/track/${trackNumber}/prespawn-block?project_id=${projectId}`, { kind, reason });
+      countBefore = Math.max(0, (res.count ?? 1) - 1);
+    } catch (err) {
+      // A broken counter call must never silently escalate — fail safe to
+      // "first block of a streak" (warn, don't escalate) rather than
+      // guessing a count that might already be past threshold.
+      console.warn(`[${label}] Track ${trackNumber}: failed to record prespawn-block via API (${err.message}) — treating as first-of-streak.`);
+      countBefore = 0;
+    }
+  }
+
+  const outcome = decidePreSpawnBlockOutcome({ kind, reason, countBefore });
+  const commentBody = formatBlockComment(outcome);
+
+  if (primaryIndexPath && primaryIndexContent) {
+    const currentLane = extractLaneFromIndex(primaryIndexContent);
+    const targetStatus = outcome.action === 'escalate' ? 'failure' : 'queue';
+    const guardResult = applyGuardedLaneWrite(primaryIndexContent, {
+      intendedLane: currentLane,
+      intendedStatus: targetStatus,
+      producedByThisRun: true, // this run IS the one deciding this status transition
+    });
+    if (!guardResult.blocked) {
+      writeFileSync(primaryIndexPath, guardResult.content, 'utf8');
+    } else {
+      console.warn(`[${label}] Track ${trackNumber}: lane-regression guard unexpectedly blocked a same-lane prespawn-block status write (${guardResult.reason})`);
+    }
+  }
+
+  if (commentBody && primaryTrackDirName) {
+    const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+    try {
+      appendFileSync(convPath, `\n> **system**: ${commentBody}\n`, 'utf8');
+    } catch { /* best-effort — the console.warn in the caller is the durable record either way */ }
+  }
+
+  return outcome;
+}
+
 async function spawnCli(command, args, label, trackNumber, cli, model, tier, laneStatus, laneConfig = {}, projectId = null, session = null, trigger = null, dispatchId = null, action = null) {
   let lockFile = null;
   let worktreePath = null;
@@ -4445,20 +4540,93 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
     if (disqualifying.length > 0) {
       console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder (still dirty after ${waitedMs / 1000}s of retries): ${disqualifying.join(', ')}`);
-      if (primaryIndexPath) {
-        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
-        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
+
+      // Track 10040 Phase 7 (REQ-7): classify each disqualifying path
+      // against the closed, provably-safe allowlist (spec D3) — the 10036
+      // exact shape (`ui/node_modules` committed as a symlink, then
+      // ignored). Best-effort: any error here just means no suggestion/
+      // heal, never a spawn failure of its own.
+      let remedies = [];
+      try {
+        const porcelainStatusByPath = new Map(
+          execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
+            .split('\n').filter(Boolean)
+            .map(l => {
+              const statusChars = l.slice(0, 2); // e.g. ' D', 'D ', '??', 'M '
+              const status = statusChars.includes('D') ? 'D' : statusChars.trim()[0];
+              return [l.slice(3).trim(), status];
+            })
+        );
+        for (const path of disqualifying) {
+          const porcelainStatus = porcelainStatusByPath.get(path);
+          if (!porcelainStatus) continue;
+          const isGitIgnored = (() => {
+            try {
+              execSync(`git check-ignore -q -- ${JSON.stringify(path)}`, { cwd: process.cwd() });
+              return true;
+            } catch {
+              return false;
+            }
+          })();
+          const classification = classifyHealableDirtyPath({ path, porcelainStatus, isGitIgnored });
+          if (classification.healable) remedies.push({ path, remedy: classification.remedy });
+        }
+      } catch (err) {
+        console.warn(`[${label}] Track ${trackNumber}: dirty-path-heal classification failed (${err.message}) — no suggestion/heal this cycle.`);
       }
-      if (primaryTrackDirName) {
-        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
-        const comment = `\n> **system**: ⚠️ Main-mode run blocked — the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}. Not spawning; will retry next cycle once the checkout is clean.\n`;
+
+      // Task 3: apply path, opt-in via manager.auto_heal — only when EVERY
+      // disqualifying path is healable (partial healing would still leave
+      // real dirt behind, so there is no safe partial-apply case). A tool
+      // that wedges tracks should not earn unattended write access to main
+      // by default; this stays inert unless a human explicitly opts in.
+      let healedNow = false;
+      if (config?.manager?.auto_heal === true && remedies.length === disqualifying.length && remedies.length > 0) {
+        let healLockFile = null;
         try {
-          appendFileSync(convPath, comment, 'utf8');
-        } catch { /* best-effort — the console.warn above is the durable record either way */ }
+          healLockFile = await checkAndClaimGlobalMainModeLock(trackNumber);
+          for (const { remedy } of remedies) {
+            execSync(remedy, { cwd: process.cwd(), stdio: 'pipe' });
+          }
+          execSync(
+            `git -c user.email=laneconductor@localhost -c user.name=LaneConductor commit -q -m ${JSON.stringify(`fix(manager): untrack ignored build output ${remedies.map(r => r.path).join(', ')}`)}`,
+            { cwd: process.cwd(), stdio: 'pipe' }
+          );
+          healedNow = true;
+          console.log(`[${label}] Track ${trackNumber}: auto-healed ${remedies.length} ignored build-output path(s) — ${remedies.map(r => r.path).join(', ')}`);
+          if (primaryTrackDirName) {
+            const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+            const healedList = remedies.map(r => r.path).join(', ');
+            try {
+              appendFileSync(convPath, `\n> **system**: ✅ Auto-healed ignored build-output path(s) blocking main-mode spawns: ${healedList}.\n`, 'utf8');
+            } catch { /* best-effort */ }
+          }
+        } catch (err) {
+          console.warn(`[${label}] Track ${trackNumber}: auto_heal apply failed (${err.message}) — falling back to propose-only for this cycle.`);
+        } finally {
+          if (healLockFile) await releaseGlobalMainModeLock().catch(() => { });
+        }
       }
-      const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
-      err.workspaceGuardBlocked = true;
-      throw err;
+
+      if (healedNow) {
+        disqualifying = checkDirty();
+      }
+
+      if (disqualifying.length > 0) {
+        const healSuggestion = remedies.length > 0
+          ? ` Proposed fix (provably safe, ignored build output): ${remedies.map(r => r.remedy).join(' && ')}`
+          : '';
+        const outcome = await handlePreSpawnBlock({
+          trackNumber, kind: 'dirty-checkout',
+          reason: `the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}.${healSuggestion}`,
+          primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId,
+        });
+        const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
+        err.workspaceGuardBlocked = true;
+        err.preSpawnBlock = outcome;
+        throw err;
+      }
+      // Healed and now clean — fall through and let the spawn proceed normally.
     }
   }
 
@@ -4476,20 +4644,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       globalMainModeLockAcquired = true;
     } catch (lockErr) {
       console.warn(`[${label}] Track ${trackNumber}: ${lockErr.message}`);
-      if (primaryIndexPath) {
-        const revertedContent = primaryIndexContent.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, '**Lane Status**: queue');
-        writeFileSync(primaryIndexPath, revertedContent, 'utf8');
-      }
-      if (primaryTrackDirName) {
-        const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
-        const comment = `\n> **system**: ⚠️ Main-mode run blocked — ${lockErr.message}. Not spawning; will retry next cycle once main-mode is free.\n`;
-        try {
-          appendFileSync(convPath, comment, 'utf8');
-        } catch { /* best-effort — the console.warn above is the durable record either way */ }
-      }
+      const outcome = await handlePreSpawnBlock({
+        trackNumber, kind: 'main-mode-lock', reason: lockErr.message,
+        primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId,
+      });
       const err = new Error(`[workspace-mode] main-mode spawn blocked by global lock for track ${trackNumber}: ${lockErr.message}`);
       err.workspaceGuardBlocked = true;
+      err.preSpawnBlock = outcome;
       throw err;
+    }
+  }
+
+  // Track 10040 Phase 5, TC-12: both pre-spawn guards cleared — zero the
+  // block counter now, regardless of how the spawned run itself later
+  // turns out. This is deliberately NOT tied to the exit handler's
+  // isSuccess: a transient dirty-checkout that resolves by the next cycle
+  // must not keep counting toward escalation just because the run it
+  // finally allowed happened to fail for an unrelated reason (blocks and
+  // run-failures are separate counters — see the existing .retry-count).
+  if (primaryTrackDirName) {
+    if (getIsLocalFs()) {
+      const countPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-count');
+      const kindPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-kind');
+      if (existsSync(countPath)) rmSync(countPath);
+      if (existsSync(kindPath)) rmSync(kindPath);
+    } else {
+      try {
+        const { url, token } = primaryCollector();
+        await post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {});
+      } catch (err) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block counter via API (${err.message}) — a stale count may persist until the next successful spawn.`);
+      }
     }
   }
 
@@ -4968,10 +5153,25 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           if (existsSync(retryPath)) rmSync(retryPath);
           if (existsSync(retryLanePath)) rmSync(retryLanePath);
         }
+
+        // Track 10040 Phase 5 Task 4: a spawn that got THIS FAR ran — it
+        // got past both pre-spawn guards, which is exactly what
+        // "consecutive" in "consecutive blocks" means. Clear regardless of
+        // whether the run itself later succeeds or fails; a run failure is
+        // a different counter (.retry-count, above) — blocks and
+        // run-failures are not the same signal.
+        const blockCountPath = join(tracksDir, trackDir, '.prespawn-block-count');
+        const blockKindPath = join(tracksDir, trackDir, '.prespawn-block-kind');
+        if (existsSync(blockCountPath)) rmSync(blockCountPath);
+        if (existsSync(blockKindPath)) rmSync(blockKindPath);
       }
     } else {
       const res = await get(url, token, `/track/${trackNumber}/retry-count`).catch(() => ({ count: 0 }));
       failCountBefore = res.count ?? 0;
+      // Same reasoning as the local-fs branch above: reaching the exit
+      // handler at all means both pre-spawn guards were passed this cycle.
+      post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {})
+        .catch(err => console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block count (${err.message})`));
     }
 
     // A failure triggers 'max_retries_reached' only if the count BEFORE this failure 
@@ -5049,27 +5249,35 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           let content = readFileSync(indexPath, 'utf8');
           let updated = false;
 
-          // 1. Always write the correct Lane from workflow.json (ignore whatever agent wrote)
+          // Track 10040 REQ-12 (Finding 4): guard against this run's own
+          // in-memory `laneStatus`/`targetLane` being stale relative to
+          // what's actually on disk right now — applyGuardedLaneWrite reads
+          // the on-disk lane FRESH from `content`, before any mutation.
+          // `producedByThisRun` is true only when the disk's current lane
+          // still matches the lane this run actually executed in; if
+          // something else (a human, a stale-but-different process, the
+          // real merge action) already moved it elsewhere, this run is not
+          // the legitimate author of whatever transition it's about to
+          // write. Confirmed live: a 7-hour-stale worker process overwrote
+          // a shipped track's done:queue back to implement:success.
           const effectiveLane = targetLane || laneStatus || Lanes.PLAN;
-          if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
-            content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${effectiveLane}`);
-          } else if (content.match(/(# [^\n]+\n)/i)) {
-            content = content.replace(/(# [^\n]+\n)/i, `$1\n**Lane**: ${effectiveLane}\n`);
+          const preWriteOnDiskLaneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+          const preWriteOnDiskLane = preWriteOnDiskLaneMatch ? preWriteOnDiskLaneMatch[1].trim() : effectiveLane;
+          const laneWriteGuard = applyGuardedLaneWrite(content, {
+            intendedLane: effectiveLane,
+            intendedStatus: nextActionStatus,
+            producedByThisRun: preWriteOnDiskLane === laneStatus,
+          });
+
+          if (laneWriteGuard.blocked) {
+            // Do NOT post a conversation comment here — a stale process
+            // spamming conversation.md on every cycle is the exact failure
+            // mode this track exists to end. A warn log is durable enough.
+            console.warn(`[${label}] Track ${trackNumber}: lane-regression guard blocked write (${laneWriteGuard.reason}). Leaving Lane/Lane Status untouched.`);
           } else {
-            content = `**Lane**: ${effectiveLane}\n` + content;
+            content = laneWriteGuard.content;
+            updated = true;
           }
-          updated = true;
-          // 2. Update Lane Status
-          if (content.match(/\*\*Lane Status\*\*:\s*\w+/i)) {
-            content = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, `**Lane Status**: ${nextActionStatus}`);
-          } else if (content.match(/\*\*Lane\*\*:\s*[^\n]+/i)) {
-            content = content.replace(/(\*\*Lane\*\*:\s*[^\n]+)/i, `$1\n**Lane Status**: ${nextActionStatus}`);
-          } else if (content.match(/(# [^\n]+\n)/i)) {
-            content = content.replace(/(# [^\n]+\n)/i, `$1\n**Lane Status**: ${nextActionStatus}\n`);
-          } else {
-            content = `**Lane Status**: ${nextActionStatus}\n` + content;
-          }
-          updated = true;
 
           // ── Integration Hooks ──
           if (isSuccess) {
@@ -5078,7 +5286,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             executeIntegrationHooks(trackNumber, laneStatus, 'failure');
           }
 
-          if (targetLane && targetLane !== laneStatus) {
+          if (targetLane && targetLane !== laneStatus && !laneWriteGuard.blocked) {
             patchData.lane_status = targetLane;
           }
           updated = true;
@@ -5798,7 +6006,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (waitingForReply) {
       label = 'local-fs-answer';
       // Respect the current lane's skill if it's an active one, otherwise fallback to implement
-      if (['plan', 'implement', 'review', 'quality-gate', 'done'].includes(lane_status)) {
+      if (CLAIMABLE_LANES.includes(lane_status)) {
         cmd_type = lane_status;
       } else {
         cmd_type = 'implement';
@@ -5844,9 +6052,25 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
     if (!getIsLocalFs() && !waitingForReply) {
       try {
         const { url, token } = primaryCollector();
-        const { tracks: won } = await post(url, token, '/tracks/claim-queue', { limit: 1, track_number });
+        const { tracks: won, reason } = await post(url, token, '/tracks/claim-queue', { limit: 1, track_number });
         if (!won || won.length === 0) {
-          console.log(`[local-fs] Track ${track_number}: lost the DB claim race this cycle (another worker already has it). Skipping.`);
+          // Track 10040 REQ-14: log the server's own diagnosed reason
+          // instead of asserting a cause it never verified. Only
+          // 'already_claimed' is a genuine lost race; every other reason
+          // means this worker's own view of what's claimable disagrees
+          // with the server's — that is a bug, not contention, so it logs
+          // at warn to stay visible instead of blending into idle noise.
+          if (reason === 'already_claimed') {
+            console.log(`[local-fs] Track ${track_number}: lost the DB claim race this cycle (another worker already has it). Skipping.`);
+          } else if (reason === 'no_candidates') {
+            console.log(`[local-fs] Track ${track_number}: claim-queue found no candidate (reason: no_candidates). Skipping.`);
+          } else if (reason === 'lane_not_claimable' || reason === 'not_permitted') {
+            logger.warn({ trackNumber: track_number, reason }, `[local-fs] Track ${track_number}: claim-queue refused (reason: ${reason}) — worker's own candidate selection disagrees with the server.`);
+          } else {
+            // Older collector that predates REQ-14, or a shape we don't
+            // recognize — never fall back to the old unverified assertion.
+            console.log(`[local-fs] Track ${track_number}: no rows returned (collector did not report a reason). Skipping.`);
+          }
           continue;
         }
       } catch (err) {
@@ -5890,7 +6114,15 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
-      console.error(`[local-fs] Failed to spawn track ${track_number}:`, err.message);
+      // Track 10040 Phase 5 Task 5: a pre-spawn block is an EXPECTED,
+      // already-handled outcome — handlePreSpawnBlock already logged/
+      // commented/escalated as appropriate. Logging it again here at
+      // error level would misrepresent a handled block as a crash.
+      if (err.workspaceGuardBlocked) {
+        console.log(`[local-fs] Track ${track_number}: spawn blocked (${err.preSpawnBlock?.action ?? 'pre-spawn guard'}) — see handlePreSpawnBlock's own logging above.`);
+      } else {
+        console.error(`[local-fs] Failed to spawn track ${track_number}:`, err.message);
+      }
     }
   }
 }
@@ -5981,6 +6213,16 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   try {
     spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete', null, currentLane);
   } catch (err) {
+    // Track 10040 Phase 5 Task 5: a pre-spawn block already got its own
+    // comment (at most one, per REQ-10) from handlePreSpawnBlock — posting
+    // a SECOND "Stopped after..." comment here would double the count for
+    // exactly this trigger path. Report the outcome without re-announcing it.
+    if (err.workspaceGuardBlocked) {
+      logger.info({ trackNumber, currentLane, dispatchId, action: err.preSpawnBlock?.action }, '[auto-complete] spawn blocked (pre-spawn guard) — not a crash');
+      await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: ${currentLane} spawn blocked (${err.preSpawnBlock?.action ?? 'pre-spawn guard'})`);
+      activeAutoComplete.delete(trackNumber);
+      return;
+    }
     logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
     const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
@@ -6476,6 +6718,23 @@ async function runCreateProject(entry) {
 // heartbeat interval, ~10s) is ever mistaken for an orphan.
 const ORPHAN_WORKER_GRACE_MS = 30 * 60 * 1000;
 
+// Track 10040 Phase 6 Task 4 (REQ-6): a REGISTERED worker whose heartbeat
+// is at least this stale is reaped too, same reasoning as
+// ORPHAN_WORKER_GRACE_MS above but for a worker that registered once and
+// then genuinely died without de-registering (vs. a fresh worker that
+// hasn't heartbeat yet — GET /api/workers already filters those out via
+// its own 60s heartbeat-freshness WHERE clause, so anything reaching this
+// function was recently alive by definition).
+const ORPHAN_WORKER_STALE_HEARTBEAT_MS = 5 * 60 * 1000;
+
+// How long to wait after a SIGTERM before escalating to SIGKILL — two of
+// the 24 leaked workers observed live ignored SIGTERM outright.
+const ORPHAN_SIGKILL_GRACE_MS = 60 * 1000;
+
+// pid -> ms timestamp a SIGTERM was sent, so a subsequent sweep can tell
+// "still there after being asked nicely" apart from "just discovered".
+const orphanSigtermSentAt = new Map();
+
 async function reapOrphanedWorkerProcesses() {
   if (!isManager) return;
   const { url, token } = primaryCollector();
@@ -6498,25 +6757,112 @@ async function reapOrphanedWorkerProcesses() {
     return;
   }
 
-  const registeredPids = new Set(
-    workers.filter(w => w.hostname === hostname && w.pid).map(w => Number(w.pid))
-  );
+  // Track 10040 Phase 6 Task 4 (REQ-6): widened beyond "unregistered" — a
+  // registered worker on THIS host is also an orphan if its cwd has been
+  // deleted out from under it, or its heartbeat has gone stale. The real
+  // zombie this was written for (PID 1736711, ~17% CPU for 2 days against
+  // a deleted cwd) was invisible to the original rule: it had registered.
+  const registeredWorkers = workers
+    .filter(w => w.hostname === hostname && w.pid)
+    .map(w => ({ pid: Number(w.pid), last_heartbeat: w.last_heartbeat }));
+
+  const cwdExists = (pid) => {
+    try {
+      const target = readlinkSync(`/proc/${pid}/cwd`);
+      return !target.endsWith(' (deleted)');
+    } catch {
+      // /proc unreadable (non-Linux, or the process already exited) —
+      // fail toward NOT reaping on this signal alone; other conditions
+      // (unregistered, stale heartbeat) still apply independently.
+      return true;
+    }
+  };
 
   const orphans = findOrphanedWorkerProcesses(rows, {
-    registeredPids,
+    registeredWorkers,
     selfPid: process.pid,
     graceMs: ORPHAN_WORKER_GRACE_MS,
+    staleHeartbeatMs: ORPHAN_WORKER_STALE_HEARTBEAT_MS,
+    cwdExists,
   });
 
+  const stillAlivePids = new Set(orphans.map(o => o.pid));
+  // Forget SIGTERM history for anything that's no longer in the orphan
+  // list (either reaped successfully or re-registered/healed).
+  for (const pid of orphanSigtermSentAt.keys()) {
+    if (!stillAlivePids.has(pid)) orphanSigtermSentAt.delete(pid);
+  }
+
   for (const orphan of orphans) {
+    const sentAt = orphanSigtermSentAt.get(orphan.pid);
+    if (sentAt && (Date.now() - sentAt) >= ORPHAN_SIGKILL_GRACE_MS) {
+      // Track 10040 Phase 6 Task 4: two of the 24 leaked workers observed
+      // live ignored SIGTERM outright — escalate rather than repeating a
+      // request that already proved ineffective.
+      logger.warn({ pid: orphan.pid, ageMinutes: Math.round(orphan.ageMs / 60000) }, `[orphan-reap] Escalating to SIGKILL — pid ${orphan.pid} ignored SIGTERM`);
+      try {
+        process.kill(orphan.pid, 'SIGKILL');
+        orphanSigtermSentAt.delete(orphan.pid);
+      } catch (err) {
+        logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to SIGKILL orphaned process');
+      }
+      continue;
+    }
     logger.warn(
       { pid: orphan.pid, ageMinutes: Math.round(orphan.ageMs / 60000), cmd: orphan.cmd },
       `[orphan-reap] Killing unregistered laneconductor.sync.mjs process (pid ${orphan.pid}, ${Math.round(orphan.ageMs / 60000)}m old, not in this host's registered worker set)`
     );
     try {
       process.kill(orphan.pid, 'SIGTERM');
+      orphanSigtermSentAt.set(orphan.pid, Date.now());
     } catch (err) {
       logger.warn({ pid: orphan.pid, err: err.message }, '[orphan-reap] Failed to kill orphaned process');
+    }
+  }
+
+  // Track 10040 REQ-11 (Finding 4): report — never silently restart —
+  // any registered worker ON THIS HOST whose loaded code has fallen behind
+  // this install dir's own HEAD. Cross-host workers are out of scope: a
+  // different host has its own independent git checkout, and comparing it
+  // against this machine's HEAD would be meaningless. Restarting a
+  // detected-stale worker automatically is explicitly NOT implemented here
+  // — report-only, gated the same way Phase 7's auto-heal is, but the
+  // restart mechanism itself (which needs correct pidfile/lc-worker-restart
+  // wiring) is out of scope for this pass; a human acts on the warn log.
+  if (workerCodeSha) {
+    try {
+      const installDir = dirname(fileURLToPath(import.meta.url));
+      const headSha = execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
+      const localWorkers = workers.filter(w => w.hostname === hostname && w.code_sha);
+      for (const w of localWorkers) {
+        if (w.code_sha === headSha) continue;
+        let commitsBehind = 0;
+        let touchedFiles = [];
+        try {
+          commitsBehind = parseInt(execSync(`git rev-list --count ${w.code_sha}..${headSha}`, { cwd: installDir, encoding: 'utf8' }).trim(), 10) || 0;
+          touchedFiles = execSync(`git diff --name-only ${w.code_sha} ${headSha}`, { cwd: installDir, encoding: 'utf8' })
+            .split('\n').map(l => l.trim()).filter(Boolean);
+        } catch (err) {
+          // w.code_sha may no longer exist locally (rebased history, etc.)
+          // — skip classification for this worker rather than guessing.
+          logger.warn({ pid: w.pid, err: err.message }, '[worker-staleness] Could not diff worker code_sha against HEAD (skipping)');
+          continue;
+        }
+        const classification = classifyWorkerStaleness({ workerSha: w.code_sha, headSha, commitsBehind, touchedFiles });
+        if (classification.severity === 'critical') {
+          logger.warn(
+            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+            `[worker-staleness] Worker pid ${w.pid} is running CRITICALLY stale code: ${classification.reason}`
+          );
+        } else if (classification.severity === 'stale') {
+          logger.warn(
+            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+            `[worker-staleness] Worker pid ${w.pid} is stale: ${classification.reason}`
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn({ err: err.message }, '[worker-staleness] Failed to check worker code staleness (skipping this cycle)');
     }
   }
 }
@@ -7406,6 +7752,16 @@ async function checkDispatchInbox() {
       // stuck on the 'running' just written above, with nothing to ever
       // revert either. Report failure the same way the others do, and put
       // the file/DB status back to what it was before this attempt.
+      // Track 10040 Phase 5 Task 5: a pre-spawn block already wrote its own
+      // Lane Status (via handlePreSpawnBlock's guarded write) and posted
+      // its own single comment (REQ-10) — don't clobber that write with a
+      // raw revert to originalLaneActionStatus, and don't double-report.
+      if (err.workspaceGuardBlocked) {
+        logger.info({ dispatchId: entry.id, trackNumber, action: err.preSpawnBlock?.action }, `[dispatch] spawn blocked (pre-spawn guard) for ${entry.action} — not a crash`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: `spawn blocked (${err.preSpawnBlock?.action ?? 'pre-spawn guard'})` })
+          .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
+        continue;
+      }
       logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, `[dispatch] spawnCli failed for ${entry.action}`);
       writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: err.message })

@@ -267,12 +267,33 @@ applies to.
 
 To find a track by number (e.g., "Track 017"):
 
-1.  **Check `conductor/tracks-metadata.json`**: This is the canonical index. Look for the track number key (e.g., `"017"`) and its `folder_path`.
-2.  **Scan `conductor/tracks/`**: If the metadata is missing or out of sync, look for a directory starting with the track number (e.g., `conductor/tracks/017-firebase-static/`).
+1.  **Run `lc track-dir <number>`** (Track 10040 REQ-15). This is the canonical resolver — the
+    exact same decision logic the sync worker's own folder resolution runs
+    (`conductor/services/track-folder.mjs`), so the skill and the worker can never disagree about
+    which folder is real. It checks `conductor/tracks-metadata.json`'s registration AND scans
+    `conductor/tracks/` for both naming conventions (`INITIALS-NNN-slug` and legacy `NNN-slug`),
+    resolves ambiguity the same way the worker does, and is **read-only** — it never renames a
+    folder or writes metadata as a side effect of answering "where is this track". On success it
+    prints the folder path (relative to the project root) to stdout and exits 0; on failure it
+    exits non-zero with a diagnostic on stderr and prints **nothing** to stdout. Use `--json` for
+    `{ folder, matches, registered }`.
+2.  **Fallback (no `lc` on PATH — skill-only environments only)**: manually check
+    `conductor/tracks-metadata.json` for the track number key's `folder_path`, then scan
+    `conductor/tracks/` for a directory matching **either** convention —
+    `INITIALS-NNN-slug` (e.g. `AM-10023-my-feature`) **or** the legacy bare `NNN-slug`. A scan that
+    only checks the legacy bare-prefix pattern will silently miss every prefixed folder — this was
+    a real, live bug (Finding 6, track 10040): it made the skill invisible to a track's own
+    already-existing folder and caused it to scaffold a second, duplicate one.
 3.  **Check `conductor/tracks.md`**: This summary file often contains links to the track folders.
 4.  **Check `conductor/tracks/file_sync_queue.md`**: New tracks queued from the UI or CLI appear here with `**Status**: pending` before the worker creates their folder.
 
 **Folder Naming Convention**: `conductor/tracks/INITIALS-NNN-slug/` for new tracks (e.g. `AM-10023-my-feature`). Legacy tracks use the old `NNN-slug/` format and are fully supported.
+
+**🛑 A folder already existing for this track number, under EITHER convention, is not a
+suggestion — scaffolding a second one is an error, not a fallback.** Confirmed live on this exact
+track (10040) during its own planning: a session that couldn't find its `AM-10040-...` folder via
+the legacy-only scan scaffolded a duplicate `10040-...` folder instead of using the real one. If
+step 1 or step 2 above resolves ANY folder for this track number, use it — never create another.
 
 ---
 
@@ -1279,9 +1300,22 @@ Scaffold or refine the planning phase of a track (Spec + Plan).
 
 0. **Claim the track immediately** — before any other work, write `**Lane**: plan` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md`. Setting `**Lane**` explicitly (not just `**Lane Status**`) matters whenever this command is invoked directly rather than via the normal queued-worker path — e.g. a KPI-miss replan or a manual re-run — where the track may not already be sitting in the `plan` lane; without it the Kanban board shows the track running in the wrong column for the whole duration of the work. This prevents the worker from double-launching and shows activity in the UI.
 0b. **Workspace classification (Track 1115)** — if `index.md` has **neither** a `**Workspace**` marker **nor** a `**Track Kind**` marker, classify the track as `bug` or `feature` from its title, description, and `conversation.md`, plus a quick scan of the codebase area it touches. Write `**Track Kind**: bug` or `**Track Kind**: feature` to `index.md` — **not** `**Workspace**` directly. This distinction matters: the `plan` lane runs before every other lane action (see step 7's transition and `conductor/workflow.md`'s Workspace Modes section), so if this step wrote `**Workspace**` directly, the inference would become indistinguishable from a deliberate human override for nearly every track that reaches plan without one already set — silently defeating the auto-queue safety check that keeps an *inferred* bug classification from running unattended on main. `**Track Kind**` only feeds the type-derived default; it does not override anything on its own. Append the classification and its reasoning to `conversation.md` in the required format: `> **system**: Classified as **Track Kind**: <bug|feature> — <one-line reasoning>.` A wrong guess is visible and overridable this way, never silent. Skip this step entirely if either marker is already present (an explicit `**Workspace**` always takes precedence and needs no classification).
-1.  **Locate the Track**: Use the **Protocol: Locating Tracks**. If it has `**Status**: pending` in `file_sync_queue.md` and no folder exists yet, proceed to **Scaffold**.
-2.  **Scaffold (if missing)**:
-    - Create directory `conductor/tracks/NNN-slug/`
+1.  **Locate the Track**: Use the **Protocol: Locating Tracks** — run `lc track-dir <number>`
+    first. If it resolves a folder (exit 0, any naming convention), that folder is the track — go
+    to **Refine**, never **Scaffold**, regardless of what `file_sync_queue.md` says. If it exits
+    non-zero (no folder exists anywhere) AND the track has `**Status**: pending` in
+    `file_sync_queue.md`, proceed to **Scaffold**.
+2.  **Scaffold (only if `lc track-dir` found nothing — REQ-15)**:
+    - **🛑 Scaffolding over an existing track number is an error, not a fallback.** This step may
+      only run after step 1's resolver genuinely found nothing under any convention. Confirmed
+      live (Finding 6, track 10040): an earlier version of this instruction said to scaffold at
+      the legacy `NNN-slug/` path unconditionally, which created a duplicate folder beside a
+      track's real, already-existing `INITIALS-NNN-slug/` one every time the resolution step
+      missed it.
+    - Create directory `conductor/tracks/INITIALS-NNN-slug/` — the current documented convention
+      (see **Protocol: Locating Tracks**'s Folder Naming Convention), **never** the bare legacy
+      `NNN-slug/` form for a new track. Derive `INITIALS` the same way `/laneconductor newTrack`
+      does (uppercase first letter of each word in `git config user.name`, max 3 chars).
     - Create `index.md` (Title, Lane, Status: planning, Progress: 0%, Last Run: user)
     - Create `spec.md` (Problem, Requirements, Acceptance Criteria, **Data Model Changes** (if applicable))
     - Create `plan.md` (Phases, Tasks with ⏳)
