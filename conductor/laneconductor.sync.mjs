@@ -61,6 +61,7 @@ import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree
 import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand } from './services/run-marker.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
+import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
@@ -188,6 +189,23 @@ if (!process.env.LC_SKIP_CWD_NORMALIZATION) {
         : `[LaneConductor] ⚠️  Serving from ${servingRoot} — this is NOT the primary checkout.`;
   console.log(provenanceMsg);
   logger.info({ servingRoot, isManager, isPrimary }, provenanceMsg);
+}
+
+// Track 10045 Phase 2 (REQ-3/REQ-4): opt-in safety net, independent of
+// whatever specific escape mechanism REQ-1's fix addresses — any FUTURE
+// isolation escape, by any mechanism, fails loudly and instantly instead
+// of silently running as a production worker. No-op unless
+// LC_ASSERT_SERVING_ROOT is set (AC-5): real deployments never set it, so
+// this is dead weight for them, not a behavior change. Placed AFTER the
+// provenance block (so it sees the post-chdir cwd) but BEFORE the worker
+// lock, chokidar watchers, or any collector call below — nothing that
+// could touch a real system runs if this fires.
+if (process.env.LC_ASSERT_SERVING_ROOT) {
+  const { ok, expected, actual } = checkServingRoot(process.env.LC_ASSERT_SERVING_ROOT, process.cwd());
+  if (!ok) {
+    console.error(`[LaneConductor] ASSERT_SERVING_ROOT mismatch — expected "${expected}", actually serving from "${actual}". Refusing to start.`);
+    process.exit(9);
+  }
 }
 
 // Track 1110 Phase 2, Task 6: exclusivity independent of the pidfile
