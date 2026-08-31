@@ -79,17 +79,41 @@ was invisible until the machine was at load 20.
 **Solution**: An opt-in startup assertion in the worker. No-op when the env var is unset, so
 production is untouched (AC-5).
 
-- [ ] Task 2.1: In `conductor/laneconductor.sync.mjs`, immediately after the existing
-      provenance block (~line 186, so it sees the post-chdir serving root):
-    - [ ] If `process.env.LC_ASSERT_SERVING_ROOT` is set and does not match `process.cwd()`
-          (both `realpath`-normalised), print a loud error naming **expected** and **actual**,
-          and `process.exit(9)` before any sync work, chokidar watcher, or collector call
-    - [ ] Use a distinctive exit code so a test can assert the reason, not just "non-zero"
-- [ ] Task 2.2: Unit-test the comparison as a pure helper so the match logic (trailing slash,
-      symlink, `realpath`) is covered without spawning a process
-- [ ] Task 2.3: Confirm AC-5 — with the var unset, no new branch is taken
+- [x] Task 2.1: Added immediately after the provenance block (`sync.mjs`, post-chdir): if
+      `LC_ASSERT_SERVING_ROOT` is set and `checkServingRoot()` reports a mismatch, prints an
+      error naming expected + actual and `process.exit(9)` — before the worker lock, chokidar,
+      or any collector call.
+    - [x] Distinctive exit code 9, asserted directly in TC-5.
+- [x] Task 2.2: `conductor/services/assert-serving-root.mjs`'s `checkServingRoot()` — pure,
+      `realpath`-normalized, unit-tested (TC-7: exact match, trailing slash, symlink, mismatch)
+      without spawning anything.
+- [x] Task 2.3: TC-6 confirms AC-5 directly — var unset, no assertion-related output at all.
 
 **Impact**: Any future isolation escape, by any mechanism, fails instantly and legibly.
+
+### Phase 2 findings (2026-08-31)
+
+Ran `node --test conductor/tests/track-10045-assert-serving-root.test.mjs`: **7/7 pass.**
+
+- TC-7 (4 pure unit cases) — pass, no process spawned.
+- TC-6 (unset) — pass, zero assertion-related output (AC-5).
+- TC-4 (set, matches) — pass, worker starts normally.
+- TC-5 (set, mismatches) — pass, **exit 9 in ~100ms**, well before worker-lock/chokidar/collector
+  setup — confirmed by the absence of any `watching` log line in captured output.
+
+**Caught and fixed a real leak in my own test harness during development**: an early version of
+the `runToExit()` helper didn't kill the worker process on its internal timeout. Running TC-5
+before the guard existed (deliberately, to confirm red-then-green) left one real
+`laneconductor.sync.mjs` process running for ~80s before I noticed via `ps aux` and killed it —
+exactly the failure mode this whole track exists to prevent, caught live in the track's own
+test suite. Fixed by guaranteeing `killAndConfirmDead()` runs in a `finally` regardless of how
+the wait resolves.
+
+**Regression check**: re-ran `primary-root-normalization.test.mjs` (5/5 pass, unaffected) and
+`local-fs-e2e.test.mjs` (5/7 pass, 2 pre-existing `poll timeout` failures). Verified the 2
+failures are unrelated to this change by stashing `sync.mjs`'s diff and re-running against the
+unmodified file — identical 2 failures reproduced on the baseline, confirming pre-existing
+flakiness rather than a regression introduced here.
 
 ---
 
