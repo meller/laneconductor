@@ -394,7 +394,7 @@ confirm before taking. Recommendation, for whoever makes this call:
 (a) approve running v2's already-scoped path as a one-off to at least prove
 the worker/spec mechanics work at all, and/or (b) approve the v1/
 `new-track-plan` self-scoping rewrite as its own reviewed change. Left open
-either way — see conversation.md.
+either way — see conversation.md. **Resolved 2026-08-30: option (c), land as-is.** Neither (a) nor (b) was approved; the fast tier is the shipped deliverable, TC-9 stays genuinely unmet, and this rewrite remains available as its own future track if anyone picks it up.
 
 ## ⚠️ Gap 4 (blocking) — review 2026-08-20: fast tier is not actually stable on this machine right now
 
@@ -665,3 +665,18 @@ been recorded since review #3 despite three separate requests
 `workflow.json` this transitions to `implement:queue` again. Recording
 plainly, again: nothing here requires further automated cycling to
 resolve — it requires the decision already on the table.
+
+## ❌ Quality Gate (re-run) — 2026-08-24
+
+Invoked again directly, shortly after Review #4. Verified implement pass
+4's fixture-identity fix is real and committed (`a4f1954`), and re-ran the
+fast tier fresh: **11 passed, 0 failed, 6 skipped, 24.9s**. Slow tier still
+not run — no sync+poll worker running (`lc worker status`: STOPPED).
+
+**Verdict: FAIL**, same blocker as review #3, the first quality-gate run,
+and review #4: spec.md's "slow tier passes when explicitly invoked"
+acceptance criterion is still unverified, and no human decision has been
+recorded despite four separate requests now. Per `workflow.json`,
+transitioned to `plan:queue`. Everything code-side is done and verified
+(fast tier fixed, fast, and concurrency-proven); what remains is not
+resolvable by another automated pass.
