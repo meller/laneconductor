@@ -37,12 +37,24 @@ npx playwright test --project=slow
 | TC-13 | ✅ | `quality-gate.md` gives the command, prerequisites, and baseline |
 | TC-14 | ✅ | negative test performed and restored — `plan.md` Phase 5 |
 
-**TC-9 is the one unmet case.** All 3 slow specs need a running `sync+poll`
-worker to claim a queued track; this machine runs only a `sync-only`
-manager, so they fail waiting for a claim that never comes (71s / 137s /
-103s). These are the *same* failures as before the tiering — the split did
-not break them. Not forced green: starting a sync+poll worker would begin
-autonomously executing other queued tracks on this machine.
+**TC-9 is the one unmet case — and its blocker has changed since the note above was written.**
+A `sync+poll` worker now runs on this machine, so the original blocker (no worker exists to
+claim the track) no longer applies; a live re-run on 2026-08-30 confirmed all 3 slow specs get
+past the claim step and fail at a *different*, later guard:
+
+```
+Error: assertCheckoutSpawnable: clean the checkout first — the primary checkout has
+uncommitted changes outside the scoped track folder(s) [...]: conductor/create-project-utils.mjs,
+conductor/laneconductor.sync.mjs, ...
+```
+
+The slow tier's real prerequisite is **a running `sync+poll` worker AND a quiescent primary
+checkout at the same time** — and those two are in structural tension on this machine: the
+worker that satisfies the first requirement is, by design, autonomously executing other queued
+tracks, which continuously dirties the checkout the second requirement needs to be clean. This
+is a property of the machine's own operating mode, not a defect in this track's suite or
+tiering. Not forced green: TC-9 remains genuinely unverified, and Phase 6 (self-scoping rewrite
+that would remove this dependency entirely) stays documented as permanently open — see plan.md.
 
 Note: this track's "tests" are largely *measurements of other tests*. The
 deliverable is a suite that runs and can fail honestly, so most cases below
