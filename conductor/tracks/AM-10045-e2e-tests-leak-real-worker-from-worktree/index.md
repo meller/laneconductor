@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Waiting for reply**: yes
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — Phase 1 blocked on dirty checkout; lane-flap race also found, see conversation
+**Phase**: Planned — Phase 1 still blocked on dirty checkout (3rd check, same open decision)
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
