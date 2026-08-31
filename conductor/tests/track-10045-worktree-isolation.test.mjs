@@ -72,14 +72,22 @@ function removeWorktree(primaryRoot, wtPath) {
 
 // Confirms a signalled process has actually exited, not merely been sent a
 // signal — bounded SIGTERM -> SIGKILL escalation (spec.md REQ-6).
-async function killAndConfirmDead(worker, termMs = 3000) {
+async function killAndConfirmDead(worker, termMs = 3000, killMs = 2000) {
   worker.kill('SIGTERM');
-  const deadline = Date.now() + termMs;
-  while (Date.now() < deadline) {
+  const termDeadline = Date.now() + termMs;
+  while (Date.now() < termDeadline) {
     try { process.kill(worker.pid, 0); } catch { return; } // ESRCH -> already dead
     await sleep(100);
   }
-  try { process.kill(worker.pid, 'SIGKILL'); } catch { /* already gone */ }
+  try { process.kill(worker.pid, 'SIGKILL'); } catch { return; }
+  // SIGKILL is asynchronous too — confirm it, don't just fire-and-return
+  // (found live in Phase 3's own stopWorker: an immediate liveness check
+  // right after sending SIGKILL could still observe the process as alive).
+  const killDeadline = Date.now() + killMs;
+  while (Date.now() < killDeadline) {
+    try { process.kill(worker.pid, 0); } catch { return; }
+    await sleep(50);
+  }
 }
 
 // Spawns the REAL worker script with cwd = sandbox, captures its startup

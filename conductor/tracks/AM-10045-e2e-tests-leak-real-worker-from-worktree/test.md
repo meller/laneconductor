@@ -56,18 +56,19 @@ cannot reach production even while still broken).
 
 ### Phase 3 — Shared helper (`track-10045-isolated-worker-helper.test.mjs`)
 
-- [ ] TC-8: `makeSandbox()` — expected: path is outside the repo working tree, is a git repo
+- [x] TC-8: `makeSandbox()` — expected: path is outside the repo working tree, is a git repo
       (`--git-dir` === `--git-common-dir`), and `git status --porcelain` in the repo stays
-      clean (AC-11).
-- [ ] TC-9: `startIsolatedWorker()` called from a test file physically inside a worktree —
-      expected: serving root is the sandbox (REQ-1), and the resolved script path came from the
-      explicit repo root, not `__dirname`.
-- [ ] TC-10: `stopWorker()` against a child that ignores SIGTERM — expected: escalates to
+      clean (AC-11). **PASSING.**
+- [x] TC-9: `startIsolatedWorker()` called with the caller's own `cwd` moved outside any git
+      repo — expected: serving root is the sandbox (REQ-1), and script resolution is
+      independent of the caller's cwd/`__dirname`, not `join(__dirname, '../..')`. **PASSING.**
+- [x] TC-10: `stopWorker()` against a child that ignores SIGTERM — expected: escalates to
       SIGKILL within the window and resolves only once `kill(pid, 0)` confirms death, not merely
-      once the signal was sent (AC-7).
-- [ ] TC-11: `stopWorker()` against a well-behaved child — expected: exits on SIGTERM, never
-      escalates.
-- [ ] TC-12: `cleanupSandbox()` called twice — expected: idempotent, no throw.
+      once the signal was sent (AC-7). **PASSING** — failed once during development (SIGKILL
+      branch didn't confirm death), fixed; see plan.md Phase 3 findings.
+- [x] TC-11: `stopWorker()` against a well-behaved child — expected: exits on SIGTERM, never
+      escalates. **PASSING.**
+- [x] TC-12: `cleanupSandbox()` called twice — expected: idempotent, no throw. **PASSING.**
 
 ### Phase 4 — Bounded worker shutdown
 

@@ -22,14 +22,20 @@ const WORKER_SCRIPT = join(REAL_REPO_ROOT, 'conductor/laneconductor.sync.mjs');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function killAndConfirmDead(worker, termMs = 3000) {
+async function killAndConfirmDead(worker, termMs = 3000, killMs = 2000) {
   worker.kill('SIGTERM');
-  const deadline = Date.now() + termMs;
-  while (Date.now() < deadline) {
+  const termDeadline = Date.now() + termMs;
+  while (Date.now() < termDeadline) {
     try { process.kill(worker.pid, 0); } catch { return; }
     await sleep(100);
   }
-  try { process.kill(worker.pid, 'SIGKILL'); } catch { /* already gone */ }
+  try { process.kill(worker.pid, 'SIGKILL'); } catch { return; }
+  // SIGKILL is asynchronous too — confirm it, don't just fire-and-return.
+  const killDeadline = Date.now() + killMs;
+  while (Date.now() < killDeadline) {
+    try { process.kill(worker.pid, 0); } catch { return; }
+    await sleep(50);
+  }
 }
 
 // A minimal, self-contained local-fs sandbox (its own git repo, so cwd
