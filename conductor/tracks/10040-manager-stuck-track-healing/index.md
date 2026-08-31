@@ -1,9 +1,12 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: queue
+**PR Status**: open
+**PR URL**: https://github.com/meller/laneconductor/pull/20
+**PR Number**: 20
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phases 1–5 complete (of 7, Phase 5 has one flagged gap) — Phase 6 (manager sweep) next
 **Type**: dev
 **Track Kind**: bug
