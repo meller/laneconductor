@@ -18,5 +18,5 @@ To be defined.
 **Auto Run**: yes
 **PR Number**: 15
 **PR URL**: https://github.com/meller/laneconductor/pull/15
-**PR Status**: conflicted
+**PR Status**: open
 **Waiting for reply**: yes
