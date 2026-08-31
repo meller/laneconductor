@@ -394,7 +394,7 @@ confirm before taking. Recommendation, for whoever makes this call:
 (a) approve running v2's already-scoped path as a one-off to at least prove
 the worker/spec mechanics work at all, and/or (b) approve the v1/
 `new-track-plan` self-scoping rewrite as its own reviewed change. Left open
-either way — see conversation.md.
+either way — see conversation.md. **Resolved 2026-08-30: option (c), land as-is.** Neither (a) nor (b) was approved; the fast tier is the shipped deliverable, TC-9 stays genuinely unmet, and this rewrite remains available as its own future track if anyone picks it up.
 
 ## ⚠️ Gap 4 (blocking) — review 2026-08-20: fast tier is not actually stable on this machine right now
 
