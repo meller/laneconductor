@@ -73,9 +73,11 @@ the bottom of this file). The pivot to the Managed Agents API was decided by the
 
 ## Requirements
 
-- REQ-1 **Worker runtime type**: `workers.runtime TEXT DEFAULT 'machine'` (`machine|cloud`).
-  Selectable at worker creation (CLI; UI field where the worker-creation UX already exists).
-  `machine` workers behave exactly as today — zero behavior change.
+- REQ-1 **Worker runtime type**: `workers.runtime TEXT DEFAULT 'machine'`
+  (`machine|remote|cloud`). Selectable at worker creation (CLI; UI field where the
+  worker-creation UX already exists). `machine` workers behave exactly as today — zero
+  behavior change. All three runtimes flow through the same worker UX everywhere (workers
+  list badge, dispatch targeting, gates, heartbeats). See REQ-11 for `remote`.
 - REQ-2 **Executor seam**: an executor interface (`run(prompt, ctx) → { id }`, `poll(id)`,
   `result(id)`) with two implementations — `LocalCliExecutor` (wraps today's spawnCli path,
   behavior-identical) and `CloudSessionExecutor` (creates/resumes a Managed Agents session and
