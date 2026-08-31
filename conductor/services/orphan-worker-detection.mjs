@@ -41,23 +41,66 @@ export function parsePsWorkerRows(psOutput) {
 
 /**
  * Filters a list of laneconductor.sync.mjs process rows down to the ones
- * eligible for reaping: not this manager's own pid, not in the
- * currently-registered set, and older than the grace period (so a worker
- * that just spawned and hasn't sent its first heartbeat yet — the same
- * race Phase 6 Task 4 guards against — is never touched).
+ * eligible for reaping. The original rule (unregistered + older than
+ * grace) is unchanged. Track 10040 Phase 6 (REQ-6) widens "orphan" beyond
+ * "unregistered": a REGISTERED worker is also reaped if its cwd has been
+ * deleted out from under it, or its heartbeat has gone stale — the real
+ * zombie this widening was written for (PID 1736711, ~17% CPU for 2 days
+ * against a deleted cwd) was invisible to the original rule precisely
+ * because it had registered.
+ *
+ * Backward compatible: passing the legacy `registeredPids: Set<pid>` shape
+ * with no `cwdExists`/`staleHeartbeatMs` reproduces the exact original
+ * behavior (registered pids are never touched, regardless of age).
  *
  * @param {Array<{pid: number, ageMs: number, cmd: string}>} rows
  * @param {object} opts
- * @param {Set<number>} opts.registeredPids - pids of workers currently
- *   registered (fresh heartbeat) for this host, from GET /api/workers
+ * @param {Set<number>} [opts.registeredPids] - legacy shape: pids of workers currently
+ *   registered for this host, from GET /api/workers
+ * @param {Array<{pid: number, last_heartbeat?: string}>} [opts.registeredWorkers] - new shape,
+ *   carrying enough per-worker info to evaluate the widened conditions
  * @param {number} opts.selfPid - this manager's own pid, never reaped
- * @param {number} opts.graceMs - minimum process age before eligible
+ * @param {number} opts.graceMs - minimum process age before eligible, applies to every branch
+ * @param {number} [opts.staleHeartbeatMs] - a registered worker whose last_heartbeat is older
+ *   than this is reaped too; omit to disable this widening
+ * @param {(pid: number) => boolean} [opts.cwdExists] - injected probe (e.g. reads
+ *   /proc/<pid>/cwd on Linux); a registered worker for which this returns false is reaped;
+ *   omit to disable this widening
+ * @param {number} [opts.now] - injected clock (ms), defaults to Date.now()
  * @returns {Array<{pid: number, ageMs: number, cmd: string}>}
  */
-export function findOrphanedWorkerProcesses(rows, { registeredPids, selfPid, graceMs }) {
-  return rows.filter(row =>
-    row.pid !== selfPid
-    && !registeredPids.has(row.pid)
-    && row.ageMs >= graceMs
-  );
+export function findOrphanedWorkerProcesses(rows, {
+  registeredPids,
+  registeredWorkers,
+  selfPid,
+  graceMs,
+  staleHeartbeatMs,
+  cwdExists,
+  now = Date.now(),
+}) {
+  const registeredByPid = new Map();
+  if (registeredWorkers) {
+    for (const w of registeredWorkers) registeredByPid.set(w.pid, w);
+  } else if (registeredPids) {
+    for (const pid of registeredPids) registeredByPid.set(pid, null);
+  }
+
+  return rows.filter(row => {
+    if (row.pid === selfPid) return false;
+    if (row.ageMs < graceMs) return false;
+
+    if (!registeredByPid.has(row.pid)) {
+      // Unregistered — the original rule, unchanged.
+      return true;
+    }
+
+    // Registered: only reap via an explicitly-enabled widening condition.
+    const worker = registeredByPid.get(row.pid);
+    if (cwdExists && !cwdExists(row.pid)) return true;
+    if (staleHeartbeatMs && worker?.last_heartbeat) {
+      const heartbeatAgeMs = now - new Date(worker.last_heartbeat).getTime();
+      if (heartbeatAgeMs >= staleHeartbeatMs) return true;
+    }
+    return false;
+  });
 }
