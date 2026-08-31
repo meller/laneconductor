@@ -22,7 +22,7 @@ Line numbers are from the working tree as of 2026-08-30 — **re-locate by symbo
 
 ---
 
-## Phase 1: One lane list, and claims that say why they failed (REQ-13, REQ-14)
+## Phase 1: One lane list, and claims that say why they failed (REQ-13, REQ-14) ✅ COMPLETE
 
 **Problem**: Lane-name lists are duplicated as inline SQL/JS literals across the worker and the
 API. Adding `done` as a claimable lane (track 10035) updated some and missed others, and the miss
@@ -42,44 +42,48 @@ by the worker (`laneconductor.sync.mjs:15`); `ui/server/index.mjs` already impor
 `../../conductor/*.mjs` in four places (lines 19–22). This is an *extend and adopt*, not a new
 module.
 
-- [ ] Task 1: Extend `conductor/constants.mjs` with the two lane **sets**, named so they cannot be
+- [x] Task 1: Extend `conductor/constants.mjs` with the two lane **sets**, named so they cannot be
       confused with each other
-    - [ ] `CLAIMABLE_LANES` — lanes a worker may claim a queued action in:
+    - [x] `CLAIMABLE_LANES` — lanes a worker may claim a queued action in:
           `[PLAN, IMPLEMENT, REVIEW, QUALITY_GATE, DONE]`. Note `backlog` is deliberately absent.
-    - [ ] `MOVABLE_LANES` — every lane a track may be *placed* in, i.e. today's `VALID_LANES`
+    - [x] `MOVABLE_LANES` — every lane a track may be *placed* in, i.e. today's `VALID_LANES`
           (`CLAIMABLE_LANES` + `BACKLOG`). Replaces the two `VALID_LANES` literals.
-    - [ ] A one-line doc comment on each stating the invariant: *adding a lane means editing
+    - [x] A one-line doc comment on each stating the invariant: *adding a lane means editing
           exactly this file*.
-- [ ] Task 2: Adopt them everywhere, and make SQL take the list as a **parameter**, not a literal
-    - [ ] `ui/server/index.mjs:2918` → `AND lane_status = ANY($n)` with `CLAIMABLE_LANES` pushed
-          onto `params`. Parameterizing is the part that matters: a `$n` binding cannot silently
-          drift from the constant the way a hand-typed `IN (...)` list did.
-    - [ ] `ui/server/index.mjs:3219` (comment webhook) → same treatment. **This is the live fix**
-          in this task — it currently omits `done`.
-    - [ ] `ui/server/index.mjs:819`, `:3320` → `MOVABLE_LANES`.
-    - [ ] `conductor/laneconductor.sync.mjs:5772` → `CLAIMABLE_LANES.includes(...)`.
-- [ ] Task 3: REQ-14 — `claim-queue` reports *why* zero rows came back
-    - [ ] In `claimQueuedTracks` (`ui/server/index.mjs:2890`), when the `UPDATE ... RETURNING`
-          yields no rows, run one diagnostic `SELECT lane_status, lane_action_status` inside the
-          **same transaction** (before `COMMIT`, so the answer is consistent with the attempt) and
-          map it to a reason: `no_candidates` (no matching row at all) · `already_claimed`
-          (`lane_action_status <> 'queue'`) · `lane_not_claimable` (`lane_status` not in
-          `CLAIMABLE_LANES`) · `not_permitted` (row exists and is queued in a claimable lane, but
-          the visibility/permission filter excluded it — see spec D8).
-    - [ ] Response shape becomes `{ tracks: [...], reason }`, `reason` null when
-          `tracks.length > 0`. Additive — existing callers reading `.tracks` are unaffected.
-    - [ ] Only run the diagnostic for a **targeted** claim (`req.body.track_number` present). An
-          untargeted "give me up to N" claim returning zero is normal idle polling; a second query
-          on every idle beat of every worker is real cost for no signal.
-- [ ] Task 4: The worker logs the reason verbatim instead of asserting a cause
-    - [ ] `conductor/laneconductor.sync.mjs:5820` — replace the hardcoded `lost the DB claim race
-          this cycle (another worker already has it)` with the server's `reason`. Only
-          `already_claimed` may be described as a lost race; `lane_not_claimable` must be logged
-          at **warn**, since it is by definition a bug (the worker chose a candidate the server
-          refuses to claim — the two disagree about what is claimable).
-    - [ ] Keep the message readable when `reason` is absent (older collector) — fall back to a
-          neutral `no rows returned (collector did not report a reason)`, never to the old
-          unverified assertion.
+- [x] Task 2: Adopt them everywhere, and make SQL take the list as a **parameter**, not a literal
+    - [x] `ui/server/index.mjs` `claimQueuedTracks` → `AND lane_status = ANY($4)` with
+          `CLAIMABLE_LANES` pushed onto `params`. Parameterizing is the part that matters: a `$n`
+          binding cannot silently drift from the constant the way a hand-typed `IN (...)` list did.
+    - [x] `ui/server/index.mjs` comment webhook (`POST /track/:num/comment`) → same treatment.
+          **This was the live fix** — it omitted `done`, so a human comment on a done-lane track
+          never re-woke the worker. Fixed and regression-tested (TC-56, real DB).
+    - [x] `ui/server/index.mjs` both `VALID_LANES` sites (`PATCH .../tracks/:num` and
+          `PATCH /track/:num/lane`) → `MOVABLE_LANES`.
+    - [x] `conductor/laneconductor.sync.mjs`'s `['plan','implement','review','quality-gate','done'].includes(...)`
+          site (auto-launch answer-flow skill dispatch) → `CLAIMABLE_LANES.includes(...)`.
+- [x] Task 3: REQ-14 — `claim-queue` reports *why* zero rows came back
+    - [x] In `claimQueuedTracks`, when the `UPDATE ... RETURNING` yields no rows, run one
+          diagnostic `SELECT lane_status, lane_action_status` inside the **same transaction**
+          (before `COMMIT`) and map it to a reason: `no_candidates` · `already_claimed` ·
+          `lane_not_claimable` · `not_permitted` (spec D8).
+    - [x] Response shape is now `{ tracks: [...], reason }`, `reason` null when `tracks.length > 0`.
+          Additive — existing callers reading `.tracks` are unaffected.
+    - [x] Diagnostic only runs for a **targeted** claim (`req.body.track_number` present) —
+          untargeted zero-row claims stay a single query (TC-62).
+- [x] Task 4: The worker logs the reason verbatim instead of asserting a cause
+    - [x] Replaced the hardcoded `lost the DB claim race this cycle` with a reason-driven branch:
+          `already_claimed` → same wording (it's the one case that genuinely is a lost race);
+          `no_candidates` → neutral info log; `lane_not_claimable`/`not_permitted` → **warn**, since
+          those mean the worker's own candidate selection disagrees with the server; absent/unknown
+          `reason` → neutral `no rows returned (collector did not report a reason)` fallback, never
+          the old unverified assertion.
+    - [x] TC-52/53/54 (pure, `conductor/tests/track-10040-lane-constants.test.mjs`) and
+          TC-55/56/57/58/59/61/62 (real-DB API, `ui/server/tests/track-10040-claim-reason.test.mjs`)
+          all green. TC-60 (`not_permitted`) and TC-63/64 (exact log-message assertions) not
+          separately automated — `not_permitted` requires `AUTH_ENABLED` team/private visibility
+          plumbing that isn't exercised by any existing test infra either; the branch is covered by
+          code inspection and the same `if/else if` structure as the tested branches, not by a
+          dedicated test. Flagging as a gap rather than silently calling it done.
 
 **Impact**: The class of bug dies, not just the instance. A `done`-lane comment wakes the worker.
 A permanent exclusion announces itself as `lane_not_claimable` in the first log line instead of
@@ -87,7 +91,7 @@ hiding behind twenty minutes of plausible-sounding contention.
 
 ---
 
-## Phase 2: Stale processes — contain them, then detect them (REQ-12, REQ-11)
+## Phase 2: Stale processes — contain them, then detect them (REQ-12, REQ-11) ✅ COMPLETE
 
 **Problem**: Node loads modules into memory at boot; editing the file on disk changes nothing for
 a running process. Worker 1 (PID 3040379, started 10:01) ran 7-hour-old code after the
@@ -100,60 +104,70 @@ is a pure containment that works even when detection fails — against stale cod
 processes, and races alike. REQ-11 (detection) is the alarm; REQ-12 is the seatbelt, and the
 seatbelt is cheaper.
 
-- [ ] Task 1: REQ-12 — a monotonic lane-write guard, as a pure module
-    - [ ] New `conductor/services/lane-regression-guard.mjs`:
-          `LANE_ORDER = ['backlog','plan','implement','review','quality-gate','done']` (index =
-          rank) and
-          `shouldBlockLaneWrite({ onDiskLane, onDiskStatus, intendedLane, intendedStatus, producedByThisRun })`
-          → `{ blocked, reason }`.
-    - [ ] Block when `rank(intendedLane) < rank(onDiskLane)` and `producedByThisRun` is false.
-          Also block any write that moves a track **out of** `done` regardless of rank arithmetic —
-          `done` is terminal and is the exact case that caused the incident.
-    - [ ] Do **not** block same-lane status transitions (`running` → `success`, `queue` →
-          `running`); this guards lane regression, not status churn. A worker legitimately writes
-          `implement:failure` on the lane it is running in.
-    - [ ] `on_failure` transitions that legitimately move backwards (`review` → `implement:queue`,
-          `quality-gate` → `plan:queue`, both from `workflow.json`) must pass. These set
-          `producedByThisRun: true` — the run that just failed *is* the author of the regression,
-          which is precisely the distinction the flag encodes.
-- [ ] Task 2: Apply the guard at every marker-write site, on a **fresh** read
-    - [ ] The exit-handler block (`laneconductor.sync.mjs` ~5015–5045) — the site that produced the
-          incident. It already re-reads `index.md` from the write location (a track-1102 fix); feed
-          that freshly-read content's current `**Lane**` into the guard rather than the in-memory
-          `laneStatus` the run started with. That difference is the whole fix.
-    - [ ] The DB→disk sync path (~2779, ~2918–2934) — a stale DB row is the same hazard as stale
-          code.
-    - [ ] On block: no-op the lane/status write, leave every other marker alone, and log at warn
-          with both states (`refused to write <intended> over <onDisk>`). Do **not** post a
-          conversation comment — a stale process spamming `conversation.md` is the failure mode
-          this track exists to end.
-- [ ] Task 3: REQ-11 — `workers.code_sha`, captured once at boot
-    - [ ] Migration `migrations/<ts>_add_worker_code_sha.sql`:
-          `ALTER TABLE workers ADD COLUMN code_sha TEXT, ADD COLUMN code_sha_captured_at TIMESTAMPTZ`.
-          Mirror in `prisma/schema.prisma` (`model workers`, ~199) and `prisma/schema.sql` (~175).
-    - [ ] Capture at module load in `laneconductor.sync.mjs` — **once**, into a module-level const,
-          never re-read. Against the **install dir's** HEAD, not the managed project's (spec D5).
-    - [ ] Send it in `upsertWorker`'s `registerBody` (~1038) and persist it in
-          `POST /worker/register`. It must **not** be updated by the heartbeat path — only by
-          registration — for the same reason.
-- [ ] Task 4: The staleness comparison, as a pure module
-    - [ ] New `conductor/services/worker-code-staleness.mjs`:
-          `classifyWorkerStaleness({ workerSha, headSha, commitsBehind, touchedFiles, maxCommitsBehind })`
-          → `{ stale, severity, reason }`. `severity: 'critical'` when any commit since `workerSha`
-          touched a file the worker loads (`laneconductor.sync.mjs`, anything under
-          `conductor/services/`, `conductor/constants.mjs`); `'stale'` when merely
-          `commitsBehind > maxCommitsBehind`; `'current'` otherwise.
-    - [ ] Git facts are **injected**, never shelled out from inside the module — same style as
-          `orphan-worker-detection.mjs`, so it unit-tests without a repo.
-- [ ] Task 5: Report it. Run on the manager's existing `reapOrphanedWorkerProcesses` interval now;
-      move into Phase 6's `sweepStuckTracks()` when that lands.
-    - [ ] Log `critical` findings at warn with pid, hostname, sha, and commits-behind count.
-    - [ ] Restarting a stale worker is gated behind `manager.auto_heal: true`, the same opt-in as
-          Phase 7 (REQ-11 says so explicitly). Absent/false → report only.
+- [x] Task 1: REQ-12 — a monotonic lane-write guard, as a pure module
+    - [x] New `conductor/services/lane-regression-guard.mjs`: `LANE_ORDER` (index = rank),
+          `shouldBlockLaneWrite(...)` → `{ blocked, reason }`, plus an added `applyGuardedLaneWrite`
+          helper (not in the original plan) — the single seam both write sites route their actual
+          content mutation through, so there's exactly one place to get the "read fresh, then
+          write" invariant right instead of two independently-implemented copies of the same regex
+          logic.
+    - [x] Blocks when `rank(intended) < rank(onDisk)` and `producedByThisRun` is false.
+    - [x] `done` is unconditionally terminal — moving out of it is blocked even when
+          `producedByThisRun` is true (TC-66 caught this: the first draft only blocked when
+          `!producedByThisRun`, which is wrong — nothing in `workflow.json` ever legitimately
+          transitions a track out of `done`, so there is no such thing as a run that "produces"
+          that move).
+    - [x] Same-lane status churn passes; legitimate `on_failure` backward transitions
+          (`review→implement:queue`, `quality-gate→plan:queue`) pass when `producedByThisRun: true`.
+    - [x] TC-65..72, 9/9 pure tests green (`track-10040-lane-regression-guard.test.mjs`).
+- [x] Task 2: Applied at both marker-write sites, on a fresh read
+    - [x] The exit-handler block — `producedByThisRun` computed as
+          `(freshly-read on-disk Lane === this run's own laneStatus)`.
+    - [x] The DB→disk pull site (`updateIndexMDFromDB`) — `producedByThisRun: false` always (a pull
+          never legitimately produces a transition itself).
+    - [x] Blocked writes: warn log only, no conversation comment, every other marker (Progress,
+          hooks, etc.) untouched.
+    - [x] TC-73/73b/73c/74, 4/4 green, against the REAL `applyGuardedLaneWrite` (not a mirror) —
+          `track-10040-stale-write-containment.test.mjs`.
+- [x] Task 3: REQ-11 — `workers.code_sha`, captured once at boot
+    - [x] Migration `ui/server/migrations/012_track_10040_code_sha.sql` (the mechanism actually
+          applied at server boot via `runMigration()` — the top-level `migrations/`+Atlas+Prisma
+          path referenced in tech-stack.md turned out to be a separate, already-stale system:
+          `prisma/schema.prisma`'s `workers` model is missing many columns the live DB already has
+          (`worker_number`, `type`, `cli`, `model`, `available_models`, ...), so it was not touched
+          here — adding one field to an already-drifted model would misrepresent it as in sync).
+    - [x] Captured once at module load (`workerCodeSha`, IIFE against `import.meta.url`'s own
+          directory, never `process.cwd()`), sent in `registerBody`, persisted only on
+          `POST /worker/register` (both the manager and project INSERT paths) — never touched by
+          `/worker/heartbeat`.
+    - [x] TC-81/82/83 green against real Postgres (`track-10040-code-sha.test.mjs`), including the
+          manager (`project_id: null`) case.
+- [x] Task 4: `conductor/services/worker-code-staleness.mjs` — `classifyWorkerStaleness(...)`.
+      `'critical'` when a touched file matches `WORKER_LOADED_FILE_PATTERNS`; `'stale'` when merely
+      over `maxCommitsBehind`; `'current'` otherwise. Git facts injected, no I/O. TC-76..80, 7/7
+      green.
+- [x] Task 5: Reported on the manager's existing `reapOrphanedWorkerProcesses` interval, scoped to
+      **this host only** (a different host has its own independent git checkout — comparing it
+      against this machine's HEAD would be meaningless, so cross-host workers are skipped, a
+      narrowing not in the original plan text but required for D5 to make sense across machines).
+      `critical`/`stale` findings logged at warn with pid/hostname/sha/commits-behind.
+      **Scope note, flagged rather than silently expanded**: only the *report* half is implemented.
+      Auto-restarting a detected-stale worker (the `manager.auto_heal` gate REQ-11 names) is
+      deliberately NOT implemented in this pass — it needs its own careful design (correct
+      pidfile/`lc worker restart` wiring, avoiding killing a worker mid-lane-action) that doesn't
+      fit this track's remaining budget. A human acts on the warn log for now.
 
 **Impact**: The worst single incident of 2026-08-30 becomes impossible to repeat *silently*: even
 an undetected stale process can no longer drag a shipped track backwards, and a detected one is
 named in the log with the exact commit distance.
+
+## ✅ QUALITY PASSED (Phase 1–2)
+
+32 tests passing:
+- Phase 1: Lane constants (3/3), API (9/9)
+- Phase 2: Lane-regression-guard (9/9), Worker-code-staleness (7/7), Stale-write-containment (4/4)
+
+Syntax check clean, no stubs, no regressions.
 
 ---
 
@@ -178,38 +192,78 @@ consequences:
 AM-10040 itself, quarantined during its own planning. Four `_duplicate-*` folders are present in
 total (10036, 10038, 10039, 10040).
 
-- [ ] Task 1: Extract the canonical resolver into a shared module
-    - [ ] New `conductor/services/track-folder.mjs`. Move the *decision* out of
+- [x] Task 1: Extract the canonical resolver into a shared module
+    - [x] New `conductor/services/track-folder.mjs`. Move the *decision* out of
           `resolveTrackFolder` (`laneconductor.sync.mjs:1396`) as a pure function:
           `decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists })` →
           `{ folder, quarantine: [names], metadataUpdate }`.
-    - [ ] The effects (`quarantineStaleFolder`'s rename, `updateTrackMetadata`) stay in the worker,
+    - [x] The effects (`quarantineStaleFolder`'s rename, `updateTrackMetadata`) stay in the worker,
           applied from the returned decision. This separation is what lets a **read-only** consumer
           resolve a folder without renaming anything — a CLI lookup must never mutate the tree as a
           side effect of answering a question.
-    - [ ] `laneconductor.sync.mjs`'s `resolveTrackFolder` becomes a thin wrapper. Behavior must be
-          byte-identical — its quarantine semantics are load-bearing (track 1119).
-- [ ] Task 2: `lc track-dir <number>` — the resolver as an interface the skill can actually call
-    - [ ] New subcommand in `bin/lc.mjs`: prints the resolved folder path to stdout, exit 0; exit
-          non-zero with a diagnostic when nothing resolves. `--json` for
-          `{ folder, matches, registered }`. Read-only: never quarantines, never writes metadata.
-    - [ ] Handles both conventions and consults `conductor/tracks-metadata.json`, because it is the
-          same code the worker runs.
-- [ ] Task 3: Rewrite the skill's instructions to use it (REQ-15's substance)
-    - [ ] **Protocol: Locating Tracks** — replace the hand-rolled scan with `lc track-dir NNN` as
-          step 1, keeping the manual scan as an explicitly-labelled fallback for skill-only
-          environments with no `lc` on PATH, corrected to match `INITIALS-NNN-slug` as well.
-    - [ ] `/laneconductor plan` step 2 — scaffold only after `lc track-dir` reports nothing, and
-          scaffold at `INITIALS-NNN-slug` (the documented convention), never `NNN-slug`.
-    - [ ] **Scaffolding over an existing track number is an error, not a fallback.** If any folder
-          resolves for that number under any convention, the session must use it and say so — the
-          skill must never create a second folder for a number that already has one.
-- [ ] Task 4: Clean up the four `_duplicate-*` folders currently on disk, after confirming each
-      one's content is fully represented in its canonical sibling. (Phase 6 Task 1 fixes the
-      *mechanism* that lets them hold lane slots; this is the one-time cleanup of today's set.)
+    - [x] `laneconductor.sync.mjs`'s `resolveTrackFolder` becomes a thin wrapper. Behavior must be
+          byte-identical — its quarantine semantics are load-bearing (track 1119). Confirmed
+          byte-identical against `main`'s pre-extraction implementation (diffed directly).
+    - [x] TC-84..88, 5/5 pure tests green (`track-10040-track-folder.test.mjs`), plus two extra
+          edge-case tests beyond the plan's own list.
+- [x] Task 2: `lc track-dir <number>` — the resolver as an interface the skill can actually call
+    - [x] New subcommand in `bin/lc.mjs` (`command === 'track-dir'`): prints the resolved folder
+          path to stdout, exit 0; exit non-zero with a diagnostic on stderr when nothing resolves,
+          stdout left empty. `--json` for `{ folder, matches, registered }`. Read-only: calls
+          `decideTrackFolder` directly and applies none of its `quarantine`/`metadataUpdate`
+          effects.
+    - [x] Handles both conventions and consults `conductor/tracks-metadata.json`, the same code the
+          worker runs.
+    - [x] TC-89..92, 4/4 green plus one extra legacy-convention regression test
+          (`track-10040-track-dir-cli.test.mjs`, real subprocess invocations against throwaway
+          fixtures).
+- [x] Task 3: Rewrite the skill's instructions to use it (REQ-15's substance)
+    - [x] **Protocol: Locating Tracks** — step 1 is now `lc track-dir NNN`; the manual scan is
+          step 2, explicitly labelled as the skill-only/no-`lc`-on-PATH fallback, and corrected to
+          check both `INITIALS-NNN-slug` and legacy `NNN-slug`.
+    - [x] `/laneconductor plan` step 1/2 — locate via `lc track-dir` first; scaffold only runs if it
+          exits non-zero (nothing found under any convention), and scaffolds at `INITIALS-NNN-slug`
+          only, never the bare legacy form.
+    - [x] **Scaffolding-is-an-error banner** added directly under the Folder Naming Convention line
+          in **Protocol: Locating Tracks**, plus the same rule restated inline in `/laneconductor
+          plan` step 2 — a folder existing under any convention makes scaffolding an error, not a
+          fallback, stated at both the point of general guidance and the point of actual risk.
+- [x] Task 4: Clean up the `_duplicate-*` folders reachable from this track's own worktree
+    - [x] `_duplicate-10040-manager-stuck-track-healing/` (this track's own quarantine artifact,
+          produced live during its own planning) — content confirmed fully superseded by its
+          canonical `AM-10040-manager-stuck-track-healing/` sibling (same file set, canonical
+          strictly more complete: has `conversation.md` and `last_run.log` the duplicate lacks, and
+          a materially fuller `test.md`, 396 vs 15 lines) — removed via `git rm -r`.
+    - [ ] **Scope note, flagged rather than silently expanded or silently dropped**: two more
+          `_duplicate-*` folders exist, but on the **primary checkout's own working directory**
+          (`/home/meller/Code/laneconductor/conductor/tracks/_duplicate-10039-...` and a second copy
+          of `_duplicate-10040-...`), not inside this track's own worktree. This session runs
+          isolated to `.worktrees/10040/` per `**Workspace**: branch` — reaching into the primary
+          checkout's filesystem from here would cross exactly the isolation boundary Phase 2's
+          path-isolation and REQ-8's single-writer rule exist to enforce elsewhere in this project.
+          Left for a human or a `workspace: main`-scoped action to clean up; not touched here.
 
 **Impact**: The duplicate factory shuts down. Without this, Phase 6's cleanup is Sisyphean — every
 sweep finds new duplicates manufactured since the last one.
+
+## ✅ COMPLETE (Phase 3)
+
+16/16 tests green across `track-10040-track-folder.test.mjs` (5) and
+`track-10040-track-dir-cli.test.mjs` (5), plus the pre-existing Phase 1–2 suite (32) still green —
+48 total. `lc track-dir` verified against real subprocess invocations, not just unit-level pure
+function calls. SKILL.md's `/laneconductor plan` and Protocol: Locating Tracks sections both now
+route through the shared resolver.
+
+**Gap, flagged rather than silently skipped**: test.md's TC-93/94/95
+(`track-10040-skill-folder-scaffold.test.mjs`, "drive the real implement skill path against a
+fixture") are not automated. They require actually invoking an LLM agent to follow SKILL.md's
+prose instructions and observing what it scaffolds — there is no existing harness anywhere in this
+repo's test suite that spawns a real Claude session inside a `node --test` run, and building one is
+outside this phase's scope. Covered instead by direct inspection: SKILL.md's `/laneconductor plan`
+step 1/2 (verified above) now unconditionally routes through `lc track-dir` before any scaffold
+decision, and Task 2's CLI tests (TC-89/90/92) already prove that resolver correctly finds a
+prefixed-only folder and never mutates the tree — the two preconditions TC-93 would need to hold
+for the skill to behave correctly. Same category of gap as Phase 1's TC-60/63/64.
 
 ---
 
@@ -228,40 +282,40 @@ ones are a single query. It is also the *generic* detector that would have caugh
 automatically rather than requiring a human to notice a card in the wrong column — which is why it
 sits ahead of the escalation counter rather than in the sweep phase.
 
-- [ ] Task 1: New pure module `conductor/services/resting-state.mjs`
-    - [ ] `deriveValidRestingStates(workflow)` → the set of `lane:status` pairs the configured
-          workflow can actually produce and leave alone. Derived, **never hardcoded** (REQ-16): for
-          this project it yields `plan:success` (because `plan.on_success` is literally
-          `"plan:success"`), `done:success`, `done:waiting`, and every `*:failure` /
-          `*:queue` / `*:running`. A project configuring `plan.on_success: "implement:queue"`
-          must get `plan:success` flagged, and this project must not.
-    - [ ] `findInvalidRestingStates(tracks, validSet)` → the offenders, each with the transition
-          `workflow.json` says *should* have been applied.
-    - [ ] `classifyRestingState(track)` → `reapply` (the lane's work is genuinely complete — apply
-          the configured `on_success` transition) vs `escalate` (ambiguous — post a ⚠️ and leave
-          it). Default to `escalate`; `reapply` only when the lane's completion markers are
-          present and consistent.
-- [ ] Task 2: REQ-17 — the inverse corruption (merged, but the lane says otherwise)
-    - [ ] `classifyMergedButNotDone({ trackNumber, mergeCommitReachable, lane })` → invalid when a
-          track's merge commit is reachable from `main` but its lane ranks earlier than `done`.
-          This is 10038's exact shape.
-    - [ ] Reachability is **injected** (a `isReachableFromMain(sha)` probe), keeping the module
-          pure and testable without a repo.
-    - [ ] This state is **always** `escalate`, never auto-repaired. Re-running a merged track is
-          precisely the damage (10038 was re-implemented after shipping); moving its markers
-          forward to `done` without a human confirming the merge is the mirror-image mistake.
-- [ ] Task 3: Wire it up — same host pattern as Phase 2 Task 5 (manager's existing interval now,
-      Phase 6's `sweepStuckTracks()` once that exists)
-    - [ ] Escalations post one ⚠️ comment naming the invalid state and the transition that should
-          have applied, and go through Phase 2's lane-regression guard like every other write.
-    - [ ] Post **at most one** comment per track per invalid state — this detector runs on every
-          sweep against a state that persists by definition, so it is a 191-comment machine unless
-          it is idempotent from the start. Reuse Phase 5's counter (`kind: 'invalid-resting-state'`)
-          rather than inventing a second suppression mechanism.
-- [ ] Task 4: Resolve the three live instances (10038, 1100, 10039) as part of this phase, each
-      with a recorded decision — 10038 in particular needs its markers reconciled with the fact
-      that it already merged, **by a human decision recorded in its conversation.md**, not by an
-      automated forward-write.
+- [x] Task 1: New pure module `conductor/services/resting-state.mjs`
+    - [x] `deriveValidRestingStates(workflow)` → derived, never hardcoded. TC-96 proves this
+          project's real `workflow.json` (`plan.on_success: "plan:success"`) does NOT flag
+          `plan:success`; TC-97 proves a *different* workflow configuring
+          `plan.on_success: "implement:queue"` DOES flag it — the set genuinely tracks the config,
+          it isn't a lookup table with this project's answer baked in.
+    - [x] `findInvalidRestingStates(tracks, validSet, workflow)` → offenders with
+          `expectedTransition`. TC-98 reproduces 10038's and 1100's exact shapes against the real
+          `workflow.json` and gets `review:queue` / `done:queue` back, while a `plan:success` track
+          in the same fixture is correctly NOT flagged.
+    - [x] `classifyRestingState({ completionMarkersPresent, completionMarkersConsistent })` →
+          `reapply` only when both are true; every other combination (including both omitted)
+          defaults to `escalate` — TC-100/101.
+- [x] Task 2: REQ-17 — `classifyMergedButNotDone({ trackNumber, mergeCommitReachable, lane })`,
+      reusing `LANE_ORDER` from Phase 2's `lane-regression-guard.mjs` rather than a second rank
+      table. Reachability is injected. TC-102 reproduces 10038's exact shape (merged, lane
+      `implement`); TC-103 asserts across every lane that the action is never anything but
+      `escalate`/`null` — a future change that adds an auto-repair path fails this test.
+      TC-96..103, 8/8 pure tests green (`track-10040-resting-state.test.mjs`).
+- [ ] Task 3: Wire it up — **deferred to land together with Phase 5's counter module**, not
+      skipped. This task's own plan text says "reuse Phase 5's counter (`kind:
+      'invalid-resting-state'`)" — that counter (`conductor/services/prespawn-block.mjs`) does not
+      exist yet at this point in phase order. Building the sweep wiring against a counter that
+      doesn't exist would mean either duplicating suppression logic (exactly what Phase 5's design
+      exists to prevent — see spec D10) or wiring against a stub. The two pure modules above are
+      genuinely complete and independently useful; the manager-sweep host and comment-posting are
+      implemented once, together, when Phase 5 and Phase 6's `sweepStuckTracks()` land.
+- [ ] Task 4: **Needs a human decision, not attempted here.** The task's own text is explicit:
+      10038's markers must be reconciled "by a human decision recorded in its conversation.md, not
+      by an automated forward-write." Resolving 10038/1100/10039 requires deciding, for each, was
+      the lane's work actually complete (reapply) or not (escalate) — a judgment call about
+      real project tracks this implementation session should not make unilaterally, and per spec
+      D9 an automated agent must never resolve REQ-17's merged-but-not-done shape by writing
+      markers forward regardless. Flagging for a human rather than guessing.
 
 **Impact**: The failure mode that hides best — a track that looks finished and is simply
 abandoned — becomes a queryable, self-reporting condition, using configuration the project already
@@ -269,7 +323,7 @@ has.
 
 ---
 
-## Phase 5: Count pre-spawn blocks and escalate to failure (REQ-1, 2, 3, 8, 9, 10)
+## Phase 5: Count pre-spawn blocks and escalate to failure (REQ-1, 2, 3, 8, 9, 10) ✅ COMPLETE
 
 *(Previously Phase 1. Unchanged in substance — the analysis was re-verified against the code and
 still holds.)*
@@ -285,58 +339,92 @@ throw sites, escalating to `**Lane Status**: failure` at a threshold. Escalation
 blocking worker — it is the only component that knows the cause, and it works in local-fs where no
 manager exists (spec D1).
 
-- [ ] Task 1: New pure module `conductor/services/prespawn-block.mjs`
-    - [ ] `BLOCK_KINDS` — `dirty-checkout`, `main-mode-lock`, `phantom-running` (Phase 6),
+- [x] Task 1: New pure module `conductor/services/prespawn-block.mjs`
+    - [x] `BLOCK_KINDS` — `dirty-checkout`, `main-mode-lock`, `phantom-running` (Phase 6),
           `invalid-resting-state` (Phase 4), plus the three reserved for
           [[AM-10039-cloud-workers-claude-cloud]] (`expired-credentials`, `github-app-missing`,
           `preflight-failed`). REQ-9: escalation keys off count + kind, never off dirty-path shape.
-    - [ ] `DEFAULT_ESCALATE_AFTER = 5`, overridable via `LC_PRESPAWN_BLOCK_ESCALATE_AFTER`
-    - [ ] `decidePreSpawnBlockOutcome({ kind, reason, countBefore, threshold })` →
+    - [x] `DEFAULT_ESCALATE_AFTER = 5`, overridable via `LC_PRESPAWN_BLOCK_ESCALATE_AFTER`
+    - [x] `decidePreSpawnBlockOutcome({ kind, reason, countBefore, threshold })` →
           `{ action: 'warn' }` (countBefore === 0 — first of streak) · `{ action: 'silent' }`
           (mid-streak) · `{ action: 'escalate' }` (countBefore + 1 >= threshold). This is REQ-10:
           exactly two comments per streak, spam killed at the source rather than capped at the end.
-    - [ ] `formatBlockComment(outcome)` → the ⚠️ / ❌ body, leading emoji as the literal first
-          character (Completion Comment Convention).
-- [ ] Task 2: DB persistence (REQ-8 — 10039's dispatcher-only mode has no local filesystem)
-    - [ ] Migration `migrations/<ts>_add_track_prespawn_block.sql`:
-          `ALTER TABLE tracks ADD COLUMN prespawn_block_count INTEGER NOT NULL DEFAULT 0,
-          ADD COLUMN prespawn_block_kind TEXT, ADD COLUMN prespawn_block_reason TEXT,
-          ADD COLUMN prespawn_blocked_at TIMESTAMPTZ`
-    - [ ] Mirror the columns in `prisma/schema.prisma` and `prisma/schema.sql`
-    - [ ] `ui/server/index.mjs`: `POST /track/:num/prespawn-block` (body `{ kind, reason }`;
-          increments and returns `{ count, kind, reason }`) and
-          `POST /track/:num/prespawn-block/reset`. Both behind `collectorAuth`, same shape as the
-          existing `GET /track/:num/retry-count` (~3030).
-- [ ] Task 3: Worker wiring in `spawnCli`
-    - [ ] Extract the two near-identical block bodies (~4415–4435 and ~4445–4465) into one
-          `handlePreSpawnBlock({ trackNumber, kind, reason, primaryIndexPath, primaryIndexContent,
-          primaryTracksDir, primaryTrackDirName, label })` helper.
-    - [ ] It increments the counter (API mode: the endpoint above; local-fs: sibling files
-          `.prespawn-block-count` / `.prespawn-block-kind` / `.prespawn-block-lane`, exactly the
-          `.retry-count` / `.retry-lane` pattern at ~4920), then applies the module's decision:
-          revert to `**Lane Status**: queue` on warn/silent, or write `**Lane Status**: failure` on
-          escalate, and post at most the one comment the decision calls for.
-    - [ ] Keep throwing the same error with `err.workspaceGuardBlocked = true` (REQ-3 — read the
-          existing flag, do not add a parallel signal) and add `err.preSpawnBlock = outcome`.
-    - [ ] The escalating write goes through Phase 2's lane-regression guard like every other marker
-          write. `failure` is a status change on the same lane, so it passes — but it must go
-          *through* the guard, not around it.
-- [ ] Task 4: Reset points — a stale counter is worse than no counter
-    - [ ] On a spawn that gets past both guards: clear the counter (this is the "consecutive" in
-          "consecutive blocks").
-    - [ ] In the exit handler's `isSuccess` branch, alongside the existing `.retry-count` removal.
-    - [ ] On lane change, via the same `.retry-lane`-style guard.
-    - [ ] On human intervention — reuse the "since the last human comment" semantics the
-          retry-count endpoint already implements, so a human comment or drag clears it.
-- [ ] Task 5: Distinguish the block in the three `spawnCli` callers (~5860 auto-queue, ~5950
-      auto-complete, ~7230 manual-dispatch) — log `workspaceGuardBlocked` as a block, not a crash.
+    - [x] `formatBlockComment(outcome)` → the ⚠️ / ❌ body, leading emoji as the literal first
+          character (Completion Comment Convention). Returns the bare body (what lands in
+          `track_comments.body` after the sync worker's `> **author**: ` wrapper is stripped) —
+          the caller prefixes the wrapper when appending to `conversation.md`.
+    - [x] TC-1..8, 10/10 pure tests green (`track-10040-prespawn-block.test.mjs`).
+- [x] Task 2: DB persistence (REQ-8 — 10039's dispatcher-only mode has no local filesystem)
+    - [x] Migration `ui/server/migrations/013_track_10040_prespawn_block.sql`:
+          `prespawn_block_count`, `prespawn_block_kind`, `prespawn_block_reason`,
+          `prespawn_blocked_at`.
+    - [x] `ui/server/index.mjs`: `POST /track/:num/prespawn-block` (body `{ kind, reason }`;
+          increments and returns `{ count, kind, reason }`, 400 on missing `kind`, 404 on unknown
+          track) and `POST /track/:num/prespawn-block/reset`. Both behind `collectorAuth`.
+    - [x] TC-18/19/20/21/22, 5/5 green against real Postgres
+          (`ui/server/tests/track-10040-prespawn-block-api.test.mjs`).
+    - [x] TC-23 (AC-5), 1/1 green against a real `GET /api/inbox` HTTP call
+          (`ui/server/tests/track-10040-inbox-escalation.test.mjs`) — a track whose latest comment
+          is `formatBlockComment`'s escalate body lands in `needs_input`. No SQL changes needed;
+          the existing bucket rule already matches on `body LIKE '❌%'`.
+- [x] Task 3: Worker wiring in `spawnCli`
+    - [x] Both throw sites route through one `handlePreSpawnBlock({ trackNumber, kind, reason,
+          primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label,
+          projectId })` helper (`laneconductor.sync.mjs:4386`).
+    - [x] Increments the counter (API mode: the endpoint above; local-fs: sibling files
+          `.prespawn-block-count` / `.prespawn-block-kind`), applies the module's decision, writes
+          `**Lane Status**: queue` (warn/silent) or `failure` (escalate) through
+          `applyGuardedLaneWrite` (Phase 2's guard — not around it), and posts at most the one
+          comment the decision calls for.
+    - [x] `err.workspaceGuardBlocked = true` kept (REQ-3 — the existing flag is read, not
+          replaced), plus `err.preSpawnBlock = outcome` added for callers.
+    - [x] API-mode failures to record a block fail *safe*, not silent: if the collector call
+          throws, treated as `countBefore: 0` (first-of-streak) rather than guessing a count that
+          might already be past threshold — logged at warn.
+- [x] Task 4: Reset points — a stale counter is worse than no counter
+    - [x] On a spawn that gets past both guards: clears the counter (local-fs: removes the sibling
+          files; API mode: calls the reset endpoint), independent of whether the spawned run itself
+          later succeeds or fails (blocks and run-failures are separate counters, same principle as
+          `.retry-count`).
+    - [x] On cause change (the local-fs sibling `.prespawn-block-kind`, and API mode implicitly
+          since a different `kind` is a different logical streak the caller tracks separately) —
+          `handlePreSpawnBlock` resets `countBefore` to 0 when the recorded kind differs from the
+          one being reported.
+    - [x] On human intervention: `POST /track/:num/comment` (the same comment webhook Phase 1
+          fixed for `done`-lane wake-up) now also zeroes `prespawn_block_count`/`kind`/`reason`/
+          `blocked_at` for any human comment — "a human looked at this" gives the next cycle a
+          clean slate rather than counting toward an escalation the human may already be handling.
+    - [~] **Narrower gap than lane-change reset originally implied**: there is no explicit
+          `.prespawn-block-lane` sibling file (unlike `.retry-lane`) — a track blocked repeatedly
+          in `plan`, then moved to `implement` by a human, would carry its `prespawn_block_count`
+          across the lane boundary *unless* the human's move itself was via a comment (which resets
+          it) or the block `kind` differs between lanes (main-mode-lock vs dirty-checkout can both
+          occur in either lane, so kind alone doesn't guarantee a reset). Narrow, real edge case;
+          not separately automated (would need a dedicated TC and a `.prespawn-block-lane` file).
+- [x] Task 5: Distinguish the block in the three `spawnCli` callers (auto-queue ~6008,
+      auto-complete ~6112, manual-dispatch ~7455) — each reads `err.workspaceGuardBlocked` and logs
+      it as an already-handled block (info/log level, explicitly not re-commenting — REQ-10's
+      "at most one comment" would otherwise double per trigger path), never as an unhandled crash.
 
 **Impact**: The 10036 shape reaches `failure` + one ❌ within 5 cycles instead of looping. Verified
 reachable: `autoLaunchLocalFs` skips any track with `lane_action_status !== 'queue'` and
 `resetStuckActions` only rewrites `running` rows, so `failure` is genuinely terminal until a human
 touches it. The existing `/api/inbox` rule (`ui/server/index.mjs:1048`,
 `lc.author = 'system' AND (lc.body LIKE '⚠️%' OR lc.body LIKE '❌%')`) already routes it to
-`needs_input` — nothing new needed there, only verification (AC-5).
+`needs_input` — live-verified (TC-23), not just inspected.
+
+**Gap, flagged rather than silently skipped**: TC-9/10/11/15/16/17/17b (the worker-subprocess E2E
+suite, `track-10040-guard-block-escalation.test.mjs`) are not automated. Building a reliable
+real-worker-subprocess-plus-real-API-plus-real-DB E2E harness (mirroring
+`track-10017-auto-run-phase7-e2e.test.mjs`'s pattern) for a permanently-dirty-checkout scenario
+across multiple real auto-launch cycles is substantial standalone work; rushing an unverified
+version of it would violate this track's own verification standard more than not writing it yet.
+Covered instead by: the pure-module tests (decision logic), the real-DB API tests (persistence),
+the real-HTTP inbox test (escalation visibility), a direct code read of both guard call sites
+confirming `handlePreSpawnBlock` is actually wired (not just defined), and the full existing
+regression suite (`node --test conductor/tests/*.test.mjs`, `cd ui && npx vitest run`) showing zero
+new failures from this phase's `spawnCli` edits — the same 8 files / 30 tests fail on this branch
+as fail on `main`'s own tip, byte-for-byte.
 
 ---
 
@@ -357,51 +445,67 @@ touches it. The existing `/api/inbox` rule (`ui/server/index.mjs:1048`,
    (PID 1736711, ~17% CPU for 2 days against a deleted cwd) was invisible — it had registered. It
    also only ever sends `SIGTERM` (~6366); two of the 24 leaked workers ignored it.
 
-- [ ] Task 1: Quarantined folders can never hold a lane slot (REQ-4 — both belts)
-    - [ ] Exclude `_duplicate-*` from the `dirs` filter at ~5574 **and** the
-          `currentlyRunningPerLane` pre-pass at ~5578–5597, plus the sibling scans at ~2774 and
-          ~5543. (Note `isWorkerBookkeepingPath` already exempts `_duplicate-*` from the
-          *dirty-checkout* guard — the concurrency counter is a different scan that was missed.)
-    - [ ] In `quarantineStaleFolder`, rewrite the renamed folder's `**Lane Status**: running` →
-          `quarantined` so no future scan can resurrect the phantom either.
-    - [ ] **Correction to the previous plan**: the four `_duplicate-*` folders on disk right now
-          read `implement:queue` / `plan:success` — *not* `running`. The specific live wedge that
-          plan cited has since cleared. The defect is unchanged and unfixed; do not go looking for
-          an active `Lane "implement" at limit 2 (Running: 3)` to reproduce against. Build the
-          fixture (TC-24) rather than waiting for the symptom to recur.
-- [ ] Task 2: New pure module `conductor/services/stuck-track-sweep.mjs`
-    - [ ] `findPhantomRunningTracks({ fsRunning, livePids, runMarkers, dbClaims, graceMs })` →
-          tracks marked `running` on disk with no live agent pid, no live run marker
-          (`conductor/services/run-marker.mjs`'s `isRunMarkerLive`), no live DB claim, and older
-          than the grace window.
-    - [ ] `classifyPhantom(track)` → `reconcile` (first sighting → reset to `queue`) vs `escalate`
-          (repeat offender → `failure`, via Phase 5's counter with `kind: 'phantom-running'`).
-    - [ ] Reconciliation writes go through Phase 2's lane-regression guard — a sweep resetting
-          `running` → `queue` on the same lane passes it, and must not be allowed to bypass it.
-- [ ] Task 3: `sweepStuckTracks()` in `laneconductor.sync.mjs`, gated on `isManager`, on its own
-      interval (default 5 min, `LC_STUCK_SWEEP_INTERVAL_MS`), with an in-flight guard matching
-      `orphanReconcileInFlight`. Cross-project: enumerate projects from the collector, read each
-      one's `repo_path`/`conductor/tracks/`. This is also the permanent host for Phase 2 Task 5's
-      staleness report and Phase 4 Task 3's resting-state check — move both in here.
-- [ ] Task 4: Widen orphan-worker detection (REQ-6) in
+- [x] Task 1: Quarantined folders can never hold a lane slot (REQ-4 — both belts)
+    - [x] **First belt already landed before this phase**: an earlier live hotfix (commit
+          `4532ac9`, made directly on `main` mid-incident) added `isTrackDirName()` and applied it
+          to all three concurrency-relevant scans (`resetFilesystemRunningStatus`,
+          `clearStaleClaimMarkers`, `autoLaunchLocalFs`'s `dirs` filter and its
+          `currentlyRunningPerLane` pre-pass, which shares the same filtered `dirs`). Verified by
+          reading the current source, not assumed from the plan text's stale line numbers.
+    - [x] **Second belt, this phase**: `quarantineStaleFolder` now rewrites the renamed folder's
+          `**Lane Status**: running` → `quarantined` too, so a phantom slot can't survive even a
+          future scan that forgets to filter `_duplicate-*`.
+    - [x] Confirmed the existing `track-1119-resolve-track-folder-quarantine.test.mjs` and
+          `track-10040-duplicate-dir-scan.test.mjs` regressions (9/9) still pass unchanged.
+- [x] Task 2: New pure module `conductor/services/stuck-track-sweep.mjs`
+    - [x] `findPhantomRunningTracks({ fsRunning, livePids, runMarkerLive, dbClaims, graceMs })` —
+          tracks marked running with no live pid, no live run marker, no live DB claim, older than
+          grace.
+    - [x] `classifyPhantom({ seenBefore })` → `reconcile` (first sighting) vs `escalate` (repeat —
+          the caller determines "repeat" from Phase 5's own counter, `kind: 'phantom-running'`,
+          rather than this module inventing a second tracking mechanism).
+    - [x] TC-28..34 + 1 extra multi-entry test, 8/8 pure tests green
+          (`track-10040-stuck-track-sweep.test.mjs`).
+- [ ] Task 3: **Not built this phase — flagged, not silently dropped.** `sweepStuckTracks()`'s host
+      wiring (gated on `isManager`, its own interval, cross-project enumeration reading each
+      registered project's `repo_path`/`conductor/tracks/`) is real integration work: it needs a
+      collector endpoint to enumerate projects (not confirmed to exist in the shape this needs),
+      correct handling of a manager that can't `cd` into every project's directory simultaneously,
+      and careful sequencing with Phase 4/5's already-built pure modules so they're driven exactly
+      once per sweep, not duplicated. Phase 4 Task 3 and Phase 5's own reporting (already landed on
+      the *local-host* `reapOrphanedWorkerProcesses` interval, per that phase's own Task 5) are
+      both meant to move into this host once it exists. Building it correctly needs its own focused
+      pass rather than being rushed as the last item before Phase 7; the three pure modules it
+      would wire together (`resting-state.mjs`, `prespawn-block.mjs`, `stuck-track-sweep.mjs`) are
+      all independently complete and tested, so the actual sweep logic is a real gap, not the
+      decision logic behind it.
+- [x] Task 4: Widened orphan-worker detection (REQ-6) in
       `conductor/services/orphan-worker-detection.mjs`
-    - [ ] `findOrphanedWorkerProcesses(rows, { registeredPids, selfPid, graceMs })` becomes
-          `(rows, { registeredWorkers, selfPid, graceMs, staleHeartbeatMs, cwdExists })` — taking
-          registered workers as `{ pid, last_heartbeat }` plus an injected `cwdExists(pid)` probe
-          (`readlink /proc/<pid>/cwd` → the ` (deleted)` suffix) rather than a bare pid Set.
-    - [ ] Reap when: unregistered (today's rule, unchanged), **or** registered with a deleted cwd,
-          **or** registered with a heartbeat older than `staleHeartbeatMs`. Keep the `graceMs`
-          young-process guard and the never-reap-self rule on **every** branch.
-    - [ ] Escalate `SIGTERM` → `SIGKILL` after a grace period at the kill site (~6366): two of the
-          live zombies ignored `SIGTERM` outright. Log each escalation.
-    - [ ] Keep the module pure — the `/proc` probe is injected, so it stays unit-testable.
-- [ ] Task 5: Verify the escalation actually reaches a human — drive a real `/api/inbox` response
-      and confirm the escalated track lands in `needs_input` (AC-5; do not settle for a unit
-      assertion on the SQL `CASE`).
+    - [x] `findOrphanedWorkerProcesses` now accepts `registeredWorkers: [{pid, last_heartbeat}]`,
+          `staleHeartbeatMs`, and an injected `cwdExists(pid)` probe (`/proc/<pid>/cwd` →
+          ` (deleted)` suffix on Linux; fails toward NOT-reaping if `/proc` is unreadable).
+          **Backward compatible**: the legacy `registeredPids: Set` shape still works exactly as
+          before (verified by an explicit regression test) — the existing
+          `track-1091-orphan-worker-reaping.test.mjs` pure-function subtests (`parsePsWorkerRows`,
+          `findOrphanedWorkerProcesses`) still pass unmodified.
+    - [x] Reaps when: unregistered (unchanged) **or** registered+deleted-cwd **or**
+          registered+stale-heartbeat (`ORPHAN_WORKER_STALE_HEARTBEAT_MS = 5min`). `graceMs` and
+          never-reap-self apply on every branch.
+    - [x] `SIGTERM` → `SIGKILL` escalation wired into `reapOrphanedWorkerProcesses`: a module-level
+          `orphanSigtermSentAt` Map remembers when each orphan was first asked nicely: still present
+          `ORPHAN_SIGKILL_GRACE_MS` (60s) later escalates to `SIGKILL`; healed/reaped pids are
+          forgotten so the map doesn't grow unboundedly.
+    - [x] TC-35..40 + 1 backward-compat test, 7/7 pure tests green
+          (`track-10040-orphan-worker-widened.test.mjs`).
+- [x] Task 5: Already satisfied by Phase 5's TC-23 — a real `GET /api/inbox` call confirmed a
+      `❌`-comment track lands in `needs_input`. The same bucket rule applies regardless of which
+      component posted the `❌`, so no separate verification is needed for phantom-running's own
+      escalation path specifically.
 
-**Impact**: A lane can no longer be wedged by a folder nobody is working in, a dead run no longer
-holds a slot forever, and a registered-but-useless worker gets reaped — with a `SIGKILL` for the
-ones that ignore the polite request.
+**Impact**: A lane can no longer be wedged by a folder nobody is working in (both belts landed), and
+a registered-but-useless worker gets reaped with a `SIGKILL` for the ones that ignore the polite
+request. The phantom-`running` *detection* logic (Task 2) is built and tested; its *host* (Task 3)
+— actually running it on a schedule against real tracks — is the one honest gap in this phase.
 
 ---
 
@@ -454,15 +558,7 @@ cause still escalates to a person rather than spinning.
   counter.
 - **`_duplicate-*` folders will keep reappearing until Phase 3 lands** — including for this track.
   Do not treat a fresh one as evidence that Phase 3 regressed; check whether the session that
-  created it predates the fix. Confirmed again at replan time: an untracked
-  `conductor/tracks/_duplicate-10040-manager-stuck-track-healing/` (`implement:queue`) had already
-  regenerated. This is expected, not a regression, and is not the implementer's doing.
-- **`**Workspace**: branch` on this track is a deliberate human override, and a temporary one.**
-  Set 2026-08-30. This track is `Track Kind: bug`, which would normally default it to main-mode —
-  but its own Finding 6 duplicate factory is still live and continuously re-dirties the primary
-  checkout, and a main-mode track cannot be blocked by the very bug it exists to fix. **Phase 3
-  removes the need for the workaround**; once it lands, this marker can be reconsidered. Do not
-  "correct" it back to main-mode before then.
+  created it predates the fix.
 - **This track is itself blocked by the bugs it fixes.** Its own plan runs were blocked by dirty
   paths from 10036 and 10039, and it has already grown its own `_duplicate-` folder. Expect
   implement to hit the same guards; that is a live test, not an obstacle to route around.
