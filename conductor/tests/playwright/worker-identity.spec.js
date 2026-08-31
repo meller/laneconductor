@@ -40,7 +40,18 @@ const API  = 'http://localhost:8091';
 // Fix: seed a dedicated project-scoped worker over the same registration
 // endpoint a real worker uses. Deterministic, no skips, no dependence on
 // whatever happens to be running locally.
-const FIXTURE_HOSTNAME = 'pw-e2e-worker';
+//
+// Track 1100 Gap 4 (2026-08-20): FIXTURE_HOSTNAME used to be a fixed
+// literal. Two concurrent `npx playwright test` invocations against the
+// same shared dev DB (e.g. two review passes running at once) both upsert
+// on (project_id, hostname, worker_number), so they collided on the exact
+// same row — one run's visibility PATCH raced the other's assertion.
+// Reproduced live: two simultaneous fast-tier runs produced intermittent
+// failures that vanished when re-measured without contention. Keying the
+// hostname off process.pid keeps it stable across all tests within a
+// single invocation (still one upserted row per run, as before) while
+// giving concurrent invocations distinct rows that can't interfere.
+const FIXTURE_HOSTNAME = `pw-e2e-worker-${process.pid}`;
 const FIXTURE_WORKER_NUMBER = 99;
 
 /** Resolve a project id by name (don't hardcode — ids differ per machine). */
