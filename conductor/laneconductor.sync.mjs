@@ -8109,8 +8109,35 @@ setInterval(async () => {
 
 // ── Shutdown ──────────────────────────────────────────────────────────────────
 
-process.on('SIGTERM', async () => { await removeWorker(); process.exit(0); });
-process.on('SIGINT', async () => { await removeWorker(); process.exit(0); });
+// Track 10045 Phase 4 (REQ-7, AC-8): bound the worker's own shutdown to an
+// aggregate deadline, independent of how many collectors are configured
+// or how slow/unreachable any of them are. removeWorker()'s per-collector
+// del() call already carries its own 10s timeout, but with N collectors
+// that's N x 10s with NO aggregate cap and NO watchdog — exactly what
+// made SIGTERM look "ignored" during the 2026-08-30 incident recovery
+// (see spec.md), prompting escalation to SIGKILL. This closes that gap:
+// shutdown always completes within SHUTDOWN_DEADLINE_MS, whether
+// de-registration finished cleanly, partially, or not at all.
+const SHUTDOWN_DEADLINE_MS = Number(process.env.LC_SHUTDOWN_DEADLINE_MS) || 2000;
+
+function shutdownSleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+async function shutdown(signal) {
+  // unref()'d so this timer alone can never be the reason the process
+  // stays alive — it exists purely as a ceiling on the OTHER work below.
+  const watchdog = setTimeout(() => {
+    console.error(`[LaneConductor] Shutdown watchdog fired after ${SHUTDOWN_DEADLINE_MS}ms (${signal}) — exiting without waiting further for de-registration.`);
+    process.exit(0);
+  }, SHUTDOWN_DEADLINE_MS);
+  watchdog.unref();
+
+  await Promise.race([removeWorker(), shutdownSleep(SHUTDOWN_DEADLINE_MS)]);
+  clearTimeout(watchdog);
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('uncaughtException', async (err) => {
   console.error('[fatal] Uncaught Exception:', err.message);
   await removeWorker(); process.exit(1);
