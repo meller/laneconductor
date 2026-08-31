@@ -1596,6 +1596,36 @@ function parseWaitingForReply(content) {
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
 }
 
+// Track AM-10046 Finding 2: **Waiting for reply** is documented (SKILL.md's
+// marker table) as "a human comment needs an answer" -- but nothing ever
+// verified that before routing a track through the conversation-reply
+// (local-fs-answer) path. A stray/stale flag (e.g. left behind by an
+// unrelated dispatch, or never cleared after an earlier reply) then makes
+// EVERY poll cycle re-run the track's actual lane action (cmd_type =
+// lane_status, below) mislabeled as "answering a question" -- confirmed
+// live on track 10040, long after it had genuinely shipped: every cycle
+// retried a merge labeled local-fs-answer, collided with main-mode lock
+// contention, and silently reverted Lane Status with no signal that a
+// human was never actually involved.
+//
+// Looks for the LAST '> **human**:' (or '(brainstorm)') line in
+// conversation.md and checks whether any '> **claude**:' or
+// '> **system**:' line follows it. If the human's last word was already
+// answered -- or if there is no human line at all -- the flag is stale.
+function hasGenuineUnansweredHumanComment(convPath) {
+  if (!existsSync(convPath)) return false;
+  const lines = readFileSync(convPath, 'utf8').split('\n');
+  let lastHumanIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^>\s+\*\*human\*\*/i.test(lines[i])) lastHumanIdx = i;
+  }
+  if (lastHumanIdx === -1) return false;
+  for (let i = lastHumanIdx + 1; i < lines.length; i++) {
+    if (/^>\s+\*\*(claude|system)\*\*/i.test(lines[i])) return false;
+  }
+  return true;
+}
+
 function parseAutoRun(content) {
   const match = content.match(/\*\*Auto Run\*\*:\s*([^\n]+)/i);
   return match ? match[1].trim().toLowerCase() === 'yes' : false;
@@ -5856,7 +5886,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (!trackNumMatch) continue;
     const track_number = trackNumMatch[1];
 
-    const waitingForReply = parseWaitingForReply(content);
+    let waitingForReply = parseWaitingForReply(content);
     const autoRun = parseAutoRun(content);
 
     // Track AM-1119 Phase 3 (Task 2): a track naming dependencies via
@@ -6002,6 +6032,20 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     let cmd_type = lane_status;
     let label = `local-fs-${lane_status}`;
     let customPrompt = null;
+
+    // Track AM-10046 Finding 2: verify the flag corresponds to a real
+    // unanswered human comment before treating this as a conversation-reply.
+    // A stale flag with no genuine question is cleared here and falls
+    // through to the normal lane-action path below (correct cmd_type and
+    // label already set above), rather than silently re-running the lane
+    // action mislabeled as "answering a question".
+    const convPathForReplyCheck = join(tracksDir, dir, 'conversation.md');
+    if (waitingForReply && !hasGenuineUnansweredHumanComment(convPathForReplyCheck)) {
+      console.log(`[local-fs] Track ${track_number}: **Waiting for reply** was set but no genuine unanswered human comment found — clearing stale flag, treating as a normal ${lane_status} retry.`);
+      const cleared = content.replace(/\*\*Waiting for reply\*\*:\s*yes/i, '**Waiting for reply**: no');
+      writeFileSync(indexPath, cleared, 'utf8');
+      waitingForReply = false;
+    }
 
     if (waitingForReply) {
       label = 'local-fs-answer';
