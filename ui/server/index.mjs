@@ -20,6 +20,7 @@ import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs
 import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
 import { VALID_MODES as MERGE_MODE_VALID_MODES } from '../../conductor/services/merge-mode.mjs';
 import { VALID_MODES as WORKSPACE_MODE_VALID_MODES } from '../../conductor/services/workspace-mode.mjs';
+import { CLAIMABLE_LANES, MOVABLE_LANES } from '../../conductor/constants.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -436,6 +437,7 @@ app.get('/api/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
+              w.code_sha, w.code_sha_captured_at,
               p.id AS project_id, p.name AS project_name, p.repo_path,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
        FROM workers w
@@ -816,10 +818,9 @@ app.patch('/api/projects/:id/tracks/:num/priority', async (req, res) => {
 app.patch('/api/projects/:id/tracks/:num', async (req, res) => {
   try {
     const { lane_status, phase_step } = req.body;
-    const VALID_LANES = ['plan', 'backlog', 'implement', 'review', 'quality-gate', 'done'];
     const VALID_STEPS = ['plan', 'coding', 'reviewing', 'complete', null];
 
-    if (lane_status !== undefined && !VALID_LANES.includes(lane_status)) {
+    if (lane_status !== undefined && !MOVABLE_LANES.includes(lane_status)) {
       return res.status(400).json({ error: 'Invalid lane_status' });
     }
     if (phase_step !== undefined && phase_step !== null && !VALID_STEPS.includes(phase_step)) {
@@ -2915,9 +2916,13 @@ async function claimQueuedTracks(req, res) {
       FROM (
         SELECT id FROM tracks
         WHERE project_id = $1 AND lane_action_status = 'queue'
-          AND lane_status IN ('plan', 'implement', 'review', 'quality-gate', 'done')
+          AND lane_status = ANY($4)
     `;
-    const params = [projectId, req.body.limit || 5, req.machine_token];
+    // Track 10040 REQ-13: CLAIMABLE_LANES, not a hand-typed literal — a
+    // $-binding cannot silently drift from the constant the way the old
+    // inline IN (...) list did (it missed 'done' for a while after track
+    // 10035 made it claimable, and nothing failed loudly).
+    const params = [projectId, req.body.limit || 5, req.machine_token, CLAIMABLE_LANES];
 
     // Enforce worker visibility when auth is enabled:
     // - public: any project member's tracks (no extra filter)
@@ -2928,20 +2933,22 @@ async function claimQueuedTracks(req, res) {
     // we use that as the track requester identity.
     if (AUTH_ENABLED && workerUser && workerVisibility !== 'public') {
       if (workerVisibility === 'team' && workerId) {
+        const userIdx = params.length + 1;
+        const workerIdx = params.length + 2;
         queryStr += `
           AND (
-            t.last_updated_by_uid = $4
+            t.last_updated_by_uid = $${userIdx}
             OR t.last_updated_by_uid IS NULL
             OR EXISTS (
               SELECT 1 FROM worker_permissions wp
-              WHERE wp.worker_id = $5 AND wp.user_uid = t.last_updated_by_uid
+              WHERE wp.worker_id = $${workerIdx} AND wp.user_uid = t.last_updated_by_uid
             )
           )
         `;
         params.push(workerUser, workerId);
       } else {
         // private: only claim tracks owned by this worker's owner
-        queryStr += ` AND (t.last_updated_by_uid = $4 OR t.last_updated_by_uid IS NULL) `;
+        queryStr += ` AND (t.last_updated_by_uid = $${params.length + 1} OR t.last_updated_by_uid IS NULL) `;
         params.push(workerUser);
       }
     }
@@ -2954,8 +2961,9 @@ async function claimQueuedTracks(req, res) {
     // untargeted form above still does, unchanged, for every existing
     // caller). Placed after the visibility filter so a targeted claim is
     // still subject to the same ownership/team rules as any other.
-    if (req.body.track_number) {
-      params.push(req.body.track_number);
+    const targetTrackNumber = req.body.track_number || null;
+    if (targetTrackNumber) {
+      params.push(targetTrackNumber);
       queryStr += ` AND track_number = $${params.length} `;
     }
 
@@ -2977,8 +2985,35 @@ async function claimQueuedTracks(req, res) {
     `;
 
     const r = await client.query(queryStr, params);
+
+    // Track 10040 REQ-14: a zero-row claim used to be indistinguishable
+    // from a lost race. Only run the diagnostic for a TARGETED claim — an
+    // untargeted "give me up to N" claim returning zero is normal idle
+    // polling, and a second query on every idle beat of every worker is
+    // real cost for no signal. Runs inside the same transaction, before
+    // COMMIT, so the answer is consistent with the attempt.
+    let reason = null;
+    if (r.rows.length === 0 && targetTrackNumber) {
+      const diag = await client.query(
+        `SELECT lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2`,
+        [projectId, targetTrackNumber]
+      );
+      if (!diag.rows[0]) {
+        reason = 'no_candidates';
+      } else if (diag.rows[0].lane_action_status !== 'queue') {
+        reason = 'already_claimed';
+      } else if (!CLAIMABLE_LANES.includes(diag.rows[0].lane_status)) {
+        reason = 'lane_not_claimable';
+      } else {
+        // Row exists, is queued, and sits in a claimable lane — the only
+        // thing left that could have excluded it from the UPDATE above is
+        // the visibility/worker_permissions filter (spec D8).
+        reason = 'not_permitted';
+      }
+    }
+
     await client.query('COMMIT');
-    res.json({ tracks: r.rows });
+    res.json({ tracks: r.rows, reason });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });
@@ -3052,6 +3087,46 @@ app.get('/track/:num/retry-count', collectorAuth, async (req, res) => {
       [r.rows[0].id]
     );
     res.json({ count: c.rows[0].count });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10040 Phase 5 (REQ-1, 8): pre-spawn block counter — a cause-generic
+// (kind-tagged) counter of consecutive pre-spawn blocks, DB-persisted so
+// track 10039's dispatcher-only mode (no local conductor/tracks/) can
+// reuse this mechanism rather than rebuilding it. AC-7: readable with zero
+// filesystem access, and survives a worker process restart (it's a DB
+// row, not in-memory state).
+app.post('/track/:num/prespawn-block', collectorAuth, async (req, res) => {
+  try {
+    const { kind, reason } = req.body;
+    if (!kind) return res.status(400).json({ error: 'kind is required' });
+    const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
+    const r = await pool.query(
+      `UPDATE tracks SET prespawn_block_count = prespawn_block_count + 1,
+              prespawn_block_kind = $3, prespawn_block_reason = $4, prespawn_blocked_at = NOW()
+       WHERE project_id = $1 AND track_number = $2
+       RETURNING prespawn_block_count AS count, prespawn_block_kind AS kind, prespawn_block_reason AS reason`,
+      [projectId, req.params.num, kind, reason ?? null]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'track not found' });
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/track/:num/prespawn-block/reset', collectorAuth, async (req, res) => {
+  try {
+    const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
+    await pool.query(
+      `UPDATE tracks SET prespawn_block_count = 0, prespawn_block_kind = NULL,
+              prespawn_block_reason = NULL, prespawn_blocked_at = NULL
+       WHERE project_id = $1 AND track_number = $2`,
+      [projectId, req.params.num]
+    );
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3214,10 +3289,24 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
 
     // Business logic: human comment → wake worker; AI "Answered" → mark human replied
     if (safeAuthor === 'human' && req.body.no_wake !== true) {
+      // Track 10040 REQ-13: this used to omit 'done', so a human comment
+      // on a done-lane track (the track 10035 merge action) never re-woke
+      // the worker. Live bug, fixed by sourcing from CLAIMABLE_LANES.
       await pool.query(
         `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = NULL
-       WHERE id = $1 AND lane_status IN('plan', 'implement', 'review', 'quality-gate')
+       WHERE id = $1 AND lane_status = ANY($2)
          AND lane_action_status != 'running'`,
+        [trackId, CLAIMABLE_LANES]
+      );
+      // Track 10040 Phase 5 Task 4 (REQ-1): human intervention resets the
+      // pre-spawn block streak, same as any other human touch clears the
+      // implement retry counter — a human commenting means "I looked at
+      // this," which should give the next cycle a clean slate rather than
+      // counting toward an escalation the human may already be addressing.
+      await pool.query(
+        `UPDATE tracks SET prespawn_block_count = 0, prespawn_block_kind = NULL,
+                prespawn_block_reason = NULL, prespawn_blocked_at = NULL
+         WHERE id = $1`,
         [trackId]
       );
     } else if (body.includes('Answered') || body.toLowerCase().includes('i updated') || body.toLowerCase().includes('done')) {
@@ -3317,9 +3406,8 @@ app.patch('/track/:num/priority', collectorAuth, async (req, res) => {
 app.patch('/track/:num/lane', collectorAuth, async (req, res) => {
   try {
     const { lane_status, phase_step } = req.body;
-    const VALID_LANES = ['plan', 'backlog', 'implement', 'review', 'quality-gate', 'done'];
     const VALID_STEPS = ['plan', 'coding', 'reviewing', 'complete', null];
-    if (!VALID_LANES.includes(lane_status)) return res.status(400).json({ error: 'Invalid lane_status' });
+    if (!MOVABLE_LANES.includes(lane_status)) return res.status(400).json({ error: 'Invalid lane_status' });
     if (phase_step !== undefined && !VALID_STEPS.includes(phase_step)) return res.status(400).json({ error: 'Invalid phase_step' });
 
     const nextActionStatus = lane_status === 'done' ? 'success' : 'queue';
@@ -3483,6 +3571,10 @@ app.post('/worker/register', async (req, res, next) => {
     const cli = req.body.cli ? normalizeProviderId(req.body.cli) : null;
     const model = req.body.model || null;
     const available_models = req.body.available_models ? JSON.stringify(req.body.available_models) : null;
+    // Track 10040 REQ-11: only written on registration, never on the
+    // heartbeat path — a value that updates itself defeats the purpose of
+    // recording what this process actually loaded into memory.
+    const code_sha = req.body.code_sha || null;
     // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
     // pid changes on every restart, which under the old (project_id,
     // hostname, pid) key minted a brand-new row per restart and orphaned
@@ -3506,17 +3598,18 @@ app.post('/worker/register', async (req, res, next) => {
     if (type === 'manager') {
       const machine_token = randomUUID();
       const { rows: [{ id: workerId }] } = await pool.query(`
-        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, last_heartbeat)
-        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, NOW())
+        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, code_sha, code_sha_captured_at, last_heartbeat)
+        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, $11, NOW(), NOW())
         ON CONFLICT (hostname) WHERE type = 'manager' DO UPDATE SET
         status = 'idle', pid = EXCLUDED.pid, user_uid = EXCLUDED.user_uid,
         mode = EXCLUDED.mode,
         cli = COALESCE(EXCLUDED.cli, workers.cli),
         model = COALESCE(EXCLUDED.model, workers.model),
         available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
+        code_sha = EXCLUDED.code_sha, code_sha_captured_at = NOW(),
         last_heartbeat = NOW()
         RETURNING id
-      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
+      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha]);
       broadcast('worker:updated', { projectId: null });
       return res.json({ ok: true, machine_token, id: workerId });
     }
@@ -3533,17 +3626,18 @@ app.post('/worker/register', async (req, res, next) => {
     }
 
     const { rows: [{ id: workerId }] } = await pool.query(`
-    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, last_heartbeat)
-    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, NOW())
+    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, code_sha, code_sha_captured_at, last_heartbeat)
+    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
     ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
     status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
     cli = COALESCE(EXCLUDED.cli, workers.cli),
     model = COALESCE(EXCLUDED.model, workers.model),
     available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
+    code_sha = EXCLUDED.code_sha, code_sha_captured_at = NOW(),
     last_heartbeat = NOW()
     RETURNING id
-  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models]);
+  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha]);
 
 
     broadcast('worker:updated', { projectId });

@@ -3,6 +3,7 @@
 **Lane**: done
 **Lane Status**: running
 **Progress**: 100%
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **PR Number**: 20
 **PR URL**: https://github.com/meller/laneconductor/pull/20
 **PR Status**: merged
@@ -11,7 +12,7 @@
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: branch
-**Auto Run**: yes
+**Auto Run**: no
 **Waiting for reply**: yes
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
