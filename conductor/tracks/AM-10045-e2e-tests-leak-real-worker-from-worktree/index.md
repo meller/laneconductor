@@ -3,6 +3,7 @@
 **Lane**: implement
 **Lane Status**: running
 **Progress**: 0%
+**Waiting for reply**: yes
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planned
 **Type**: dev
@@ -115,4 +116,3 @@ any repo the resolver throws and `resolvePrimaryCwdDecision` degrades to "leave 
 - [ ] Phase 3: Shared spawn helper — sandbox outside the repo, explicit script resolution, bounded teardown
 - [ ] Phase 4: Bounded worker shutdown (aggregate SIGTERM/SIGINT deadline + force-exit watchdog)
 - [ ] Phase 5: Migrate all 51 spawn sites + source-scan guard preventing regression
-**Waiting for reply**: yes
