@@ -29,15 +29,17 @@ cannot reach production even while still broken).
 
 ### Phase 1 — Reproduction (`track-10045-worktree-isolation.test.mjs`)
 
-- [ ] TC-1: Worker spawned with `cwd` = a plain `.test-tmp-*` dir inside a real linked worktree
-      — expected **before fix**: provenance line reports the primary checkout
-      (`/home/meller/Code/laneconductor`), test FAILS. **After fix**: reports the sandbox.
-- [ ] TC-2: Same spawn with `cwd` = a plain `.test-tmp-*` dir inside the primary checkout —
+- [x] TC-1: Worker spawned with `cwd` = a plain `.test-tmp-*` dir inside a real linked worktree
+      — expected **before fix**: provenance line reports the primary checkout, test FAILS.
+      **After fix**: reports the sandbox. **Confirmed FAILING as of 2026-08-31** (implemented
+      against a throwaway fake-primary/worktree pair, not the real repo — see plan.md Phase 1
+      findings for the actual observed output).
+- [x] TC-2: Same spawn with `cwd` = a plain `.test-tmp-*` dir inside the primary checkout —
       expected: provenance reports the sandbox, passing both before and after. Pins the
-      asymmetry that makes this bug invisible from the primary checkout.
-- [ ] TC-3: `resolvePrimaryRepoRoot()` unit case — sandbox inside a worktree resolves to the
+      asymmetry that makes this bug invisible from the primary checkout. **PASSING.**
+- [x] TC-3: `resolvePrimaryRepoRoot()` unit case — sandbox inside a worktree resolves to the
       primary; sandbox inside the primary resolves to itself — expected: documents the exact
-      resolver behaviour the bug depends on, without spawning anything.
+      resolver behaviour the bug depends on, without spawning anything. **PASSING.**
 
 ### Phase 2 — `LC_ASSERT_SERVING_ROOT` safety net
 

@@ -21,21 +21,52 @@ to turn green (TDD, per `conductor/workflow.md`).
 **Solution**: A test that creates a real throwaway linked worktree, spawns one worker the way
 the suites do today, and asserts the worker's serving root is the sandbox. It must fail now.
 
-- [ ] Task 1.1: Add `conductor/tests/track-10045-worktree-isolation.test.mjs`
-    - [ ] Create a real throwaway worktree via `git worktree add --detach` into `os.tmpdir()`
-    - [ ] Create the today-shaped sandbox (`<worktree>/.test-tmp-*`, plain dir, not a repo)
-    - [ ] Spawn the worker with `LC_SKIP_WORKER_LOCK=1` and a **refusing** collector port, so
-          the reproduction can never touch the real Collector even while it is still broken
-    - [ ] Parse the worker's own startup provenance line (`[LaneConductor] Serving from …`,
-          `sync.mjs:175-186`) — assert it names the sandbox
-    - [ ] Bounded SIGTERM→SIGKILL teardown in `finally`, plus `git worktree remove --force`
-- [ ] Task 1.2: Run it, confirm it **fails**, and record the actual observed provenance line
-      (expected: `⚠️  Serving from /home/meller/Code/laneconductor — this is NOT the primary
-      checkout`, i.e. the real primary) in this file under Phase 1 findings
-- [ ] Task 1.3: Add a companion assertion that the *primary-checkout* path already passes
-      today, pinning the asymmetry described in `spec.md`
+- [x] Task 1.1: Add `conductor/tests/track-10045-worktree-isolation.test.mjs`
+    - [x] Create a real throwaway worktree via `git worktree add` — **design refinement made
+          during implementation**: the worktree is added to a disposable *fake primary* repo
+          (`mkdtemp` + `git init`, its own commit), never a worktree of the real laneconductor
+          checkout. `resolvePrimaryRepoRoot()` resolves purely from git plumbing relative to a
+          given directory, so this reproduces the exact mechanism without ever touching the
+          real repo.
+    - [x] Create the today-shaped sandbox (`<worktree>/.test-tmp-*`, plain dir, not a repo)
+    - [x] Spawn the worker with `LC_SKIP_WORKER_LOCK=1` — **design refinement**: instead of a
+          "refusing collector port" (REQ-4's literal wording), both the fake primary and fake
+          worktree carry a `mode: local-fs, collectors: []` config, so even a full chdir-escape
+          into the fake primary and a real config read lands somewhere with zero network
+          surface at all, not merely a port that refuses. Strictly stronger than what REQ-4
+          asked for; satisfies it by construction rather than by a refusing listener.
+    - [x] Parse the worker's own startup provenance line (`[LaneConductor] Serving from …`,
+          `sync.mjs:175-186`) — asserts it names the sandbox
+    - [x] Bounded SIGTERM→SIGKILL teardown (confirms death via `kill(pid, 0)` polling, not just
+          that a signal was sent), plus `git worktree remove --force` + directory cleanup
+- [x] Task 1.2: Ran it — **confirmed failing**, exactly as expected. See Phase 1 findings below.
+- [x] Task 1.3: Added as TC-2 in the same file — primary-checkout path passes today, pinning
+      the asymmetry from `spec.md`.
 
-**Impact**: The leak becomes a red test. Nothing in production changes.
+**Impact**: The leak is now a red test (`TC-1`). Nothing in production changed — verified via
+`git status --porcelain`: the only new file is the test itself, and no leftover temp
+directories or worker processes survived the run (checked via `ls /tmp` and `ps aux`).
+
+### Phase 1 findings (2026-08-31)
+
+Ran `node --test conductor/tests/track-10045-worktree-isolation.test.mjs`: **2 pass, 1 fail**,
+exactly the expected TDD-red shape.
+
+- **TC-3** (pure resolver, no spawn): PASS. Confirms `resolvePrimaryRepoRoot()` behaves
+  identically against the throwaway fake-primary/worktree pair as it does against the real repo
+  (already verified during planning) — a worktree sandbox resolves to the fake primary, a
+  primary sandbox resolves to itself.
+- **TC-2** (spawn from fake-primary sandbox): PASS. Serving root == the sandbox. Isolation
+  holds when launched from the primary, matching today's real-repo behavior.
+- **TC-1** (spawn from fake-worktree sandbox): **FAIL, as required**. Actual output:
+  ```
+  actual:   '/tmp/lc10045-fakeprimary-XlldGW'
+  expected: '/tmp/lc10045-fakewt-XUHUHB/.test-tmp-tc1'
+  ```
+  The worker launched from the worktree sandbox reported the **fake primary** as its serving
+  root — it chdir'd there before reading any config, reproducing spec.md's root cause exactly,
+  end to end, in an isolated throwaway environment. This is the leak, caught live rather than
+  reasoned about.
 
 ---
 
