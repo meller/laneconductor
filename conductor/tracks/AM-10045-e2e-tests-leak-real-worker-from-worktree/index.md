@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Waiting for reply**: yes
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — 7th check, no new info; dirty-checkout decision still open
+**Phase**: Planned — retry requested via UI (8th check); remaining blocker narrowed to the two _duplicate-* folders
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
