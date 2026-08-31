@@ -140,8 +140,17 @@ export function resolveWorkspaceMode({
 // still reports them as dirty on every advance. Exempted here alongside
 // the file itself being untracked (git rm --cached) so this doesn't
 // recur even where a stray .conv-cursor slips back into the index.
+// Dogfooding 2026-08-30: found live running a fresh wizard-generated
+// project with multiple Auto Run tracks — .laneconductor.json is rewritten
+// by this exact worker's own normal registration/config-sync (same
+// machine-generated, routinely-rewritten shape as the conductor/.* dotfiles
+// above, just rooted one level up instead of under conductor/), so it
+// perpetually shows dirty and perpetually blocked every plan-lane spawn in
+// that project — never real human/agent WIP a commit could dangerously
+// sweep in, same reasoning as every exemption above.
 export function isWorkerBookkeepingPath(p) {
   return /^conductor\/\.[^/]+$/.test(p)
+    || p === '.laneconductor.json'
     || p === 'conductor/tracks-metadata.json'
     || p === 'conductor/tracks/file_sync_queue.md'
     || /^conductor\/tracks\/[^/]+\/(index|plan|spec|test)\.md$/.test(p)

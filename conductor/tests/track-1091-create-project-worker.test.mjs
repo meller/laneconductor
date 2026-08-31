@@ -21,6 +21,7 @@ const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
 const TMP = join(ROOT, '.test-tmp-track-1091-create-project');
 const MANAGER_DIR = join(TMP, 'manager');
 const TARGET_DIR = join(TMP, 'new-project');
+const TARGET_DIR_BRAND_NEW = join(TMP, 'brand-new-project');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -195,5 +196,34 @@ describe('Track 1091 Phase 3: create-project dispatch handler', () => {
     }, { label: 'create-project dispatch reports done' });
     const dispatchEntry = dispatchState.dispatch.find(e => e.action === 'create-project');
     assert.match(dispatchEntry.result, /Created at/);
+  });
+
+  it('repo_source.type: path + has_existing_code: false creates the target directory instead of failing (found live 2026-08-30)', async () => {
+    assert.ok(!existsSync(TARGET_DIR_BRAND_NEW), 'precondition: directory must not exist yet');
+
+    const state0 = await getState(collectorPort);
+    const workerId = state0.workers[0].id;
+
+    await enqueueDispatch(collectorPort, {
+      worker_id: workerId,
+      action: 'create-project',
+      payload: {
+        repo_source: { type: 'path', value: TARGET_DIR_BRAND_NEW },
+        scaffold_context: { project: { name: 'Brand New Project', has_existing_code: false } },
+      },
+    });
+
+    await poll(async () => existsSync(join(TARGET_DIR_BRAND_NEW, 'conductor', '.setup-scaffold-context.json')) || null,
+      { label: 'brand-new target directory created and scaffold context written' });
+
+    await poll(async () => existsSync(join(TARGET_DIR_BRAND_NEW, 'conductor', '.sync.pid')) || null,
+      { label: 'lc worker start spawned a worker for the brand-new project' });
+    const newPid = parseInt(readFileSync(join(TARGET_DIR_BRAND_NEW, 'conductor', '.sync.pid'), 'utf8').trim(), 10);
+    try { process.kill(newPid); } catch { }
+
+    const gitDir = join(TARGET_DIR_BRAND_NEW, '.git');
+    assert.ok(existsSync(gitDir), 'brand-new project should be a git repository');
+    const head = execSync('git rev-parse HEAD', { cwd: TARGET_DIR_BRAND_NEW, encoding: 'utf8' }).trim();
+    assert.match(head, /^[0-9a-f]{7,40}$/, 'brand-new project should have an initial commit');
   });
 });

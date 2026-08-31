@@ -6324,6 +6324,26 @@ function readManagerProjectsDir() {
 // config is inherited unless the new repo has its own local override).
 function writeGeneratedTracks({ targetPath, projectName, brainstormSummary, deploymentProvider }) {
   const trackPlan = deriveTrackPlan({ projectName, brainstormSummary, deploymentProvider });
+  return writeTrackPlanToDisk({ targetPath, trackPlan, trackType: 'dev' });
+}
+
+// Split out of writeGeneratedTracks so a non-deterministic trackPlan (e.g.
+// runMarketingTrackBrainstorm's LLM-derived one) can reuse the same
+// folder/queue-writing mechanics as deriveTrackPlan's deterministic one —
+// the file_sync_queue.md contract (Auto Run: yes, Author/Created By
+// markers) has to be identical either way for a sync+poll worker to pick
+// these up the same as any other generated track.
+//
+// trackType (found live 2026-08-30 running an actual marketing project:
+// every generated track carried **Type**: dev, hardcoded, regardless of
+// caller): one of bin/lc.mjs's VALID_TRACK_TYPES ('dev'/'marketing'/
+// 'sales'/'support'/'other') — NOT cosmetic, SKILL.md branches real
+// behavior on it (supervised vs. code-writing implement, KPI-only vs.
+// code quality-gate checks, KPI-block requirement in plan). A marketing
+// track mislabeled 'dev' would attempt the code-writing implement loop
+// against a spec with no code, and quality-gate would run code checks
+// that don't apply.
+function writeTrackPlanToDisk({ targetPath, trackPlan, trackType }) {
   if (trackPlan.length === 0) return [];
 
   const tracksDir = join(targetPath, 'conductor', 'tracks');
@@ -6354,7 +6374,7 @@ function writeGeneratedTracks({ targetPath, projectName, brainstormSummary, depl
       ? `**Depends On**: ${generated.map(g => g.trackNumber).join(', ')}\n`
       : '';
     const summary = `${t.problem} ${t.solution}`.slice(0, 200);
-    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: dev\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
+    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
     writeFileSync(join(trackPath, 'index.md'), indexContent, 'utf8');
 
     const now = new Date().toISOString();
@@ -6372,6 +6392,83 @@ function writeGeneratedTracks({ targetPath, projectName, brainstormSummary, depl
   }
 
   return generated;
+}
+
+// Track AM-1121 (added 2026-08-30, found live testing a non-code project
+// through the wizard): deriveTrackPlan is deliberately template-only and
+// hardcodes app-shaped tracks ("App Skeleton", "Deploy to <provider>") —
+// wrong for a marketing/growth project, which has no code and nothing to
+// deploy. For scaffoldContext.project.kind === 'marketing', this spawns a
+// real `claude` process (same fire-and-wait pattern as the `setup scaffold
+// generate` step above) prompted to consult the actual marketing skills
+// (marketing-ideas, content-strategy, analytics-tracking, launch-strategy,
+// social-content) and write a trackPlan JSON file, which is then handed to
+// writeTrackPlanToDisk — the same deterministic, tested folder/queue-writing
+// mechanics deriveTrackPlan's output goes through, so downstream (DB sync,
+// Auto Run pickup) behaves identically regardless of which path produced
+// the plan. Keeps the *decision* of what tracks make sense non-deterministic
+// (an LLM with real skill knowledge) while keeping the *filesystem/queue
+// contract* deterministic and unit-testable, same tradeoff the scaffold
+// step above already makes.
+async function runMarketingTrackBrainstorm({ targetPath, scaffoldContext }) {
+  const project = scaffoldContext.project || {};
+  const planPath = join(targetPath, 'conductor', '.wizard-track-plan.json');
+  const purposeLine = scaffoldContext.brainstorm_summary || project.purpose || '(not specified)';
+
+  const prompt = `This new LaneConductor project is a marketing/growth initiative, not a `
+    + `software project — do not propose any code, app, build, or deployment tracks.\n\n`
+    + `Project name: ${project.name || 'Untitled'}\n`
+    + `Details: ${purposeLine}\n\n`
+    + `Using whichever of these skills are relevant to the project above — marketing-ideas, `
+    + `content-strategy, analytics-tracking, launch-strategy, social-content — propose 3 to 6 `
+    + `concrete initial tracks (e.g. promotion channels, a content plan, KPI/analytics tracking `
+    + `setup, a launch push, a social calendar — whichever actually fit; do not force all five `
+    + `skills if fewer are relevant).\n\n`
+    + `Write ONLY a JSON file at ${planPath}, containing an array of 3-6 objects, each shaped `
+    + `exactly like:\n`
+    + `{"title": "short track title", "problem": "one sentence describing the gap", "solution": `
+    + `"one to three sentences describing what this track does, grounded in the relevant skill(s)"}\n\n`
+    + `Do not create track folders yourself, do not write any other file, and do not run any `
+    + `other command — write exactly that one JSON file and stop.`;
+
+  const result = await new Promise((resolvePromise) => {
+    let cmd, args;
+    if (process.env.LC_MOCK_CLI) {
+      const [c, ...rest] = process.env.LC_MOCK_CLI.split(' ');
+      cmd = c; args = [...rest, 'setup-scaffold-generate', 'marketing-track-brainstorm'];
+    } else {
+      cmd = 'claude';
+      args = buildClaudeArgs({ prompt });
+    }
+    const logPath = join(process.cwd(), 'conductor', 'logs', `marketing-track-brainstorm-${Date.now()}.log`);
+    mkdirSync(dirname(logPath), { recursive: true });
+    const out = openSync(logPath, 'a');
+    const proc = spawn(cmd, args, { cwd: targetPath, stdio: ['ignore', out, out], env: { ...process.env } });
+    proc.on('exit', (code) => resolvePromise({ code, logPath }));
+    proc.on('error', (err) => resolvePromise({ code: 1, error: err.message, logPath }));
+  });
+
+  if (result.code !== 0) {
+    return { ok: false, error: `marketing track brainstorm exited ${result.code} — see ${result.logPath}` };
+  }
+  if (!existsSync(planPath)) {
+    return { ok: false, error: `marketing track brainstorm did not write ${planPath} — see ${result.logPath}` };
+  }
+
+  let trackPlan;
+  try {
+    trackPlan = JSON.parse(readFileSync(planPath, 'utf8'));
+  } catch (err) {
+    return { ok: false, error: `marketing track brainstorm wrote invalid JSON to ${planPath}: ${err.message}` };
+  }
+
+  const isValid = Array.isArray(trackPlan) && trackPlan.length > 0
+    && trackPlan.every(t => t && typeof t.title === 'string' && typeof t.problem === 'string' && typeof t.solution === 'string');
+  if (!isValid) {
+    return { ok: false, error: `marketing track brainstorm wrote ${planPath} but it isn't a non-empty array of {title, problem, solution}` };
+  }
+
+  return { ok: true, trackPlan: trackPlan.slice(0, 6) };
 }
 
 async function runCreateProject(entry) {
@@ -6394,7 +6491,7 @@ async function runCreateProject(entry) {
   const projectsDir = readManagerProjectsDir();
   const resolved = resolveRepoTarget({ repoSource, scaffoldContext, projectsDir });
   if (!resolved.ok) return resolved;
-  const { targetPath, needsClone, gitUrl } = resolved;
+  const { targetPath, needsClone, needsMkdir, gitUrl } = resolved;
 
   if (needsClone) {
     if (existsSync(targetPath)) return { ok: false, error: `Target path already exists: ${targetPath}` };
@@ -6405,7 +6502,16 @@ async function runCreateProject(entry) {
       return { ok: false, error: `git clone failed: ${err.message}` };
     }
   } else if (!existsSync(targetPath)) {
-    return { ok: false, error: `repo_source.type is "path" but ${targetPath} does not exist` };
+    // needsMkdir: the wizard's "brand new project" checkbox was unchecked
+    // for a local-path repo_source — the path not existing yet is the
+    // expected case, not an error (found live 2026-08-30 creating a
+    // non-code marketing project via the wizard: it failed here even
+    // though the UI explicitly offers "brand new project" + local path).
+    if (needsMkdir) {
+      mkdirSync(targetPath, { recursive: true });
+    } else {
+      return { ok: false, error: `repo_source.type is "path" but ${targetPath} does not exist` };
+    }
   }
 
   mkdirSync(join(targetPath, 'conductor'), { recursive: true });
@@ -6476,14 +6582,30 @@ async function runCreateProject(entry) {
   // Quick create dispatches (no `wizard` key at all) — deriveTrackPlan
   // still runs for a wizard dispatch with an empty product step, since it
   // always yields at least an "App Skeleton" track.
-  const generatedTracks = entry.payload?.wizard
-    ? writeGeneratedTracks({
+  //
+  // Track AM-1121: scaffoldContext.project.kind === 'marketing' routes
+  // through runMarketingTrackBrainstorm instead — deriveTrackPlan's
+  // hardcoded "App Skeleton"/"Deploy to <provider>" tracks are wrong for a
+  // project with no code. Missing/'app' kind is the existing behavior,
+  // unchanged (back-compat with every wizard dispatch before this track).
+  let generatedTracks = [];
+  if (entry.payload?.wizard) {
+    const projectKind = scaffoldContext.project?.kind || 'app';
+    if (projectKind === 'marketing') {
+      const brainstorm = await runMarketingTrackBrainstorm({ targetPath, scaffoldContext });
+      if (!brainstorm.ok) {
+        return { ok: false, error: `Scaffolded ${targetPath} but marketing track generation failed: ${brainstorm.error}` };
+      }
+      generatedTracks = writeTrackPlanToDisk({ targetPath, trackPlan: brainstorm.trackPlan, trackType: 'marketing' });
+    } else {
+      generatedTracks = writeGeneratedTracks({
         targetPath,
         projectName: scaffoldContext.project?.name || basename(targetPath),
         brainstormSummary: scaffoldContext.brainstorm_summary,
         deploymentProvider: wizardDeployment?.provider,
-      })
-    : [];
+      });
+    }
+  }
 
   // Sensible-default .laneconductor.json for the new project — same
   // mode/collector URLs/UI port as this manager's own, so it joins the
@@ -7549,8 +7671,24 @@ async function checkDispatchInbox() {
     }
 
     // Lane action dispatch
+    //
+    // Track 10044: this worker process is not guaranteed to have been
+    // started with the primary checkout as its cwd (confirmed live
+    // 2026-08-30 -- worker processes spawned from inside a track's own
+    // worktree, e.g. by that track's own test suite, register with the
+    // real production collector and can pull real dispatch entries). A
+    // bare relative 'conductor/tracks' then resolves against THAT cwd,
+    // so the claim write below lands in the worktree's own copy of
+    // index.md instead of the primary checkout's -- the primary's copy,
+    // which feeds the DB (and therefore the UI) via the normal sync
+    // cycle, never sees the 'running' transition and stays stuck on
+    // 'queue' for the run's whole duration. Same categorical bug already
+    // fixed via resolvePrimaryRepoRoot() at the worker-lock path (~L208),
+    // createWorktree (~L3709), and elsewhere in this file -- this call
+    // site was the one outlier still using a bare relative path.
     const trackNumber = entry.track_number;
-    const tracksDir = 'conductor/tracks';
+    const dispatchRepoRoot = resolvePrimaryRepoRoot(process.cwd());
+    const tracksDir = join(dispatchRepoRoot, 'conductor', 'tracks');
     const trackDirName = trackNumber ? resolveTrackFolder(tracksDir, trackNumber) : null;
     if (!trackDirName) {
       const reason = trackNumber ? 'track not found locally' : 'missing track_number';
