@@ -4499,7 +4499,20 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     const checkDirty = () => {
       const dirtyPaths = (() => {
         try {
-          return execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
+          // --untracked-files=all (dogfooding 2026-08-31, track AM-10045):
+          // plain `git status --porcelain` collapses an entirely-new,
+          // never-committed directory into ONE line (`?? conductor/tracks/
+          // AM-NNNN-foo/`), which matches none of findDisqualifyingDirtyPaths'
+          // per-file regexes — so a brand-new track's own scaffolding folder
+          // (created moments earlier, not yet committed) could spuriously
+          // block a totally unrelated track's main-mode spawn, the exact
+          // false-positive shape every exemption in workspace-mode.mjs exists
+          // to prevent. Expanding to per-file lines lets the EXISTING
+          // exemptions apply file-by-file: index/spec/plan/test.md exempt as
+          // usual, while conversation.md still correctly disqualifies (a
+          // human could have typed something there already) — no change to
+          // the exemption logic itself, only to what this call surfaces it.
+          return execSync('git status --porcelain --untracked-files=all', { cwd: process.cwd(), encoding: 'utf8' })
             .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
         } catch {
           return [];

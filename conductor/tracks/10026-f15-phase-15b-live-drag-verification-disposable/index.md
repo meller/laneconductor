@@ -2,7 +2,7 @@
 
 **Status**: plan
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: mock (primary)
 
 ## Problem
 To be defined.
@@ -19,4 +19,4 @@ To be defined.
 **PR Number**: 15
 **PR URL**: https://github.com/meller/laneconductor/pull/15
 **PR Status**: conflicted
-**Waiting for reply**: yes
+**Waiting for reply**: no
