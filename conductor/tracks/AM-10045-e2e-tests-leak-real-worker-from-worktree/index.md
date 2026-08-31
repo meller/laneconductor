@@ -1,10 +1,10 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 40%
+**Progress**: 100%
 **Waiting for reply**: no
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phase 2 complete (LC_ASSERT_SERVING_ROOT safety net, 7/7 tests pass) — Phase 3 next
 **Type**: dev
 **Auto Run**: yes
