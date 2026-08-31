@@ -1,6 +1,6 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Waiting for reply**: no
 **Progress**: 100%
