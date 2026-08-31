@@ -1,8 +1,8 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: done
-**Lane Status**: queue
-**PR Status**: open
+**Lane Status**: running
+**PR Status**: conflicted
 **PR URL**: https://github.com/meller/laneconductor/pull/20
 **PR Number**: 20
 **Progress**: 100%
