@@ -10,6 +10,10 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolveWorkspaceMode, parseWorkspaceMarker, parseTrackKind, findDisqualifyingDirtyPaths, isWorkerBookkeepingPath } from '../services/workspace-mode.mjs';
 
 describe('resolveWorkspaceMode', () => {
@@ -221,5 +225,62 @@ describe('findDisqualifyingDirtyPaths (dogfooding 2026-08-25 regression)', () =>
       'conductor/tracks/999-canary/.conv-cursor.lock',
     ];
     assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/10020-bug-fixes-round-2/'), []);
+  });
+
+  it('an entirely-new untracked track folder is NOT exempted by the pure function alone — git collapses it to one line first (dogfooding 2026-08-31, track AM-10045)', () => {
+    // This is the false-negative the bug actually lived in: the regex logic
+    // below was always correct, but a brand-new track folder never reaches
+    // it broken up into individual files unless the caller asks git to
+    // expand untracked directories. This case documents what
+    // findDisqualifyingDirtyPaths sees from a PLAIN `git status --porcelain`
+    // (the pre-fix invocation) — a single collapsed directory line that
+    // matches none of the per-file regexes above.
+    const collapsed = ['conductor/tracks/AM-9999-new-track/'];
+    assert.deepEqual(
+      findDisqualifyingDirtyPaths(collapsed, 'conductor/tracks/AM-1000-unrelated/'),
+      collapsed,
+      'a collapsed directory line is indistinguishable from real WIP to the regex — this is exactly why the caller must expand untracked dirs first'
+    );
+  });
+
+  it('real git: --untracked-files=all lets a new track folder\'s scaffolding exempt correctly while its conversation.md still disqualifies (dogfooding 2026-08-31, track AM-10045)', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'lc-workspace-mode-test-'));
+    try {
+      execSync('git init -q', { cwd: repo });
+      execSync('git config user.email t@t.com && git config user.name t', { cwd: repo });
+      mkdirSync(join(repo, 'conductor/tracks'), { recursive: true });
+      writeFileSync(join(repo, 'conductor/tracks/.gitkeep'), '');
+      execSync('git add -A && git commit -qm init', { cwd: repo });
+
+      const newTrackDir = join(repo, 'conductor/tracks/AM-9999-new-track');
+      mkdirSync(newTrackDir, { recursive: true });
+      writeFileSync(join(newTrackDir, 'index.md'), '# Track AM-9999\n');
+      writeFileSync(join(newTrackDir, 'spec.md'), '# Spec\n');
+      writeFileSync(join(newTrackDir, 'conversation.md'), '> **human**: unsaved draft reply\n');
+
+      // Pre-fix behavior: plain porcelain collapses the whole untracked
+      // folder into one line that matches nothing — reproduces the live
+      // incident (an unrelated track's main-mode spawn blocked by another
+      // track's own brand-new, uncommitted folder).
+      const collapsedPaths = execSync('git status --porcelain', { cwd: repo, encoding: 'utf8' })
+        .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
+      assert.deepEqual(
+        findDisqualifyingDirtyPaths(collapsedPaths, 'conductor/tracks/AM-1000-unrelated/'),
+        ['conductor/tracks/AM-9999-new-track/'],
+        'reproduces the bug: plain porcelain still disqualifies on the collapsed line'
+      );
+
+      // Post-fix behavior: expanding untracked dirs lets the existing
+      // per-file regexes do their job correctly, file by file.
+      const expandedPaths = execSync('git status --porcelain --untracked-files=all', { cwd: repo, encoding: 'utf8' })
+        .split('\n').map(l => l.slice(3).trim()).filter(Boolean);
+      assert.deepEqual(
+        findDisqualifyingDirtyPaths(expandedPaths, 'conductor/tracks/AM-1000-unrelated/'),
+        ['conductor/tracks/AM-9999-new-track/conversation.md'],
+        'index.md/spec.md exempt as routine scaffolding; conversation.md still correctly disqualifies — a human could have typed something there already'
+      );
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
