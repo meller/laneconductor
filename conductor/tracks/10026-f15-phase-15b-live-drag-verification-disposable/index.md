@@ -2,7 +2,7 @@
 
 **Status**: plan
 **Progress**: 100%
-**Last Run**: mock (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 
 ## Problem
 To be defined.
@@ -13,10 +13,10 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: success
 **Summary**: To be defined.
 **Auto Run**: yes
 **PR Number**: 15
 **PR URL**: https://github.com/meller/laneconductor/pull/15
 **PR Status**: conflicted
-**Waiting for reply**: no
+**Waiting for reply**: yes
