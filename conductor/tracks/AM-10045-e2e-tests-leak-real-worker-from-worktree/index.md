@@ -3,8 +3,8 @@
 **Lane**: implement
 **Lane Status**: queue
 **Progress**: 0%
-**Waiting for reply**: yes
-**Last Run**: claude/claude-opus-5 (primary)
+**Waiting for reply**: no
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — Phase 1 blocked on dirty checkout; lane-flap race also found, see conversation
 **Type**: dev
 **Track Kind**: bug
