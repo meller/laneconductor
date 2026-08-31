@@ -179,21 +179,11 @@ against `workflow.json`'s own transition table.
   (one ⚠️, one ❌) rather than 191.
 - REQ-11 (Finding 4): every worker records the git commit SHA of the code it loaded at startup
   (`workers.code_sha`, captured once at boot). The manager sweep compares each registered
-  worker's `code_sha` against ~~the repo's current `HEAD` for its project~~ **the LaneConductor
-  install directory's current `HEAD`** and flags — or, behind the same `manager.auto_heal` gate
-  as REQ-7, restarts — any worker running code older than N commits or older than a fix that
-  touched files it depends on. A stale worker is a *correctness* hazard, not just a staleness
-  annoyance: worker 1 rewrote a shipped track's canonical `index.md` backwards.
-
-  > **Corrected in planning, accepted 2026-08-30 — do not re-derive this.** The struck-through
-  > original ("the repo's current `HEAD` for its project") was wrong, and wrong in a way that
-  > made the requirement *unimplementable for the very worker type that owns this feature*.
-  > Staleness is a property of the **installed worker code**, not of any managed project's repo:
-  > a worker's code lives at the LaneConductor install path (`~/.laneconductorrc`) while the
-  > projects it manages are separate repos with no necessary relationship to it, and the manager
-  > worker registers with `project_id: null` and has **no project repo at all**. A worker whose
-  > managed project has advanced but whose install dir has not is **not** stale, and must not be
-  > flagged. See D5 for the capture-once-at-boot rule that goes with this.
+  worker's `code_sha` against the repo's current `HEAD` for its project and flags — or, behind
+  the same `manager.auto_heal` gate as REQ-7, restarts — any worker running code older than N
+  commits or older than a fix that touched files it depends on. A stale worker is a *correctness*
+  hazard, not just a staleness annoyance: worker 1 rewrote a shipped track's canonical `index.md`
+  backwards.
 - REQ-12 (Finding 4): a worker must never write a track's `**Lane**`/`**Lane Status**` backwards
   past a terminal state it did not itself produce. Concretely: a process may not move a track out
   of `done` (or from a later lane to an earlier one) based solely on its own in-memory view — it
@@ -205,25 +195,11 @@ against `workflow.json`'s own transition table.
   `lane_status IN ('plan','implement','review','quality-gate'[,'done'])` literal. Adding a lane
   must be a one-line change that cannot half-land. Includes fixing the still-broken comment
   webhook (`ui/server/index.mjs:3219`).
-
-  > **Clarified in planning, accepted 2026-08-30.** The shared module already exists:
-  > `conductor/constants.mjs` exports `Lanes`/`LaneActionStatus`, is already imported by the
-  > worker (`laneconductor.sync.mjs:15`), and `ui/server/index.mjs` already imports from
-  > `../../conductor/*.mjs` (lines 19–22). **This does not make the requirement smaller.** The
-  > requirement is *"the list cannot drift"*, not *"create a module"* — so the substance is
-  > parameterizing the SQL (`= ANY($n)` bound to the constant) instead of hand-typing an
-  > `IN (...)` literal that can silently fall out of sync, which is exactly how `done` went
-  > missing. AC-13's repo-wide grep stays: it is what proves no hardcoded literal survived.
 - REQ-14 (Finding 5): a claim attempt that returns zero rows must be distinguishable from a lost
   race. `claim-queue` returns *why* nothing was claimed (`already_claimed` vs
   `lane_not_claimable` vs `no_candidates`), and the worker logs that reason verbatim. The current
   message asserts a cause it never verified, which is what disguised a permanent bug as transient
   contention for hours.
-- REQ-15 (Finding 6): the implement skill's own folder resolution uses the same canonical
-  resolver as the worker (single implementation, not a parallel one), so a skill session cannot
-  scaffold a duplicate folder for a track that already exists under the `INITIALS-NNN-slug`
-  convention. Scaffolding a new track folder when a folder for that track number already exists
-  in any naming convention is an error, not a fallback.
 - REQ-16 (Finding 7): the manager sweep detects tracks resting in a state `workflow.json` cannot
   produce — `lane_action_status = 'success'` in a lane whose `on_success` moves elsewhere — and
   either re-applies the configured transition (when the lane's work is genuinely complete) or
@@ -234,6 +210,11 @@ against `workflow.json`'s own transition table.
   were moved *backwards* past a merge that already happened. If a track's merge commit is
   reachable from `main` but its lane is earlier than `done`, that is an invalid state and must be
   reported, not silently re-run. (10038 was re-implemented after it had already shipped.)
+- REQ-15 (Finding 6): the implement skill's own folder resolution uses the same canonical
+  resolver as the worker (single implementation, not a parallel one), so a skill session cannot
+  scaffold a duplicate folder for a track that already exists under the `INITIALS-NNN-slug`
+  convention. Scaffolding a new track folder when a folder for that track number already exists
+  in any naming convention is an error, not a fallback.
 
 ## Design Decisions (resolved in planning)
 
