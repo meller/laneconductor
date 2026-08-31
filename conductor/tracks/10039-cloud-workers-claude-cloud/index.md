@@ -1,11 +1,12 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
 **Waiting for reply**: no
 **Progress**: 35%
 **Phase**: Phase 2 COMPLETE (executor seam, zero regressions verified) — Phases 3/3b/4+ remain
 **Type**: dev
+**Auto Run**: no
 **Track Kind**: feature
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
