@@ -168,10 +168,6 @@ The live end-to-end exercise (Tasks 3/4) is staged and ready, waiting on that on
 **Impact**: The single seam that makes every LLM-triggering path cloud-capable, landed with
 verified zero behavior change for machine workers.
 
-## ✅ REVIEWED
-
-Phase 2 passed review (2026-08-31): executor seam implementation is complete and correct, all 13 tests passing, zero regressions verified against the full suite, call-site routing confirmed.
-
 ## Phase 3: Credentials, preflight, and the `runtime` field
 
 **Problem**: Nowhere to store/validate the Anthropic API key or GitHub token, or to express
