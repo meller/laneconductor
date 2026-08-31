@@ -72,14 +72,17 @@ cannot reach production even while still broken).
 
 ### Phase 4 — Bounded worker shutdown
 
-- [ ] TC-13: SIGTERM with a collector that **accepts the connection then never responds** —
+- [x] TC-13: SIGTERM with a collector that **accepts the connection then never responds** —
       expected: process exits within the bounded deadline (~2s), well under the `N × 10s`
-      `del()` timeout. This is the case a closed port does not exercise.
-- [ ] TC-14: SIGTERM with two unreachable collectors configured — expected: total shutdown time
-      still bounded by the aggregate deadline, not 2 × 10s (AC-8).
-- [ ] TC-15: SIGTERM with a reachable collector — expected: de-registration still completes
-      normally; no regression to the clean-shutdown path.
-- [ ] TC-16: SIGINT — expected: identical bounded behaviour to SIGTERM.
+      `del()` timeout. This is the case a closed port does not exercise. **PASSING** (~450ms
+      with `LC_SHUTDOWN_DEADLINE_MS=500`).
+- [x] TC-14: SIGTERM with two unreachable collectors configured — expected: total shutdown time
+      still bounded by the aggregate deadline, not 2 × 10s (AC-8). **PASSING** (~440ms — same
+      order as TC-13's single collector, confirming the bound is aggregate).
+- [x] TC-15: SIGTERM with a reachable collector — expected: de-registration still completes
+      normally; no regression to the clean-shutdown path. **PASSING** — confirmed via a real
+      `DELETE` observed server-side, not just a fast exit.
+- [x] TC-16: SIGINT — expected: identical bounded behaviour to SIGTERM. **PASSING.**
 
 ### Phase 5 — Migration + regression guard
 

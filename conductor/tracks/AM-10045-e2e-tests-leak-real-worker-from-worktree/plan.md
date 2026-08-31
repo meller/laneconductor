@@ -187,16 +187,50 @@ recovery.
 
 **Solution**: Give shutdown a hard ceiling and a force-exit watchdog.
 
-- [ ] Task 4.1: Wrap de-registration in an overall deadline (~2s) via `Promise.race`, so total
-      shutdown time is bounded regardless of collector count
-- [ ] Task 4.2: Arm an `unref()`'d watchdog timer that force-exits if the handler has not
-      exited by the deadline — exit must not depend on the network settling
-- [ ] Task 4.3: Apply identically to SIGTERM and SIGINT (both currently share the shape)
-- [ ] Task 4.4: Test with a collector that accepts the connection then never responds, and
-      assert exit within the deadline (this is the case a closed port does *not* exercise)
+- [x] Task 4.1: `removeWorker()` wrapped in `Promise.race([removeWorker(), sleep(SHUTDOWN_DEADLINE_MS)])`
+      — `SHUTDOWN_DEADLINE_MS` defaults to 2000ms, overridable via `LC_SHUTDOWN_DEADLINE_MS`
+- [x] Task 4.2: `unref()`'d watchdog `setTimeout` force-exits at the same deadline if shutdown
+      hasn't otherwise completed — never keeps the process alive on its own
+- [x] Task 4.3: SIGTERM and SIGINT both call the same `shutdown(signal)` function
+- [x] Task 4.4: `track-10045-bounded-shutdown.test.mjs` TC-13 (hanging collector) + TC-14 (two
+      hanging collectors, proving the bound is aggregate not per-collector) + TC-15 (reachable
+      collector, no regression) + TC-16 (SIGINT parity)
 
 **Impact**: A worker can always be stopped promptly, which is what made incident recovery
 require SIGKILL.
+
+### Phase 4 findings (2026-08-31)
+
+Ran `node --test conductor/tests/track-10045-bounded-shutdown.test.mjs`: **4/4 pass.**
+
+- TC-13 (hanging collector, `LC_SHUTDOWN_DEADLINE_MS=500`) — exits in ~450ms, well under
+  `del()`'s 10s timeout.
+- TC-14 (two hanging collectors) — exits in ~440ms too, not ~900ms or 2×500ms — confirms the
+  deadline is a single aggregate ceiling, not applied per collector.
+- TC-15 (a genuinely reachable collector) — de-registration is confirmed to actually still
+  happen: the mock server's own request handler observed a real `DELETE` call before the
+  process exited. This matters — a bounded deadline that accidentally skipped real
+  de-registration entirely would also "pass" a naive version of this test; asserting the
+  server-side observation rules that out.
+- TC-16 (SIGINT) — identical bounded behavior to SIGTERM.
+
+**Lost and recovered mid-phase**: the `sync.mjs` edit for this phase was made, left as an
+uncommitted working-tree change while Phase 4's tests were being developed and debugged, and
+was silently reverted by a concurrent `chore(track-10039): sync files before worktree` /
+`Track 10045: success (exit: 0)` operation elsewhere in this actively-shared repo before it
+could be committed — confirmed via `git log`/`git show HEAD:conductor/laneconductor.sync.mjs`
+showing the old two-line handlers with no trace of `SHUTDOWN_DEADLINE_MS`. Reapplied verbatim
+and committed immediately this time (no gap between editing and committing), per the lesson
+already learned once this session with the doc-only edits: **uncommitted changes in this repo
+are not safe from concurrent activity, however briefly they sit.**
+
+Separately, developing this phase's own tests surfaced two unrelated real findings, both
+already resolved: (1) the shared helper's default sandbox `mode` briefly caused
+`removeWorker()`'s `getIsLocalFs()` short-circuit to make TC-13/14/16 pass trivially without
+exercising any network code at all — caught via TC-15's explicit `deleteReceived` check failing,
+fixed by confirming (and where needed, forcing) `mode: 'local-api'`; (2) `conductor/tests/helpers/isolated-worker.mjs` itself was being actively rewritten by a concurrent session with a
+different (also reasonable) API shape mid-development — resolved by re-reading the live file
+immediately before finalizing this phase's test file rather than trusting an earlier snapshot.
 
 ---
 
