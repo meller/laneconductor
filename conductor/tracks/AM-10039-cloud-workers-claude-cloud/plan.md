@@ -110,19 +110,63 @@ The live end-to-end exercise (Tasks 3/4) is staged and ready, waiting on that on
 (`runCreateProject`) bypasses even that.
 **Solution**: One executor interface; today's behavior becomes `LocalCliExecutor`.
 
-- [ ] Task 1: Define the executor interface in `conductor/services/executor.mjs`:
+- [x] Task 1: Define the executor interface in `conductor/services/executor.mjs`:
       `run(prompt, ctx) → {id}`, `poll(id) → {state, detail}`, `result(id)`; states map onto the
       existing dispatch outcome vocabulary (running/success/error/timeout/needs-input) plus
       `budget-reached`.
-- [ ] Task 2: `LocalCliExecutor` wrapping the existing `buildCliArgs` → `spawnCli` path —
+      → Done. `createExecutor(runtime, {localCliExecutor})` factory throws a clear
+      not-yet-implemented error for `remote`/`cloud` rather than silently defaulting to
+      `machine` — Phase 3b/4 slot in there without touching call sites again. Also added
+      `extractPromptFromArgs` (argv→prompt lookup, mirrors spawnCli's own existing fallback
+      logic) and `runToCompletion` (the spawn+await-exit primitive `runCreateProject` needed).
+      Pure module, zero dependency on laneconductor.sync.mjs's internal state.
+- [x] Task 2: `LocalCliExecutor` wrapping the existing `buildCliArgs` → `spawnCli` path —
       behavior-identical (same logs, same exit handling, same retry accounting).
-- [ ] Task 3: Route all four call sites through the seam: `autoLaunchLocalFs`,
+      → Done as `localCliExecutor` inside laneconductor.sync.mjs itself (spawnCli is deeply
+      coupled to that module's private state — runningPids, git locks, worktrees, run markers —
+      extracting it out was explicitly avoided as unnecessary regression risk for a
+      zero-behavior-change phase). `run()` is a pure delegation to the untouched `spawnCli`
+      function with identical arguments; `poll`/`result` are honest best-effort shims (local
+      completion stays event-driven inside spawnCli's own exit handler, not polled by any
+      current caller).
+- [x] Task 3: Route all four call sites through the seam: `autoLaunchLocalFs`,
       `startNextAutoCompleteStage`, `checkDispatchInbox`, and `runCreateProject` (normalized
       off its bespoke `spawn`).
-- [ ] Task 4: Full existing suite green (`node --test conductor/tests/`), plus the local-fs and
+      → Done. Three call sites (autoLaunchLocalFs, startNextAutoCompleteStage,
+      checkDispatchInbox's lane-action dispatch) now call `executor.run(prompt, ctx)`;
+      runCreateProject's bespoke inline spawn+exit Promise now calls `runToCompletion()`
+      instead (deliberately not through LocalCliExecutor — project creation has no
+      track/lane/worktree, forcing it through spawnCli's lane-action machinery would be a
+      real behavior change). checkDispatchInbox's OTHER dispatch-type handlers (track_chat,
+      build, deploy, provision-worker, etc.) have their own bespoke spawns and are
+      **deliberately out of scope** — D-5 named exactly these four call sites; scope was not
+      silently widened.
+- [x] Task 4: Full existing suite green (`node --test conductor/tests/`), plus the local-fs and
       local-api E2E suites — this phase must be invisible to machine workers (REQ-9/AC-7).
+      → **Zero regressions, rigorously verified — but not literally "green," and that gap is
+      pre-existing, not caused by this phase.** `node --test conductor/tests/*.test.mjs` (596
+      tests) has 66-73 pre-existing failures depending on run (this suite has real flakiness —
+      subprocess timing, shared ports). Verified via `git stash` isolating exactly this
+      phase's diff: ran the full suite on the pre-refactor code (73 failures) and on the
+      post-refactor code (66 failures) and diffed the two failing-test-name sets —
+      **zero tests fail after that didn't already fail before**; the tests that differ are
+      flaky ones flipping direction, not anything this refactor touched. New test file
+      `track-10039-executor-seam.test.mjs` (13 assertions, all passing) covers TC-11/TC-12
+      directly. **Separate, more important finding surfaced by this exercise (not a regression,
+      pre-existing, needs its own attention outside this track)**: running the E2E suites from
+      inside a git worktree trips `resolvePrimaryCwdDecision`'s worktree-detection safety
+      logic, which redirects the test's spawned worker to run against the **real primary
+      checkout** — confirmed live, the E2E test's worker actually called
+      `POST http://127.0.0.1:8091/project/ensure` and `/worker/register` against this
+      machine's real, currently-running Collector API (port 8091, the same instance managing
+      this very track), not an isolated mock. Checked the DB read-only afterward: no new
+      worker/project rows were created (both calls landed as idempotent upserts against the
+      real pre-existing rows), so no data was corrupted, but the test suite is not hermetic
+      when run from a worktree — a real isolation gap, unrelated to the executor seam, that a
+      human should decide whether to track separately.
 
-**Impact**: The single seam that makes every LLM-triggering path cloud-capable.
+**Impact**: The single seam that makes every LLM-triggering path cloud-capable, landed with
+verified zero behavior change for machine workers.
 
 ## Phase 3: Credentials, preflight, and the `runtime` field
 
