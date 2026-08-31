@@ -1,10 +1,10 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 0%
-**Waiting for reply**: yes
-**Last Run**: claude/claude-opus-5 (primary)
+**Waiting for reply**: no
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — 6th check found a comment-splitting/misattribution bug, not a real message; dirty-checkout decision still open
 **Type**: dev
 **Track Kind**: bug
