@@ -1,11 +1,11 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
 **Lane**: implement
-**Lane Status**: success
+**Lane Status**: running
 **Progress**: 0%
 **Waiting for reply**: no
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Planned — human approved removal, _duplicate-10045-* deleted (13th check); Phase 1 should now be unblocked
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Implementing Phase 1 — reproduction test
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
