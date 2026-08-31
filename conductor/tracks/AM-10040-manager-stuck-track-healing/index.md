@@ -1,7 +1,7 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **PR Number**: 20
 **PR URL**: https://github.com/meller/laneconductor/pull/20
@@ -12,7 +12,7 @@
 **Track Kind**: bug
 **Workspace**: branch
 **Auto Run**: no
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
 **Summary**: Stuck-track detection exists (reset-stuck-actions stamps stuck_timeout) but its only remedy is re-queue, so a track blocked by a *permanent* cause loops forever — track 10036 bounced…
