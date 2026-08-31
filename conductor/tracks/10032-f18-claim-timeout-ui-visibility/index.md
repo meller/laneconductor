@@ -24,3 +24,4 @@ Record the reap outcome durably on the dispatch row (`reaped_at` + `reap_reason`
 ## Depends on
 - [1102](../1102-e2e-session-findings/index.md) — F18 follow-up (Phase 12), the DB-level mechanism this surfaces
 **Auto Run**: yes
+**Merge Mode**: direct
