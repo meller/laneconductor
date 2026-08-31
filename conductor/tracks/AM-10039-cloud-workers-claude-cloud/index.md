@@ -1,7 +1,10 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: queue
+**PR Number**: 22
+**PR URL**: https://github.com/meller/laneconductor/pull/22
+**PR Status**: conflicted
 **Waiting for reply**: no
 **Progress**: 100%
 **Phase**: Phase 2 COMPLETE (executor seam, zero regressions verified) — Phases 3/3b/4+ remain
