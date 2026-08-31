@@ -13,10 +13,10 @@ To be defined.
 ## Phases
 - [ ] Phase 1: Implementation
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Summary**: To be defined.
 **Auto Run**: yes
 **PR Number**: 15
 **PR URL**: https://github.com/meller/laneconductor/pull/15
-**PR Status**: conflicted
+**PR Status**: merged
 **Waiting for reply**: no
