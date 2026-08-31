@@ -1,15 +1,15 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Live incident (2026-08-30): 25+ duplicate `laneconductor.sync.mjs` processes accumulated over ~28 minutes, driving load average to 17-20 on a 16-core machine and memory usage to 39/46GB. Root cause:…
+**Summary**: Root cause confirmed: test sandboxes are plain non-git dirs inside the checkout, so from a worktree the worker's cwd normalization resolves them to the PRIMARY checkout and chdirs there before…
 
 ## Problem
 
@@ -32,57 +32,85 @@ const ROOT = join(__dirname, '../..');
 const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')], { cwd: TMP, ... });
 ```
 
-`__dirname` is wherever the test FILE physically sits. When these E2E suites run from inside
-a worktree (any lane action's own quality-gate/parity verification does exactly this, and
-Phase 2 explicitly ran the full suite twice for its before/after parity diff), `ROOT` resolves
-to that worktree's path — so the test spawns **that worktree's own live sync.mjs script**, not
-a script instance genuinely isolated from the real system. `cwd: TMP` and mock-CLI env vars
-are set, but per Phase 2's finding this does not fully prevent the spawned process from
-reaching the real Collector API in at least some conditions — exact isolation gap not yet
-pinned down (candidate: TMP setup missing a file the worker falls back from, or a hardcoded
-default reached when expected mock config isn't found).
+**The isolation gap is now pinned down and verified empirically** (planning, 2026-08-31 — see
+`spec.md` for the full analysis). It is not the script path — it is the *sandbox* path:
 
-**Compounding factor**: even where isolation nominally works, `worker.kill('SIGTERM')` calls
-are placed in `try/finally` in at least `local-fs-e2e.test.mjs` (good), but tonight's SIGTERM
-pass on the leaked processes required a follow-up SIGKILL — several ignored SIGTERM entirely,
-suggesting the worker's own signal handling (or event-loop state, e.g. mid chokidar
-watch/DB-pool activity) does not always shut down promptly, worsening any test failure that
-skips cleanup.
+`TMP = join(ROOT, '.test-tmp-<suite>')` is a plain, **non-git** directory inside the checkout.
+The worker starts, and track 10019's cwd normalization (`sync.mjs:158`) calls
+`resolvePrimaryRepoRoot(TMP)`. For a sandbox inside a **linked worktree**, `--git-dir`
+(`<primary>/.git/worktrees/<n>`) differs from `--git-common-dir` (`<primary>/.git`), so the
+resolver returns the **primary checkout** and the worker calls
+`process.chdir('/home/meller/Code/laneconductor')` — *before any config is read*. The sandbox
+`.laneconductor.json` is therefore never loaded at all; the worker reads the real config, the
+real `conductor/tracks/`, syncs to the real Collector on 8091, claims real queued tracks, and
+spawns real `claude` agents. Verified directly against this repo:
 
-**Also observed**: the primary-checkout worker's own single-instance guard is not robust —
-`conductor/.sync.pid` pointed at a dead PID and nothing detected/reset that before duplicates
-kept accumulating (~1 new worker every 1-2 minutes over the incident window).
+| Sandbox location | resolver returns | chdir? |
+|---|---|---|
+| `<primary>/.test-tmp-probe` | itself | **no** — isolation holds |
+| `<worktree>/.test-tmp-probe` | `/home/meller/Code/laneconductor` | **yes** — escapes to production |
 
-## Solution (to be refined at planning)
+That asymmetry is the whole bug: the suites are isolated from the primary checkout and
+silently non-isolated from a worktree. **51 test files** spawn a worker this way; 47 do not set
+the `LC_SKIP_CWD_NORMALIZATION` opt-out.
 
-- Make E2E test worker spawns provably isolated regardless of which directory the test file
-  executes from: resolve the worker script via an explicit, test-owned path (e.g. always the
-  primary checkout, injected via env var / repo-root detection independent of `__dirname`),
-  or run the spawned worker inside a container/namespace that cannot reach the real DB/API
-  even if config resolution goes wrong.
-- Add a hard safety net independent of the above: the spawned test worker's `.laneconductor.json`
-  (or equivalent env) should point somewhere that provably 404s/refuses if it ever reaches the
-  real Collector, rather than silently succeeding against production.
-- Fix `lc worker start`'s (or whatever calls it) single-instance check to detect a dead PID in
-  `.sync.pid` and either refuse-with-clear-error or clean up and proceed — not silently allow
-  N more instances to stack up.
-- Investigate SIGTERM non-responsiveness: add a bounded SIGTERM→SIGKILL escalation to whatever
-  script/harness manages test worker teardown, so a slow shutdown can't leave a live process.
-- Regression test: run the E2E suite from within a worktree checkout (simulate today's
-  incident directly) and assert exactly one worker process exists during and after the run,
-  and that it never reaches the real Collector port.
+The guard that should have caught this — the in-process `acquireWorkerLock` (`sync.mjs:198`),
+which resolves the *same* lock path as the real worker — was defeated by **11 spawn sites
+across 8 suites explicitly setting `LC_SKIP_WORKER_LOCK=1`**, plus `--manager` workers using a
+separate lock file entirely.
+
+**SIGTERM non-responsiveness — confirmed, and bounded**: `sync.mjs:7694` is
+`process.on('SIGTERM', async () => { await removeWorker(); process.exit(0); })`.
+`removeWorker()` loops over collectors awaiting `del(...)`, which carries a **10 000 ms**
+per-collector timeout. So shutdown is not an infinite hang, but it is `N × 10s` with **no
+aggregate deadline and no watchdog exit** — long enough that an operator reasonably concludes
+SIGTERM was ignored and escalates to SIGKILL, which is exactly what happened during recovery.
+
+**Correction to the filed hypothesis — no work needed on the pidfile guard.** The report
+proposed that `lc worker start`'s single-instance check fails to detect a dead PID in
+`.sync.pid`. It does not: `getRunningWorkerPid()` (`bin/lc.mjs:193`) already validates via
+`isLiveLaneConductorPid()` (liveness *plus* a `/proc/<pid>/cmdline` cross-check against PID
+reuse) and, on a dead PID, unlinks the stale pidfile and proceeds cleanly. The duplicates never
+went through `lc worker start` at all — tests spawn the worker directly and write no pidfile,
+so that guard was never in the path.
+
+## Solution
+
+Move test sandboxes **outside** the repository (`os.tmpdir()`) and `git init` each one. This
+closes the root cause on two independent axes without touching production semantics: outside
+any repo the resolver throws and `resolvePrimaryCwdDecision` degrades to "leave cwd alone";
+`git init`'d, `--git-dir` equals `--git-common-dir` so the resolver returns the sandbox itself.
+
+- Route all 51 spawn sites through one shared helper (`conductor/tests/helpers/isolated-worker.mjs`)
+  that owns sandbox creation, explicit worker-script resolution, and teardown — so isolation is
+  a property of the helper, not of each author's diligence.
+- Add an opt-in `LC_ASSERT_SERVING_ROOT` guard inside the worker: if its post-normalization cwd
+  is not the expected root, exit non-zero *before* any sync work. No-op when unset, so
+  production is unaffected. This turns **any** future escape mechanism into an instant, loud
+  test failure — the incident's real cost was invisibility, not the bug itself.
+- Default every test worker's collector to a port that provably refuses, so production is
+  unreachable even if config resolution goes wrong.
+- Bound the worker's own SIGTERM/SIGINT shutdown with an aggregate deadline plus a force-exit
+  watchdog; give the test helper a bounded SIGTERM→SIGKILL escalation that confirms death.
+- Regression test: reproduce the incident directly from a real linked worktree, asserting
+  serving root, process count returning to baseline, and zero contact with port 8091.
 
 ## Related Tracks
 
 - [[AM-10039-cloud-workers-claude-cloud]] — Phase 2's own run first found and documented this
-  leak (correctly out of its scope); its dispatcher-only mode (Phase 6) will be even more
-  exposed to a broken single-instance guard, since there's no human watching `htop`.
+  leak (correctly out of its scope), and its two full-suite parity runs from a worktree are the
+  most likely direct trigger of the incident. Its dispatcher-only mode (Phase 6) will be even
+  more exposed, since there's no human watching `htop`.
 - [[AM-10044-running-state-stuck-in-queue-display]] — same incident window, different symptom
-  (display staleness vs. process leak); may share root cause in the sync/heartbeat subsystem,
-  confirm or separate during planning.
+  (display staleness vs. process leak). **Separated at planning**: this track's root cause is
+  fully explained without it, so they are treated as independent defects (see spec.md → Out of
+  Scope). Note that 26 rogue workers writing to the same tracks is a plausible *aggravator* of
+  10044's symptom, so re-check 10044 after this lands.
 
 ## Phases
 
-- [ ] Phase 1: Reproduce the leak deliberately (run E2E suite from a worktree checkout) and pin the exact isolation-escape mechanism
-- [ ] Phase 2: Fix worker-script resolution to be worktree-independent + add a real-API safety net
-- [ ] Phase 3: Harden single-instance guard (dead-PID detection) + bounded shutdown escalation + regression test
+- [ ] Phase 1: Lock in the reproduction as a failing test (real linked worktree, assert serving root)
+- [ ] Phase 2: Safety net — opt-in `LC_ASSERT_SERVING_ROOT` guard in the worker
+- [ ] Phase 3: Shared spawn helper — sandbox outside the repo, explicit script resolution, bounded teardown
+- [ ] Phase 4: Bounded worker shutdown (aggregate SIGTERM/SIGINT deadline + force-exit watchdog)
+- [ ] Phase 5: Migrate all 51 spawn sites + source-scan guard preventing regression
