@@ -1,7 +1,7 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
 **Lane**: review
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Phase 1 complete (of 7) — Phase 2 (stale-process containment) next
