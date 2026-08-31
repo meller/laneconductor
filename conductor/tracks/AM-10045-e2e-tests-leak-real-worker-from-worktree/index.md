@@ -5,7 +5,7 @@
 **Progress**: 0%
 **Waiting for reply**: yes
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Planned — retry requested via UI (8th check); remaining blocker narrowed to the two _duplicate-* folders
+**Phase**: Planned — 9th check, no new info; _duplicate-* folder yes/no still open
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
