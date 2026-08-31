@@ -7,6 +7,7 @@
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Implementing Phase 2 — LC_ASSERT_SERVING_ROOT safety net
 **Type**: dev
+**Auto Run**: yes
 **Track Kind**: bug
 **Workspace**: main
 **Author**: AM
