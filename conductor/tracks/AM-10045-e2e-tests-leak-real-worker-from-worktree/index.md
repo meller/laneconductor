@@ -2,10 +2,10 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 40%
+**Progress**: 60%
 **Waiting for reply**: no
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Phase 2 complete (LC_ASSERT_SERVING_ROOT safety net, 7/7 tests pass) — Phase 3 next
+**Phase**: Phase 3 complete (shared spawn helper, 7/7 tests) — Phase 4 next
 **Type**: dev
 **Auto Run**: yes
 **Track Kind**: bug
@@ -114,6 +114,6 @@ any repo the resolver throws and `resolvePrimaryCwdDecision` degrades to "leave 
 
 - [x] Phase 1: Lock in the reproduction as a failing test (real linked worktree, assert serving root)
 - [x] Phase 2: Safety net — opt-in `LC_ASSERT_SERVING_ROOT` guard in the worker
-- [ ] Phase 3: Shared spawn helper — sandbox outside the repo, explicit script resolution, bounded teardown
+- [x] Phase 3: Shared spawn helper — sandbox outside the repo, explicit script resolution, bounded teardown
 - [ ] Phase 4: Bounded worker shutdown (aggregate SIGTERM/SIGINT deadline + force-exit watchdog)
 - [ ] Phase 5: Migrate all 51 spawn sites + source-scan guard preventing regression

@@ -127,25 +127,52 @@ remembers is not a fix.
 sandbox and a worker. Sandbox lives **outside** the repo and is its own git repo, closing the
 root cause on two independent axes (see `spec.md` → Solution).
 
-- [ ] Task 3.1: `makeSandbox(name)` → `mkdtemp` under `os.tmpdir()`, then `git init`, returning
+- [x] Task 3.1: `makeSandbox(name)` → `mkdtemp` under `os.tmpdir()`, then `git init`, returning
       the path. Never inside the repo working tree (REQ-10 — also stops `.test-tmp-*` dirtying
       the checkout and blocking main-mode lane actions)
-- [ ] Task 3.2: `startIsolatedWorker({ sandbox, args, env })`
-    - [ ] Resolve the worker script from an **explicit repo root**, not `__dirname` — take it
-          from `LC_TEST_REPO_ROOT` if set, else `git rev-parse --show-toplevel` normalised
-          through `resolvePrimaryRepoRoot`, so the script path is deliberate rather than
-          incidental to where the test file sits
-    - [ ] Always set `LC_ASSERT_SERVING_ROOT` to the sandbox (Phase 2's net, on by default for
+- [x] Task 3.2: `startIsolatedWorker({ sandbox, args, env, collectorPort })`
+    - [x] Resolve the worker script from an **explicit repo root**, not `__dirname` — takes it
+          from `LC_TEST_REPO_ROOT` if set, else `git rev-parse --show-toplevel` (relative to the
+          helper's own file location) normalised through `resolvePrimaryRepoRoot`, so the script
+          path is deliberate rather than incidental to where the calling test file sits
+    - [x] Always sets `LC_ASSERT_SERVING_ROOT` to the sandbox (Phase 2's net, on by default for
           every test worker)
-    - [ ] Point collectors at a **refusing** port by default (REQ-4), overridable by suites
-          that pass a real mock-collector port
-    - [ ] Capture stdout/stderr and expose a `waitForServingRoot()` so suites assert isolation
+    - [x] Points collectors at a **refusing** port by default (REQ-4, via an ephemeral server
+          opened then immediately closed), overridable by passing `collectorPort` for suites
+          that need a real mock-collector
+    - [x] Captures stdout/stderr and exposes `waitForServingRoot()` so suites assert isolation
           rather than assuming it
-- [ ] Task 3.3: `stopWorker(worker, { termMs = 3000 })` — bounded SIGTERM → SIGKILL escalation
-      that **confirms death** (`kill(pid, 0)` polling) before resolving (REQ-6, AC-7)
-- [ ] Task 3.4: `cleanupSandbox(sandbox)` — idempotent, safe to call twice
-- [ ] Task 3.5: Direct tests for the helper itself, including the escalation path against a
-      deliberately SIGTERM-ignoring child
+- [x] Task 3.3: `stopWorker(worker, { termMs = 3000, killMs = 2000 })` — bounded SIGTERM →
+      SIGKILL escalation that **confirms death** (`kill(pid, 0)` polling) before resolving
+      (REQ-6, AC-7). See Phase 3 findings below for a real bug this caught in itself.
+- [x] Task 3.4: `cleanupSandbox(sandbox)` — idempotent, safe to call twice
+- [x] Task 3.5: Direct tests in `conductor/tests/track-10045-isolated-worker-helper.test.mjs`
+      (TC-8–TC-12), including the escalation path against a deliberately SIGTERM-ignoring child
+
+**Impact**: A single, tested, correct place to get an isolated sandbox + worker exists. Not yet
+wired into any of the 51 existing suites — that migration is Phase 5's job, sequenced after this
+helper (and Phase 4's shutdown bound) are proven correct on their own.
+
+### Phase 3 findings (2026-08-31)
+
+Ran `node --test conductor/tests/track-10045-isolated-worker-helper.test.mjs`: initially **6/7
+pass, 1 fail** — TC-10 (SIGTERM-ignoring child) failed with "Missing expected exception: process
+must actually be dead."
+
+**Root cause, found and fixed**: `stopWorker()`'s SIGKILL branch fired the signal and returned
+immediately, without confirming it took effect. SIGKILL is asynchronous too — the OS needs a
+moment to actually reap the process — so a caller's very next liveness check (exactly what
+TC-10's assertion does) could still observe the process as alive. Fixed by adding a second
+bounded confirmation loop after SIGKILL, mirroring the one already used after SIGTERM.
+
+**This same latent bug existed in Phase 1's and Phase 2's own `killAndConfirmDead()` helpers**
+(copy-pasted before this shared helper existed) — neither had a test strict enough to catch it,
+since neither did an immediate synchronous liveness check right after teardown. Backported the
+same fix to both for correctness and consistency; re-ran both suites to confirm no regression
+(Phase 1: 2/3 pass, TC-1 correctly still red — unrelated to this fix, still pending the Phase 5
+migration; Phase 2: 7/7 pass).
+
+Re-ran after the fix: **7/7 pass.** No leaked processes in any run (`ps aux` checked after each).
 
 **Impact**: Isolation becomes a property of the helper, not of each author's diligence.
 
