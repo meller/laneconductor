@@ -4,8 +4,8 @@
 **Lane Status**: queue
 **Progress**: 0%
 **Waiting for reply**: yes
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Planned — Phase 1 still blocked on dirty checkout (3rd check, same open decision)
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Planned — Phase 1 still blocked on dirty checkout (4th check, same open decision; lane-flap race now filed as AM-10046)
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
