@@ -1912,13 +1912,35 @@ async function reapStaleDispatches(pool) {
 // lane actions are project work. Caller must invoke this AFTER the track's
 // lane_status has already been written to the DB, since the dispatch
 // action is read back from there.
-async function dispatchIfSyncOnly(projectId, trackNumber) {
+// Bridges an explicit UI-triggered action ("Run", drag-to-lane, reset) into
+// a worker_dispatch row so it actually gets picked up, regardless of
+// worker mode.
+//
+// Previously named dispatchIfSyncOnly and gated on `!hasPoller`: it assumed
+// a live sync+poll worker's own auto-launch polling would pick up ANY
+// lane_action_status='queue' row on its own, so a dispatch row was only
+// created when no poller existed. That assumption predates track 10017's
+// **Auto Run** gate on the auto-launch predicate (default no — a queued
+// track is not auto-picked unless it opts in). For a track without
+// **Auto Run**: yes, a sync+poll worker's normal polling correctly skips
+// it forever, so an explicit human "Run" click produced zero dispatch
+// attempts and zero log activity — confirmed live 2026-08-31, tracks
+// 10039 and 10045 (neither has Auto Run set): the UI request returned 200,
+// lane_action_status flipped to 'queue', and nothing ever claimed it.
+//
+// A worker_dispatch row is the general-purpose, gate-bypassing mechanism
+// documented for exactly this case (SKILL.md: "...never applies to
+// lc worker run <track> or explicit dispatch (worker_dispatch), which are
+// direct human/manager instructions, not auto-picking from the open
+// queue") and is processed correctly by workers in both modes — so it
+// should always be used for an explicit UI action, not only when no
+// poller is present.
+async function dispatchExplicitAction(projectId, trackNumber) {
   try {
-    // Track 1102 F18: same phantom-worker exclusion as the /dispatch and
-    // /worktrees/refresh fallbacks — a Playwright fixture worker
-    // (hostname 'pw-e2e-worker' / pid 999999, or pid 0) heartbeating
-    // during a test run looks like a real live worker to this query and
-    // its low id would otherwise win.
+    // Track 1102 F18: exclude phantom/fixture workers (hostname
+    // 'pw-e2e-worker' / pid 999999, or pid 0) heartbeating during a test
+    // run, which would otherwise look like a real live worker and win by
+    // having the lowest id.
     const { rows: liveWorkers } = await pool.query(
       `SELECT w.id, w.mode, w.type FROM workers w
         WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
@@ -1927,8 +1949,7 @@ async function dispatchIfSyncOnly(projectId, trackNumber) {
       [projectId]
     );
     const projectWorkers = liveWorkers.filter(w => w.type !== 'manager');
-    const hasPoller = projectWorkers.some(w => w.mode === 'sync+poll');
-    if (!hasPoller && projectWorkers.length > 0) {
+    if (projectWorkers.length > 0) {
       const { rows: [track] } = await pool.query(
         'SELECT id, lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
         [projectId, trackNumber]
@@ -1966,7 +1987,7 @@ app.post('/api/projects/:id/tracks/:num/implement', async (req, res) => {
       is_replied: true
     }, req.params.id);
 
-    const dispatched = await dispatchIfSyncOnly(parseInt(req.params.id), req.params.num);
+    const dispatched = await dispatchExplicitAction(parseInt(req.params.id), req.params.num);
 
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true, dispatched, message: dispatched ? 'Dispatched to this project\'s worker' : 'Track moved to waiting state' });
@@ -3486,7 +3507,7 @@ app.patch('/track/:num/lane', collectorAuth, async (req, res) => {
     // in lane_action_status='queue' forever. 'done' sets lane_action_status
     // to 'success', not 'queue' — nothing to dispatch in that case.
     if (nextActionStatus === 'queue') {
-      await dispatchIfSyncOnly(projectId, req.params.num);
+      await dispatchExplicitAction(projectId, req.params.num);
     }
 
     res.json(r.rows[0]);
@@ -3508,7 +3529,7 @@ lane_action_result = NULL, last_updated_by = $4, last_heartbeat = NOW()
     );
 
     // Track 1102 F15: same sync-only dispatch bridge as /implement and /lane.
-    await dispatchIfSyncOnly(projectId, req.params.num);
+    await dispatchExplicitAction(projectId, req.params.num);
 
     res.json({ ok: true });
   } catch (err) {
