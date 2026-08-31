@@ -196,6 +196,16 @@ describe('findDisqualifyingDirtyPaths (dogfooding 2026-08-25 regression)', () =>
     assert.equal(isWorkerBookkeepingPath('conductor/tracks/042-foo/conversation.md'), false);
   });
 
+  it('exempts .laneconductor.json (dogfooding 2026-08-30 regression, track AM-1121) — machine-rewritten by normal worker registration, not human WIP', () => {
+    assert.equal(isWorkerBookkeepingPath('.laneconductor.json'), true);
+    const dirty = ['.laneconductor.json', 'conductor/tracks/AM-1001-foo/conversation.md'];
+    assert.deepEqual(
+      findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/AM-1000-bar/'),
+      ['conductor/tracks/AM-1001-foo/conversation.md'],
+      '.laneconductor.json must not disqualify a main-mode spawn; a sibling track\'s conversation.md still does'
+    );
+  });
+
   it('exempts a resolveTrackFolder quarantine artifact (dogfooding 2026-08-26 regression, track 1119)', () => {
     assert.equal(isWorkerBookkeepingPath('conductor/tracks/_duplicate-1119-stale-placeholder/'), true);
     assert.equal(isWorkerBookkeepingPath('conductor/tracks/_duplicate-1119-stale-placeholder/index.md'), true);

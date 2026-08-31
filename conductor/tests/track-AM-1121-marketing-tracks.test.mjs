@@ -144,9 +144,13 @@ describe('Track AM-1121: marketing-kind create-project routes tracks through the
 
     // Every generated track still carries Auto Run: yes — same contract as
     // deriveTrackPlan's output, so a sync+poll worker claims these too.
+    // **Type**: marketing (not the hardcoded 'dev' every generated track
+    // carried before this fix) — SKILL.md branches real behavior on this:
+    // supervised vs. code-writing implement, KPI vs. code quality-gate.
     for (const f of trackFolders) {
       const content = readFileSync(join(tracksDir, f, 'index.md'), 'utf8');
       assert.match(content, /\*\*Auto Run\*\*:\s*yes/);
+      assert.match(content, /\*\*Type\*\*:\s*marketing/, `${f}/index.md should carry Type: marketing, not the app-path's dev`);
     }
 
     assert.ok(!existsSync(join(targetDir, 'conductor', 'deploy.json')), 'marketing kind has no deployment step — deploy.json should not be written');
@@ -209,6 +213,13 @@ describe('Track AM-1121: marketing-kind create-project routes tracks through the
     assert.ok(titles.some(t => t.startsWith('Core Feature:')), `expected a "Core Feature:" track, got: ${titles.join(', ')}`);
     assert.ok(titles.some(t => t.startsWith('Success Metrics:')), `expected a "Success Metrics:" track, got: ${titles.join(', ')}`);
     assert.ok(!titles.some(t => /Promotion Channels|Content Plan|KPI Tracking/.test(t)), 'app kind must not produce marketing-brainstorm track titles');
+
+    // trackType threading (the same fix that adds Type: marketing on the
+    // marketing path) must leave this path's Type: dev unchanged.
+    for (const f of trackFolders) {
+      const content = readFileSync(join(tracksDir, f, 'index.md'), 'utf8');
+      assert.match(content, /\*\*Type\*\*:\s*dev/, `${f}/index.md should still carry Type: dev, unchanged`);
+    }
 
     // The real proof this took the deterministic branch, not just a plan
     // that happens to look app-shaped: runMarketingTrackBrainstorm's own

@@ -6082,7 +6082,7 @@ function readManagerProjectsDir() {
 // config is inherited unless the new repo has its own local override).
 function writeGeneratedTracks({ targetPath, projectName, brainstormSummary, deploymentProvider }) {
   const trackPlan = deriveTrackPlan({ projectName, brainstormSummary, deploymentProvider });
-  return writeTrackPlanToDisk({ targetPath, trackPlan });
+  return writeTrackPlanToDisk({ targetPath, trackPlan, trackType: 'dev' });
 }
 
 // Split out of writeGeneratedTracks so a non-deterministic trackPlan (e.g.
@@ -6091,7 +6091,17 @@ function writeGeneratedTracks({ targetPath, projectName, brainstormSummary, depl
 // the file_sync_queue.md contract (Auto Run: yes, Author/Created By
 // markers) has to be identical either way for a sync+poll worker to pick
 // these up the same as any other generated track.
-function writeTrackPlanToDisk({ targetPath, trackPlan }) {
+//
+// trackType (found live 2026-08-30 running an actual marketing project:
+// every generated track carried **Type**: dev, hardcoded, regardless of
+// caller): one of bin/lc.mjs's VALID_TRACK_TYPES ('dev'/'marketing'/
+// 'sales'/'support'/'other') — NOT cosmetic, SKILL.md branches real
+// behavior on it (supervised vs. code-writing implement, KPI-only vs.
+// code quality-gate checks, KPI-block requirement in plan). A marketing
+// track mislabeled 'dev' would attempt the code-writing implement loop
+// against a spec with no code, and quality-gate would run code checks
+// that don't apply.
+function writeTrackPlanToDisk({ targetPath, trackPlan, trackType }) {
   if (trackPlan.length === 0) return [];
 
   const tracksDir = join(targetPath, 'conductor', 'tracks');
@@ -6122,7 +6132,7 @@ function writeTrackPlanToDisk({ targetPath, trackPlan }) {
       ? `**Depends On**: ${generated.map(g => g.trackNumber).join(', ')}\n`
       : '';
     const summary = `${t.problem} ${t.solution}`.slice(0, 200);
-    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: dev\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
+    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
     writeFileSync(join(trackPath, 'index.md'), indexContent, 'utf8');
 
     const now = new Date().toISOString();
@@ -6344,7 +6354,7 @@ async function runCreateProject(entry) {
       if (!brainstorm.ok) {
         return { ok: false, error: `Scaffolded ${targetPath} but marketing track generation failed: ${brainstorm.error}` };
       }
-      generatedTracks = writeTrackPlanToDisk({ targetPath, trackPlan: brainstorm.trackPlan });
+      generatedTracks = writeTrackPlanToDisk({ targetPath, trackPlan: brainstorm.trackPlan, trackType: 'marketing' });
     } else {
       generatedTracks = writeGeneratedTracks({
         targetPath,
