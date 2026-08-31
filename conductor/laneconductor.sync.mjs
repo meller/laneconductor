@@ -66,6 +66,7 @@ import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
 import { decideTrackFolder } from './services/track-folder.mjs';
 import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
+import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -4526,15 +4527,93 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
     if (disqualifying.length > 0) {
       console.warn(`[${label}] Track ${trackNumber}: main-mode spawn blocked — dirty paths outside the track's own folder (still dirty after ${waitedMs / 1000}s of retries): ${disqualifying.join(', ')}`);
-      const outcome = await handlePreSpawnBlock({
-        trackNumber, kind: 'dirty-checkout',
-        reason: `the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}`,
-        primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId,
-      });
-      const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
-      err.workspaceGuardBlocked = true;
-      err.preSpawnBlock = outcome;
-      throw err;
+
+      // Track 10040 Phase 7 (REQ-7): classify each disqualifying path
+      // against the closed, provably-safe allowlist (spec D3) — the 10036
+      // exact shape (`ui/node_modules` committed as a symlink, then
+      // ignored). Best-effort: any error here just means no suggestion/
+      // heal, never a spawn failure of its own.
+      let remedies = [];
+      try {
+        const porcelainStatusByPath = new Map(
+          execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
+            .split('\n').filter(Boolean)
+            .map(l => {
+              const statusChars = l.slice(0, 2); // e.g. ' D', 'D ', '??', 'M '
+              const status = statusChars.includes('D') ? 'D' : statusChars.trim()[0];
+              return [l.slice(3).trim(), status];
+            })
+        );
+        for (const path of disqualifying) {
+          const porcelainStatus = porcelainStatusByPath.get(path);
+          if (!porcelainStatus) continue;
+          const isGitIgnored = (() => {
+            try {
+              execSync(`git check-ignore -q -- ${JSON.stringify(path)}`, { cwd: process.cwd() });
+              return true;
+            } catch {
+              return false;
+            }
+          })();
+          const classification = classifyHealableDirtyPath({ path, porcelainStatus, isGitIgnored });
+          if (classification.healable) remedies.push({ path, remedy: classification.remedy });
+        }
+      } catch (err) {
+        console.warn(`[${label}] Track ${trackNumber}: dirty-path-heal classification failed (${err.message}) — no suggestion/heal this cycle.`);
+      }
+
+      // Task 3: apply path, opt-in via manager.auto_heal — only when EVERY
+      // disqualifying path is healable (partial healing would still leave
+      // real dirt behind, so there is no safe partial-apply case). A tool
+      // that wedges tracks should not earn unattended write access to main
+      // by default; this stays inert unless a human explicitly opts in.
+      let healedNow = false;
+      if (config?.manager?.auto_heal === true && remedies.length === disqualifying.length && remedies.length > 0) {
+        let healLockFile = null;
+        try {
+          healLockFile = await checkAndClaimGlobalMainModeLock(trackNumber);
+          for (const { remedy } of remedies) {
+            execSync(remedy, { cwd: process.cwd(), stdio: 'pipe' });
+          }
+          execSync(
+            `git -c user.email=laneconductor@localhost -c user.name=LaneConductor commit -q -m ${JSON.stringify(`fix(manager): untrack ignored build output ${remedies.map(r => r.path).join(', ')}`)}`,
+            { cwd: process.cwd(), stdio: 'pipe' }
+          );
+          healedNow = true;
+          console.log(`[${label}] Track ${trackNumber}: auto-healed ${remedies.length} ignored build-output path(s) — ${remedies.map(r => r.path).join(', ')}`);
+          if (primaryTrackDirName) {
+            const convPath = join(primaryTracksDir, primaryTrackDirName, 'conversation.md');
+            const healedList = remedies.map(r => r.path).join(', ');
+            try {
+              appendFileSync(convPath, `\n> **system**: ✅ Auto-healed ignored build-output path(s) blocking main-mode spawns: ${healedList}.\n`, 'utf8');
+            } catch { /* best-effort */ }
+          }
+        } catch (err) {
+          console.warn(`[${label}] Track ${trackNumber}: auto_heal apply failed (${err.message}) — falling back to propose-only for this cycle.`);
+        } finally {
+          if (healLockFile) await releaseGlobalMainModeLock().catch(() => { });
+        }
+      }
+
+      if (healedNow) {
+        disqualifying = checkDirty();
+      }
+
+      if (disqualifying.length > 0) {
+        const healSuggestion = remedies.length > 0
+          ? ` Proposed fix (provably safe, ignored build output): ${remedies.map(r => r.remedy).join(' && ')}`
+          : '';
+        const outcome = await handlePreSpawnBlock({
+          trackNumber, kind: 'dirty-checkout',
+          reason: `the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}.${healSuggestion}`,
+          primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId,
+        });
+        const err = new Error(`[workspace-mode] main-mode spawn blocked by dirty checkout for track ${trackNumber}`);
+        err.workspaceGuardBlocked = true;
+        err.preSpawnBlock = outcome;
+        throw err;
+      }
+      // Healed and now clean — fall through and let the spawn proceed normally.
     }
   }
 
