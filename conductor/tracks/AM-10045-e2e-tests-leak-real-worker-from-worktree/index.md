@@ -1,11 +1,11 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: queue
+**Progress**: 20%
 **Waiting for reply**: no
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Implementing Phase 1 — reproduction test
+**Phase**: Phase 1 complete (reproduction test, verified red) — Phase 2 next
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: main
@@ -111,7 +111,7 @@ any repo the resolver throws and `resolvePrimaryCwdDecision` degrades to "leave 
 
 ## Phases
 
-- [ ] Phase 1: Lock in the reproduction as a failing test (real linked worktree, assert serving root)
+- [x] Phase 1: Lock in the reproduction as a failing test (real linked worktree, assert serving root)
 - [ ] Phase 2: Safety net — opt-in `LC_ASSERT_SERVING_ROOT` guard in the worker
 - [ ] Phase 3: Shared spawn helper — sandbox outside the repo, explicit script resolution, bounded teardown
 - [ ] Phase 4: Bounded worker shutdown (aggregate SIGTERM/SIGINT deadline + force-exit watchdog)
