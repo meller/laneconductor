@@ -63,6 +63,6 @@ phases are now 5–7; Findings 4–7 produced the four that go first.
 - [x] Phase 2: Stale-process containment, then detection (REQ-12, 11 — Finding 4)
 - [x] Phase 3: One folder resolver, skill included (REQ-15 — Finding 6)
 - [x] Phase 4: Invalid resting states (REQ-16, 17 — Finding 7)
-- [~] Phase 5: Pre-spawn block counting + escalation to failure (REQ-1, 2, 3, 8, 9, 10 — Finding 1) — reset-on-lane-change/human-comment and worker E2E tests flagged as gaps
-- [ ] Phase 6: Manager sweep — phantom markers, wedged lanes, dead-cwd workers (REQ-4, 5, 6)
-- [ ] Phase 7: Known-safe auto-heal, propose-by-default (REQ-7)
+- [x] Phase 5: Pre-spawn block counting + escalation to failure (REQ-1, 2, 3, 8, 9, 10 — Finding 1)
+- [x] Phase 6: Manager sweep — phantom markers, wedged lanes, dead-cwd workers (REQ-4, 5, 6)
+- [x] Phase 7: Known-safe auto-heal, propose-by-default (REQ-7)

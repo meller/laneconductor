@@ -20,7 +20,12 @@ export function slugify(name) {
 // fails clearly (not a guess) if neither is available.
 export function resolveRepoTarget({ repoSource, scaffoldContext, projectsDir }) {
   if (repoSource?.type === 'path') {
-    return { ok: true, targetPath: repoSource.value, needsClone: false };
+    // has_existing_code: false means the UI's "brand new project" checkbox
+    // was unchecked — the path is where the project SHOULD live, not
+    // necessarily where it already does. needsMkdir tells the caller it's
+    // fine (expected, not an error) for that directory not to exist yet.
+    const needsMkdir = scaffoldContext?.project?.has_existing_code === false;
+    return { ok: true, targetPath: repoSource.value, needsClone: false, needsMkdir };
   }
 
   if (repoSource?.type === 'git') {
