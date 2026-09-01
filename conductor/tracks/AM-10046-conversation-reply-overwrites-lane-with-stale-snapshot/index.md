@@ -36,7 +36,7 @@ staleness) — a genuinely wrong value can be written back to disk.
 
 ## Finding 2 (2026-08-31, track AM-10040) — `waiting_for_reply` is conflated with "lane action needs a retry"
 
-Distinct mechanism, same code region. `**Waiting for reply**: yes` is documented (SKILL.md's
+Distinct mechanism, same code region. `**Waiting for reply**: no
 marker table) as meaning "a human comment needs an answer" — but the dispatch code
 (`laneconductor.sync.mjs` ~6005-6011) does this when `waitingForReply` is true:
 
@@ -102,5 +102,10 @@ the conversation-reply path at all.
 
 ## Phases
 
-- [ ] Phase 1: Locate and reproduce the exact race with a regression test
-- [ ] Phase 2: Fix (re-read-before-write or narrow what a conversation-reply turn may touch)
+- [ ] Phase 1: Reproduce the race with a failing regression test
+- [ ] Phase 2: A conversation-reply run may not write `**Lane**` or `**Lane Status**` (all three writers)
+- [ ] Phase 3: Serialize reply dispatch on the existing per-track run marker
+- [ ] Phase 4: Stop conflating `waiting_for_reply` with a lane-action retry (Finding 2)
+- [ ] Phase 5: Audit every other claim-time-snapshot writer; close the guard's forward direction
+
+See `plan.md` for tasks, `spec.md` for the confirmed mechanism, `test.md` for TC-1..TC-13.
