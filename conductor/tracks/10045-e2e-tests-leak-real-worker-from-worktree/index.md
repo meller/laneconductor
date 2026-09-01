@@ -1,7 +1,7 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
 **Lane**: quality-gate
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 80%
 **Waiting for reply**: yes
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
