@@ -1,14 +1,14 @@
 # Track AM-10044: Board Shows queue While Lane Action Is Actively Running
 
-**Lane**: review
+**Lane**: plan
 **Lane Status**: queue
-**Progress**: 100%
+**Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Track Kind**: bug
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Planned. Root cause pinned: two startup resets clear `running` with no liveness check (filesystem `resetFilesystemRunningStatus`, and the `immediate` DB reset scoped by a machine_token that…
+**Summary**: Live incident (2026-08-30, tracks 10039 + 10040 simultaneously): dispatched lane actions were actively running (live PIDs, fresh heartbeats, growing logs) while the Kanban board showed both tracks…
 
 ## Problem
 
@@ -61,4 +61,3 @@ Candidate root causes for planning to verify (not conclusions):
 
 - [ ] Phase 1: Reproduce + pin the root cause (claim-write target vs sync race vs missing heartbeat assert)
 - [ ] Phase 2: Fix + regression test (DB reads running within one heartbeat of claim)
-**Merge Mode**: direct
