@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 80%
 **Waiting for reply**: no
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementing Phase 5 — migrating spawn sites to the shared helper
