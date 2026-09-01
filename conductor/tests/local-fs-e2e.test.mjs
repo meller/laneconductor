@@ -8,19 +8,25 @@
 //   3. on_failure: quality-gate → planning (after max retries)
 //   4. Full pipeline: in-progress → review → quality-gate → done
 //
+// Track 10045 Phase 5: migrated to the shared isolated-worker helper
+// (conductor/tests/helpers/isolated-worker.mjs). Previously this suite
+// spawned the worker with a sandbox at `join(ROOT, '.test-tmp-local-fs')`
+// — inside the repo — which is the exact mechanism that let a worktree-
+// launched run of this suite escape into the real primary checkout (see
+// conductor/tracks/AM-10045-e2e-tests-leak-real-worker-from-worktree/spec.md).
+// Each test now gets its own throwaway sandbox outside the repo entirely.
+//
 // Run: node --test conductor/tests/local-fs-e2e.test.mjs
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { makeSandbox, cleanupSandbox, startIsolatedWorker, stopWorker } from './helpers/isolated-worker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-local-fs');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,19 +59,23 @@ async function poll(fn, { timeout = 15000, interval = 300, label = '' } = {}) {
 
 // ── Project setup ─────────────────────────────────────────────────────────────
 
+// Returns a fresh, isolated sandbox (own git repo, outside this repo
+// entirely — makeSandbox()) pre-seeded with this suite's own
+// .laneconductor.json / workflow.json. startIsolatedWorker() respects an
+// existing config rather than overwriting it, so this is what actually
+// selects local-fs mode for these tests.
 function setupProject() {
-  rmSync(TMP, { recursive: true, force: true });
-  mkdirSync(TMP, { recursive: true });
+  const sandbox = makeSandbox('local-fs');
 
-  writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
+  writeFileSync(join(sandbox, '.laneconductor.json'), JSON.stringify({
     mode: 'local-fs',
-    project: { name: 'test-project', id: 1, repo_path: TMP, primary: { cli: 'mock', model: 'mock' } },
+    project: { name: 'test-project', id: 1, repo_path: sandbox, primary: { cli: 'mock', model: 'mock' } },
     collectors: [],
     ui: { port: 8090 },
   }, null, 2));
 
-  mkdirSync(join(TMP, 'conductor/tracks'), { recursive: true });
-  writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
+  mkdirSync(join(sandbox, 'conductor/tracks'), { recursive: true });
+  writeFileSync(join(sandbox, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock', on_success: null, on_failure: null },
     lanes: {
@@ -75,6 +85,8 @@ function setupProject() {
       'quality-gate': { parallel_limit: 1, max_retries: 1, auto_action: 'qualityGate', on_success: 'done',         on_failure: 'planning' },
     },
   }, null, 2));
+
+  return sandbox;
 }
 
 // Track 10017: auto_run defaults to true here so the suites above (testing
@@ -101,36 +113,29 @@ function createTrack(tracksDir, num, lane, laneStatus = 'queue', { autoRun = tru
   writeFileSync(join(dir, 'index.md'), lines.join('\n'));
 }
 
-function startWorker(env = {}) {
-  const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')], {
-    cwd: TMP,
+function startWorker(sandbox, env = {}) {
+  return startIsolatedWorker({
+    sandbox,
     env: {
-      ...process.env,
       LC_MOCK_CLI: `node ${MOCK_CLI}`,
       MOCK_CLI_DELAY_MS: '200',
       ...env,
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
   });
-  worker.stdout.on('data', d => process.stdout.write(`[worker] ${d}`));
-  worker.stderr.on('data', d => process.stderr.write(`[worker] ${d}`));
-  return worker;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('LaneConductor local-fs E2E', () => {
 
-  after(() => rmSync(TMP, { recursive: true, force: true }));
-
   it('parallelism: only 1 track runs per lane at a time', async () => {
-    setupProject();
+    const TMP = setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '101', 'in-progress', 'queue');
     createTrack(tracksDir, '102', 'in-progress', 'queue');
     createTrack(tracksDir, '103', 'in-progress', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_DELAY_MS: '1500' });
+    const worker = await startWorker(TMP, { MOCK_CLI_DELAY_MS: '1500' });
     try {
       await poll(() => {
         const c = readIndex(tracksDir, '101') ?? readIndex(tracksDir, '102') ?? readIndex(tracksDir, '103');
@@ -142,17 +147,17 @@ describe('LaneConductor local-fs E2E', () => {
       const running = statuses.filter(s => s === 'running').length;
       assert.equal(running, 1, `expected 1 running, got ${running} (statuses: ${statuses})`);
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 
   it('on_success: in-progress → review with Lane Status reset to queue', async () => {
-    setupProject();
+    const TMP = setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '201', 'in-progress', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, { MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '200' });
     try {
       const final = await poll(() => {
         const c = readIndex(tracksDir, '201');
@@ -162,17 +167,17 @@ describe('LaneConductor local-fs E2E', () => {
       assert.equal(getLane(final), 'review');
       assert.equal(getLaneStatus(final), 'queue', 'new lane status must be queue so auto-action triggers');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 
   it('on_failure: quality-gate exhausts retries → transitions to planning', async () => {
-    setupProject();
+    const TMP = setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '301', 'quality-gate', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, { MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
     try {
       const final = await poll(() => {
         const c = readIndex(tracksDir, '301');
@@ -182,17 +187,17 @@ describe('LaneConductor local-fs E2E', () => {
       assert.equal(getLane(final), 'planning');
       assert.equal(getLaneStatus(final), 'failure');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 
   it('full pipeline: in-progress → review → quality-gate → done', async () => {
-    setupProject();
+    const TMP = setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '401', 'in-progress', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '100' });
+    const worker = await startWorker(TMP, { MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '100' });
     try {
       const final = await poll(() => {
         const c = readIndex(tracksDir, '401');
@@ -201,15 +206,15 @@ describe('LaneConductor local-fs E2E', () => {
 
       assert.equal(getLane(final), 'done');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 
   it('queue-based track creation: creates a structured test.md file', async () => {
-    setupProject();
+    const TMP = setupProject();
     const queuePath = join(TMP, 'conductor/tracks/file_sync_queue.md');
-    
+
     // Write queue file
     writeFileSync(queuePath, [
       '# File Sync Queue',
@@ -225,7 +230,7 @@ describe('LaneConductor local-fs E2E', () => {
       '**Metadata**: { "priority": "medium", "assignee": null }',
     ].join('\n'));
 
-    const worker = startWorker({ MOCK_CLI_DELAY_MS: '100' });
+    const worker = await startWorker(TMP, { MOCK_CLI_DELAY_MS: '100' });
     try {
       // Wait until the folder is created and queue entry is processed
       const trackDirName = await poll(() => {
@@ -246,8 +251,8 @@ describe('LaneConductor local-fs E2E', () => {
       const queueContent = readFileSync(queuePath, 'utf8');
       assert.ok(queueContent.includes('**Status**: processed') || queueContent.includes('**Status**: completed'), 'Queue entry status should be updated');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 
@@ -255,11 +260,11 @@ describe('LaneConductor local-fs E2E', () => {
   // only two tests in this file that intentionally omit or toggle
   // **Auto Run** — every other test above opts in via createTrack's default.
   it('TC-9: a queued track with no **Auto Run** marker is left untouched by the auto-launch loop', async () => {
-    setupProject();
+    const TMP = setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '601', 'in-progress', 'queue', { autoRun: false });
 
-    const worker = startWorker({ MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, { MOCK_CLI_DELAY_MS: '200' });
     try {
       // No positive event to poll for (that's the point) — wait out a full
       // poll cycle plus margin, then assert nothing happened.
@@ -268,25 +273,25 @@ describe('LaneConductor local-fs E2E', () => {
       assert.equal(getLaneStatus(content), 'queue', 'lane_action_status must stay queue — no CLI process should have spawned');
       assert.equal(getLane(content), 'in-progress', 'lane must not have moved either');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 
   it('TC-10: the same track WITH **Auto Run**: yes is picked up and run', async () => {
-    setupProject();
+    const TMP = setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '602', 'in-progress', 'queue', { autoRun: true });
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '1500' });
+    const worker = await startWorker(TMP, { MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '1500' });
     try {
       await poll(() => {
         const c = readIndex(tracksDir, '602');
         return getLaneStatus(c) === 'running' ? true : null;
       }, { label: 'track 602 picked up and running', timeout: 10000 });
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
+      cleanupSandbox(TMP);
     }
   });
 

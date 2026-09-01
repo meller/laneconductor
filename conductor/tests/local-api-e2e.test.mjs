@@ -12,19 +12,28 @@
 // Test (remote-api mode):
 //   6. Explicit config.mode: 'remote-api' is respected (same as local-api flow)
 //
+// Track 10045 Phase 5: migrated to the shared isolated-worker helper
+// (conductor/tests/helpers/isolated-worker.mjs). Previously this suite
+// spawned the worker with a sandbox at `join(ROOT, '.test-tmp-local-api')`
+// — inside the repo — which is the exact mechanism that let a worktree-
+// launched run of this suite leak into the real, currently-running
+// Collector API instead of the mock one (see
+// conductor/tracks/AM-10045-e2e-tests-leak-real-worker-from-worktree/spec.md).
+// The sandbox now lives outside the repo entirely, in its own git repo, so
+// `resolvePrimaryRepoRoot()` structurally cannot redirect it anywhere.
+//
 // Run: node --test conductor/tests/local-api-e2e.test.mjs
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { makeSandbox, cleanupSandbox, startIsolatedWorker, stopWorker } from './helpers/isolated-worker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-local-api');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +50,8 @@ async function poll(fn, { timeout = 15000, interval = 300, label = '' } = {}) {
 }
 
 // ── Mock collector lifecycle ───────────────────────────────────────────────────
+// Unrelated to the isolation bug — this is the TEST's own stand-in for a
+// real Collector API, not a laneconductor.sync.mjs spawn.
 
 function startMockCollector() {
   return new Promise((resolve, reject) => {
@@ -66,24 +77,25 @@ async function getState(port) {
 
 // ── Project setup ─────────────────────────────────────────────────────────────
 
-async function setupProject(collectorPort, mode = 'local-api') {
+// Writes this suite's own config into an already-created sandbox (from
+// makeSandbox()) — mode is explicit here rather than relying on the
+// helper's own default so the 'remote-api' describe block below can use
+// the exact same setup function.
+async function setupProject(sandbox, collectorPort, mode = 'local-api') {
   // Reset mock collector state so previous test tracks don't interfere
   await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' }).catch(() => {});
 
-  rmSync(TMP, { recursive: true, force: true });
-  mkdirSync(TMP, { recursive: true });
-
   const collectorUrl = `http://127.0.0.1:${collectorPort}`;
 
-  writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
+  writeFileSync(join(sandbox, '.laneconductor.json'), JSON.stringify({
     mode,
-    project: { name: 'test-project', id: 1, repo_path: TMP, primary: { cli: 'mock', model: 'mock' } },
+    project: { name: 'test-project', id: 1, repo_path: sandbox, primary: { cli: 'mock', model: 'mock' } },
     collectors: [{ url: collectorUrl, token: null }],
     ui: { port: 8090 },
   }, null, 2));
 
-  mkdirSync(join(TMP, 'conductor/tracks'), { recursive: true });
-  writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify({
+  mkdirSync(join(sandbox, 'conductor/tracks'), { recursive: true });
+  writeFileSync(join(sandbox, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
     defaults: { parallel_limit: 1, max_retries: 1, primary_model: 'mock', on_success: null, on_failure: null },
     lanes: {
@@ -117,54 +129,53 @@ function createTrack(tracksDir, num, lane, laneStatus = 'queue') {
   ].join('\n'));
 }
 
-function startWorker(env = {}) {
-  const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')], {
-    cwd: TMP,
+function startWorker(sandbox, collectorPort, env = {}) {
+  return startIsolatedWorker({
+    sandbox,
+    collectorPort,
     env: {
-      ...process.env,
       LC_MOCK_CLI: `node ${MOCK_CLI}`,
       MOCK_CLI_DELAY_MS: '200',
+      // Preserved from the pre-migration version of this suite even
+      // though the sandbox is now a real git repo of its own (so the
+      // ORIGINAL reason this was needed — resolvePrimaryRepoRoot()
+      // walking past a non-git TMP into the real checkout and colliding
+      // with whatever live worker is running for this project —
+      // structurally cannot happen anymore, see Phase 1). Kept
+      // unconditionally rather than re-deriving whether it's still
+      // needed, to keep this migration a pure spawn-mechanism change and
+      // not risk altering this suite's git-lock/worktree behavior or
+      // timing as a side effect.
       LC_SKIP_GIT_LOCK: '1',
-      // This suite predates the worker-identity singleton lock (added on
-      // main after this branch forked): TMP is a plain directory, not its
-      // own git repo, so resolvePrimaryRepoRoot() walks up past it to this
-      // real checkout's primary root and collides with whatever live
-      // worker is actually running for this project. This suite tests
-      // lane transitions, not the identity lock itself — same rationale
-      // as LC_SKIP_GIT_LOCK above.
-      LC_SKIP_WORKER_LOCK: '1',
       ...env,
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
   });
-  worker.stdout.on('data', d => process.stdout.write(`[worker] ${d}`));
-  worker.stderr.on('data', d => process.stderr.write(`[worker] ${d}`));
-  return worker;
 }
 
 // ── Tests — local-api mode ────────────────────────────────────────────────────
 
 describe('LaneConductor local-api E2E', () => {
-  let collectorProc, collectorPort;
+  let collectorProc, collectorPort, TMP;
 
   // One mock collector shared across all tests in this suite
   before(async () => {
     ({ proc: collectorProc, port: collectorPort } = await startMockCollector());
+    TMP = makeSandbox('local-api');
   });
 
   after(() => {
     collectorProc?.kill('SIGTERM');
-    rmSync(TMP, { recursive: true, force: true });
+    cleanupSandbox(TMP);
   });
 
   it('parallelism: only 1 track per lane at a time', async () => {
-    await setupProject(collectorPort);
+    await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '101', 'implement', 'queue');
     createTrack(tracksDir, '102', 'implement', 'queue');
     createTrack(tracksDir, '103', 'implement', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_DELAY_MS: '1500' });
+    const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_DELAY_MS: '1500' });
     try {
       // Wait until at least 1 track is running
       await poll(async () => {
@@ -180,17 +191,16 @@ describe('LaneConductor local-api E2E', () => {
       );
       assert.equal(running.length, 1, `expected 1 running, got ${running.length}`);
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
     }
   });
 
   it('on_success: implement → review', async () => {
-    await setupProject(collectorPort);
+    await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '201', 'implement', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '200' });
     try {
       const final = await poll(async () => {
         const s = await getState(collectorPort);
@@ -201,17 +211,16 @@ describe('LaneConductor local-api E2E', () => {
       assert.equal(final.lane_status, 'review');
       assert.equal(final.lane_action_status, 'queue');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
     }
   });
 
   it('on_failure: quality-gate exhausts retries → failure status', async () => {
-    await setupProject(collectorPort);
+    await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '301', 'quality-gate', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
     try {
       const final = await poll(async () => {
         const s = await getState(collectorPort);
@@ -221,17 +230,16 @@ describe('LaneConductor local-api E2E', () => {
 
       assert.equal(final.lane_action_status, 'failure');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
     }
   });
 
   it('full pipeline: implement → review → quality-gate → done', async () => {
-    await setupProject(collectorPort);
+    await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '401', 'implement', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '100' });
+    const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '100' });
     try {
       const final = await poll(async () => {
         const s = await getState(collectorPort);
@@ -241,13 +249,12 @@ describe('LaneConductor local-api E2E', () => {
 
       assert.equal(final.lane_status, 'done');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
     }
   });
 
   it('custom transition: review → implement:queue on failure', async () => {
-    await setupProject(collectorPort);
+    await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
     // Override workflow specifically for this test
     const wf = JSON.parse(readFileSync(join(TMP, 'conductor/workflow.json'), 'utf8'));
@@ -258,7 +265,7 @@ describe('LaneConductor local-api E2E', () => {
 
     createTrack(tracksDir, '601', 'review', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
     try {
       const final = await poll(async () => {
         const s = await getState(collectorPort);
@@ -269,8 +276,7 @@ describe('LaneConductor local-api E2E', () => {
       assert.equal(final.lane_status, 'implement');
       assert.equal(final.lane_action_status, 'queue');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
     }
   });
 });
@@ -278,22 +284,24 @@ describe('LaneConductor local-api E2E', () => {
 // ── Tests — remote-api mode (mode detection) ──────────────────────────────────
 
 describe('LaneConductor remote-api mode (explicit config)', () => {
-  let collectorProc, collectorPort;
+  let collectorProc, collectorPort, TMP;
 
   before(async () => {
     ({ proc: collectorProc, port: collectorPort } = await startMockCollector());
+    TMP = makeSandbox('remote-api');
   });
 
   after(() => {
     collectorProc?.kill('SIGTERM');
+    cleanupSandbox(TMP);
   });
 
   it('explicit config.mode remote-api: worker processes tracks correctly', async () => {
-    await setupProject(collectorPort, 'remote-api');
+    await setupProject(TMP, collectorPort, 'remote-api');
     const tracksDir = join(TMP, 'conductor/tracks');
     createTrack(tracksDir, '501', 'implement', 'queue');
 
-    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '200' });
+    const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '200' });
     try {
       const final = await poll(async () => {
         const s = await getState(collectorPort);
@@ -304,8 +312,7 @@ describe('LaneConductor remote-api mode (explicit config)', () => {
       assert.equal(final.lane_status, 'review');
       assert.equal(final.lane_action_status, 'queue');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      await stopWorker(worker);
     }
   });
 });
