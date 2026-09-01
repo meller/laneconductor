@@ -64,6 +64,7 @@ import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
+import { getConversationRunWriteScope, CONVERSATION_REPLY_ACTION } from './services/conversation-run-write-scope.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
 import { decideTrackFolder } from './services/track-folder.mjs';
 import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
@@ -5301,6 +5302,13 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // never actually answered would misrepresent the track as further along
     // than it really is (Track 10020).
     const isConversationRun = label === 'local-fs-answer';
+    // Track AM-10046 Phase 2 (REQ-1/REQ-2/REQ-5): the single gate every
+    // Lane/Lane Status write in this function must be routed through. A
+    // conversation run's `laneStatus` is a dispatch-time snapshot that may
+    // be stale by the time this handler runs — it must never reach either
+    // the file or the DB patch, regardless of how resolveTransition below
+    // resolves it.
+    const writeScope = getConversationRunWriteScope({ isConversationRun });
     const transitionValue = (isConversationRun || isBlockedTurn || isStaleAgainstNewMessage)
       ? null
       : (isSuccess
@@ -5335,10 +5343,15 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     const patchData = {
       project_id: projectId,
-      lane_action_status: nextActionStatus,
       lane_action_result: endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`))),
       last_log_tail: tailLog(logPath), active_cli: cli,
     };
+    // Track AM-10046 REQ-2/REQ-5: nextActionStatus is derived from `laneStatus`
+    // (the dispatch-time snapshot) for a conversation run — omit it from the
+    // DB patch entirely rather than send a value that may already be stale.
+    if (writeScope.canWriteLaneStatus) {
+      patchData.lane_action_status = nextActionStatus;
+    }
 
     // Phase 5: Update Lane Status in files and commit (always execute)
     //
@@ -5377,23 +5390,39 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           // the legitimate author of whatever transition it's about to
           // write. Confirmed live: a 7-hour-stale worker process overwrote
           // a shipped track's done:queue back to implement:success.
-          const effectiveLane = targetLane || laneStatus || Lanes.PLAN;
-          const preWriteOnDiskLaneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
-          const preWriteOnDiskLane = preWriteOnDiskLaneMatch ? preWriteOnDiskLaneMatch[1].trim() : effectiveLane;
-          const laneWriteGuard = applyGuardedLaneWrite(content, {
-            intendedLane: effectiveLane,
-            intendedStatus: nextActionStatus,
-            producedByThisRun: preWriteOnDiskLane === laneStatus,
-          });
+          // Track AM-10046 Phase 2 (REQ-1/REQ-2): a conversation run never
+          // reaches applyGuardedLaneWrite at all — not "reaches it with a
+          // fresher read," not "reaches it and gets blocked," simply never
+          // calls it. The guard's same-lane short-circuit (a genuinely
+          // different concern — see lane-regression-guard.mjs) does not
+          // consider **Lane Status**, so a same-lane conversation-run write
+          // used to sail through unblocked even while a concurrent lane
+          // action held `running` in that exact lane (confirmed live,
+          // spec.md's guard table row 3). `laneWriteGuard` defaults to
+          // blocked so the two downstream reads of `.blocked` below still
+          // behave correctly without their own isConversationRun check.
+          let laneWriteGuard = { blocked: true, reason: null, content };
+          if (writeScope.canWriteLane) {
+            const effectiveLane = targetLane || laneStatus || Lanes.PLAN;
+            const preWriteOnDiskLaneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+            const preWriteOnDiskLane = preWriteOnDiskLaneMatch ? preWriteOnDiskLaneMatch[1].trim() : effectiveLane;
+            laneWriteGuard = applyGuardedLaneWrite(content, {
+              intendedLane: effectiveLane,
+              intendedStatus: nextActionStatus,
+              producedByThisRun: preWriteOnDiskLane === laneStatus,
+            });
 
-          if (laneWriteGuard.blocked) {
-            // Do NOT post a conversation comment here — a stale process
-            // spamming conversation.md on every cycle is the exact failure
-            // mode this track exists to end. A warn log is durable enough.
-            console.warn(`[${label}] Track ${trackNumber}: lane-regression guard blocked write (${laneWriteGuard.reason}). Leaving Lane/Lane Status untouched.`);
+            if (laneWriteGuard.blocked) {
+              // Do NOT post a conversation comment here — a stale process
+              // spamming conversation.md on every cycle is the exact failure
+              // mode this track exists to end. A warn log is durable enough.
+              console.warn(`[${label}] Track ${trackNumber}: lane-regression guard blocked write (${laneWriteGuard.reason}). Leaving Lane/Lane Status untouched.`);
+            } else {
+              content = laneWriteGuard.content;
+              updated = true;
+            }
           } else {
-            content = laneWriteGuard.content;
-            updated = true;
+            console.log(`[${label}] Track ${trackNumber}: conversation-reply run — Lane/Lane Status are not this run's to write, leaving untouched.`);
           }
 
           // ── Integration Hooks ──
@@ -6184,9 +6213,17 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
         customPrompt = null;
         cmd_type = 'brainstorm';
       } else {
+        // Track AM-10046 Phase 2 (REQ-1/REQ-2): deliberately no
+        // /laneconductor pulse instruction here. This run's own exit
+        // handler already clears **Waiting for reply** on completion
+        // (isConversationRun's 3b block) — that is the ONLY marker a
+        // conversation reply may touch. A pulse instruction naming
+        // ${lane_status} would tell the agent to write the DISPATCH-TIME
+        // lane snapshot back to **Lane**, which may already be stale by
+        // the time this turn finishes (the exact race this track fixes).
         customPrompt = `The user has sent a message in the track conversation. Read conductor/tracks/${dir}/conversation.md to find their message.
 Use /laneconductor comment ${track_number} to post your reply directly in the conversation. If it is a question, answer it. If it is a decision, acknowledge and incorporate it.
-You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress(content)} "Answered user question" when done.`;
+Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversation reply, not a lane transition. Do not run /laneconductor plan/implement/review/quality-gate/merge for this track as part of answering.`;
       }
     }
 
@@ -6258,14 +6295,23 @@ You MUST use /laneconductor pulse ${track_number} ${lane_status} ${parseProgress
     try {
       const [cmd, args, cli, model, tier, session] = cliArgs;
 
-      // Update file to running status so UI/tests can see it
+      // Update file to running status so UI/tests can see it.
+      // Track AM-10046 Phase 2 (REQ-2): NOT for a conversation-reply
+      // dispatch (waitingForReply) — **Lane Status** belongs to the lane
+      // this track is actually in, which a reply is only observing, not
+      // entering. Writing 'running' here was itself one of the three
+      // stale-snapshot writers (W-pre-spawn): with nothing gating it, it
+      // unconditionally clobbered whatever a concurrent lane action's own
+      // status happened to be at that instant.
       const updateHeader = (content, header, value) => {
         const regex = new RegExp(`\\*\\*${header}\\*\\*:\\s*[^\\n]+`, 'i');
         if (regex.test(content)) return content.replace(regex, `**${header}**: ${value}`);
         return content.trim() + `\n**${header}**: ${value}\n`;
       };
-      const runningContent = updateHeader(content, 'Lane Status', 'running');
-      writeFileSync(indexPath, runningContent, 'utf8');
+      if (!waitingForReply) {
+        const runningContent = updateHeader(content, 'Lane Status', 'running');
+        writeFileSync(indexPath, runningContent, 'utf8');
+      }
 
       // Track 1115 REQ-3: same call site handles both the normal queue claim
       // and the waitingForReply answer-flow — trigger is computed inline from

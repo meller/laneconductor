@@ -75,6 +75,19 @@ test('TC-2b: CONVERSATION_REPLY_ACTION is a non-lane sentinel', () => {
   assert.ok(!CLAIMABLE.includes(CONVERSATION_REPLY_ACTION));
 });
 
+// ── TC-2c: narrowing the write scope must not drop unrelated bookkeeping ──
+// **Last Run** / last_run.log are not part of the lane state machine —
+// confirm the exit handler's "4. Update Last Run" step is not gated behind
+// writeScope, i.e. it stays outside the `if (writeScope.canWriteLane)`
+// block this phase introduced.
+test('TC-2c: Last Run / last_run.log writes are not gated behind writeScope', () => {
+  const lastRunBlock = SYNC_SRC.slice(SYNC_SRC.indexOf('// 4. Update Last Run'));
+  const nextSectionIdx = lastRunBlock.indexOf('// 4. Write last run log');
+  const runByBlock = lastRunBlock.slice(0, nextSectionIdx);
+  assert.ok(runByBlock.includes('**Last Run**'), 'sanity: found the right block');
+  assert.ok(!runByBlock.includes('writeScope'), 'Last Run must be written unconditionally, not gated on this run\'s write scope');
+});
+
 // ── TC-3: non-regression — the ALREADY-covered backwards quadrant ─────────
 // (guard table row 1). Must stay blocked exactly as track 10040 left it.
 test('TC-3 (non-regression, already correct): backward write not produced by this run stays blocked', () => {
