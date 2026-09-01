@@ -1,9 +1,9 @@
 # Track AM-10046: local-fs-answer Overwrites Lane With a Stale Snapshot Under Concurrent Dispatch
 
-**Lane**: implement
+**Lane**: plan
+**Merge Mode**: direct
 **Lane Status**: success
-**Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Progress**: 0%
 **Phase**: Planned
 **Type**: dev
 **Track Kind**: bug
@@ -110,4 +110,4 @@ the conversation-reply path at all.
 - [ ] Phase 5: Audit every other claim-time-snapshot writer; close the guard's forward direction
 
 See `plan.md` for tasks, `spec.md` for the confirmed mechanism, `test.md` for TC-1..TC-13.
-**Merge Mode**: direct
+**Auto Run**: yes
