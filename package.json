@@ -1,5 +1,5 @@
 {
-  "name": "@google/laneconductor",
+  "name": "laneconductor",
   "version": "1.0.0",
   "description": "Sovereign Developer Environment — real-time visibility into AI-driven development across multiple repositories.",
   "main": "bin/lc.mjs",
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/google/laneconductor.git"
+    "url": "git+https://github.com/meller/laneconductor.git"
   },
   "keywords": [
     "kanban",
@@ -24,12 +24,12 @@
     "worker",
     "cli"
   ],
-  "author": "Google",
-  "license": "Apache-2.0",
+  "author": "Asaf Meller",
+  "license": "Elastic-2.0",
   "bugs": {
-    "url": "https://github.com/google/laneconductor/issues"
+    "url": "https://github.com/meller/laneconductor/issues"
   },
-  "homepage": "https://github.com/google/laneconductor#readme",
+  "homepage": "https://github.com/meller/laneconductor#readme",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@prisma/client": "^5.10.2",
