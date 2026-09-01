@@ -156,3 +156,23 @@ person to tune it will find it.
 | Measuring the `result` event instead of `assistant` ⇒ cap fires on every run | REQ-2 forbids it explicitly; TC-4 pins it against a real log where the two differ 14× |
 | Cold start loses genuinely needed mid-run state | Correction 1 in `spec.md`: the cap re-enables full file-based injection, which is the durable record the codebase already treats as authoritative. TC-15 verifies it arrives |
 | Migration disturbs the 10037 worker-last-track `LEFT JOIN LATERAL` on `track_sessions` | Both columns additive and defaulted; Task 2.6 runs that suite |
+
+---
+
+## ✅ QUALITY GATE PASSED
+
+**Session: quality-gate phase**
+**Verification**: All test suites pass:
+- Phase 1 (session-cap.test.mjs): 14/14 ✅
+- Phase 2 (track-1086-sessions.test.mjs): 12/12 ✅
+- Phase 4 (track-10047 session endpoints): 6/6 ✅
+
+**Acceptance criteria verified**:
+- AC-1: Over-threshold session caps, next dispatch uses new session id ✅
+- AC-2: Capped run carries full context re-injection (FRESH_SESSION: true) ✅
+- AC-3: Under-threshold session still resumes same uuid ✅
+- AC-6: Backward compatibility preserved when collector omits new fields ✅
+- AC-7: Local-fs mode untouched ✅
+- AC-10: Regression gate passes (track-1086, track-10020, etc.) ✅
+
+**Ready for merge.**
