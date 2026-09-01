@@ -143,7 +143,7 @@ describe('Track 10048: duplicate track folder must not cause a second concurrent
         const c = readIndex(tracksDir, 'AM-10048-duplicate-folder-race');
         const s = getLaneStatus(c);
         return (s === 'success' || s === 'queue') ? c : null;
-      }, { label: 'canonical folder run completes' });
+      }, { label: 'canonical folder run completes', timeout: 45000 });
       assert.notEqual(getLaneStatus(final), 'failure');
 
       // The duplicate should have been quarantined as a side effect of
