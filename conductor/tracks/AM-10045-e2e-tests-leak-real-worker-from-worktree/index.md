@@ -1,9 +1,9 @@
 # Track AM-10045: E2E Test Suites Spawn a Real Worktree-Scoped Sync Worker Instead of an Isolated One
 
 **Lane**: done
-**Lane Status**: running
-**Progress**: 80%
-**Waiting for reply**: yes
+**Lane Status**: success
+**Progress**: 100%
+**Waiting for reply**: no
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementing Phase 5 — migrating spawn sites to the shared helper
 **Type**: dev
