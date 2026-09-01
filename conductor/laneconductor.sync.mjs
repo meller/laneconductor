@@ -35,7 +35,7 @@ import { parseConversationComments, findTurnStartOffsets } from './sync-conversa
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
-import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from './stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
@@ -71,7 +71,7 @@ import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/presp
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
-import { shouldRetireSession, DEFAULT_MAX_RESUME_COUNT } from './services/session-resume-policy.mjs';
+import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -5224,6 +5224,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
+    let resumeFailureInvalidated = false;
     if (!isSuccess && logContent) {
       isExhausted = isProviderExhausted(logContent, cli);
       if (isExhausted) {
@@ -5240,6 +5241,25 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       if (session && !session.isFresh && isResumeFailure(logContent)) {
         console.log(`[${label}] Detected resume failure for track ${trackNumber} (session ${session.claude_session_id}) — invalidating stored session`);
         await invalidateTrackSession(trackNumber);
+        resumeFailureInvalidated = true;
+      }
+    }
+
+    // Track 10047 (REQ-9): measure this run's final context size from the
+    // same logContent already read above, so the NEXT resolveTrackSession
+    // call for this track has a fresh figure to cap on. Best-effort
+    // throughout — a failed extraction or POST must never affect the run's
+    // outcome. Skipped when this exact session was just invalidated above
+    // (resume failure) — reporting a measurement for a session that no
+    // longer exists would just as silently resurrect a stale row.
+    if (session && !resumeFailureInvalidated) {
+      try {
+        const contextTokens = extractSessionContextTokens(logContent);
+        if (contextTokens !== null) {
+          await persistTrackSession(trackNumber, session.claude_session_id, contextTokens);
+        }
+      } catch (measureErr) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to measure/report session context size (${measureErr.message}) — next cap decision falls back to resume count.`);
       }
     }
 
@@ -5759,62 +5779,51 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   return proc.pid;
 }
 
+// Track 10047 (REQ-4): configurable thresholds, same env-override-first
+// precedence as LC_SPAWN_TIMEOUT_MS. 0 disables that check (session-cap.mjs).
+function getSessionCapConfig() {
+  const envTokens = process.env.LC_SESSION_MAX_CONTEXT_TOKENS;
+  const envResumes = process.env.LC_SESSION_MAX_RESUMES;
+  return {
+    maxContextTokens: envTokens !== undefined ? Number(envTokens) : (config.worker?.session_max_context_tokens ?? DEFAULT_MAX_CONTEXT_TOKENS),
+    maxResumes: envResumes !== undefined ? Number(envResumes) : (config.worker?.session_max_resumes ?? DEFAULT_MAX_RESUMES),
+  };
+}
+
 // Track 1086: resolve (or mint) this worker's session for a track, so
 // buildCliArgs can pass --resume instead of cold-starting. Returns
 // { claude_session_id, isFresh } or null if session persistence isn't
 // available (local-fs mode, or not yet registered) — null means "cold-start,
 // same as before this track" everywhere it's checked.
-function trackResumeCountPath(trackNumber) {
-  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
-  const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
-  return trackDirName ? join(tracksDir, trackDirName, '.resume-count') : null;
-}
-
-function clearTrackResumeCount(trackNumber) {
-  const countPath = trackResumeCountPath(trackNumber);
-  if (countPath && existsSync(countPath)) {
-    try { rmSync(countPath); } catch { /* best-effort — never block a spawn over this */ }
-  }
-}
-
+//
+// Track 10047 (REQ-8): applies shouldCapSession() before deciding to
+// resume. A resumed run's prompt carries ONLY the unanswered human tail
+// (spawnCli's context-injection gate, ~line 4958) — --resume is that
+// session's ONLY continuity mechanism, so letting it grow unbounded is
+// what let AM-10045's review session hard-fail on "Prompt is too long"
+// and AM-10046's implement session reach 406K cached tokens on one turn.
+// A cap decision here returns isFresh: true, which flips buildCliArgs to
+// --session-id (not --resume) and re-enables spawnCli's full file-based
+// context injection — the cold start is not starting blind, it's
+// switching continuity mechanisms.
 async function resolveTrackSession(trackNumber) {
   if (getIsLocalFs() || !myWorkerId) return null;
   const { url, token } = primaryCollector();
   if (!url) return null;
   try {
-    const { claude_session_id } = await get(url, token, `/track/${trackNumber}/session`);
+    const { claude_session_id, last_context_tokens, resume_count } = await get(url, token, `/track/${trackNumber}/session`);
     if (claude_session_id) {
-      // Track 10047: bounded resume — resolveTrackSession used to resume
-      // the same session forever once one existed, with every resumed
-      // turn re-paying (cached-rate, but non-zero, compounding) for the
-      // entire accumulated conversation. See session-resume-policy.mjs's
-      // doc comment for the live incident (AM-10045 hard-failed on
-      // "Prompt is too long"; AM-10046 hit 406K cached tokens on one turn)
-      // and why resuming past a cap isn't starting blind — every spawn
-      // already re-injects index/spec/plan/test.md + a conversation tail
-      // regardless of fresh vs resumed.
-      //
-      // Deliberately its OWN try/catch, separate from the lookup above:
-      // this is a purely additive cap on top of an already-working
-      // resume decision. Any failure in the resume-count bookkeeping
-      // itself (folder resolution, file I/O) must fail open to the
-      // existing resume — never silently turn into an unintended
-      // cold-start, which would just as silently skip real resume-failure
-      // detection downstream (that path only runs for `!session.isFresh`).
-      try {
-        const countPath = trackResumeCountPath(trackNumber);
-        const resumeCount = countPath ? (parseInt(readIfExists(countPath) || '0', 10) || 0) : 0;
-        if (shouldRetireSession({ resumeCount })) {
-          console.log(`[session] Track ${trackNumber}: resume count ${resumeCount} >= cap (${DEFAULT_MAX_RESUME_COUNT}) — retiring this session, cold-starting fresh instead of resuming further.`);
-          await invalidateTrackSession(trackNumber);
-          clearTrackResumeCount(trackNumber);
-          return { claude_session_id: randomUUID(), isFresh: true };
-        }
-        if (countPath) {
-          try { writeFileSync(countPath, String(resumeCount + 1), 'utf8'); } catch { /* best-effort */ }
-        }
-      } catch (capErr) {
-        console.warn(`[session] Track ${trackNumber}: resume-count bookkeeping failed (${capErr.message}) — resuming normally, uncapped this cycle.`);
+      const { maxContextTokens, maxResumes } = getSessionCapConfig();
+      const { cap, reason } = shouldCapSession({
+        lastContextTokens: last_context_tokens ?? null,
+        resumeCount: resume_count ?? null,
+        maxContextTokens,
+        maxResumes,
+      });
+      if (cap) {
+        console.log(`[session] Track ${trackNumber}: capping session ${claude_session_id} (reason: ${reason}, last_context_tokens: ${last_context_tokens ?? 'unknown'}, resume_count: ${resume_count ?? 'unknown'}) — cold-starting fresh instead of resuming further.`);
+        await invalidateTrackSession(trackNumber);
+        return { claude_session_id: randomUUID(), isFresh: true };
       }
       return { claude_session_id, isFresh: false };
     }
@@ -5822,22 +5831,22 @@ async function resolveTrackSession(trackNumber) {
     console.warn(`[session] Failed to look up session for track ${trackNumber} (cold-starting): ${err.message}`);
     return null;
   }
-  // No session_id at all (brand-new track, or a prior resume-failure
-  // already invalidated one) — starting fresh either way, so any leftover
-  // resume-count file from a session that no longer exists must not carry
-  // forward and prematurely retire this new one.
-  clearTrackResumeCount(trackNumber);
   return { claude_session_id: randomUUID(), isFresh: true };
 }
 
 // Persists a session id after a spawn actually happens — not at resolution
 // time, so a track/CLI-unavailable bail-out (buildCliArgs returning null)
 // never orphans a session row for a process that never ran.
-async function persistTrackSession(trackNumber, claudeSessionId) {
+// Track 10047 (REQ-9): contextTokens, when known, is forwarded so the
+// NEXT resolveTrackSession call can consult it — best-effort, a missing
+// measurement just means the next cap decision falls back to resume count.
+async function persistTrackSession(trackNumber, claudeSessionId, contextTokens = null) {
   if (getIsLocalFs() || !myWorkerId) return;
   const { url, token } = primaryCollector();
   if (!url) return;
-  await post(url, token, `/track/${trackNumber}/session`, { claude_session_id: claudeSessionId })
+  const payload = { claude_session_id: claudeSessionId };
+  if (contextTokens !== null && contextTokens !== undefined) payload.context_tokens = contextTokens;
+  await post(url, token, `/track/${trackNumber}/session`, payload)
     .catch(err => console.warn(`[session] Failed to persist session for track ${trackNumber}: ${err.message}`));
 }
 
