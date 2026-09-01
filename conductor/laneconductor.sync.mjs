@@ -5913,6 +5913,25 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
 
   const lanesClaimedThisRound = new Map();
 
+  // Confirmed live 2026-09-01: a legacy bare-numbered duplicate folder
+  // (`10045-...`, pre-dating the modern `INITIALS-NNNN-slug` convention)
+  // sat alongside its canonical `AM-10045-...` folder — isTrackDirName only
+  // excludes already-quarantined `_duplicate-*` names, so both passed the
+  // filter above and this loop treated them as two INDEPENDENT candidates
+  // for the SAME track_number. While the canonical folder's review action
+  // was legitimately running (holding the global main-mode lock), this
+  // loop's next tick read the duplicate's stale `queue` status, attempted a
+  // second spawn for the identical track_number, correctly got blocked by
+  // that same lock, and — with no notion of "I already have a live child
+  // running this exact track" — escalated to a hard failure after 5
+  // consecutive blocks, incorrectly marking an actively-progressing run as
+  // permanently failed. Lazily resolved only on an actual same-track_number
+  // collision (resolveTrackFolder does its own readdirSync + quarantine —
+  // too expensive to call unconditionally per directory) — quarantines the
+  // loser as a side effect, so this also permanently fixes the folder
+  // pair, not just this cycle's scan.
+  const seenTrackDirs = new Map(); // track_number -> dir name first seen this pass
+
   for (const dir of dirs) {
     if (runningPids.size >= globalLimit) break;
 
@@ -5930,6 +5949,17 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const trackNumMatch = dir.match(/(\d+)/);
     if (!trackNumMatch) continue;
     const track_number = trackNumMatch[1];
+
+    if (seenTrackDirs.has(track_number)) {
+      const canonicalDir = resolveTrackFolder(tracksDir, track_number);
+      if (dir !== canonicalDir) {
+        console.warn(`[local-fs] Track ${track_number}: skipping duplicate folder "${dir}" (not canonical — using "${canonicalDir}") to avoid a second concurrent spawn attempt for the same track.`);
+        continue;
+      }
+      // The folder seen earlier this pass was the stale one — quarantined
+      // by resolveTrackFolder above; this one is canonical, fall through.
+    }
+    seenTrackDirs.set(track_number, dir);
 
     let waitingForReply = parseWaitingForReply(content);
     const autoRun = parseAutoRun(content);
