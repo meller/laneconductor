@@ -12,7 +12,7 @@ import { promisify } from 'util';
 import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
-import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases, CLAIMABLE_LANES } from './constants.mjs';
+import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
 import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from './providers.mjs';
 import {
   readJiraConfig,
@@ -35,7 +35,7 @@ import { parseConversationComments, findTurnStartOffsets } from './sync-conversa
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
-import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion } from './stream-json-tail.mjs';
+import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
@@ -71,6 +71,7 @@ import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/presp
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
+import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -4040,6 +4041,39 @@ async function checkAndClaimGlobalMainModeLock(trackNumber) {
   return lockFile;
 }
 
+// Read-only pre-check — never mutates the lock (no stale-lock cleanup,
+// unlike checkAndClaimGlobalMainModeLock's own claim attempt; that stays
+// the real claim path's job). Used by the auto-launch loop to skip a
+// candidate that would need main-mode BEFORE claiming it (writing
+// **Lane Status**: running, incrementing the pre-spawn-block counter),
+// instead of claiming, spawning, and immediately discovering the lock is
+// busy. Confirmed live 2026-09-01: two bug-type tracks (10044, 10046)
+// both defaulted to main-mode and kept claim-then-block-then-retry cycling
+// against each other every 5s, each attempt counting toward the same
+// escalate-after-5-consecutive-blocks threshold that marks a track
+// permanently failed — real, actively-progressing work got misreported as
+// broken purely because of this wasted-claim pattern.
+// Returns the track_number currently holding the lock, or null if free
+// (including a stale/dead lock, which the real claim path will clean up).
+function isGlobalMainModeLockBusy() {
+  const lockFile = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
+  if (!existsSync(lockFile)) return null;
+  try {
+    const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
+    const lockAge = Date.now() - new Date(lock.started_at).getTime();
+    const staleTimeout = 5 * 60 * 1000; // same convention as checkAndClaimGlobalMainModeLock
+    const isSameMachine = lock.machine === os.hostname();
+    let isDead = false;
+    if (isSameMachine && lock.pid) {
+      try { process.kill(lock.pid, 0); } catch { isDead = true; }
+    }
+    if (lockAge < staleTimeout && !isDead) return lock.track_number ?? 'unknown';
+    return null;
+  } catch {
+    return null; // unreadable — fail open, the real claim path will report/handle it
+  }
+}
+
 async function releaseGlobalMainModeLock() {
   const lockFile = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
   try {
@@ -4594,7 +4628,24 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   const primaryTrackDirName = resolveTrackFolder(primaryTracksDir, trackNumber);
   const primaryIndexPath = primaryTrackDirName ? join(primaryTracksDir, primaryTrackDirName, 'index.md') : null;
   const primaryIndexContent = primaryIndexPath ? (readIfExists(primaryIndexPath) || '') : '';
-  const workspaceMode = resolveWorkspaceMode({
+  // Track AM-10046 Phase 4 (REQ-7): a conversation-reply run must never
+  // resolve to workspace 'main' via `laneStatus` — resolveWorkspaceMode
+  // forces 'main' unconditionally whenever laneStatus is 'plan' or 'done'
+  // (D5/D6, workspace-mode.mjs:73-80), with no awareness that `laneStatus`
+  // here is just the track's CURRENT on-disk lane, not the lane THIS run
+  // is acting in. Confirmed live (Finding 2, track AM-10040): a reply
+  // dispatched while the track sat in `done` resolved to workspace:main
+  // and contended for the SAME global main-mode lock a genuinely unrelated
+  // track's merge held — a track that never touches code or branches has
+  // no business taking a lock that exists to serialize checkouts with no
+  // worktree isolation. `isConversationRun` bypasses resolveWorkspaceMode
+  // entirely rather than trying to teach it a laneStatus-shaped exception:
+  // a reply always operates directly in process.cwd() (already the
+  // primary checkout for every local-fs dispatch), with neither a
+  // worktree nor the main-mode lock — a genuinely distinct third case, not
+  // 'main' and not 'branch'.
+  const isConversationRun = action === CONVERSATION_REPLY_ACTION;
+  const workspaceMode = isConversationRun ? null : resolveWorkspaceMode({
     laneStatus,
     workspaceMarker: parseWorkspaceMarker(primaryIndexContent),
     trackType: parseTrackKind(primaryIndexContent),
@@ -5173,6 +5224,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
+    let resumeFailureInvalidated = false;
     if (!isSuccess && logContent) {
       isExhausted = isProviderExhausted(logContent, cli);
       if (isExhausted) {
@@ -5189,6 +5241,25 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       if (session && !session.isFresh && isResumeFailure(logContent)) {
         console.log(`[${label}] Detected resume failure for track ${trackNumber} (session ${session.claude_session_id}) — invalidating stored session`);
         await invalidateTrackSession(trackNumber);
+        resumeFailureInvalidated = true;
+      }
+    }
+
+    // Track 10047 (REQ-9): measure this run's final context size from the
+    // same logContent already read above, so the NEXT resolveTrackSession
+    // call for this track has a fresh figure to cap on. Best-effort
+    // throughout — a failed extraction or POST must never affect the run's
+    // outcome. Skipped when this exact session was just invalidated above
+    // (resume failure) — reporting a measurement for a session that no
+    // longer exists would just as silently resurrect a stale row.
+    if (session && !resumeFailureInvalidated) {
+      try {
+        const contextTokens = extractSessionContextTokens(logContent);
+        if (contextTokens !== null) {
+          await persistTrackSession(trackNumber, session.claude_session_id, contextTokens);
+        }
+      } catch (measureErr) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to measure/report session context size (${measureErr.message}) — next cap decision falls back to resume count.`);
       }
     }
 
@@ -5410,6 +5481,15 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
               intendedLane: effectiveLane,
               intendedStatus: nextActionStatus,
               producedByThisRun: preWriteOnDiskLane === laneStatus,
+              // Track AM-10046 Phase 5 (REQ-9): this call site's
+              // producedByThisRun genuinely means "did THIS run execute in
+              // the on-disk lane" (freshly recomputed above, not cached) —
+              // exactly the case requireProducedForAnyChange's own doc
+              // comment says should close BOTH directions, not just
+              // backwards. TC-1's forward-clobber scenario is what this
+              // closes structurally, on top of Phase 2's narrower
+              // conversation-run-specific fix.
+              requireProducedForAnyChange: true,
             });
 
             if (laneWriteGuard.blocked) {
@@ -5699,18 +5779,54 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   return proc.pid;
 }
 
+// Track 10047 (REQ-4): configurable thresholds, same env-override-first
+// precedence as LC_SPAWN_TIMEOUT_MS. 0 disables that check (session-cap.mjs).
+function getSessionCapConfig() {
+  const envTokens = process.env.LC_SESSION_MAX_CONTEXT_TOKENS;
+  const envResumes = process.env.LC_SESSION_MAX_RESUMES;
+  return {
+    maxContextTokens: envTokens !== undefined ? Number(envTokens) : (config.worker?.session_max_context_tokens ?? DEFAULT_MAX_CONTEXT_TOKENS),
+    maxResumes: envResumes !== undefined ? Number(envResumes) : (config.worker?.session_max_resumes ?? DEFAULT_MAX_RESUMES),
+  };
+}
+
 // Track 1086: resolve (or mint) this worker's session for a track, so
 // buildCliArgs can pass --resume instead of cold-starting. Returns
 // { claude_session_id, isFresh } or null if session persistence isn't
 // available (local-fs mode, or not yet registered) — null means "cold-start,
 // same as before this track" everywhere it's checked.
+//
+// Track 10047 (REQ-8): applies shouldCapSession() before deciding to
+// resume. A resumed run's prompt carries ONLY the unanswered human tail
+// (spawnCli's context-injection gate, ~line 4958) — --resume is that
+// session's ONLY continuity mechanism, so letting it grow unbounded is
+// what let AM-10045's review session hard-fail on "Prompt is too long"
+// and AM-10046's implement session reach 406K cached tokens on one turn.
+// A cap decision here returns isFresh: true, which flips buildCliArgs to
+// --session-id (not --resume) and re-enables spawnCli's full file-based
+// context injection — the cold start is not starting blind, it's
+// switching continuity mechanisms.
 async function resolveTrackSession(trackNumber) {
   if (getIsLocalFs() || !myWorkerId) return null;
   const { url, token } = primaryCollector();
   if (!url) return null;
   try {
-    const { claude_session_id } = await get(url, token, `/track/${trackNumber}/session`);
-    if (claude_session_id) return { claude_session_id, isFresh: false };
+    const { claude_session_id, last_context_tokens, resume_count } = await get(url, token, `/track/${trackNumber}/session`);
+    if (claude_session_id) {
+      const { maxContextTokens, maxResumes } = getSessionCapConfig();
+      const { cap, reason } = shouldCapSession({
+        lastContextTokens: last_context_tokens ?? null,
+        resumeCount: resume_count ?? null,
+        maxContextTokens,
+        maxResumes,
+      });
+      if (cap) {
+        console.log(`[session] Track ${trackNumber}: capping session ${claude_session_id} (reason: ${reason}, last_context_tokens: ${last_context_tokens ?? 'unknown'}, resume_count: ${resume_count ?? 'unknown'}) — cold-starting fresh instead of resuming further.`);
+        await invalidateTrackSession(trackNumber);
+        return { claude_session_id: randomUUID(), isFresh: true };
+      }
+      return { claude_session_id, isFresh: false };
+    }
   } catch (err) {
     console.warn(`[session] Failed to look up session for track ${trackNumber} (cold-starting): ${err.message}`);
     return null;
@@ -5721,11 +5837,16 @@ async function resolveTrackSession(trackNumber) {
 // Persists a session id after a spawn actually happens — not at resolution
 // time, so a track/CLI-unavailable bail-out (buildCliArgs returning null)
 // never orphans a session row for a process that never ran.
-async function persistTrackSession(trackNumber, claudeSessionId) {
+// Track 10047 (REQ-9): contextTokens, when known, is forwarded so the
+// NEXT resolveTrackSession call can consult it — best-effort, a missing
+// measurement just means the next cap decision falls back to resume count.
+async function persistTrackSession(trackNumber, claudeSessionId, contextTokens = null) {
   if (getIsLocalFs() || !myWorkerId) return;
   const { url, token } = primaryCollector();
   if (!url) return;
-  await post(url, token, `/track/${trackNumber}/session`, { claude_session_id: claudeSessionId })
+  const payload = { claude_session_id: claudeSessionId };
+  if (contextTokens !== null && contextTokens !== undefined) payload.context_tokens = contextTokens;
+  await post(url, token, `/track/${trackNumber}/session`, payload)
     .catch(err => console.warn(`[session] Failed to persist session for track ${trackNumber}: ${err.message}`));
 }
 
@@ -6084,10 +6205,25 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
               const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
               return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
             };
-            let updated = content;
-            updated = updateHeader(updated, 'Waiting for reply', 'no');
-            updated = updateHeader(updated, 'Lane', workflowConfig?.lanes?.implement?.on_success || 'quality-gate');
-            updated = updateHeader(updated, 'Lane Status', 'queue');
+            // Track AM-10046 Phase 5 (REQ-10): re-read fresh rather than
+            // reusing `content` (captured earlier in this iteration) and
+            // route the Lane/Lane Status pair through applyGuardedLaneWrite
+            // instead of an unconditional regex patch — same stale-
+            // snapshot-wins shape as the max-retries site above.
+            // producedByThisRun is true: this cycle's own detection of the
+            // human's "done" reply is what's producing this forward
+            // transition.
+            const freshContent = readIfExists(indexPath) ?? content;
+            const laneGuard = applyGuardedLaneWrite(freshContent, {
+              intendedLane: workflowConfig?.lanes?.implement?.on_success || 'quality-gate',
+              intendedStatus: 'queue',
+              producedByThisRun: true,
+            });
+            if (laneGuard.blocked) {
+              console.warn(`[local-fs] Track ${track_number}: lane-regression guard blocked supervised-implement "done" transition (${laneGuard.reason}).`);
+              continue;
+            }
+            let updated = updateHeader(laneGuard.content, 'Waiting for reply', 'no');
             if (windowMs > 0) {
               updated = updateHeader(updated, 'KPI Check After', checkAfter.toISOString());
               updated = updateHeader(updated, 'KPI Scheduled At', now.toISOString());
@@ -6165,13 +6301,31 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const maxRetries = laneConfig.max_retries ?? workflowConfig?.defaults?.max_retries ?? 1;
     if (retryCount >= maxRetries && !waitingForReply) {
       console.log(`[local-fs] Track ${track_number} max retries (${maxRetries}) reached. Marking failure.`);
-      let failed = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, '**Lane Status**: failure');
+      // Track AM-10046 Phase 5 (REQ-10): re-read fresh rather than reusing
+      // `content` (captured earlier in this same iteration) and route
+      // through applyGuardedLaneWrite instead of an unconditional regex
+      // patch — this is the exact stale-snapshot-wins shape the rest of
+      // this track fixes, just at a different write site. producedByThisRun
+      // is true here (not requireProducedForAnyChange — see that flag's own
+      // doc comment): this cycle's own retry-exhaustion decision about THIS
+      // track is exactly the kind of legitimate regression the existing
+      // producedByThisRun contract already exists to allow, same as
+      // review/quality-gate's own on_failure transitions.
       const onFailure = laneConfig.on_failure ?? workflowConfig?.defaults?.on_failure;
-      if (onFailure && onFailure !== 'stay') {
-        failed = failed.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${onFailure}`);
-        console.log(`[local-fs] Track ${track_number} failure transition: ${lane_status} → ${onFailure}`);
+      const freshContent = readIfExists(indexPath) ?? content;
+      const failGuard = applyGuardedLaneWrite(freshContent, {
+        intendedLane: (onFailure && onFailure !== 'stay') ? onFailure : lane_status,
+        intendedStatus: 'failure',
+        producedByThisRun: true,
+      });
+      if (failGuard.blocked) {
+        console.warn(`[local-fs] Track ${track_number}: lane-regression guard blocked max-retries failure write (${failGuard.reason}).`);
+      } else {
+        writeFileSync(indexPath, failGuard.content, 'utf8');
+        if (onFailure && onFailure !== 'stay') {
+          console.log(`[local-fs] Track ${track_number} failure transition: ${lane_status} → ${onFailure}`);
+        }
       }
-      writeFileSync(indexPath, failed, 'utf8');
       continue;
     }
 
@@ -6214,12 +6368,17 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
       }
 
       label = 'local-fs-answer';
-      // Respect the current lane's skill if it's an active one, otherwise fallback to implement
-      if (CLAIMABLE_LANES.includes(lane_status)) {
-        cmd_type = lane_status;
-      } else {
-        cmd_type = 'implement';
-      }
+      // Track AM-10046 Phase 4 (REQ-6): NOT a lane name — a conversation
+      // reply is not the lane action, whatever lane the track happens to
+      // be sitting in. `cmd_type` only reaches buildCliArgs's skillCommand
+      // fallback when customPrompt is falsy (the brainstorm case, handled
+      // separately below); for this branch customPrompt is always set, so
+      // cmd_type's only real effect is what gets recorded as `action` in
+      // this run's conductor/.runs/<track>.json marker (spawnCli's last
+      // arg) — assigning it a lane name there is misleading to whoever
+      // reads that file (a human, or a future worker process) about what
+      // kind of run is actually in flight.
+      cmd_type = CONVERSATION_REPLY_ACTION;
 
       // Detect if the latest unanswered message is a brainstorm-tagged message
       const convPath = join(tracksDir, dir, 'conversation.md');
@@ -6308,6 +6467,29 @@ Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversat
       if (!claimTrackFile(tracksDir, dir)) {
         console.log(`[local-fs] Track ${track_number}: lost the file claim race this cycle (another worker already has it). Skipping.`);
         continue;
+      }
+    }
+
+    // Pre-check: would this candidate need main-mode, and is main-mode
+    // already busy? If so, skip it now rather than claiming (writing
+    // **Lane Status**: running, counting toward the pre-spawn-block
+    // escalation threshold) and discovering the same thing one line later
+    // inside spawnCli. See isGlobalMainModeLockBusy's own doc comment for
+    // the live incident this closes.
+    if (!getIsLocalFs()) {
+      const wouldBeWorkspaceMode = resolveWorkspaceMode({
+        laneStatus: lane_status,
+        workspaceMarker: parseWorkspaceMarker(content),
+        trackType: parseTrackKind(content),
+        trigger: waitingForReply ? 'manual-dispatch' : 'auto-queue',
+        projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+      });
+      if (wouldBeWorkspaceMode === 'main') {
+        const busyWithTrack = isGlobalMainModeLockBusy();
+        if (busyWithTrack) {
+          console.log(`[local-fs] Track ${track_number}: skipping this cycle — main-mode is busy with track ${busyWithTrack}, spawning would just block. Will retry next cycle without a wasted claim.`);
+          continue;
+        }
       }
     }
 
@@ -7949,6 +8131,33 @@ async function checkDispatchInbox() {
       logger.warn({ dispatchId: entry.id, trackNumber }, `[dispatch] no available provider for track`);
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'no provider available' }).catch(() => { });
       continue;
+    }
+
+    // Pre-check: would this dispatch need main-mode, and is main-mode
+    // already busy? Confirmed live 2026-09-01: two bug-type tracks (10044,
+    // 10046) both manually dispatched to implement — bug tracks default to
+    // main-mode for a manual-dispatch trigger — kept contending for the
+    // same global lock. Without this check, the claim below writes
+    // **Lane Status**: running (a false "it's working" signal) before
+    // spawnCli discovers the lock conflict a few lines later and reports
+    // failure anyway — same outcome, just with an extra misleading flash
+    // and no clearer a reason. Checking first skips straight to a clean,
+    // actionable failure with no false "running" state in between.
+    const wouldBeWorkspaceMode = resolveWorkspaceMode({
+      laneStatus: lane_status,
+      workspaceMarker: parseWorkspaceMarker(content),
+      trackType: parseTrackKind(content),
+      trigger: 'manual-dispatch',
+      projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+    });
+    if (wouldBeWorkspaceMode === 'main') {
+      const busyWithTrack = isGlobalMainModeLockBusy();
+      if (busyWithTrack) {
+        const reason = `main-mode is busy with track ${busyWithTrack} — will retry via the normal queue`;
+        logger.info({ dispatchId: entry.id, trackNumber, busyWithTrack }, `[dispatch] ${reason}`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: reason }).catch(() => { });
+        continue;
+      }
     }
 
     const [cmd, args, cli, model, tier, session] = cliArgs;
