@@ -1,6 +1,6 @@
 # Track AM-10046: local-fs-answer Overwrites Lane With a Stale Snapshot Under Concurrent Dispatch
 
-**Lane**: quality-gate
+**Lane**: done
 **Workspace**: branch
 **Lane Status**: running
 **Progress**: 100%
