@@ -69,6 +69,7 @@ import { decideTrackFolder } from './services/track-folder.mjs';
 import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
+import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -3471,7 +3472,26 @@ async function handleConfigSync(entry, queuePath) {
   moveEntryToCompleted(queuePath, entry.heading, 'processed');
 }
 
+// Unlike isProviderAvailable() (DB-backed, checks providerStatusCache
+// first), this used to spawn a real `claude -p test` CLI process — a real
+// API call — on every single invocation with no caching at all. Called
+// from inside the 5s auto-launch tick whenever a worker is idle with
+// capacity to claim more work, that meant one full Claude API probe every
+// 5 seconds per idle worker, indefinitely — real CPU/wall-clock and real
+// usage burned for no reason while nothing changed. Confirmed live
+// 2026-09-01: `claude -p test` processes recurring every few seconds
+// under idle workers. Throttled to one real probe per TTL window (see
+// capacity-probe-throttle.mjs), same 60s convention as the auto-launch
+// loop's own exhaustion-log throttle just below
+// (providerStatusCache.get('last_exhaustion_log')).
 async function checkClaudeCapacity() {
+  const { skip, available: cachedAvailable } = decideCapacityProbe({
+    cached: providerStatusCache.get('claude'),
+    nowMs: Date.now(),
+    ttlMs: DEFAULT_CAPACITY_CHECK_TTL_MS,
+  });
+  if (skip) return cachedAvailable;
+
   const { url, token } = primaryCollector();
   return new Promise(resolve => {
     // Run a cheap/meaningless prompt to see if we get the rate limit message
@@ -3483,6 +3503,9 @@ async function checkClaudeCapacity() {
     proc.on('exit', async (code) => {
       // If code is 0, it means it answered successfully
       const available = code === 0;
+      if (available) {
+        providerStatusCache.set('claude', { status: 'ok', reset_at: null, last_error: null, lastCapacityCheckAt: Date.now() });
+      }
       if (!available) {
         let resetAt = new Date(Date.now() + 60000); // 1 min default just in case
 
@@ -3509,6 +3532,10 @@ async function checkClaudeCapacity() {
           }
         }
 
+        providerStatusCache.set('claude', {
+          status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Capacity exhausted',
+          lastCapacityCheckAt: Date.now(),
+        });
         await post(url, token, '/provider-status', {
           provider: 'claude', status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Capacity exhausted'
         }).catch(() => { });
