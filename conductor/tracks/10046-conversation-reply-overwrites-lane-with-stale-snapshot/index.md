@@ -1,6 +1,7 @@
 # Track AM-10046: local-fs-answer Overwrites Lane With a Stale Snapshot Under Concurrent Dispatch
 
 **Lane**: implement
+**Workspace**: branch
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
