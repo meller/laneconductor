@@ -6,7 +6,7 @@
 **PR URL**: https://github.com/meller/laneconductor/pull/23
 **PR Status**: merged
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: All 5 phases implemented and verified
 **Type**: dev
 **Track Kind**: feature
