@@ -4040,6 +4040,39 @@ async function checkAndClaimGlobalMainModeLock(trackNumber) {
   return lockFile;
 }
 
+// Read-only pre-check — never mutates the lock (no stale-lock cleanup,
+// unlike checkAndClaimGlobalMainModeLock's own claim attempt; that stays
+// the real claim path's job). Used by the auto-launch loop to skip a
+// candidate that would need main-mode BEFORE claiming it (writing
+// **Lane Status**: running, incrementing the pre-spawn-block counter),
+// instead of claiming, spawning, and immediately discovering the lock is
+// busy. Confirmed live 2026-09-01: two bug-type tracks (10044, 10046)
+// both defaulted to main-mode and kept claim-then-block-then-retry cycling
+// against each other every 5s, each attempt counting toward the same
+// escalate-after-5-consecutive-blocks threshold that marks a track
+// permanently failed — real, actively-progressing work got misreported as
+// broken purely because of this wasted-claim pattern.
+// Returns the track_number currently holding the lock, or null if free
+// (including a stale/dead lock, which the real claim path will clean up).
+function isGlobalMainModeLockBusy() {
+  const lockFile = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
+  if (!existsSync(lockFile)) return null;
+  try {
+    const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
+    const lockAge = Date.now() - new Date(lock.started_at).getTime();
+    const staleTimeout = 5 * 60 * 1000; // same convention as checkAndClaimGlobalMainModeLock
+    const isSameMachine = lock.machine === os.hostname();
+    let isDead = false;
+    if (isSameMachine && lock.pid) {
+      try { process.kill(lock.pid, 0); } catch { isDead = true; }
+    }
+    if (lockAge < staleTimeout && !isDead) return lock.track_number ?? 'unknown';
+    return null;
+  } catch {
+    return null; // unreadable — fail open, the real claim path will report/handle it
+  }
+}
+
 async function releaseGlobalMainModeLock() {
   const lockFile = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
   try {
@@ -5427,6 +5460,15 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
               intendedLane: effectiveLane,
               intendedStatus: nextActionStatus,
               producedByThisRun: preWriteOnDiskLane === laneStatus,
+              // Track AM-10046 Phase 5 (REQ-9): this call site's
+              // producedByThisRun genuinely means "did THIS run execute in
+              // the on-disk lane" (freshly recomputed above, not cached) —
+              // exactly the case requireProducedForAnyChange's own doc
+              // comment says should close BOTH directions, not just
+              // backwards. TC-1's forward-clobber scenario is what this
+              // closes structurally, on top of Phase 2's narrower
+              // conversation-run-specific fix.
+              requireProducedForAnyChange: true,
             });
 
             if (laneWriteGuard.blocked) {
@@ -6101,10 +6143,25 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
               const re = new RegExp(`\\*\\*${h}\\*\\*:\\s*[^\\n]+`, 'i');
               return re.test(c) ? c.replace(re, `**${h}**: ${v}`) : c.trim() + `\n**${h}**: ${v}\n`;
             };
-            let updated = content;
-            updated = updateHeader(updated, 'Waiting for reply', 'no');
-            updated = updateHeader(updated, 'Lane', workflowConfig?.lanes?.implement?.on_success || 'quality-gate');
-            updated = updateHeader(updated, 'Lane Status', 'queue');
+            // Track AM-10046 Phase 5 (REQ-10): re-read fresh rather than
+            // reusing `content` (captured earlier in this iteration) and
+            // route the Lane/Lane Status pair through applyGuardedLaneWrite
+            // instead of an unconditional regex patch — same stale-
+            // snapshot-wins shape as the max-retries site above.
+            // producedByThisRun is true: this cycle's own detection of the
+            // human's "done" reply is what's producing this forward
+            // transition.
+            const freshContent = readIfExists(indexPath) ?? content;
+            const laneGuard = applyGuardedLaneWrite(freshContent, {
+              intendedLane: workflowConfig?.lanes?.implement?.on_success || 'quality-gate',
+              intendedStatus: 'queue',
+              producedByThisRun: true,
+            });
+            if (laneGuard.blocked) {
+              console.warn(`[local-fs] Track ${track_number}: lane-regression guard blocked supervised-implement "done" transition (${laneGuard.reason}).`);
+              continue;
+            }
+            let updated = updateHeader(laneGuard.content, 'Waiting for reply', 'no');
             if (windowMs > 0) {
               updated = updateHeader(updated, 'KPI Check After', checkAfter.toISOString());
               updated = updateHeader(updated, 'KPI Scheduled At', now.toISOString());
@@ -6182,13 +6239,31 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     const maxRetries = laneConfig.max_retries ?? workflowConfig?.defaults?.max_retries ?? 1;
     if (retryCount >= maxRetries && !waitingForReply) {
       console.log(`[local-fs] Track ${track_number} max retries (${maxRetries}) reached. Marking failure.`);
-      let failed = content.replace(/\*\*Lane Status\*\*:\s*\w+/i, '**Lane Status**: failure');
+      // Track AM-10046 Phase 5 (REQ-10): re-read fresh rather than reusing
+      // `content` (captured earlier in this same iteration) and route
+      // through applyGuardedLaneWrite instead of an unconditional regex
+      // patch — this is the exact stale-snapshot-wins shape the rest of
+      // this track fixes, just at a different write site. producedByThisRun
+      // is true here (not requireProducedForAnyChange — see that flag's own
+      // doc comment): this cycle's own retry-exhaustion decision about THIS
+      // track is exactly the kind of legitimate regression the existing
+      // producedByThisRun contract already exists to allow, same as
+      // review/quality-gate's own on_failure transitions.
       const onFailure = laneConfig.on_failure ?? workflowConfig?.defaults?.on_failure;
-      if (onFailure && onFailure !== 'stay') {
-        failed = failed.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${onFailure}`);
-        console.log(`[local-fs] Track ${track_number} failure transition: ${lane_status} → ${onFailure}`);
+      const freshContent = readIfExists(indexPath) ?? content;
+      const failGuard = applyGuardedLaneWrite(freshContent, {
+        intendedLane: (onFailure && onFailure !== 'stay') ? onFailure : lane_status,
+        intendedStatus: 'failure',
+        producedByThisRun: true,
+      });
+      if (failGuard.blocked) {
+        console.warn(`[local-fs] Track ${track_number}: lane-regression guard blocked max-retries failure write (${failGuard.reason}).`);
+      } else {
+        writeFileSync(indexPath, failGuard.content, 'utf8');
+        if (onFailure && onFailure !== 'stay') {
+          console.log(`[local-fs] Track ${track_number} failure transition: ${lane_status} → ${onFailure}`);
+        }
       }
-      writeFileSync(indexPath, failed, 'utf8');
       continue;
     }
 
@@ -6330,6 +6405,29 @@ Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversat
       if (!claimTrackFile(tracksDir, dir)) {
         console.log(`[local-fs] Track ${track_number}: lost the file claim race this cycle (another worker already has it). Skipping.`);
         continue;
+      }
+    }
+
+    // Pre-check: would this candidate need main-mode, and is main-mode
+    // already busy? If so, skip it now rather than claiming (writing
+    // **Lane Status**: running, counting toward the pre-spawn-block
+    // escalation threshold) and discovering the same thing one line later
+    // inside spawnCli. See isGlobalMainModeLockBusy's own doc comment for
+    // the live incident this closes.
+    if (!getIsLocalFs()) {
+      const wouldBeWorkspaceMode = resolveWorkspaceMode({
+        laneStatus: lane_status,
+        workspaceMarker: parseWorkspaceMarker(content),
+        trackType: parseTrackKind(content),
+        trigger: waitingForReply ? 'manual-dispatch' : 'auto-queue',
+        projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+      });
+      if (wouldBeWorkspaceMode === 'main') {
+        const busyWithTrack = isGlobalMainModeLockBusy();
+        if (busyWithTrack) {
+          console.log(`[local-fs] Track ${track_number}: skipping this cycle — main-mode is busy with track ${busyWithTrack}, spawning would just block. Will retry next cycle without a wasted claim.`);
+          continue;
+        }
       }
     }
 
@@ -7971,6 +8069,33 @@ async function checkDispatchInbox() {
       logger.warn({ dispatchId: entry.id, trackNumber }, `[dispatch] no available provider for track`);
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'no provider available' }).catch(() => { });
       continue;
+    }
+
+    // Pre-check: would this dispatch need main-mode, and is main-mode
+    // already busy? Confirmed live 2026-09-01: two bug-type tracks (10044,
+    // 10046) both manually dispatched to implement — bug tracks default to
+    // main-mode for a manual-dispatch trigger — kept contending for the
+    // same global lock. Without this check, the claim below writes
+    // **Lane Status**: running (a false "it's working" signal) before
+    // spawnCli discovers the lock conflict a few lines later and reports
+    // failure anyway — same outcome, just with an extra misleading flash
+    // and no clearer a reason. Checking first skips straight to a clean,
+    // actionable failure with no false "running" state in between.
+    const wouldBeWorkspaceMode = resolveWorkspaceMode({
+      laneStatus: lane_status,
+      workspaceMarker: parseWorkspaceMarker(content),
+      trackType: parseTrackKind(content),
+      trigger: 'manual-dispatch',
+      projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+    });
+    if (wouldBeWorkspaceMode === 'main') {
+      const busyWithTrack = isGlobalMainModeLockBusy();
+      if (busyWithTrack) {
+        const reason = `main-mode is busy with track ${busyWithTrack} — will retry via the normal queue`;
+        logger.info({ dispatchId: entry.id, trackNumber, busyWithTrack }, `[dispatch] ${reason}`);
+        await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: reason }).catch(() => { });
+        continue;
+      }
     }
 
     const [cmd, args, cli, model, tier, session] = cliArgs;

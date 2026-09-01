@@ -1,8 +1,8 @@
 # Track AM-10046: local-fs-answer Overwrites Lane With a Stale Snapshot Under Concurrent Dispatch
 
-**Lane**: implement
+**Lane**: review
 **Workspace**: branch
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planned
@@ -104,11 +104,11 @@ the conversation-reply path at all.
 
 ## Phases
 
-- [ ] Phase 1: Reproduce the race with a failing regression test
-- [ ] Phase 2: A conversation-reply run may not write `**Lane**` or `**Lane Status**` (all three writers)
-- [ ] Phase 3: Serialize reply dispatch on the existing per-track run marker
-- [ ] Phase 4: Stop conflating `waiting_for_reply` with a lane-action retry (Finding 2)
-- [ ] Phase 5: Audit every other claim-time-snapshot writer; close the guard's forward direction
+- [x] Phase 1: Reproduce the race with a failing regression test
+- [x] Phase 2: A conversation-reply run may not write `**Lane**` or `**Lane Status**` (all three writers)
+- [x] Phase 3: Serialize reply dispatch on the existing per-track run marker
+- [x] Phase 4: Stop conflating `waiting_for_reply` with a lane-action retry (Finding 2)
+- [x] Phase 5: Audit every other claim-time-snapshot writer; close the guard's forward direction
 
 See `plan.md` for tasks, `spec.md` for the confirmed mechanism, `test.md` for TC-1..TC-13.
 **Merge Mode**: direct

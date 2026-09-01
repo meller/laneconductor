@@ -36,11 +36,19 @@ const SYNC_SRC = readFileSync(new URL('../laneconductor.sync.mjs', import.meta.u
 // guard gap (REQ-9), not specific to conversation runs, so it is closed in
 // Phase 5 (TC-11), not here. Kept here anyway to document the exact
 // quadrant spec.md's guard table calls out as uncovered.
-test('TC-1 (Phase 5 fixes this): forward write over a fresher on-disk lane, not produced by this run, should be blocked', () => {
+//
+// Phase 5 update: the actual fix is the opt-in `requireProducedForAnyChange`
+// flag (see TC-11) — NOT a change to the guard's default behavior, which the
+// DB->disk pull site depends on to keep allowing legitimate forward moves
+// (e.g. a human dragging a card forward in the UI) with a permanent
+// `producedByThisRun: false`. This case is asserted WITH the flag set,
+// matching how the exit handler's own call site now invokes it.
+test('TC-1 (Phase 5 fixes this): forward write over a fresher on-disk lane, not produced by this run, should be blocked (with requireProducedForAnyChange)', () => {
   const r = shouldBlockLaneWrite({
     onDiskLane: 'plan',
     intendedLane: 'implement',
     producedByThisRun: false,
+    requireProducedForAnyChange: true,
   });
   assert.equal(r.blocked, true, 'a forward write the current run did not produce must be blocked, same as the backward case already is');
 });
@@ -191,4 +199,48 @@ test('TC-10 (Phase 4, satisfied by construction): a pre-spawn block never sets w
     !handlerSrc.includes('Waiting for reply') && !handlerSrc.includes('waiting_for_reply'),
     'handlePreSpawnBlock must never set **Waiting for reply** — a blocked lane-action retry is not a request for human input, and conflating the two was Finding 2\'s original complaint'
   );
+});
+
+// ── TC-12 (Phase 5, REQ-9 non-regression): every real transition in
+// workflow.json must still pass the guard under the stricter mode ────────
+// The exit handler's own call site now always passes
+// requireProducedForAnyChange: true (Task 2's wiring) — this proves that
+// tightening didn't accidentally block a single one of this project's own
+// real lane transitions, forward or backward, as long as producedByThisRun
+// is true (the normal, uncontended case for every real dispatch).
+test('TC-12: every on_success/on_failure transition in workflow.json passes the guard when producedByThisRun (the normal case)', () => {
+  const workflow = JSON.parse(readFileSync(new URL('../workflow.json', import.meta.url), 'utf8'));
+  let checked = 0;
+  for (const [laneName, laneCfg] of Object.entries(workflow.lanes)) {
+    for (const key of ['on_success', 'on_failure']) {
+      const value = laneCfg[key];
+      if (!value || value === 'stay' || value === 'stop') continue;
+      const [targetLane] = value.split(':');
+      checked++;
+      const r = shouldBlockLaneWrite({
+        onDiskLane: laneName,
+        intendedLane: targetLane,
+        producedByThisRun: true,
+        requireProducedForAnyChange: true,
+      });
+      assert.equal(r.blocked, false, `${laneName}.${key} = "${value}" (${laneName} -> ${targetLane}) must not be blocked when produced by this run`);
+    }
+  }
+  assert.ok(checked >= 7, `sanity: expected to check every lane's on_success/on_failure — only checked ${checked}`);
+});
+
+// ── TC-13 (Phase 5, REQ-10): the two audited snapshot-writer sites route
+// through applyGuardedLaneWrite, not a raw regex patch ────────────────────
+test('TC-13: max-retries failure write and supervised-implement "done" transition both route through applyGuardedLaneWrite', () => {
+  const maxRetriesStart = SYNC_SRC.indexOf('max retries (${maxRetries}) reached');
+  assert.ok(maxRetriesStart !== -1, 'sanity: found the max-retries block');
+  const maxRetriesBlock = SYNC_SRC.slice(maxRetriesStart, maxRetriesStart + 1200);
+  assert.ok(maxRetriesBlock.includes('applyGuardedLaneWrite'), 'max-retries failure write must route through applyGuardedLaneWrite, not an unconditional regex patch');
+  assert.ok(maxRetriesBlock.includes("readIfExists(indexPath)"), 'max-retries failure write must re-read fresh rather than reusing content captured earlier in this iteration');
+
+  const supervisedStart = SYNC_SRC.indexOf('supervised implement "done" detected');
+  assert.ok(supervisedStart !== -1, 'sanity: found the supervised-implement block');
+  const supervisedBlock = SYNC_SRC.slice(supervisedStart, supervisedStart + 2000);
+  assert.ok(supervisedBlock.includes('applyGuardedLaneWrite'), 'supervised-implement "done" transition must route through applyGuardedLaneWrite, not an unconditional regex patch');
+  assert.ok(supervisedBlock.includes('readIfExists(indexPath)'), 'supervised-implement "done" transition must re-read fresh rather than reusing content captured earlier in this iteration');
 });

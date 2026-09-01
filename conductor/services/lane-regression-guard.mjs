@@ -15,11 +15,32 @@
 // rather than writing unconditionally.
 //
 // Pure module, no I/O — mirrors workspace-mode.mjs's extraction style.
+//
+// Track AM-10046 Phase 5: rank() normalizes through LaneAliases
+// (constants.mjs — 'planning'->'plan', 'in-progress'->'implement', etc.)
+// before ranking. Found while wiring this track's own new guard call
+// sites (max-retries failure write, supervised-implement "done"
+// transition) through this module for the first time: an alias lane name
+// (e.g. a track whose index.md still reads **Lane**: in-progress) was
+// treated as "unknown lane" and fail-closed-blocked every write, even a
+// same-value no-op. `extractLaneFromIndex` in laneconductor.sync.mjs
+// already normalizes aliases for exactly this reason at its own call
+// sites; this module hadn't been doing the same for its own onDiskLane/
+// intendedLane inputs. Fixing it here (the shared primitive both existing
+// and new call sites route through) rather than at each call site.
+
+import { LaneAliases, Lanes } from '../constants.mjs';
 
 export const LANE_ORDER = ['backlog', 'plan', 'implement', 'review', 'quality-gate', 'done'];
 
+function normalizeLane(lane) {
+  if (typeof lane !== 'string') return lane;
+  const lower = lane.toLowerCase().trim();
+  return LaneAliases[lower] || (Object.values(Lanes).includes(lower) ? lower : lane);
+}
+
 function rank(lane) {
-  const i = LANE_ORDER.indexOf(lane);
+  const i = LANE_ORDER.indexOf(normalizeLane(lane));
   return i === -1 ? null : i;
 }
 
@@ -37,6 +58,18 @@ function rank(lane) {
  *   completion legitimately causes a backwards transition (e.g. review's on_failure sending
  *   a track back to implement:queue). An unrelated process acting on a stale view is never
  *   the producer of a regression it didn't cause.
+ * @param {boolean} [opts.requireProducedForAnyChange] - Track AM-10046 Phase 5 (REQ-9): when
+ *   true, a lane CHANGE in either direction requires producedByThisRun, not just a backwards
+ *   one. Opt-in (default false, today's behavior unchanged) because `producedByThisRun`'s
+ *   meaning differs by caller: the worker's own exit-handler write recomputes it fresh per run
+ *   as "did THIS run actually execute in the on-disk lane" — a forward write it did NOT
+ *   produce is exactly as illegitimate as a backward one (confirmed live, track AM-10046: a
+ *   conversation-reply's stale dispatch-time snapshot forward-clobbered a lane a concurrent
+ *   lane action had legitimately moved backward while the reply was in flight). The DB->disk
+ *   pull site, by contrast, passes `producedByThisRun: false` UNCONDITIONALLY as a permanent
+ *   "purely observational" flag — under this stricter mode that would block every pull
+ *   including legitimate forward ones (e.g. a human dragging a card forward in the UI), which
+ *   is not this fix's problem to solve. Leave it at the default there.
  * @returns {{blocked: boolean, reason: string|null}}
  */
 export function shouldBlockLaneWrite({
@@ -45,6 +78,7 @@ export function shouldBlockLaneWrite({
   intendedLane,
   intendedStatus = null,
   producedByThisRun = false,
+  requireProducedForAnyChange = false,
 }) {
   const onDiskRank = rank(onDiskLane);
   const intendedRank = rank(intendedLane);
@@ -86,6 +120,18 @@ export function shouldBlockLaneWrite({
     };
   }
 
+  // Forward move (intendedRank > onDiskRank — the only remaining case,
+  // since same-lane already returned above and unknown names fail closed
+  // above that). Historically always allowed unconditionally; see
+  // requireProducedForAnyChange's own doc comment for why that's still the
+  // right default for a caller like the DB->disk pull, and wrong for the
+  // exit handler.
+  if (requireProducedForAnyChange && !producedByThisRun) {
+    return {
+      blocked: true,
+      reason: `refused to write '${intendedLane}' over on-disk '${onDiskLane}' (forward move, rank ${intendedRank} > ${onDiskRank}, not produced by this run)`,
+    };
+  }
   return { blocked: false, reason: null };
 }
 
@@ -102,15 +148,16 @@ export function shouldBlockLaneWrite({
  * @param {string} opts.intendedLane
  * @param {string} [opts.intendedStatus] - omit to only write Lane, not Lane Status
  * @param {boolean} [opts.producedByThisRun]
+ * @param {boolean} [opts.requireProducedForAnyChange] - see shouldBlockLaneWrite's own doc
  * @returns {{content: string, blocked: boolean, reason: string|null, onDiskLane: string|null, onDiskStatus: string|null}}
  */
-export function applyGuardedLaneWrite(content, { intendedLane, intendedStatus, producedByThisRun = false }) {
+export function applyGuardedLaneWrite(content, { intendedLane, intendedStatus, producedByThisRun = false, requireProducedForAnyChange = false }) {
   const onDiskLaneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
   const onDiskStatusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
   const onDiskLane = onDiskLaneMatch ? onDiskLaneMatch[1].trim() : intendedLane;
   const onDiskStatus = onDiskStatusMatch ? onDiskStatusMatch[1].trim() : null;
 
-  const guard = shouldBlockLaneWrite({ onDiskLane, onDiskStatus, intendedLane, intendedStatus, producedByThisRun });
+  const guard = shouldBlockLaneWrite({ onDiskLane, onDiskStatus, intendedLane, intendedStatus, producedByThisRun, requireProducedForAnyChange });
   if (guard.blocked) {
     return { content, blocked: true, reason: guard.reason, onDiskLane, onDiskStatus };
   }
