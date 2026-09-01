@@ -1,6 +1,6 @@
 # Track AM-10044: Board Shows queue While Lane Action Is Actively Running
 
-**Lane**: review
+**Lane**: quality-gate
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
