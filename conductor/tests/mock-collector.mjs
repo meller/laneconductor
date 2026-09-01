@@ -180,12 +180,34 @@ const server = createServer(async (req, res) => {
   // need to change.
   if ((params = route('GET', '/track/:num/session', req)) !== null) {
     const byToken = bearerToken ? (state.sessionsByToken[bearerToken] ??= {}) : {};
-    return reply(res, 200, { claude_session_id: byToken[params.num] ?? null });
+    const entry = byToken[params.num];
+    // Track 10047 (REQ-7): sessionsByToken entries are now objects, not
+    // bare claude_session_id strings — mirrors the real server's GET
+    // returning last_context_tokens/resume_count alongside the id, which
+    // is what the worker's bounded-resume cap actually reads.
+    return reply(res, 200, {
+      claude_session_id: entry?.claude_session_id ?? null,
+      last_context_tokens: entry?.last_context_tokens ?? null,
+      resume_count: entry?.resume_count ?? 0,
+    });
   }
 
   if ((params = route('POST', '/track/:num/session', req)) !== null) {
     if (bearerToken) {
-      (state.sessionsByToken[bearerToken] ??= {})[params.num] = body.claude_session_id;
+      const byToken = (state.sessionsByToken[bearerToken] ??= {});
+      const existing = byToken[params.num];
+      const sameSession = !!existing && existing.claude_session_id === body.claude_session_id;
+      byToken[params.num] = {
+        claude_session_id: body.claude_session_id,
+        // Mirrors the real server's ON CONFLICT CASE: increment on the
+        // same session id, reset to 0 on a different one.
+        resume_count: sameSession ? (existing.resume_count ?? 0) + 1 : 0,
+        // Mirrors the real server's COALESCE: only overwritten when this
+        // POST actually supplies context_tokens.
+        last_context_tokens: (body.context_tokens ?? null) !== null
+          ? body.context_tokens
+          : (existing?.last_context_tokens ?? null),
+      };
     }
     state.sessions[params.num] = body.claude_session_id;
     return reply(res, 200, { ok: true });

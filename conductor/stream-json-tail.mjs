@@ -35,6 +35,34 @@ export function parseNewJsonlLines(content, previousOffset = 0) {
 // closing summary; earlier blocks are working narration. Returns null for
 // logs with no assistant text at all (non-claude CLIs, empty/killed runs),
 // letting the caller fall back to the terse line alone.
+// Track 10047 (REQ-2): the token measurement resolveTrackSession's cap
+// decision needs, taken from the same stream-json log spawnCli already
+// reads at its exit handler. MUST read `assistant` events only, never
+// `result` events — a `result` event's `cache_read_input_tokens` is a
+// CUMULATIVE sum across every turn in the run, not the current context
+// size (confirmed on a real log: 2,152,229 on the result event vs a true
+// 148,710 on the final assistant event, a 14x difference). Reading it
+// would trip any cap threshold on the very first measurement. Mirrors
+// extractFinalAssistantText's last-assistant-wins shape and malformed-line
+// tolerance immediately above.
+export function extractSessionContextTokens(logContent) {
+  if (!logContent) return null;
+  let final = null;
+  for (const line of logContent.split('\n')) {
+    if (!line.trim()) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e?.type !== 'assistant') continue;
+    const usage = e.message?.usage;
+    if (!usage) continue;
+    const cacheRead = usage.cache_read_input_tokens;
+    const cacheCreation = usage.cache_creation_input_tokens;
+    if (typeof cacheRead !== 'number' && typeof cacheCreation !== 'number') continue;
+    final = (cacheRead || 0) + (cacheCreation || 0);
+  }
+  return final;
+}
+
 export function extractFinalAssistantText(logContent, maxChars = 2000) {
   if (!logContent) return null;
   let final = null;
