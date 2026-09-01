@@ -1,14 +1,14 @@
 # Track AM-10044: Board Shows queue While Lane Action Is Actively Running
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Track Kind**: bug
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
-**Summary**: Live incident (2026-08-30, tracks 10039 + 10040 simultaneously): dispatched lane actions were actively running (live PIDs, fresh heartbeats, growing logs) while the Kanban board showed both tracks…
+**Summary**: Planned. Root cause pinned: two startup resets clear `running` with no liveness check (filesystem `resetFilesystemRunningStatus`, and the `immediate` DB reset scoped by a machine_token that…
 
 ## Problem
 
@@ -26,29 +26,37 @@ in-queue. Observed state during the incident:
   folder (Lane: running, now uncommitted)" — yet the primary/DB still read `queue` minutes
   later.
 
-Candidate root causes for planning to verify (not conclusions):
-1. The dispatch/claim path writes `running` to the worktree copy of index.md instead of (or
-   after) the canonical primary copy — the single-writer direction is inverted for the claim
-   marker.
-2. A DB→FS pull or the concurrent-edit grace period re-asserts the stale `queue` over the
-   uncommitted `running` claim (a [SYNC] "concurrent_edit_grace_period SKIPPED" line was
-   observed for 10039's index.md during the window).
-3. The 5s track-heartbeat loop updates `last_heartbeat` but nothing corrects
-   `lane_action_status` for a track present in `runningTrackMap` — the worker knows it's
-   running and never tells the DB.
+## Root Cause (pinned at planning — full evidence in spec.md)
 
-## Solution (to be refined at planning)
+Not the claim-write direction. Three defects sharing one shape: something clears `running`
+without checking whether a run is alive, and nothing can put it back.
 
-- Make the claim marker's write target the canonical primary index.md (or write DB-first for
-  lane_action_status on claim), so the board flips to running the moment work starts.
-- Consider the cheapest reliable fix: the existing 5s heartbeat POST for runningTrackMap
-  entries could also assert `lane_action_status: running` server-side — the worker already
-  knows the truth every 5 seconds.
-- Regression test: dispatch a mock lane action; assert the DB row reads `running` within one
-  heartbeat interval and reverts on completion.
-- Related but distinct (note, don't scope-creep): the duplicate-dispatch race 10040 hit
-  (~90s double spawn) — if planning finds it shares a root cause, widen; otherwise file
-  separately.
+- **A** — `resetFilesystemRunningStatus()` (`sync.mjs:2864`) wipes `running` → `queue` in
+  every `index.md` at worker startup, with no liveness check. Track 10020's
+  `conductor/.runs/<track>.json` markers already answer "is that PID alive?" cross-process;
+  this function doesn't consult them.
+- **B** — the `immediate:true` DB reset (`ui/server/index.mjs:3248`) is scoped by
+  `machine_token`, which identifies a worker *row*, not a *process* (`sync.mjs:986`) — so
+  duplicate processes of one worker reset each other's live claims. Track 1117 Bug 1 fixed
+  cross-worker stomping; same-identity stomping survived it.
+- **C** — `POST /tracks/heartbeat` gates its UPDATE on `lane_action_status='running'`, so the
+  worker's 5s heartbeat can refresh a timestamp but never restore a wrongly-cleared status.
+
+The fresh-`last_heartbeat`-with-`queue` paradox is explained, not a fourth bug: `POST /track`
+sets `last_heartbeat = NOW()` in the same upsert that writes the stale `queue` from the file.
+
+## Solution
+
+Liveness-gate both resets against the existing run markers (A, B), and make the 5s heartbeat
+repair a `queue` row for any track in `runningTrackMap` (C) — narrowly, never against a
+terminal status. Also fixes **D**: `startNextAutoCompleteStage` (`sync.mjs:6323`) never patches
+the DB at all, the gap commit `0abfcf8` closed for `checkDispatchInbox`.
+
+Relationship to [[AM-10045-e2e-tests-leak-real-worker-from-worktree]]: shared trigger,
+independent fixes. The leaked workers made A and B fire dozens of times instead of once — but
+both are bugs at a single deliberate restart too. 10045 stops the duplicates; this track makes
+run-state correct even when duplicates exist. The ~90s duplicate-dispatch race stays with
+10040 — adjacent code, different defect.
 
 ## Related Tracks
 
@@ -59,5 +67,9 @@ Candidate root causes for planning to verify (not conclusions):
 
 ## Phases
 
-- [ ] Phase 1: Reproduce + pin the root cause (claim-write target vs sync race vs missing heartbeat assert)
-- [ ] Phase 2: Fix + regression test (DB reads running within one heartbeat of claim)
+- [ ] Phase 1: Reproduce all three defects as failing tests (red before any fix)
+- [ ] Phase 2: Liveness-gated startup filesystem reset (Finding A)
+- [ ] Phase 3: Process-safe immediate DB reset (Finding B)
+- [ ] Phase 4: Self-healing heartbeat assert (Finding C)
+- [ ] Phase 5: Auto-complete DB parity (Finding D)
+- [ ] Phase 6: Real-product verification + full regression run
