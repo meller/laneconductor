@@ -244,5 +244,3 @@ site's differing semantics were discovered) and was rewritten to match reality d
 ## ✅ REVIEWED
 
 All acceptance criteria verified. Moved to quality-gate lane.
-
-## ✅ QUALITY PASSED
