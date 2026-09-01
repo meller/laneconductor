@@ -112,3 +112,4 @@ the conversation-reply path at all.
 
 See `plan.md` for tasks, `spec.md` for the confirmed mechanism, `test.md` for TC-1..TC-13.
 **Merge Mode**: direct
+**Auto Run**: yes
