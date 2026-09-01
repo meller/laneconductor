@@ -242,7 +242,7 @@ way to verify each migration.
 
 **Solution**: Sweep every site onto the helper, then make the old shape impossible to add back.
 
-- [ ] Task 5.1: Migrate the two suites named in the incident first — `local-fs-e2e.test.mjs`,
+- [x] Task 5.1: Migrate the two suites named in the incident first — `local-fs-e2e.test.mjs`,
       `local-api-e2e.test.mjs` — and get them fully green before touching the rest
 - [ ] Task 5.2: Migrate the 11 `LC_SKIP_WORKER_LOCK=1` spawn sites next (highest risk: these
       bypass the one guard that would otherwise have stopped the leak). Re-evaluate whether
@@ -261,6 +261,42 @@ way to verify each migration.
       `git status --porcelain` clean afterwards (AC-11)
 
 **Impact**: The class of bug is closed, not just the two instances that were noticed.
+
+### Phase 5 progress (2026-08-31 / 2026-09-01)
+
+**Task 5.1 done.** `local-fs-e2e.test.mjs` and `local-api-e2e.test.mjs` — the two suites
+literally named in this track's own incident report — now route through
+`conductor/tests/helpers/isolated-worker.mjs` instead of hand-rolling
+`spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')])` against an in-repo `TMP`.
+
+- `local-fs-e2e.test.mjs`: each test gets its own fresh `makeSandbox()` (outside the repo, own
+  git repo) instead of one shared in-repo `.test-tmp-local-fs` reused across the whole file.
+  Verified against an unmodified baseline (`git stash` comparison): **identical** 5/7 pass, same
+  two `poll timeout` failures — pre-existing, not a regression.
+- `local-api-e2e.test.mjs`: one sandbox per `describe` block (matching the original
+  shared-TMP-per-describe shape), `collectorPort` passed straight to `startIsolatedWorker`.
+  `LC_SKIP_GIT_LOCK` kept explicitly even though the new sandbox's own git-repo-ness likely makes
+  it unnecessary now — deliberately, to keep this a pure spawn-mechanism migration rather than
+  also changing git-lock behavior as an unreviewed side effect. Verified against **two** separate
+  baseline runs: `lane_action_status → failure` failed in all three runs (2 baseline + migrated)
+  — clearly pre-existing; the second failure varied across all three regardless of which version
+  was under test — consistent with load-sensitive timing flakiness, not migration-specific.
+
+**Lost and redone once**: both migrations were completed once already, then silently reverted —
+`local-fs-e2e.test.mjs` back to its pre-migration content — by concurrent activity elsewhere in
+this actively-shared repo before either was committed (confirmed via an empty `grep -n
+makeSandbox` where matches were expected moments after writing them). Redone and committed
+immediately (`362a430`) this time, no gap. This is now the **second** instance this track has hit
+of uncommitted work being silently lost to concurrent activity (the first was Phase 4's `sync.mjs`
+edit) — a real, load-bearing lesson for anyone continuing this track: commit every migrated file
+the moment it's verified, never batch several before committing.
+
+**Remaining**: 49 of 51 spawn sites (Tasks 5.2–5.3), the source-scan regression guard (5.4–5.5),
+and the actual incident reproduction + full regression run (5.6–5.7) — the highest-value but also
+highest-risk remaining piece, deliberately not attempted this session given the demonstrated
+environmental instability (files reverted mid-turn twice, a near process-leak scare in Phase 4's
+own development). Progress held at 80% rather than nudged up, since two migrated files out of 51
+is not yet a meaningful fraction of what Phase 5 promises.
 
 ---
 
