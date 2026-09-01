@@ -97,14 +97,27 @@ at once — the precondition for every symptom in `spec.md`.
 **Solution**: Use `conductor/.runs/<track>.json`, which `spawnCli` already writes at `:5023` and
 removes at `:5049-5055`, and which `isRunMarkerLive()` already validates against a live PID.
 
-- [ ] Task 1: In `autoLaunchLocalFs`, before entering the `waitingForReply` dispatch branch, read
-      the track's run marker; if `isRunMarkerLive(...)`, log and `continue` — defer to a later
-      cycle (AC-6).
-- [ ] Task 2: Confirm the marker is genuinely removed on every exit path (normal exit, crash,
-      pre-spawn block) so a deferred reply is not deferred forever. `reconcileOrphanedDispatches`
-      already reaps markers whose PID is dead; verify it covers the reply label too, and widen it
-      if not.
-- [ ] Task 3: TC-6/TC-7 — a reply is deferred while a marker is live, and dispatched once cleared.
+- [x] Task 1: Inside the `if (waitingForReply)` branch, before assigning `label`/`cmd_type`, read
+      the track's run marker via `parseRunMarker(readIfExists(runMarkerPath(process.cwd(),
+      track_number)))` and `isRunMarkerLive(...)`; if live, log and `continue` (AC-6).
+- [x] Task 2: Confirmed, not widened — already correct as-is:
+      - Normal/crash exit: `proc.on('exit', ...)` removes the marker unconditionally
+        (`rmSync(markerPath)`), regardless of run type — a reply run's marker is cleaned up the
+        same as any other spawn's.
+      - Pre-spawn block: the marker is only ever written AFTER a successful spawn (inside
+        `proc.on('exit')`'s sibling code, past `proc.unref()`) — a pre-spawn-blocked run never
+        writes one in the first place, so there is nothing to leak.
+      - `reconcileOrphanedDispatches` is already action-generic (keys off PID liveness, not
+        `action`/label), so it reaps a reply run's stale marker after a worker restart exactly
+        like any other.
+- [x] Task 3: `conductor/tests/track-10046-run-marker-defer.test.mjs` — a real end-to-end test via
+      the isolated-worker helper (never a hand-rolled sandbox, per track 10045's own incident):
+      plants a live marker (a real long-sleeping child process) before starting the worker,
+      confirms the deferral log line appears and the mock CLI is never invoked (TC-6), then clears
+      the marker and confirms the mock CLI runs on the next cycle (TC-7). Both green on a real
+      spawned worker, ~10.5s. No regressions: `track-10046-stale-lane-snapshot`/
+      `waiting-for-reply-conflation`/`lane-regression-guard` unaffected;
+      `local-fs-e2e.test.mjs` shows the same 2 pre-existing failures as Phase 2, nothing new.
 
 **Impact**: Two concurrent agent sessions per track become structurally impossible. AC-6, and the
 root cause of AC-1..AC-3 rather than just their symptom.

@@ -6194,6 +6194,25 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     }
 
     if (waitingForReply) {
+      // Track AM-10046 Phase 3 (REQ-3, REQ-4): serialize a conversation-reply
+      // dispatch against a concurrently-live run for the SAME track, via the
+      // per-track run marker (conductor/.runs/<track>.json) spawnCli already
+      // writes/removes for every spawn. A reply run bypasses the DB-claim/
+      // file-claim races below (by design — waitingForReply isn't
+      // queue-status-driven, so claim-queue's own WHERE clause would never
+      // match it) — but that leaves NOTHING stopping it from dispatching a
+      // second agent session onto a track a lane action is already mid-flight
+      // on. Two concurrent sessions per track is the precondition behind
+      // every symptom in this track's spec.md; this check removes it at the
+      // source rather than only narrowing what each writer is allowed to do
+      // once both are already running (Phase 2).
+      const liveMarker = parseRunMarker(readIfExists(runMarkerPath(process.cwd(), track_number)));
+      const markerLiveness = isRunMarkerLive(liveMarker, { isPidAlive, readProcessCommand });
+      if (markerLiveness.live) {
+        console.log(`[local-fs] Track ${track_number}: deferring conversation-reply dispatch — a run is already live for this track (pid ${liveMarker.pid}, action ${liveMarker.action}). Will retry next cycle.`);
+        continue;
+      }
+
       label = 'local-fs-answer';
       // Respect the current lane's skill if it's an active one, otherwise fallback to implement
       if (CLAIMABLE_LANES.includes(lane_status)) {
