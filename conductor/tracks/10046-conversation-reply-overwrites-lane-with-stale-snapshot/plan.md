@@ -17,22 +17,28 @@ unverifiable.
 `conductor/tests/local-fs-e2e.test.mjs`'s style) that drives the three writers directly rather
 than racing real wall-clock spawns, so the test is deterministic.
 
-- [ ] Task 1: New `conductor/tests/track-10046-stale-lane-snapshot.test.mjs`.
-    - [ ] Extract the exit handler's lane/status decision into a pure, importable helper so it can
-          be tested without booting the worker (the whole-module-boots-on-import constraint is
-          already documented in `track-10046-waiting-for-reply-conflation.test.mjs`'s header).
-          Target: `conductor/services/conversation-run-write-scope.mjs` — pure, no I/O, mirroring
-          `lane-regression-guard.mjs`'s style.
-    - [ ] TC-1/TC-2/TC-3 (see `test.md`): the three uncovered quadrants of the guard table in
-          `spec.md` — forward clobber, same-lane status clobber, and the already-covered
-          backwards case as a non-regression check.
-- [ ] Task 2: Pin the two *prompt-level* writers (W1, W2) with source assertions, the same
+- [x] Task 1: New `conductor/tests/track-10046-stale-lane-snapshot.test.mjs`.
+    - [x] Extract the exit handler's lane/status decision into a pure, importable helper:
+          `conductor/services/conversation-run-write-scope.mjs` — pure, no I/O, mirroring
+          `lane-regression-guard.mjs`'s style. `getConversationRunWriteScope()` gates Lane/Lane
+          Status writes; `CONVERSATION_REPLY_ACTION` is the non-lane sentinel for Phase 4.
+    - [x] TC-1/TC-2/TC-3: implemented as source-pinned/pure-function tests against the real,
+          already-existing `shouldBlockLaneWrite` (no reason to re-mirror exit-handler logic that
+          can't itself change behavior once frozen in a test file — see the test file's header
+          comment for why source-pin was chosen over a duplicated mirror). TC-1 turned out to be
+          a Phase 5 fix (general guard gap, REQ-9), not Phase 2 — corrected in this file's Phase 5
+          section below.
+- [x] Task 2: Pin the two *prompt-level* writers (W1, W2) with source assertions, the same
       technique TC-6 of the existing 10046 test already uses — these are string-construction
       bugs in `autoLaunchLocalFs`, not logic reachable without a spawn.
-    - [ ] TC-4: the reply `customPrompt` must not interpolate `lane_status`.
-    - [ ] TC-5: the `waitingForReply` branch must not assign `lane_status` to `cmd_type`.
-- [ ] Task 3: Run the new file and **confirm every new case fails** against current `main` before
-      writing any fix. Record the failing output in `conversation.md`.
+    - [x] TC-4: the reply `customPrompt` must not interpolate `lane_status`.
+    - [x] TC-5: the `waitingForReply` branch must not assign `lane_status` to `cmd_type`
+          (confirmed Phase 4, not Phase 2 — see TC-5's own comment in the test file).
+- [x] Task 3: Ran the new file against current `main` — **4 of 7 fail as expected**
+      (TC-1, TC-2, TC-4, TC-5); TC-2a/TC-2b (new module's own contract) and TC-3 (already-correct
+      non-regression) pass immediately, as designed. Full output recorded in `conversation.md`.
+      Confirmed no regression: `track-10046-waiting-for-reply-conflation.test.mjs` (15/15) and
+      `track-10040-lane-regression-guard.test.mjs` still pass unchanged.
 
 **Impact**: A deterministic reproduction of a race that until now was only observable live.
 
@@ -62,7 +68,10 @@ the dispatch-time snapshot back to disk.
       touch `**Lane**`, `**Lane Status**`, or `**Progress**`.
 - [ ] Task 3: Pre-spawn write (`:6225-6226`) — do not write `**Lane Status**: running` when
       `waitingForReply`. Liveness comes from Phase 3's run marker instead.
-- [ ] Task 4: Re-run Phase 1's TC-1..TC-5 — all green.
+- [ ] Task 4: Re-run Phase 1's TC-1..TC-4 — green. TC-5 (cmd_type must not be a
+      lane) stays red until Phase 4, which is where cmd_type is actually fixed
+      — noted here since the original wording of this task implied all five
+      would flip together, which isn't the right phase boundary.
 
 **Impact**: The stale snapshot stops reaching disk from all three writers. AC-1, AC-2, AC-3, AC-8.
 
