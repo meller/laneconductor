@@ -123,3 +123,48 @@ describe('Track AM-10046 Phase 3: conversation-reply dispatch defers to a live r
     }
   });
 });
+
+// Track AM-10046 Phase 4 (REQ-6, AC-4): a track sitting in `done` with a
+// genuine unanswered human comment must dispatch a conversation reply, NOT
+// `/laneconductor merge` under the `local-fs-answer` label — the exact
+// AM-10040 incident shape (a stray reply re-triggering a merge retry that
+// then contended for the main-mode lock). Uses the same mock-CLI argv log
+// as TC-6/TC-7, but asserts on its CONTENT this time: the dispatched
+// command slot must read 'conversation-reply', never 'done'.
+describe('Track AM-10046 Phase 4: a done-lane reply dispatches a conversation reply, not a merge', () => {
+  it('TC-8: waiting_for_reply on a done-lane track never dispatches under a lane-named command', { timeout: 30000 }, async () => {
+    const sandbox = setupProject();
+    const tracksDir = join(sandbox, 'conductor/tracks');
+    const dir = join(tracksDir, '9047-done-reply-test');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.md'), [
+      '# Track 9047: Done Reply Test', '',
+      '**Lane**: done',
+      '**Lane Status**: waiting',
+      '**Progress**: 100%',
+      '**Waiting for reply**: yes',
+      '**Auto Run**: yes', '',
+      '## Problem', 'Test problem.', '',
+      '## Solution', 'Test solution.',
+    ].join('\n'));
+    writeFileSync(join(dir, 'conversation.md'), `> **human**: did the PR get merged?\n`);
+
+    const argvLog = join(sandbox, 'mock-cli-argv.log');
+    const { proc } = await startIsolatedWorker({
+      sandbox,
+      env: { LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '200', MOCK_CLI_ARGV_LOG: argvLog },
+    });
+
+    try {
+      await poll(() => existsSync(argvLog), { timeout: 20000, label: 'mock CLI invocation for track 9047' });
+      const lines = readFileSync(argvLog, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+      assert.ok(lines.length >= 1, 'expected the reply to actually dispatch');
+      const argv = lines[0].argv;
+      assert.ok(argv.includes('conversation-reply'), `expected argv to include the non-lane sentinel 'conversation-reply', got: ${JSON.stringify(argv)}`);
+      assert.ok(!argv.includes('done'), `expected argv to NOT include the lane name 'done' — this must never look like a merge dispatch, got: ${JSON.stringify(argv)}`);
+    } finally {
+      await stopWorker(proc);
+      cleanupSandbox(sandbox);
+    }
+  });
+});

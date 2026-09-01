@@ -12,7 +12,7 @@ import { promisify } from 'util';
 import { createHash, randomUUID } from 'crypto';
 import os from 'os';
 
-import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases, CLAIMABLE_LANES } from './constants.mjs';
+import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
 import { PROVIDERS, PROVIDER_IDS, normalizeProviderId } from './providers.mjs';
 import {
   readJiraConfig,
@@ -4594,7 +4594,24 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   const primaryTrackDirName = resolveTrackFolder(primaryTracksDir, trackNumber);
   const primaryIndexPath = primaryTrackDirName ? join(primaryTracksDir, primaryTrackDirName, 'index.md') : null;
   const primaryIndexContent = primaryIndexPath ? (readIfExists(primaryIndexPath) || '') : '';
-  const workspaceMode = resolveWorkspaceMode({
+  // Track AM-10046 Phase 4 (REQ-7): a conversation-reply run must never
+  // resolve to workspace 'main' via `laneStatus` — resolveWorkspaceMode
+  // forces 'main' unconditionally whenever laneStatus is 'plan' or 'done'
+  // (D5/D6, workspace-mode.mjs:73-80), with no awareness that `laneStatus`
+  // here is just the track's CURRENT on-disk lane, not the lane THIS run
+  // is acting in. Confirmed live (Finding 2, track AM-10040): a reply
+  // dispatched while the track sat in `done` resolved to workspace:main
+  // and contended for the SAME global main-mode lock a genuinely unrelated
+  // track's merge held — a track that never touches code or branches has
+  // no business taking a lock that exists to serialize checkouts with no
+  // worktree isolation. `isConversationRun` bypasses resolveWorkspaceMode
+  // entirely rather than trying to teach it a laneStatus-shaped exception:
+  // a reply always operates directly in process.cwd() (already the
+  // primary checkout for every local-fs dispatch), with neither a
+  // worktree nor the main-mode lock — a genuinely distinct third case, not
+  // 'main' and not 'branch'.
+  const isConversationRun = action === CONVERSATION_REPLY_ACTION;
+  const workspaceMode = isConversationRun ? null : resolveWorkspaceMode({
     laneStatus,
     workspaceMarker: parseWorkspaceMarker(primaryIndexContent),
     trackType: parseTrackKind(primaryIndexContent),
@@ -6214,12 +6231,17 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
       }
 
       label = 'local-fs-answer';
-      // Respect the current lane's skill if it's an active one, otherwise fallback to implement
-      if (CLAIMABLE_LANES.includes(lane_status)) {
-        cmd_type = lane_status;
-      } else {
-        cmd_type = 'implement';
-      }
+      // Track AM-10046 Phase 4 (REQ-6): NOT a lane name — a conversation
+      // reply is not the lane action, whatever lane the track happens to
+      // be sitting in. `cmd_type` only reaches buildCliArgs's skillCommand
+      // fallback when customPrompt is falsy (the brainstorm case, handled
+      // separately below); for this branch customPrompt is always set, so
+      // cmd_type's only real effect is what gets recorded as `action` in
+      // this run's conductor/.runs/<track>.json marker (spawnCli's last
+      // arg) — assigning it a lane name there is misleading to whoever
+      // reads that file (a human, or a future worker process) about what
+      // kind of run is actually in flight.
+      cmd_type = CONVERSATION_REPLY_ACTION;
 
       // Detect if the latest unanswered message is a brainstorm-tagged message
       const convPath = join(tracksDir, dir, 'conversation.md');

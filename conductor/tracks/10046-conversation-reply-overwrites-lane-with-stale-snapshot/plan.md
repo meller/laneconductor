@@ -132,23 +132,28 @@ global main-mode git lock in with it via `resolveWorkspaceMode(laneStatus, …)`
 
 **Solution**: A conversation reply dispatches a non-lane command, always.
 
-- [ ] Task 1: Replace `cmd_type = lane_status` / `cmd_type = 'implement'` (`:6128-6132`) with a
-      single non-lane command for the non-brainstorm case. `cmd_type` reaches `spawnCli`'s
-      `action` param and `buildCliArgs`'s `command`; since `customPrompt` overrides the prompt,
-      the value's real effect is on workspace/lock resolution — so it must name something that is
-      not a lane.
-- [ ] Task 2: Make the reply run's workspace resolution reflect what it does — appends to
-      `conversation.md` in the primary checkout — without taking the global main-mode lock
-      (REQ-7). Check `resolveWorkspaceMode`'s inputs: `laneStatus` must stop being the driver for
-      a reply run.
-- [ ] Task 3: Give a blocked lane-action retry its own signal (REQ-8). `handlePreSpawnBlock`
-      already produces the ⚠️/❌ comments via `prespawn-block.mjs`; the fix is that it must no
-      longer be reached *under the `local-fs-answer` label*, and the "waiting to retry" state must
-      read distinctly from "needs your reply" wherever `waiting_for_reply` currently drives the
-      `needs_input` bucket (`ui/src/components/InboxPanel.jsx:168`,
-      `ui/src/components/wizard/FollowBuildView.jsx:25`).
-- [ ] Task 4: TC-8/TC-9/TC-10 — a `done` + `waiting_for_reply` track does not spawn merge under
-      the answer label; no main-mode lock is taken; the two states render distinctly.
+- [x] Task 1: Replaced `cmd_type = lane_status` / `cmd_type = 'implement'` with the single
+      non-lane sentinel `CONVERSATION_REPLY_ACTION` for the non-brainstorm case (the brainstorm
+      case already correctly used `cmd_type = 'brainstorm'`, untouched). Removed the now-dead
+      `CLAIMABLE_LANES` import (its only use was the removed branch).
+- [x] Task 2: `spawnCli` now computes `isConversationRun = action === CONVERSATION_REPLY_ACTION`
+      and, when true, sets `workspaceMode = null` instead of calling `resolveWorkspaceMode(...)` —
+      bypassing it entirely rather than trying to teach it a laneStatus-shaped exception. `null`
+      falls through every downstream `=== 'main'` / `=== 'branch'` check as neither, so a reply
+      gets no worktree, no main-mode lock, no dirty-checkout guard — it simply operates in
+      `process.cwd()`, already the primary checkout for every local-fs dispatch.
+- [x] Task 3: Turned out to need no code change — see spec.md's REQ-8 correction note.
+      `handlePreSpawnBlock` never touched `**Waiting for reply**` and its comment text was already
+      textually distinct ("blocked... will retry" / "Permanently blocked... needs human
+      attention"); Finding 2's actual defect was that path becoming reachable *mislabeled* as a
+      conversation reply, which Tasks 1-2 already close structurally. Verified, not implemented.
+- [x] Task 4: TC-8 (new e2e test, `track-10046-run-marker-defer.test.mjs`) — a `done`-lane track
+      with a genuine unanswered comment dispatches with `conversation-reply` in argv, never
+      `done`. TC-9 — `resolveWorkspaceMode` sanity-checked to really force `'main'` for
+      `plan`/`done` when called normally (proving the bypass isn't moot), plus a source pin that
+      `spawnCli` actually takes the `isConversationRun ? null : ...` branch. TC-10 — pins
+      `handlePreSpawnBlock` never sets `waiting_for_reply` and its comment text never reads as
+      "needs your reply". All green; TC-1 (Phase 5) is the only case still red.
 
 **Impact**: `waiting_for_reply` recovers its single documented meaning. AC-4, AC-5, AC-7.
 

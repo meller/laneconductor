@@ -21,6 +21,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { shouldBlockLaneWrite } from '../services/lane-regression-guard.mjs';
 import { getConversationRunWriteScope, CONVERSATION_REPLY_ACTION } from '../services/conversation-run-write-scope.mjs';
+import { resolveWorkspaceMode } from '../services/workspace-mode.mjs';
+import { formatBlockComment, decidePreSpawnBlockOutcome, BLOCK_KINDS } from '../services/prespawn-block.mjs';
 
 const SYNC_SRC = readFileSync(new URL('../laneconductor.sync.mjs', import.meta.url), 'utf8');
 
@@ -107,14 +109,86 @@ test('TC-4 (Phase 2 fixes this): reply customPrompt must not instruct a pulse to
   );
 });
 
-// ── TC-5: W2 — cmd_type must not be assigned the current lane_status ──────
-// Fixed in Phase 4 (REQ-6), not Phase 2 — cmd_type's effect on this bug is
-// via the run marker's `action` field feeding orphan-reconcile
-// classification (spawnCli's last arg -> buildRunMarker -> action), a
-// separate concern from Phase 2's Lane/Lane-Status write-scope narrowing.
-test('TC-5 (Phase 4 fixes this): cmd_type must not be assigned lane_status inside the waitingForReply branch', () => {
+// ── TC-5: W2 — cmd_type must not be reassigned to a lane inside the
+// waitingForReply branch specifically ─────────────────────────────────────
+// Fixed in Phase 4 (REQ-6), not Phase 2. Scoped to the waitingForReply
+// block's own source range: `let cmd_type = lane_status;` is the
+// LEGITIMATE default declaration for a normal (non-reply) lane-action
+// dispatch, a few lines above this branch — a plain whole-file substring
+// check would false-positive on that unrelated, correct line, so this
+// isolates just the `if (waitingForReply) { ... }` block's body before
+// asserting. cmd_type's effect on this bug is via the run marker's
+// `action` field (spawnCli's last arg -> buildRunMarker -> action) — a
+// human or future process reading conductor/.runs/<track>.json for this
+// run must not see a lane name for what is actually a conversation reply.
+test('TC-5 (Phase 4 fixes this): cmd_type must not be reassigned to lane_status/a lane inside the waitingForReply branch', () => {
+  const branchStart = SYNC_SRC.indexOf('if (waitingForReply) {');
+  assert.ok(branchStart !== -1, 'sanity: found the waitingForReply branch');
+  // The branch is self-contained well within the next ~200 lines (verified
+  // against current source); slicing bounds the search to this branch's
+  // body without needing a full brace-matching parser.
+  const branchBody = SYNC_SRC.slice(branchStart, branchStart + 4000);
   assert.ok(
-    !SYNC_SRC.includes('cmd_type = lane_status;'),
-    'a conversation reply must dispatch a non-lane action — assigning cmd_type = lane_status makes an orphaned reply run classifiable as an orphaned lane action (e.g. a crashed "done" dispatch) by classifyOrphanedDispatch, which is wrong: no lane action ever ran'
+    !branchBody.includes('cmd_type = lane_status') && !/cmd_type = ['"]implement['"]/.test(branchBody),
+    'inside the waitingForReply branch, cmd_type must never be reassigned to the current lane_status or hardcoded to a lane name like "implement" — a conversation reply must dispatch a non-lane action'
+  );
+});
+
+// ── TC-9 (Phase 4, REQ-7/AC-5): a conversation-reply run must never resolve
+// to workspace 'main' via a stale laneStatus ─────────────────────────────
+// The end-to-end version of this (no main-mode lock actually acquired) is
+// not observable in the local-fs test harness — checkAndClaimGlobalMainModeLock
+// is only ever called when `!getIsLocalFs()` (spawnCli:~4776), so a
+// local-fs sandbox structurally never reaches that branch regardless of
+// workspaceMode. What IS directly verifiable: (a) resolveWorkspaceMode
+// really would force 'main' for laneStatus 'plan'/'done' if it were called
+// normally — proving the bypass below is not moot — and (b) the real
+// dispatch code actually skips that call for a conversation run.
+test('TC-9 (Phase 4 fixes this): a conversation-reply run bypasses resolveWorkspaceMode, so it can never resolve to \'main\' via a stale laneStatus', () => {
+  // Sanity: this is the exact incident shape (Finding 2, track AM-10040) —
+  // resolveWorkspaceMode forces 'main' for these laneStatus values
+  // unconditionally, with no way to opt out via trigger/marker/type.
+  for (const laneStatus of ['plan', 'done']) {
+    assert.equal(
+      resolveWorkspaceMode({ laneStatus, trigger: 'manual-dispatch' }),
+      'main',
+      `sanity: resolveWorkspaceMode(laneStatus=${laneStatus}) really does force 'main' when called normally — this is what a reply run must never reach`
+    );
+  }
+  assert.ok(
+    /isConversationRun\s*\?\s*null\s*:\s*resolveWorkspaceMode/.test(SYNC_SRC),
+    'spawnCli must force workspaceMode to null for isConversationRun, never falling through to resolveWorkspaceMode\'s real (laneStatus-driven) computation — otherwise a reply dispatched while the track sits in plan/done resolves to workspace:main and takes the global main-mode lock for a run that never touches code or branches'
+  );
+});
+
+// ── TC-10 (Phase 4, REQ-8/AC-7): a blocked lane-action retry must read
+// distinctly from "needs your reply" ──────────────────────────────────────
+// Turned out to be satisfied by construction rather than needing a new
+// signal: once Tasks 1-2 make cmd_type/workspace never derive from a
+// conversation run's snapshot, handlePreSpawnBlock (the actual "blocked,
+// will retry" mechanism) is only ever reached via a GENUINE lane-action
+// dispatch — never via the conversation-reply path, genuine or stale flag
+// alike (the stale-flag case was already closed by the earlier
+// hasGenuineUnansweredHumanComment fix, commit ab25d5f). Verified directly:
+// handlePreSpawnBlock/formatBlockComment never touch **Waiting for reply**,
+// and their comment text reads as "blocked/retry", never "needs your
+// reply" — so the two states were already textually and mechanically
+// distinct; what needed fixing was only that a reply could reach this path
+// mislabeled as itself, which Tasks 1-2 close.
+test('TC-10 (Phase 4, satisfied by construction): a pre-spawn block never sets waiting_for_reply and never reads like "needs your reply"', () => {
+  for (const action of ['warn', 'escalate']) {
+    const outcome = decidePreSpawnBlockOutcome({
+      kind: BLOCK_KINDS.MAIN_MODE_LOCK, reason: 'held by another track', countBefore: action === 'escalate' ? 10 : 0,
+    });
+    const body = formatBlockComment(outcome);
+    if (body) {
+      assert.ok(!/needs your reply/i.test(body), `block comment must not read like a reply request: "${body}"`);
+      assert.ok(/blocked|retry/i.test(body), `block comment should clearly read as a blocked retry: "${body}"`);
+    }
+  }
+  const handlerSrc = SYNC_SRC.slice(SYNC_SRC.indexOf('async function handlePreSpawnBlock'), SYNC_SRC.indexOf('async function spawnCli('));
+  assert.ok(
+    !handlerSrc.includes('Waiting for reply') && !handlerSrc.includes('waiting_for_reply'),
+    'handlePreSpawnBlock must never set **Waiting for reply** — a blocked lane-action retry is not a request for human input, and conflating the two was Finding 2\'s original complaint'
   );
 });
