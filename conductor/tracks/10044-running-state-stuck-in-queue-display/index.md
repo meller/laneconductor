@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
 **Type**: dev
 **Track Kind**: bug
