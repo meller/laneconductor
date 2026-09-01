@@ -1,4 +1,4 @@
-# Tests: Track 10040 — Manager Stuck Track Healing
+# Tests: Track 10039 — Cloud Workers Claude Cloud
 
 ## Test Commands
 ```bash

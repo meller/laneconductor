@@ -21,39 +21,66 @@ const API_URL = process.env.TEST_API_URL || 'http://localhost:8091';
 const DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/laneconductor';
 const PROJECT_ID = 1; // laneconductor's own project row
 
+// Track 1100 Gap 4 (2026-08-20): this used to grab whichever worker row was
+// most recently heartbeated (`ORDER BY last_heartbeat DESC LIMIT 1`) and
+// mutate ITS `worktrees` column directly. On a machine with real ambient
+// workers (this repo's normal state — see Gap 2's investigation), that could
+// grab a real worker rather than a test fixture: a live worker's own 5s
+// heartbeat can overwrite the injected test data before the UI assertion
+// runs (a genuine race, reproduced live), and `afterAll`'s "restore" would
+// then stomp that real worker's actual current worktrees with a stale
+// pre-test snapshot. Fixed the way worker-identity.spec.js's seedWorker()
+// already does it: register a dedicated fixture worker this test fully
+// owns, keyed by a per-process-unique hostname so concurrent invocations
+// can't collide with each other either.
+const FIXTURE_HOSTNAME = `pw-e2e-worktree-panel-${process.pid}`;
+// The worktrees panel intentionally aggregates ACROSS every worker/host for
+// the project (that's the feature — see the fetchWorktreeRows comment in
+// ui/server/index.mjs), so a unique hostname alone isn't enough: two
+// concurrent runs each seeding a card titled "#19999" both show up in the
+// SAME aggregated panel, and `getByText('#19999')` then matches two
+// elements. The fake track numbers need to be run-unique too.
+const TRACK_MERGEABLE = `1${String(process.pid).slice(-5).padStart(5, '0')}`;
+const TRACK_STRANDED = `2${String(process.pid).slice(-5).padStart(5, '0')}`;
+
 test.describe.serial('Track 1112 Phase 7: Worktrees panel', () => {
   let pool;
   let workerId;
-  let originalWorktrees;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ request }) => {
     pool = new pg.Pool({ connectionString: DB_URL });
-    // Reuse this project's own registered worker rather than inserting a
-    // fake one — worker rows have several NOT NULL/FK constraints (hostname
-    // uniqueness, machine_token) that aren't this test's concern.
-    const { rows } = await pool.query(
-      `SELECT id, worktrees FROM workers WHERE project_id = $1 ORDER BY last_heartbeat DESC LIMIT 1`,
-      [PROJECT_ID]
-    );
-    if (!rows.length) throw new Error('No registered worker for project 1 — start one first (lc worker start)');
-    workerId = rows[0].id;
-    originalWorktrees = rows[0].worktrees;
+
+    const reg = await request.post(`${API_URL}/worker/register`, {
+      data: {
+        hostname: FIXTURE_HOSTNAME,
+        pid: 999998,
+        worker_number: 98,
+        project_id: PROJECT_ID,
+        type: 'project',
+        mode: 'sync-only',
+        visibility: 'private',
+        cli: 'claude',
+        model: 'sonnet',
+      },
+    });
+    expect(reg.ok(), 'POST /worker/register should succeed').toBeTruthy();
+    ({ id: workerId } = await reg.json());
 
     await pool.query(`UPDATE workers SET worktrees = $1, last_heartbeat = NOW() WHERE id = $2`, [
       JSON.stringify([
-        { track: '19999', title: 'PW Test Mergeable', lane: 'done', lane_status: 'success', ahead: 1, behind: 0, dirty: 0, class: 'mergeable' },
-        { track: '19998', title: 'PW Test Stranded', lane: 'quality-gate', lane_status: 'queue', ahead: 2, behind: 5, dirty: null, class: 'stranded' },
+        { track: TRACK_MERGEABLE, title: 'PW Test Mergeable', lane: 'done', lane_status: 'success', ahead: 1, behind: 0, dirty: 0, class: 'mergeable' },
+        { track: TRACK_STRANDED, title: 'PW Test Stranded', lane: 'quality-gate', lane_status: 'queue', ahead: 2, behind: 5, dirty: null, class: 'stranded' },
       ]),
       workerId,
     ]);
   });
 
   test.afterAll(async () => {
-    await pool.query(`UPDATE workers SET worktrees = $1 WHERE id = $2`, [
-      originalWorktrees ? JSON.stringify(originalWorktrees) : null,
-      workerId,
-    ]);
-    await pool.query(`DELETE FROM worker_dispatch WHERE action = 'merge-worktree' AND track_number = '19999'`);
+    // Delete outright rather than "restore" — this row is a fixture this
+    // test created wholesale, not a real worker it borrowed, so there's no
+    // prior state to put back.
+    await pool.query(`DELETE FROM workers WHERE id = $1`, [workerId]);
+    await pool.query(`DELETE FROM worker_dispatch WHERE action = 'merge-worktree' AND track_number = $1`, [TRACK_MERGEABLE]);
     await pool.end();
   });
 
@@ -69,16 +96,24 @@ test.describe.serial('Track 1112 Phase 7: Worktrees panel', () => {
     await expect(worktreesTab).toBeVisible({ timeout: 10000 });
     await worktreesTab.click();
 
+    // Scoped to each seeded card rather than page-wide `getByText` — under
+    // concurrent invocations (each with their own unique TRACK_MERGEABLE/
+    // TRACK_STRANDED, but the SAME generic "Mergeable"/"Stranded" badge
+    // text), a page-wide locator for the badge text alone would match one
+    // element per concurrent run and fail strict mode, even though each
+    // run's own card is correct.
+    const mergeableCard = page.locator('[data-testid="worktree-row"]', { hasText: `#${TRACK_MERGEABLE}` });
+    const strandedCard = page.locator('[data-testid="worktree-row"]', { hasText: `#${TRACK_STRANDED}` });
+
     // Poll: the panel fetches on a 10s interval, so give it a beat.
-    await expect(page.getByText('#19999')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('#19998')).toBeVisible();
+    await expect(mergeableCard).toBeVisible({ timeout: 15000 });
+    await expect(strandedCard).toBeVisible();
     // exact: true matters — "Mergeable" (the badge) is otherwise a substring
     // match of "PW Test Mergeable" (the seeded title) too.
-    await expect(page.getByText('Mergeable', { exact: true })).toBeVisible();
-    await expect(page.getByText('Stranded', { exact: true })).toBeVisible();
+    await expect(mergeableCard.getByText('Mergeable', { exact: true })).toBeVisible();
+    await expect(strandedCard.getByText('Stranded', { exact: true })).toBeVisible();
 
     // The mergeable row's card should have an enabled "Merge to main" button.
-    const mergeableCard = page.locator('[data-testid="worktree-row"]', { hasText: '#19999' });
     const mergeBtn = mergeableCard.getByTestId('merge-to-main-btn');
     await expect(mergeBtn).toBeEnabled();
     await mergeBtn.click();
@@ -86,7 +121,8 @@ test.describe.serial('Track 1112 Phase 7: Worktrees panel', () => {
     // Real API round-trip: a worker_dispatch row must actually exist now.
     await expect(async () => {
       const { rows } = await pool.query(
-        `SELECT id, worker_id, action, payload FROM worker_dispatch WHERE action = 'merge-worktree' AND track_number = '19999'`
+        `SELECT id, worker_id, action, payload FROM worker_dispatch WHERE action = 'merge-worktree' AND track_number = $1`,
+        [TRACK_MERGEABLE]
       );
       expect(rows.length).toBeGreaterThan(0);
     }).toPass({ timeout: 10000 });

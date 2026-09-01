@@ -497,12 +497,20 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
 
       {/* Queued state indicator (worker waiting to process). Track 10035:
           done:queue means "unmerged, waiting for the merge lane action" —
-          same indicator, lane-specific label. */}
+          same indicator, lane-specific label. Found live (track 10040):
+          the done-lane sentence is nearly 2x the non-done label's length
+          with no width constraint, so it wraps across several lines in a
+          narrow card instead of staying a compact one-line badge like
+          every other status indicator here — short visible label, full
+          explanation in the title tooltip, matching that convention. */}
       {track.lane_action_status === 'queue' && (
-        <div className="flex items-center gap-2 px-2 py-1 rounded bg-yellow-900/20 border border-yellow-800/30">
+        <div
+          className="flex items-center gap-2 px-2 py-1 rounded bg-yellow-900/20 border border-yellow-800/30"
+          title={track.lane_status === 'done' ? 'Unmerged — queued for the merge action' : undefined}
+        >
           <span className="text-yellow-600 text-xs">⏳</span>
-          <span className="text-[10px] text-yellow-400">
-            {track.lane_status === 'done' ? 'Unmerged — queued for the merge action' : 'Queued for automation'}
+          <span className="text-[10px] text-yellow-400 truncate">
+            {track.lane_status === 'done' ? 'Unmerged' : 'Queued for automation'}
           </span>
         </div>
       )}

@@ -152,4 +152,35 @@ describe('NewProjectModal — Guided wizard (Track AM-1119)', () => {
     const body = lastPostBody();
     expect(body.payload.wizard.deployment).toEqual({ provider: 'firebase', environments: ['prod'] });
   });
+
+  // Track AM-1121: a "Marketing / growth (no code)" project skips
+  // Design & Stack and Deployment entirely (three steps, not five) and
+  // tags scaffold_context.project.kind so the manager worker routes track
+  // generation through the marketing skills instead of deriveTrackPlan's
+  // app-shaped templates.
+  it('Marketing project type skips Design/Stack + Deployment and tags kind: marketing', async () => {
+    render(<NewProjectModal {...baseProps()} />);
+    fireEvent.click(screen.getByText('Guided wizard'));
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. Digger Game'), { target: { value: 'Book Marketing' } });
+    fireEvent.click(screen.getByText('Marketing / growth (no code)'));
+    fireEvent.change(screen.getByPlaceholderText('/home/you/Code/digger-game'), { target: { value: '/home/you/Code/book-marketing' } });
+    expect(screen.getByTestId('wizard-next-button')).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId('wizard-next-button'));
+
+    // Step 2: Product
+    fireEvent.change(screen.getByPlaceholderText(/2D digging\/mining game/), { target: { value: 'Sell more copies of the book' } });
+    fireEvent.click(screen.getByTestId('wizard-next-button'));
+
+    // Step 3 is Review & Launch directly — no Design/Stack or Deployment step
+    expect(screen.getByText(/Sell more copies of the book/)).toBeInTheDocument();
+    expect(screen.queryByText(/Deployment:/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('wizard-next-button'));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
+    const body = lastPostBody();
+    expect(body.payload.scaffold_context.project.kind).toBe('marketing');
+    expect(body.payload.wizard.design).toBeNull();
+    expect(body.payload.wizard.deployment).toEqual({ provider: 'skip', environments: [] });
+  });
 });

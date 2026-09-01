@@ -224,6 +224,24 @@ if (writeLaneStatus) {
   } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }
 }
 
+// Track AM-1121: runMarketingTrackBrainstorm spawns exactly this argv shape
+// (not via spawnCli, so no context-injection clobbering — command and
+// trackNumber are reliably what the caller set). Writes a valid trackPlan
+// JSON to conductor/.wizard-track-plan.json (cwd == the new project's
+// targetPath) unless MOCK_CLI_SKIP_MARKETING_TRACK_PLAN is set, letting a
+// test exercise runMarketingTrackBrainstorm's "brainstorm ran but never
+// wrote the file" failure path. MOCK_CLI_MARKETING_TRACK_PLAN overrides the
+// written content (e.g. to a malformed-JSON string) for the other failure
+// paths.
+if (command === 'setup-scaffold-generate' && trackNumber === 'marketing-track-brainstorm' && !process.env.MOCK_CLI_SKIP_MARKETING_TRACK_PLAN) {
+  const planContent = process.env.MOCK_CLI_MARKETING_TRACK_PLAN ?? JSON.stringify([
+    { title: 'Promotion Channels', problem: 'No plan for where to promote the book.', solution: 'Brainstorm yoga/wellness-specific channels via marketing-ideas.' },
+    { title: 'Content Plan', problem: 'No content driving discovery.', solution: 'Plan topics via content-strategy.' },
+    { title: 'KPI Tracking', problem: 'No way to see if promotion is working.', solution: 'Set up BSR/review tracking via analytics-tracking.' },
+  ]);
+  writeFileSync(join(process.cwd(), 'conductor', '.wizard-track-plan.json'), planContent);
+}
+
 setTimeout(() => {
   if (progressTimer) clearInterval(progressTimer);
   if (blockedSummary) {
