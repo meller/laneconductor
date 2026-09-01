@@ -21,6 +21,7 @@ import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.
 import { VALID_MODES as MERGE_MODE_VALID_MODES } from '../../conductor/services/merge-mode.mjs';
 import { VALID_MODES as WORKSPACE_MODE_VALID_MODES } from '../../conductor/services/workspace-mode.mjs';
 import { CLAIMABLE_LANES, MOVABLE_LANES } from '../../conductor/constants.mjs';
+import { shouldBlockLaneWrite } from '../../conductor/services/lane-regression-guard.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -2617,6 +2618,61 @@ app.post('/track', collectorAuth, async (req, res) => {
     const humanGuardActive = humanOwned && laneDisagrees && !isGenuineClaim;
     const preserveHumanFlag = humanOwned && !isGenuineClaim;
 
+    // AM-10046 Finding 1: this endpoint is the single choke point every
+    // lane_status push goes through — a worker's own guarded exit-handler
+    // write (via /track/:num/action), a dispatch reconciliation, AND the
+    // generic FS-watch sync that fires whenever chokidar notices ANY
+    // index.md change in ANY of this project's worktrees. That last one is
+    // the risky one: it just reflects whatever's on disk at read time, with
+    // no notion of "is this the most current copy" — a worktree that's
+    // momentarily stale (its own watcher fired before/after a merge landed
+    // elsewhere) can race a legitimate later write and silently regress the
+    // lane. Confirmed live 2026-08-31: track 10039 flashed done:queue back
+    // to review:running for several seconds before self-correcting, with no
+    // corresponding legitimate transition anywhere in workflow.json.
+    //
+    // Mirrors the worker's own file-level guard (lane-regression-guard.mjs,
+    // track 10040 REQ-12) at this second, DB-side choke point — same rank
+    // logic, same "was this regression actually produced by the write
+    // that's happening" question. A plain FS-sync reflecting on-disk
+    // content never carries `lane_regression_authorized`, so it can never
+    // itself force a backward lane move; only a caller that explicitly
+    // knows it's the legitimate producer of a workflow regression (e.g. a
+    // review's on_failure sending a track back to implement:queue) can set
+    // that flag.
+    //
+    // Same isGenuineClaim exemption as the human guard above, same reason:
+    // a genuine new claim (lane_action_status: 'running') is someone
+    // explicitly dispatching an earlier lane on purpose (e.g. re-running
+    // `plan` on a track that had progressed further) — a deliberate
+    // action, not a passive sync accidentally reflecting stale content.
+    //
+    // EXCEPT out of a worker-set 'done': shouldBlockLaneWrite treats done
+    // as unconditionally terminal (see its own doc comment) precisely
+    // because this is the exact shape of the confirmed incident — a stale
+    // worktree fragment's own genuinely-real "running" snapshot from
+    // BEFORE the merge, synced late, is indistinguishable from a fresh
+    // claim by lane_action_status alone. A human explicitly reopening a
+    // done track (last_updated_by: 'human') is a separate, already-tested
+    // exemption (track 10013) and stays exempted here too.
+    let regressionGuardActive = false;
+    let regressionGuardReason = null;
+    if (
+      !humanGuardActive && oldTrack && lane_status !== null && lane_status !== undefined && oldTrack.lane_status !== lane_status
+      && (!isGenuineClaim || (oldTrack.lane_status === 'done' && !humanOwned))
+    ) {
+      const guard = shouldBlockLaneWrite({
+        onDiskLane: oldTrack.lane_status,
+        intendedLane: lane_status,
+        producedByThisRun: req.body.lane_regression_authorized === true,
+      });
+      if (guard.blocked) {
+        regressionGuardActive = true;
+        regressionGuardReason = guard.reason;
+        console.warn(`[API] POST /track #${track_number}: lane-regression guard — keeping lane_status='${oldTrack.lane_status}', ignoring unauthorized push of lane_status='${lane_status}' (${guard.reason}).`);
+      }
+    }
+
     // Track 1102 F9: refuse to replace a substantial index_content with a
     // gutted, title-less stub. Observed live: a 263-byte marker-only
     // index (title and body gone, Summary lifted from plan.md) was pushed
@@ -2644,16 +2700,18 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     // Build UPDATE clause — avoid duplicate lane_action_status assignments
     let laneStatusClause = '';
-    // humanGuardActive: a stale sync disagreeing with a human-set lane —
-    // skip the lane_status/lane_action_status write entirely (see guard
-    // computed above), leaving the human's lane in place.
-    const laneChanging = !humanGuardActive && lane_status !== null && oldTrack && oldTrack.lane_status !== lane_status;
+    // humanGuardActive / regressionGuardActive: either guard skips the
+    // lane_status/lane_action_status write entirely, leaving the existing
+    // (human-set or more-current) lane in place. Both are logged where
+    // they're computed above.
+    const laneWriteBlocked = humanGuardActive || regressionGuardActive;
+    const laneChanging = !laneWriteBlocked && lane_status !== null && oldTrack && oldTrack.lane_status !== lane_status;
     if (humanGuardActive) {
       console.warn(`[API] POST /track #${track_number}: human-lane-override guard — keeping lane_status='${oldTrack.lane_status}' (human-set), ignoring stale sync's lane_status='${lane_status}'. See track 10013.`);
-    } else if (lane_status !== null) {
+    } else if (!regressionGuardActive && lane_status !== null) {
       laneStatusClause = `lane_status = EXCLUDED.lane_status,`;
     }
-    if (!humanGuardActive && lane_action_status !== null && lane_action_status !== undefined) {
+    if (!laneWriteBlocked && lane_action_status !== null && lane_action_status !== undefined) {
       // Explicit status wins over lane-change default
       laneStatusClause += ` lane_action_status = $13,`;
       if (laneChanging) {
