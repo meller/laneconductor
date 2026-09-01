@@ -2386,12 +2386,34 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       }
     }
 
+    // AM-10046 root cause, part 2: this used to unconditionally register
+    // whichever folder's file just triggered this sync as canonical
+    // (folder_path: trackDir) — bypassing decideTrackFolder's quarantine-
+    // aware resolution entirely. When a track had both a real folder and a
+    // stale/accidental duplicate on disk simultaneously, a file-watch event
+    // on EITHER one would flip the registration, live-observed oscillating
+    // back and forth between them every few seconds. Only the dedicated
+    // resolver (resolveTrackFolder, via decideTrackFolder's content-aware
+    // tie-break) may change which folder is canonical while genuine
+    // ambiguity exists; a plain file-change event on the non-registered
+    // side must not silently override that.
+    let skipFolderPathUpdate = false;
+    try {
+      const currentMeta = getTrackMetadata(trackNumber);
+      const registeredBasename = currentMeta?.folder_path ? basename(currentMeta.folder_path) : null;
+      const thisBasename = basename(trackDir);
+      if (registeredBasename && registeredBasename !== thisBasename && existsSync(join(dirname(trackDir), registeredBasename))) {
+        skipFolderPathUpdate = true;
+        console.warn(`[sync] Track ${trackNumber}: skipping folder_path update from "${thisBasename}" — registered folder "${registeredBasename}" still exists and takes precedence (only the duplicate-folder resolver may change this).`);
+      }
+    } catch { /* best-effort guard — never block a sync over it */ }
+
     let collectorSynced = false;
     try {
       await postToCollectors('/track', payload);
 
       updateTrackMetadata(trackNumber, {
-        folder_path: trackDir,
+        ...(skipFolderPathUpdate ? {} : { folder_path: trackDir }),
         last_file_update: new Date().toISOString(),
         synced: true
       });
