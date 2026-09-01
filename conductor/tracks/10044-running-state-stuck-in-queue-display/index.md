@@ -2,9 +2,9 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: New
 **Type**: dev
 **Track Kind**: bug
