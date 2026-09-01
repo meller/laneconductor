@@ -59,7 +59,7 @@ honest upgrade path: each column to the right is a reason to install more.
 | **Per-lane model** (`lanes.<lane>.primary_model`) | ❌ session model is whatever the human runs | ✅ | ✅ | ✅ |
 | **Per-track model override** (planned, track 1116) | ❌ same reason | ✅ | ✅ | ✅ |
 | Provider exhaustion fallback (primary → secondary CLI) | ❌ | ✅ | ✅ | ✅ |
-| Session continuity across lane actions (`--resume`) | n/a (one human session) | ✅ | ✅ | ✅ |
+| Session continuity across lane actions (`--resume`), bounded (track 10047) | n/a (one human session) | ✅ | ✅ | ✅ |
 | Live model discovery from the machine (heartbeat) | ❌ | ❌ no collector to report to | ✅ | ✅ |
 | Kanban dashboard, Inbox, conversation UI | ❌ | ❌ | ✅ `localhost:8090` | ✅ cloud URL |
 | Worker dispatch / manual "run this on that worker" | ❌ | ❌ | ✅ | ✅ |
@@ -436,6 +436,22 @@ specific worker; `POST /api/projects/:id/dispatch` enqueues a `deploy`
 action (project-scoped, no track). This is how a `sync-only` worker does
 anything at all — it's the only work-launching path that ignores worker
 mode.
+
+**Bounded session resume** (track 10047): a track's session (`--resume`)
+carries forward indefinitely by default, but not unconditionally — each
+lane-action run reports its final context size (last `assistant` event's
+cache tokens) back to the collector, and the next dispatch for that track
+consults it before deciding to resume. Past `worker.session_max_context_tokens`
+(default 400,000 — calibrated above the normal single-action working range
+and below the observed dead zone where a resumed run inherits hundreds of
+thousands of tokens and does essentially nothing before ending) the track
+cold-starts a fresh session instead — with the full project + track context
+(`index.md`/`spec.md`/`plan.md`/`test.md`/a `conversation.md` tail)
+re-injected into that first prompt, so it isn't starting blind. When token
+data is unavailable (a non-claude CLI, or a run that never measured),
+`worker.session_max_resumes` (default 12) is the fallback signal. Both
+accept env overrides (`LC_SESSION_MAX_CONTEXT_TOKENS`,
+`LC_SESSION_MAX_RESUMES`) and `0` disables the respective check.
 
 **Deploy as dispatch**: `lc deploy <env>` and a worker's dispatched deploy
 action both run through one shared function
