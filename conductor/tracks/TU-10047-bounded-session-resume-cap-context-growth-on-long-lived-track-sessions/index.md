@@ -1,7 +1,7 @@
 # Track TU-10047: Bounded Session Resume — Cap Context Growth on Long-Lived Track Sessions
 
-**Lane**: implement
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: All 5 phases implemented and verified
