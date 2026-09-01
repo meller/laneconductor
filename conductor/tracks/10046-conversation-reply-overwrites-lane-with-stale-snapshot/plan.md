@@ -240,3 +240,7 @@ independently pre-existing-broken before this track, fixed as a side effect of P
 acceptance-criteria mapping — the version committed during planning drifted from what was
 actually built (Phase 5 in particular changed shape mid-implementation once the DB→disk pull
 site's differing semantics were discovered) and was rewritten to match reality during Phase 5.
+
+## ✅ REVIEWED
+
+All acceptance criteria verified. Moved to quality-gate lane.
