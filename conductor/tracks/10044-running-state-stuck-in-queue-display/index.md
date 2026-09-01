@@ -1,7 +1,8 @@
 # Track AM-10044: Board Shows queue While Lane Action Is Actively Running
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Merge Mode**: direct
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: New
@@ -74,3 +75,4 @@ run-state correct even when duplicates exist. The ~90s duplicate-dispatch race s
 - [ ] Phase 4: Self-healing heartbeat assert (Finding C)
 - [ ] Phase 5: Auto-complete DB parity (Finding D)
 - [ ] Phase 6: Real-product verification + full regression run
+**Auto Run**: yes
