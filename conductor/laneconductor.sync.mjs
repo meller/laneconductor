@@ -1484,7 +1484,27 @@ function resolveTrackFolder(tracksDir, trackNumber) {
   const registeredFolder = meta?.folder_path ? basename(meta.folder_path) : null;
   const registeredExists = !!(registeredFolder && existsSync(join(tracksDir, registeredFolder)));
 
-  const decision = decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists });
+  // AM-10046 root cause: only computed when 2+ folders could plausibly
+  // match this track number (cheap substring pre-check) — the ambiguous,
+  // unregistered case decideTrackFolder needs real data for. No extra I/O
+  // in the common single-folder case.
+  const candidateNames = dirNames.filter(name => name.includes(trackNumber));
+  let contentSizeByName = null;
+  if (candidateNames.length > 1) {
+    contentSizeByName = {};
+    for (const name of candidateNames) {
+      try {
+        const dirPath = join(tracksDir, name);
+        let total = 0;
+        for (const f of readdirSync(dirPath)) {
+          try { total += statSync(join(dirPath, f)).size; } catch { /* unreadable entry — skip */ }
+        }
+        contentSizeByName[name] = total;
+      } catch { /* unreadable dir — leave unset, decideTrackFolder treats missing as -1 */ }
+    }
+  }
+
+  const decision = decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists, contentSizeByName });
 
   if (decision.quarantine.length > 1) {
     const allMatches = [decision.folder, ...decision.quarantine].sort();
