@@ -71,6 +71,7 @@ import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/presp
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
+import { shouldRetireSession, DEFAULT_MAX_RESUME_COUNT } from './services/session-resume-policy.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -5763,17 +5764,69 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 // { claude_session_id, isFresh } or null if session persistence isn't
 // available (local-fs mode, or not yet registered) — null means "cold-start,
 // same as before this track" everywhere it's checked.
+function trackResumeCountPath(trackNumber) {
+  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+  const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+  return trackDirName ? join(tracksDir, trackDirName, '.resume-count') : null;
+}
+
+function clearTrackResumeCount(trackNumber) {
+  const countPath = trackResumeCountPath(trackNumber);
+  if (countPath && existsSync(countPath)) {
+    try { rmSync(countPath); } catch { /* best-effort — never block a spawn over this */ }
+  }
+}
+
 async function resolveTrackSession(trackNumber) {
   if (getIsLocalFs() || !myWorkerId) return null;
   const { url, token } = primaryCollector();
   if (!url) return null;
   try {
     const { claude_session_id } = await get(url, token, `/track/${trackNumber}/session`);
-    if (claude_session_id) return { claude_session_id, isFresh: false };
+    if (claude_session_id) {
+      // Track 10047: bounded resume — resolveTrackSession used to resume
+      // the same session forever once one existed, with every resumed
+      // turn re-paying (cached-rate, but non-zero, compounding) for the
+      // entire accumulated conversation. See session-resume-policy.mjs's
+      // doc comment for the live incident (AM-10045 hard-failed on
+      // "Prompt is too long"; AM-10046 hit 406K cached tokens on one turn)
+      // and why resuming past a cap isn't starting blind — every spawn
+      // already re-injects index/spec/plan/test.md + a conversation tail
+      // regardless of fresh vs resumed.
+      //
+      // Deliberately its OWN try/catch, separate from the lookup above:
+      // this is a purely additive cap on top of an already-working
+      // resume decision. Any failure in the resume-count bookkeeping
+      // itself (folder resolution, file I/O) must fail open to the
+      // existing resume — never silently turn into an unintended
+      // cold-start, which would just as silently skip real resume-failure
+      // detection downstream (that path only runs for `!session.isFresh`).
+      try {
+        const countPath = trackResumeCountPath(trackNumber);
+        const resumeCount = countPath ? (parseInt(readIfExists(countPath) || '0', 10) || 0) : 0;
+        if (shouldRetireSession({ resumeCount })) {
+          console.log(`[session] Track ${trackNumber}: resume count ${resumeCount} >= cap (${DEFAULT_MAX_RESUME_COUNT}) — retiring this session, cold-starting fresh instead of resuming further.`);
+          await invalidateTrackSession(trackNumber);
+          clearTrackResumeCount(trackNumber);
+          return { claude_session_id: randomUUID(), isFresh: true };
+        }
+        if (countPath) {
+          try { writeFileSync(countPath, String(resumeCount + 1), 'utf8'); } catch { /* best-effort */ }
+        }
+      } catch (capErr) {
+        console.warn(`[session] Track ${trackNumber}: resume-count bookkeeping failed (${capErr.message}) — resuming normally, uncapped this cycle.`);
+      }
+      return { claude_session_id, isFresh: false };
+    }
   } catch (err) {
     console.warn(`[session] Failed to look up session for track ${trackNumber} (cold-starting): ${err.message}`);
     return null;
   }
+  // No session_id at all (brand-new track, or a prior resume-failure
+  // already invalidated one) — starting fresh either way, so any leftover
+  // resume-count file from a session that no longer exists must not carry
+  // forward and prematurely retire this new one.
+  clearTrackResumeCount(trackNumber);
   return { claude_session_id: randomUUID(), isFresh: true };
 }
 
