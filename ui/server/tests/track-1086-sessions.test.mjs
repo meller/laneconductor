@@ -40,7 +40,7 @@ describe('GET /track/:num/session', () => {
 
     it('returns the existing session for this worker', async () => {
         mockMachineTokenAuth(7);
-        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ claude_session_id: 'abc-123' }] });
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ claude_session_id: 'abc-123', last_context_tokens: 148922, resume_count: 3 }] });
 
         const res = await request(app)
             .get('/track/001/session')
@@ -49,7 +49,7 @@ describe('GET /track/:num/session', () => {
 
         expect(res.body.claude_session_id).toBe('abc-123');
         expect(pool.query).toHaveBeenLastCalledWith(
-            'SELECT claude_session_id FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+            expect.stringContaining('SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions'),
             ['001', 7]
         );
     });
@@ -84,7 +84,7 @@ describe('GET /track/:num/session', () => {
 
         expect(res.body.claude_session_id).toBeNull();
         expect(pool.query).toHaveBeenLastCalledWith(
-            'SELECT claude_session_id FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+            expect.stringContaining('SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions'),
             ['001', 8]
         );
     });
@@ -92,6 +92,21 @@ describe('GET /track/:num/session', () => {
     it('requires worker identity — 400 without a resolvable worker', async () => {
         const res = await request(app).get('/track/001/session').expect(400);
         expect(res.body.error).toMatch(/worker/i);
+    });
+
+    // Track 10047 (TC-10): a row predating the last_context_tokens/resume_count
+    // migration reports null/0 via the endpoint's own fallback, not undefined —
+    // the cap policy relies on this "unknown vs known" distinction staying intact.
+    it('TC-10: a legacy row with no measured tokens yet reports last_context_tokens: null, resume_count: 0', async () => {
+        mockMachineTokenAuth(7);
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ claude_session_id: 'legacy-uuid', last_context_tokens: null, resume_count: 0 }] });
+
+        const res = await request(app)
+            .get('/track/001/session')
+            .set('Authorization', 'Bearer mtoken-abc')
+            .expect(200);
+
+        expect(res.body).toEqual({ claude_session_id: 'legacy-uuid', last_context_tokens: null, resume_count: 0 });
     });
 });
 
@@ -111,7 +126,28 @@ describe('POST /track/:num/session', () => {
         expect(res.body.ok).toBe(true);
         expect(pool.query).toHaveBeenLastCalledWith(
             expect.stringContaining('ON CONFLICT'),
-            ['001', 7, 'new-uuid-here']
+            ['001', 7, 'new-uuid-here', null]
+        );
+    });
+
+    // Track 10047 (REQ-6): an optional fourth field alongside the session id.
+    // The actual increment/reset/preserve behavior (TC-11/TC-12/TC-13) lives
+    // in the SQL's CASE/COALESCE, not in JS this fully-mocked pool can
+    // meaningfully verify — see track-10047-session-endpoints.test.mjs for
+    // that, run against a real local Postgres.
+    it('forwards context_tokens as the fourth positional param when supplied', async () => {
+        mockMachineTokenAuth(7);
+        vi.mocked(pool.query).mockResolvedValueOnce({ rowCount: 1 });
+
+        await request(app)
+            .post('/track/001/session')
+            .set('Authorization', 'Bearer mtoken-abc')
+            .send({ claude_session_id: 'new-uuid-here', context_tokens: 148922 })
+            .expect(200);
+
+        expect(pool.query).toHaveBeenLastCalledWith(
+            expect.stringContaining('ON CONFLICT'),
+            ['001', 7, 'new-uuid-here', 148922]
         );
     });
 

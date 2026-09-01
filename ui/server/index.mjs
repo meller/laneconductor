@@ -3334,10 +3334,18 @@ app.get('/track/:num/session', collectorAuth, async (req, res) => {
   try {
     if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
     const { rows } = await pool.query(
-      'SELECT claude_session_id FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+      'SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
       [req.params.num, req.worker_id]
     );
-    res.json({ claude_session_id: rows[0]?.claude_session_id ?? null });
+    res.json({
+      claude_session_id: rows[0]?.claude_session_id ?? null,
+      // Track 10047: a row that predates the last_context_tokens/resume_count
+      // migration reads NULL/0 via the column defaults — reported as-is,
+      // never coerced, so the cap policy's "unknown" (null) vs "known" (a
+      // number) distinction stays intact for the caller.
+      last_context_tokens: rows[0]?.last_context_tokens ?? null,
+      resume_count: rows[0]?.resume_count ?? 0,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3346,14 +3354,27 @@ app.get('/track/:num/session', collectorAuth, async (req, res) => {
 app.post('/track/:num/session', collectorAuth, async (req, res) => {
   try {
     if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
-    const { claude_session_id } = req.body;
+    const { claude_session_id, context_tokens } = req.body;
     if (!claude_session_id) return res.status(400).json({ error: 'claude_session_id is required' });
+    // Track 10047 (REQ-6): resume_count increments only when this POST's
+    // claude_session_id matches what was already stored (a genuine resume
+    // of the same session) and resets to 0 when it differs (a fresh
+    // session) — computed server-side so the worker never has to read
+    // then write. last_context_tokens is overwritten ONLY when
+    // context_tokens is supplied (COALESCE) — a POST that doesn't measure
+    // it (e.g. a non-claude CLI run) must not erase a prior measurement.
     await pool.query(
-      `INSERT INTO track_sessions(track_number, worker_id, claude_session_id, last_used_at)
-       VALUES($1, $2, $3, NOW())
+      `INSERT INTO track_sessions(track_number, worker_id, claude_session_id, last_used_at, last_context_tokens, resume_count)
+       VALUES($1, $2, $3, NOW(), $4, 0)
        ON CONFLICT (track_number, worker_id) DO UPDATE SET
-       claude_session_id = EXCLUDED.claude_session_id, last_used_at = NOW()`,
-      [req.params.num, req.worker_id, claude_session_id]
+       claude_session_id = EXCLUDED.claude_session_id,
+       last_used_at = NOW(),
+       resume_count = CASE
+         WHEN track_sessions.claude_session_id = EXCLUDED.claude_session_id THEN track_sessions.resume_count + 1
+         ELSE 0
+       END,
+       last_context_tokens = COALESCE($4, track_sessions.last_context_tokens)`,
+      [req.params.num, req.worker_id, claude_session_id, context_tokens ?? null]
     );
     res.json({ ok: true });
   } catch (err) {
