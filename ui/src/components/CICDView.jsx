@@ -301,12 +301,23 @@ function DispatchHistory({ projectId }) {
         const createdBy = d.payload?.createdBy;
         const workerLabel = d.worker_hostname ? `${d.worker_hostname}#${d.worker_number ?? 1}` : `worker #${d.worker_id}`;
         const isSelected = selectedId === d.id;
-        const statusClass = d.status === 'done' ? 'text-green-400' : d.status === 'failed' ? 'text-red-400' : d.status === 'claimed' ? 'text-blue-400 animate-pulse' : 'text-yellow-400';
-        const statusSymbol = d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : '•';
-        const statusTitle = d.status === 'done' ? 'Completed' : d.status === 'failed' ? 'Failed' : d.status === 'claimed' ? 'In Progress' : 'Pending';
+        // Track 10032: track_number IS NULL dispatches (deploy,
+        // create-project, ...) have no track panel and get no Inbox
+        // comment (Phase 2's null guard) — this list is their only surface
+        // for a reap, so it needs the same amber ⟳ treatment as
+        // TrackDetailPanel's strip.
+        const isReapedPending = !!d.reap_reason && d.status !== 'failed';
+        const statusClass = isReapedPending ? 'text-amber-400' : d.status === 'done' ? 'text-green-400' : d.status === 'failed' ? 'text-red-400' : d.status === 'claimed' ? 'text-blue-400 animate-pulse' : 'text-yellow-400';
+        const statusSymbol = isReapedPending ? '⟳' : d.status === 'done' ? '✓' : d.status === 'failed' ? '✗' : '•';
+        const statusTitle = d.reap_reason || (d.status === 'done' ? 'Completed' : d.status === 'failed' ? 'Failed' : d.status === 'claimed' ? 'In Progress' : 'Pending');
+        const reasonText = d.reap_reason || d.result;
 
         return (
-          <div key={d.id} className="flex flex-col bg-gray-950 border border-gray-800 rounded-lg p-3 gap-2 hover:border-gray-700 transition-colors">
+          <div
+            key={d.id}
+            className="flex flex-col bg-gray-950 border border-gray-800 rounded-lg p-3 gap-2 hover:border-gray-700 transition-colors"
+            {...(d.reap_reason ? { 'data-testid': `dispatch-reaped-${d.id}` } : {})}
+          >
             <div className="flex items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                 <span className={`font-bold ${statusClass}`} title={`Status: ${statusTitle}`}>{statusSymbol}</span>
@@ -331,7 +342,7 @@ function DispatchHistory({ projectId }) {
                 {createdBy && <span className="text-[10px] text-gray-600 italic">by {createdBy}</span>}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {d.result && <span className="text-gray-400 truncate max-w-[160px] text-[10px]" title={d.result}>{d.result}</span>}
+                {reasonText && <span className={`truncate max-w-[160px] text-[10px] ${d.reap_reason ? 'text-amber-500/80' : 'text-gray-400'}`} title={reasonText}>{reasonText}</span>}
                 <span className="text-[10px] text-gray-500">{new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                 <button
                   onClick={() => setSelectedId(isSelected ? null : d.id)}

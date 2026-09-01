@@ -7,6 +7,7 @@
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Phase 2 COMPLETE (executor seam, zero regressions verified) — Phases 3/3b/4+ remain
 **Type**: dev
+**Auto Run**: yes
 **Track Kind**: feature
 **Author**: AM
 **Created By**: asaf.meller@gmail.com

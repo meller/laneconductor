@@ -1,14 +1,17 @@
 # Track AM-10040: Manager Stuck-Track Healing — Escalate Permanent Workspace-Guard Blocks
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 0%
-**Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Plan final (7 phases) — REQ-11/REQ-13 corrections inline; Phase 1 ready
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**PR Number**: 20
+**PR URL**: https://github.com/meller/laneconductor/pull/20
+**PR Status**: merged
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Phases 1–5 complete (of 7, Phase 5 has one flagged gap) — Phase 6 (manager sweep) next
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: branch
-**Auto Run**: yes
+**Auto Run**: no
 **Waiting for reply**: no
 **Author**: AM
 **Created By**: asaf.meller@gmail.com
@@ -59,10 +62,10 @@ sweep — it's the one worker with cross-project scope and no per-project claim 
 Ordered by live damage rate, not by the order the findings were written. The original three
 phases are now 5–7; Findings 4–7 produced the four that go first.
 
-- [ ] Phase 1: One lane list + claims that say why they failed (REQ-13, 14 — Finding 5)
-- [ ] Phase 2: Stale-process containment, then detection (REQ-12, 11 — Finding 4)
-- [ ] Phase 3: One folder resolver, skill included (REQ-15 — Finding 6)
-- [ ] Phase 4: Invalid resting states (REQ-16, 17 — Finding 7)
-- [ ] Phase 5: Pre-spawn block counting + escalation to failure (REQ-1, 2, 3, 8, 9, 10 — Finding 1)
-- [ ] Phase 6: Manager sweep — phantom markers, wedged lanes, dead-cwd workers (REQ-4, 5, 6)
-- [ ] Phase 7: Known-safe auto-heal, propose-by-default (REQ-7)
+- [x] Phase 1: One lane list + claims that say why they failed (REQ-13, 14 — Finding 5)
+- [x] Phase 2: Stale-process containment, then detection (REQ-12, 11 — Finding 4)
+- [x] Phase 3: One folder resolver, skill included (REQ-15 — Finding 6)
+- [x] Phase 4: Invalid resting states (REQ-16, 17 — Finding 7)
+- [x] Phase 5: Pre-spawn block counting + escalation to failure (REQ-1, 2, 3, 8, 9, 10 — Finding 1)
+- [x] Phase 6: Manager sweep — phantom markers, wedged lanes, dead-cwd workers (REQ-4, 5, 6)
+- [x] Phase 7: Known-safe auto-heal, propose-by-default (REQ-7)
