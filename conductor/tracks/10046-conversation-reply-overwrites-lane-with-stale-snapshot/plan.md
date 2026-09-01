@@ -166,22 +166,53 @@ snapshot is `spawnCli`'s 8th argument, which *every* dispatch path passes.
 
 **Solution**: Enumerate and classify each site; fix or document each.
 
-- [ ] Task 1: Enumerate the `**Lane**` write sites in `laneconductor.sync.mjs`
-      (`:5339`, `:6100`, `:6018-6019`, `:6295`, `:6381`, `:7106`, `:7834`) plus the DB→disk pull
-      site, and classify each as fresh-read or snapshot-write.
-    - [ ] Known-safe reference: `checkAutoCompleteProgress` re-reads `afterLane` fresh at `:6381`.
-    - [ ] Known-suspect: the max-retries failure write at `:6097-6103` regex-patches `content`
-          captured at the top of the same scan and bypasses `applyGuardedLaneWrite` entirely.
-    - [ ] Known-suspect: the supervised-implement "done" transition at `:6016-6024`, same shape.
-- [ ] Task 2: Close the guard's forward direction (REQ-9) in
-      `conductor/services/lane-regression-guard.mjs` — a write of lane X over on-disk Y where
-      `X !== Y` and the run did not execute in Y is illegitimate in either rank direction. Verify
-      no legitimate transition is broken: `producedByThisRun` is exactly the flag that should
-      permit them, and it is already computed from a fresh pre-write read at `:5339-5344`.
-- [ ] Task 3: Route the sites found in Task 1 through `applyGuardedLaneWrite` rather than raw
-      regex replacement.
-- [ ] Task 4: TC-11/TC-12 — forward clobber blocked; every legitimate `on_success`/`on_failure`
-      transition in `workflow.json` still passes the guard.
+- [x] Task 1: Enumerated every raw `**Lane**` write site in `laneconductor.sync.mjs` (line
+      numbers as of this commit):
+    - **Fixed this phase** (Task 3): max-retries failure write (`~6192-6215`); supervised-implement
+      "done" transition (`~6083-6135`) — both previously regex-patched `content` captured earlier
+      in the same loop iteration and bypassed `applyGuardedLaneWrite` entirely.
+    - **Already safe, unchanged**: the exit handler's own write (`~5426`, now
+      `requireProducedForAnyChange: true`); the DB→disk pull (`~1966`, permanently
+      `producedByThisRun: false`, deliberately still permissive of forward pulls — see
+      `requireProducedForAnyChange`'s own doc comment for why); `handlePreSpawnBlock`'s status
+      write (`~4556`, always same-lane, `producedByThisRun: true`); `startNextAutoCompleteStage`/
+      `checkAutoCompleteProgress` (re-reads `afterLane` fresh from disk, `~6485`).
+    - **Reviewed, classified safe, out of scope**: `~2382` (additive-only — fires only when
+      `**Lane**` is entirely absent, nothing to clobber); `~2688` (`conv-command`'s replan/bug-flow
+      handler — fresh-read immediately before write, same synchronous block, and a deliberate
+      human-issued command rather than an accidental stale-snapshot write); `~7647`
+      (`discard-track` dispatch action — same shape: fresh-read, human-initiated, deliberate).
+      Neither of the latter two routes through `applyGuardedLaneWrite`, and that's correct as-is:
+      both are explicit human overrides that may legitimately need to move even a `done` track,
+      which the terminal-lane rule would otherwise refuse — not this track's problem to solve.
+- [x] Task 2: Closed the guard's forward direction via an **opt-in** flag,
+      `requireProducedForAnyChange` (see `lane-regression-guard.mjs`'s own doc comment for the
+      full reasoning) — NOT a change to the guard's default behavior. Discovered mid-implementation
+      that a blanket close (no opt-in) would have broken the DB→disk pull's legitimate permissive
+      handling of forward moves (e.g. a human dragging a card forward in the UI, which passes
+      `producedByThisRun: false` UNCONDITIONALLY by design). Only the exit handler's own call site
+      — where `producedByThisRun` genuinely means "did this run execute in the on-disk lane,"
+      freshly recomputed every call — opts in.
+    - **Also found and fixed while wiring this** (not originally scoped, but directly necessary):
+      `rank()` didn't normalize lane names through `LaneAliases` before ranking, so an
+      alias-named lane (`in-progress`, `planning`, etc. — a real, existing concept elsewhere in
+      this file via `extractLaneFromIndex`) was treated as "unknown lane" and fail-closed-blocked
+      even a same-value no-op. Caught because Phase 5's own new call sites (Task 3) were the
+      first to route THROUGH this guard for tracks using those names, at which point it
+      regressed a previously-passing e2e test. Fixing `rank()` itself (the shared primitive) was
+      required to avoid that regression, and turned out to also fix two pre-existing,
+      independently-confirmed e2e failures (`on_success: in-progress → review`,
+      `full pipeline`) that had nothing to do with this track originally — see `test.md`'s
+      verification notes.
+- [x] Task 3: Both suspect sites now re-read `index.md` fresh (`readIfExists(indexPath) ??
+      content`, never reusing the loop-scoped `content`) and route through
+      `applyGuardedLaneWrite` with `producedByThisRun: true` (this cycle's own retry-exhaustion /
+      "done"-reply-detected decision is the legitimate producer, same as review/quality-gate's
+      own `on_failure` transitions).
+- [x] Task 4: TC-11 (renamed from the original plan — folded into TC-1, now exercised WITH
+      `requireProducedForAnyChange`), TC-12 (every `on_success`/`on_failure` transition in the
+      real `conductor/workflow.json` passes the guard when produced), TC-13 (both Task-3 sites
+      route through `applyGuardedLaneWrite` with a fresh read — source-pinned). All green.
 
 **Impact**: The class of bug is closed, not just this instance. AC-1, AC-2 held structurally.
 
@@ -192,8 +223,20 @@ snapshot is `spawnCli`'s 8th argument, which *every* dispatch path passes.
 - Already landed for this track (commit `ab25d5f`): `hasGenuineUnansweredHumanComment()` clears a
   stale `**Waiting for reply**` flag before the answer branch (`:6118-6123`), with tests in
   `conductor/tests/track-10046-waiting-for-reply-conflation.test.mjs`. That closes the *stray
-  flag* half of Finding 2. The structural conflation is Phase 4 and remains open.
+  flag* half of Finding 2. The structural conflation was closed by Phase 4 below.
 - This track's own workspace is `main` (`**Track Kind**: bug`), so every commit must reference
   `track-10046` per `conductor/workflow.md`'s Commit Strategy.
 - The worker must be **restarted** before any manual verification — it does not hot-reload, and
   this repo has produced false passes from exactly that (see `conductor/quality-gate.md`).
+
+## ✅ COMPLETE
+
+All 5 phases implemented, tested, and committed (`d4f1f58`, `798b411`, `6922240`, `60d1947`, and
+this phase's commit). Full suite green: `track-10046-stale-lane-snapshot` (12/12),
+`track-10046-run-marker-defer` (2/2), `track-10046-waiting-for-reply-conflation` (15/15),
+`track-10040-lane-regression-guard` (9/9), `local-fs-e2e.test.mjs` (7/7 — including 2 tests
+independently pre-existing-broken before this track, fixed as a side effect of Phase 5's
+`LaneAliases` normalization). See `test.md` for the final, accurate test inventory and
+acceptance-criteria mapping — the version committed during planning drifted from what was
+actually built (Phase 5 in particular changed shape mid-implementation once the DB→disk pull
+site's differing semantics were discovered) and was rewritten to match reality during Phase 5.

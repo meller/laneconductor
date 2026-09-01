@@ -145,13 +145,24 @@ action running under a conversation label — is untouched and is in scope here.
   retry got blocked — which REQ-6/REQ-7 already close (a reply can no longer dispatch a lane
   action at all, so it can no longer be the thing that hits this path). No separate UI/marker
   work was needed once that structural cause was removed.
-- **REQ-9** — The lane-regression guard's forward direction MUST be closed for any writer that
-  does not hold a fresh read: a write of lane X over on-disk lane Y where `X !== Y` and this run
-  did not itself execute in Y is not legitimate regardless of rank direction.
+- **REQ-9** — The lane-regression guard's forward direction MUST be closed for any writer whose
+  `producedByThisRun` genuinely means "did this run execute in the on-disk lane": a write of lane
+  X over on-disk lane Y where `X !== Y` and this run did not itself execute in Y is not
+  legitimate regardless of rank direction.
+  **Correction (Phase 5 implementation):** closing this unconditionally, for every caller, would
+  have broken the DB→disk pull site, which passes `producedByThisRun: false` PERMANENTLY as a
+  deliberate "purely observational" flag — under an unconditional close, that would block every
+  pull, including legitimate forward ones (e.g. a human dragging a Kanban card forward). Landed
+  as an opt-in flag (`requireProducedForAnyChange`) instead, set only by the call site whose
+  `producedByThisRun` is genuinely per-run-computed (the exit handler). `producedByThisRun`
+  turns out to have two structurally different meanings across this codebase's callers — "did I
+  execute here" vs. "is this ever a legitimate producer" — and REQ-9 only ever intended the
+  former.
 - **REQ-10** — Every other dispatch path that captures a lane/status snapshot at claim time and
   writes it back at completion must be audited and either shown safe (re-reads fresh) or fixed.
-  `startNextAutoCompleteStage`/`checkAutoCompleteProgress` already re-read fresh (`afterLane` at
-  `:6381`) — that is the shape the rest must match.
+  `startNextAutoCompleteStage`/`checkAutoCompleteProgress` already re-read fresh — that is the
+  shape the rest must match. See plan.md's Phase 5 Task 1 for the full enumeration and
+  classification of every site found.
 
 ## Acceptance Criteria
 
