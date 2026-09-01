@@ -1,16 +1,16 @@
 # Track TU-10047: Bounded Session Resume — Cap Context Growth on Long-Lived Track Sessions
 
 **Lane**: done
-**Lane Status**: waiting
-**PR Number**: 23
-**PR URL**: https://github.com/meller/laneconductor/pull/23
+**Lane Status**: running
 **PR Status**: open
+**PR URL**: https://github.com/meller/laneconductor/pull/23
+**PR Number**: 23
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: All 5 phases implemented and verified
 **Type**: dev
 **Track Kind**: feature
-**Auto Run**: no
+**Auto Run**: yes
 **Author**: TU
 **Created By**: test@example.com
 **Summary**: resolveTrackSession() (laneconductor.sync.mjs:5766) has no cap: once a claude_session_id is persisted for a track, every subsequent lane-action dispatch resumes it via --resume, carrying forward the…
@@ -26,4 +26,3 @@ CORRECTED AT PLANNING (2026-09-01) — three premises from intake were checked a
 Failure mode confirmed: six consecutive auto-complete-implement runs on track 1102 resumed at 721K-725K inherited context with peak ~= inherited and 2-3 assistant messages each -- i.e. the session was so large the run accomplished essentially nothing. Claude's own auto-compaction fired in only 12 of 363 runs and did not rescue any of them.
 
 Design: cap inside resolveTrackSession() (laneconductor.sync.mjs:5766), the single choke point -- everything downstream (--session-id vs --resume, FRESH_SESSION marker, context injection) derives from its isFresh flag, so no other call site changes. Measure the last assistant event's cache_read+cache_creation at run end (NEVER the result event -- it is a cumulative cross-turn sum, 2.15M vs a true 148K on one real log), store it on track_sessions, and consult it before the next resume. Past the threshold, reuse invalidateTrackSession's existing path and cold-start -- proactively instead of reactively.
-**Waiting for reply**: no
