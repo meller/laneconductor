@@ -4,7 +4,7 @@
 **Workspace**: branch
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned
 **Type**: dev
 **Track Kind**: bug
