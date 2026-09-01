@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Workspace**: branch
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planned
