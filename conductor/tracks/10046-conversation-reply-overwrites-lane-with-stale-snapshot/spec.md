@@ -114,13 +114,37 @@ action running under a conversation label — is untouched and is in scope here.
   branch. A conversation reply dispatches a non-lane command; a genuine lane-action retry goes
   through the normal claim/dispatch path, which already labels itself correctly
   (`local-fs-implement`, `local-fs-done`, …).
+  **Correction (Phase 4 implementation):** the original text here additionally claimed cmd_type
+  drove `classifyOrphanedDispatch`'s misclassification of an orphaned reply as an orphaned lane
+  action. Checked against the real code during implementation: `reconcileOrphanedDispatches` is
+  API-mode-only (`if (getIsLocalFs() || !myWorkerId) return`) and its `entry.action` comes from
+  the `worker_dispatch` DB table, not from `conductor/.runs/<track>.json`'s `action` field — the
+  two are unrelated. `cmd_type`'s only real effect (once `customPrompt` is always set for the
+  non-brainstorm case, which it already was) is the run marker's own `action` field — read today
+  only by a human or a future debugging session, never by code. REQ-6 still stands on that
+  narrower, genuinely correct basis: a persisted diagnostic artifact claiming a lane name for a
+  run that isn't one is misleading regardless of whether anything currently branches on it.
 - **REQ-7** — A conversation-reply run MUST resolve to a workspace mode that reflects what it
   actually does (append to `conversation.md` in the primary checkout) and MUST NOT contend for
   the global main-mode git lock as a side effect of a lane it merely observed.
+  **Confirmed exactly as described:** `resolveWorkspaceMode` forces `'main'` unconditionally
+  whenever `laneStatus` is `'plan'` or `'done'` (`workspace-mode.mjs` D5/D6), with no awareness
+  that a reply's `laneStatus` is the track's current on-disk lane, not the lane this run is
+  acting in — and the global lock IS taken for `workspaceMode === 'main'` in API mode
+  (`spawnCli`, gated `!getIsLocalFs()`). This project itself runs `local-api`, so the incident is
+  live-reproducible here, not merely local-fs-hypothetical.
 - **REQ-8** — A track waiting to retry a blocked lane action MUST be distinguishable, in
-  `conversation.md` / the Inbox / the Kanban card, from a track waiting on a human's reply. The
-  documented meanings are "💬 needs your reply" vs. something like "⏳ waiting to retry <lane> —
-  blocked by <reason>".
+  `conversation.md` / the Inbox / the Kanban card, from a track waiting on a human's reply.
+  **Correction (Phase 4 implementation):** turned out to be satisfied by construction, not by
+  adding a new signal. `handlePreSpawnBlock` (the actual "blocked, will retry" mechanism) never
+  touches `**Waiting for reply**` and its comment text (`formatBlockComment`) already reads as
+  "blocked... will retry next cycle" / "Permanently blocked... needs human attention" — distinct
+  from "needs your reply" on its face. The two states were already mechanically and textually
+  separate; what Finding 2 actually observed was `handlePreSpawnBlock` becoming reachable
+  *mislabeled as* a conversation reply (`label = 'local-fs-answer'`) when a lane action's own
+  retry got blocked — which REQ-6/REQ-7 already close (a reply can no longer dispatch a lane
+  action at all, so it can no longer be the thing that hits this path). No separate UI/marker
+  work was needed once that structural cause was removed.
 - **REQ-9** — The lane-regression guard's forward direction MUST be closed for any writer that
   does not hold a fresh read: a write of lane X over on-disk lane Y where `X !== Y` and this run
   did not itself execute in Y is not legitimate regardless of rank direction.
