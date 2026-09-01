@@ -52,26 +52,36 @@ the dispatch-time snapshot back to disk.
 **Solution**: Narrow a conversation run's write scope to exactly one marker —
 `**Waiting for reply**` — plus `conversation.md` content.
 
-- [ ] Task 1: Exit handler (`laneconductor.sync.mjs:5261-5366`) — when `isConversationRun`:
-    - [ ] Skip `applyGuardedLaneWrite` entirely; do not compute `effectiveLane` from `laneStatus`.
-    - [ ] Do not set `patchData.lane_status`.
-    - [ ] Do not send `lane_action_status` derived from `resolveTransition(null, laneStatus, …)`.
-          Either omit it from `patchData` or source it from a fresh read of the on-disk
-          `**Lane Status**` at completion time (REQ-5).
-    - [ ] Keep 3b (`**Waiting for reply**: no` + `patchData.waiting_for_reply = false`) exactly as
-          it is — that is the one marker a reply legitimately owns, and AC-8 depends on it.
-    - [ ] Keep `**Last Run**` and `last_run.log` writes; neither is part of the lane state machine.
-- [ ] Task 2: Reply prompt (`:6145-6148`) — drop the
+- [x] Task 1: Exit handler — when `isConversationRun` (via `getConversationRunWriteScope`):
+    - [x] Skip `applyGuardedLaneWrite` entirely when `!writeScope.canWriteLane`; `effectiveLane`
+          is now computed inside that same guard, never reached for a conversation run.
+    - [x] `patchData.lane_status` unaffected — confirmed already never set for a conversation run
+          even pre-fix (`targetLane === laneStatus` for `isConversationRun`, so the existing
+          `targetLane !== laneStatus` guard already excluded it); the `!laneWriteGuard.blocked`
+          default (`blocked: true`) is extra insurance now that the call is skipped.
+    - [x] `patchData.lane_action_status` now only set `if (writeScope.canWriteLaneStatus)` —
+          omitted entirely from the DB patch for a conversation run (REQ-5's "omit" branch).
+    - [x] Kept 3b (`**Waiting for reply**: no` + `patchData.waiting_for_reply = false`) unchanged
+          — AC-8 verified via TC-2's source assertion plus the unchanged 3b block.
+    - [x] Kept `**Last Run**` and `last_run.log` writes unconditional — TC-2c pins this.
+- [x] Task 2: Reply prompt — dropped the
       `/laneconductor pulse ${track_number} ${lane_status} …` instruction. The worker already
-      clears `**Waiting for reply**` in 3b, so the pulse was redundant as well as wrong. Replace
+      clears `**Waiting for reply**` in 3b (runs regardless of what the agent does), so the pulse
+      was redundant as well as wrong. Replaced
       with an explicit boundary line: post the reply via `/laneconductor comment`, and do not
       touch `**Lane**`, `**Lane Status**`, or `**Progress**`.
-- [ ] Task 3: Pre-spawn write (`:6225-6226`) — do not write `**Lane Status**: running` when
-      `waitingForReply`. Liveness comes from Phase 3's run marker instead.
-- [ ] Task 4: Re-run Phase 1's TC-1..TC-4 — green. TC-5 (cmd_type must not be a
-      lane) stays red until Phase 4, which is where cmd_type is actually fixed
-      — noted here since the original wording of this task implied all five
-      would flip together, which isn't the right phase boundary.
+- [x] Task 3: Pre-spawn write — gated `**Lane Status**: running` behind `!waitingForReply`.
+      Note: liveness for a reply run is NOT yet covered by Phase 3's run marker — that phase is
+      still open below. Between Phase 2 and Phase 3 landing, a reply dispatch has no running-state
+      marker at all (acceptable: Phase 2's fix means nothing reads it as authoritative anyway, and
+      Phase 3 closes the actual serialization gap).
+- [x] Task 4: Re-ran Phase 1's file — TC-2/TC-2c/TC-3/TC-4 green (6/8 total, including TC-2a/TC-2b
+      which were already green). TC-1 (Phase 5) and TC-5 (Phase 4) stay red as expected. Verified
+      no regression: `track-10046-waiting-for-reply-conflation.test.mjs` (15/15) and
+      `track-10040-lane-regression-guard.test.mjs` unaffected;
+      `conductor/tests/local-fs-e2e.test.mjs` has 2 pre-existing failures
+      (`on_success: in-progress → review`, `full pipeline`) confirmed present on unmodified `main`
+      via the same run against a stash of these changes — not caused by this phase.
 
 **Impact**: The stale snapshot stops reaching disk from all three writers. AC-1, AC-2, AC-3, AC-8.
 
