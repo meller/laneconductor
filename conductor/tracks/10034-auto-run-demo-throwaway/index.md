@@ -17,7 +17,7 @@ Run one live, evidence-recorded auto-claim cycle on this track (plus a negative 
 - [ ] Phase 4: Write up findings
 - [ ] Phase 5: Teardown (human-confirmed — hard delete)
 **Lane**: backlog
-**Lane Status**: running
+**Lane Status**: queue
 **Type**: dev
 **Track Kind**: feature
 **Summary**: Discarded via Worktrees panel — not merging.

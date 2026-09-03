@@ -1,8 +1,8 @@
 # Track 1034: Track 1034: windows parity
 
 **Lane**: backlog
-**Lane Status**: running
-**Progress**: 13%
+**Lane Status**: success
+**Progress**: 100%
 **Phase**: Planning
 **Summary**: 
 

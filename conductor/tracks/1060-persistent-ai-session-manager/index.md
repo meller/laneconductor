@@ -1,10 +1,4 @@
 **Lane**: backlog
-**Lane Status**: running
-
-**Lane**: backlog
-**Lane Status**: plan
-
-**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: Session Storage Infrastructure

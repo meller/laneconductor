@@ -1,8 +1,8 @@
 # Track 1090: Remote Browser Visibility
 
 **Lane**: backlog
-**Lane Status**: running
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 100%
 **Phase**: Awaiting decision — not yet brainstormed
 **Type**: dev
 **Summary**: Options for letting the app show a browser a remote worker is driving (e.g. during E2E tests) — not yet decided which, if any, to build.

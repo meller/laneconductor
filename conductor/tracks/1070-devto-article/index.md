@@ -2,7 +2,7 @@
 
 **Lane**: plan
 **Last Run**: 2026-05-07
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 33%
 **Phase**: Draft complete
 **Type**: marketing
