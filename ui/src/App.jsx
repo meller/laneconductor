@@ -752,10 +752,22 @@ function RemoteEmptyState({ onOpenAccount }) {
         </div>
         <div className="text-left space-y-3 bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Quick setup</p>
+          {/* Track 10052: remote-api is not yet a working path — several worker
+              endpoints (worker registration, queue claim, track locking) are
+              still missing from the cloud API. Say so here rather than letting
+              users discover it as a silently empty board. */}
+          <div className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-2">
+            <p className="text-[11px] font-bold text-amber-300">⚠️ Cloud worker sync is not ready yet</p>
+            <p className="text-[10px] text-amber-200/80 mt-1 leading-relaxed">
+              Several worker endpoints are still missing from the cloud API, so a worker
+              pointed here cannot register or claim work. Use <code className="font-mono">local-api</code> mode
+              for now — the steps below are kept for testing only.
+            </p>
+          </div>
           <div className="space-y-3">
             {[
               ['1', 'Generate an API key', <button key="k" onClick={onOpenAccount} className="text-blue-400 hover:text-blue-300 underline underline-offset-2 text-[11px]">Open Account →</button>],
-              ['2', 'Configure your worker', <code key="c" className="text-[10px] font-mono text-blue-300 block mt-1 bg-gray-950 rounded px-2 py-1">lc config mode remote-api --url https://app.laneconductor.com --key YOUR_KEY</code>],
+              ['2', 'Configure your worker (not yet supported — see above)', <code key="c" className="text-[10px] font-mono text-blue-300 block mt-1 bg-gray-950 rounded px-2 py-1">lc config mode remote-api --url https://app.laneconductor.com --key YOUR_KEY</code>],
               ['3', 'Start the worker', <code key="s" className="text-[10px] font-mono text-blue-300 bg-gray-950 rounded px-2 py-1">lc start</code>],
             ].map(([n, label, extra]) => (
               <div key={n} className="flex gap-3 items-start">

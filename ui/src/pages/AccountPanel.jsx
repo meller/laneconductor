@@ -192,6 +192,18 @@ export function AccountPanel({ onClose }) {
               <p className="text-[11px] text-gray-500 mt-1">
                 Run these commands in your project to start sending tracks to this workspace.
               </p>
+              {/* Track 10052: don't present remote-api as a working setup path —
+                  worker registration/claim/lock endpoints are still missing from
+                  the cloud API. */}
+              <div className="mt-2 rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-2">
+                <p className="text-[11px] font-bold text-amber-300">⚠️ Not ready yet</p>
+                <p className="text-[10px] text-amber-200/80 mt-1 leading-relaxed">
+                  Connecting a worker to the cloud is still in progress — several worker
+                  endpoints are missing from the cloud API, so the worker cannot register
+                  or claim work. Use <code className="font-mono">local-api</code> mode for now.
+                  The commands below are kept for testing only.
+                </p>
+              </div>
             </div>
             <div className="space-y-3">
               <Step n={1} label="Configure your worker target (Option A or B):">

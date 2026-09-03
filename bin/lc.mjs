@@ -2918,7 +2918,13 @@ Please review this, answer any questions (some fields may contain questions rath
                 const rl = createInterface({ input: process.stdin, output: process.stdout });
                 const question = (query) => new Promise((resolve) => rl.question(query, resolve));
                 (async () => {
-                    const remoteUrl = await question('Remote Collector URL (e.g., https://app.laneconductor.com): ');
+                    // Track 10052: app.laneconductor.com is not a working collector
+                    // yet — worker register/claim/lock endpoints are still missing
+                    // from the cloud API. Warn before the user commits to it.
+                    console.log('⚠️  Cloud collector (app.laneconductor.com) is not fully supported yet:');
+                    console.log('    several worker endpoints are missing from the cloud API, so a worker');
+                    console.log('    pointed at it cannot register or claim work. Prefer local-api mode.');
+                    const remoteUrl = await question('Remote Collector URL (e.g., https://your-collector.example.com): ');
                     const apiKey = await question('Remote API Key (lc_xxx...): ');
 
                     cfg.collectors = [{ url: remoteUrl, token: null }];
