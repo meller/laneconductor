@@ -1,6 +1,6 @@
 # Track TU-10051: Rename 'Collectors' to Remote Instances / Targets
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: Phase 1 — Compatibility seam
