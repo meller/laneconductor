@@ -1,14 +1,14 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane**: implement
+**Lane Status**: queue
+**Progress**: 70%
+**Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
 **Type**: dev
 **Track Kind**: feature
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: Seven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js, so a worker pointed at app.laneconductor.com registers successfully and…
+**Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction…
 
 ## Problem
 
@@ -55,3 +55,4 @@ cloud onboarding path that track 10052 caveated in `App.jsx`,
       and heartbeats end to end.
 - [ ] Track 10052's onboarding caveats are removed only after that is observed.
 **Merge Mode**: direct
+**Waiting for reply**: yes
