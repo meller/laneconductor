@@ -137,7 +137,7 @@ function SourceControlCategory({ category, value, onChange, workerId, repoUrl })
   }, [value.provider, workerId]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="connections-category-source_control">
       <ProviderPicker category={category} providerValue={value.provider} onSelect={p => onChange({ provider: p })} name="connections-source-control" />
       {value.provider === 'github' && (
         <div className="space-y-1.5 pl-1">
@@ -195,7 +195,7 @@ function IssueTrackerCategory({ category, value, onChange, workerId }) {
   }, [value.provider, value.domain, value.email, value.projectKey, value.tokenEnv, workerId]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="connections-category-issue_tracker">
       <ProviderPicker category={category} providerValue={value.provider} onSelect={p => onChange({ provider: p })} name="connections-issue-tracker" />
       {value.provider === 'jira' && (
         <div className="space-y-1.5 pl-1">
@@ -267,7 +267,7 @@ function CloudCategory({ category, value, onChange, workerId }) {
   }, [value.provider, workerId]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="connections-category-cloud">
       <ProviderPicker category={category} providerValue={value.provider} onSelect={p => onChange({ provider: p })} name="connections-cloud" />
       {value.provider === 'gcp' && (
         <div className="space-y-1.5 pl-1">
