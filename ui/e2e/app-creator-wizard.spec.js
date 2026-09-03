@@ -85,12 +85,16 @@ test('wizard walk-through → Launch → FollowBuildView shows the generated tra
   // Step 3: Design & Stack — optional, skip
   await page.getByTestId('wizard-next-button').click();
 
-  // Step 4: Deployment — Firebase Hosting + prod
+  // Step 4: Connections (Track TU-10049) — optional, skip
+  await expect(page.getByTestId('connections-source_control')).toBeVisible();
+  await page.getByTestId('wizard-next-button').click();
+
+  // Step 5: Deployment — Firebase Hosting + prod
   await page.getByText('Firebase Hosting').click();
   await page.getByText('prod', { exact: true }).click();
   await page.getByTestId('wizard-next-button').click();
 
-  // Step 5: Review & Launch
+  // Step 6: Review & Launch
   await expect(page.getByText(/Dig for ore, avoid hazards/)).toBeVisible();
   await page.getByTestId('wizard-next-button').click(); // Launch
 
