@@ -4,7 +4,7 @@ import React from 'react';
 // read-only summary; Launch reuses the same dispatch flow as the legacy
 // form (App Creator Wizard Mode spec.md REQ-1: no new gate beyond this).
 export function ReviewLaunchStep({ wizardState }) {
-  const { basics, product, designStack, deployment } = wizardState;
+  const { basics, product, designStack, connections, deployment } = wizardState;
   const isMarketing = basics.kind === 'marketing';
 
   return (
@@ -17,6 +17,9 @@ export function ReviewLaunchStep({ wizardState }) {
       {product.kpis && <ReviewRow label="KPIs" value={product.kpis} />}
       {!isMarketing && designStack.designPrompt && <ReviewRow label="Style" value={designStack.designPrompt} />}
       {!isMarketing && designStack.techStack && <ReviewRow label="Stack" value={designStack.techStack} />}
+      {!isMarketing && <ReviewRow label="Source control" value={connectionSummary(connections.sourceControl, 'GitHub')} />}
+      <ReviewRow label="Issue tracker" value={connectionSummary(connections.issueTracker, 'Jira', v => `Jira — ${v.projectKey || '(no project key)'} @ ${v.domain || '(no domain)'}`)} />
+      {!isMarketing && <ReviewRow label="Cloud" value={connectionSummary(connections.cloud, 'GCP', v => `GCP — ${v.projectId || '(no project id)'}`)} />}
       {!isMarketing && (
         <ReviewRow
           label="Deployment"
@@ -30,6 +33,14 @@ export function ReviewLaunchStep({ wizardState }) {
       </p>
     </div>
   );
+}
+
+// Track TU-10049 Phase 4 (Task 4.4): summarizes a Connections category
+// choice for the review step. `skip` (the default) reads the same way the
+// existing Deployment row already treats its own "skip" default.
+function connectionSummary(categoryValue, realLabel, describeReal) {
+  if (categoryValue.provider === 'skip') return 'Skipped — configure later';
+  return describeReal ? describeReal(categoryValue) : realLabel;
 }
 
 function ReviewRow({ label, value }) {
