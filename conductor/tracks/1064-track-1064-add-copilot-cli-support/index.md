@@ -1,7 +1,7 @@
 # Track 1064 Add Copilot Cli Support
 
 **Lane**: backlog
-**Lane Status**: backlog
+**Lane Status**: running
 
 # Track 1064 Add Copilot Cli Support
 
