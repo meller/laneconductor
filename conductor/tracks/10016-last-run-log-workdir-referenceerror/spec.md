@@ -118,27 +118,39 @@ quality-gate and has no failure context left worth preserving.
 
 ## Acceptance Criteria
 
-- [ ] AC-1: `const workDir` is declared once in the exit handler, in a
-      scope enclosing both the `if (lastRunLog)` and `if (updated)`
-      blocks, and is not shadowed or redeclared inside either. Asserted by
-      a test that parses the source, so a future refactor cannot silently
-      reintroduce the original defect.
-- [ ] AC-2: A real spawned worker run that produces log output completes
-      with **no** `Failed to stage last_run.log` warning in the worker's
-      output — the current per-run noise is gone.
-- [ ] AC-3: After that same run, `last_run.log` is present on disk in the
-      track folder and its content matches the tail of the run's log.
-- [ ] AC-4: After that same run, `git status --porcelain` in the run's
-      working directory does **not** list `last_run.log` in any state
-      (neither staged nor untracked) — it is ignored, which is the
-      intended end state.
-- [ ] AC-5: `git check-ignore -v <track>/last_run.log` still matches
-      `*.log` — i.e. the fix did not "solve" this by un-ignoring the file
-      or adding a `!last_run.log` negation.
-- [ ] AC-6: `conductor/product.md`'s file-roles table has a
-      `conductor/tracks/NNN-slug/last_run.log` row naming the sync worker
-      as writer, Claude agents (`implement`) as reader, and stating it is
-      gitignored and not a committed artifact.
+- [x] AC-1: `const workDir` is declared once, before both blocks that
+      need it, and is not shadowed/redeclared. Guarded by
+      `track-10016-last-run-log.test.mjs`'s TC-1 (source parse).
+- [x] AC-2: A real spawned worker run producing log output completes with
+      no `Failed to stage last_run.log` warning. Verified via the updated
+      `track-1102-f9b-log-staging.test.mjs`.
+- [x] AC-3: `last_run.log` is present on disk after that run, content
+      matching the run's log tail — `writeFileSync` untouched by this
+      change. Same test.
+- [x] AC-4: `git ls-files` for `last_run.log` returns empty after that
+      run — not tracked in any state. Same test (stronger check than
+      `git status --porcelain`, since a successful `git add` immediately
+      followed by the exit handler's own commit would leave `git status`
+      clean too — `git ls-files` distinguishes "never staged" from
+      "staged then committed").
+- [x] AC-5: `git check-ignore -v` on the run's `last_run.log` still
+      matches `*.log` — confirms the fix didn't "solve" this via `-f` or
+      a negation. Same test.
+- [x] AC-6: `conductor/product.md`'s file-roles table has the
+      `last_run.log` row (writer/reader/gitignored-not-committed).
+      Guarded by TC-6.
+
+**Implementation-time finding not anticipated during planning**: an
+existing test, `conductor/tests/track-1102-f9b-log-staging.test.mjs`
+(written by the original F9b fix, `edb01b0`), asserted `last_run.log`
+*must* be tracked by git — the opposite of AC-4. It passed only because
+its scratch fixture never wrote a `.gitignore`. Added a production
+-matching `.gitignore` to that fixture and reran against unmodified code:
+reproduced the `Failed to stage` warning and the test's own assertion
+failing, live — the strongest confirmation available that Finding B was
+correct. Updated that test's fixture and assertions in place (see
+`plan.md` Phase 1 Task 1/4) rather than leaving it to bit-rot into a false
+failure on the next `main` run.
 
 ## Rejected Alternative
 
