@@ -7,7 +7,7 @@
 **Phase**: Planned — scope replaced
 **Type**: bug
 **Track Kind**: bug
-**Summary**: Original scope (workDir ReferenceError) is ALREADY FIXED in main by edb01b0 / track 1102 F9b. Planning found the real issue underneath: last_run.log matches .gitignore's `*.log`, so the `git add` can never succeed — and F9b's new console.warn now fires on nearly every run. Remaining work: delete the dead call, document the file as an intentionally-uncommitted runtime artifact.
+**Summary**: Original scope (workDir ReferenceError) is ALREADY FIXED in main by edb01b0 / track 1102 F9b. Planning found the real issue underneath: last_run.log matches .gitignore's `*.log`, so the `git add`…
 
 ## Problem
 
