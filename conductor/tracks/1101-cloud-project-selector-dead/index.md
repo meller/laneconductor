@@ -1,7 +1,7 @@
 # Track 1101: Project selector is dead in Cloud mode (wrong prop name)
 
 **Lane**: backlog
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Not started — found 2026-08-12
 **Type**: bug
