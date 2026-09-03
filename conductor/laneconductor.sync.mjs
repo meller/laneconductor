@@ -1939,12 +1939,31 @@ function shouldPullFromDB(track, trackFolder) {
  */
 function updateIndexMDFromDB(trackFolder, dbTrack) {
   const indexPath = join(trackFolder, 'index.md');
+  const fileExists = existsSync(indexPath);
 
   try {
-    let content = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
+    let content = fileExists ? readFileSync(indexPath, 'utf8') : '';
 
-    // Create template if file doesn't exist
-    if (!content.trim()) {
+    // Confirmed live 2026-09-03 (tracks 10048/10049): a real, substantial
+    // index.md — full body, Type/Author/Created By, etc. — got read as an
+    // empty string right here, mid-edit, and this function's old
+    // unconditional "content is falsy → rebuild a bare template" branch
+    // happily replaced it with a 5-field stub (title re-derived from the
+    // DB's slug-cased `title` column, body gone). The DB->FS pull direction
+    // had no equivalent of the FILE->DB push's F9 gutted-content guard
+    // (ui/server/index.mjs, track 1102 F9) — this is that guard's missing
+    // counterpart. `fileExists && !content.trim()` is the suspicious case:
+    // the path is real but the read came back empty, which reads as a
+    // transient race with a concurrent writer far more often than it reads
+    // as a genuinely empty file — skip the pull rather than risk gutting
+    // real content; the next sync tick gets a clean read.
+    if (fileExists && !content.trim()) {
+      console.warn(`[sync] updateIndexMDFromDB: ${indexPath} exists but read empty — skipping this pull (likely a concurrent-write race) instead of overwriting with a stub.`);
+      return false;
+    }
+
+    // Create template only when the file genuinely doesn't exist yet.
+    if (!fileExists) {
       content = `# Track ${dbTrack.track_number}: ${dbTrack.title}\n\n**Lane**: backlog\n**Progress**: 0%\n`;
     }
 
@@ -2286,7 +2305,6 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
   if (getIsLocalFs()) return true;
   try {
     const trackNumber = extractTrackNumber(filepath);
-    const title = extractTitle(filepath);
     const trackDir = dirname(filepath);
     const filename = basename(filepath);
 
@@ -2309,6 +2327,20 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     // If index.md is missing, we fallback to the triggered file (backward compatibility).
     const stateContent = indexContent !== null ? indexContent : readFileSync(filepath, 'utf8');
     const qualityGateEnabled = isQualityGateEnabled();
+
+    // Confirmed live 2026-09-03 (tracks 10048/10049): extractTitle(filepath)
+    // was used unconditionally here, so DB `title` was ALWAYS the slug of
+    // the folder name ("Wizard Github Gcp Credential Onboarding"), never
+    // the file's real `# Track X: ...` heading, even when that heading had
+    // the actual intended title ("Wizard: GitHub + Jira + GCP Credential
+    // Onboarding"). That mangled DB title then leaked back into any code
+    // path that rebuilds index.md from DB fields (updateIndexMDFromDB's
+    // recreate-template branch above). Prefer the file's own heading —
+    // stripping the leading "PREFIX-NNNN:" or "NNNN:" id that isn't part
+    // of the actual title — and fall back to the folder-derived slug only
+    // when no heading is present at all (a genuinely bare/new file).
+    const headingMatch = stateContent.match(/^#\s*Track\s+(?:[A-Za-z]+-)?\d+:\s*(.+)$/m);
+    const title = headingMatch ? headingMatch[1].trim() : extractTitle(filepath);
 
     let laneStatus = parseStatus(stateContent, qualityGateEnabled);
     let laneActionStatusFromFile = parseLaneStatus(stateContent);
