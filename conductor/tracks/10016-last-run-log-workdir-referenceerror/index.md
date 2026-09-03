@@ -2,12 +2,13 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete
 **Type**: bug
 **Track Kind**: bug
+**Auto Run**: yes
 **Summary**: Removed the dead `git add` (can never succeed — last_run.log matches .gitignore's `*.log`) from spawnCli's exit handler; kept the unconditional writeFileSync. Also updated an existing regression…
 
 ## Problem
@@ -62,4 +63,17 @@ already provides.
 **rejected** alternative — see `spec.md`. Full findings, requirements and
 acceptance criteria in `spec.md`; phases in `plan.md`; test cases in
 `test.md`.
-**Auto Run**: yes
+
+## ✅ Implementation Complete
+
+Both phases done. One finding not caught during planning: an existing
+regression test (`track-1102-f9b-log-staging.test.mjs`, from the original
+F9b fix) asserted `last_run.log` *must* be tracked by git — the opposite
+of this track's conclusion — and only passed because its scratch fixture
+never wrote a `.gitignore`. Reproduced the `Failed to stage` warning live
+by adding a production-matching `.gitignore` to that fixture and rerunning
+against unmodified code, then updated the test's fixture and assertions
+in place to match the corrected behavior. All three relevant suites green
+(`track-10016-last-run-log.test.mjs`: pass 2; `track-1102-f9b-log-staging
+.test.mjs`: pass 1; `track-1102-f9-index-producer.test.mjs`: pass 1; 0
+failures across all three).

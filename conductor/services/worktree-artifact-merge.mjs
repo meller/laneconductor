@@ -48,7 +48,29 @@ export function mergeIndexMarkers(existingContent, artifactContent, { skipStatus
     {
       re: /\*\*Lane Status\*\*:\s*[^\n]+/i,
       isStatusMarker: true,
-      allowDuringSkip: (matchedText) => /running/i.test(matchedText),
+      // 'waiting' extended in alongside 'running' (2026-09-03, same day):
+      // confirmed live on track 10053 — an implement session that
+      // auto-advanced all the way to `done` and then genuinely paused,
+      // asking a human to authorize a real production-deploy step, went
+      // from primary-shows-queue straight into ANOTHER not-yet-exempted
+      // value with no visible "running" window in between (the doc-sync
+      // tick interval lost the race against how fast the auto-complete
+      // chain moved). 'waiting' has the same non-hazard property running
+      // does for MOST of its life — LaneActionStatus.WAITING's own
+      // definition (constants.mjs) is deliberately narrower than a bare
+      // terminal status ("nothing left for a WORKER to do", not "nothing
+      // left to do at all"): a track sitting there is exactly the case a
+      // human most needs the UI to surface, not hide behind "queued".
+      // Trade-off accepted narrowly, not blanket: unlike 'running',
+      // 'waiting' CAN legitimately be an exit handler's own terminal
+      // write (a pr-mode done-lane merge that opened a PR) sitting stale
+      // in a reused worktree — but even stale, it does not trip
+      // reconcileActiveDispatch's dangerous path (that guard only
+      // special-cases 'running' as "definitely still going"; it does not
+      // treat 'waiting' as a completion signal to act on), so the actual
+      // track-10019 hazard (wrongly closing a live dispatch) still can't
+      // recur through this exception.
+      allowDuringSkip: (matchedText) => /running|waiting/i.test(matchedText),
     },
     { re: /\*\*Progress\*\*:\s*[^\n]+/i },
     { re: /\*\*Phase\*\*:\s*[^\n]+/i },

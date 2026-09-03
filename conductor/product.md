@@ -127,6 +127,7 @@ Every file in the conductor system has one owner and one purpose. Claude agents 
 | `conductor/quality-gate.md` | humans, Claude | Claude agents (quality-gate phase) | Quality gate check definitions |
 | `conductor/code_styleguides/*.md` | humans, Claude | Claude agents | Coding standards per language |
 | `conductor/.runs/<track_number>.json` | sync worker (`spawnCli`) | sync worker (`reconcileOrphanedDispatches`) | Track 10020: gitignored, primary checkout only — a persistent, cross-process liveness marker (pid, command, dispatch id) for the CLI child a lane action spawned, so a REPLACEMENT worker process can tell a dispatch orphaned by a restart is still genuinely running apart from one that finished or crashed. Not a committed artifact. |
+| `conductor/tracks/NNN-slug/last_run.log` | sync worker (`spawnCli` exit handler) | Claude agents (`/laneconductor implement` step 2) | Track 10016: gitignored (matches `.gitignore`'s `*.log`) — a per-run tail of the CLI's log, giving the next lane-action run the previous run's failure context off the local filesystem. Not a committed artifact; the exit handler no longer attempts to `git add` it (git refuses to stage an explicitly-ignored path without `-f`, and committing a per-run log would churn history on every lane action). |
 
 **Rules:**
 - Only the **sync worker** writes `tracks.md` — it is a view, not a source

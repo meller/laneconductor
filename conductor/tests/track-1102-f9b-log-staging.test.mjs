@@ -1,20 +1,31 @@
 #!/usr/bin/env node
 // conductor/tests/track-1102-f9b-log-staging.test.mjs
-// Track 1102 F9b: spawnCli's exit handler ("Phase 4: Write last run log to
-// the track folder", conductor/laneconductor.sync.mjs) writes last_run.log
-// to disk, then tries to `git add` it via
-//   execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' })
-// — but `workDir` at that point is declared later, inside a SIBLING
-// `if (updated) { const workDir = ... }` block, so it is out of scope
-// where it's used. That throws ReferenceError: workDir is not defined,
-// swallowed by this call's own empty `catch (e) {}`, so last_run.log is
-// written but never staged.
+// Track 1102 F9b originally found spawnCli's exit handler referencing
+// `workDir` (for a `git add` of last_run.log) before it was declared —
+// a ReferenceError swallowed by an empty catch. F9b hoisted the
+// declaration and turned the catch into a console.warn, and this test
+// was written to assert the `git add` then succeeded.
 //
-// Reproduction: real spawned worker, real git worktree, a mock CLI that
-// prints output (mock-cli.mjs always logs at least one startup line).
-// After the run completes, last_run.log must exist on disk (unaffected —
-// writeFileSync happens before the broken git add) AND be staged in git
-// (`git status --porcelain` shows it as a staged addition, not untracked).
+// It did, in THIS test's fixture — but only because the fixture never
+// wrote a `.gitignore`. Track 10016 found that the real repository's
+// `.gitignore` has `*.log` (matching last_run.log), and git refuses to
+// stage an explicitly-named ignored path without `-f`. Adding a
+// `*.log` `.gitignore` to this fixture (to match production) reproduces
+// that live: the `git add` fails and F9b's console.warn fires on every
+// run with log output — see track 10016's spec.md Finding B.
+//
+// Track 10016 removed the `git add` call entirely rather than working
+// around the ignore rule (`git add -f` / a `!last_run.log` negation was
+// considered and rejected — see spec.md's Rejected Alternative):
+// last_run.log is a per-run runtime artifact, same category as
+// conductor/.runs/<track>.json, which product.md already documents as
+// not committed. This test now asserts that corrected behavior: the
+// file is written to disk, is NOT staged/tracked, and produces no
+// warning.
+//
+// Reproduction: real spawned worker, real git worktree (with a
+// production-matching `.gitignore`), a mock CLI that prints output
+// (mock-cli.mjs always logs at least one startup line).
 //
 // Run: node --test conductor/tests/track-1102-f9b-log-staging.test.mjs
 
@@ -87,6 +98,7 @@ function setupProject(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
   execSync('git init -q', { cwd: TMP });
+  writeFileSync(join(TMP, '.gitignore'), '*.log\n'); // matches production .gitignore:17
 
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
     mode: 'local-api',
@@ -113,7 +125,7 @@ function setupProject(collectorPort) {
   return trackDir;
 }
 
-describe('Track 1102 F9b: last_run.log gets staged after a run with log output', () => {
+describe('Track 10016: last_run.log is written but never staged (matches .gitignore)', () => {
   let collectorProc, collectorPort, worker, trackDir;
   const workerLogs = [];
 
@@ -140,7 +152,7 @@ describe('Track 1102 F9b: last_run.log gets staged after a run with log output',
     rmSync(TMP, { recursive: true, force: true });
   });
 
-  it('writes last_run.log to disk and stages it in git after the run', async () => {
+  it('writes last_run.log to disk but never stages or warns about it', async () => {
     const state0 = await poll(async () => {
       const s = await getState(collectorPort);
       return s.workers.length > 0 ? s : null;
@@ -170,25 +182,30 @@ describe('Track 1102 F9b: last_run.log gets staged after a run with log output',
     const lastRunLogPath = join(worktreeDir, 'conductor/tracks/001-a-track-with-log-output', 'last_run.log');
     assert.ok(existsSync(lastRunLogPath), 'last_run.log must exist on disk (in the worktree) after a run with output');
 
-    // The exit handler's own git commit runs right after staging
-    // last_run.log, so a successful `git add` normally ends up fully
-    // committed (not merely staged) by the time we check — `git status`
-    // would then show nothing for it at all (clean tree), which is NOT
-    // the same as "still untracked". Check `git ls-files` instead: it
-    // answers "is this file tracked by git", true whether it's committed
-    // or only staged, false if the `git add` never ran (the bug).
+    // last_run.log matches the fixture's `.gitignore` (`*.log`, mirroring
+    // production) — it must never be tracked. `git ls-files` answers "is
+    // this file tracked by git" whether committed or merely staged.
     const relLogPath = 'conductor/tracks/001-a-track-with-log-output/last_run.log';
     const tracked = execSync(`git ls-files -- "${relLogPath}"`, { cwd: worktreeDir, encoding: 'utf8' }).trim();
-    assert.ok(
-      tracked === relLogPath,
-      `last_run.log must be tracked by git (the workDir git-add must have succeeded) after the run.\n` +
+    assert.strictEqual(
+      tracked, '',
+      `last_run.log must NOT be tracked by git — it matches .gitignore's *.log and staging it was removed.\n` +
       `git ls-files output: "${tracked}"`
     );
+
+    // git check-ignore -v confirms it's the *.log rule doing the ignoring,
+    // not some other mechanism (e.g. the file simply never being added).
+    const ignoreCheck = execSync(`git check-ignore -v -- "${relLogPath}"`, { cwd: worktreeDir, encoding: 'utf8' }).trim();
+    assert.match(ignoreCheck, /\*\.log/, `expected .gitignore's *.log rule to match, got: "${ignoreCheck}"`);
 
     const fullLog = workerLogs.join('');
     assert.ok(
       !fullLog.includes('workDir is not defined') && !fullLog.includes('ReferenceError'),
       `Worker output must not show the workDir ReferenceError.\nWorker output:\n${fullLog}`
+    );
+    assert.ok(
+      !fullLog.includes('Failed to stage last_run.log'),
+      `Worker output must not show the (now-removed) staging warning.\nWorker output:\n${fullLog}`
     );
   });
 });
