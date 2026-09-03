@@ -18,26 +18,26 @@ is fixed — and D4 is a live bug affecting `done:waiting` today.
 `waiting_reason` column and its `**Waiting Reason**` marker, and align the two
 collectors' stuck-reset semantics.
 
-- [ ] Task 1.1: Remove the `waiting` rejection in `ui/server/index.mjs:2628-2631`
+- [x] Task 1.1: Remove the `waiting` rejection in `ui/server/index.mjs:2628-2631`
       — accept `['queue','waiting','running','success','failure']`, sourced from
       `LaneActionStatus` in `conductor/constants.mjs` rather than a fresh
       hand-written list.
-    - [ ] Sub-task: audit `ui/server/index.mjs` for any other hand-listed status
+    - [x] Sub-task: audit `ui/server/index.mjs` for any other hand-listed status
           array and point it at the same constant.
-- [ ] Task 1.2: Remove the `insertActionStatus === 'waiting' → 'queue'` downgrade
+- [x] Task 1.2: Remove the `insertActionStatus === 'waiting' → 'queue'` downgrade
       at `cloud/functions/index.js:953`.
-- [ ] Task 1.3: Change `cloud/functions/index.js:1282`'s `reset-stuck-actions` to
+- [x] Task 1.3: Change `cloud/functions/index.js:1282`'s `reset-stuck-actions` to
       write `lane_action_status = 'queue'` (matching `ui/server/index.mjs:3317`),
       keeping `lane_action_result = 'stuck_timeout'`. (REQ-5)
-- [ ] Task 1.4: Migration `ALTER TABLE tracks ADD COLUMN IF NOT EXISTS
+- [x] Task 1.4: Migration `ALTER TABLE tracks ADD COLUMN IF NOT EXISTS
       waiting_reason TEXT;` via the project's Atlas workflow, plus the matching
       field in `prisma/schema.prisma`.
-- [ ] Task 1.5: `parseWaitingReason()` in `conductor/laneconductor.sync.mjs`
+- [x] Task 1.5: `parseWaitingReason()` in `conductor/laneconductor.sync.mjs`
       (alongside `parseMergeMode`/`parseWorkspaceMarker`), wired into
       `syncTrack`'s payload; `waiting_reason` accepted by `POST /track` and
       `PATCH /track/:num/action` and returned by the track read endpoints, on
       both collectors.
-- [ ] Task 1.6: Add `**Waiting Reason**` to `mergeIndexMarkers`' marker list in
+- [x] Task 1.6: Add `**Waiting Reason**` to `mergeIndexMarkers`' marker list in
       `conductor/services/worktree-artifact-merge.mjs` with `alwaysInject: true`
       — same reasoning as `**Waiting for reply**` (a track can go its whole life
       without the marker until the first time it pauses, so "absent from

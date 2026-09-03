@@ -658,7 +658,7 @@ app.get('/api/tracks/waiting', auth, async (req, res) => {
                 COALESCE(t.priority, 0) as priority, t.created_at, p.name as project_name, p.id as project_id
          FROM tracks t
          JOIN projects p ON p.id = t.project_id
-         WHERE p.workspace_id = $1 AND t.lane_action_status = 'waiting'
+         WHERE p.workspace_id = $1 AND t.lane_action_status = 'queue'
            AND t.lane_status NOT IN ('done', 'backlog')
            ${projectFilter}
          ORDER BY priority DESC, t.created_at ASC`,
@@ -679,7 +679,7 @@ app.get('/api/projects/:id/tracks/waiting', auth, checkProject, async (req, res)
                 COALESCE(t.priority, 0) as priority, t.created_at, p.name as project_name, p.id as project_id
          FROM tracks t
          JOIN projects p ON p.id = t.project_id
-         WHERE t.project_id = $1 AND t.lane_action_status = 'waiting'
+         WHERE t.project_id = $1 AND t.lane_action_status = 'queue'
            AND t.lane_status NOT IN ('done', 'backlog')
          ORDER BY priority DESC, t.created_at ASC`,
       [req.project_id]
@@ -801,7 +801,8 @@ app.get('/api/projects/:id/tracks/:num', auth, checkProject, async (req, res) =>
     const result = await query(
       `SELECT id, track_number, title, lane_status, progress_percent,
                 current_phase, content_summary, last_heartbeat, created_at,
-                index_content, plan_content, spec_content, test_content, last_log_tail, COALESCE(priority, 0) as priority
+                index_content, plan_content, spec_content, test_content, last_log_tail, COALESCE(priority, 0) as priority,
+                waiting_reason
          FROM tracks
          WHERE project_id = $1 AND track_number = $2`,
       [req.project_id, req.params.num]
@@ -821,7 +822,8 @@ app.get('/api/projects/:id/tracks/:num', auth, checkProject, async (req, res) =>
       spec: t.spec_content,
       test: t.test_content,
       last_log_tail: t.last_log_tail,
-      priority: t.priority
+      priority: t.priority,
+      waiting_reason: t.waiting_reason, // Track 10055
     });
   } catch (err) {
     console.error('[api/projects/:id/tracks/:num] Error:', err);
@@ -943,14 +945,33 @@ app.post('/track', auth, checkProject, async (req, res) => {
       track_number, title, lane_status, progress_percent,
       current_phase, content_summary, phase_step,
       index_content, plan_content, spec_content, test_content,
-      lane_action_status
+      lane_action_status,
+      // Track 10055: why a `<lane>:waiting` track is parked
+      waiting_reason
     } = req.body;
 
     console.log(`[POST /track] project_id=${req.project_id} (body ${req.body.project_id}) track=${track_number}`);
 
     const insertLaneStatus = lane_status ?? 'planning';
-    let insertActionStatus = lane_action_status ?? 'queue';
-    if (insertActionStatus === 'waiting') insertActionStatus = 'queue';
+    // Track 10055: this used to be followed by
+    // `if (insertActionStatus === 'waiting') insertActionStatus = 'queue';`.
+    //
+    // That line, and six others in this file, dated from before `waiting`
+    // meant anything: cloud used it in the pre-10035 sense of "waiting for a
+    // worker to pick it up" — writing it on a lane move, on a human comment,
+    // and on a stuck-action reset, and *claiming* it in
+    // /tracks/claim-queue-workspace. Internally consistent, but the exact
+    // opposite of what `waiting` means everywhere else in the system now:
+    // "paused, nothing may claim this until a human acts".
+    //
+    // Leaving those in place while accepting `waiting` here would have been
+    // worse than the downgrade it replaced — a deliberately parked track would
+    // have been picked straight back up by cloud's own claim query. So all
+    // seven sites were moved to 'queue' (their actual meaning) in one pass,
+    // and `waiting` now carries the same meaning on both collectors.
+    // file_sync_queue.status = 'waiting' is a different column with its own
+    // vocabulary and is deliberately untouched.
+    const insertActionStatus = lane_action_status ?? 'queue';
 
     const laneStatusClause = lane_status !== null
       ? `lane_status = EXCLUDED.lane_status,
@@ -970,8 +991,8 @@ app.post('/track', auth, checkProject, async (req, res) => {
       INSERT INTO tracks
         (project_id, track_number, title, lane_status, progress_percent,
          current_phase, content_summary, phase_step, index_content, plan_content, spec_content, test_content,
-         last_heartbeat, sync_status, last_updated_by, lane_action_status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'synced', 'worker', $13)
+         last_heartbeat, sync_status, last_updated_by, lane_action_status, waiting_reason)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'synced', 'worker', $13, $14)
       ON CONFLICT (project_id, track_number) DO UPDATE SET
         title            = EXCLUDED.title,
         ${laneStatusClause}
@@ -985,10 +1006,19 @@ app.post('/track', auth, checkProject, async (req, res) => {
         test_content     = COALESCE(EXCLUDED.test_content, tracks.test_content),
         last_heartbeat   = NOW(),
         sync_status      = 'synced',
+        -- Track 10055: written when supplied, retired when the incoming
+        -- status is anything other than waiting, otherwise left alone — a
+        -- reason that outlives the pause it explains reads as current.
+        waiting_reason   = CASE
+          WHEN $14::text IS NOT NULL THEN $14
+          WHEN $13::text IS DISTINCT FROM 'waiting' THEN NULL
+          ELSE tracks.waiting_reason
+        END,
         last_updated_by  = 'worker'
     `, [req.project_id, track_number, title, insertLaneStatus, progress_percent,
       current_phase, content_summary, phase_step,
-      index_content, plan_content, spec_content, test_content, insertActionStatus]);
+      index_content, plan_content, spec_content, test_content, insertActionStatus,
+      waiting_reason ?? null]);
 
     res.json({ ok: true });
   } catch (err) {
@@ -999,12 +1029,19 @@ app.post('/track', auth, checkProject, async (req, res) => {
 // Track action/lane updates
 app.patch('/track/:num/action', auth, checkProject, async (req, res) => {
   try {
-    const { lane_action_status, lane_action_result, lane_status, progress_percent } = req.body;
+    const { lane_action_status, lane_action_result, lane_status, progress_percent, waiting_reason } = req.body;
     // pool via query() wrapper
     const sets = ['last_heartbeat = NOW()'];
     const params = [req.project_id, req.params.num];
     let i = 3;
-    if (lane_action_status !== undefined) { sets.push(`lane_action_status = $${i++}`); params.push(lane_action_status); }
+    if (lane_action_status !== undefined) {
+      sets.push(`lane_action_status = $${i++}`);
+      params.push(lane_action_status);
+      // Track 10055: leaving `waiting` retires the reason that explained it,
+      // unless this same request supplies a new one below.
+      if (lane_action_status !== 'waiting' && waiting_reason === undefined) sets.push('waiting_reason = NULL');
+    }
+    if (waiting_reason !== undefined) { sets.push(`waiting_reason = $${i++}`); params.push(waiting_reason); }
     if (lane_action_result !== undefined) { sets.push(`lane_action_result = $${i++}`); params.push(lane_action_result); }
     if (lane_status !== undefined) { sets.push(`lane_status = $${i++}`); params.push(lane_status); }
     if (progress_percent !== undefined) { sets.push(`progress_percent = $${i++}`); params.push(progress_percent); }
@@ -1033,7 +1070,7 @@ app.patch('/track/:num/lane', auth, checkProject, async (req, res) => {
     const { lane_status } = req.body;
     // pool via query() wrapper
     await query(
-      `UPDATE tracks SET lane_status = $3, lane_action_status = 'waiting', lane_action_result = NULL, last_heartbeat = NOW()
+      `UPDATE tracks SET lane_status = $3, lane_action_status = 'queue', lane_action_result = NULL, last_heartbeat = NOW()
              WHERE project_id = $1 AND track_number = $2`,
       [req.project_id, req.params.num, lane_status]
     );
@@ -1078,7 +1115,7 @@ app.post('/track/:num/comment', auth, checkProject, async (req, res) => {
     // Human comment wakes worker
     if (author === 'human') {
       await query(
-        `UPDATE tracks SET lane_action_status = 'waiting', lane_action_result = NULL
+        `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = NULL
          WHERE project_id = $1 AND track_number = $2 AND lane_action_status != 'running'`,
         [req.project_id, req.params.num]
       );
@@ -1279,7 +1316,11 @@ app.post('/tracks/reset-stuck-actions', auth, async (req, res) => {
     // pool via query() wrapper
     const r = await query(
       `UPDATE tracks t
-       SET lane_action_status = 'waiting', lane_action_result = 'stuck_timeout', claimed_by = NULL
+       -- Track 10055: 'queue', matching the local collector. A run that timed
+       -- out is a phantom to be retried, not a deliberate human pause — those
+       -- must stay distinguishable, or every stuck track lands in the state
+       -- that means "someone chose this" and nothing ever picks it up again.
+       SET lane_action_status = 'queue', lane_action_result = 'stuck_timeout', claimed_by = NULL
        FROM projects p
        WHERE t.project_id = p.id AND t.project_id = $1 AND p.workspace_id = $2 
          AND t.lane_action_status = 'running'
@@ -1392,7 +1433,7 @@ app.post('/tracks/claim-waiting', auth, async (req, res) => {
             SET lane_action_status = 'running', lane_action_result = 'claimed'
             FROM projects p
             WHERE t.project_id = p.id AND p.workspace_id = $1
-              AND t.lane_action_status = 'waiting'
+              AND t.lane_action_status = 'queue'
               AND t.lane_status IN ('planning', 'in-progress', 'review', 'quality-gate')
             RETURNING t.track_number, t.lane_status, p.git_global_id
             LIMIT $2
