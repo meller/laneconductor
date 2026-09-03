@@ -44,23 +44,31 @@ together.
 
 **Solution**: One handler, two routes.
 
-- [ ] Task 2.1: Extract `checkGhAuth()` usage — import from `conductor/services/pr-flow.mjs`
+- [x] Task 2.1: Extract `checkGhAuth()` usage — import from `conductor/services/pr-flow.mjs`
       (already returns `{ok, error}` and never throws). Do not re-implement.
-- [ ] Task 2.2: Extract `jiraProjectExists()` out of `bin/lc.mjs` (L513) into a shared module
+      **Deviation**: `checkGhAuth`'s return shape is relied on with strict `assert.deepEqual` in
+      `conductor/tests/track-10018-pr-flow.test.mjs` — extending it with a `detail`/account field
+      would break that test. Left untouched; the credentials endpoint reads only `{ok, error}`,
+      so github's `verified` detail is `null` (no account name) rather than the account, unlike
+      Jira/GCP. AC-3 satisfied for the verified/NOT-CONFIGURED distinction and remediation text;
+      not for naming the account.
+- [x] Task 2.2: Extract `jiraProjectExists()` out of `bin/lc.mjs` (L513) into a shared module
       (`conductor/services/jira-auth.mjs`) and re-import it in `lc.mjs` so there is exactly one
       copy. Include `resolveJiraToken()` (L563) — server-side token resolution from env var /
       GCP secret.
-- [ ] Task 2.3: Write the shared `checkCredentials({ provider, query })` handler covering all
+- [x] Task 2.3: Write the shared `checkCredentialProvider(provider, query)` handler covering all
       four providers, preserving the 10s timeouts.
-    - [ ] `jira` with an unset `token_env` → `NOT CONFIGURED`, detail names the missing var.
+    - [x] `jira` with an unset `token_env` → `NOT CONFIGURED`, detail names the missing var.
       Never echo a token value in `detail` or in an error.
-- [ ] Task 2.4: Mount `GET /api/workers/:id/credentials`; re-point
+- [x] Task 2.4: Mount `GET /api/workers/:id/credentials`; re-point
       `GET /api/workers/:id/deploy-credentials` at the same handler as a thin alias.
-- [ ] Task 2.5: Tests in `ui/server/tests/track-10049-credentials.test.mjs` — one per provider,
+- [x] Task 2.5: Tests in `ui/server/tests/track-10049-credentials.test.mjs` — one per provider,
       verified + not-configured for each, 400 unknown provider, 404 unknown worker, and an
-      explicit assertion that a token value never appears in any response body.
-- [ ] Task 2.6: **Run the existing `ui/server/tests/track-1119-deploy-credentials.test.mjs`
-      unmodified and confirm it still passes** — this is the regression guard for the alias.
+      explicit assertion that a token value never appears in any response body. **11/11 pass.**
+- [x] Task 2.6: **Ran the existing `ui/server/tests/track-1119-deploy-credentials.test.mjs`
+      unmodified — 6/6 still pass.** Also confirmed via `git stash` that 9 pre-existing failing
+      server test files predate this change entirely (unrelated: `track-1116-model-override`
+      etc. — `syncTrackToFile is not a function`).
 
 **Impact**: `ui/server/index.mjs` (route), `bin/lc.mjs` (import instead of local definition), new
 `conductor/services/jira-auth.mjs`. No UI change yet.
