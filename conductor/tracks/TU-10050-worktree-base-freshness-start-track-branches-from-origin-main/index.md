@@ -1,7 +1,7 @@
 # Track TU-10050: Worktree Base Freshness — Start Track Branches From origin/main
 
-**Lane**: review
-**Lane Status**: running
+**Lane**: quality-gate
+**Lane Status**: queue
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
