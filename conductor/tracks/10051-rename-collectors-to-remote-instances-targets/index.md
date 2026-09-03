@@ -3,10 +3,10 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 0%
-**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
 **Summary**: Config key, UI section, and internal function names all say 'collector' (config.collectors, getCollectors, primaryCollector, postToCollectors, patchCollectors, resolveCollectorToken,…
 **Merge Mode**: direct
+**Auto Run**: yes

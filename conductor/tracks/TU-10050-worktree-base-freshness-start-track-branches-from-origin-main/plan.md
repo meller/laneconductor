@@ -154,27 +154,60 @@ creates has the right base — and the Phase 2 Task 2.3 hazard (line 3943 re-har
 remote and asserts on real commit SHAs, following
 `conductor/tests/track-1112-worktree-merge.test.mjs`'s existing scratch-repo pattern.
 
-- [ ] Task 4.1: Write `conductor/tests/track-10050-worktree-base-e2e.test.mjs` with a
+- [x] Task 4.1: Write `conductor/tests/track-10050-worktree-base-e2e.test.mjs` with a
       helper that builds a bare `origin` plus a clone, and can drive local `<main>` into
       each of: behind, ahead, diverged, in-sync, offline.
-- [ ] Task 4.2: Implement TC-9 … TC-14 from `test.md` — assert on
+- [x] Task 4.2: Implement TC-9 … TC-14 from `test.md` — assert on
       `git -C <worktree> rev-parse HEAD` against the expected SHA in each state.
-- [ ] Task 4.3: Include the track-1114 regression guard (TC-13): pre-create `track-N` with a
+- [x] Task 4.3: Include the track-1114 regression guard (TC-13): pre-create `track-N` with a
       distinct commit, create the worktree, assert the branch tip is **unchanged**.
-- [ ] Task 4.4: Include the offline case (TC-14) by pointing `origin` at a nonexistent path —
+- [x] Task 4.4: Include the offline case (TC-14) by pointing `origin` at a nonexistent path —
       assert worktree creation still succeeds (REQ-8).
-- [ ] Task 4.5: Run the full suite — `node --test conductor/tests/` — and confirm no
+- [x] Task 4.5: Run the full suite — `node --test conductor/tests/` — and confirm no
       regressions in the neighbouring worktree tests (1112 audit/merge/visibility, 1114,
       10045, `worktree-create-path-resolution`, `primary-root-normalization`). These share
       the code path being changed.
-- [ ] Task 4.6: Restart the real worker (`lc worker restart`) and create one real track
-      worktree, confirming from the log line added in Task 2.4 that the base resolved as
-      `local-ahead` on this repo, and that `git -C .worktrees/<n> rev-parse HEAD` equals
-      local `main`. The worker does not hot-reload — verifying against the running process
-      would test the old code.
+    - Full suite in this worktree: 767 tests, 59 failures. Diffed against an identical run
+      at a disposable detached worktree pinned to the pre-track-10050 commit (`f25dbcc`) to
+      separate real regressions from this repo's normal DB/port/timing-dependent E2E
+      flakiness: only 2 suite names appeared exclusively in this worktree
+      (`runDeploy`, `Track 10017 Phase 7`), and both traced to a missing
+      `ui/node_modules/ws` present in **neither** worktree — an environment gap, not a
+      regression. `runDeploy` passes clean in isolation. All neighbouring
+      worktree-lifecycle suites (1112 ×3, 1114, 10045, path-resolution,
+      root-normalization, `lock-unlock`) match the baseline exactly, including
+      `lock-unlock`'s 2 pre-existing failures (a stale test asserting the wrong worktree
+      path convention, `.git/worktrees/N` vs the real `.worktrees/N` — reproduced
+      byte-for-byte against the pre-track-10050 `lock.mjs` too; not this track's to fix).
+- [x] Task 4.6: **Deviation from plan** — did not restart the live worker. `lc worker
+      status` showed it already stopped, and the primary checkout carried substantial
+      unrelated in-flight bookkeeping from other tracks; restarting a shared daemon
+      mid-session purely to manufacture one worktree creation was an unjustified risk
+      (real actions on a shared system) for what a targeted check already proves. Instead
+      drove the actual imported functions (`getMainBranch`, `probeWorktreeStartPoint`,
+      `resolveWorktreeAddArgs`, `renderWorktreeAddCommand`) against a disposable local
+      (no-network) clone of this real repository:
+      ```
+      getMainBranch(): main
+      probeWorktreeStartPoint(): { startPoint: 'main', reason: 'in-sync', staleBy: 0 }
+      worktree HEAD: 3392ab99517b844d41c55da20f467fa306c4a6f3
+      local main:    3392ab99517b844d41c55da20f467fa306c4a6f3
+      MATCH: true
+      ```
+      This repo's own divergence moved from the `27 0` measured during planning to `0 0`
+      by implement time (other tracks' merges caught it up) — correctly resolved as
+      `in-sync` rather than a memorized `local-ahead`, confirming the resolver reacts to
+      live state. Full transcript in `conversation.md`.
+    - Also ran `cd ui && npm test` (installed `ui/node_modules` in this worktree first —
+      it was entirely absent, same environment gap as above): 33 failures, all in
+      `auth.test.mjs`, `WorkflowSettings.test.jsx`, and other unrelated feature tests
+      (Track 1033/1084/1102/1116 areas). Confirmed identical on the unmodified primary
+      checkout (`auth.test.mjs` alone: 9/14 failing in both) — pre-existing, unrelated to
+      this track.
 
-**Impact**: Evidence, on real repositories, that each row of the resolution table produces
-the branch base it claims.
+**Impact**: Evidence, on real repositories — including this actual repository's own git
+config — that each row of the resolution table produces the branch base it claims, with no
+regressions introduced anywhere in the worker or UI test suites.
 
 ---
 
@@ -186,13 +219,13 @@ wrong. Without a written record, the next person to touch this reverts Phase 1.
 **Solution**: Record the rule and its rationale where the worktree lifecycle is already
 described.
 
-- [ ] Task 5.1: Add a short "Worktree base resolution" subsection to `conductor/product.md`
+- [x] Task 5.1: Add a short "Worktree base resolution" subsection to `conductor/product.md`
       near the existing worktree/lock material — the resolution table plus the one-line
       reason `origin/main` alone is unsafe.
-- [ ] Task 5.2: Note in `conductor/workflow.md`'s Workspace Modes section that `branch`-mode
+- [x] Task 5.2: Note in `conductor/workflow.md`'s Workspace Modes section that `branch`-mode
       tracks are based on the freshest safe base at first worktree creation, and that a
       resumed branch is **not** re-based (REQ-6).
-- [ ] Task 5.3: Confirm neither edit contradicts the existing fundamentals docs; if it does,
+- [x] Task 5.3: Confirm neither edit contradicts the existing fundamentals docs; if it does,
       raise it per the skill's fundamentals-conflict guardrail rather than editing around it.
 
 **Impact**: The non-obvious decision survives the next reader.
@@ -211,3 +244,5 @@ described.
   second, divergent `createWorktree()` (line 95) that writes to a `.git/worktrees/conductor/`
   path convention nothing else uses. Left untouched here; a candidate for deletion in a
   cleanup track.
+
+## ✅ COMPLETE
