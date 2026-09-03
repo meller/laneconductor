@@ -1,7 +1,7 @@
 # Track 1090: Remote Browser Visibility
 
 **Lane**: backlog
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Awaiting decision — not yet brainstormed
 **Type**: dev
