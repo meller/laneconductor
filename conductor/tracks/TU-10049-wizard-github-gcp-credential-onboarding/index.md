@@ -1,10 +1,11 @@
 # Track TU-10049: Wizard: GitHub + Jira + GCP Credential Onboarding
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
+**Auto Run**: yes
 **Author**: TU
 **Created By**: test@example.com
 **Summary**: Extend the existing New Project wizard so a user can connect GitHub (repo access/App install), Jira (issue-tracker linkage), and GCP (project + service-account or delegated credentials) during…
@@ -17,3 +18,4 @@
   - Cloud (GCP is real): AWS, Azure, etc.
   Exact set per category TBD at planning. Purpose is roadmap signaling, not functionality — clicking one must not error or silently no-op without feedback; it should read as clearly "not yet available."
 - No existing Jira integration exists anywhere in the codebase today (verified via grep) — this is net-new, not extending something partial.
+**Merge Mode**: direct
