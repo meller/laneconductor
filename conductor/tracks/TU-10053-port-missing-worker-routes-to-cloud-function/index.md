@@ -1,15 +1,16 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 25%
+**Lane Status**: waiting
+**Progress**: 70%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Phase 2 — Worker identity and transactions
+**Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
 **Type**: dev
 **Track Kind**: feature
 **Author**: TU
 **Created By**: test@example.com
 **Merge Mode**: direct
+**Waiting for reply**: yes
 **Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction primitive, and one Atlas migration — see spec.md.
 
 ## Problem
@@ -100,8 +101,8 @@ Full criteria in `spec.md`; per-phase test cases in `test.md`.
 
 ## Phases
 - [x] Phase 1: Parity harness, routing, and schema groundwork
-- [ ] Phase 2: Worker identity and transactions in the cloud function
-- [ ] Phase 3: Port the coordination and read routes
-- [ ] Phase 4: Port claim, session, and dispatch
-- [ ] Phase 5: Live verification against the deployed cloud API
-- [ ] Phase 6: Retire the 10052 caveats
+- [x] Phase 2: Worker identity and transactions in the cloud function
+- [x] Phase 3: Port the coordination and read routes
+- [x] Phase 4: Port claim, session, and dispatch
+- [ ] Phase 5: Live verification — **BLOCKED**: needs authorization to deploy and to migrate the cloud DB
+- [ ] Phase 6: Retire the 10052 caveats — gated on Phase 5, deliberately not started
