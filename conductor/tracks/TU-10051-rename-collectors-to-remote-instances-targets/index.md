@@ -1,6 +1,6 @@
 # Track TU-10051: Rename 'Collectors' to Remote Instances / Targets
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
