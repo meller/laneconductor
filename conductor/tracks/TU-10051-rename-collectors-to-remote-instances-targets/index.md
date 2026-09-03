@@ -1,7 +1,7 @@
 # Track TU-10051: Rename 'Collectors' to Remote Instances / Targets
 
 **Lane**: done
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
