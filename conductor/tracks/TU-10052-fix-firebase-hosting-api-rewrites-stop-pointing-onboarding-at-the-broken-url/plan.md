@@ -117,6 +117,16 @@ passage is necessary but not sufficient evidence.
 
 **Impact**: The production fix is demonstrated by observation, not inference.
 
+> ⏸️ **NOT RUN — awaiting explicit go-ahead.** Every other phase is complete and
+> verified locally, but this phase deploys to the live `laneconductor-site`
+> Firebase project, which is outward-facing and affects real users. That is not
+> a call to make unattended, so it was deliberately left undone rather than
+> silently executed. **AC-1, AC-2, AC-3, AC-4 and AC-6 all depend on this phase
+> and therefore remain unverified in production** — the corrected rewrites are
+> proven correct offline (23/23) but are inert until Hosting is redeployed.
+> To finish: `firebase deploy --only hosting --project laneconductor-site`,
+> then run test.md's live probe loop and record the output here.
+
 ---
 
 ## Phase 5: Honest onboarding
@@ -151,13 +161,13 @@ unrecorded, the deferral becomes invisible.
 
 **Solution**: File it as its own track with the specific routes enumerated.
 
-- [ ] Task 6.1: Create a follow-up track ("Port missing worker routes to the cloud
+- [x] Task 6.1: Create a follow-up track ("Port missing worker routes to the cloud
       function") listing: `/projects/:id/workflow`, `/worker-dispatch/*`,
       `/api/projects/:id/claimable-tracks`, `/tracks/claim-queue`,
       `/track/:n/prespawn-block`, `/track/:n/session`, `/track/:n/lock` — each
       confirmed present in `ui/server/index.mjs` and absent from
       `cloud/functions/index.js`. Note track 1046 as the precedent.
-- [ ] Task 6.2: Reference the new track number in this track's `conversation.md`
+- [x] Task 6.2: Reference the new track number in this track's `conversation.md`
       and in `spec.md`'s Out of Scope section.
 
 **Impact**: The remaining work is visible and owned.

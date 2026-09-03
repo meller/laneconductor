@@ -1,6 +1,16 @@
+## Track Creation Requests
 
 
 ## Completed Queue
+
+### Track 10053: Port missing worker routes to the cloud function
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-09-03T10:09:59.000Z
+**Title**: Port missing worker routes to the cloud function
+**Description**: Seven route families the sync worker calls exist in ui/server/index.mjs but are missing from cloud/functions/index.js (/projects/:id/workflow, /worker-dispatch/:id, /api/projects/:id/claimable-tracks, /tracks/claim-queue, /track/:num/prespawn-block(+/reset), /track/:num/session, /track/:num/lock+/unlock). A worker pointed at app.laneconductor.com registers successfully (that route exists) and then cannot claim, lock, or coordinate any work. Split out of track 10052, which fixed the Hosting rewrite glob layer and caveated cloud onboarding but deliberately did not port these routes. Same class of gap as track 1046 (/api/keys).
+**Author**: TU
+**Processed**: 2026-09-03T10:10:00.562Z
 
 ### Track 10046: local-fs-answer Overwrites Lane With a Stale Snapshot Under Concurrent Dispatch
 **Status**: processed

@@ -166,8 +166,14 @@ Each criterion is a user-observable outcome. None is satisfiable by a stub.
 - **Porting the missing route families to `cloud/functions/index.js`**
   (`/projects/:id/workflow`, `/worker-dispatch/*`, `/api/projects/:id/claimable-tracks`,
   `/tracks/claim-queue`, `/track/:n/prespawn-block`, `/track/:n/session`,
-  `/track/:n/lock`). This is a substantial port with its own auth and schema
-  surface, tracked separately per REQ-7. **Because this is deferred, this track
+  `/track/:n/lock` + `/unlock`). This is a substantial port with its own auth and
+  schema surface. **Filed as track 10053** (`conductor/tracks/TU-10053-port-missing-worker-routes-to-cloud-function/`),
+  per REQ-7.
+
+  Correction to an earlier draft of this spec: `POST /worker/register` and
+  `PATCH /worker/heartbeat` **do** exist in the cloud function — verified
+  route-by-route on 2026-09-03. Registration is not the failure point; a worker
+  registers fine and then cannot claim, lock, or coordinate work. **Because this is deferred, this track
   cannot claim that `remote-api` mode works end to end**, and must not be marked
   `done` on any criterion implying it does. AC-1…AC-9 are all deliberately scoped
   to the hosting layer, diagnosability, and honest onboarding.
