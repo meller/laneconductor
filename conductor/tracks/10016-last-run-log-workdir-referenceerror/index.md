@@ -2,13 +2,13 @@
 
 **Lane**: implement
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — scope replaced
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Implementation complete
 **Type**: bug
 **Track Kind**: bug
-**Summary**: Original scope (workDir ReferenceError) is ALREADY FIXED in main by edb01b0 / track 1102 F9b. Planning found the real issue underneath: last_run.log matches .gitignore's `*.log`, so the `git add`…
+**Summary**: Removed the dead `git add` (can never succeed — last_run.log matches .gitignore's `*.log`) from spawnCli's exit handler; kept the unconditional writeFileSync. Also updated an existing regression…
 
 ## Problem
 
