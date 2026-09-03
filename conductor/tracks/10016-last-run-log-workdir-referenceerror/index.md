@@ -1,8 +1,9 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 0%
+**Last Run**: claude/claude-opus-5 (primary)
 **Phase**: New
 **Type**: bug
 **Summary**: Found live while investigating track 1102's F9 (gutted index.md). spawnCli()'s exit handler references `workDir` inside the `if (lastRunLog)` block before it's declared in a later, sibling `if…
