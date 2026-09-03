@@ -1,7 +1,7 @@
 # Track 10033: Decide the canonical migration mechanism
 
 **Lane**: backlog
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Type**: dev
 **Summary**: Track 1102's F22 investigation (Phase 16, 2026-08-25) found this repo runs two parallel, undocumented migration mechanisms — the `migrations/` + Atlas `atlas_schema_revisions` ledger, and a separate…
