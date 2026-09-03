@@ -137,20 +137,33 @@ answers must reach the dispatch payload without breaking legacy dispatches.
 **Problem**: A Jira selection must produce a working target in the created project, not just a
 line in a payload.
 
-- [ ] Task 5.1: In `runCreateProject` (`conductor/laneconductor.sync.mjs`, next to the
-      `wizard.deployment` block ~L7015), read `entry.payload?.wizard?.connections`.
-- [ ] Task 5.2: For `issue_tracker.provider === 'jira'`, append `buildJiraCollector(...)` to the
-      `collectors[]` of the `.laneconductor.json` that function already writes (~L7063). Must
-      run **after** that write, mirroring why the deployment block runs after scaffold-generate.
-- [ ] Task 5.3: Append the Jira token env var name to the created project's `.env.example`
-      (name only — REQ-3).
-- [ ] Task 5.4: No-op cleanly when `connections` is absent (legacy dispatch) or every category
-      is `skip`.
-- [ ] Task 5.5: Tests in `conductor/tests/track-10049-connections-artifacts.test.mjs` — Jira
-      entry written and matching the CLI shape, `.env.example` names the var and holds no value,
-      legacy dispatch unchanged.
+- [x] Task 5.1: In `runCreateProject` (`conductor/laneconductor.sync.mjs`), read
+      `entry.payload?.wizard?.connections`.
+      **Deviation**: extracted the logic into `conductor/services/wizard-connections.mjs`
+      (`writeWizardConnectionsArtifacts`) rather than inlining it in `runCreateProject`, because
+      that function isn't exported and every existing test for it spins up the full
+      manager-worker + mock-CLI + mock-collector harness (~10s per test). A standalone function
+      is directly unit-testable against a real temp directory in milliseconds — see Task 5.5.
+      `runCreateProject` now just calls it with one line.
+- [x] Task 5.2: For `issue_tracker.provider === 'jira'`, append `buildJiraCollector(...)` to the
+      `collectors[]` of the `.laneconductor.json` that function already writes. Runs **after**
+      that write (reads the file back and appends), mirroring why the deployment block runs
+      after scaffold-generate.
+- [x] Task 5.3: Append the Jira token env var name to the created project's `.env.example`
+      (name only — REQ-3); skips the append if the line is already present.
+- [x] Task 5.4: No-op cleanly when `connections` is absent (legacy dispatch) or every category
+      is `skip` — returns `{ wrote: false }`, touches neither file.
+- [x] Task 5.5: Tests in `conductor/tests/track-10049-connections-artifacts.test.mjs` — Jira
+      entry matches the CLI shape, appends without clobbering existing collectors, `.env.example`
+      names the var with an empty value and never a credential, legacy/skip dispatches are true
+      no-ops. **7/7 pass** (TC-32..TC-37 plus a no-duplicate-line case). Also re-ran two existing
+      full-harness integration tests
+      (`track-1119-phase3-track-generation.test.mjs`, `track-AM-1121-marketing-tracks.test.mjs`,
+      both legacy/marketing dispatch shapes with no `connections` key) to confirm the
+      `runCreateProject` refactor doesn't regress the no-op path in a real end-to-end run — both
+      still pass.
 
-**Impact**: `conductor/laneconductor.sync.mjs`.
+**Impact**: `conductor/laneconductor.sync.mjs`, new `conductor/services/wizard-connections.mjs`.
 
 ### Deferred — NOT part of this track's completion (spec § Out of Scope)
 
