@@ -4,8 +4,8 @@
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phases 1,2,3,5,6 merged to main — Phase 4 (prod deploy) still awaiting go-ahead
-**Waiting for reply**: yes
+**Phase**: All 6 phases complete — deployed and verified live in production
+**Waiting for reply**: no
 **Type**: dev
 **Track Kind**: bug
 **Author**: TU
