@@ -207,7 +207,7 @@ export function ProjectConfigSettings({ projectId, onClose }) {
         <section>
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 pb-2 border-b border-gray-800">Collectors</h3>
           {(config?.collectors || []).map((c, i) => (
-            <div key={i} className="grid grid-cols-2 gap-4 mb-3">
+            <div key={i} className="grid grid-cols-2 gap-4 mb-3 items-end">
               <div>
                 <label className={labelCls}>Collector {i + 1} URL</label>
                 <input type="text" value={c.url || ''} onChange={e => {
@@ -216,16 +216,40 @@ export function ProjectConfigSettings({ projectId, onClose }) {
                   setConfig(prev => ({ ...prev, collectors: next }));
                 }} className={inputCls} placeholder="http://localhost:8091" />
               </div>
-              <div>
-                <label className={labelCls}>Token (optional)</label>
-                <input type="text" value={c.token || ''} onChange={e => {
-                  const next = [...(config.collectors || [])];
-                  next[i] = { ...next[i], token: e.target.value };
-                  setConfig(prev => ({ ...prev, collectors: next }));
-                }} className={inputCls} placeholder="leave blank for local" />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className={labelCls}>Token (optional)</label>
+                  <input type="text" value={c.token || ''} onChange={e => {
+                    const next = [...(config.collectors || [])];
+                    next[i] = { ...next[i], token: e.target.value };
+                    setConfig(prev => ({ ...prev, collectors: next }));
+                  }} className={inputCls} placeholder="leave blank for local" />
+                </div>
+                {/* index 0 is always primary (reads/dispatch polling come from it
+                    exclusively) — removing it would silently orphan the project,
+                    so only secondary/mirror entries (i > 0) get a remove control. */}
+                {i > 0 && (
+                  <button type="button" onClick={() => {
+                    const next = (config.collectors || []).filter((_, idx) => idx !== i);
+                    setConfig(prev => ({ ...prev, collectors: next }));
+                  }} className="px-3 py-2 text-xs text-red-400 border border-red-900/50 rounded hover:bg-red-950/30">
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
           ))}
+          <button type="button" onClick={() => {
+            const next = [...(config?.collectors || []), { url: '', token: '' }];
+            setConfig(prev => ({ ...prev, collectors: next }));
+          }} className="mt-1 px-3 py-1.5 text-xs text-blue-400 border border-blue-900/50 rounded hover:bg-blue-950/30">
+            + Add Collector
+          </button>
+          <p className="text-[11px] text-gray-500 mt-2">
+            Collector 1 is primary — the worker polls it for dispatched actions and pulls state from it exclusively.
+            Any collector after that is a write-only mirror: it receives every update this project makes, but the
+            worker never reads dispatches or state back from it.
+          </p>
         </section>
 
         {/* DB */}
