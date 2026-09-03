@@ -269,6 +269,53 @@ actions, and serve manual dispatches. Every route in the gap table is now real.
 
 ## Phase 5: Live verification against the deployed cloud API
 
+> **STATUS: BLOCKED — needs authorization for three production writes.**
+> Everything in Phases 1-4 is implemented and tested offline. The remaining
+> steps all write to production and were deliberately not taken:
+>
+> 1. `firebase deploy --only hosting` — publishes the rewrites.
+> 2. `firebase deploy --only functions:api` — publishes the ported routes.
+> 3. `atlas migrate apply` (or the raw SQL) against the cloud DB — creates the
+>    four `prespawn_block_*` columns.
+>
+> `gcloud` is authenticated (`asaf.meller@gmail.com`, project
+> `laneconductor-site`) and the `DATABASE_URL` secret is readable, so all three
+> are *possible* from here — they are withheld for authorization, not blocked
+> by tooling.
+>
+> ### Pre-deploy evidence (read-only, captured 2026-09-03)
+>
+> A GET sweep of all 11 ported paths against `https://app.laneconductor.com`:
+>
+> ```
+> /health                            200  JSON  {"ok":true,"cloud":true}
+> /projects/1/workflow               200  SPA index.html
+> /conductor-files                   200  SPA index.html
+> /track/1                           200  SPA index.html
+> /track/1/lock                      200  SPA index.html
+> /track/1/unlock                    200  SPA index.html
+> /track/1/prespawn-block            200  SPA index.html
+> /track/1/prespawn-block/reset      200  SPA index.html
+> /track/1/session                   200  SPA index.html
+> /tracks/claim-queue                200  SPA index.html
+> /worker-dispatch/1                 200  SPA index.html
+> /worker/1/dispatch                 200  SPA index.html
+> /worker/1/dispatch/claimed         200  SPA index.html
+> /api/projects/1/claimable-tracks   200  SPA index.html
+> ```
+>
+> **Track 10052's rewrite fix is committed but has never been deployed.** Only
+> the single-segment `/health` reaches the function; every multi-segment path
+> still falls through to the SPA catch-all, which is the exact symptom
+> `conductor/product.md` describes as the live gap. So the deploy in Task 5.1
+> is not just publishing this track's routes — it is also what finally makes
+> 10052's fix take effect.
+>
+> This sweep is also why TC-44 asserts on the response *body*: every one of
+> those 14 paths returns `200`, so a status-only check would have reported all
+> of them as reachable.
+
+
 **Problem**: Every check so far is offline. The route-parity test proves a route
 is *registered*; it cannot prove a worker can actually work. Unit tests with a
 mocked `pg` cannot catch a wrong column name, a missing cloud-DB constraint, or
