@@ -1,10 +1,10 @@
 # Track TU-10051: Rename 'Collectors' to Remote Instances / Targets
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — 7 phases
+**Lane**: implement
+**Lane Status**: queue
+**Progress**: 0%
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Phase 1 — Compatibility seam
 **Type**: dev
 **Track Kind**: feature
 **Author**: TU
