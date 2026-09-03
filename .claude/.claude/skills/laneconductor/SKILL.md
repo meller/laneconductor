@@ -718,11 +718,11 @@ Sets up the **collection destination** — configures the operating mode, AI age
    - If `gcp-secret`, ask for: `Secret Name (e.g., LC_PROD_KEY)`.
    - The default URL for LC cloud is `https://app.laneconductor.com`.
      ⚠️ **Not fully supported yet (track 10052).** Several worker endpoints
-     (`/worker/register`, `/tracks/claim-queue`, `/track/:n/lock`,
+     (`/tracks/claim-queue`, `/track/:n/lock`, `/track/:n/unlock`,
      `/projects/:id/workflow`, `/worker-dispatch/*`, `/track/:n/session`,
      `/api/projects/:id/claimable-tracks`) exist in `ui/server/index.mjs` but are
      still missing from `cloud/functions/index.js`, so a worker pointed at LC
-     cloud cannot register or claim work. Recommend `local-api` until that port
+     cloud cannot claim or coordinate work. Recommend `local-api` until that port
      lands.
 
    Write all configurations to `.laneconductor.json` and tokens to `.env` (if using token storage).
