@@ -3959,6 +3959,34 @@ app.get('/worker/:id/dispatch/claimed', collectorAuth, async (req, res) => {
   }
 });
 
+// Track 10054 (2026-09-03): the per-worker route above only ever let a
+// worker reconcile dispatches IT ITSELF still owns. --worker-number
+// (track 1084) makes running several worker identities against the same
+// project a deliberate, supported thing, not a bug — but nothing ever
+// swept a dispatch claimed by an identity that's now offline: the
+// offline worker obviously can't reconcile its own claim, and no
+// currently-running worker ever looked past its own worker_id. Confirmed
+// live: two dispatches sat 'claimed' by a dead worker identity,
+// invisible to the replacement worker's reconciler, until a human
+// noticed the tracks looked stuck. 60s matches every other "is this
+// worker alive" check in this file (see the last_heartbeat queries
+// above) — same threshold, same meaning, applied here for consistency.
+app.get('/project/:id/dispatch/claimed-by-offline-workers', collectorAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT wd.* FROM worker_dispatch wd
+       JOIN workers w ON w.id = wd.worker_id
+       WHERE w.project_id = $1 AND wd.status = 'claimed'
+         AND w.last_heartbeat < NOW() - INTERVAL '60 seconds'
+       ORDER BY wd.claimed_at ASC`,
+      [req.params.id]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Worker-side: report a dispatch entry's outcome (claimed when it starts
 // running, done/failed once it finishes).
 app.patch('/worker-dispatch/:id', collectorAuth, async (req, res) => {
