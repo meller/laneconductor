@@ -95,14 +95,24 @@ track. A `withTransaction(fn)` helper (checkout, BEGIN, ROLLBACK-on-throw,
 release) is a prerequisite, not an implementation detail.
 
 **B3 — The `prespawn_block_*` columns are not in the cloud DB.**
-This repo has **two** migration directories and only one of them runs:
-`scripts/migrate-prod.sh` → `scripts/migrate.sh` → `atlas migrate apply` over
-`migrations/`. `ui/server/migrations/*.sql` has **no runner anywhere in the
-repo** — grep confirms nothing references that path. The four columns
-`/track/:num/prespawn-block` writes (`prespawn_block_count`,
-`prespawn_block_kind`, `prespawn_block_reason`, `prespawn_blocked_at`) exist
-*only* in `ui/server/migrations/013_track_10040_prespawn_block.sql`, so they are
-absent from the cloud database.
+This repo has **two** migration systems, and each reaches only its own
+database:
+
+- `migrations/` is applied by `scripts/migrate.sh` (`atlas migrate apply`),
+  which `scripts/migrate-prod.sh` points at the cloud DB.
+- `ui/server/migrations/` is applied by `runMigration()` in
+  `ui/server/index.mjs`, called on **every local API server startup** (and so
+  on every vitest run, which imports the app). It iterates that directory and
+  swallows failures as warnings. By construction it only ever touches the
+  database the *local collector* connects to — the cloud DB is served by
+  `cloud/functions/index.js`, which has no equivalent.
+
+So the four columns `/track/:num/prespawn-block` writes
+(`prespawn_block_count`, `prespawn_block_kind`, `prespawn_block_reason`,
+`prespawn_blocked_at`), defined only in
+`ui/server/migrations/013_track_10040_prespawn_block.sql`, are present on every
+developer machine and **absent from the cloud database** — confirmed by
+introspecting the live cloud schema.
 
 Everything else the ported handlers touch **is** in `migrations/` and therefore
 already in the cloud DB: `track_locks`, `track_sessions` (+ `resume_count`,
@@ -255,12 +265,16 @@ here (see Open Items).
 
 ## Open Items
 
-- **`ui/server/migrations/` has no runner.** Ten files there define columns the
-  local server reads and writes; whether a given local DB has them depends on
-  how it was built. This track lifts only the four columns it needs into Atlas.
-  A follow-up should either reconcile the whole directory into `migrations/` or
-  delete it — filed as an open item, deliberately not in scope here, because
-  auditing ten migrations for cloud-safety is a larger job than this port.
+- **`ui/server/migrations/` reaches only local databases.** Ten files there
+  define columns the local server reads and writes, applied by
+  `runMigration()` on local API startup and never to the cloud DB. Anything
+  defined only there is silently cloud-missing. This track lifts the four
+  columns it needs into Atlas; `tracks.merge_mode` and `tracks.workspace_mode`
+  (from `009` and `010`) are confirmed missing in the cloud too but are not
+  touched by any route ported here. A follow-up should reconcile the whole
+  directory into `migrations/` or delete it — deliberately not in scope here,
+  because auditing ten migrations for cloud-safety is a larger job than this
+  port.
 - **⚠️ Fundamentals conflict — `conductor/tech-stack.md` does not describe the
   cloud test layer.** Its Testing table lists three layers (node:test, Vitest,
   Playwright) with a rule that unit/integration tests with mocking use Vitest.

@@ -2400,7 +2400,53 @@ function hashApiKey(key) {
   return createHash('sha256').update(key).digest('hex');
 }
 
+// Track 10053: worker identity carried in its own header, so it survives the
+// case where `Authorization` is a project-wide credential rather than a
+// machine_token.
+//
+// This fixes a live local bug, not just a cloud one. A worker configured with
+// an lc_ api key in COLLECTOR_0_TOKEN authenticates through the api_keys branch
+// below, which sets req.user_uid but no req.worker_id — so every
+// /track/:num/session call answered `400 worker identity required` and session
+// continuity (--resume) silently never engaged for those workers.
+const WORKER_TOKEN_HEADER = 'x-worker-token';
+
 async function collectorAuth(req, res, next) {
+  // Resolve the bearer first, then let the header fill in worker identity if
+  // the bearer did not already establish it.
+  return resolveCollectorCredential(req, res, () => resolveWorkerTokenHeader(req, res, next));
+}
+
+async function resolveWorkerTokenHeader(req, res, next) {
+  const workerToken = req.headers[WORKER_TOKEN_HEADER];
+  // A machine_token bearer has already identified the worker, and that
+  // identification wins: the header supplements, it never re-points an
+  // already-identified caller at a different worker.
+  if (!workerToken || req.worker_id) return next();
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, project_id, user_uid, visibility FROM workers WHERE machine_token = $1',
+      [workerToken]
+    );
+    if (rows.length > 0) {
+      req.worker_id = rows[0].id;
+      req.worker_project_id = rows[0].project_id || req.worker_project_id;
+      req.worker_user_uid = rows[0].user_uid;
+      req.worker_visibility = rows[0].visibility;
+      req.machine_token = workerToken;
+    }
+    // An unrecognised token is ignored here rather than rejected — unlike the
+    // cloud function, which 403s. There is no tenancy boundary to protect on a
+    // local single-tenant collector that already permits anonymous callers, so
+    // rejecting would only break local setups for no security gain.
+  } catch (err) {
+    console.error('[collector] worker token lookup error:', err);
+  }
+  return next();
+}
+
+async function resolveCollectorCredential(req, res, next) {
   const bearer = req.headers.authorization?.replace('Bearer ', '');
 
   const bodyProj = req.body?.project_id ? parseInt(req.body.project_id) : null;

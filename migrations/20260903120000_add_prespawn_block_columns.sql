@@ -1,12 +1,14 @@
 -- Track 10053: lift the pre-spawn block counter into the Atlas migration set.
 --
--- These four columns were added by ui/server/migrations/013_track_10040_prespawn_block.sql,
--- and that directory has no runner anywhere in the repo — nothing references
--- the path. The only migration runner is scripts/migrate.sh (`atlas migrate
--- apply` over this directory), which scripts/migrate-prod.sh drives against
--- the cloud database. So these columns existed on developer databases (applied
--- by hand) and were absent from the cloud one, which is why porting
--- POST /track/:num/prespawn-block to cloud/functions/index.js needs this first.
+-- These four columns were added by ui/server/migrations/013_track_10040_prespawn_block.sql.
+-- That directory has a runner, but only a local one: runMigration() in
+-- ui/server/index.mjs replays it on every local API server startup. The cloud
+-- database is served by cloud/functions/index.js, which has no equivalent, and
+-- is only ever migrated by scripts/migrate.sh (`atlas migrate apply` over this
+-- directory). So these columns are present on every developer machine and were
+-- absent from the cloud one — confirmed by introspecting the live cloud schema
+-- — which is why porting POST /track/:num/prespawn-block to the cloud function
+-- needs this first.
 --
 -- Types are copied verbatim from 013 so a database that already has the
 -- columns keeps exactly the shape the local collector was written against —
