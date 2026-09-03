@@ -155,6 +155,12 @@ CREATE TABLE "tracks" (
     "kpi_maps_to" TEXT,
     "waiting_for_reply" BOOLEAN NOT NULL DEFAULT false,
     "auto_run" BOOLEAN NOT NULL DEFAULT false,
+    "dismissed_at" TIMESTAMPTZ(6),
+    "model_override" TEXT,
+    "prespawn_block_count" INTEGER NOT NULL DEFAULT 0,
+    "prespawn_block_kind" TEXT,
+    "prespawn_block_reason" TEXT,
+    "prespawn_blocked_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "tracks_pkey" PRIMARY KEY ("id")
 );
