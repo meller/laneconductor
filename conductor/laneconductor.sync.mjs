@@ -5611,25 +5611,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           }
           updated = true;
 
-          // Track 1102 F9b: workDir used to be declared inside the sibling
-          // `if (updated)` block below, so the `git add` for last_run.log
-          // (which runs before that block) referenced it out of scope —
-          // ReferenceError, swallowed by that call's own empty catch, so
-          // last_run.log was written to disk but never staged. Both blocks
-          // now share this one declaration.
+          // Shared by this block and the `if (updated)` block below (Track
+          // 1102 F9b hoisted this out of a sibling block it didn't reach).
           const workDir = worktreePath || process.cwd();
 
-          // 4. Write last run log to the track folder for worker context
+          // 4. Write last run log to the track folder for worker context.
+          // Not staged/committed — last_run.log matches .gitignore's
+          // `*.log` and git refuses to add an explicitly-ignored path
+          // without -f. It's a per-run runtime artifact read locally by
+          // /laneconductor implement (like conductor/.runs/<track>.json),
+          // not a committed one — see track 10016 and product.md's file
+          // roles table.
           const lastRunLog = tailLog(logPath, 100);
           if (lastRunLog) {
             const lastRunLogPath = join(tracksDir, trackDir, 'last_run.log');
             writeFileSync(lastRunLogPath, lastRunLog, 'utf8');
-            const relLogPath = join('conductor', 'tracks', trackDir, 'last_run.log');
-            try {
-              execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' });
-            } catch (e) {
-              console.warn(`[${label}] Failed to stage last_run.log: ${e.message}`);
-            }
           }
 
           // 5. Write changes and commit to git

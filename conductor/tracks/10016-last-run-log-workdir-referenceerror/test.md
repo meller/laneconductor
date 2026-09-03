@@ -2,12 +2,20 @@
 
 ## Test Commands
 ```bash
-# This track's suite
-node --test conductor/tests/track-10016-last-run-log.test.mjs
+# This track's fast static guards (TC-1, TC-6)
+node conductor/tests/track-10016-last-run-log.test.mjs
+
+# Live spawned-worker coverage (TC-2..TC-5) — updated in place, was
+# originally written for track 1102's F9b and asserted the OPPOSITE
+node conductor/tests/track-1102-f9b-log-staging.test.mjs
 
 # Regression: the exit handler's index.md write/commit path shares `workDir`
-node --test conductor/tests/track-1102-f9-index-producer.test.mjs
+node conductor/tests/track-1102-f9-index-producer.test.mjs
 ```
+
+Note: run these with plain `node <file>.mjs`, not `node --test <file>.mjs`
+— the latter double-invokes node:test's `run()` in this repo's test files
+and produces a "being called recursively" warning with no test output.
 
 ## Test Cases
 
@@ -58,13 +66,20 @@ node --test conductor/tests/track-1102-f9-index-producer.test.mjs
 
 ## Acceptance Criteria
 
-- [ ] TC-2 was observed **failing** against unmodified `main` before any
-      code change, per this codebase's TDD convention. This track exists
-      because a bug was asserted from code reading and turned out to be
-      already-fixed — do not repeat that with the replacement scope.
-- [ ] TC-1, TC-3, TC-4, TC-5 pass both before and after the change
-      (they are guards, not drivers).
-- [ ] TC-6 flips from fail to pass.
-- [ ] No regressions in `conductor/tests/track-1102-f9-index-producer.test.mjs`.
-- [ ] No new `*.log` file appears in `git status` anywhere in the repo as
-      a result of running this suite.
+- [x] TC-2 was observed **failing** against unmodified `main` before any
+      code change — confirmed via the strongest available evidence: added
+      a production-matching `.gitignore` to `track-1102-f9b-log-staging
+      .test.mjs`'s scratch fixture and reran against unmodified code
+      (real spawned worker, real git). `Failed to stage last_run.log`
+      fired and the pre-existing test's own "must be tracked" assertion
+      failed — proof the prior F9b fix never actually worked in a
+      repo shaped like this one.
+- [x] TC-1, TC-6 pass (new fast static guards,
+      `track-10016-last-run-log.test.mjs`, `pass 2, fail 0`).
+- [x] TC-2..TC-5 pass after the fix, via the updated
+      `track-1102-f9b-log-staging.test.mjs` (`pass 1, fail 0`).
+- [x] No regressions in `conductor/tests/track-1102-f9-index-producer.test.mjs`
+      (`pass 1, fail 0`, unaffected by this track's edit).
+- [x] No `*.log` file appears in `git status`/`git ls-files` in any test
+      fixture after these runs — confirmed via `git ls-files` returning
+      empty and `git check-ignore -v` matching `*.log`.
