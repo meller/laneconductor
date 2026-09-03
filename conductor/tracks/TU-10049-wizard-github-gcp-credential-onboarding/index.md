@@ -1,6 +1,6 @@
 # Track TU-10049: Wizard: GitHub + Jira + GCP Credential Onboarding
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
