@@ -1,8 +1,8 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
-**Lane**: review
+**Lane**: quality-gate
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete
