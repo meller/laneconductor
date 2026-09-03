@@ -7463,6 +7463,42 @@ async function reconcileOrphanedDispatchesInner() {
     // the same track.
     rmSync(markerPath, { force: true });
 
+    // Track 10050 (2026-09-03): found live — this whole function recovers
+    // artifacts and dispatch status after a restart orphans a dispatch, but
+    // never released the per-track git lock (checkAndClaimGitLock's own
+    // `.conductor/locks/<track>.lock`). The lock is claimed by the WORKER
+    // PROCESS ITSELF before it ever spawns the child (its `pid` field is
+    // the worker daemon's own PID, not the child's), and released from the
+    // spawned child's `proc.on('exit', ...)` handler — a listener that
+    // lives only in the OLD worker process's memory. Restarting the worker
+    // kills that listener along with it; the detached child keeps running
+    // and doing real work (confirmed live: 3 real commits landed on the
+    // track-10050 branch), but when it eventually exits, nothing is left
+    // to catch it and release the lock. It just leaks until someone
+    // notices the track can't be dispatched and clears it by hand. Since
+    // we already know (via the run-marker liveness check above) that
+    // nothing is actually running for this track anymore, it's safe to
+    // clear the lock here — same dead-PID reasoning checkAndClaimGitLock
+    // itself uses, applied proactively instead of waiting for the next
+    // claim attempt to rediscover it.
+    try {
+      const lockPath = join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`);
+      if (existsSync(lockPath)) {
+        const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+        const isSameMachine = lock.machine === os.hostname();
+        let isDead = !isSameMachine; // a different machine's lock isn't ours to judge — leave it
+        if (isSameMachine && lock.pid) {
+          try { process.kill(lock.pid, 0); } catch { isDead = true; }
+        }
+        if (isDead) {
+          rmSync(lockPath, { force: true });
+          console.log(`[orphan-reconcile] Released stale git lock for track ${trackNumber} (was held by dead PID ${lock.pid})`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[orphan-reconcile] Failed to check/release git lock for track ${trackNumber}: ${err.message}`);
+    }
+
     // A lane/action mismatch means the worktree's markers belong to a
     // phase EARLIER than the one this dispatch was for — copying/syncing
     // them would regress the primary's already-more-advanced lane_status
