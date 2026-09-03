@@ -83,21 +83,23 @@ block Launch.
 **Solution**: Model it directly on `DeploymentStep.jsx` — same `useEffect`/`cancelled` fetch
 pattern, same three-state badge, same non-blocking posture.
 
-- [ ] Task 3.1: Create `ui/src/components/wizard/ConnectionsStep.jsx` rendering the three
+- [x] Task 3.1: Create `ui/src/components/wizard/ConnectionsStep.jsx` rendering the three
       category pickers from `CONNECTOR_CATEGORIES`, alternatives rendered `disabled` + muted +
       `— FFU` (REQ-2).
-- [ ] Task 3.2: Conditional per-provider fields — Jira: domain / email / project key / token env
+- [x] Task 3.2: Conditional per-provider fields — Jira: domain / email / project key / token env
       var name (placeholder `JIRA_API_TOKEN`); GCP: project id + optional service-account email;
-      GitHub: no fields, reads the Basics repo value.
-- [ ] Task 3.3: Per-connector credential badge hitting `/api/workers/:id/credentials`, debounced
-      for the Jira text inputs so it doesn't fire per keystroke. Reuse the exact
+      GitHub: no fields, reads the Basics repo value (`repoUrl` prop, displayed read-only next to
+      the picker once GitHub is selected — informational only, not sent anywhere new).
+- [x] Task 3.3: Per-connector credential badge hitting `/api/workers/:id/credentials`, debounced
+      (400ms) for the Jira text inputs so it doesn't fire per keystroke. Reuse the exact
       `checking`/`verified`/`NOT CONFIGURED` / "check unavailable" rendering from
       `DeploymentStep.jsx`, including `data-testid` naming.
-- [ ] Task 3.4: Remediation copy per connector — `gh auth login`, `gcloud auth login`, and for
+- [x] Task 3.4: Remediation copy per connector — `gh auth login`, `gcloud auth login`, and for
       Jira the missing env var name plus a pointer to `lc add-target-mapping` for status mapping.
-- [ ] Task 3.5: Component tests — pickers render, alternatives are disabled and cannot be
+- [x] Task 3.5: Component tests — pickers render, alternatives are disabled and cannot be
       selected, badges reflect mocked API responses, and **no input value is ever sent to the
-      credentials endpoint as a token** (REQ-3).
+      credentials endpoint as a token** (REQ-3). **11/11 pass** (TC-18..25, plus TC-3.2 for the
+      repo-value display).
 
 **Impact**: New component, not yet mounted.
 
