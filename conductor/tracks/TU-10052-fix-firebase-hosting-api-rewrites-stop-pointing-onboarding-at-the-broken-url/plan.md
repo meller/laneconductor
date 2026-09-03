@@ -78,14 +78,14 @@ than hosting config.
 
 **Solution**: Apply `get()`'s existing guard to the other three verbs.
 
-- [ ] Task 3.1: Extract `get()`'s content-type check (`conductor/laneconductor.sync.mjs`
+- [x] Task 3.1: Extract `get()`'s content-type check (`conductor/laneconductor.sync.mjs`
       ~line 646) into one shared helper; leave `get()`'s behaviour identical.
-- [ ] Task 3.2: Apply it in `post()`, `patch()`, and `del()` before `r.json()`.
+- [x] Task 3.2: Apply it in `post()`, `patch()`, and `del()` before `r.json()`.
       Error text must name the URL and the received content type.
-- [ ] Task 3.3: Test — a mock endpoint returning `200 text/html` makes each verb
+- [x] Task 3.3: Test — a mock endpoint returning `200 text/html` makes each verb
       throw an error containing the URL and `text/html`, never `Unexpected token`.
       Extend `conductor/tests/firebase-rewrites.test.mjs` or add a sibling file.
-- [ ] Task 3.4: Commit — `fix(track-10052): guard JSON content-type on post/patch/del`.
+- [x] Task 3.4: Commit — `fix(track-10052): guard JSON content-type on post/patch/del`.
 
 **Impact**: The next hosting misroute names itself in one line of worker log.
 
