@@ -1,6 +1,6 @@
 # Track TU-10055: Waiting-for-input is a first-class status on every lane, not a done-lane special case
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)

@@ -212,8 +212,20 @@ if (process.env.MOCK_CLI_RUN_LC_MERGE && command === 'done') {
 // writes **Lane Status**: running into it just before spawning) — exactly
 // as unambiguous in these single-track-at-a-time tests, and immune to the
 // same argv-clobbering.
+//
+// Track 10055: MOCK_CLI_WRITE_LANE_STATUS_ON=<command> scopes the write to a
+// single lane action. Env vars apply to every CLI a worker spawns, so a
+// multi-stage test (quality-gate → done) that only means to simulate the
+// done-lane merge's self-report was in fact writing that status at the end of
+// EVERY stage. That was invisible while the exit handler only honoured a
+// self-reported `waiting` on the done lane — the stray writes were discarded.
+// Now that a park is honoured on every lane (which is the entire point of
+// track 10055), an unscoped write parks the quality-gate stage too and the
+// sequence never reaches done. Unset means "every command", preserving the
+// existing single-stage callers.
 const writeLaneStatus = process.env.MOCK_CLI_WRITE_LANE_STATUS;
-if (writeLaneStatus) {
+const writeLaneStatusOn = process.env.MOCK_CLI_WRITE_LANE_STATUS_ON;
+if (writeLaneStatus && (!writeLaneStatusOn || writeLaneStatusOn === command)) {
   try {
     const running = findRunningTrackDir();
     if (running) {
