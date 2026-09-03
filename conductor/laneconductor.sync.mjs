@@ -1598,6 +1598,25 @@ function parseCurrentPhase(content) {
   return match ? match[1].trim() : null;
 }
 
+// Track 10050 (2026-09-03): a spawn-failure revert must never restore an
+// outcome status (success/failure) or 'running' verbatim — confirmed live,
+// a lock-contention-blocked implement dispatch reverted "Lane Status" to
+// 'success', because that string was captured from the PRIOR lane's
+// completed plan run, still sitting in the file when the new dispatch
+// began. The result reads as a bogus completed implement at 0% progress.
+// queue/blocked/waiting are the only statuses that still accurately
+// describe reality when nothing just ran — everything else collapses to
+// 'queue' so a failed spawn always reads as "did not run, retriable",
+// never as a stale outcome borrowed from a lane that already finished.
+const REVERTABLE_LANE_ACTION_STATUSES = new Set([
+  LaneActionStatus.QUEUE,
+  LaneActionStatus.BLOCKED,
+  LaneActionStatus.WAITING,
+]);
+function safeRevertLaneActionStatus(original) {
+  return REVERTABLE_LANE_ACTION_STATUSES.has(original) ? original : LaneActionStatus.QUEUE;
+}
+
 // Truncate at a word boundary and mark truncation with an ellipsis, instead of
 // a hard mid-word `.slice(n)` cut that reads as corrupted/cut-off text.
 function truncateSummary(text, maxLen = 200) {
@@ -6659,7 +6678,7 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
       return;
     }
     logger.warn({ trackNumber, currentLane, dispatchId, err: err.message }, '[auto-complete] spawnCli failed');
-    writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+    writeFileSync(indexPath, updateHeader(content, 'Lane Status', safeRevertLaneActionStatus(originalLaneActionStatus)), 'utf8');
     const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
     await reportAutoCompleteResult(dispatchId, 'failed', resultText);
     try {
@@ -8225,10 +8244,11 @@ async function checkDispatchInbox() {
         continue;
       }
       logger.warn({ dispatchId: entry.id, trackNumber, err: err.message }, `[dispatch] spawnCli failed for ${entry.action}`);
-      writeFileSync(indexPath, updateHeader(content, 'Lane Status', originalLaneActionStatus), 'utf8');
+      const revertedLaneActionStatus = safeRevertLaneActionStatus(originalLaneActionStatus);
+      writeFileSync(indexPath, updateHeader(content, 'Lane Status', revertedLaneActionStatus), 'utf8');
       await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: err.message })
         .catch(e => logger.warn({ dispatchId: entry.id, err: e.message }, '[dispatch] Failed to report lane-action failure'));
-      await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: originalLaneActionStatus, lane_action_result: err.message })
+      await patch(url, token, `/track/${trackNumber}/action`, { lane_action_status: revertedLaneActionStatus, lane_action_result: err.message })
         .catch(e => logger.warn({ trackNumber, err: e.message }, '[dispatch] Failed to reset track lane_action_status after spawn failure'));
       // Previously only visible by digging through the dispatch table and
       // lock files (observed live: a lock-contention rejection — a second

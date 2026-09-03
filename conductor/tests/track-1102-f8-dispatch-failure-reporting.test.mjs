@@ -191,3 +191,78 @@ describe('Track 1102 F8: lane-action dispatch reports failure instead of hanging
     assert.match(content, /\*\*system\*\*:.*plan could not start:.*locked by/i);
   });
 });
+
+// Track 10050 (2026-09-03): found live — an implement dispatch blocked by
+// lock contention reverted "Lane Status" to 'success', because that was
+// the prior lane's (plan's) leftover completed-status string still
+// sitting in the file when the implement dispatch began. The track then
+// read as a bogus completed implement at 0% progress instead of a
+// retriable failure. Same trigger as the suite above (pre-existing lock
+// contention), but the fixture starts at 'success' — the exact stale
+// value a just-finished prior lane leaves behind — to prove the revert
+// path no longer preserves it verbatim.
+describe('Track 10050: spawn-failure revert must not preserve a stale outcome status from a prior lane', () => {
+  let collectorProc, collectorPort, worker, trackDir;
+
+  before(async () => {
+    const c = await startMockCollector();
+    collectorProc = c.proc;
+    collectorPort = c.port;
+    await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
+
+    trackDir = setupProject(collectorPort);
+    // Overwrite the fixture: simulate a track whose PLAN lane just
+    // finished successfully, now sitting in the implement lane's queue —
+    // exactly the shape that produced the live bug.
+    writeFileSync(join(trackDir, 'index.md'), [
+      '# Track 001: Test Track',
+      '',
+      '**Lane**: implement',
+      '**Lane Status**: success',
+      '**Progress**: 0%',
+      '',
+      '## Problem',
+      'Test problem.',
+    ].join('\n'));
+
+    worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only'], {
+      cwd: TMP,
+      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_DISPATCH_POLL_MS: '500' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    worker.stdout.on('data', d => process.stdout.write(`[worker] ${d}`));
+    worker.stderr.on('data', d => process.stderr.write(`[worker] ${d}`));
+  });
+
+  after(() => {
+    worker?.kill();
+    collectorProc?.kill();
+    rmSync(TMP, { recursive: true, force: true });
+  });
+
+  it('reverts a blocked implement dispatch to "queue", not the stale "success" left by the previous lane', async () => {
+    const state0 = await poll(async () => {
+      const s = await getState(collectorPort);
+      return s.workers.length > 0 ? s : null;
+    }, { label: 'worker registered' });
+    const workerId = state0.workers[0].id;
+
+    await enqueueDispatch(collectorPort, {
+      worker_id: workerId,
+      action: 'implement',
+      track_number: '001',
+    });
+
+    await poll(async () => {
+      const s = await getState(collectorPort);
+      const d = s.dispatch.find(e => e.action === 'implement');
+      return d && d.status !== 'pending' && d.status !== 'claimed' ? s : null;
+    }, { timeout: 20000, label: 'implement dispatch resolves out of claimed/pending' });
+
+    await sleep(500);
+    const content = readFileSync(join(trackDir, 'index.md'), 'utf8');
+    assert.match(content, /\*\*Lane Status\*\*:\s*queue/i,
+      'a failed spawn must leave Lane Status as queue (retriable), never a stale outcome status borrowed from the lane this dispatch superseded');
+    assert.doesNotMatch(content, /\*\*Lane Status\*\*:\s*success/i);
+  });
+});
