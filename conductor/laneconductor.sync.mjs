@@ -7495,6 +7495,23 @@ async function reconcileOrphanedDispatchesInner() {
     const trackNumber = entry.track_number;
     if (!trackNumber) continue; // not track-scoped (e.g. refresh-worktrees) — nothing to reconcile from
 
+    // Found live on track 10053 (2026-09-03): track_chat/worker_adhoc_chat dispatches run
+    // entirely inline and synchronously in checkDispatchInbox() — never
+    // through spawnCli, so they have no worktree lane transition, no run
+    // marker, and never enter runningTrackMap/activeDispatch (the guards
+    // right below). A chat turn that outlasts graceMs (e.g. resuming a
+    // paused session to carry out several authorized steps) was
+    // indistinguishable here from a genuinely restart-orphaned dispatch,
+    // and classifyOrphanedDispatch's lane/action mismatch check always
+    // treats "action isn't a workflow.json lane" as abandonment — which is
+    // unconditionally true for chat, since chat was never a lane. Caught
+    // live on track 10053: a human's authorization reply got reaped mid-
+    // flight and reported "Worker restart interrupted this" seconds into a
+    // still-running turn. The chat handler is the sole finalizer for these
+    // actions — it PATCHes the dispatch itself once the awaited spawn
+    // actually returns, success or failure.
+    if (entry.action === 'track_chat' || entry.action === 'worker_adhoc_chat') continue;
+
     // REQ-4 guard 1/2: this process's own in-flight dispatches are never
     // touched here — reconcileActiveDispatch() is their sole finalizer.
     if (stillRunningTracks.has(trackNumber)) {
