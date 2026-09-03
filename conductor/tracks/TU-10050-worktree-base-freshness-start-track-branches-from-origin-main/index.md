@@ -1,6 +1,6 @@
 # Track TU-10050: Worktree Base Freshness — Start Track Branches From origin/main
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
 **Progress**: 0%
 **Phase**: New
