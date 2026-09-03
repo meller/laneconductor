@@ -54,6 +54,7 @@ import { capContentForArgv } from './services/context-cap.mjs';
 import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
+import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
@@ -2451,6 +2452,9 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       // Track 1115: per-track workspace mode marker (null when unspecified —
       // resolveWorkspaceMode() on the read side is where NULL becomes 'branch')
       workspace_mode: parseWorkspaceMarker(stateContent),
+      // Track 10055: why this track is parked. Filled in below, but only when
+      // the file's own status actually says `waiting` — see there.
+      waiting_reason: null,
       // KPI fields
       track_type: trackType,
       kpi_target: parseKpiTarget(stateContent),
@@ -2464,6 +2468,16 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
     };
     if (laneActionStatus) payload.lane_action_status = laneActionStatus;
     else if (laneActionStatusFromFile) payload.lane_action_status = laneActionStatusFromFile;
+
+    // Track 10055: the reason only travels with the status it explains. A
+    // `**Waiting Reason**` line left behind in a file whose status has since
+    // moved on (e.g. reconcilePrTracks flipping done:waiting → done:success
+    // after a PR merged) must not be pushed back into a DB row the collector
+    // just cleared — otherwise the marker resurrects the reason on the very
+    // next file-watch tick, and the track shows as merged-and-still-blocked.
+    if (payload.lane_action_status === 'waiting') {
+      payload.waiting_reason = parseWaitingReason(stateContent);
+    }
 
     // Ensure state AUTHORITY is reflected in the file itself (add missing markers)
     if (indexContent !== null) {
@@ -4458,6 +4472,16 @@ function writeIndexMarker(indexPath, marker, value) {
     content = regex.test(content)
       ? content.replace(regex, `**${marker}**: ${value}`)
       : content.trim() + `\n**${marker}**: ${value}\n`;
+    // Track 10055: moving a track off `waiting` retires the reason that
+    // explained it. Both of this function's Lane Status call sites are the
+    // PR reconciler flipping a done:waiting track onward (merged → success,
+    // conflicted → queue), so without this the "PR open — waiting for review"
+    // reason would sit on a shipped track forever, and the next file-watch
+    // sync would push it straight back into the row the collector just
+    // cleared.
+    if (/^Lane Status$/i.test(marker) && String(value).trim().toLowerCase() !== 'waiting') {
+      content = clearWaitingReason(content);
+    }
     writeFileSync(indexPath, content, 'utf8');
   } catch (err) {
     console.warn(`[reconcile-pr] Failed to write **${marker}** marker to ${indexPath}: ${err.message}`);
@@ -5311,13 +5335,22 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // since a mock-cli fixture testing the pr-mode path needs to be able
     // to simulate exactly this by writing **Lane Status**: waiting itself.
     let agentReportedWaiting = false;
-    if (isSuccess && laneStatus === 'done') {
+    let agentWaitingReason = null;
+    // Track 10055: this used to be gated on `laneStatus === 'done'`, which
+    // meant an agent on plan/implement/review/quality-gate could write
+    // `**Lane Status**: waiting` as its last action and have it silently
+    // ignored — the normal success transition then applied, advancing the
+    // track as if the work were finished. A lane action that stops to ask a
+    // human "should I run this destructive migration?" is not a lane action
+    // that finished. Ungated now: a park is a park on every lane.
+    if (isSuccess) {
       try {
-        const doneCheckDir = worktreePath || process.cwd();
-        const doneTrackDir = resolveTrackFolder(join(doneCheckDir, 'conductor', 'tracks'), trackNumber);
-        if (doneTrackDir) {
-          const rawIndexContent = readFileSync(join(doneCheckDir, 'conductor', 'tracks', doneTrackDir, 'index.md'), 'utf8');
+        const waitCheckDir = worktreePath || process.cwd();
+        const waitTrackDir = resolveTrackFolder(join(waitCheckDir, 'conductor', 'tracks'), trackNumber);
+        if (waitTrackDir) {
+          const rawIndexContent = readFileSync(join(waitCheckDir, 'conductor', 'tracks', waitTrackDir, 'index.md'), 'utf8');
           agentReportedWaiting = /\*\*Lane Status\*\*:\s*waiting/i.test(rawIndexContent);
+          agentWaitingReason = parseWaitingReason(rawIndexContent);
         }
       } catch (e) { /* best-effort detection only — never block the exit handler on it */ }
     }
@@ -5511,13 +5544,41 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       nextActionStatus = 'queue';
     }
 
-    // Track 10035: a pr-mode merge run that opened a PR is a genuine
-    // success, just not a terminal one — override AFTER endedMidWork so a
-    // truly-abandoned mid-work run (Lane Status still 'running', not
-    // 'waiting') isn't misread as this case.
-    if (!endedMidWork && agentReportedWaiting) {
-      targetLane = 'done';
+    // Track 10035 / 10055: a run that parked is a genuine success, just not a
+    // terminal one — override AFTER endedMidWork so a truly-abandoned mid-work
+    // run (Lane Status still 'running', not 'waiting') isn't misread as this
+    // case.
+    //
+    // Track 10055: `targetLane` used to be hardcoded to 'done' here, which was
+    // the only expressible park. It now stays in the lane the action actually
+    // ran in — `done` keeps working unchanged, because for a merge run
+    // `laneStatus` IS 'done'.
+    //
+    // A blocked turn (a run that ended on a genuine question rather than
+    // finishing) parks the same way: without this it fell through to
+    // resolveTransition's `!configValue` branch, which returns
+    // `isSuccess ? 'success' : …` — and a blocking question is a clean
+    // end_turn, so the track landed at `<lane>:success`. Nothing polls that,
+    // and "success" reads as good news, so the question sat unread behind a
+    // green tick.
+    let isParked = false;
+    if (!endedMidWork && (agentReportedWaiting || isBlockedTurn)) {
+      targetLane = laneStatus;
       nextActionStatus = 'waiting';
+      isParked = true;
+    }
+
+    // REQ-3: a park always carries a reason. The agent's own marker wins; a
+    // blocked turn's question is the next-best thing; the generic fallback is
+    // last and warns, since parking without a reason is the protocol being
+    // ignored, not a normal outcome.
+    let waitingReason = null;
+    if (isParked) {
+      const resolved = resolveWaitingReason({ markerReason: agentWaitingReason, blockedQuestion });
+      waitingReason = resolved.reason;
+      if (resolved.synthesized) {
+        console.warn(`[${label}] Track ${trackNumber}: parked at ${targetLane}:waiting without writing a **Waiting Reason** — using "${waitingReason}".`);
+      }
     }
 
     console.log(`[${label}] Track ${trackNumber}: ${endedMidWork ? 'ENDED MID-WORK' : (isSuccess ? 'PASS' : 'FAIL')} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
@@ -5532,6 +5593,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // DB patch entirely rather than send a value that may already be stale.
     if (writeScope.canWriteLaneStatus) {
       patchData.lane_action_status = nextActionStatus;
+      // Track 10055: sent only when parking. On any other outcome the
+      // collector retires the existing reason itself (it can see the status
+      // is no longer 'waiting'), so there's nothing to send.
+      if (isParked) patchData.waiting_reason = waitingReason;
     }
 
     // Phase 5: Update Lane Status in files and commit (always execute)
@@ -5635,6 +5700,24 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             const progressContent = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: 100%`);
             if (progressContent !== content) {
               content = progressContent;
+              updated = true;
+            }
+          }
+
+          // 3a-bis. Track 10055 (REQ-3 / Task 2.7): keep the on-disk
+          // `**Waiting Reason**` marker in lockstep with the status it
+          // explains — written when this run parks, removed on any other
+          // outcome. A reason that outlives its pause is worse than none: it
+          // reads as current, so a running track appears to be blocked on
+          // something that was resolved runs ago.
+          //
+          // Skipped when the lane write was blocked or isn't this run's to
+          // make (a stale process, or a conversation reply), for the same
+          // reason those cases don't write Lane/Lane Status.
+          if (writeScope.canWriteLane && !laneWriteGuard.blocked) {
+            const withReason = isParked ? writeWaitingReason(content, waitingReason) : clearWaitingReason(content);
+            if (withReason !== content) {
+              content = withReason;
               updated = true;
             }
           }
@@ -6785,9 +6868,36 @@ async function reconcileAutoComplete() {
     const afterLane = laneMatch?.[1]?.trim();
     const afterStatus = statusMatch?.[1]?.trim();
 
-    const outcome = classifyAutoCompleteOutcome({ beforeLane, afterLane, afterStatus });
+    const outcome = classifyAutoCompleteOutcome({
+      beforeLane, afterLane, afterStatus,
+      waitingReason: parseWaitingReason(content),
+    });
 
     if (outcome.action === 'wait') continue;
+
+    // Track 10055: a stage that parked at `<lane>:waiting` suspended the
+    // sequence on purpose — a human has to act before anything can continue.
+    // Reported separately from 'stop' so the conversation comment says
+    // "paused, here's what it needs" instead of the stall wording, and leads
+    // with ⚠️ so the Inbox buckets it as "needs your input".
+    //
+    // The dispatch row itself still closes as 'failed': worker_dispatch has
+    // only pending/claimed/done/failed (DISPATCH_STATUSES in
+    // ui/server/index.mjs), and 'done' would falsely claim the sequence
+    // finished. The distinction that matters to a human lives in the result
+    // text and in the track's own `<lane>:waiting` state, both of which are
+    // unambiguous.
+    if (outcome.action === 'pause') {
+      activeAutoComplete.delete(trackNumber);
+      const resultText = `⚠️ Paused after [${stagesRun.join(' → ')}]: ${outcome.reason}. Resume the track when it's unblocked.`;
+      await reportAutoCompleteResult(dispatchId, 'failed', resultText);
+      try {
+        if (trackDirName) appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+      } catch (err) {
+        logger.warn({ trackNumber, err: err.message }, '[auto-complete] Failed to post pause conversation comment');
+      }
+      continue;
+    }
 
     if (outcome.action === 'stop') {
       activeAutoComplete.delete(trackNumber);
