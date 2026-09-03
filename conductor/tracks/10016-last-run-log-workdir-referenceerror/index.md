@@ -1,6 +1,6 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
