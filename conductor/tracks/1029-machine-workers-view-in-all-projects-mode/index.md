@@ -1,7 +1,7 @@
 # Machine Workers View In All Projects Mode
 
 **Lane**: done
-**Lane Status**: done
+**Lane Status**: success
 
 # Track 1029: Machine Workers View in All Projects Mode
 

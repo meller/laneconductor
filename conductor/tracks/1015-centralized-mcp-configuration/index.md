@@ -1,7 +1,7 @@
 # Centralized Mcp Configuration
 
 **Lane**: backlog
-**Lane Status**: running
+**Lane Status**: queue
 
 # Track 1015: Centralized MCP Configuration (Extension-Only)
 

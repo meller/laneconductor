@@ -1,7 +1,7 @@
 # Track AM-10039: Cloud Workers — Claude Cloud Instances as Workers
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Waiting for reply**: no
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)

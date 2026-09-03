@@ -1,7 +1,7 @@
 # Workflow Standardization Enhanced Transitions
 
 **Lane**: done
-**Lane Status**: done
+**Lane Status**: success
 
 # Track 1020: Workflow Standardization & Enhanced Transitions
 

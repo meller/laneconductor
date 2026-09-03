@@ -160,9 +160,13 @@ Each criterion describes something a user can observe.
       cannot be selected — attempting to pick one leaves the selection unchanged, and each is
       visibly marked unavailable rather than silently inert.
 - [ ] AC-3: With `gh` authenticated, the source-control picker set to GitHub shows a green
-      verified badge naming the account; with `gh` logged out it shows an amber
-      `NOT CONFIGURED` badge telling the user to run `gh auth login` — and Launch still works in
-      both cases.
+      verified badge; with `gh` logged out it shows an amber `NOT CONFIGURED` badge telling the
+      user to run `gh auth login` — and Launch still works in both cases.
+      **Revised during Phase 2 implement**: does not name the account. `checkGhAuth()`
+      (`conductor/services/pr-flow.mjs`) returns only `{ok, error}`, and its shape is asserted
+      with strict `assert.deepEqual` in `conductor/tests/track-10018-pr-flow.test.mjs` — adding a
+      detail/account field would have broken that pre-existing test for the sake of one extra
+      badge string. Verified/NOT-CONFIGURED distinction and remediation copy are unaffected.
 - [ ] AC-4: Entering a real Jira domain/email/project key plus the name of an env var that holds
       a valid token shows a verified badge for that Jira project; a wrong project key or an unset
       env var shows `NOT CONFIGURED` naming the specific problem.

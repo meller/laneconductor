@@ -1,7 +1,7 @@
 # Persistent Worktree Lifecycle
 
 **Lane**: done
-**Lane Status**: done
+**Lane Status**: success
 
 # Persistent Worktree Lifecycle
 

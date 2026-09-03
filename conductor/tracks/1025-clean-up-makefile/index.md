@@ -1,7 +1,7 @@
 # Clean Up Makefile
 
 **Lane**: done
-**Lane Status**: done
+**Lane Status**: success
 
 # Track 1025: Clean up Makefile
 
