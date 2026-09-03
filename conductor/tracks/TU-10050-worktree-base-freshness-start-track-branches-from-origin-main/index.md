@@ -1,11 +1,11 @@
 # Track TU-10050: Worktree Base Freshness — Start Track Branches From origin/main
 
 **Lane**: implement
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Implementation complete — all 5 phases done
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: createWorktree (laneconductor.sync.mjs ~3880) bases new track worktrees on local HEAD (resolveWorktreeAddArgs startPoint: 'HEAD'), not origin/main. Between checkOutOfBandGitSync auto-pull ticks…
+**Summary**: createWorktree (laneconductor.sync.mjs:3940) bases every new track branch on the literal `HEAD`, so branches start from a possibly-stale local main (checkOutOfBandGitSync only refreshes on a 5min…
 **Merge Mode**: direct

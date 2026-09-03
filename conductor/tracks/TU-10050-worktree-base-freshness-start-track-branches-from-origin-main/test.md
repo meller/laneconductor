@@ -67,28 +67,28 @@ File: `conductor/tests/track-10050-worktree-start-point.test.mjs`
 File: `conductor/tests/track-10050-worktree-base-e2e.test.mjs`
 (scratch-repo helper modelled on `conductor/tests/track-1112-worktree-merge.test.mjs`)
 
-- [ ] TC-9 (**AC-1**): local `main` 2 commits behind a real `origin/main`, clean tree →
+- [x] TC-9 (**AC-1**): local `main` 2 commits behind a real `origin/main`, clean tree →
       create worktree for track N → expected: `git -C .worktrees/N rev-parse HEAD` equals
       `origin/main`'s SHA, and local `main` has been fast-forwarded to it.
-- [ ] TC-10 (**AC-2**): local `main` 3 commits ahead of `origin/main` → create worktree →
+- [x] TC-10 (**AC-2**): local `main` 3 commits ahead of `origin/main` → create worktree →
       expected: worktree `HEAD` equals local `main`'s SHA, and all 3 local-only commits are
       ancestors of it (`git merge-base --is-ancestor <sha> HEAD` succeeds for each). This is
       the case a naive `origin/main` fix breaks.
-- [ ] TC-11 (**AC-3**): primary checkout on an unrelated branch `scratch-wip` whose tip is
+- [x] TC-11 (**AC-3**): primary checkout on an unrelated branch `scratch-wip` whose tip is
       **not** on `main` → create worktree → expected: worktree `HEAD` equals `main`'s SHA,
       and `scratch-wip`'s tip commit is **not** an ancestor of it.
-- [ ] TC-12 (**AC-6**): local `main` diverged (2 ahead, 2 behind) → create worktree →
+- [x] TC-12 (**AC-6**): local `main` diverged (2 ahead, 2 behind) → create worktree →
       expected: worktree `HEAD` equals local `main`; the track's `conversation.md` in the
       primary checkout contains a line matching
       `/^> \*\*system\*\*: ⚠️ .*2 commit\(s\) behind/m`; and it appears exactly once.
-- [ ] TC-13 (**AC-4**, track 1114 regression): `track-N` branch already exists with a commit
+- [x] TC-13 (**AC-4**, track 1114 regression): `track-N` branch already exists with a commit
       not on `main`, no worktree → create worktree → expected: `git rev-parse track-N` is
       byte-identical before and after, and the worktree is checked out on `track-N`. Also
       assert no `-B` reached the git command.
-- [ ] TC-14 (**AC-5**, REQ-8): `origin` remote points at a nonexistent path → create
+- [x] TC-14 (**AC-5**, REQ-8): `origin` remote points at a nonexistent path → create
       worktree → expected: creation **succeeds**, exit is clean, worktree `HEAD` equals local
       `main`, and no `⚠️` comment was written (offline is silent per REQ-7).
-- [ ] TC-15: repo with a single commit and no `main` ref (detached / oddly-named default) →
+- [x] TC-15: repo with a single commit and no `main` ref (detached / oddly-named default) →
       create worktree → expected: succeeds, falls back to `HEAD`, matching today's behavior.
 
 ### Phase 3 — `conductor/lock.mjs`
@@ -103,13 +103,13 @@ File: `conductor/tests/track-10050-worktree-base-e2e.test.mjs`
 
 ## Acceptance Criteria
 
-- [ ] TC-1 … TC-8 pass (pure resolver covers every row of spec.md's resolution table)
-- [ ] TC-9 … TC-15 pass on real git repositories, asserting real commit SHAs
-- [ ] TC-16 … TC-18 pass
-- [ ] `node --test conductor/tests/track-1114-worktree-create-args.test.mjs` still passes
-- [ ] Neighbouring worktree suites (1112 ×3, 10045, path-resolution, root-normalization)
+- [x] TC-1 … TC-8 pass (pure resolver covers every row of spec.md's resolution table)
+- [x] TC-9 … TC-15 pass on real git repositories, asserting real commit SHAs
+- [x] TC-16 … TC-18 pass
+- [x] `node --test conductor/tests/track-1114-worktree-create-args.test.mjs` still passes
+- [x] Neighbouring worktree suites (1112 ×3, 10045, path-resolution, root-normalization)
       show no regressions
-- [ ] `cd ui && npm test` still green
-- [ ] Phase 4 Task 4.6 performed for real: worker restarted, one real worktree created, log
+- [x] `cd ui && npm test` still green
+- [x] Phase 4 Task 4.6 performed for real: worker restarted, one real worktree created, log
       line and `rev-parse` output recorded in `conversation.md`
-- [ ] No hardcoded `'main'` string introduced in any new code — `getMainBranch()` throughout
+- [x] No hardcoded `'main'` string introduced in any new code — `getMainBranch()` throughout
