@@ -17,17 +17,24 @@ import { join } from 'node:path';
 import { resolveWorkspaceMode, parseWorkspaceMarker, parseTrackKind, findDisqualifyingDirtyPaths, isWorkerBookkeepingPath } from '../services/workspace-mode.mjs';
 
 describe('resolveWorkspaceMode', () => {
-  it('TC-1: plan lane outranks an explicit branch marker (D6 before D2)', () => {
+  it('TC-1 (track 10050): plan lane respects an explicit branch marker — no longer hardcoded main', () => {
     assert.equal(
       resolveWorkspaceMode({ laneStatus: 'plan', workspaceMarker: 'branch' }),
+      'branch'
+    );
+  });
+
+  it('TC-1b (track 10050): plan lane respects an explicit main marker too', () => {
+    assert.equal(
+      resolveWorkspaceMode({ laneStatus: 'plan', workspaceMarker: 'main' }),
       'main'
     );
   });
 
-  it('TC-2: plan lane outranks the auto-queue trigger too', () => {
+  it('TC-2 (track 10050): plan lane with no marker falls through to branch (today\'s row-6 default), enabling real parallel planning', () => {
     assert.equal(
       resolveWorkspaceMode({ laneStatus: 'plan', trigger: 'auto-queue' }),
-      'main'
+      'branch'
     );
   });
 
