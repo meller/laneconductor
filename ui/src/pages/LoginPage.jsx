@@ -57,7 +57,7 @@ export function LoginPage() {
                     </div>
 
                     <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
-                        Google's enhanced <br />
+                        The sovereign <br />
                         <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
                             conductor pattern
                         </span>
