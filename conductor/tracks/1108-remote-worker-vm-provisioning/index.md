@@ -1,7 +1,7 @@
 # Track 1108: Worker VM provisioning from the remote app (first-host onboarding)
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: New
 **Type**: dev
@@ -90,3 +90,4 @@ scope as its own effort rather than scope-creep on 1089.
 
 ## Validated by
 [1107](../1107-e2e-remote-api-walkthrough/index.md) — the remote e2e walkthrough starts from a fresh user with zero hosts, so its first step exercises exactly this flow; this track is a prerequisite for that walkthrough to complete without side channels.
+**Auto Run**: yes
