@@ -106,3 +106,30 @@ Full criteria in `spec.md`; per-phase test cases in `test.md`.
 - [x] Phase 4: Port claim, session, and dispatch
 - [ ] Phase 5: Live verification — **BLOCKED**: needs authorization to deploy and to migrate the cloud DB
 - [ ] Phase 6: Retire the 10052 caveats — gated on Phase 5, deliberately not started
+
+## Phase 5 outcome (2026-09-03) — partial, deliberately
+
+Tasks 5.1 and 5.2 ran against production with real-time human authorization:
+
+- Atlas migration applied to the cloud DB (idempotent, verified).
+- `firebase deploy --only functions:api` — all 11 ported route families live.
+- `firebase deploy --only hosting` — both `.firebaserc` targets had to be
+  recreated from scratch; they were untracked local config.
+- Reachability sweep: every ported path now returns real JSON from the Cloud
+  Function instead of the SPA fallback. Independently re-verified afterwards
+  with correct HTTP methods — `/worker/register`, `/tracks/claim-queue`,
+  `/conductor-files`, `/track/:n`, `/provider-status` all answer
+  `401 {"error":"unauthorized: missing token"}`. **Track 10052's rewrite fix
+  had never actually been deployed until this run; it is now live.**
+
+**Tasks 5.3–5.7 were NOT run.** The live worker E2E (scratch project, real
+lane action, `--resume`, manual dispatch, two-worker claim race,
+cross-workspace token rejection) needs two test-fixture workspaces created
+directly in the production database and repeated real `claude` CLI spawns at
+real cost. Both were declined in favour of splitting that work out, matching
+the precedent set by `AM-1120-wizard-live-deploy-verification` (track 1119
+hit the identical wall).
+
+So this track's own deliverable — the port and the routing — is verified in
+production. End-to-end worker behaviour against the cloud is not, and does
+not become true by this track reaching `done`.
