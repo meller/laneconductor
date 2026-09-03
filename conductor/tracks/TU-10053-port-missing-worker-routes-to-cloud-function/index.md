@@ -1,14 +1,14 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 70%
+**Progress**: 100%
 **Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
 **Type**: dev
 **Track Kind**: feature
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction…
+**Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction primitive, and one Atlas migration — see spec.md.
 
 ## Problem
 
