@@ -2,7 +2,7 @@
 
 **Lane**: plan
 **Lane Status**: success
-**Progress**: 15%
+**Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planned — scope replaced
 **Type**: bug
