@@ -33,33 +33,33 @@ cd ui && npm test
 
 File: `conductor/tests/track-10050-worktree-start-point.test.mjs`
 
-- [ ] TC-1: `{ mainRefExists: true, fetchOk: true, ahead: 0, behind: 3, pullOutcome: 'pulled' }`
+- [x] TC-1: `{ mainRefExists: true, fetchOk: true, ahead: 0, behind: 3, pullOutcome: 'pulled' }`
       — expected: `{ startPoint: 'main', reason: 'refreshed', staleBy: 0 }`. The pull already
       moved local `main` to `origin/main`, so the named local ref is the fresh one.
-- [ ] TC-2: `{ mainRefExists: true, fetchOk: true, ahead: 0, behind: 3, pullOutcome: 'dirty-overlap' }`
+- [x] TC-2: `{ mainRefExists: true, fetchOk: true, ahead: 0, behind: 3, pullOutcome: 'dirty-overlap' }`
       — expected: `{ startPoint: 'origin/main', reason: 'remote-ahead-pull-refused', staleBy: 0 }`.
       Local `main` has no unique commits (`ahead === 0`), so the remote ref is strictly
       newer and nothing can be lost by using it.
-- [ ] TC-2b: same as TC-2 with `pullOutcome: 'auto-pull-disabled'` and again with
+- [x] TC-2b: same as TC-2 with `pullOutcome: 'auto-pull-disabled'` and again with
       `'merge-failed'` — expected: identical result. All three refusals are equivalent here.
-- [ ] TC-3: `{ mainRefExists: true, fetchOk: true, ahead: 27, behind: 0, pullOutcome: null }`
+- [x] TC-3: `{ mainRefExists: true, fetchOk: true, ahead: 27, behind: 0, pullOutcome: null }`
       — expected: `{ startPoint: 'main', reason: 'local-ahead', staleBy: 0 }`. **This is
       this repo's live steady state**; asserting `origin/main` here would be the regression
       spec.md warns about.
-- [ ] TC-4: `{ mainRefExists: true, fetchOk: true, ahead: 4, behind: 2, pullOutcome: null }`
+- [x] TC-4: `{ mainRefExists: true, fetchOk: true, ahead: 4, behind: 2, pullOutcome: null }`
       — expected: `{ startPoint: 'main', reason: 'diverged', staleBy: 2 }`. Never
       `origin/main` (would drop 4 local commits); `staleBy` reports the 2 missing.
-- [ ] TC-5: `{ mainRefExists: true, fetchOk: true, ahead: 0, behind: 0 }` — expected:
+- [x] TC-5: `{ mainRefExists: true, fetchOk: true, ahead: 0, behind: 0 }` — expected:
       `{ startPoint: 'main', reason: 'local-ahead' | 'in-sync', staleBy: 0 }`. In-sync must
       resolve to the local named ref and must never be reported stale.
-- [ ] TC-6: `{ mainRefExists: true, fetchOk: false, ahead: null, behind: null }` — expected:
+- [x] TC-6: `{ mainRefExists: true, fetchOk: false, ahead: null, behind: null }` — expected:
       `{ startPoint: 'main', reason: 'offline', staleBy: null }`. `staleBy` is `null`, not
       `0` — the caller must distinguish "known fresh" from "cannot tell" (drives REQ-7's
       silence).
-- [ ] TC-7: `{ mainRefExists: false, … }` — expected: `{ startPoint: 'HEAD', reason: 'no-main-ref', staleBy: null }`,
+- [x] TC-7: `{ mainRefExists: false, … }` — expected: `{ startPoint: 'HEAD', reason: 'no-main-ref', staleBy: null }`,
       for **every** combination of the other inputs. Preserves today's behavior on a repo
       with one commit and no `main` ref (`laneconductor.sync.mjs:7086`).
-- [ ] TC-8: `mainBranch: 'master'` with TC-1's and TC-2's inputs — expected: `'master'` and
+- [x] TC-8: `mainBranch: 'master'` with TC-1's and TC-2's inputs — expected: `'master'` and
       `'origin/master'` respectively. No `main` string is hardcoded anywhere in the module.
 
 ### Phase 4 — real-git end-to-end
@@ -93,12 +93,12 @@ File: `conductor/tests/track-10050-worktree-base-e2e.test.mjs`
 
 ### Phase 3 — `conductor/lock.mjs`
 
-- [ ] TC-16 (**REQ-9**): `node conductor/lock.mjs N` on a scratch repo → expected:
+- [x] TC-16 (**REQ-9**): `node conductor/lock.mjs N` on a scratch repo → expected:
       `git -C <worktree> symbolic-ref -q HEAD` returns `refs/heads/track-N` (i.e. **not**
       detached, which is what it produces today).
-- [ ] TC-17: same on a repo whose default branch is `master` → expected: succeeds and bases
+- [x] TC-17: same on a repo whose default branch is `master` → expected: succeeds and bases
       on `master`. Today's hardcoded `origin/main` fails here.
-- [ ] TC-18: `node conductor/unlock.mjs N` afterwards → expected: worktree removed, lock file
+- [x] TC-18: `node conductor/unlock.mjs N` afterwards → expected: worktree removed, lock file
       gone, `git worktree list` clean.
 
 ## Acceptance Criteria

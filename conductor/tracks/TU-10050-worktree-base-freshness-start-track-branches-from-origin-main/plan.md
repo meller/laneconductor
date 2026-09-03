@@ -20,23 +20,23 @@ tested.
 `conductor/services/worktree-create-args.mjs` (track 1114) — the precedent in this repo for
 "safety-critical git decision, no I/O, unit-tested in isolation".
 
-- [ ] Task 1.1: Write `conductor/tests/track-10050-worktree-start-point.test.mjs` **first**,
+- [x] Task 1.1: Write `conductor/tests/track-10050-worktree-start-point.test.mjs` **first**,
       one case per row of spec.md's resolution table (TC-1 … TC-8 in `test.md`). Run it,
       confirm it fails on the missing module — not on a typo.
-- [ ] Task 1.2: Create `conductor/services/worktree-start-point.mjs` exporting
+- [x] Task 1.2: Create `conductor/services/worktree-start-point.mjs` exporting
       `resolveWorktreeStartPoint({ mainBranch, mainRefExists, fetchOk, ahead, behind, pullOutcome })`
       → `{ startPoint, reason, staleBy }`.
-    - [ ] Order the branches so the `no-main-ref` fallback is checked first — every other
+    - [x] Order the branches so the `no-main-ref` fallback is checked first — every other
           row returns a named ref that presumes `<main>` resolves.
-    - [ ] `staleBy` is `behind` for `diverged`, `0` for `refreshed` / `local-ahead` /
+    - [x] `staleBy` is `behind` for `diverged`, `0` for `refreshed` / `local-ahead` /
           `remote-ahead-pull-refused`, and `null` for `offline` / `no-main-ref` (unknown, not
           zero — the caller must be able to tell "known fresh" from "can't tell").
-    - [ ] No imports of `node:child_process`, `node:fs`, or anything else with side effects.
-- [ ] Task 1.3: Write the module header comment in this repo's established style — what the
+    - [x] No imports of `node:child_process`, `node:fs`, or anything else with side effects.
+- [x] Task 1.3: Write the module header comment in this repo's established style — what the
       live defect was, why `origin/main` unconditionally is wrong, and the measured
       `27 0` divergence that proves it. Future readers must not "simplify" this back to
       `origin/main`.
-- [ ] Task 1.4: Re-run the test file; confirm green.
+- [x] Task 1.4: Re-run the test file; confirm green.
 
 **Impact**: A tested, side-effect-free answer to "what should this branch be based on",
 importable by both call sites. Nothing behavioral yet.
@@ -51,23 +51,23 @@ literal `HEAD` in the command string on line 3943.
 **Solution**: Gather divergence facts, optionally fast-forward local `<main>`, resolve, and
 use the result. All new git I/O is best-effort and falls back to today's behavior.
 
-- [ ] Task 2.1: In `createWorktree()`, before the `resolveWorktreeAddArgs` call, add a
+- [x] Task 2.1: In `createWorktree()`, before the `resolveWorktreeAddArgs` call, add a
       `resolveStartPointForWorktree(repoRoot)` helper that:
-    - [ ] reads `mainBranch` from the existing `getMainBranch()`;
-    - [ ] probes `mainRefExists` with `git rev-parse --verify --quiet refs/heads/<main>`
+    - [x] reads `mainBranch` from the existing `getMainBranch()`;
+    - [x] probes `mainRefExists` with `git rev-parse --verify --quiet refs/heads/<main>`
           (same try/catch shape as the existing `branchExists` probe on line 3933);
-    - [ ] calls `checkDivergence({ repoRoot, mainBranch })` from
+    - [x] calls `checkDivergence({ repoRoot, mainBranch })` from
           `services/git-divergence.mjs` — no new fetch cost, `checkAndClaimGitLock()` already
           fetched `origin/<main>` at line 3796 (REQ-10);
-    - [ ] when `canFastForward` is true, calls the existing
+    - [x] when `canFastForward` is true, calls the existing
           `safePull({ repoRoot, mainBranch, autoPull: getGitConfig().auto_pull !== false })`
           and threads `result.pulled ? 'pulled' : result.reason` through as `pullOutcome`;
-    - [ ] passes everything to `resolveWorktreeStartPoint()` and returns its result.
-- [ ] Task 2.2: Wrap the whole helper body in try/catch (REQ-8). On any throw, log a warning
+    - [x] passes everything to `resolveWorktreeStartPoint()` and returns its result.
+- [x] Task 2.2: Wrap the whole helper body in try/catch (REQ-8). On any throw, log a warning
       and return `{ startPoint: <main-or-HEAD>, reason: 'probe-failed', staleBy: null }`.
       A network outage, a corrupt ref, a missing `origin` — none of these may stop a track
       from running.
-- [ ] Task 2.3: Replace `startPoint: 'HEAD'` on line 3940 with the resolved `startPoint`,
+- [x] Task 2.3: Replace `startPoint: 'HEAD'` on line 3940 with the resolved `startPoint`,
       and — critically — fix line 3943, which currently **re-renders the command by hand and
       hardcodes `HEAD` again**, ignoring whatever `resolveWorktreeAddArgs` returned:
       ```js
@@ -75,22 +75,34 @@ use the result. All new git I/O is best-effort and falls back to today's behavio
       ```
       Render from `addArgs` instead so the resolver's answer is actually what runs. Leaving
       this line as-is would make the entire track a no-op while every unit test passed.
-- [ ] Task 2.4: Log the resolution on every creation:
+- [x] Task 2.4: Log the resolution on every creation:
       `[worktree] Track N branch based on <startPoint> (<reason>)`, plus the ahead/behind
       counts when known.
-- [ ] Task 2.5 (REQ-7): When `staleBy > 0`, append one `> **system**: ⚠️ …` comment to the
-      track's `conversation.md` in the **primary checkout** (resolve the folder with
-      `resolveTrackFolder`, same as the existing stale-docs notice at
-      `laneconductor.sync.mjs:4500-4508` — reuse that shape verbatim). Append **before** the
-      worktree is created so the worktree's copy already contains it. Silent for
-      `local-ahead` and `offline`.
-- [ ] Task 2.6: Verify by hand on a scratch repo — see Phase 4; do not mark this phase
+- [x] Task 2.5 (REQ-7): When `staleBy > 0`, append one `> **system**: ⚠️ …` comment to the
+      track's `conversation.md` in the **primary checkout**. Silent for `local-ahead` and
+      `offline`.
+    - **Deviation from plan**: posted AFTER the worktree genuinely exists, not before —
+      warning about the base of a branch whose creation then failed would be noise. Also
+      extracted into `writeStaleBaseNotice()`/`formatStaleBaseNotice()` in the service rather
+      than left inline, so TC-12 can assert the real function instead of a replica.
+- [x] Task 2.6: Verify by hand on a scratch repo — see Phase 4; do not mark this phase
       complete on a reasoned-about diff alone.
 
 **Impact**: New track branches start from the freshest base that loses nothing, and stale
 bases become visible at creation time instead of at merge time.
 
 ---
+
+
+**Deviation from plan (Tasks 2.1/2.2)**: the git I/O landed in
+`services/worktree-start-point.mjs` as `probeWorktreeStartPoint()` rather than inline in
+`laneconductor.sync.mjs`, and the command rendering became `renderWorktreeAddCommand()` in
+`services/worktree-create-args.mjs`. Reason: `laneconductor.sync.mjs` has no exports and runs
+setIntervals/chokidar at import, so anything left inline there is unreachable from a test —
+and Task 2.3's hazard (a hand-rolled command string silently disagreeing with the resolved
+args) is precisely the bug a test that re-implements the composition cannot see. Phase 4's
+TC-9…TC-14 now drive the same functions `createWorktree()` calls, plus a source guard against
+the hand-rolled string returning.
 
 ## Phase 3: Align `conductor/lock.mjs`
 
@@ -103,15 +115,15 @@ staleness/loss problem Phase 2 just fixed.
 point (`node conductor/lock.mjs <track>`, invoked by the `/laneconductor lock` skill
 command), not on the worker's hot path.
 
-- [ ] Task 3.1: Import `getMainBranch()` and `resolveWorktreeStartPoint()`; drop the
+- [x] Task 3.1: Import `getMainBranch()` and `resolveWorktreeStartPoint()`; drop the
       hardcoded `origin/main`.
-- [ ] Task 3.2: Create on a named branch — mirror `createWorktree`'s branch-exists probe and
+- [x] Task 3.2: Create on a named branch — mirror `createWorktree`'s branch-exists probe and
       reuse `resolveWorktreeAddArgs` so track 1114's no-reset guarantee applies here too.
       A `/laneconductor lock` worktree must not be detached.
-- [ ] Task 3.3: Drop the now-redundant `git fetch origin main --quiet` at
+- [x] Task 3.3: Drop the now-redundant `git fetch origin main --quiet` at
       `conductor/lock.mjs:151` — `checkDivergence()` fetches, and the hardcoded `main` there
       is wrong on a `master` repo anyway.
-- [ ] Task 3.4: Exercise `node conductor/lock.mjs <n>` against a scratch repo and confirm
+- [x] Task 3.4: Exercise `node conductor/lock.mjs <n>` against a scratch repo and confirm
       the resulting worktree is on `track-<n>`, not detached (`git -C <wt> symbolic-ref -q HEAD`
       must succeed). Then `node conductor/unlock.mjs <n>` and confirm clean teardown.
 
@@ -119,6 +131,18 @@ command), not on the worker's hot path.
 stops producing detached worktrees.
 
 ---
+
+**Deviation from plan (Task 3.1)**: `getMainBranch()` was duplicated three times already
+(`laneconductor.sync.mjs`'s private copy, the dead `agent-runtime.mjs:42`, and `lock.mjs`
+hardcoding `main` outright). Rather than add a fourth, it was extracted verbatim — same body,
+same `GIT_ENV`, same process-lifetime cache — into `conductor/services/main-branch.mjs`, and
+both live callers repointed at it. `agent-runtime.mjs` is still left alone (dead code, per
+spec.md's Non-Goals).
+
+**Verified against the old code** (`git show HEAD:conductor/lock.mjs`, run on scratch repos):
+- `main` repo → `git symbolic-ref HEAD` in the created worktree: `fatal: ref HEAD is not a
+  symbolic ref` — the detached-worktree defect, reproduced.
+- `master` repo → `fatal: invalid reference: origin/main`, worktree creation fails outright.
 
 ## Phase 4: End-to-end verification on real git repos
 
