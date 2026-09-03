@@ -14,3 +14,4 @@
 New endpoint `GET /project/:id/dispatch/claimed-by-offline-workers` (`ui/server/index.mjs`) returns claimed dispatches whose owning worker's `last_heartbeat` is stale (>60s), independent of who's asking. `reconcileOrphanedDispatchesInner()` (`conductor/laneconductor.sync.mjs`) now merges these in alongside its own worker's claims before running the same classify-and-reconcile loop. New regression test in `conductor/tests/track-10020-orphan-reconcile-periodic.test.mjs` (seeds a claim under a second worker identity, confirms it's ignored while that identity looks alive, confirms it's swept once marked offline). 9/9 tests in that suite pass.
 
 **Known gap left open**: `cloud/functions/index.js` does not have the new route — remote-api mode won't benefit from this fix until it's ported there too (same class of drift as track 1046/10052).
+**Auto Run**: yes
