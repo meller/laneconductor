@@ -105,11 +105,32 @@ export function hasGluedGlobstar(source) {
  * suite instead of 404ing in production.
  */
 export function extractExpressRoutes(source) {
-  const routes = new Set();
-  const re = /\bapp\.(?:get|post|put|patch|delete)\(\s*['"`](\/[^'"`]*)['"`]/g;
+  return [...new Set(extractExpressRouteEntries(source).map((e) => e.route))];
+}
+
+/**
+ * Same scan as `extractExpressRoutes`, but keeping the HTTP method — so a
+ * caller can tell `app.get('/track/:num/session')` from
+ * `app.post('/track/:num/session')`. Track 10053's route-parity check needs
+ * this: porting only one verb of a multi-verb route family reads as "present"
+ * to a path-only comparison, and the worker calls all three.
+ *
+ * @param {string} source
+ * @returns {{method: string, route: string}[]} method upper-cased, deduped
+ */
+export function extractExpressRouteEntries(source) {
+  const seen = new Set();
+  const entries = [];
+  const re = /\bapp\.(get|post|put|patch|delete)\(\s*['"`](\/[^'"`]*)['"`]/g;
   let m;
-  while ((m = re.exec(source)) !== null) routes.add(m[1]);
-  return [...routes];
+  while ((m = re.exec(source)) !== null) {
+    const method = m[1].toUpperCase();
+    const key = `${method} ${m[2]}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push({ method, route: m[2] });
+  }
+  return entries;
 }
 
 /** Turn an Express route pattern into a concrete request path. */

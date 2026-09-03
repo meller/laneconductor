@@ -82,6 +82,14 @@
           "function": "api"
         },
         {
+          "source": "/conductor-files",
+          "function": "api"
+        },
+        {
+          "source": "/conductor-files/**",
+          "function": "api"
+        },
+        {
           "source": "/file-sync",
           "function": "api"
         },
@@ -206,6 +214,14 @@
         },
         {
           "source": "/worker-dispatch/**",
+          "function": "api"
+        },
+        {
+          "source": "/conductor-files",
+          "function": "api"
+        },
+        {
+          "source": "/conductor-files/**",
           "function": "api"
         },
         {

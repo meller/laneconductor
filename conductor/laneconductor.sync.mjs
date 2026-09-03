@@ -637,6 +637,7 @@ async function get(collectorUrl, token, path, timeoutMs = 10000) {
   if (!collectorUrl) return {};
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  applyWorkerTokenHeader(headers, collectorUrl);
   const url = `${collectorUrl}${path}`;
 
   const controller = new AbortController();
@@ -657,6 +658,7 @@ async function post(collectorUrl, token, path, body, timeoutMs = 15000) {
   if (!collectorUrl) return {};
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  applyWorkerTokenHeader(headers, collectorUrl);
   const url = `${collectorUrl}${path}`;
   console.log(`[debug] POST ${url}`, JSON.stringify(body));
 
@@ -683,6 +685,7 @@ async function patch(collectorUrl, token, path, body, timeoutMs = 15000) {
   if (!collectorUrl) return {};
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  applyWorkerTokenHeader(headers, collectorUrl);
   const url = `${collectorUrl}${path}`;
   console.log(`[debug] PATCH ${url}`, JSON.stringify(body));
 
@@ -708,6 +711,7 @@ async function patch(collectorUrl, token, path, body, timeoutMs = 15000) {
 async function del(collectorUrl, token, path, body = {}, timeoutMs = 10000) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  applyWorkerTokenHeader(headers, collectorUrl);
   const url = `${collectorUrl}${path}`;
 
   const controller = new AbortController();
@@ -833,6 +837,44 @@ async function executeIntegrationHooks(trackNumber, lane, eventType) {
 // process's identity.
 const workerTokenStorePath = join('conductor', workerNumber === 1 ? '.worker.tokens.json' : `.worker-${workerNumber}.tokens.json`);
 const ownMachineTokens = new Map(); // collector url -> this worker's machine_token
+
+/**
+ * Track 10053: attach this worker's machine_token as `X-Worker-Token`.
+ *
+ * `Authorization` says which workspace/project the call belongs to. In
+ * remote-api mode that is the configured lc_ API key (resolveCollectorToken
+ * puts COLLECTOR_n_TOKEN ahead of the machine_token this worker adopted at
+ * registration), which is shared by every worker on the project and so cannot
+ * say WHICH worker is calling. The collector needs that for per-worker state:
+ * /track/:num/session is keyed on (track, worker), and /tracks/claim-queue
+ * records claimed_by and filters on the worker's visibility.
+ *
+ * Sent as a credential, not an id — a client-supplied worker_id would let any
+ * holder of a project key act as any worker on that project.
+ *
+ * No-op before registration: with no token there is nothing to identify, and
+ * an empty-valued header would be worse than none (the collector would have to
+ * distinguish "absent" from "present but blank"). The routes that run before
+ * registration — /project/ensure, /worker/register — don't need it.
+ */
+function applyWorkerTokenHeader(headers, collectorUrl) {
+  if (!collectorUrl) return;
+
+  const own = ownMachineTokens.get(collectorUrl);
+  if (own) {
+    headers['X-Worker-Token'] = own;
+    return;
+  }
+
+  // Fall back to a config-file machine_token only for worker #1, exactly as
+  // resolveToken/resolveCollectorToken do: for any additional worker that
+  // token definitionally belongs to someone else, and sending it would
+  // impersonate that worker — the very thing the per-worker token store exists
+  // to prevent.
+  if (workerNumber !== 1) return;
+  const collector = getCollectors().find((c) => c.url === collectorUrl);
+  if (collector?.machine_token) headers['X-Worker-Token'] = collector.machine_token;
+}
 
 function loadOwnMachineTokens() {
   try {
@@ -2718,7 +2760,14 @@ async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPat
         }
 
         if (updates) {
-          await postToCollectors(`/track/${trackNumber}/action`, { ...updates, project_id: proj.id })
+          // Track 10053: PATCH, not POST. `/track/:num/action` is registered
+          // `app.patch` in both ui/server/index.mjs and cloud/functions/index.js,
+          // so the POST this used to send 404'd every time. It went unnoticed
+          // because the .catch() only warns and the index.md write just below
+          // re-establishes the same state through the file-sync path — the HTTP
+          // call has been dead weight, not a working transition. Found by
+          // conductor/tests/cloud-route-parity.test.mjs's control assertion.
+          await patchCollectors(`/track/${trackNumber}/action`, { ...updates, project_id: proj.id })
             .catch(err => console.warn(`[conv-command] transition failed: ${err.message}`));
 
           // ALSO update local index.md for filesystem-as-API consistency

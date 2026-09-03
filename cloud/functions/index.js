@@ -79,17 +79,71 @@ function getPool() {
   return pool;
 }
 
+// Errors that mean "this pool is bad, throw it away" rather than "this SQL is bad".
+function isRecoverablePoolError(err) {
+  return Boolean(
+    err.message?.includes('Circuit breaker') ||
+    err.message?.includes('authentication') ||
+    err.message?.includes('connect')
+  );
+}
+
 // Wrap pool.query to auto-recreate pool on circuit-breaker / connection errors
 async function query(sql, params) {
   try {
     return await getPool().query(sql, params);
   } catch (err) {
-    if (err.message?.includes('Circuit breaker') || err.message?.includes('authentication') || err.message?.includes('connect')) {
+    if (isRecoverablePoolError(err)) {
       console.warn('[pool] Resetting pool due to:', err.message);
       pool = null;
       return getPool().query(sql, params); // one retry with fresh pool
     }
     throw err;
+  }
+}
+
+/**
+ * Track 10053: run `fn` inside a transaction on ONE checked-out client.
+ *
+ * `query()` above cannot express this. It borrows a connection per statement,
+ * so a BEGIN / SELECT ... FOR UPDATE SKIP LOCKED / UPDATE / COMMIT sequence
+ * run through it can land on four different connections — the BEGIN applies to
+ * a connection that is then returned to the pool, and SKIP LOCKED stops
+ * excluding anything because the row locks it relies on belong to a
+ * transaction the later statements aren't in. The visible symptom would be two
+ * cloud workers claiming the same track, intermittently and unreproducibly.
+ *
+ * Deliberately NOT retried on a recoverable pool error the way `query()` is: a
+ * transaction that died mid-flight may have partially applied, and blindly
+ * replaying the whole callback could double-apply it. The pool is discarded so
+ * the next request gets a fresh one, and the error is raised to the caller.
+ *
+ * @param {(client: import('pg').PoolClient) => Promise<T>} fn
+ * @returns {Promise<T>}
+ * @template T
+ */
+async function withTransaction(fn) {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    // The connection may already be unusable; a failed ROLLBACK must not mask
+    // the original error, which is the one that explains what went wrong.
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.warn('[tx] ROLLBACK failed:', rollbackErr.message);
+    }
+    if (isRecoverablePoolError(err)) {
+      console.warn('[tx] Discarding pool due to:', err.message);
+      pool = null;
+    }
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
@@ -112,6 +166,59 @@ app.use((req, res, next) => {
   next();
 });
 
+// Track 10053: worker identity, carried separately from workspace auth.
+//
+// `Authorization` answers "which workspace is this?" — an lc_ API key or a
+// Firebase ID token. It cannot answer "which worker is this?", because in
+// remote-api mode every worker on a project authenticates with the same
+// project API key (the worker's resolveCollectorToken puts COLLECTOR_n_TOKEN
+// ahead of the machine_token it adopted at registration). Yet
+// /track/:num/session is per (track, worker), and /tracks/claim-queue records
+// claimed_by and filters on worker visibility — all of which need the specific
+// worker.
+//
+// So worker identity travels in its own header, as a credential rather than an
+// id. Taking a client-supplied `worker_id` instead would let any holder of a
+// project key act as any worker in that project — see the local handler's own
+// note that identity must come from the caller's credential, "never a
+// client-supplied worker_id".
+const WORKER_TOKEN_HEADER = 'x-worker-token';
+
+async function resolveWorkerIdentity(req, res, next) {
+  const workerToken = req.headers[WORKER_TOKEN_HEADER];
+  // Absent header is the normal case for the cloud UI and for every worker
+  // route that doesn't need per-worker identity. Unchanged behavior.
+  if (!workerToken) return next();
+
+  try {
+    // Scoped to the authenticated workspace via the worker's project. A token
+    // for a worker in someone else's workspace and a token matching no worker
+    // at all both return zero rows and are answered identically — the caller
+    // learns nothing about which it was.
+    const { rows } = await query(
+      `SELECT w.id, w.project_id, w.user_uid, w.visibility
+         FROM workers w
+         JOIN projects p ON p.id = w.project_id
+        WHERE w.machine_token = $1 AND p.workspace_id = $2`,
+      [workerToken, req.workspace_id]
+    );
+    if (rows.length === 0) {
+      console.warn('[auth] Rejected worker token not resolvable in workspace', req.workspace_id);
+      return res.status(403).json({ error: 'forbidden: worker token not valid for this workspace' });
+    }
+
+    req.worker_id = rows[0].id;
+    req.worker_project_id = rows[0].project_id;
+    req.worker_user_uid = rows[0].user_uid;
+    req.worker_visibility = rows[0].visibility;
+    req.machine_token = workerToken;
+    return next();
+  } catch (err) {
+    console.error('[auth] worker identity error:', err);
+    return res.status(500).json({ error: 'internal server error during worker identity check' });
+  }
+}
+
 // Auth middleware - supports lc_xxxx API tokens or Firebase ID tokens
 async function auth(req, res, next) {
   const bearer = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-collector-token'];
@@ -129,7 +236,7 @@ async function auth(req, res, next) {
       if (tokenRows.length > 0) {
         req.workspace_id = tokenRows[0].workspace_id;
         req.api_token = bearer;
-        return next();
+        return resolveWorkerIdentity(req, res, next);
       }
 
       // 2. Try api_keys table (SHA-256 hash — UI-generated keys)
@@ -151,7 +258,7 @@ async function auth(req, res, next) {
         }
         req.workspace_id = wsRows[0].workspace_id;
         req.api_token = bearer;
-        return next();
+        return resolveWorkerIdentity(req, res, next);
       }
 
       return res.status(401).json({ error: 'unauthorized: invalid api token' });
@@ -168,7 +275,7 @@ async function auth(req, res, next) {
         return res.status(403).json({ error: 'forbidden: no workspace associated with user' });
       }
       req.workspace_id = rows[0].workspace_id;
-      return next();
+      return resolveWorkerIdentity(req, res, next);
     }
   } catch (err) {
     console.error('[auth] Error:', err);
@@ -1522,6 +1629,587 @@ app.post('/api/projects/:id/dev-server/start', async (req, res) => {
 
 app.post('/api/projects/:id/dev-server/stop', async (req, res) => {
   res.status(400).json({ error: 'Dev server cannot be stopped from cloud environment' });
+});
+
+// ── Track 10053: routes the sync worker needs ────────────────────────────────
+//
+// Ported from ui/server/index.mjs, which is the reference implementation. Track
+// 10052 fixed Hosting's rewrite globs so these paths reach this function; until
+// this section existed they arrived and 404'd, so a worker in remote-api mode
+// registered successfully and then could not do anything at all.
+//
+// Contracts (status codes, response shapes, side effects) match the local
+// server exactly — conductor/tests/cloud-route-parity.test.mjs asserts every
+// (method, path) the worker calls is served here, and the per-handler jest
+// cases in test/ported-worker-routes.test.js assert the shapes. Two deliberate
+// divergences, both because this function has no repo checkout and more than
+// one tenant, are called out at their handlers.
+//
+// The lanes a queued track may be claimed in. Mirror of CLAIMABLE_LANES in
+// conductor/constants.mjs, which is ESM and so cannot be required from here.
+// conductor/tests/cloud-route-parity.test.mjs fails if the two drift — adding a
+// lane in one place and not the other is exactly how `done` became silently
+// unclaimable after track 10035.
+const CLAIMABLE_LANES = ['plan', 'implement', 'review', 'quality-gate', 'done'];
+
+const DISPATCH_STATUSES = ['pending', 'claimed', 'done', 'failed'];
+
+/**
+ * Resolve the project a worker call is about, and prove it belongs to the
+ * caller's workspace.
+ *
+ * Most of these routes carry no project at all — the worker calls
+ * `/conductor-files`, `/tracks/claim-queue`, `/track/:num/lock` and
+ * `/track/:num/unlock` with neither a `:id` param nor a `project_id`. Locally
+ * that works because collectorAuth resolves the project from the machine_token
+ * bearer's own worker row. Here it comes from `X-Worker-Token` via
+ * resolveWorkerIdentity, with an explicit `project_id` as the fallback —
+ * preferring the worker's own project, same precedence as the local handlers.
+ *
+ * Responds and returns null on failure, so callers `if (!projectId) return;`.
+ *
+ * @returns {Promise<number|null>}
+ */
+async function resolveWorkerProject(req, res) {
+  const explicit = req.body?.project_id ?? req.query.project_id;
+  const parsedExplicit = explicit === undefined || explicit === null ? null : parseInt(explicit, 10);
+  const projectId = req.worker_project_id ?? (Number.isNaN(parsedExplicit) ? null : parsedExplicit);
+
+  if (!projectId) {
+    res.status(400).json({
+      error: 'project could not be resolved: send X-Worker-Token or a project_id',
+    });
+    return null;
+  }
+
+  const { rows } = await query(
+    'SELECT id FROM projects WHERE id = $1 AND workspace_id = $2',
+    [projectId, req.workspace_id]
+  );
+  if (rows.length === 0) {
+    console.warn(`[worker-routes] Forbidden: project ${projectId} not in workspace ${req.workspace_id}`);
+    res.status(403).json({ error: 'forbidden: project not in workspace' });
+    return null;
+  }
+  return rows[0].id;
+}
+
+/** Is this worker id one of the caller's workspace's workers? */
+async function workerInWorkspace(workerId, workspaceId) {
+  const { rows } = await query(
+    `SELECT w.id FROM workers w
+       JOIN projects p ON p.id = w.project_id
+      WHERE w.id = $1 AND p.workspace_id = $2`,
+    [workerId, workspaceId]
+  );
+  return rows.length > 0;
+}
+
+// ── Project workflow + conductor files ───────────────────────────────────────
+
+// DIVERGENCE from ui/server/index.mjs: the local handler falls back to reading
+// conductor/workflow.json off disk when the DB copy is absent. There is no repo
+// checkout here, so this returns {} instead — same as the local handler's own
+// final fallback. The worker treats {} as "no project-specific workflow".
+app.get('/projects/:id/workflow', auth, checkProject, async (req, res) => {
+  try {
+    const { rows } = await query(
+      'SELECT conductor_files FROM projects WHERE id = $1',
+      [req.project_id]
+    );
+    const workflowJson = rows[0]?.conductor_files?.workflow_json;
+    if (!workflowJson) return res.json({});
+
+    try {
+      // Stored as the raw text of conductor/workflow.json, not as nested JSON.
+      return res.json(typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson);
+    } catch {
+      // Malformed stored content must not 500 a worker's every sync cycle.
+      console.warn(`[workflow] project ${req.project_id} has unparseable workflow_json`);
+      return res.json({});
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/conductor-files', auth, async (req, res) => {
+  try {
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    const { content } = req.body;
+    await query('UPDATE projects SET conductor_files = $1 WHERE id = $2', [content, projectId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Track read-back ──────────────────────────────────────────────────────────
+
+app.get('/track/:num', auth, async (req, res) => {
+  try {
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    const trackResult = await query(
+      'SELECT * FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [projectId, req.params.num]
+    );
+    if (trackResult.rows.length === 0) return res.status(404).json({ error: 'track not found' });
+
+    const commentsResult = await query(
+      'SELECT * FROM track_comments WHERE track_id = $1 ORDER BY created_at ASC',
+      [trackResult.rows[0].id]
+    );
+    res.json({ ...trackResult.rows[0], comments: commentsResult.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Git lock coordination (track 1010) ───────────────────────────────────────
+
+app.post('/track/:num/lock', auth, async (req, res) => {
+  try {
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    const { user, machine, pattern, lock_file_path } = req.body;
+
+    const trackRes = await query(
+      'SELECT id FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [projectId, req.params.num]
+    );
+    if (!trackRes.rows[0]) return res.status(404).json({ error: 'track not found' });
+
+    // ON CONFLICT on (project_id, track_number) is what makes two racing
+    // lock calls converge on one row held by the later caller, rather than
+    // two rows that both look authoritative.
+    await query(
+      `INSERT INTO track_locks (project_id, track_id, track_number, "user", machine, pattern, lock_file_path, locked_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+       ON CONFLICT (project_id, track_number)
+       DO UPDATE SET
+         "user" = EXCLUDED."user",
+         machine = EXCLUDED.machine,
+         pattern = EXCLUDED.pattern,
+         lock_file_path = EXCLUDED.lock_file_path,
+         locked_at = NOW()`,
+      [projectId, trackRes.rows[0].id, req.params.num, user, machine, pattern || 'cli', lock_file_path]
+    );
+
+    await query(
+      `UPDATE tracks SET locked_by = $3, lane_action_status = 'running'
+        WHERE project_id = $1 AND track_number = $2`,
+      [projectId, req.params.num, `${user}@${machine}`]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/track/:num/unlock', auth, async (req, res) => {
+  try {
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    await query(
+      'DELETE FROM track_locks WHERE project_id = $1 AND track_number = $2',
+      [projectId, req.params.num]
+    );
+    await query(
+      'UPDATE tracks SET locked_by = NULL WHERE project_id = $1 AND track_number = $2',
+      [projectId, req.params.num]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Pre-spawn block counter (track 10040) ────────────────────────────────────
+// Needs migrations/20260903120000_add_prespawn_block_columns.sql applied: the
+// four columns only ever existed in ui/server/migrations/, which has no runner,
+// so they were absent from the cloud database.
+
+app.post('/track/:num/prespawn-block', auth, async (req, res) => {
+  try {
+    const { kind, reason } = req.body;
+    if (!kind) return res.status(400).json({ error: 'kind is required' });
+
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    const r = await query(
+      `UPDATE tracks SET prespawn_block_count = prespawn_block_count + 1,
+              prespawn_block_kind = $3, prespawn_block_reason = $4, prespawn_blocked_at = NOW()
+        WHERE project_id = $1 AND track_number = $2
+        RETURNING prespawn_block_count AS count, prespawn_block_kind AS kind, prespawn_block_reason AS reason`,
+      [projectId, req.params.num, kind, reason ?? null]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'track not found' });
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/track/:num/prespawn-block/reset', auth, async (req, res) => {
+  try {
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    await query(
+      `UPDATE tracks SET prespawn_block_count = 0, prespawn_block_kind = NULL,
+              prespawn_block_reason = NULL, prespawn_blocked_at = NULL
+        WHERE project_id = $1 AND track_number = $2`,
+      [projectId, req.params.num]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Persistent sessions (tracks 1086 / 10047) ────────────────────────────────
+// One resumable CLI session per (track_number, worker_id), keyed off the
+// calling worker's own identity — resolveWorkerIdentity's req.worker_id, from
+// the X-Worker-Token credential, never a client-supplied worker_id.
+
+app.get('/track/:num/session', auth, async (req, res) => {
+  try {
+    if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
+
+    const { rows } = await query(
+      'SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+      [req.params.num, req.worker_id]
+    );
+    res.json({
+      claude_session_id: rows[0]?.claude_session_id ?? null,
+      // last_context_tokens is reported as-is and never coerced to 0: track
+      // 10047's cap policy (conductor/services/session-cap.mjs) distinguishes
+      // "never measured" (null) from "measured as zero", and collapsing them
+      // would silently change which runs it allows to resume.
+      last_context_tokens: rows[0]?.last_context_tokens ?? null,
+      resume_count: rows[0]?.resume_count ?? 0,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/track/:num/session', auth, async (req, res) => {
+  try {
+    if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
+
+    const { claude_session_id, context_tokens } = req.body;
+    if (!claude_session_id) return res.status(400).json({ error: 'claude_session_id is required' });
+
+    // resume_count is computed server-side (increment when the id is the same
+    // session being resumed again, reset to 0 when it's a different one) so the
+    // worker never has to read-then-write. last_context_tokens is COALESCEd:
+    // a POST that didn't measure it must not erase a prior measurement.
+    await query(
+      `INSERT INTO track_sessions(track_number, worker_id, claude_session_id, last_used_at, last_context_tokens, resume_count)
+       VALUES($1, $2, $3, NOW(), $4, 0)
+       ON CONFLICT (track_number, worker_id) DO UPDATE SET
+         claude_session_id = EXCLUDED.claude_session_id,
+         last_used_at = NOW(),
+         resume_count = CASE
+           WHEN track_sessions.claude_session_id = EXCLUDED.claude_session_id THEN track_sessions.resume_count + 1
+           ELSE 0
+         END,
+         last_context_tokens = COALESCE($4, track_sessions.last_context_tokens)`,
+      [req.params.num, req.worker_id, claude_session_id, context_tokens ?? null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Invalidate a session after a detected resume failure (the stored id was
+// pruned or never existed), so the next attempt cold-starts instead of
+// retrying the same broken --resume forever.
+app.delete('/track/:num/session', auth, async (req, res) => {
+  try {
+    if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
+
+    await query(
+      'DELETE FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+      [req.params.num, req.worker_id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Queue claim ──────────────────────────────────────────────────────────────
+
+app.post('/tracks/claim-queue', auth, async (req, res) => {
+  try {
+    const projectId = await resolveWorkerProject(req, res);
+    if (!projectId) return;
+
+    const workerUser = req.worker_user_uid || null;
+    const workerVisibility = req.worker_visibility || 'private';
+    const workerId = req.worker_id || null;
+
+    // withTransaction, not query(): BEGIN / FOR UPDATE SKIP LOCKED / UPDATE /
+    // COMMIT must run on one held connection or SKIP LOCKED stops excluding
+    // rows and two workers can claim the same track.
+    const result = await withTransaction(async (client) => {
+      let queryStr = `
+        UPDATE tracks t
+        SET lane_action_status = 'running',
+            lane_action_result = 'claimed',
+            claimed_by = $3
+        FROM (
+          SELECT id FROM tracks
+          WHERE project_id = $1 AND lane_action_status = 'queue'
+            AND lane_status = ANY($4)
+      `;
+      const params = [projectId, req.body.limit || 5, req.machine_token, CLAIMABLE_LANES];
+
+      // Worker visibility, as in the local handler:
+      //  - public:  any track in the project
+      //  - team:    the owner's tracks, plus tracks whose requester granted
+      //             this worker access via worker_permissions
+      //  - private: the owner's tracks only
+      // Auth is always on here, so there is no AUTH_ENABLED guard to mirror.
+      if (workerUser && workerVisibility !== 'public') {
+        if (workerVisibility === 'team' && workerId) {
+          const userIdx = params.length + 1;
+          const workerIdx = params.length + 2;
+          queryStr += `
+            AND (
+              t.last_updated_by_uid = $${userIdx}
+              OR t.last_updated_by_uid IS NULL
+              OR EXISTS (
+                SELECT 1 FROM worker_permissions wp
+                WHERE wp.worker_id = $${workerIdx} AND wp.user_uid = t.last_updated_by_uid
+              )
+            )
+          `;
+          params.push(workerUser, workerId);
+        } else {
+          queryStr += ` AND (t.last_updated_by_uid = $${params.length + 1} OR t.last_updated_by_uid IS NULL) `;
+          params.push(workerUser);
+        }
+      }
+
+      // Optional single-track target: the worker's own auto-launch picks a
+      // candidate from local file state, then asks atomically whether that
+      // specific track is still claimable. Placed after the visibility filter
+      // so a targeted claim obeys the same ownership rules as any other.
+      const targetTrackNumber = req.body.track_number || null;
+      if (targetTrackNumber) {
+        params.push(targetTrackNumber);
+        queryStr += ` AND track_number = $${params.length} `;
+      }
+
+      queryStr += `
+          ORDER BY priority DESC, CASE
+            WHEN lane_status = 'plan' THEN 1
+            WHEN lane_status = 'review' THEN 2
+            WHEN lane_status = 'quality-gate' THEN 3
+            ELSE 4
+          END ASC, created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT $2
+        ) sub
+        WHERE t.id = sub.id
+        RETURNING t.track_number, t.lane_status, t.lane_action_result, t.progress_percent,
+                  t.priority,
+                  (SELECT author FROM track_comments WHERE track_id = t.id ORDER BY created_at DESC LIMIT 1) AS last_comment_author,
+                  (SELECT is_replied FROM track_comments WHERE track_id = t.id ORDER BY created_at DESC LIMIT 1) AS last_comment_replied
+      `;
+
+      const r = await client.query(queryStr, params);
+
+      // Only diagnose a TARGETED claim that won nothing. An untargeted
+      // "give me up to N" claim returning zero is ordinary idle polling, and a
+      // second query on every idle beat of every worker is real cost for no
+      // signal. Runs inside the transaction so the answer is consistent with
+      // the attempt.
+      let reason = null;
+      if (r.rows.length === 0 && targetTrackNumber) {
+        const diag = await client.query(
+          'SELECT lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+          [projectId, targetTrackNumber]
+        );
+        if (!diag.rows[0]) {
+          reason = 'no_candidates';
+        } else if (diag.rows[0].lane_action_status !== 'queue') {
+          reason = 'already_claimed';
+        } else if (!CLAIMABLE_LANES.includes(diag.rows[0].lane_status)) {
+          reason = 'lane_not_claimable';
+        } else {
+          reason = 'not_permitted';
+        }
+      }
+
+      return { tracks: r.rows, reason };
+    });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Worker dispatch inbox (track 1085) ───────────────────────────────────────
+// DIVERGENCE from ui/server/index.mjs: the :id worker must be verified to
+// belong to the caller's workspace. Locally there is one tenant, so the local
+// handler correctly does not check; here, without it, any project key could
+// read and write another workspace's dispatch queue.
+
+app.get('/worker/:id/dispatch', auth, async (req, res) => {
+  try {
+    const workerId = parseInt(req.params.id, 10);
+    if (!(await workerInWorkspace(workerId, req.workspace_id))) {
+      return res.status(403).json({ error: 'forbidden: worker not in workspace' });
+    }
+
+    const { rows } = await query(
+      "SELECT * FROM worker_dispatch WHERE worker_id = $1 AND status = 'pending' ORDER BY created_at ASC",
+      [workerId]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// A dispatch this worker claimed but never reported the outcome of — its child
+// finished after a restart orphaned the exit handler. Startup reconciliation
+// reads this to decide which tracks are worth checking for completion evidence.
+app.get('/worker/:id/dispatch/claimed', auth, async (req, res) => {
+  try {
+    const workerId = parseInt(req.params.id, 10);
+    if (!(await workerInWorkspace(workerId, req.workspace_id))) {
+      return res.status(403).json({ error: 'forbidden: worker not in workspace' });
+    }
+
+    const { rows } = await query(
+      "SELECT * FROM worker_dispatch WHERE worker_id = $1 AND status = 'claimed' ORDER BY claimed_at ASC",
+      [workerId]
+    );
+    res.json({ entries: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/worker-dispatch/:id', auth, async (req, res) => {
+  try {
+    const { status, result } = req.body;
+    if (!DISPATCH_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of: ${DISPATCH_STATUSES.join(', ')}` });
+    }
+
+    // worker_dispatch has no project_id column, so the workspace check goes
+    // through the owning worker: dispatch -> workers.project_id ->
+    // projects.workspace_id. Doing it as a subquery in the UPDATE keeps it to
+    // one statement and makes an out-of-workspace id indistinguishable from a
+    // missing one (both 404).
+    const claimedAtSet = status === 'claimed' ? ', claimed_at = NOW()' : '';
+    // `result` present vs absent is a real distinction, not a nicety: a
+    // 'claimed' report carries no result, and writing NULL over an earlier
+    // one would erase it.
+    const scopedTo = (placeholder) => `
+      AND worker_id IN (
+        SELECT w.id FROM workers w
+          JOIN projects p ON p.id = w.project_id
+         WHERE p.workspace_id = ${placeholder}
+      )`;
+
+    const { rowCount } =
+      result !== undefined
+        ? await query(
+            `UPDATE worker_dispatch SET status = $1, result = $2${claimedAtSet}
+              WHERE id = $3 ${scopedTo('$4')}`,
+            [status, result, req.params.id, req.workspace_id]
+          )
+        : await query(
+            `UPDATE worker_dispatch SET status = $1${claimedAtSet}
+              WHERE id = $2 ${scopedTo('$3')}`,
+            [status, req.params.id, req.workspace_id]
+          );
+
+    if (rowCount === 0) return res.status(404).json({ error: 'dispatch entry not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Claimable tracks (assignee gate, track 1084) ─────────────────────────────
+
+/** A track's effective owner: explicit assignee, else creator, else project owner. */
+function resolveAssignee(track, project) {
+  return track.assignee_uid ?? track.created_by_uid ?? project.owner_uid ?? null;
+}
+
+/**
+ * All of a developer's own workers for a project (may be empty). "Own" means
+ * registered under their identity (workers.user_uid, set at registration) —
+ * not a separate grant. Routing to a worker registered under someone else's
+ * identity is deliberately unsupported: that would dispatch work onto another
+ * person's machine, which needs its own consent design, not just a query.
+ */
+async function resolveOwnWorkers(projectId, userUid) {
+  if (!userUid) return [];
+  const { rows } = await query(
+    'SELECT id FROM workers WHERE project_id = $1 AND user_uid = $2',
+    [projectId, userUid]
+  );
+  return rows;
+}
+
+app.get('/api/projects/:id/claimable-tracks', auth, checkProject, async (req, res) => {
+  try {
+    const workerId = req.query.worker_id ? parseInt(req.query.worker_id, 10) : null;
+    if (!workerId) return res.status(400).json({ error: 'worker_id is required' });
+
+    const { rows: [project] } = await query(
+      'SELECT owner_uid FROM projects WHERE id = $1',
+      [req.project_id]
+    );
+    if (!project) return res.status(404).json({ error: 'project not found' });
+
+    const { rows: tracks } = await query(
+      "SELECT track_number, assignee_uid, created_by_uid FROM tracks WHERE project_id = $1 AND lane_action_status = 'queue'",
+      [req.project_id]
+    );
+
+    const ownWorkersCache = new Map(); // user_uid -> Set(worker_id), avoids re-querying per track
+    const claimable = [];
+    for (const track of tracks) {
+      const assignee = resolveAssignee(track, project);
+      if (!assignee) {
+        claimable.push(track.track_number); // no owner info at all — open claim
+        continue;
+      }
+
+      if (!ownWorkersCache.has(assignee)) {
+        const own = await resolveOwnWorkers(req.project_id, assignee);
+        ownWorkersCache.set(assignee, new Set(own.map((w) => w.id)));
+      }
+      const candidates = ownWorkersCache.get(assignee);
+      if (candidates.size === 0 || candidates.has(workerId)) claimable.push(track.track_number);
+    }
+
+    res.json({ claimable });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 exports.api = onRequest({ invoker: "public", secrets: [dbPassword, dbHost, dbUser, dbUrl] }, app);
