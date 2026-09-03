@@ -16,37 +16,59 @@ correct handler still fail.
 **Solution**: Land the failing test first, then the routing and schema fixes it
 depends on.
 
-- [ ] Task 1.1: Write `conductor/tests/cloud-route-parity.test.mjs`. It reads
+- [x] Task 1.1: Write `conductor/tests/cloud-route-parity.test.mjs`. It reads
       `conductor/laneconductor.sync.mjs`, extracts every collector path it calls
       (template literals normalised to concrete example paths), reads
       `cloud/functions/index.js` via `extractExpressRoutes` from
       `conductor/services/firebase-rewrites.mjs`, and asserts each worker path
       matches a registered cloud route. **Expect RED**: 11 families unmatched.
       Record the actual failure list in this file as the baseline.
-    - [ ] Reuse `extractExpressRoutes` / `concreteExamplePath` rather than
+
+      **RED baseline captured** — 15 unserved `(method, path)` pairs, which is
+      the 11 families expanded per verb (session ×3, prespawn ×2, lock/unlock
+      ×2, dispatch read ×2):
+
+      ```
+      GET    /api/projects/1/claimable-tracks
+      POST   /conductor-files
+      GET    /projects/1/workflow
+      GET    /track/1
+      POST   /track/1/lock
+      POST   /track/1/unlock
+      POST   /track/1/prespawn-block
+      POST   /track/1/prespawn-block/reset
+      GET    /track/1/session
+      POST   /track/1/session
+      DELETE /track/1/session
+      POST   /tracks/claim-queue
+      PATCH  /worker-dispatch/1
+      GET    /worker/1/dispatch
+      GET    /worker/1/dispatch/claimed
+      ```
+    - [x] Reuse `extractExpressRoutes` / `concreteExamplePath` rather than
           writing a second route parser — they exist and 10052's suite proves
           them.
-    - [ ] The Express-route → request-path match needs `:param` → segment
+    - [x] The Express-route → request-path match needs `:param` → segment
           matching (a `/track/:num` route must match `/track/10053`); write it
           as a small helper with its own unit cases.
-- [ ] Task 1.2: Add `/conductor-files` and `/conductor-files/**` to the
+- [x] Task 1.2: Add `/conductor-files` and `/conductor-files/**` to the
       `rewrites` array of **both** hosting targets in `firebase.json` (REQ-6).
-- [ ] Task 1.3: Add `/conductor-files` to `WORKER_PATHS` in
+- [x] Task 1.3: Add `/conductor-files` to `WORKER_PATHS` in
       `conductor/tests/firebase-rewrites.test.mjs`; confirm it fails before 1.2
       and passes after.
-- [ ] Task 1.4: Write the Atlas migration for the four `prespawn_block_*`
+- [x] Task 1.4: Write the Atlas migration for the four `prespawn_block_*`
       columns (REQ-5). Generate it the repo's way (`make db-diff` / Prisma
       schema first, per `scripts/migrate.sh`'s `atlas-prisma.mjs` step) rather
       than hand-dropping a SQL file, so `atlas.sum` stays valid.
-    - [ ] Add the same four fields to `prisma/schema.prisma`, since Atlas
+    - [x] Add the same four fields to `prisma/schema.prisma`, since Atlas
           derives the desired state from it.
-    - [ ] Run `./scripts/migrate.sh` against the local DB and confirm it
+    - [x] Run `./scripts/migrate.sh` against the local DB and confirm it
           applies cleanly and is a no-op on re-run.
-- [ ] Task 1.5: Verify cloud DB currency: `atlas migrate status` against the
+- [x] Task 1.5: Verify cloud DB currency: `atlas migrate status` against the
       cloud `DATABASE_URL` (credentials via `scripts/migrate-prod.sh`'s Secret
       Manager path). Record which migrations are pending. If any are, apply
       them — this is the prerequisite the whole port assumes.
-- [ ] Task 1.6: Write the `CLAIMABLE_LANES` parity test (REQ-8): assert the
+- [x] Task 1.6: Write the `CLAIMABLE_LANES` parity test (REQ-8): assert the
       literal list in `cloud/functions/index.js` equals the ESM
       `conductor/constants.mjs` export. **Expect RED** until Phase 3 adds the
       cloud copy.
@@ -54,6 +76,68 @@ depends on.
 **Impact**: The gap becomes a failing test instead of a production surprise.
 `/conductor-files` becomes routable. The cloud DB gains the columns the
 prespawn handler needs.
+
+### Phase 1 findings
+
+**The migration set is not replayable, and `migrate.sh` could not be used.**
+Two pre-existing defects, both hit while verifying Task 1.4:
+
+- `20260304181909_enable_rls.sql` adds an enum value (`'waiting'`) and creates
+  an index referencing it **in the same transaction**, which Postgres rejects
+  (`unsafe use of new value "waiting" of enum type`). A fresh database cannot
+  be migrated from scratch at all — it dies on migration 7 of 34.
+- `20260901133000_add_session_context_bounds.sql` (track 10047) uses bare
+  `ADD COLUMN` for columns that `ui/server/migrations/014` already added out of
+  band, so **the local dev DB is wedged**: it sits at `20260825120000` with 2
+  pending files and `atlas migrate apply` fails on the first one. (This is
+  precisely why the new migration here uses `IF NOT EXISTS`.)
+
+Neither is caused by this track and neither is fixed here. Task 1.4 was
+therefore verified directly instead: the migration was applied twice against a
+scratch database holding a real `tracks` table — creating all four columns with
+the intended types (`integer NOT NULL DEFAULT 0`, `text`, `text`,
+`timestamptz`) on the first run and no-opping with `skipping` notices on the
+second. `atlas migrate validate` confirms `atlas.sum` integrity.
+
+**The cloud DB is not Atlas-managed, but has almost everything already**
+(Task 1.5, read-only introspection via the `DATABASE_URL` secret).
+`atlas migrate status` reports *no migration applied yet* — the schema was
+provisioned by some other path, so `scripts/migrate-prod.sh` has evidently
+never successfully run. Introspection of the live schema shows every table the
+ported handlers need is present: `track_locks`, `track_sessions`,
+`worker_dispatch`, `worker_permissions`, `track_comments`, `workers`,
+`projects`, `tracks`, `api_keys`.
+
+Column-level, the only gaps that matter to this track are the four
+`prespawn_block_*` columns — **confirmed absent**, exactly as spec.md predicted.
+Present and verified: `projects.conductor_files`/`owner_uid`/`repo_path`/
+`workspace_id`, `tracks.claimed_by`/`locked_by`/`last_updated_by_uid`/
+`assignee_uid`/`created_by_uid`/`priority`/`auto_run`, all of
+`track_sessions` (incl. `last_context_tokens`, `resume_count`), all of
+`worker_dispatch` (incl. `result`, `claimed_at`), `track_comments.is_replied`,
+`workers.machine_token`/`user_uid`/`visibility`.
+
+Also absent from the cloud DB but **not** used by any route ported here, so out
+of scope and left alone: `tracks.merge_mode`, `tracks.workspace_mode` (from
+`ui/server/migrations/009` and `010` — the same orphaned-directory problem).
+
+One schema detail that shapes Phase 4: `worker_dispatch` has **no**
+`project_id` column, so scoping a dispatch to a workspace has to go
+`worker_id → workers.project_id → projects.workspace_id`.
+
+**Applying the migration to the cloud DB is a production write and is not done
+here** — see the Phase 5 note.
+
+**Unplanned fix, found by the new control assertion.** The parity suite asserts
+the *local* server serves every worker call, as a check on the extractor itself.
+It failed on `POST /track/1/action`: `conductor/laneconductor.sync.mjs:2721`
+(the `/replan` and `/bug` conversation-command handler) called
+`postToCollectors`, but `/track/:num/action` is registered `app.patch` in both
+`ui/server/index.mjs` and `cloud/functions/index.js`. That POST 404'd on every
+invocation. It went unnoticed because the `.catch()` only warns and the
+`index.md` write immediately below re-establishes the same state through
+file-sync — the HTTP call has been dead weight, not a working transition. Fixed
+to `patchCollectors` (one line, plus a comment).
 
 ## Phase 2: Worker identity and transactions in the cloud function
 
