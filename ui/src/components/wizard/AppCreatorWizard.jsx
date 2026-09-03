@@ -2,14 +2,18 @@ import React, { useState } from 'react';
 import { BasicsStep, basicsStepValid } from './BasicsStep.jsx';
 import { ProductStep, productStepValid } from './ProductStep.jsx';
 import { DesignStackStep, designStackStepValid } from './DesignStackStep.jsx';
+import { ConnectionsStep, connectionsStepValid } from './ConnectionsStep.jsx';
 import { DeploymentStep, deploymentStepValid } from './DeploymentStep.jsx';
 import { ReviewLaunchStep } from './ReviewLaunchStep.jsx';
+import { buildConnectionsPayload, defaultConnectionsState } from '../../lib/connectors.js';
 
-// Track AM-1119 Phase 1: five-step App Creator wizard (spec.md REQ-1).
-// Each step is a standalone component sharing one wizardState object; Back
-// preserves everything already entered. Validation gates Next per-step
-// (Basics/Product required, Design/Stack + Deployment's env choice only
-// required when a provider is picked, Review has nothing to validate).
+// Track AM-1119 Phase 1: App Creator wizard (spec.md REQ-1), six steps for
+// an 'app' project since Track TU-10049 added Connections (four for
+// 'marketing' — see stepsForKind below). Each step is a standalone
+// component sharing one wizardState object; Back preserves everything
+// already entered. Validation gates Next per-step (Basics/Product
+// required, Design/Stack + Deployment's env choice only required when a
+// provider is picked, Connections and Review have nothing to validate).
 //
 // Track AM-1121: the step list now depends on basics.kind. 'app' (the
 // default, and the only kind that existed before this track) keeps all
@@ -17,15 +21,27 @@ import { ReviewLaunchStep } from './ReviewLaunchStep.jsx';
 // both ask about code/hosting, which a project with no code doesn't have
 // (found live 2026-08-30 running an actual book-marketing project through
 // this wizard: it asked for a "visual style" and a deploy provider).
+//
+// Track TU-10049: adds a Connections step (source control / issue tracker
+// / cloud credentials, spec.md REQ-1) between Design & Stack and
+// Deployment for 'app'; 'marketing' gets an issue-tracker-only variant
+// right after Product (AC-7) — a marketing project has no repo to connect
+// and no cloud project to bill, same reasoning AM-1121 already applied to
+// Design/Stack and Deployment. One shared Component/validate pair is used
+// for both positions — which categories render is decided at render time
+// via the `showCategories` prop in stepProps below, not at step-definition
+// time, since ConnectionsStep itself filters CONNECTOR_CATEGORIES.
 function stepsForKind(kind) {
   const basics = { label: 'Basics', Component: BasicsStep, validate: s => basicsStepValid(s.basics) };
   const product = { label: 'Product', Component: ProductStep, validate: s => productStepValid(s.product) };
+  const connections = { label: 'Connections', Component: ConnectionsStep, validate: () => connectionsStepValid() };
   const review = { label: 'Review & Launch', Component: ReviewLaunchStep, validate: () => true };
-  if (kind === 'marketing') return [basics, product, review];
+  if (kind === 'marketing') return [basics, product, connections, review];
   return [
     basics,
     product,
     { label: 'Design & Stack', Component: DesignStackStep, validate: s => designStackStepValid(s.designStack) },
+    connections,
     { label: 'Deployment', Component: DeploymentStep, validate: s => deploymentStepValid(s.deployment) },
     review,
   ];
@@ -36,17 +52,20 @@ export function defaultWizardState(managerWorkers) {
     basics: { name: '', repoType: 'path', repoValue: '', hasExistingCode: true, kind: 'app', workerId: managerWorkers[0]?.id ?? null },
     product: { purpose: '', targetUsers: '', kpis: '' },
     designStack: { designPrompt: '', stackPreset: '', techStack: '' },
+    connections: defaultConnectionsState(),
     deployment: { provider: 'skip', environments: [] },
   };
 }
 
 export function buildWizardPayload(wizardState) {
-  const { basics, product, designStack, deployment } = wizardState;
+  const { basics, product, designStack, connections, deployment } = wizardState;
   const isMarketing = basics.kind === 'marketing';
   const parts = [`Project purpose: ${product.purpose.trim()}`];
   if (product.targetUsers.trim()) parts.push(`Target users: ${product.targetUsers.trim()}`);
   if (!isMarketing && designStack.techStack.trim()) parts.push(`Tech stack: ${designStack.techStack.trim()}`);
   if (product.kpis.trim()) parts.push(`Success metrics / KPIs: ${product.kpis.trim()}`);
+
+  const connectionsPayload = buildConnectionsPayload(connections);
 
   return {
     repo_source: { type: basics.repoType, value: basics.repoValue.trim() },
@@ -60,6 +79,10 @@ export function buildWizardPayload(wizardState) {
         prompt: designStack.designPrompt.trim() || null,
         tech_stack: designStack.techStack.trim() || null,
       },
+      // Marketing has no repo/cloud to connect (spec.md REQ-6) — only the
+      // issue-tracker choice is meaningful, mirroring how design/deployment
+      // already narrow for this kind above.
+      connections: isMarketing ? { issue_tracker: connectionsPayload.issue_tracker } : connectionsPayload,
       deployment: isMarketing ? { provider: 'skip', environments: [] } : {
         provider: deployment.provider,
         environments: deployment.provider === 'skip' ? [] : deployment.environments,
@@ -98,6 +121,13 @@ export function AppCreatorWizard({ managerWorkers, onLaunch, onCancel, nameInput
     Basics: { value: wizardState.basics, onChange: v => patch('basics', v), managerWorkers, nameInputRef },
     Product: { value: wizardState.product, onChange: v => patch('product', v) },
     'Design & Stack': { value: wizardState.designStack, onChange: v => patch('designStack', v) },
+    Connections: {
+      value: wizardState.connections,
+      onChange: v => patch('connections', v),
+      workerId: wizardState.basics.workerId,
+      repoUrl: wizardState.basics.repoValue,
+      showCategories: wizardState.basics.kind === 'marketing' ? ['issue_tracker'] : undefined,
+    },
     Deployment: { value: wizardState.deployment, onChange: v => patch('deployment', v), workerId: wizardState.basics.workerId },
     'Review & Launch': { wizardState },
   }[steps[clampedStep].label];

@@ -110,16 +110,23 @@ pattern, same three-state badge, same non-blocking posture.
 **Problem**: The step must join `stepsForKind()` with the right kind-dependent shape, and its
 answers must reach the dispatch payload without breaking legacy dispatches.
 
-- [ ] Task 4.1: Add `connections` to `defaultWizardState()` (all categories `skip`).
-- [ ] Task 4.2: Insert the step in `stepsForKind()` between Design & Stack and Deployment for
+- [x] Task 4.1: Add `connections` to `defaultWizardState()` (all categories `skip`).
+- [x] Task 4.2: Insert the step in `stepsForKind()` between Design & Stack and Deployment for
       `'app'`; for `'marketing'` insert an issue-tracker-only variant after Product (REQ-1/AC-7).
-- [ ] Task 4.3: Extend `buildWizardPayload()` with `wizard.connections`; add the `stepProps`
-      entry (needs `workerId`, same as Deployment).
-- [ ] Task 4.4: Surface chosen connections in `ReviewLaunchStep.jsx`.
-- [ ] Task 4.5: Update `ui/src/components/NewProjectModal.test.jsx` — the existing "walks all
-      five steps" test now walks six; add cases for the marketing shape and for all-skipped
-      producing `{provider:'skip'}` triples.
-- [ ] Task 4.6: Confirm the Quick-create test still passes untouched (AC-8).
+      One shared step definition for both — `showCategories` is resolved at render time from
+      `stepProps`, not baked into two separate step objects.
+- [x] Task 4.3: Extend `buildWizardPayload()` with `wizard.connections`; add the `stepProps`
+      entry (needs `workerId`, same as Deployment, plus `repoUrl` for Task 3.2's GitHub display).
+- [x] Task 4.4: Surface chosen connections in `ReviewLaunchStep.jsx` (Source control / Issue
+      tracker / Cloud rows, same "Skipped — configure later" convention Deployment already uses).
+- [x] Task 4.5: Updated `ui/src/components/NewProjectModal.test.jsx` — the "walks all five steps"
+      test now walks six (renamed); added TC-27 (Jira payload shape), TC-28 (all-skip → three
+      explicit `{provider:'skip'}`), TC-29 (Back preserves Jira values); fixed the marketing test
+      for its new four-step shape (Connections, issue-tracker only, between Product and Review)
+      and asserted it dispatches only `{issue_tracker: {provider:'skip'}}`, no source_control/
+      cloud keys. **49/49 pass** across Phases 1-4 combined (connectors, ConnectionsStep,
+      NewProjectModal, credentials endpoint, deploy-credentials alias regression).
+- [x] Task 4.6: Quick-create test passes untouched (AC-8) — confirmed in the same run.
 
 **Impact**: `AppCreatorWizard.jsx`, `ReviewLaunchStep.jsx`, wizard tests. User-visible from here.
 
