@@ -350,6 +350,53 @@ describe('Track 10020 Phase 2/3/4: periodic orphan reconciliation', () => {
     assert.equal(entry.status, 'done');
     assert.equal(entry.finalizePatchCount, 1, 'exactly one finalizing PATCH — the orphan tick must never also finalize a dispatch this process is actively tracking');
   });
+
+  it('Track 10054: a dispatch claimed by a DIFFERENT, now-offline worker identity is reconciled too, not just this worker\'s own claims', async () => {
+    // Simulate a second worker identity (--worker-number, track 1084) that
+    // claimed a dispatch and then went offline for good — a real worker
+    // restart landing on a fresh identity rather than resuming this one,
+    // the exact live shape (tracks 10016/10053, 2026-09-03) that left two
+    // dispatches permanently invisible to every reconciler.
+    const otherWorkerId = await (async () => {
+      const r = await fetch(`http://127.0.0.1:${collectorPort}/worker/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: 1, hostname: 'other-machine', worker_number: 2 }),
+      });
+      return (await r.json()).id;
+    })();
+
+    const track = '006';
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    writeIndex(worktreeIndexPath(track), { lane: 'implement', laneStatus: 'success' });
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: otherWorkerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    // Not offline yet — this worker's reconciler must not touch a claim
+    // belonging to another identity that's still (as far as it can tell)
+    // alive and well.
+    await sleepMs(700);
+    let state = await getState(collectorPort);
+    let entry = state.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'claimed', 'must not reconcile another worker\'s claim while that worker isn\'t known to be offline');
+
+    // Now it goes offline (mock stand-in for last_heartbeat staleness).
+    await fetch(`http://127.0.0.1:${collectorPort}/_set-offline-workers`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workerIds: [otherWorkerId] }),
+    });
+
+    state = await poll(async () => {
+      const s = await getState(collectorPort);
+      const e = s.dispatch.find(d => d.id === dispatchId);
+      return e.status !== 'claimed' ? s : null;
+    }, { timeout: 5000, label: 'TC-10054 a DIFFERENT worker reconciles the offline worker\'s orphaned claim' });
+    entry = state.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'done');
+    assert.notEqual(String(entry.worker_id), String(workerId), 'sanity: this dispatch really was claimed by the OTHER identity, not the live worker itself');
+  });
 });
 
 describe('Track 10020 TC-2.1: boot-time reconcile of a dispatch already stale before this process ever started (no regression to the pre-periodic track-1110 behavior)', () => {

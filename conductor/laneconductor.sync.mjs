@@ -7398,7 +7398,29 @@ async function reconcileOrphanedDispatchesInner() {
     console.warn(`[orphan-reconcile] Failed to fetch claimed dispatches: ${err.message}`);
     return;
   }
-  if (!entries || entries.length === 0) return;
+  entries = entries || [];
+
+  // Track 10054: --worker-number (track 1084) makes several worker
+  // identities against one project deliberate and supported, not a bug —
+  // but a dispatch claimed by an identity that's since gone offline was
+  // invisible to every OTHER worker's reconciler, since each only ever
+  // asked for its own worker_id. Sweep the project's offline-worker
+  // claims too, so whichever worker happens to be running notices them
+  // instead of nobody ever doing so. Best-effort: a failure here must
+  // never block reconciling this process's own entries above.
+  const projectId = getProject()?.id;
+  if (projectId) {
+    try {
+      const { entries: offlineOwned } = await get(url, token, `/project/${projectId}/dispatch/claimed-by-offline-workers`);
+      const seenIds = new Set(entries.map(e => e.id));
+      for (const e of offlineOwned || []) {
+        if (!seenIds.has(e.id)) { entries.push(e); seenIds.add(e.id); }
+      }
+    } catch (err) {
+      console.warn(`[orphan-reconcile] Failed to fetch offline-worker claimed dispatches: ${err.message}`);
+    }
+  }
+  if (entries.length === 0) return;
 
   const stillRunningTracks = new Set(runningTrackMap.values());
   const graceMs = Number(process.env.LC_ORPHAN_RECONCILE_GRACE_MS) || 30000;

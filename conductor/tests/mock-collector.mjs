@@ -151,6 +151,28 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { entries });
   }
 
+  // Track 10054: mirrors the real server's GET
+  // /project/:id/dispatch/claimed-by-offline-workers — the counterpart
+  // above only ever finds a dispatch still owned by ITS OWN worker_id, so
+  // a dispatch claimed by a now-offline DIFFERENT worker identity
+  // (--worker-number, track 1084) was invisible to every other worker's
+  // reconciler. `state.offlineWorkerIds` (settable via
+  // /_set-offline-workers) stands in for the real server's
+  // last_heartbeat-staleness check.
+  if ((params = route('GET', '/project/:id/dispatch/claimed-by-offline-workers', req)) !== null) {
+    const offlineIds = new Set((state.offlineWorkerIds || []).map(String));
+    const offlineWorkerIdsForProject = new Set(
+      state.workers.filter(w => String(w.project_id) === params.id && offlineIds.has(String(w.id))).map(w => String(w.id))
+    );
+    const entries = state.dispatch.filter(d => offlineWorkerIdsForProject.has(String(d.worker_id)) && d.status === 'claimed');
+    return reply(res, 200, { entries });
+  }
+
+  if ((params = route('POST', '/_set-offline-workers', req)) !== null) {
+    state.offlineWorkerIds = body.workerIds || [];
+    return reply(res, 200, { ok: true });
+  }
+
   if ((params = route('PATCH', '/worker-dispatch/:id', req)) !== null) {
     const entry = state.dispatch.find(d => String(d.id) === params.id);
     if (!entry) return reply(res, 404, { error: 'dispatch entry not found' });
