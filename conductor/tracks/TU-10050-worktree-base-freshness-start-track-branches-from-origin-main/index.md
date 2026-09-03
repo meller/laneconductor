@@ -1,8 +1,9 @@
 # Track TU-10050: Worktree Base Freshness — Start Track Branches From origin/main
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — all 5 phases done
 **Type**: dev
 **Author**: TU
