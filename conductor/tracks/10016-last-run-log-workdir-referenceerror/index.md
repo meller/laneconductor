@@ -1,55 +1,63 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
+**Lane Status**: success
+**Progress**: 15%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: New
+**Phase**: Planned — scope replaced
 **Type**: bug
-**Summary**: Found live while investigating track 1102's F9 (gutted index.md). spawnCli()'s exit handler references `workDir` inside the `if (lastRunLog)` block before it's declared in a later, sibling `if…
+**Track Kind**: bug
+**Summary**: Original scope (workDir ReferenceError) is ALREADY FIXED in main by edb01b0 / track 1102 F9b. Planning found the real issue underneath: last_run.log matches .gitignore's `*.log`, so the `git add` can never succeed — and F9b's new console.warn now fires on nearly every run. Remaining work: delete the dead call, document the file as an intentionally-uncommitted runtime artifact.
 
 ## Problem
 
-`conductor/laneconductor.sync.mjs`, inside `spawnCli()`'s exit handler
-("Phase 5: Update Lane Status in files and commit"):
+**As filed** — `spawnCli()`'s exit handler referenced `workDir` inside the
+`if (lastRunLog)` block before it was declared (`const workDir` lived in
+a later, sibling `if (updated)` block), throwing a `ReferenceError` into
+an empty `catch (e) {}`, so `last_run.log` was written to disk but never
+`git add`ed.
 
-```js
-// ~line 3996-4003
-if (lastRunLog) {
-  const lastRunLogPath = join(tracksDir, trackDir, 'last_run.log');
-  writeFileSync(lastRunLogPath, lastRunLog, 'utf8');
-  const relLogPath = join('conductor', 'tracks', trackDir, 'last_run.log');
-  try { execSync(`git add "${relLogPath}"`, { cwd: workDir, stdio: 'pipe' }); } catch (e) { }
-}
+**As found during planning** — two things changed the picture:
 
-// ~line 4005-4009, a SIBLING block, not a parent of the above
-if (updated) {
-  const workDir = worktreePath || process.cwd();
-  ...
-}
-```
+1. **The scoping bug is already fixed in `main`.** Commit `edb01b0`
+   ("fix(track-1102): F9b - fix workDir ReferenceError that skipped
+   last_run.log staging") hoisted the declaration above both blocks and
+   replaced the empty catch with a `console.warn`. That was this track's
+   entire original Task 1 and Task 3.
 
-`workDir` is declared with `const` inside `if (updated) { ... }` — its
-scope doesn't extend to the earlier, sibling `if (lastRunLog) { ... }`
-block. Referencing it there throws `ReferenceError: workDir is not
-defined` every time this code path runs (i.e. whenever `lastRunLog` is
-truthy, which is nearly always — `tailLog()` returns content for any
-run that produced log output). The `try`/`catch (e) {}` around that
-specific line swallows the error completely — no log, no warning,
-nothing.
+2. **The fix still doesn't stage the file, and can't.** `.gitignore:17`
+   has `*.log`, which matches `last_run.log`; git refuses to stage an
+   explicitly-named ignored path without `-f` (exit 1, "The following
+   paths are ignored by one of your .gitignore files"). Verified
+   empirically in a scratch repo, and `git check-ignore -v` confirms the
+   match on the real file. Corroboration: 89 `last_run.log` files exist
+   under `conductor/tracks/`, and `git log --all -- '*last_run.log'`
+   returns nothing — not one has ever been committed.
 
-**Net effect**: `writeFileSync(lastRunLogPath, ...)` still runs first
-(that line isn't inside the failing try/catch), so `last_run.log` does
-get written to disk. But the subsequent `git add` for it silently never
-happens — the file exists as an untracked/unstaged change every single
-run, never committed alongside the index.md update that runs right
-after it in the very next block.
+So the call went from silently dying on a `ReferenceError` to loudly
+dying on the ignore rule. Since `edb01b0`, the worker prints `Failed to
+stage last_run.log` on **every run that produces log output** — nearly
+every run. F9b fixed a real defect but exposed that the call underneath
+was never viable.
 
 ## Solution
 
-Not yet designed — the fix is small (compute `workDir` once, before
-both blocks that need it, instead of only inside the second one), but
-should be paired with a regression test that actually asserts
-`last_run.log` gets staged (not just that no exception is thrown —
-the current bug proves silent exceptions don't show up in normal
-testing without specifically checking git's index state).
+Reject the original premise (committing per-run logs) rather than
+implement it. `last_run.log` is a per-run runtime artifact in the same
+category as `conductor/.runs/<track_number>.json`, which `product.md`
+already documents as "gitignored, primary checkout only … Not a committed
+artifact." Its only consumer — `/laneconductor implement` step 2 — reads
+it off the local filesystem, which the unconditional `writeFileSync`
+already provides.
+
+- **Phase 1**: Delete the dead `git add` + `catch`/`console.warn` from
+  the exit handler (keep the `writeFileSync`), replace the now-stale F9b
+  comment, and add a source-level regression guard so the original hoist
+  can't be undone.
+- **Phase 2**: Add a `last_run.log` row to `product.md`'s file-roles
+  table so the next reader doesn't re-file this same track.
+
+`git add -f` / a `!last_run.log` ignore negation is the explicitly
+**rejected** alternative — see `spec.md`. Full findings, requirements and
+acceptance criteria in `spec.md`; phases in `plan.md`; test cases in
+`test.md`.
