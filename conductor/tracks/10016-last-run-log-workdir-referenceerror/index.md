@@ -1,7 +1,7 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: bug
