@@ -1,7 +1,7 @@
 # Track TU-10052: Fix Firebase Hosting API rewrites; stop pointing onboarding at the broken URL
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phases 1,2,3,5,6 done — Phase 4 (prod deploy) awaiting go-ahead
