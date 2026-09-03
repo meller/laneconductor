@@ -1,9 +1,9 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implementation complete
 **Type**: bug
 **Track Kind**: bug
