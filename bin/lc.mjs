@@ -19,6 +19,7 @@ import { planDoneLaneMigration } from '../conductor/services/done-lane-migration
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
 import { decideTrackFolder } from '../conductor/services/track-folder.mjs';
+import { jiraProjectExists, resolveJiraToken } from '../conductor/services/jira-auth.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -509,21 +510,6 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
     return exitCode;
 }
 
-// Helper: Check if a JIRA project exists
-async function jiraProjectExists(domain, email, token, projectKey) {
-  try {
-    const auth = Buffer.from(`${email}:${token}`).toString('base64');
-    const url = `https://${domain}/rest/api/3/project/${projectKey}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Basic ${auth}` },
-      signal: AbortSignal.timeout(10000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 // Helper: Create a JIRA project
 async function createJiraProject(domain, email, token, projectKey, projectName) {
   try {
@@ -557,21 +543,6 @@ async function createJiraProject(domain, email, token, projectKey, projectName) 
     console.error(`❌ Error creating JIRA project: ${err.message}`);
     return false;
   }
-}
-
-// Helper: Resolve JIRA token
-function resolveJiraToken(tokenEnv, token, tokenSecret, tokenStore) {
-  if (tokenEnv && process.env[tokenEnv]) {
-    return process.env[tokenEnv];
-  }
-  if (tokenStore === 'gcp-secret' && tokenSecret) {
-    try {
-      return execSync(`gcloud secrets versions access latest --secret="${tokenSecret}"`, { encoding: 'utf8' }).trim();
-    } catch {
-      return null;
-    }
-  }
-  return token || null;
 }
 
 // Helper: Validate JIRA statuses (from jira-collector logic)

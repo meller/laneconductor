@@ -115,7 +115,7 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-24 px-4" onClick={dispatch ? undefined : onClose}>
       <div
-        className="bg-gray-950 border border-gray-800 rounded-xl w-full max-w-lg shadow-2xl"
+        className="bg-gray-950 border border-gray-800 rounded-xl w-full max-w-lg shadow-2xl max-h-[calc(100vh-8rem)] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">

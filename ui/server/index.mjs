@@ -22,6 +22,8 @@ import { VALID_MODES as MERGE_MODE_VALID_MODES } from '../../conductor/services/
 import { VALID_MODES as WORKSPACE_MODE_VALID_MODES } from '../../conductor/services/workspace-mode.mjs';
 import { CLAIMABLE_LANES, MOVABLE_LANES } from '../../conductor/constants.mjs';
 import { shouldBlockLaneWrite } from '../../conductor/services/lane-regression-guard.mjs';
+import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
+import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -4724,43 +4726,82 @@ app.patch('/api/workers/:id/visibility', requireAuth, async (req, res) => {
   }
 });
 
-// Track AM-1119 Phase 2 (Task 2, REQ-2/TC-5): App Creator wizard's
-// Deployment step credential status badge. Runs the same gcloud/firebase
-// checks `lc setup-deploy`'s CLI wizard runs (bin/lc.mjs's "Phase 4:
-// Credential verification") — but here, synchronously in the API server
-// process rather than via the async worker_dispatch cycle every other
+// Track AM-1119 Phase 2 (Task 2, REQ-2/TC-5), generalized by Track TU-10049
+// Phase 2 (REQ-4): App Creator wizard's Connections/Deployment step
+// credential status badges. Runs the same auth checks the CLI wizard runs
+// (`gh auth status`, `gcloud auth list`, `firebase projects:list`, a live
+// Jira project fetch) — but here, synchronously in the API server process
+// rather than via the async worker_dispatch cycle every other
 // worker-targeted action uses. Deliberate: local-api mode (this wizard's
 // only supported mode per spec.md's Out of Scope) runs the Collector API
 // on the same machine as the worker being configured, so there's no
 // remote-machine problem to solve with dispatch/poll — and a synchronous
-// GET keeps the wizard step simple. Non-blocking: callers must never gate
+// GET keeps each wizard step simple. Non-blocking: callers must never gate
 // Launch on this response (TC-5) — it is a warning only.
-app.get('/api/workers/:id/deploy-credentials', async (req, res) => {
+//
+// jira's token is resolved server-side from a NAMED env var / GCP secret
+// (never a token value carried in the query string) — spec.md REQ-3/REQ-4.
+// If unresolved, this returns NOT CONFIGURED naming the missing source and
+// makes no network call (TC-12) — never an error, never an echo.
+async function checkCredentialProvider(provider, query) {
+  if (provider === 'github') {
+    const result = checkGhAuth({});
+    // checkGhAuth()'s return shape is relied on elsewhere with strict
+    // equality (conductor/tests/track-10018-pr-flow.test.mjs) — read only
+    // {ok, error} here rather than extending it with a detail field.
+    return result.ok
+      ? { status: 'verified', detail: null }
+      : { status: 'NOT CONFIGURED', detail: (result.error || '').split('\n')[0].trim() || null };
+  }
+
+  if (provider === 'jira') {
+    const { domain, email, project_key: projectKey, token_env: tokenEnv, token_store_type: tokenStoreType, token_secret_name: tokenSecretName } = query;
+    if (!domain || !email || !projectKey) {
+      return { status: 'NOT CONFIGURED', detail: 'domain, email and project_key are required' };
+    }
+    const token = resolveJiraToken(tokenEnv, null, tokenSecretName, tokenStoreType);
+    if (!token) {
+      return { status: 'NOT CONFIGURED', detail: tokenEnv ? `env var ${tokenEnv} is not set` : 'no token source configured' };
+    }
+    const exists = await jiraProjectExists(domain, email, token, projectKey);
+    return exists
+      ? { status: 'verified', detail: `${projectKey} @ ${domain}` }
+      : { status: 'NOT CONFIGURED', detail: `project ${projectKey} not reachable at ${domain}` };
+  }
+
+  if (provider === 'gcp') {
+    const r = spawnSync('gcloud', ['auth', 'list', '--format=value(account)', '--filter=status=ACTIVE'], { encoding: 'utf8', timeout: 10000 });
+    const account = r.status === 0 && r.stdout?.trim() ? r.stdout.trim().split('\n')[0] : null;
+    return { status: account ? 'verified' : 'NOT CONFIGURED', detail: account };
+  }
+
+  // provider === 'firebase'
+  const r = spawnSync('firebase', ['projects:list', '--json'], { encoding: 'utf8', timeout: 10000 });
+  return { status: r.status === 0 ? 'verified' : 'NOT CONFIGURED', detail: null };
+}
+
+async function handleCredentialsRequest(req, res) {
   try {
     const { rows: workers } = await pool.query('SELECT id FROM workers WHERE id = $1', [req.params.id]);
     if (workers.length === 0) return res.status(404).json({ error: 'worker not found' });
 
     const provider = req.query.provider;
-    if (provider !== 'firebase' && provider !== 'gcp') {
-      return res.status(400).json({ error: 'provider must be "firebase" or "gcp"' });
+    if (!['github', 'jira', 'gcp', 'firebase'].includes(provider)) {
+      return res.status(400).json({ error: 'provider must be "github", "jira", "gcp" or "firebase"' });
     }
 
-    let status, detail = null;
-    if (provider === 'gcp') {
-      const r = spawnSync('gcloud', ['auth', 'list', '--format=value(account)', '--filter=status=ACTIVE'], { encoding: 'utf8', timeout: 10000 });
-      const account = r.status === 0 && r.stdout?.trim() ? r.stdout.trim().split('\n')[0] : null;
-      status = account ? 'verified' : 'NOT CONFIGURED';
-      detail = account;
-    } else {
-      const r = spawnSync('firebase', ['projects:list', '--json'], { encoding: 'utf8', timeout: 10000 });
-      status = r.status === 0 ? 'verified' : 'NOT CONFIGURED';
-    }
-
+    const { status, detail } = await checkCredentialProvider(provider, req.query);
     res.json({ provider, status, detail });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}
+
+app.get('/api/workers/:id/credentials', handleCredentialsRequest);
+// Kept as a thin alias (Track TU-10049 Phase 2 REQ-4) — DeploymentStep.jsx
+// and ui/server/tests/track-1119-deploy-credentials.test.mjs both keep
+// working unmodified against this path.
+app.get('/api/workers/:id/deploy-credentials', handleCredentialsRequest);
 
 // Get team permissions for a worker (owner sees who has access)
 app.get('/api/workers/:id/permissions', requireAuth, async (req, res) => {
