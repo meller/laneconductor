@@ -149,20 +149,24 @@ test('TC-5 (Phase 4 fixes this): cmd_type must not be reassigned to lane_status/
 // is only ever called when `!getIsLocalFs()` (spawnCli:~4776), so a
 // local-fs sandbox structurally never reaches that branch regardless of
 // workspaceMode. What IS directly verifiable: (a) resolveWorkspaceMode
-// really would force 'main' for laneStatus 'plan'/'done' if it were called
+// really would force 'main' for laneStatus 'done' if it were called
 // normally — proving the bypass below is not moot — and (b) the real
 // dispatch code actually skips that call for a conversation run.
+//
+// Track 10050 (2026-09-03): 'plan' dropped from this sanity loop —
+// resolveWorkspaceMode no longer force-resolves plan to 'main' (it now
+// falls through the normal precedence chain, defaulting to 'branch', to
+// unlock real parallel planning). 'done' is unaffected and still the
+// live incident shape this test guards against.
 test('TC-9 (Phase 4 fixes this): a conversation-reply run bypasses resolveWorkspaceMode, so it can never resolve to \'main\' via a stale laneStatus', () => {
   // Sanity: this is the exact incident shape (Finding 2, track AM-10040) —
-  // resolveWorkspaceMode forces 'main' for these laneStatus values
+  // resolveWorkspaceMode forces 'main' for this laneStatus value
   // unconditionally, with no way to opt out via trigger/marker/type.
-  for (const laneStatus of ['plan', 'done']) {
-    assert.equal(
-      resolveWorkspaceMode({ laneStatus, trigger: 'manual-dispatch' }),
-      'main',
-      `sanity: resolveWorkspaceMode(laneStatus=${laneStatus}) really does force 'main' when called normally — this is what a reply run must never reach`
-    );
-  }
+  assert.equal(
+    resolveWorkspaceMode({ laneStatus: 'done', trigger: 'manual-dispatch' }),
+    'main',
+    `sanity: resolveWorkspaceMode(laneStatus=done) really does force 'main' when called normally — this is what a reply run must never reach`
+  );
   assert.ok(
     /isConversationRun\s*\?\s*null\s*:\s*resolveWorkspaceMode/.test(SYNC_SRC),
     'spawnCli must force workspaceMode to null for isConversationRun, never falling through to resolveWorkspaceMode\'s real (laneStatus-driven) computation — otherwise a reply dispatched while the track sits in plan/done resolves to workspace:main and takes the global main-mode lock for a run that never touches code or branches'

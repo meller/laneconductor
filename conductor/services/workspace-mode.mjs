@@ -68,9 +68,24 @@ export function resolveWorkspaceMode({
   trigger = null,
   projectWorkspaceMode = null,
 } = {}) {
-  // D5 row 1 / D6: plan is always main-direct, for every track, unconditionally —
-  // checked first so it outranks even an explicit **Workspace**: branch marker.
-  if (laneStatus === 'plan') return 'main';
+  // Track 10050 (2026-09-03): plan used to be hardcoded main-direct here
+  // (old D5 row 1 / D6), unconditionally, for every track — a pure speed
+  // optimization (skip worktree-creation overhead for a docs-only step),
+  // not a technical requirement; plan only ever wrote the track's own
+  // conductor/tracks/<track>/ folder. That made every plan-lane session
+  // project-wide contend for the SAME global main-mode lock (D1's real,
+  // confirmed-live cross-track file-deletion incident — see
+  // checkAndClaimGlobalMainModeLock's own doc comment), serializing
+  // planning to one track at a time and repeatedly tripping the
+  // dirty-checkout guard on nothing but other tracks' routine sync churn
+  // (see the dogfooding notes on isWorkerBookkeepingPath below). Plan now
+  // falls through to the same precedence chain as implement/review — an
+  // explicit **Workspace** marker still wins, an unattended trigger still
+  // forces branch, and the row-6 default is branch — which gives it a real
+  // worktree and genuine parallelism with zero new locking logic, reusing
+  // exactly the isolation implement already relies on. The lazy worktree
+  // creation implement expects still works: the branch/worktree just now
+  // gets created one lane earlier, at plan instead of implement.
 
   // Track 10035 REQ-3: done (the merge action) is always main-direct too,
   // for the same reason and at the same precedence tier as plan — there is
