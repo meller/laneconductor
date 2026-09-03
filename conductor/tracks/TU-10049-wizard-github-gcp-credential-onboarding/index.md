@@ -1,10 +1,10 @@
 # Track TU-10049: Wizard: GitHub + Jira + GCP Credential Onboarding
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 0%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — 6 phases, awaiting implement
+**Phase**: New
 **Type**: dev
 **Track Kind**: feature
 **Auto Run**: yes
