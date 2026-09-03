@@ -1,7 +1,7 @@
 # Track 1097: Build Artifact System & AI Release Notes Synthesizer
 
 **Lane**: backlog
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Backlog
 **Type**: dev
