@@ -17,9 +17,9 @@ export const CONNECTOR_CATEGORIES = [
     label: 'Source control',
     real: { value: 'github', label: 'GitHub' },
     alternatives: [
-      { value: 'gitlab', label: 'GitLab' },
-      { value: 'bitbucket', label: 'Bitbucket' },
-      { value: 'azure-devops', label: 'Azure DevOps' },
+      { value: 'gitlab', label: 'GitLab — FFU' },
+      { value: 'bitbucket', label: 'Bitbucket — FFU' },
+      { value: 'azure-devops', label: 'Azure DevOps — FFU' },
     ],
   },
   {
@@ -27,10 +27,10 @@ export const CONNECTOR_CATEGORIES = [
     label: 'Issue tracker',
     real: { value: 'jira', label: 'Jira' },
     alternatives: [
-      { value: 'linear', label: 'Linear' },
-      { value: 'asana', label: 'Asana' },
-      { value: 'github-issues', label: 'GitHub Issues' },
-      { value: 'shortcut', label: 'Shortcut' },
+      { value: 'linear', label: 'Linear — FFU' },
+      { value: 'asana', label: 'Asana — FFU' },
+      { value: 'github-issues', label: 'GitHub Issues — FFU' },
+      { value: 'shortcut', label: 'Shortcut — FFU' },
     ],
   },
   {
@@ -38,9 +38,9 @@ export const CONNECTOR_CATEGORIES = [
     label: 'Cloud',
     real: { value: 'gcp', label: 'GCP' },
     alternatives: [
-      { value: 'aws', label: 'AWS' },
-      { value: 'azure', label: 'Azure' },
-      { value: 'cloudflare', label: 'Cloudflare' },
+      { value: 'aws', label: 'AWS — FFU' },
+      { value: 'azure', label: 'Azure — FFU' },
+      { value: 'cloudflare', label: 'Cloudflare — FFU' },
     ],
   },
 ];

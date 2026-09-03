@@ -16,21 +16,22 @@ The worker runs via `node conductor/laneconductor.sync.mjs` and cannot import `u
 mirroring convention exactly — same header comment warning that both copies must be edited
 together.
 
-- [ ] Task 1.1: Create `ui/src/lib/connectors.js` with `CONNECTOR_CATEGORIES` (spec § API
+- [x] Task 1.1: Create `ui/src/lib/connectors.js` with `CONNECTOR_CATEGORIES` (spec § API
       Contracts), covering all three categories, their real provider, their disabled
       alternatives, and a `skip` default.
-    - [ ] Include the `— FFU` label suffix as data, not as JSX, so both copies agree.
-- [ ] Task 1.2: Add `buildJiraCollector({ domain, email, projectKey, tokenEnv })` returning the
+    - [x] Include the `— FFU` label suffix as data, not as JSX, so both copies agree.
+- [x] Task 1.2: Add `buildJiraCollector({ domain, email, projectKey, tokenEnv })` returning the
       **exact** `collectors[]` entry shape `lc add-target --type jira` writes (`bin/lc.mjs`
       ~L3092) — `{ type: 'jira', domain, email, project_key, token_env }`, `undefined` for
       unset optional keys.
-- [ ] Task 1.3: Add `connectionsStepValid()` returning `true` unconditionally (REQ-1), and
+- [x] Task 1.3: Add `connectionsStepValid()` returning `true` unconditionally (REQ-1), and
       `buildConnectionsPayload(state)` producing the `wizard.connections` block, emitting
       `{ provider: 'skip' }` for untouched categories.
-- [ ] Task 1.4: Mirror all of the above byte-for-byte into `conductor/connectors.mjs`.
-- [ ] Task 1.5: Unit tests — registry shape, `buildJiraCollector` output matches the CLI's shape,
+- [x] Task 1.4: Mirror all of the above byte-for-byte into `conductor/connectors.mjs`.
+- [x] Task 1.5: Unit tests — registry shape, `buildJiraCollector` output matches the CLI's shape,
       skip-emission, and a test asserting the two mirrored files are identical apart from the
       module header (guards the convention the way the codebase already relies on it).
+      **13/13 pass** (TC-1..TC-7, plus one extra for the FFU-as-data guarantee).
 
 **Impact**: New shared module. Nothing consumes it yet; no behavior change.
 

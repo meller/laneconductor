@@ -36,6 +36,15 @@ describe('CONNECTOR_CATEGORIES', () => {
       expect(altValues).not.toContain(category.real.value);
     }
   });
+
+  it('every alternative label carries the FFU marker as data (REQ-2) — not left to a JSX layer', () => {
+    for (const category of CONNECTOR_CATEGORIES) {
+      for (const alt of category.alternatives) {
+        expect(alt.label).toMatch(/FFU/);
+      }
+      expect(category.real.label).not.toMatch(/FFU/);
+    }
+  });
 });
 
 describe('buildJiraCollector', () => {
