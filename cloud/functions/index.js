@@ -861,6 +861,35 @@ app.post('/api/projects/:id/tracks/:num/dismiss', auth, checkProject, async (req
   }
 });
 
+// Track 10055 (REQ-7): un-park a track sitting at `<lane>:waiting`. Mirrors
+// the local collector's route exactly, minus syncTrackToFile — the cloud
+// function has no filesystem to write to; the worker's own file sync carries
+// the change down to disk.
+app.post('/api/projects/:id/tracks/:num/resume', auth, checkProject, async (req, res) => {
+  try {
+    const { rows } = await query(
+      'SELECT lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [req.project_id, req.params.num]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'track not found' });
+    if (rows[0].lane_action_status !== 'waiting') {
+      return res.status(409).json({
+        error: `track ${req.params.num} is not waiting (it is ${rows[0].lane_status}:${rows[0].lane_action_status}) — nothing to resume`,
+      });
+    }
+    await query(
+      `UPDATE tracks
+          SET lane_action_status = 'queue', lane_action_result = NULL,
+              waiting_reason = NULL, claimed_by = NULL, last_heartbeat = NOW()
+        WHERE project_id = $1 AND track_number = $2`,
+      [req.project_id, req.params.num]
+    );
+    res.json({ ok: true, lane_status: rows[0].lane_status, lane_action_status: 'queue' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.patch('/api/projects/:id/tracks/:num/priority', auth, checkProject, async (req, res) => {
   const { priority } = req.body;
   if (priority === undefined) return res.status(400).json({ error: 'priority is required' });

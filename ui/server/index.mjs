@@ -1622,6 +1622,25 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       ) || (`**Progress**: ${progressStr}\n` + content);
     }
 
+    // Track 10055: the reason travels with the status it explains. Written
+    // when the caller supplies one, removed when the caller explicitly clears
+    // it (resume) or when the status being written is no longer `waiting`.
+    // Without the last clause the resume endpoint would leave a paused card's
+    // explanation sitting on a track that is running again.
+    const clearingReason =
+      updates.waiting_reason === null ||
+      (updates.waiting_reason === undefined &&
+        updates.lane_action_status !== undefined &&
+        updates.lane_action_status !== 'waiting');
+    if (clearingReason) {
+      content = content.replace(/^[ \t]*\*\*Waiting Reason\*\*:[^\n]*\n?/im, '');
+    } else if (updates.waiting_reason !== undefined) {
+      const reasonRe = /^\*\*Waiting Reason\*\*:\s*.+$/m;
+      content = reasonRe.test(content)
+        ? content.replace(reasonRe, `**Waiting Reason**: ${updates.waiting_reason}`)
+        : content.trim() + `\n**Waiting Reason**: ${updates.waiting_reason}\n`;
+    }
+
     // Track 10017: **Auto Run** is absent by default (REQ-1) — unlike the
     // fields above, which always already exist in a scaffolded index.md, this
     // marker frequently needs to be added rather than replaced, so this uses
@@ -5031,6 +5050,57 @@ app.patch('/api/projects/:id/tracks/:num/auto-run', async (req, res) => {
     await syncTrackToFile(req.params.id, req.params.num, { auto_run });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10055 (REQ-7): un-park a track sitting at `<lane>:waiting`.
+//
+// `waiting` means "a human has to act before anything can continue", and
+// nothing auto-claims it — so a parked track needs an explicit way back into
+// the queue or it is a dead end. This is that way: same lane, status back to
+// `queue`, reason retired, and the ordinary claim loop takes it from there.
+//
+// Marked `last_updated_by = 'human'` because it is one: that flag is what
+// stops a stale in-flight lane action from later overwriting the lane a human
+// just acted on (track 10013's guard in POST /track).
+//
+// 409 rather than a silent no-op when the track isn't parked — resuming
+// something that is already running, or already queued, means the caller's
+// view of the board is stale, and quietly "succeeding" would hide that.
+app.post('/api/projects/:id/tracks/:num/resume', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [req.params.id, req.params.num]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'track not found' });
+    if (rows[0].lane_action_status !== 'waiting') {
+      return res.status(409).json({
+        error: `track ${req.params.num} is not waiting (it is ${rows[0].lane_status}:${rows[0].lane_action_status}) — nothing to resume`,
+      });
+    }
+
+    await pool.query(
+      `UPDATE tracks
+          SET lane_action_status = 'queue', lane_action_result = NULL,
+              waiting_reason = NULL, claimed_by = NULL,
+              last_updated_by = 'human', last_heartbeat = NOW()
+        WHERE project_id = $1 AND track_number = $2`,
+      [req.params.id, req.params.num]
+    );
+
+    // Awaited, not fire-and-forget: for a local-fs worker the filesystem IS
+    // the queue, so the response must not claim the track was resumed before
+    // the marker that resumes it has actually landed.
+    await syncTrackToFile(req.params.id, req.params.num, {
+      lane_action_status: 'queue',
+      waiting_reason: null,
+    });
+
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true, lane_status: rows[0].lane_status, lane_action_status: 'queue' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
