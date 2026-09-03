@@ -1,6 +1,6 @@
 # Track TU-10050: Worktree Base Freshness — Start Track Branches From origin/main
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: Implementation complete — all 5 phases done
