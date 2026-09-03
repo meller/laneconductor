@@ -1,7 +1,7 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: waiting
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
