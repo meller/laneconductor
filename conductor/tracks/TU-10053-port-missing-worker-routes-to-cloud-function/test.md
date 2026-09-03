@@ -6,7 +6,18 @@
 # Worker/offline suites (node:test, zero deps) — route parity, rewrites, constants
 node --test conductor/tests/cloud-route-parity.test.mjs
 node --test conductor/tests/firebase-rewrites.test.mjs
-node --test conductor/tests/
+
+# NOTE: `node --test conductor/tests/` (a bare directory) fails on Node 22 —
+# it resolves the path as a module. Use a glob. But see the hazard below before
+# running the whole suite.
+#
+# ⚠️  DO NOT run `node --test conductor/tests/*.test.mjs` from inside a
+# worktree. Several of those E2E tests exercise real `git worktree`
+# create/remove against the real repository rather than a fixture clone, and
+# their cleanup deletes the worktree they are running in — observed on this
+# track: the directory was removed, the track-10053 branch ref deleted, and the
+# worktree deregistered mid-run. Run it from the primary checkout, or run
+# individual files.
 
 # Cloud function handlers (jest + supertest, mocked pg)
 cd cloud/functions && npm test
