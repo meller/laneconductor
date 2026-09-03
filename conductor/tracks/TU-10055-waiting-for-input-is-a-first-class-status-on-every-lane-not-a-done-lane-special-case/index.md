@@ -8,3 +8,5 @@
 **Author**: TU
 **Created By**: test@example.com
 **Summary**: A lane action can pause and genuinely need a human before it can continue — this happens on plan, implement, review and quality-gate, not just done. Today that state is only legible in the done…
+**Merge Mode**: direct
+**Waiting for reply**: yes
