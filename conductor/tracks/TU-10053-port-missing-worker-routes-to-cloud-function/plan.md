@@ -92,6 +92,17 @@ Two pre-existing defects, both hit while verifying Task 1.4:
   pending files and `atlas migrate apply` fails on the first one. (This is
   precisely why the new migration here uses `IF NOT EXISTS`.)
 
+**Correction to spec.md's original B3.** It said `ui/server/migrations/` has
+"no runner anywhere in the repo". It does: `runMigration()` in
+`ui/server/index.mjs` iterates that directory on **every local API server
+startup** — including every vitest run, which imports the app — applying each
+file and swallowing failures as warnings. The earlier grep missed it because
+the path is built as `join(__dirname, 'migrations')`, never written literally.
+The substance is unchanged and now better explained: that runner only ever
+touches the database the *local collector* connects to, so anything defined
+only there is present on every dev machine and absent from the cloud DB, which
+is served by `cloud/functions/index.js`. spec.md has been corrected.
+
 Neither is caused by this track and neither is fixed here. Task 1.4 was
 therefore verified directly instead: the migration was applied twice against a
 scratch database holding a real `tracks` table — creating all four columns with
