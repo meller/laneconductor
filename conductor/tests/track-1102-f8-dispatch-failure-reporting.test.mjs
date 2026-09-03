@@ -24,6 +24,7 @@ import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
+import { hostname } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -264,5 +265,83 @@ describe('Track 10050: spawn-failure revert must not preserve a stale outcome st
     assert.match(content, /\*\*Lane Status\*\*:\s*queue/i,
       'a failed spawn must leave Lane Status as queue (retriable), never a stale outcome status borrowed from the lane this dispatch superseded');
     assert.doesNotMatch(content, /\*\*Lane Status\*\*:\s*success/i);
+  });
+});
+
+// Track 10054 follow-up (2026-09-03): found live — a lock-contention
+// rejection where the lock is held by THIS SAME WORKER PROCESS (a
+// redundant dispatch racing the one that already succeeded, e.g. a UI
+// double-click) posted "locked by meller@this-machine (PID: <this
+// worker's own PID>)" to conversation.md. That reads exactly like
+// external contention from a different user/machine/process — a human
+// watching the Inbox had no way to tell it was actually just the worker
+// tripping over its own already-running session for the track. Fixed by
+// flagging self-contention (lock.pid === process.pid) and skipping the
+// conversation.md post for that case specifically, while still failing
+// the redundant dispatch the same way. This suite reuses F8's own
+// worker/collector to seed a lock with the WORKER'S OWN real PID
+// (discovered via its own /worker/register call) rather than a fake
+// "someone-else" PID.
+describe('Track 10054 follow-up: self-contention (this worker\'s own already-held lock) does not post confusing conversation.md noise', () => {
+  let collectorProc, collectorPort, worker, trackDir, workerId, workerPid;
+
+  before(async () => {
+    const c = await startMockCollector();
+    collectorProc = c.proc;
+    collectorPort = c.port;
+    await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
+
+    trackDir = setupProject(collectorPort);
+    // No pre-seeded lock this time — this suite writes its own AFTER
+    // discovering the worker's real PID.
+    rmSync(join(TMP, '.conductor/locks/001.lock'), { force: true });
+
+    worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only'], {
+      cwd: TMP,
+      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_DISPATCH_POLL_MS: '500' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    worker.stdout.on('data', d => process.stdout.write(`[worker] ${d}`));
+    worker.stderr.on('data', d => process.stderr.write(`[worker] ${d}`));
+
+    const state0 = await poll(async () => {
+      const s = await getState(collectorPort);
+      return s.workers.length > 0 ? s : null;
+    }, { label: 'worker registered' });
+    workerId = state0.workers[0].id;
+    workerPid = state0.workers[0].pid;
+  });
+
+  after(() => {
+    worker?.kill();
+    collectorProc?.kill();
+    rmSync(TMP, { recursive: true, force: true });
+  });
+
+  it('fails the redundant dispatch without posting "locked by" noise to conversation.md', async () => {
+    // Simulate this exact worker process already holding the track-001
+    // lock (as if a first dispatch attempt claimed it moments ago) before
+    // a SECOND, redundant dispatch for the same track arrives.
+    writeFileSync(join(TMP, '.conductor/locks/001.lock'), JSON.stringify({
+      user: 'meller', machine: hostname(), pid: workerPid,
+      started_at: new Date().toISOString(), cli: 'claude', track_number: '001',
+    }, null, 2));
+
+    await enqueueDispatch(collectorPort, { worker_id: workerId, action: 'plan', track_number: '001' });
+
+    const finalState = await poll(async () => {
+      const s = await getState(collectorPort);
+      const d = s.dispatch.find(e => e.action === 'plan');
+      return d && d.status !== 'pending' && d.status !== 'claimed' ? s : null;
+    }, { timeout: 20000, label: 'redundant plan dispatch resolves out of claimed/pending' });
+
+    const entry = finalState.dispatch.find(e => e.action === 'plan');
+    assert.equal(entry.status, 'failed', 'the redundant dispatch still fails cleanly — self-contention only changes whether it\'s posted, not whether it\'s reported as failed');
+
+    await sleep(500);
+    const convPath = join(trackDir, 'conversation.md');
+    const content = existsSync(convPath) ? readFileSync(convPath, 'utf8') : '';
+    assert.doesNotMatch(content, /could not start/i,
+      'self-contention (this worker\'s own lock) must not post a "locked by" comment where a human reads it — it isn\'t external contention and reads as confusing noise');
   });
 });
