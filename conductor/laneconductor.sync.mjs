@@ -39,6 +39,7 @@ import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, 
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
+import { writeWizardConnectionsArtifacts } from './services/wizard-connections.mjs';
 import { deriveTrackPlan } from './services/wizard-track-plan.mjs';
 import { getAuthorInfo } from './services/author.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
@@ -7080,6 +7081,19 @@ async function runCreateProject(entry) {
     ui: config.ui || { port: 8090 },
   };
   writeFileSync(join(targetPath, '.laneconductor.json'), JSON.stringify(newConfig, null, 2) + '\n');
+
+  // Track TU-10049 Phase 5 (spec.md REQ-6): a Jira connection chosen on the
+  // wizard's Connections step becomes a real collectors[] entry in the
+  // created project — same shape `lc add-target --type jira` writes. MUST
+  // run after the .laneconductor.json write immediately above, same
+  // reasoning as the deployment block earlier in this function: writing
+  // first would just get overwritten by that write. No-op for a legacy
+  // Quick create dispatch (no `wizard` key) or when the category was left
+  // on "skip" — spec.md AC-8/TC-36/TC-37. Never writes a credential value
+  // (REQ-3/AC-6) — only the env var NAME the wizard collected, appended to
+  // .env.example, which SCAFFOLD_ENTRIES below already allowlists as safe
+  // to commit (it holds names only, same as the deployment block's entry).
+  writeWizardConnectionsArtifacts({ targetPath, connections: entry.payload?.wizard?.connections });
 
   // Track 1102 F7: the project must be a git repo with at least one commit
   // before any lane action can run — spawnCli takes a git lock and runs
