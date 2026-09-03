@@ -41,6 +41,22 @@ LaneConductor supports **Multi-Target Synchronization**. You no longer select a 
 
 The project runs in **local-fs** mode if zero enabled collectors are configured.
 
+**remote-api known gap (as of 2026-09, tracked in track 10052):** Firebase
+Hosting's rewrite rules for `app.laneconductor.com` (and the raw
+`laneconductor-app.web.app`) use `/prefix**` glob patterns, which only match
+*within* a single path segment — not the cross-segment `/prefix/**` behavior
+the routing was written assuming. Confirmed live: 24 of the 27 collector
+endpoints the sync worker calls are multi-segment (`/worker/register`,
+`/tracks/claim-queue`, `/track/:n/lock`, etc.) and silently receive the SPA's
+`index.html` with a `200` instead of reaching the `api` Cloud Function — only
+single-segment paths (`/track`, `/worker`, `/provider-status`) and `/health`
+route correctly today. A worker or CLI pointed at the Hosting domain will see
+this as `SyntaxError: Unexpected token '<'` on writes. Workaround until the
+Hosting fix ships: point the collector at the Cloud Function's own URL
+directly (bypasses Hosting's rewrite layer entirely). Two route families are
+also missing from `cloud/functions/index.js` outright (not just misrouted) —
+filed as a Phase 6 follow-up on the same track.
+
 ## Feature Availability — Skill-Only vs Worker Modes
 
 "Skill-only" means no worker process at all: an AI session (Claude Desktop, an
@@ -50,7 +66,7 @@ gracefully to it — but the automation and model-control features are what the
 worker (and, further, the full local/cloud stack) exist for. This table is the
 honest upgrade path: each column to the right is a reason to install more.
 
-| Feature | Skill-only | Worker (local-fs) | Full stack (local-api) | Cloud (remote-api) |
+| Feature | Skill-only | Worker (local-fs) | Full stack (local-api) | Cloud (remote-api)¹ |
 |---------|-----------|-------------------|------------------------|--------------------|
 | Track scaffolding, plan/implement/review via markdown | ✅ | ✅ | ✅ | ✅ |
 | Git lock + worktree isolation (`lock`/`unlock`) | ✅ manual | ✅ automatic | ✅ automatic | ✅ automatic |
@@ -64,6 +80,12 @@ honest upgrade path: each column to the right is a reason to install more.
 | Kanban dashboard, Inbox, conversation UI | ❌ | ❌ | ✅ `localhost:8090` | ✅ cloud URL |
 | Worker dispatch / manual "run this on that worker" | ❌ | ❌ | ✅ | ✅ |
 | Multi-machine / team coordination, worker identity | ❌ | git locks only | ✅ single machine | ✅ full |
+
+¹ This column names what remote-api is *designed* to do, not what it does
+today against the Hosting-fronted URL — see the remote-api known gap above
+`## Feature Availability`. Most of these rows depend on API calls that
+currently misroute in production; only local-api and a Cloud Function URL
+pointed at directly are confirmed working end-to-end.
 
 Caveat that applies to every model-control row: model selection is resolved by
 the **worker at spawn time** (`--model` on the CLI it launches) and is
