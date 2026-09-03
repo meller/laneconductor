@@ -1,13 +1,13 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — scope replaced
+**Phase**: Implementation complete
 **Type**: bug
 **Track Kind**: bug
-**Summary**: Original scope (workDir ReferenceError) is ALREADY FIXED in main by edb01b0 / track 1102 F9b. Planning found the real issue underneath: last_run.log matches .gitignore's `*.log`, so the `git add` can never succeed — and F9b's new console.warn now fires on nearly every run. Remaining work: delete the dead call, document the file as an intentionally-uncommitted runtime artifact.
+**Summary**: Removed the dead `git add` (can never succeed — last_run.log matches .gitignore's `*.log`) from spawnCli's exit handler; kept the unconditional writeFileSync. Also updated an existing regression test (track-1102-f9b-log-staging.test.mjs, from the original F9b fix) that asserted the opposite and only passed because its fixture never set up a .gitignore. Documented last_run.log in product.md's file-roles table. All tests green.
 
 ## Problem
 
@@ -61,3 +61,17 @@ already provides.
 **rejected** alternative — see `spec.md`. Full findings, requirements and
 acceptance criteria in `spec.md`; phases in `plan.md`; test cases in
 `test.md`.
+
+## ✅ Implementation Complete
+
+Both phases done. One finding not caught during planning: an existing
+regression test (`track-1102-f9b-log-staging.test.mjs`, from the original
+F9b fix) asserted `last_run.log` *must* be tracked by git — the opposite
+of this track's conclusion — and only passed because its scratch fixture
+never wrote a `.gitignore`. Reproduced the `Failed to stage` warning live
+by adding a production-matching `.gitignore` to that fixture and rerunning
+against unmodified code, then updated the test's fixture and assertions
+in place to match the corrected behavior. All three relevant suites green
+(`track-10016-last-run-log.test.mjs`: pass 2; `track-1102-f9b-log-staging
+.test.mjs`: pass 1; `track-1102-f9-index-producer.test.mjs`: pass 1; 0
+failures across all three).
