@@ -1,10 +1,11 @@
 # Track TU-10049: Wizard: GitHub + Jira + GCP Credential Onboarding
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — 6 phases, awaiting implement
 **Type**: dev
+**Track Kind**: feature
 **Auto Run**: yes
 **Author**: TU
 **Created By**: test@example.com
@@ -17,5 +18,11 @@
   - Issue tracker (Jira is real): Linear, Asana, etc.
   - Cloud (GCP is real): AWS, Azure, etc.
   Exact set per category TBD at planning. Purpose is roadmap signaling, not functionality — clicking one must not error or silently no-op without feedback; it should read as clearly "not yet available."
-- No existing Jira integration exists anywhere in the codebase today (verified via grep) — this is net-new, not extending something partial.
+- ~~No existing Jira integration exists anywhere in the codebase today (verified via grep) — this is net-new, not extending something partial.~~
+  **CORRECTION (planning, 2026-09-03)**: this is factually wrong. A substantial Jira integration
+  already ships — `conductor/jira-collector.mjs` (`readJiraConfig`/`pollJira`), `lc add-target
+  --type jira` with live `jiraProjectExists()` validation, `lc add-target-mapping` for lane→status
+  mapping, a `jira` hook in `conductor/workflow.json`'s `done` lane, and
+  `cloud/functions/src/adapters/jira.js`. Jira in the wizard is therefore a **UI front-end over
+  existing, working plumbing**, not a net-new integration. See `spec.md` § Existing Machinery.
 **Merge Mode**: direct
