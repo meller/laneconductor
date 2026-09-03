@@ -1,6 +1,6 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
