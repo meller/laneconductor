@@ -42,6 +42,7 @@ import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './depl
 import { deriveTrackPlan } from './services/wizard-track-plan.mjs';
 import { getAuthorInfo } from './services/author.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
+import { parseJsonResponse } from './services/json-response.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
@@ -644,13 +645,7 @@ async function get(collectorUrl, token, path, timeoutMs = 10000) {
     const r = await fetch(url, { headers, signal: controller.signal });
     clearTimeout(id);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-
-    const contentType = r.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await r.text();
-      throw new Error(`Expected JSON, got ${contentType}: ${text.substring(0, 100)}`);
-    }
-    return r.json();
+    return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`Fetch timeout after ${timeoutMs}ms: ${url}`);
     throw err;
@@ -676,7 +671,7 @@ async function post(collectorUrl, token, path, body, timeoutMs = 15000) {
     });
     clearTimeout(id);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-    return r.json();
+    return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`POST timeout after ${timeoutMs}ms: ${url}`);
     throw err;
@@ -702,7 +697,7 @@ async function patch(collectorUrl, token, path, body, timeoutMs = 15000) {
     });
     clearTimeout(id);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-    return r.json();
+    return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`PATCH timeout after ${timeoutMs}ms: ${url}`);
     throw err;
@@ -726,7 +721,7 @@ async function del(collectorUrl, token, path, body = {}, timeoutMs = 10000) {
     });
     clearTimeout(id);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-    return r.json();
+    return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`DELETE timeout after ${timeoutMs}ms: ${url}`);
     throw err;
