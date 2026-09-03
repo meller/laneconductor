@@ -123,7 +123,14 @@ describe('mergeIndexMarkers', () => {
     assert.match(merged, /\*\*Progress\*\*: 25%/);
   });
 
-  it('with skipStatusMarkers: true, a TERMINAL status (the real hazard) still does not flow through, even after the "running" exception', () => {
+  it('with skipStatusMarkers: true, "waiting" also flows through (2026-09-03 same-day extension) — a track paused asking for human authorization must not hide behind "queued"', () => {
+    const existing = '**Lane**: done\n**Lane Status**: queue\n**Progress**: 70%\n';
+    const artifact = '**Lane**: done\n**Lane Status**: waiting\n**Progress**: 70%\n';
+    const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
+    assert.match(merged, /\*\*Lane Status\*\*: waiting/);
+  });
+
+  it('with skipStatusMarkers: true, a TERMINAL status (the real hazard) still does not flow through, even after the "running"/"waiting" exceptions', () => {
     const existing = '**Lane**: plan\n**Lane Status**: running\n';
     for (const stale of ['success', 'failure', 'queue']) {
       const artifact = `**Lane**: plan\n**Lane Status**: ${stale}\n`;
