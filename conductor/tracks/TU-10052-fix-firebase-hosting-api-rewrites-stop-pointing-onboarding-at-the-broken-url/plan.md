@@ -20,21 +20,21 @@ regress just as silently.
 Firebase's documented glob semantics, and asserts every worker/UI path prefix
 resolves to the `api` function rather than the SPA catch-all.
 
-- [ ] Task 1.1: Add `conductor/tests/firebase-rewrites.test.mjs` (zero deps,
+- [x] Task 1.1: Add `conductor/tests/firebase-rewrites.test.mjs` (zero deps,
       `node:test` — per `conductor/tech-stack.md`, filesystem-touching tests use
       `node:test`, not Vitest).
-- [ ] Task 1.2: Implement a small matcher mirroring Firebase's glob dialect — the
+- [x] Task 1.2: Implement a small matcher mirroring Firebase's glob dialect — the
       one rule that matters: `**` is a cross-segment globstar **only** when it is a
       whole segment; glued to a prefix it matches within one segment.
-    - [ ] Self-check the matcher against the live-observed truth table in
+    - [x] Self-check the matcher against the live-observed truth table in
           `spec.md` (`/api**` matches `/apifoo`, does **not** match `/api/health`),
           so the test encodes verified production behaviour, not an assumption.
-- [ ] Task 1.3: Assert every path in `spec.md`'s blast-radius table resolves to
+- [x] Task 1.3: Assert every path in `spec.md`'s blast-radius table resolves to
       the `api` function, for **both** hosting targets (`app` and `landing`).
-- [ ] Task 1.4: Assert the SPA catch-all is still present and still last (REQ-3).
-- [ ] Task 1.5: Add a guard test that fails on any function rewrite matching the
+- [x] Task 1.4: Assert the SPA catch-all is still present and still last (REQ-3).
+- [x] Task 1.5: Add a guard test that fails on any function rewrite matching the
       defective `/<prefix>**` shape (prefix glued to `**`).
-- [ ] Task 1.6: **Run it and confirm it FAILS red** against today's `firebase.json`,
+- [x] Task 1.6: **Run it and confirm it FAILS red** against today's `firebase.json`,
       naming the specific unmatched paths. A test that passes before the fix is
       worthless here.
 
