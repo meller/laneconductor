@@ -1,5 +1,5 @@
 **Lane**: backlog
-**Lane Status**: queue
+**Lane Status**: running
 
 **Lane**: backlog
 **Lane Status**: plan
