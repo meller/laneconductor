@@ -1,9 +1,9 @@
 # Track TU-10052: Fix Firebase Hosting API rewrites; stop pointing onboarding at the broken URL
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — 6 phases
 **Type**: dev
 **Track Kind**: bug
 **Author**: TU
