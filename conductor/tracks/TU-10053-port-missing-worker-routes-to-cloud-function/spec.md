@@ -261,6 +261,16 @@ here (see Open Items).
   A follow-up should either reconcile the whole directory into `migrations/` or
   delete it — filed as an open item, deliberately not in scope here, because
   auditing ten migrations for cloud-safety is a larger job than this port.
+- **⚠️ Fundamentals conflict — `conductor/tech-stack.md` does not describe the
+  cloud test layer.** Its Testing table lists three layers (node:test, Vitest,
+  Playwright) with a rule that unit/integration tests with mocking use Vitest.
+  `cloud/functions/` uses **jest + supertest** (`cloud/functions/package.json`,
+  with an existing `test/api.test.js`), which this track extends substantially
+  under REQ-7/AC-7. The conflict is pre-existing, not introduced here, and this
+  track follows the existing local convention rather than rewriting the cloud
+  suite. Flagged for human review: `tech-stack.md` should either document the
+  cloud-function jest layer or the cloud tests should move to Vitest. Not
+  modified as part of this track.
 - **Cloud DB migration currency.** This plan assumes `scripts/migrate-prod.sh`
   has been applied through the latest `migrations/` entry. Phase 1 verifies
   that with `atlas migrate status` before any handler is written; if the cloud
