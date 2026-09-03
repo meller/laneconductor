@@ -2,8 +2,8 @@
 
 **Lane**: quality-gate
 **Lane Status**: queue
-**Progress**: 100%
-**Phase**: Phase 1 — Compatibility seam
+**Progress**: 0%
+**Phase**: New
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
