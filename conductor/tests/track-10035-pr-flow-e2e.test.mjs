@@ -201,6 +201,12 @@ function startWorker(extraEnv = {}) {
       // then self-reports done:waiting — see mock-cli.mjs's own comment.
       MOCK_CLI_RUN_LC_CREATE_PR: '1',
       MOCK_CLI_WRITE_LANE_STATUS: 'waiting',
+      // Track 10055: scoped to the done stage, which is all this fixture ever
+      // meant (see the comment above). Unscoped, it also fired at the end of
+      // the quality-gate stage — harmless while a self-reported `waiting` was
+      // only honoured on the done lane, but a real park now that it is
+      // honoured everywhere, leaving the sequence stuck at quality-gate.
+      MOCK_CLI_WRITE_LANE_STATUS_ON: 'done',
       // Deliberately NOT setting LC_SKIP_GIT_LOCK — this is the one test
       // in the suite that must exercise the real lock/worktree lifecycle.
       ...extraEnv,
