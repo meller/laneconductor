@@ -29,7 +29,27 @@ import { join } from 'node:path';
 export function mergeIndexMarkers(existingContent, artifactContent, { skipStatusMarkers = false } = {}) {
   const markerPatterns = [
     { re: /\*\*Lane\*\*:\s*[^\n]+/i, isStatusMarker: true },
-    { re: /\*\*Lane Status\*\*:\s*[^\n]+/i, isStatusMarker: true },
+    // Track 10053 (2026-09-03), UI-confirmed: skipStatusMarkers blocked
+    // EVERY Lane Status update during a mid-run sync, including the one
+    // value that can never be the track-10019 hazard this guard exists
+    // for. That hazard is specifically a REUSED worktree's stale TERMINAL
+    // status (success/failure/queue, left over from a PREVIOUS cycle's
+    // exit handler) clobbering the dispatcher's freshly-written "running"
+    // on primary. "running" itself can't be that stale leftover — an exit
+    // handler only ever leaves a worktree in a terminal state, never
+    // "running"; the only way a worktree's OWN copy reads "running" is
+    // because the run genuinely in progress right now put it there. Live
+    // symptom this fixes: the Kanban card's running-indicator
+    // (TrackCard.jsx) gates on lane_action_status === 'running', driven
+    // by this same primary-copy marker — with it always skipped mid-run,
+    // an actively-committing session with a live worktree, a live
+    // process, and a live git lock showed as "⏳ Queued for automation"
+    // for its entire run, indistinguishable from actually stuck.
+    {
+      re: /\*\*Lane Status\*\*:\s*[^\n]+/i,
+      isStatusMarker: true,
+      allowDuringSkip: (matchedText) => /running/i.test(matchedText),
+    },
     { re: /\*\*Progress\*\*:\s*[^\n]+/i },
     { re: /\*\*Phase\*\*:\s*[^\n]+/i },
     { re: /\*\*Summary\*\*:\s*[^\n]+/i },
@@ -50,9 +70,9 @@ export function mergeIndexMarkers(existingContent, artifactContent, { skipStatus
   ];
 
   let merged = existingContent;
-  for (const { re, isStatusMarker, alwaysInject } of markerPatterns) {
-    if (isStatusMarker && skipStatusMarkers) continue;
+  for (const { re, isStatusMarker, alwaysInject, allowDuringSkip } of markerPatterns) {
     const m = artifactContent.match(re);
+    if (isStatusMarker && skipStatusMarkers && !(allowDuringSkip && m && allowDuringSkip(m[0]))) continue;
     if (!m) continue;
     if (re.test(merged)) {
       merged = merged.replace(re, m[0]);

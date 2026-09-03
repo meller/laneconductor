@@ -104,4 +104,32 @@ describe('mergeIndexMarkers', () => {
     const merged = mergeIndexMarkers(existing, artifact);
     assert.match(merged, /\*\*Lane Status\*\*: success/);
   });
+
+  // Track 10053 (2026-09-03), UI-confirmed: skipStatusMarkers blocking
+  // EVERY Lane Status update — including "running" itself — meant the
+  // Kanban card's running-indicator (gates on this exact primary-copy
+  // marker) showed "⏳ Queued for automation" for a track with a live
+  // worktree, a live process, and commits actively landing, for the
+  // track's ENTIRE run. "running" can never be the track-10019 hazard
+  // (a REUSED worktree's stale TERMINAL status from a previous cycle) —
+  // an exit handler only ever leaves a worktree in a terminal state, so
+  // a worktree reading "running" only ever means a run is genuinely in
+  // progress right now.
+  it('with skipStatusMarkers: true, "running" specifically DOES flow through — it can never be the stale-leftover hazard the flag guards against', () => {
+    const existing = '**Lane**: implement\n**Lane Status**: queue\n**Progress**: 0%\n';
+    const artifact = '**Lane**: implement\n**Lane Status**: running\n**Progress**: 25%\n';
+    const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
+    assert.match(merged, /\*\*Lane Status\*\*: running/, 'a live "running" value must reach the primary copy even mid-run, so the UI can show it');
+    assert.match(merged, /\*\*Progress\*\*: 25%/);
+  });
+
+  it('with skipStatusMarkers: true, a TERMINAL status (the real hazard) still does not flow through, even after the "running" exception', () => {
+    const existing = '**Lane**: plan\n**Lane Status**: running\n';
+    for (const stale of ['success', 'failure', 'queue']) {
+      const artifact = `**Lane**: plan\n**Lane Status**: ${stale}\n`;
+      const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
+      assert.match(merged, /\*\*Lane Status\*\*: running/,
+        `a stale worktree "${stale}" left over from a previous cycle must not clobber primary's genuine "running" — this is the exact track-10019 incident shape`);
+    }
+  });
 });
