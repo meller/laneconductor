@@ -72,6 +72,7 @@ import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
+import { createExecutor, extractPromptFromArgs, runToCompletion } from './services/executor.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -5779,6 +5780,44 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   return proc.pid;
 }
 
+// Track 10039 Phase 2: LocalCliExecutor — the executor-seam adapter over
+// spawnCli, defined just above. Pure delegation, not a rewrite: `run()`
+// forwards to that exact same function every machine-worker call site
+// already called, with the exact same arguments, so behavior is provably identical
+// (REQ-9/AC-7). `ctx` bundles what spawnCli always took as positional
+// params; `prompt` is accepted for interface compatibility with future
+// non-CLI executors (a cloud/remote executor sends `prompt` as a session
+// message instead of embedding it in argv) but is unused here — `ctx.args`
+// already has it baked in via buildCliArgs, unchanged. `poll`/`result`
+// exist to satisfy the Executor contract; local completion remains
+// event-driven inside spawnCli's own `proc.on('exit', ...)` handler, not
+// polled by any current caller — those two methods are honest best-effort
+// shims, not equivalents of the real thing.
+const localCliExecutor = {
+  async run(prompt, ctx) {
+    const pid = await spawnCli(
+      ctx.command, ctx.args, ctx.label, ctx.trackNumber, ctx.cli, ctx.model,
+      ctx.tier, ctx.laneStatus, ctx.laneConfig, ctx.projectId, ctx.session,
+      ctx.trigger, ctx.dispatchId, ctx.action
+    );
+    return { id: pid };
+  },
+  async poll(id) {
+    return { state: runningPids.has(id) ? 'running' : 'unknown' };
+  },
+  async result(_id) {
+    return null;
+  },
+};
+
+// Single resolution point for the executor a machine worker's own spawn
+// paths use. Only 'machine' exists as of Phase 2 — createExecutor throws
+// for any other runtime rather than silently defaulting to it, so a
+// misconfigured runtime fails loudly instead of running somewhere nobody
+// chose. Phase 3+ will resolve this per-worker (its own registered
+// `runtime` column) rather than once at module scope.
+const executor = createExecutor('machine', { localCliExecutor });
+
 // Track 10047 (REQ-4): configurable thresholds, same env-override-first
 // precedence as LC_SPAWN_TIMEOUT_MS. 0 disables that check (session-cap.mjs).
 function getSessionCapConfig() {
@@ -6518,7 +6557,11 @@ Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversat
       // and the waitingForReply answer-flow — trigger is computed inline from
       // the local already in scope, not threaded from two separate sites.
       const trigger = waitingForReply ? 'manual-dispatch' : 'auto-queue';
-      const spawnedPid = await spawnCli(cmd, args, label, track_number, cli, model, tier, lane_status, laneConfig, projectId, session, trigger, null, cmd_type);
+      const { id: spawnedPid } = await executor.run(extractPromptFromArgs(args), {
+        command: cmd, args, label, trackNumber: track_number, cli, model, tier,
+        laneStatus: lane_status, laneConfig, projectId, session, trigger,
+        dispatchId: null, action: cmd_type,
+      });
       lanesClaimedThisRound.set(lane_status, alreadyClaimed + 1);
       console.log(`[local-fs] Track ${track_number} → ${laneConfig.auto_action} (PID: ${spawnedPid})`);
     } catch (err) {
@@ -6619,7 +6662,11 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
   // ever revert it, and left the dispatch row silently 'claimed' forever.
   let spawnedPid;
   try {
-    spawnedPid = await spawnCli(cmd, args, `auto-complete-${currentLane}`, trackNumber, cli, model, tier, currentLane, laneConfig, proj?.id, session, 'auto-complete', null, currentLane);
+    ({ id: spawnedPid } = await executor.run(extractPromptFromArgs(args), {
+      command: cmd, args, label: `auto-complete-${currentLane}`, trackNumber, cli, model, tier,
+      laneStatus: currentLane, laneConfig, projectId: proj?.id, session, trigger: 'auto-complete',
+      dispatchId: null, action: currentLane,
+    }));
   } catch (err) {
     // Track 10040 Phase 5 Task 5: a pre-spawn block already got its own
     // comment (at most one, per REQ-10) from handlePreSpawnBlock — posting
@@ -6945,22 +6992,25 @@ async function runCreateProject(entry) {
   const skillPath = installPath ? join(installPath, '.claude/skills/laneconductor/SKILL.md') : './.claude/skills/laneconductor/SKILL.md';
   const prompt = `Use the /laneconductor skill. Skill definition is at: ${skillPath}. /laneconductor setup scaffold generate`;
 
-  const scaffoldResult = await new Promise((resolvePromise) => {
-    let cmd, args;
-    if (process.env.LC_MOCK_CLI) {
-      const [c, ...rest] = process.env.LC_MOCK_CLI.split(' ');
-      cmd = c; args = [...rest, 'setup-scaffold-generate', 'create-project'];
-    } else {
-      cmd = 'claude';
-      args = buildClaudeArgs({ prompt });
-    }
-    const logPath = join(process.cwd(), 'conductor', 'logs', `create-project-${Date.now()}.log`);
-    mkdirSync(dirname(logPath), { recursive: true });
-    const out = openSync(logPath, 'a');
-    const proc = spawn(cmd, args, { cwd: targetPath, stdio: ['ignore', out, out], env: { ...process.env } });
-    proc.on('exit', (code) => resolvePromise({ code, logPath }));
-    proc.on('error', (err) => resolvePromise({ code: 1, error: err.message, logPath }));
-  });
+  // Track 10039 Phase 2: normalized off a bespoke inline spawn+exit-promise
+  // onto the shared runToCompletion() primitive (executor.mjs) — same spawn
+  // arguments, same log-file stdio redirect, same exit/error resolution
+  // shape, just relocated so it's no longer a one-off duplicate of the
+  // spawn/promise pattern. Deliberately NOT routed through
+  // LocalCliExecutor/spawnCli: project creation has no track, no lane, no
+  // worktree/git-lock to acquire — forcing it through spawnCli's lane-action
+  // machinery would be a real behavior change, not a refactor.
+  let cmd, args;
+  if (process.env.LC_MOCK_CLI) {
+    const [c, ...rest] = process.env.LC_MOCK_CLI.split(' ');
+    cmd = c; args = [...rest, 'setup-scaffold-generate', 'create-project'];
+  } else {
+    cmd = 'claude';
+    args = buildClaudeArgs({ prompt });
+  }
+  const logPath = join(process.cwd(), 'conductor', 'logs', `create-project-${Date.now()}.log`);
+  mkdirSync(dirname(logPath), { recursive: true });
+  const scaffoldResult = await runToCompletion(cmd, args, { cwd: targetPath, env: { ...process.env }, logPath });
 
   if (scaffoldResult.code !== 0) {
     return { ok: false, error: `setup scaffold generate exited ${scaffoldResult.code} — see ${scaffoldResult.logPath}` };
@@ -8175,7 +8225,11 @@ async function checkDispatchInbox() {
 
     const proj = getProject();
     try {
-      const spawnedPid = await spawnCli(cmd, args, `dispatch-${entry.action}`, trackNumber, cli, model, tier, lane_status, laneConfig, proj?.id, session, 'manual-dispatch', entry.id, entry.action);
+      const { id: spawnedPid } = await executor.run(extractPromptFromArgs(args), {
+        command: cmd, args, label: `dispatch-${entry.action}`, trackNumber, cli, model, tier,
+        laneStatus: lane_status, laneConfig, projectId: proj?.id, session, trigger: 'manual-dispatch',
+        dispatchId: entry.id, action: entry.action,
+      });
       console.log(`[dispatch] Track ${trackNumber} → ${entry.action} (PID: ${spawnedPid}, dispatch ${entry.id})`);
       activeDispatch.set(trackNumber, entry.id);
     } catch (err) {
