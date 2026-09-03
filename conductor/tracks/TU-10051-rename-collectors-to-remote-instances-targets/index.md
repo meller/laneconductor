@@ -1,9 +1,9 @@
 # Track TU-10051: Rename 'Collectors' to Remote Instances / Targets
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: implement
+**Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Phase 1 — Compatibility seam
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
