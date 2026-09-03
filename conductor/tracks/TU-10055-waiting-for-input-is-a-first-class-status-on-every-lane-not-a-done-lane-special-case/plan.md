@@ -60,28 +60,28 @@ is exactly the state nothing polls and nobody investigates.
 **Solution**: Ungate the detection, park in the lane the action actually ran in,
 and route the blocked-turn path through the same park.
 
-- [ ] Task 2.1: Drop the `laneStatus === 'done'` condition from
+- [x] Task 2.1: Drop the `laneStatus === 'done'` condition from
       `agentReportedWaiting`'s detection block (`:5313-5322`). Keep it gated on
       `isSuccess` — a failed run's leftover marker is not a deliberate park.
-- [ ] Task 2.2: Replace the hardcoded `targetLane = 'done'` at `:5518-5521` with
+- [x] Task 2.2: Replace the hardcoded `targetLane = 'done'` at `:5518-5521` with
       `targetLane = laneStatus` (park in place). `done` keeps working because
       `laneStatus` *is* `done` for a merge run.
-- [ ] Task 2.3: `isBlockedTurn` (`:5386`, `:5656-5665`) now also sets
+- [x] Task 2.3: `isBlockedTurn` (`:5386`, `:5656-5665`) now also sets
       `nextActionStatus = 'waiting'` alongside the existing
       `waiting_for_reply: yes`, so the board and the claim loop agree with the
       Inbox. (REQ-2)
-- [ ] Task 2.4: Write `**Waiting Reason**` into `index.md` and `patchData`
+- [x] Task 2.4: Write `**Waiting Reason**` into `index.md` and `patchData`
       whenever a run parks. Source, in order: the agent's own
       `**Waiting Reason**` marker; the extracted blocked question's first line;
       a generic fallback plus a `logger.warn` naming the track. (REQ-3)
-- [ ] Task 2.5: Verify a same-lane, status-only park is not blocked by
+- [x] Task 2.5: Verify a same-lane, status-only park is not blocked by
       `applyGuardedLaneWrite`/`lane-regression-guard.mjs` (`:5573-5600`) — the
       guard's `requireProducedForAnyChange` path compares on-disk lane vs the
       run's lane, which matches for a park; add a test pinning that.
-- [ ] Task 2.6: Confirm ordering against `endedMidWork` — an abandoned run
+- [x] Task 2.6: Confirm ordering against `endedMidWork` — an abandoned run
       (marker still `running`) must not be read as a park. Preserve the existing
       `!endedMidWork &&` precedence and cover both orderings by test.
-- [ ] Task 2.7: Clear `**Waiting Reason**` and `waiting_reason` on any
+- [x] Task 2.7: Clear `**Waiting Reason**` and `waiting_reason` on any
       subsequent non-waiting outcome for the track.
 
 **Impact**: A lane action on any lane can stop and say "I need a human", and the
