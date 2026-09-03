@@ -1,8 +1,9 @@
 # Track 10016: last_run.log never gets git-added — workDir referenced before declaration
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 15%
+**Lane**: implement
+**Merge Mode**: direct
+**Lane Status**: running
+**Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planned — scope replaced
 **Type**: bug
@@ -61,3 +62,4 @@ already provides.
 **rejected** alternative — see `spec.md`. Full findings, requirements and
 acceptance criteria in `spec.md`; phases in `plan.md`; test cases in
 `test.md`.
+**Auto Run**: yes
