@@ -51,18 +51,18 @@ outright.
 **Solution**: Replace each `/<prefix>**` with an explicit bare + descendant pair,
 and add the two missing prefixes.
 
-- [ ] Task 2.1: In `firebase.json`, for **both** the `app` and `landing` targets,
+- [x] Task 2.1: In `firebase.json`, for **both** the `app` and `landing` targets,
       replace every function rewrite `/<p>**` with `/<p>` and `/<p>/**`, across:
       `/api`, `/v1`, `/auth`, `/project`, `/track`, `/tracks`, `/worker`,
       `/file-sync`, `/provider-status`, `/heartbeat`, `/log`, `/health`.
-- [ ] Task 2.2: Add the two missing prefixes (REQ-2): `/projects` + `/projects/**`,
+- [x] Task 2.2: Add the two missing prefixes (REQ-2): `/projects` + `/projects/**`,
       and `/worker-dispatch` + `/worker-dispatch/**`.
-- [ ] Task 2.3: Keep `{ "source": "**", "destination": "/index.html" }` last in
+- [x] Task 2.3: Keep `{ "source": "**", "destination": "/index.html" }` last in
       both target lists; leave the `app` target's `headers` block untouched.
-- [ ] Task 2.4: Re-run Phase 1's suite — confirm it now passes **green**.
-- [ ] Task 2.5: Prove the test is load-bearing (AC-5): temporarily revert one entry
+- [x] Task 2.4: Re-run Phase 1's suite — confirm it now passes **green**.
+- [x] Task 2.5: Prove the test is load-bearing (AC-5): temporarily revert one entry
       to `/api**`, observe red, restore, observe green. Record both observations.
-- [ ] Task 2.6: Commit — `fix(track-10052): correct Firebase Hosting rewrite globs`.
+- [x] Task 2.6: Commit — `fix(track-10052): correct Firebase Hosting rewrite globs`.
 
 **Impact**: Every API path prefix routes to the `api` function. Verified locally
 before any deploy.

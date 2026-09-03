@@ -9,19 +9,122 @@
         "**/node_modules/**"
       ],
       "rewrites": [
-        { "source": "/api**", "function": "api" },
-        { "source": "/v1**", "function": "api" },
-        { "source": "/auth**", "function": "api" },
-        { "source": "/project**", "function": "api" },
-        { "source": "/track**", "function": "api" },
-        { "source": "/tracks**", "function": "api" },
-        { "source": "/worker**", "function": "api" },
-        { "source": "/file-sync**", "function": "api" },
-        { "source": "/provider-status**", "function": "api" },
-        { "source": "/heartbeat**", "function": "api" },
-        { "source": "/log**", "function": "api" },
-        { "source": "/health**", "function": "api" },
-        { "source": "**", "destination": "/index.html" }
+        {
+          "source": "/api",
+          "function": "api"
+        },
+        {
+          "source": "/api/**",
+          "function": "api"
+        },
+        {
+          "source": "/v1",
+          "function": "api"
+        },
+        {
+          "source": "/v1/**",
+          "function": "api"
+        },
+        {
+          "source": "/auth",
+          "function": "api"
+        },
+        {
+          "source": "/auth/**",
+          "function": "api"
+        },
+        {
+          "source": "/project",
+          "function": "api"
+        },
+        {
+          "source": "/project/**",
+          "function": "api"
+        },
+        {
+          "source": "/projects",
+          "function": "api"
+        },
+        {
+          "source": "/projects/**",
+          "function": "api"
+        },
+        {
+          "source": "/track",
+          "function": "api"
+        },
+        {
+          "source": "/track/**",
+          "function": "api"
+        },
+        {
+          "source": "/tracks",
+          "function": "api"
+        },
+        {
+          "source": "/tracks/**",
+          "function": "api"
+        },
+        {
+          "source": "/worker",
+          "function": "api"
+        },
+        {
+          "source": "/worker/**",
+          "function": "api"
+        },
+        {
+          "source": "/worker-dispatch",
+          "function": "api"
+        },
+        {
+          "source": "/worker-dispatch/**",
+          "function": "api"
+        },
+        {
+          "source": "/file-sync",
+          "function": "api"
+        },
+        {
+          "source": "/file-sync/**",
+          "function": "api"
+        },
+        {
+          "source": "/provider-status",
+          "function": "api"
+        },
+        {
+          "source": "/provider-status/**",
+          "function": "api"
+        },
+        {
+          "source": "/heartbeat",
+          "function": "api"
+        },
+        {
+          "source": "/heartbeat/**",
+          "function": "api"
+        },
+        {
+          "source": "/log",
+          "function": "api"
+        },
+        {
+          "source": "/log/**",
+          "function": "api"
+        },
+        {
+          "source": "/health",
+          "function": "api"
+        },
+        {
+          "source": "/health/**",
+          "function": "api"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
       ]
     },
     {
@@ -33,19 +136,122 @@
         "**/node_modules/**"
       ],
       "rewrites": [
-        { "source": "/api**", "function": "api" },
-        { "source": "/v1**", "function": "api" },
-        { "source": "/auth**", "function": "api" },
-        { "source": "/project**", "function": "api" },
-        { "source": "/track**", "function": "api" },
-        { "source": "/tracks**", "function": "api" },
-        { "source": "/worker**", "function": "api" },
-        { "source": "/file-sync**", "function": "api" },
-        { "source": "/provider-status**", "function": "api" },
-        { "source": "/heartbeat**", "function": "api" },
-        { "source": "/log**", "function": "api" },
-        { "source": "/health**", "function": "api" },
-        { "source": "**", "destination": "/index.html" }
+        {
+          "source": "/api",
+          "function": "api"
+        },
+        {
+          "source": "/api/**",
+          "function": "api"
+        },
+        {
+          "source": "/v1",
+          "function": "api"
+        },
+        {
+          "source": "/v1/**",
+          "function": "api"
+        },
+        {
+          "source": "/auth",
+          "function": "api"
+        },
+        {
+          "source": "/auth/**",
+          "function": "api"
+        },
+        {
+          "source": "/project",
+          "function": "api"
+        },
+        {
+          "source": "/project/**",
+          "function": "api"
+        },
+        {
+          "source": "/projects",
+          "function": "api"
+        },
+        {
+          "source": "/projects/**",
+          "function": "api"
+        },
+        {
+          "source": "/track",
+          "function": "api"
+        },
+        {
+          "source": "/track/**",
+          "function": "api"
+        },
+        {
+          "source": "/tracks",
+          "function": "api"
+        },
+        {
+          "source": "/tracks/**",
+          "function": "api"
+        },
+        {
+          "source": "/worker",
+          "function": "api"
+        },
+        {
+          "source": "/worker/**",
+          "function": "api"
+        },
+        {
+          "source": "/worker-dispatch",
+          "function": "api"
+        },
+        {
+          "source": "/worker-dispatch/**",
+          "function": "api"
+        },
+        {
+          "source": "/file-sync",
+          "function": "api"
+        },
+        {
+          "source": "/file-sync/**",
+          "function": "api"
+        },
+        {
+          "source": "/provider-status",
+          "function": "api"
+        },
+        {
+          "source": "/provider-status/**",
+          "function": "api"
+        },
+        {
+          "source": "/heartbeat",
+          "function": "api"
+        },
+        {
+          "source": "/heartbeat/**",
+          "function": "api"
+        },
+        {
+          "source": "/log",
+          "function": "api"
+        },
+        {
+          "source": "/log/**",
+          "function": "api"
+        },
+        {
+          "source": "/health",
+          "function": "api"
+        },
+        {
+          "source": "/health/**",
+          "function": "api"
+        },
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
       ],
       "headers": [
         {
