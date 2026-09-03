@@ -10,8 +10,27 @@
 // outcome that doesn't advance the lane halts the sequence — whether it's
 // an explicit 'failure' or a same-lane retry queue, both get treated the
 // same: something didn't genuinely succeed, so a human should look.
-export function classifyAutoCompleteOutcome({ beforeLane, afterLane, afterStatus }) {
+export function classifyAutoCompleteOutcome({ beforeLane, afterLane, afterStatus, waitingReason }) {
   if (afterStatus === 'running') return { action: 'wait' };
+
+  // Track 10055: a lane action that parked at `<lane>:waiting` stopped on
+  // purpose and needs a human — it is neither a failure nor a stall. Checked
+  // BEFORE the done-lane block below so the ordering reads as "waiting is the
+  // general rule, done:waiting is its PR-shaped instance", and before the
+  // same-lane guard, which would otherwise report a deliberate pause as
+  // "<lane> did not advance … stopping rather than retrying automatically" —
+  // wording that sends a human hunting for a bug that isn't there.
+  //
+  // `done` keeps its own completion semantics: a pr-mode merge that opened a
+  // PR genuinely FINISHED the autopilot sequence (there is no further stage
+  // to run), whereas a pause on any other lane suspends a sequence that still
+  // has stages left. Same status, different sequencing consequence.
+  if (afterStatus === 'waiting' && afterLane !== 'done') {
+    const detail = (typeof waitingReason === 'string' && waitingReason.trim())
+      ? waitingReason.trim()
+      : 'no reason recorded — check the conversation and the run log';
+    return { action: 'pause', reason: `${afterLane} paused for human input: ${detail}` };
+  }
 
   // Track 10035: quality-gate's on_success is now done:queue, not
   // done:success — reaching done:queue hands off to the done lane's own

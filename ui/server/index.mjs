@@ -20,7 +20,7 @@ import { PROVIDER_IDS, normalizeProviderId } from '../../conductor/providers.mjs
 import { resolvePrimaryRepoRoot } from '../../conductor/services/worktree-merge.mjs';
 import { VALID_MODES as MERGE_MODE_VALID_MODES } from '../../conductor/services/merge-mode.mjs';
 import { VALID_MODES as WORKSPACE_MODE_VALID_MODES } from '../../conductor/services/workspace-mode.mjs';
-import { CLAIMABLE_LANES, MOVABLE_LANES } from '../../conductor/constants.mjs';
+import { CLAIMABLE_LANES, MOVABLE_LANES, PERSISTED_LANE_ACTION_STATUSES } from '../../conductor/constants.mjs';
 import { shouldBlockLaneWrite } from '../../conductor/services/lane-regression-guard.mjs';
 import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
@@ -703,7 +703,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
               t.track_type, t.kpi_target, t.kpi_actual, t.kpi_check_after, t.kpi_maps_to,
               t.assignee_uid, t.created_by_uid, t.waiting_for_reply, t.auto_run, p.owner_uid,
               t.merge_mode, t.pr_number, t.pr_url, t.pr_status,
-              t.workspace_mode,
+              t.workspace_mode, t.waiting_reason,
               p.create_quality_gate,
               lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply, retries.retry_count
@@ -1398,7 +1398,8 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       `SELECT id, track_number, title, lane_status, lane_action_status, progress_percent,
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
-              active_cli, assignee_uid, created_by_uid, auto_run, merge_mode, workspace_mode
+              active_cli, assignee_uid, created_by_uid, auto_run, merge_mode, workspace_mode,
+              waiting_reason
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1433,6 +1434,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       auto_run: t.auto_run, // Track 10017
       merge_mode: t.merge_mode,
       workspace_mode: t.workspace_mode,
+      waiting_reason: t.waiting_reason, // Track 10055
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1618,6 +1620,25 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         /^\*\*Progress\*\*:\s*.+$/m,
         `**Progress**: ${progressStr}`
       ) || (`**Progress**: ${progressStr}\n` + content);
+    }
+
+    // Track 10055: the reason travels with the status it explains. Written
+    // when the caller supplies one, removed when the caller explicitly clears
+    // it (resume) or when the status being written is no longer `waiting`.
+    // Without the last clause the resume endpoint would leave a paused card's
+    // explanation sitting on a track that is running again.
+    const clearingReason =
+      updates.waiting_reason === null ||
+      (updates.waiting_reason === undefined &&
+        updates.lane_action_status !== undefined &&
+        updates.lane_action_status !== 'waiting');
+    if (clearingReason) {
+      content = content.replace(/^[ \t]*\*\*Waiting Reason\*\*:[^\n]*\n?/im, '');
+    } else if (updates.waiting_reason !== undefined) {
+      const reasonRe = /^\*\*Waiting Reason\*\*:\s*.+$/m;
+      content = reasonRe.test(content)
+        ? content.replace(reasonRe, `**Waiting Reason**: ${updates.waiting_reason}`)
+        : content.trim() + `\n**Waiting Reason**: ${updates.waiting_reason}\n`;
     }
 
     // Track 10017: **Auto Run** is absent by default (REQ-1) — unlike the
@@ -2621,13 +2642,28 @@ app.post('/track', collectorAuth, async (req, res) => {
       // kept distinct from 'branch' so resolveWorkspaceMode's default stays
       // overridable)
       workspace_mode,
+      // Track 10055: why this track is parked. Raw-nullable + COALESCEd, same
+      // pattern as merge_mode — a sync from a file with no marker must not
+      // erase a reason another writer set.
+      waiting_reason,
     } = req.body;
 
     console.log(`[API] POST /track: #${track_number} ${lane_status} (${progress_percent}%) action: ${lane_action_status}`);
 
-    if (lane_action_status && !['queue', 'running', 'success', 'failure'].includes(lane_action_status)) {
-      console.error(`[API] INVALID lane_action_status: "${lane_action_status}" for track ${track_number}. Valid values: queue, running, success, failure`);
-      return res.status(400).json({ error: `Invalid lane_action_status: "${lane_action_status}". Must be one of: queue, running, success, failure` });
+    // Track 10055: derived from LaneActionStatus rather than hand-listed. The
+    // hand-written list here omitted 'waiting' — a value the Postgres enum has
+    // accepted since migrations/20260304181909_enable_rls.sql and that the
+    // done-lane merge action writes on every pr-mode run. The result was a 400
+    // on THIS endpoint (the generic chokidar file-sync path, syncTrack's
+    // destination), so every file-triggered re-sync of a parked track was
+    // rejected outright — not just the status field: title, progress, summary
+    // and index_content all discarded, with the failure swallowed as a
+    // logger.warn on the worker side. Sourcing the set from the constant is
+    // what stops the next added status from repeating this.
+    if (lane_action_status && !PERSISTED_LANE_ACTION_STATUSES.includes(lane_action_status)) {
+      const valid = PERSISTED_LANE_ACTION_STATUSES.join(', ');
+      console.error(`[API] INVALID lane_action_status: "${lane_action_status}" for track ${track_number}. Valid values: ${valid}`);
+      return res.status(400).json({ error: `Invalid lane_action_status: "${lane_action_status}". Must be one of: ${valid}` });
     }
 
     if (track_number === 'undefined' || track_number === 'null') {
@@ -2791,7 +2827,28 @@ app.post('/track', collectorAuth, async (req, res) => {
       merge_mode ?? null,
       // $29: workspace_mode — same COALESCE reasoning as merge_mode above.
       workspace_mode ?? null,
+      // $31: waiting_reason — see waitingReasonClause below for why this one
+      // is NOT a plain COALESCE.
+      waiting_reason ?? null,
     ];
+
+    // Track 10055: waiting_reason is tied to the status it explains, so it
+    // cannot use merge_mode's plain COALESCE — that would preserve the reason
+    // forever, and a resumed track would keep showing "waiting on prod DB
+    // approval" while actively running. Nor can it be a blind authoritative
+    // overwrite: a sync that simply doesn't carry the field would erase a
+    // reason another writer just set. So: write it when given, clear it when
+    // the incoming status is anything other than `waiting`, and otherwise
+    // leave it alone. Skipped entirely when either lane guard fired, since a
+    // sync whose status write was rejected as stale has no business clearing
+    // the reason that status explains.
+    const waitingReasonClause = laneWriteBlocked
+      ? ''
+      : (waiting_reason !== undefined && waiting_reason !== null
+        ? `waiting_reason = $31,`
+        : (lane_action_status !== undefined && lane_action_status !== null && lane_action_status !== 'waiting'
+          ? `waiting_reason = NULL,`
+          : ''));
 
     // Track 10013 Phase 5: only a genuine new claim (isGenuineClaim) resets
     // last_updated_by to 'worker'. A human-owned row that isn't being
@@ -2807,11 +2864,12 @@ app.post('/track', collectorAuth, async (req, res) => {
        last_heartbeat, sync_status, last_updated_by, lane_action_status,
        track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
        kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to,
-       waiting_for_reply, auto_run, merge_mode, workspace_mode)
+       waiting_for_reply, auto_run, merge_mode, workspace_mode, waiting_reason)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'syncing', 'worker', $13,
-            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29, $30)
+            $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, false), COALESCE($28, false), $29, $30, $31)
     ON CONFLICT (project_id, track_number) DO UPDATE SET
       title              = EXCLUDED.title,
+      ${waitingReasonClause}
       ${laneStatusClause}
       progress_percent   = EXCLUDED.progress_percent,
       current_phase      = EXCLUDED.current_phase,
@@ -2902,7 +2960,9 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
       // Track 10018: merge mode + PR tracking fields
       merge_mode, pr_number, pr_url, pr_status,
       // Track 1115: workspace mode
-      workspace_mode } = req.body;
+      workspace_mode,
+      // Track 10055: why this track is parked (null clears it)
+      waiting_reason } = req.body;
 
     console.log(`[API] PATCH /track/${req.params.num}/action: ${lane_status || '(no lane)'} (${progress_percent ?? '(no progress)'}%) action: ${lane_action_status || '(no action)'}`);
 
@@ -2911,12 +2971,25 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
     const params = [projectId, req.params.num];
     let i = 3;
     if (lane_action_status !== undefined) {
+      // Track 10055: same single-source validation as POST /track — this
+      // endpoint is the exit handler's completion path, so a status the enum
+      // can't hold must fail here with a 400 rather than a Postgres 500.
+      if (lane_action_status !== null && !PERSISTED_LANE_ACTION_STATUSES.includes(lane_action_status)) {
+        return res.status(400).json({ error: `Invalid lane_action_status: "${lane_action_status}". Must be one of: ${PERSISTED_LANE_ACTION_STATUSES.join(', ')}` });
+      }
       sets.push(`lane_action_status = $${i++}`);
       params.push(lane_action_status);
       if (lane_action_status !== 'running') {
         sets.push(`claimed_by = NULL`);
       }
+      // Track 10055: leaving `waiting` for any other status retires the
+      // reason, unless this same request supplies a new one below. A reason
+      // outliving the pause it explains reads as current and misleads.
+      if (lane_action_status !== 'waiting' && waiting_reason === undefined) {
+        sets.push(`waiting_reason = NULL`);
+      }
     }
+    if (waiting_reason !== undefined) { sets.push(`waiting_reason = $${i++}`); params.push(waiting_reason); }
     if (lane_action_result !== undefined) { sets.push(`lane_action_result = $${i++}`); params.push(lane_action_result); }
     if (last_log_tail !== undefined) { sets.push(`last_log_tail = $${i++}`); params.push(last_log_tail); }
     if (active_cli !== undefined) { sets.push(`active_cli = $${i++}`); params.push(active_cli); }
@@ -4977,6 +5050,57 @@ app.patch('/api/projects/:id/tracks/:num/auto-run', async (req, res) => {
     await syncTrackToFile(req.params.id, req.params.num, { auto_run });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10055 (REQ-7): un-park a track sitting at `<lane>:waiting`.
+//
+// `waiting` means "a human has to act before anything can continue", and
+// nothing auto-claims it — so a parked track needs an explicit way back into
+// the queue or it is a dead end. This is that way: same lane, status back to
+// `queue`, reason retired, and the ordinary claim loop takes it from there.
+//
+// Marked `last_updated_by = 'human'` because it is one: that flag is what
+// stops a stale in-flight lane action from later overwriting the lane a human
+// just acted on (track 10013's guard in POST /track).
+//
+// 409 rather than a silent no-op when the track isn't parked — resuming
+// something that is already running, or already queued, means the caller's
+// view of the board is stale, and quietly "succeeding" would hide that.
+app.post('/api/projects/:id/tracks/:num/resume', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT lane_status, lane_action_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [req.params.id, req.params.num]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'track not found' });
+    if (rows[0].lane_action_status !== 'waiting') {
+      return res.status(409).json({
+        error: `track ${req.params.num} is not waiting (it is ${rows[0].lane_status}:${rows[0].lane_action_status}) — nothing to resume`,
+      });
+    }
+
+    await pool.query(
+      `UPDATE tracks
+          SET lane_action_status = 'queue', lane_action_result = NULL,
+              waiting_reason = NULL, claimed_by = NULL,
+              last_updated_by = 'human', last_heartbeat = NOW()
+        WHERE project_id = $1 AND track_number = $2`,
+      [req.params.id, req.params.num]
+    );
+
+    // Awaited, not fire-and-forget: for a local-fs worker the filesystem IS
+    // the queue, so the response must not claim the track was resumed before
+    // the marker that resumes it has actually landed.
+    await syncTrackToFile(req.params.id, req.params.num, {
+      lane_action_status: 'queue',
+      waiting_reason: null,
+    });
+
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true, lane_status: rows[0].lane_status, lane_action_status: 'queue' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

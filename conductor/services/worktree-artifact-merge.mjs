@@ -89,6 +89,13 @@ export function mergeIndexMarkers(existingContent, artifactContent, { skipStatus
     // reading primary's now marker-less file — overwrote the DB back to
     // waiting_for_reply: false, silently undoing the Inbox fix.
     { re: /\*\*Waiting for reply\*\*:\s*[^\n]+/i, alwaysInject: true },
+    // Track 10055: same first-occurrence reasoning as **Waiting for reply**
+    // above — a track has no `**Waiting Reason**` until the first time a lane
+    // action parks, so "not already present in primary" is the normal case
+    // for the write that matters most. Dropping it would leave primary
+    // showing a paused card with no explanation of what unblocks it, which
+    // is the state this marker exists to prevent.
+    { re: /\*\*Waiting Reason\*\*:\s*[^\n]+/i, alwaysInject: true },
   ];
 
   let merged = existingContent;
