@@ -1,4 +1,4 @@
-h1:0D2pJVPCP117Cwjpc/o7R75mG3672XHl4RpVkHcr9iI=
+h1:1GVDB+5V+Ph2mnc4zIP8b0ikKsPszvn9IMgP1lXENKA=
 20260227074203_initial.sql h1:wXIpAxVr+EZUQ3lfP0PB2z3gOw/42gGaDiw4SekgYnE=
 20260227092504_lane_status_enum.sql h1:5jNuIA00cHg0RXgYAJ44sSdDIihdUKUmpO9Tt0MuhLU=
 20260227101500_add_running_status.sql h1:LPEYAICfmX9TNrwBmfuAScSQ+5wyZ3Ptm/NiO4Bc834=
@@ -32,3 +32,4 @@ h1:0D2pJVPCP117Cwjpc/o7R75mG3672XHl4RpVkHcr9iI=
 20260823100000_restore_track_number_unique.sql h1:9bg7wP3NGGq214AcJZOlEtMoRvt0zzcH6L+uN/OJUIE=
 20260825120000_worker_dispatch_fk_set_null.sql h1:dO+/YfBiyR8KX3LrYC//dnYZ1V3z39inwUaNGO7L34E=
 20260901133000_add_session_context_bounds.sql h1:f/FbPRFsqVM5eQ+vpn475U60CX8vWQ8rhBw6JsSg3j0=
+20260903120000_add_prespawn_block_columns.sql h1:EgxnQuweX4uDRw4YjlKQ96zdP3vxJqQQtG6GjXNAZ8o=

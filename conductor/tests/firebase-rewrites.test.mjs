@@ -31,6 +31,11 @@ const WORKER_PATHS = [
   '/api/projects/1/claimable-tracks',
   '/api/projects/1/tracks',
   '/api/workers',
+  // Track 10053: this list was hand-written and silently missing
+  // /conductor-files, so this suite stayed green while that path had no
+  // rewrite at all and fell through to the SPA. The derived-from-source check
+  // in cloud-route-parity.test.mjs exists because of exactly this.
+  '/conductor-files',
   '/file-sync/claim',
   '/file-sync/42',
   '/project/ensure',
