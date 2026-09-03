@@ -98,34 +98,32 @@ passage is necessary but not sufficient evidence.
 
 **Solution**: Deploy hosting, then re-run the exact `curl` probes from `spec.md`.
 
-- [ ] Task 4.1: Deploy both hosting targets
+- [x] Task 4.1: Deploy both hosting targets
       (`firebase deploy --only hosting --project laneconductor-site`).
       The `api` function needs no redeploy — its routing is unchanged.
-- [ ] Task 4.2: Re-run the `spec.md` probe table against
+- [x] Task 4.2: Re-run the `spec.md` probe table against
       `https://app.laneconductor.com`. Record actual status + content-type per path.
       **Read the content type, not just the status** — the whole defect presented as
       a `200`.
-- [ ] Task 4.3: Confirm AC-1/AC-2 — every prefix returns `application/json`
+- [x] Task 4.3: Confirm AC-1/AC-2 — every prefix returns `application/json`
       (a `401` is a pass: the function was reached).
-- [ ] Task 4.4: Confirm AC-3 — `/health` still returns `{"ok":true,"cloud":true}`.
-- [ ] Task 4.5: Confirm AC-4 — `/` and a client-side deep link still return the SPA
+- [x] Task 4.4: Confirm AC-3 — `/health` still returns `{"ok":true,"cloud":true}`.
+- [x] Task 4.5: Confirm AC-4 — `/` and a client-side deep link still return the SPA
       `index.html` with `200`. Regressing SPA routing would trade one bug for another.
-- [ ] Task 4.6: Confirm AC-6 — `POST /worker/register` returns JSON (real `401`
+- [x] Task 4.6: Confirm AC-6 — `POST /worker/register` returns JSON (real `401`
       included), not SPA HTML.
-- [ ] Task 4.7: Repeat the spot-check against the `landing` target.
-- [ ] Task 4.8: Paste observed output into `conversation.md` as the evidence record.
+- [x] Task 4.7: Repeat the spot-check against the `landing` target.
+- [x] Task 4.8: Paste observed output into `conversation.md` as the evidence record.
 
 **Impact**: The production fix is demonstrated by observation, not inference.
 
-> ⏸️ **NOT RUN — awaiting explicit go-ahead.** Every other phase is complete and
-> verified locally, but this phase deploys to the live `laneconductor-site`
-> Firebase project, which is outward-facing and affects real users. That is not
-> a call to make unattended, so it was deliberately left undone rather than
-> silently executed. **AC-1, AC-2, AC-3, AC-4 and AC-6 all depend on this phase
-> and therefore remain unverified in production** — the corrected rewrites are
-> proven correct offline (23/23) but are inert until Hosting is redeployed.
-> To finish: `firebase deploy --only hosting --project laneconductor-site`,
-> then run test.md's live probe loop and record the output here.
+> ✅ **RUN 2026-09-03 — deployed and verified live.**
+> `firebase deploy --only hosting --project laneconductor-site` — both targets
+> released clean. All API prefixes (verb-corrected) return real `application/json`
+> responses from the function; `/health` unchanged; SPA routing (`/`, `/board`,
+> `/settings/profile`, `/inbox`) confirmed body-level as the real React shell;
+> `landing` target and raw `laneconductor-app.web.app` spot-checked and match.
+> Full evidence in `conversation.md`. AC-1 through AC-9 all confirmed.
 
 ---
 
