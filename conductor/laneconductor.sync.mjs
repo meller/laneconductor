@@ -3829,7 +3829,21 @@ async function checkAndClaimGitLock(trackNumber) {
       }
 
       if (lockAge < staleTimeout && !isDead) {
-        throw new Error(`Track ${trackNumber} locked by ${lock.user}@${lock.machine}${lock.pid ? ` (PID: ${lock.pid})` : ''} (age: ${Math.round(lockAge / 1000)}s)`);
+        const err = new Error(`Track ${trackNumber} locked by ${lock.user}@${lock.machine}${lock.pid ? ` (PID: ${lock.pid})` : ''} (age: ${Math.round(lockAge / 1000)}s)`);
+        // Track 10054 follow-up (2026-09-03): confirmed live — a redundant
+        // dispatch attempt against a track THIS SAME worker process already
+        // holds the lock for (e.g. a UI double-click racing the dispatch
+        // that already succeeded) posted "locked by meller@meller-X1-AI
+        // (PID: 1603480)" to conversation.md — reading like external
+        // contention from a different user/machine/process, when it's
+        // actually just this worker tripping over its own already-running
+        // session for the track. Confusing enough that a human watching the
+        // Inbox couldn't tell what was actually happening. Flag it so
+        // callers can log it instead of posting it where a human reads it —
+        // same suppression shape as the existing pre-spawn-block comment
+        // dedup (err.workspaceGuardBlocked below).
+        if (lock.pid === process.pid) err.selfContention = true;
+        throw err;
       }
 
       // Stale or dead lock - remove it
@@ -6682,10 +6696,17 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
     writeFileSync(indexPath, updateHeader(content, 'Lane Status', safeRevertLaneActionStatus(originalLaneActionStatus)), 'utf8');
     const resultText = `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: could not start ${currentLane}: ${err.message}`;
     await reportAutoCompleteResult(dispatchId, 'failed', resultText);
-    try {
-      appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
-    } catch (writeErr) {
-      logger.warn({ trackNumber, err: writeErr.message }, '[auto-complete] Failed to post spawn-failure conversation comment');
+    // See checkDispatchInbox's identical err.selfContention check for why:
+    // this worker racing its own already-held lock for this track reads as
+    // external contention to a human reading conversation.md and isn't.
+    if (err.selfContention) {
+      logger.info({ trackNumber, currentLane, dispatchId }, '[auto-complete] redundant dispatch — this worker already holds the lock for this track — not posting to conversation.md');
+    } else {
+      try {
+        appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+      } catch (writeErr) {
+        logger.warn({ trackNumber, err: writeErr.message }, '[auto-complete] Failed to post spawn-failure conversation comment');
+      }
     }
     activeAutoComplete.delete(trackNumber);
     return;
@@ -8329,11 +8350,25 @@ async function checkDispatchInbox() {
       // making a completely ordinary "another run was already in
       // progress" bounce look like an unexplained stall). Post it where a
       // human is actually looking.
-      try {
-        appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
-          `\n> **system**: ${entry.action} could not start: ${err.message}\n`);
-      } catch (writeErr) {
-        logger.warn({ trackNumber, err: writeErr.message }, '[dispatch] Failed to post spawn-failure conversation comment');
+      //
+      // EXCEPT self-contention (err.selfContention, set in
+      // checkAndClaimGitLock above): this worker tripping over a lock IT
+      // ALREADY HOLDS for this same track — e.g. a UI double-click racing
+      // the dispatch that already succeeded. That's not "another
+      // run/user/machine was already in progress" in any sense a human
+      // needs to know about; posting "locked by meller@this-machine (PID:
+      // <this worker's own PID>)" to conversation.md read exactly like
+      // external contention and confused a human watching the Inbox.
+      // Log it (still visible in .sync.log for debugging) and stop there.
+      if (err.selfContention) {
+        logger.info({ dispatchId: entry.id, trackNumber, action: entry.action }, `[dispatch] redundant dispatch for ${entry.action} — this worker already holds the lock for this track — not posting to conversation.md`);
+      } else {
+        try {
+          appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
+            `\n> **system**: ${entry.action} could not start: ${err.message}\n`);
+        } catch (writeErr) {
+          logger.warn({ trackNumber, err: writeErr.message }, '[dispatch] Failed to post spawn-failure conversation comment');
+        }
       }
     }
   }
