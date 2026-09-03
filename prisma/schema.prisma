@@ -180,6 +180,7 @@ model tracks {
   auto_run                Boolean           @default(false) // set from index.md's **Auto Run** marker; gates sync+poll worker auto-launch
   dismissed_at            DateTime?         @db.Timestamptz(6) // set by POST /dismiss; inbox re-shows once anything newer than this happens
   model_override          String?                           // Track 1116 REQ-7: set from index.md's **Model** marker — beats lane/project model precedence
+  waiting_reason          String?                           // Track 10055: set from index.md's **Waiting Reason** marker; why a `<lane>:waiting` track is parked
   // Track 10040 pre-spawn block counter, declared here by track 10053. The
   // columns were only ever created by ui/server/migrations/013, a directory
   // with no runner, so they were missing from the cloud DB entirely.

@@ -54,6 +54,7 @@ import { capContentForArgv } from './services/context-cap.mjs';
 import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs';
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
+import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
@@ -2451,6 +2452,11 @@ async function syncTrack(filepath, laneActionStatus = undefined) {
       // Track 1115: per-track workspace mode marker (null when unspecified —
       // resolveWorkspaceMode() on the read side is where NULL becomes 'branch')
       workspace_mode: parseWorkspaceMarker(stateContent),
+      // Track 10055: why this track is parked, when it is. Null whenever the
+      // marker is absent (the normal case for a track that isn't waiting) —
+      // COALESCEd on the read side so a partial sync never clobbers a reason
+      // the DB already holds.
+      waiting_reason: parseWaitingReason(stateContent),
       // KPI fields
       track_type: trackType,
       kpi_target: parseKpiTarget(stateContent),
@@ -6785,9 +6791,36 @@ async function reconcileAutoComplete() {
     const afterLane = laneMatch?.[1]?.trim();
     const afterStatus = statusMatch?.[1]?.trim();
 
-    const outcome = classifyAutoCompleteOutcome({ beforeLane, afterLane, afterStatus });
+    const outcome = classifyAutoCompleteOutcome({
+      beforeLane, afterLane, afterStatus,
+      waitingReason: parseWaitingReason(content),
+    });
 
     if (outcome.action === 'wait') continue;
+
+    // Track 10055: a stage that parked at `<lane>:waiting` suspended the
+    // sequence on purpose — a human has to act before anything can continue.
+    // Reported separately from 'stop' so the conversation comment says
+    // "paused, here's what it needs" instead of the stall wording, and leads
+    // with ⚠️ so the Inbox buckets it as "needs your input".
+    //
+    // The dispatch row itself still closes as 'failed': worker_dispatch has
+    // only pending/claimed/done/failed (DISPATCH_STATUSES in
+    // ui/server/index.mjs), and 'done' would falsely claim the sequence
+    // finished. The distinction that matters to a human lives in the result
+    // text and in the track's own `<lane>:waiting` state, both of which are
+    // unambiguous.
+    if (outcome.action === 'pause') {
+      activeAutoComplete.delete(trackNumber);
+      const resultText = `⚠️ Paused after [${stagesRun.join(' → ')}]: ${outcome.reason}. Resume the track when it's unblocked.`;
+      await reportAutoCompleteResult(dispatchId, 'failed', resultText);
+      try {
+        if (trackDirName) appendFileSync(join(tracksDir, trackDirName, 'conversation.md'), `\n> **system**: ${resultText}\n`);
+      } catch (err) {
+        logger.warn({ trackNumber, err: err.message }, '[auto-complete] Failed to post pause conversation comment');
+      }
+      continue;
+    }
 
     if (outcome.action === 'stop') {
       activeAutoComplete.delete(trackNumber);
