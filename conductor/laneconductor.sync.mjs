@@ -2718,7 +2718,14 @@ async function syncConversationLocked(filepath, trackNumber, trackDir, cursorPat
         }
 
         if (updates) {
-          await postToCollectors(`/track/${trackNumber}/action`, { ...updates, project_id: proj.id })
+          // Track 10053: PATCH, not POST. `/track/:num/action` is registered
+          // `app.patch` in both ui/server/index.mjs and cloud/functions/index.js,
+          // so the POST this used to send 404'd every time. It went unnoticed
+          // because the .catch() only warns and the index.md write just below
+          // re-establishes the same state through the file-sync path — the HTTP
+          // call has been dead weight, not a working transition. Found by
+          // conductor/tests/cloud-route-parity.test.mjs's control assertion.
+          await patchCollectors(`/track/${trackNumber}/action`, { ...updates, project_id: proj.id })
             .catch(err => console.warn(`[conv-command] transition failed: ${err.message}`));
 
           // ALSO update local index.md for filesystem-as-API consistency

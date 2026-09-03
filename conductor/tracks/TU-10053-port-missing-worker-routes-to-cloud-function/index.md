@@ -1,10 +1,10 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 25%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned — 6 phases
+**Phase**: Phase 2 — Worker identity and transactions
 **Type**: dev
 **Track Kind**: feature
 **Author**: TU
@@ -99,7 +99,7 @@ does not exist — the App.jsx banner is the only UI caveat.)
 Full criteria in `spec.md`; per-phase test cases in `test.md`.
 
 ## Phases
-- [ ] Phase 1: Parity harness, routing, and schema groundwork
+- [x] Phase 1: Parity harness, routing, and schema groundwork
 - [ ] Phase 2: Worker identity and transactions in the cloud function
 - [ ] Phase 3: Port the coordination and read routes
 - [ ] Phase 4: Port claim, session, and dispatch
