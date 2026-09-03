@@ -1,7 +1,7 @@
 # Multi Cli Agent Support
 
 **Lane**: backlog
-**Lane Status**: plan
+**Lane Status**: running
 
 # Track 1013: Multi-CLI Agent Support (Gemini, Codex, Amp)
 
