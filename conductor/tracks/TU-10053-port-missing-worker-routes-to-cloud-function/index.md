@@ -1,7 +1,7 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -54,3 +54,4 @@ cloud onboarding path that track 10052 caveated in `App.jsx`,
 - [ ] A real worker configured against the cloud URL registers, claims a track,
       and heartbeats end to end.
 - [ ] Track 10052's onboarding caveats are removed only after that is observed.
+**Merge Mode**: direct
