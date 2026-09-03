@@ -1,7 +1,7 @@
 # Track 1080: MCP server for the Collector API
 
 **Lane**: backlog
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Backlogged — no active MCP client needs this yet
 **Type**: dev
