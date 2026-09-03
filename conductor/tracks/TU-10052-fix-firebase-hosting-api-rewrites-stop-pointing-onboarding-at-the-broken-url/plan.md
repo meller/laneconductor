@@ -127,18 +127,18 @@ missing seven worker-critical route families — so the instruction stays false.
 
 **Solution**: Stop presenting cloud mode as ready; steer onboarding to `local-api`.
 
-- [ ] Task 5.1: `ui/src/App.jsx:758` — replace the `remote-api` onboarding step
+- [x] Task 5.1: `ui/src/App.jsx:758` — replace the `remote-api` onboarding step
       with the `local-api` equivalent, or mark it explicitly "not yet supported".
-- [ ] Task 5.2: `ui/src/pages/AccountPanel.jsx:201,206` — same treatment for the
+- [x] Task 5.2: `ui/src/pages/AccountPanel.jsx:201,206` — same treatment for the
       two `lc add-target` examples.
-- [ ] Task 5.3: `bin/lc.mjs:2921` — the setup prompt must not present the URL as a
+- [x] Task 5.3: `bin/lc.mjs:2921` — the setup prompt must not present the URL as a
       working default without the same caveat.
-- [ ] Task 5.4: `.claude/skills/laneconductor/SKILL.md:719` — annotate the "default
+- [x] Task 5.4: `.claude/skills/laneconductor/SKILL.md:719` — annotate the "default
       URL for LC cloud" line with current status.
-- [ ] Task 5.5: Confirm AC-8 — re-grep for `app.laneconductor.com` and check every
+- [x] Task 5.5: Confirm AC-8 — re-grep for `app.laneconductor.com` and check every
       remaining user-facing hit is either a caveated mention or non-onboarding
       (CORS allowlists in `cloud/functions/*` are correct and must stay).
-- [ ] Task 5.6: Commit — `fix(track-10052): stop onboarding users onto unsupported cloud mode`.
+- [x] Task 5.6: Commit — `fix(track-10052): stop onboarding users onto unsupported cloud mode`.
 
 **Impact**: No user is sent down a path that cannot work.
 
