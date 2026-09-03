@@ -1,9 +1,9 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: implement
-**Lane Status**: waiting
-**Progress**: 70%
-**Last Run**: claude/claude-opus-5 (primary)
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
 **Type**: dev
 **Track Kind**: feature
