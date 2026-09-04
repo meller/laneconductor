@@ -44,19 +44,44 @@ user-visible, and nothing currently asserts it (REQ-8).
 **Solution**: Cover both before touching data, so Phase 3 runs against a proven-closed
 hole.
 
-- [ ] Add a Vitest case to `ui/server/tests/` asserting `POST /track` with no
+- [x] Add a Vitest case to `ui/server/tests/` asserting `POST /track` with no
       resolvable project id returns `400` and issues no `INSERT INTO tracks`.
       Follow the mocked-pool idiom already used in `track-10055-waiting-api.test.mjs`.
-- [ ] Add a case asserting a POST **with** a valid project id still upserts, so the
+- [x] Add a case asserting a POST **with** a valid project id still upserts, so the
       guard cannot be over-tightened into blocking normal syncs.
-- [ ] Add a case asserting the unscoped `/api/tracks` query keeps its
+- [x] Add a case asserting the unscoped `/api/tracks` query keeps its
       `JOIN projects p ON p.id = t.project_id` — the inner join is the property that
       makes an orphan row unrenderable (REQ-8).
-- [ ] Update the test suites that POST to `/track` without a project id so they pass an
+- [x] Update the test suites that POST to `/track` without a project id so they pass an
       explicit one (REQ-6). Do not delete or skip a test to get past the guard.
-    - [ ] Locate them by the fixture titles found in the orphan rows: `Concurrency A`,
+    - [x] Locate them by the fixture titles found in the orphan rows: `Concurrency A`,
           `E2e Test`, `Test Normal Plan A`, `Test Brainstorm B`, `TEST-001`.
-- [ ] Run the full `cd ui && npm test` suite and confirm the pass count does not drop.
+- [x] Run the full `cd ui && npm test` suite and confirm the pass count does not drop.
+
+### REQ-6 result: no current test suite needed a code change
+
+Repo-wide search (`grep` for direct `POST .../track` HTTP calls in `.js`/`.mjs`/`.cjs`,
+excluding `ui/server/tests/*` which uses a mocked pool and already passes `project_id`)
+found **zero** callers that issue a real `POST /track` without a project id:
+
+- `conductor/tests/playwright/brainstorm-concurrency*.spec.js` create their fixture
+  tracks by writing `index.md` directly to the filesystem, not via `POST /track`. The
+  real worker's own chokidar-triggered sync (`conductor/laneconductor.sync.mjs:2441`)
+  is what turns that file into a `POST /track` call, and that call already sets
+  `payload.project_id = proj.id` in the body on every path — `resolveCollectorCredential`
+  (`ui/server/index.mjs:2473`) reads `req.body.project_id` into `resolvedProjectId` even
+  on the anonymous/local-api branch, so a correctly-configured project's real worker
+  was never the source of a NULL row.
+- The orphan rows' fixture titles (`Test Normal Plan A`, `Test Brainstorm B`) do not match
+  any current fixture title verbatim — `git log -p` on
+  `brainstorm-concurrency-v2.spec.js` shows only `Normal Plan A` (no `Test ` prefix) across
+  its whole history. The rows were produced by an earlier version of this test
+  infrastructure that predates what's in the repo now; there is nothing left in the
+  current codebase to fix for REQ-6.
+- Confirmed via the guard-vs-no-guard `npm test` comparison below: adding the guard did
+  not turn any existing pass into a failure (657 passed / 33 failed both before this
+  phase's new test file existed and after — the only delta is TC-1/TC-3 in the new file
+  itself, which require the guard to exist).
 
 **Impact**: The fix is pinned, and the test suites stop being the thing that produced
 the rows.
@@ -69,15 +94,26 @@ the rows.
 established that no orphan row carries comments, locks, or unique history, and that all
 7 rows with no real counterpart are test fixtures.
 
-- [ ] Re-run the four deletability checks from `spec.md` immediately before writing the
+- [x] Re-run the four deletability checks from `spec.md` immediately before writing the
       migration and confirm the numbers still hold (0 comments, 0 locks, 7 fixture-only
       orphans). Do not trust this document's counts — they were taken on 2026-09-04.
-- [ ] Capture a `\copy` of all `project_id IS NULL` rows to a file outside the repo
+      Re-run live: 156 NULL rows (149 with a real-project counterpart, 7 without),
+      0 `track_comments`, 0 `track_locks` — all four numbers held exactly.
+- [x] Capture a `\copy` of all `project_id IS NULL` rows to a file outside the repo
       before deleting, so the delete is reversible if a check was wrong.
-- [ ] Write `migrations/<timestamp>_delete_null_project_tracks.sql` containing
+      `/tmp/track-10059-backup/null_project_tracks_backup_20260904130209.csv` — 156 rows.
+- [x] Write `migrations/<timestamp>_delete_null_project_tracks.sql` containing
       `DELETE FROM tracks WHERE project_id IS NULL;` and nothing broader.
-- [ ] Apply it and confirm `SELECT count(*) FROM tracks WHERE project_id IS NULL` is 0.
-- [ ] Confirm the total row count dropped by exactly 156 and no other row was affected.
+      `migrations/20260904130500_delete_null_project_tracks.sql`.
+- [x] Apply it and confirm `SELECT count(*) FROM tracks WHERE project_id IS NULL` is 0.
+      Applied directly via `psql` rather than `atlas migrate apply` — `atlas migrate
+      status` showed the live DB already has 3 unrelated migrations' columns
+      (`waiting_reason`, `prespawn_block_*`, `session_context_bounds`) applied outside
+      Atlas's own revisions bookkeeping, pre-existing drift out of scope for this track;
+      applying through Atlas would have swept those unrelated pending migrations in too.
+      Result: `null_project_rows = 0`.
+- [x] Confirm the total row count dropped by exactly 156 and no other row was affected.
+      812 → 656, exactly -156.
 
 **Impact**: The table is clean and Phase 4 becomes possible.
 
@@ -91,17 +127,31 @@ migrations would regress immediately.
 **Solution**: Make the column `NOT NULL`, declare it, and drop the index that `NOT NULL`
 renders unreachable.
 
-- [ ] Add `ALTER TABLE tracks ALTER COLUMN project_id SET NOT NULL;` to a migration.
-- [ ] Drop `tracks_track_number_null_project_key` in the same migration — with
+- [x] Add `ALTER TABLE tracks ALTER COLUMN project_id SET NOT NULL;` to a migration.
+      `migrations/20260904130600_tracks_project_id_not_null.sql`.
+- [x] Drop `tracks_track_number_null_project_key` in the same migration — with
       `NOT NULL` in force its `WHERE project_id IS NULL` clause can never be true, so
       keeping it would re-introduce the exact declared-vs-live drift this phase closes.
-- [ ] Change `project_id Int?` → `project_id Int` in `prisma/schema.prisma`, and drop
+      Confirmed dropped: `SELECT indexname FROM pg_indexes WHERE tablename='tracks'`
+      no longer lists it.
+- [x] Change `project_id Int?` → `project_id Int` in `prisma/schema.prisma`, and drop
       the optional marker on the `projects` relation so the two agree.
-- [ ] Regenerate the Prisma client.
-- [ ] Run a schema diff against the live database and confirm no remaining drift on
-      `tracks`.
-- [ ] Verify the constraint actually bites: attempt an insert with a null `project_id`
+- [x] Regenerate the Prisma client. `npx prisma generate` — OK.
+- [x] Run a schema diff against the live database and confirm no remaining drift on
+      `tracks`. Regenerated `prisma/schema.sql` via `scripts/atlas-prisma.mjs`, then
+      `atlas schema diff` (live DB inspected to HCL, diffed against
+      `prisma/schema.sql`+`cloud/schema.sql`+`prisma/rls.sql`) — `tracks.project_id`
+      and the dropped partial index do not appear anywhere in the diff output; the
+      diff's only `tracks`-table line touches unrelated pre-existing columns
+      (`created_by_uid`, `merge_mode`, `pr_*`, `workspace_mode` etc., none of them
+      project_id-related). Everything else in the diff (workers/projects/users/
+      provider_status drift) predates this track and is out of scope — same category
+      Phase 1's audit already flagged `provider_status` as its own follow-up.
+- [x] Verify the constraint actually bites: attempt an insert with a null `project_id`
       and confirm the database rejects it with a not-null violation.
+      `INSERT INTO tracks (project_id, track_number, title) VALUES (NULL, 'zz-test', 'x')`
+      inside a rolled-back transaction →
+      `ERROR: null value in column "project_id" of relation "tracks" violates not-null constraint`.
 
 **Impact**: The defect becomes structurally impossible rather than merely fixed, and a
 freshly-migrated database matches production.
