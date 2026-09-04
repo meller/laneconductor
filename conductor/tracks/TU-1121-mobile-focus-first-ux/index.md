@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 50%
+**Progress**: 66%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Implementing Phase 4
+**Phase**: Implementing Phase 5
 **Type**: dev
 **Track Kind**: feature
 **Auto Run**: yes
@@ -35,7 +35,7 @@ On a phone the job is monitoring autonomous agents, not re-planning — so the h
 - [x] Phase 1: Mobile app shell — bottom tab nav (Focus / Board / Workers / More), responsive header with 44px targets, mobile padding scale
 - [x] Phase 2: Board — replace `grid-cols-6` with a lane-at-a-time view below `md`, scrollable lane rail with counts, pinned swipe indicator; desktop grid untouched
 - [x] Phase 3: Tap-to-move — a Move-to-lane bottom sheet replacing drag-and-drop on touch, sharing the lane-transition path drag already uses
-- [ ] Phase 4: Focus screen — "Needs your input" / "Running now" / pipeline summary, driven by the existing inbox classification
+- [x] Phase 4: Focus screen — "Needs your input" / "Running now" / pipeline summary, driven by the existing inbox classification
 - [ ] Phase 5: Track detail as a full-screen sheet on mobile, replacing the fixed `w-96` / `max-w-2xl` side panel
 - [ ] Phase 6: Verification at a real phone viewport — Playwright mobile project plus a manual pass on a device
 

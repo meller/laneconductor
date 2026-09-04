@@ -123,22 +123,22 @@ is blocked and what is running.
 
 **Solution**: A Focus screen reading `GET /api/inbox`'s existing `bucket` classification.
 
-- [ ] Task 4.1: Add `ui/src/components/MobileFocusView.jsx`. Fetch via the existing `useApi`
+- [x] Task 4.1: Add `ui/src/components/MobileFocusView.jsx`. Fetch via the existing `useApi`
       hook against `/api/inbox?project_id=<id>` — the same endpoint `InboxPanel` uses.
-- [ ] Task 4.2: Section "Needs your input" — rows where `bucket` is `needs_input` or
+- [x] Task 4.2: Section "Needs your input" — rows where `bucket` is `needs_input` or
       `awaiting_ai`. **Use the server's `bucket` field.** Do not re-derive severity from the
       comment body client-side; `ui/server/index.mjs:1049-1056` already does that, and a second
       classifier will drift from it.
-- [ ] Task 4.3: Section "Running now" — tracks from the existing `tracks` array with
+- [x] Task 4.3: Section "Running now" — tracks from the existing `tracks` array with
       `lane_action_status === 'running'`, showing lane, title and progress.
-- [ ] Task 4.4: Section "Pipeline" — one row per lane in `LANES` order with its count. Tapping
+- [x] Task 4.4: Section "Pipeline" — one row per lane in `LANES` order with its count. Tapping
       a row switches to the Board tab with `focusedLane` set to that lane (REQ-19).
-- [ ] Task 4.5: Row tap → `handleInboxSelect(projectId, trackNumber, ...)` (`App.jsx:177`),
+- [x] Task 4.5: Row tap → `handleInboxSelect(projectId, trackNumber, ...)` (`App.jsx:177`),
       which already opens the detail panel on the conversation tab. Reuse it; do not
       reimplement.
-- [ ] Task 4.6: Empty states per section, written as reassurance ("Nothing needs you right
+- [x] Task 4.6: Empty states per section, written as reassurance ("Nothing needs you right
       now"), never as an error.
-- [ ] Task 4.7: Make Focus the default mobile tab on first load for a project.
+- [x] Task 4.7: Make Focus the default mobile tab on first load for a project.
 
 **Impact**: new `ui/src/components/MobileFocusView.jsx`, `ui/src/App.jsx`.
 
