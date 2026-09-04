@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 90%
-**Last Run**: claude/claude-opus-5 (primary)
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phases 1-4 complete, tested; Phase 5 live-restart verification deliberately deferred (see plan.md)
 **Type**: dev
 **Track Kind**: bug
