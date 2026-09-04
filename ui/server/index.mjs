@@ -2676,6 +2676,18 @@ app.post('/track', collectorAuth, async (req, res) => {
 
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
 
+    // Track 10059: a caller with no recognised machine_token and no
+    // project_id parameter resolved to a null projectId here, which nothing
+    // guarded before the upsert below. `ON CONFLICT (project_id,
+    // track_number)` never fires on a NULL project_id (Postgres treats NULLs
+    // as distinct in a unique index), so the upsert silently degraded into a
+    // plain insert and produced an orphan row instead of updating the
+    // intended one. Reject before any query runs, same style as the
+    // `Invalid track_number` check above.
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return res.status(400).json({ error: 'project_id is required and must resolve to a positive integer' });
+    }
+
     // Fetch old state to detect transitions (index_content included for the
     // F9 gutted-index guard below; last_updated_by for the Track 10013
     // human-lane-override guard below).
@@ -3047,6 +3059,13 @@ app.post('/provider-status', collectorAuth, async (req, res) => {
     // leave a fake provider card in the dashboard.
     if (provider === 'mock') return res.json({ ok: true });
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : null);
+    // Track 10059 REQ-2: same NULL-project write-path defect as POST /track —
+    // `ON CONFLICT (project_id, provider)` never fires on a NULL project_id,
+    // so an unresolvable caller silently produced an orphan row instead of
+    // upserting. Reject before the insert, same as POST /track's guard.
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return res.status(400).json({ error: 'project_id is required and must resolve to a positive integer' });
+    }
     await pool.query(`
     INSERT INTO provider_status (project_id, provider, status, reset_at, last_error, updated_at)
     VALUES ($1, $2, $3, $4, $5, NOW())

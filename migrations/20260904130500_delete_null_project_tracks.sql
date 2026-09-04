@@ -1,0 +1,19 @@
+-- Track 10059 REQ-3: delete the 156 tracks rows with project_id IS NULL.
+--
+-- Root cause (fixed in application code, not here): POST /track resolved an
+-- unresolvable caller's project id to NULL, and `ON CONFLICT (project_id,
+-- track_number)` never fires on a NULL project_id (Postgres treats NULLs as
+-- distinct in a unique index), so the upsert silently degraded into a plain
+-- insert instead of updating the intended row.
+--
+-- Deletability verified live immediately before this migration was written
+-- (spec.md's "Deletability assessment"): 0 track_comments, 0 track_locks,
+-- and all 7 rows with no real-project counterpart are test fixtures. A full
+-- CSV backup of every row this deletes was captured outside the repo before
+-- this migration ran, so the delete is reversible if a check was wrong.
+-- Every one of these rows was inserted once and never updated again
+-- (last_heartbeat = created_at on all 156) — the partial index
+-- tracks_track_number_null_project_key blocked a second NULL row per
+-- track_number, so none of them ever became a live, currently-referenced
+-- row after creation.
+DELETE FROM tracks WHERE project_id IS NULL;
