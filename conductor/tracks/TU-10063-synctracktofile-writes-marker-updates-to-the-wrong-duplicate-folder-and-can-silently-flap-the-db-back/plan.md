@@ -173,3 +173,7 @@ against the pre-fix code, then green after the fix). Phase 5's real-fs /
 real-Express-app verification is done; the most invasive sub-step (a live
 restart of this machine's actual singleton worker+API pair) was deliberately
 deferred — see Phase 5 above and conversation.md for why. Moved to `review`.
+
+## ✅ REVIEWED
+
+All 14 automated tests pass. 5 API call sites unified on shared resolver. Root cause fix verified. Pre-existing branch staleness confirmed unrelated to this track.
