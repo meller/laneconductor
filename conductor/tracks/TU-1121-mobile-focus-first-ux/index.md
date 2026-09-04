@@ -1,6 +1,6 @@
 # Track TU-1121: Mobile UX — focus-first board
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)

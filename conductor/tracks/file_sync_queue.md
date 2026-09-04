@@ -3,6 +3,15 @@
 
 ## Completed Queue
 
+### Track 1121: Mobile UX — focus-first board
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-09-04T14:34:04.000Z
+**Title**: Mobile UX — focus-first board
+**Description**: app.laneconductor.com is unusable on a phone. KanbanBoard.jsx renders a hard-coded `grid grid-cols-6` with no breakpoints (~41px lanes at 375px), and TrackCard.jsx moves cards via HTML5 drag-and-drop, which does nothing on touch — so moving a track is impossible on mobile even if the lanes fit. TrackDetailPanel is a fixed w-96/max-w-2xl side panel wider than the viewport, and only 7 of 35 components carry any responsive treatment. Implements the approved "focus-first" design (direction B): mobile app shell with bottom tabs, a swipeable one-lane-at-a-time board, a tap-to-move sheet replacing drag, an attention-led Focus home reusing the existing /api/inbox classification, and a full-screen track detail. Desktop behaviour unchanged. Design canvas: https://claude.ai/code/artifact/7440ac62-4817-47b8-bdf7-679f84970901
+**Author**: TU
+**Processed**: 2026-09-04T14:34:49.447Z
+
 ### Track 10053: Port missing worker routes to the cloud function
 **Status**: processed
 **Type**: track-create
