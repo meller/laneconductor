@@ -50,4 +50,19 @@ describe('decideCapacityProbe', () => {
     const result = decideCapacityProbe({ cached, nowMs: 1300, ttlMs: DEFAULT_CAPACITY_CHECK_TTL_MS });
     assert.deepEqual(result, { skip: true, available: true });
   });
+
+  // Track 10062 TC-12b/TC-12c: a fresh `auth_required` cache entry must
+  // read as unavailable (isBlockingProviderStatus), not available — before
+  // this fix `auth_required !== 'exhausted'` made it read as available.
+  it('TC-12b: a fresh "auth_required" entry is treated as unavailable, without probing', () => {
+    const cached = { status: 'auth_required', reset_at: null, lastCapacityCheckAt: 1000 };
+    const result = decideCapacityProbe({ cached, nowMs: 1000 + 5000, ttlMs: DEFAULT_CAPACITY_CHECK_TTL_MS });
+    assert.deepEqual(result, { skip: true, available: false });
+  });
+
+  it('TC-12c: an "auth_required" entry past the TTL triggers a real re-probe (recovery is automatic)', () => {
+    const cached = { status: 'auth_required', reset_at: null, lastCapacityCheckAt: 0 };
+    const result = decideCapacityProbe({ cached, nowMs: DEFAULT_CAPACITY_CHECK_TTL_MS, ttlMs: DEFAULT_CAPACITY_CHECK_TTL_MS });
+    assert.equal(result.skip, false);
+  });
 });

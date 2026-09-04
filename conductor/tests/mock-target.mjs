@@ -24,6 +24,7 @@ const state = {
   sessionsByToken: {}, // Track 1113: { [bearerToken]: { [track_number]: claude_session_id } } — every worker gets its OWN machine_token (see /worker/register below), and session lookup/write is scoped by the CALLING worker's token, matching collectorAuth's req.worker_id scoping on the real server. Added after a real cross-worker session leak (track 182, aitutor, 2026-08-14) traced back to every worker in a project sharing one token in this mock, which could never have caught it.
   comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
   projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
+  providerStatus: {}, // Track 10062: { [provider]: { status, reset_at, last_error, updated_at } } — every /provider-status POST, keyed by provider, so a test can see the classified status (auth_required/exhausted/probe_failed/ok) actually reaching the collector, not just guess from worker stdout
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -389,11 +390,13 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { ok: true });
 
   // ── Provider status ────────────────────────────────────────────────────────
-  if ((params = route('POST', '/provider-status', req)) !== null)
+  if ((params = route('POST', '/provider-status', req)) !== null) {
+    state.providerStatus[body.provider] = { ...body, updated_at: new Date().toISOString() };
     return reply(res, 200, { ok: true });
+  }
 
   if ((params = route('GET', '/provider-status', req)) !== null)
-    return reply(res, 200, { providers: [] });
+    return reply(res, 200, { providers: Object.entries(state.providerStatus).map(([provider, v]) => ({ provider, ...v })) });
 
   // ── Test helpers ───────────────────────────────────────────────────────────
   if ((params = route('GET', '/_state', req)) !== null)
@@ -409,6 +412,7 @@ const server = createServer(async (req, res) => {
     state.sessionsByToken = {};
     state.comments = [];
     state.projectEnsureCalls = 0;
+    state.providerStatus = {};
     state.failRegister = false;
     state.failTrackActionCount = 0;
     state.failAllWritesUntil = 0;

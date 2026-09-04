@@ -11,6 +11,8 @@
 // mirrors this codebase's other extraction style (workspace-mode.mjs,
 // lane-regression-guard.mjs) so the decision is testable without spawning a
 // real CLI process.
+import { isBlockingProviderStatus } from './provider-probe-classify.mjs';
+
 export const DEFAULT_CAPACITY_CHECK_TTL_MS = 60000;
 
 /**
@@ -29,7 +31,7 @@ export function decideCapacityProbe({ cached, nowMs, ttlMs = DEFAULT_CAPACITY_CH
   if (nowMs - cached.lastCapacityCheckAt >= ttlMs) {
     return { skip: false, available: false };
   }
-  if (cached.status !== 'exhausted') {
+  if (!isBlockingProviderStatus(cached.status)) {
     return { skip: true, available: true };
   }
   if (!cached.reset_at) {
