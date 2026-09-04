@@ -10,6 +10,23 @@
 //   GET /_state  — return full in-memory state
 
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { extractWorkerCalls } from '../services/collector-route-parity.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Track 10061: the default GET /health manifest is "serves every route the
+// worker actually calls" — derived from the real worker source with the
+// same extractor the build-time parity test trusts, never a hand-kept list
+// (the whole point of the handshake this mock exists to exercise). A test
+// that wants a DEGRADED collector opts in explicitly via /_set-health's
+// `omit` list, rather than every other test having to keep a "complete"
+// list in sync by hand.
+const DEFAULT_HEALTH_ROUTES = extractWorkerCalls(
+  readFileSync(join(__dirname, '../laneconductor.sync.mjs'), 'utf8'),
+).map((c) => `${c.method} ${c.path}`);
 
 // ── In-memory state ───────────────────────────────────────────────────────────
 
@@ -24,6 +41,7 @@ const state = {
   sessionsByToken: {}, // Track 1113: { [bearerToken]: { [track_number]: claude_session_id } } — every worker gets its OWN machine_token (see /worker/register below), and session lookup/write is scoped by the CALLING worker's token, matching collectorAuth's req.worker_id scoping on the real server. Added after a real cross-worker session leak (track 182, aitutor, 2026-08-14) traced back to every worker in a project sharing one token in this mock, which could never have caught it.
   comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
   projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
+  healthConfig: null, // Track 10061: null = complete manifest (every DEFAULT_HEALTH_ROUTES entry, api_version 1). Set via /_set-health: { mode: '404'|'html200'|'hang', omit: [...], api_version: N }.
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -76,6 +94,31 @@ const server = createServer(async (req, res) => {
   }
   if ((params = route('POST', '/_set-fail-all-writes', req)) !== null) {
     state.failAllWritesUntil = Number(body.durationMs) > 0 ? Date.now() + Number(body.durationMs) : 0;
+    return reply(res, 200, { ok: true });
+  }
+
+  // ── Collector handshake (Track 10061) ───────────────────────────────────────
+  if ((params = route('GET', '/health', req)) !== null) {
+    const cfg = state.healthConfig;
+    if (cfg?.mode === '404') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    }
+    if (cfg?.mode === 'html200') {
+      // Track 10052's live failure mode: a Hosting misroute serves the
+      // SPA's index.html with HTTP 200. compareManifest must treat this as
+      // 'unknown', not attempt to JSON-parse it.
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end('<!doctype html><html><body>mock SPA fallback</body></html>');
+    }
+    if (cfg?.mode === 'hang') return; // never respond — exercises the client-side timeout
+    const omit = new Set(cfg?.omit || []);
+    const routes = DEFAULT_HEALTH_ROUTES.filter((r) => !omit.has(r));
+    return reply(res, 200, { ok: true, server: 'mock', api_version: cfg?.api_version ?? 1, routes });
+  }
+
+  if ((params = route('POST', '/_set-health', req)) !== null) {
+    state.healthConfig = body;
     return reply(res, 200, { ok: true });
   }
 
@@ -242,11 +285,46 @@ const server = createServer(async (req, res) => {
   }
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null) {
+    // Track 10061: lets a test reproduce "this collector doesn't implement
+    // /worker/heartbeat" (a missing route) independently of "this collector
+    // is unreachable" (state.healthConfig) — the heartbeat 404 path branches
+    // on whether the /health manifest reports this route, so a test needs
+    // to control the 404 and the manifest independently.
+    if (state.failHeartbeatWith404) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'not found' }));
+    }
+    if (state.failHeartbeatWith401) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'unauthorized' }));
+    }
     const w = state.workers.find(x => x.hostname === body.hostname && x.pid === body.pid);
     if (w) {
       if (body.available_models !== undefined) w.available_models = body.available_models;
       if (body.status !== undefined) w.status = body.status;
     }
+    state.heartbeatCount = (state.heartbeatCount || 0) + 1;
+    // Track 10061 TC-24: a 200 response whose BODY happens to contain the
+    // string "404" must never be mistaken for an actual 404 — the old
+    // `err.message.includes('404')` check would have fired here, since `get`/
+    // `post`/`patch`/`del` only ever throw on a non-ok response, this is
+    // satisfied structurally as long as the status stays 200.
+    if (state.heartbeat200WithLiteral404InBody) return reply(res, 200, { ok: true, note: 'error code 404 mentioned in passing' });
+    return reply(res, 200, { ok: true });
+  }
+
+  if ((params = route('POST', '/_set-heartbeat-404', req)) !== null) {
+    state.failHeartbeatWith404 = body.fail !== false;
+    return reply(res, 200, { ok: true });
+  }
+
+  if ((params = route('POST', '/_set-heartbeat-200-with-404-text', req)) !== null) {
+    state.heartbeat200WithLiteral404InBody = body.enable !== false;
+    return reply(res, 200, { ok: true });
+  }
+
+  if ((params = route('POST', '/_set-heartbeat-401', req)) !== null) {
+    state.failHeartbeatWith401 = body.fail !== false;
     return reply(res, 200, { ok: true });
   }
 
@@ -412,6 +490,11 @@ const server = createServer(async (req, res) => {
     state.failRegister = false;
     state.failTrackActionCount = 0;
     state.failAllWritesUntil = 0;
+    state.healthConfig = null;
+    state.failHeartbeatWith404 = false;
+    state.failHeartbeatWith401 = false;
+    state.heartbeat200WithLiteral404InBody = false;
+    state.heartbeatCount = 0;
     return reply(res, 200, { ok: true });
   }
 
