@@ -1,9 +1,9 @@
 # Track TU-1121: Mobile UX — focus-first board
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planning complete
 **Type**: dev
 **Track Kind**: feature
 **Auto Run**: yes
