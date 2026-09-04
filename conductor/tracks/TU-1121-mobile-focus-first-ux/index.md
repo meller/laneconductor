@@ -1,7 +1,7 @@
 # Track TU-1121: Mobile UX — focus-first board
 
 **Lane**: implement
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 83%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementing Phase 6
