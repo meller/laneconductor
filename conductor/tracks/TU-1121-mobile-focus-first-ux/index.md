@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — Task 6.7 (manual device pass) not performable in this environment, see conversation.md
 **Type**: dev
 **Track Kind**: feature
