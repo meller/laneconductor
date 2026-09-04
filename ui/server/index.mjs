@@ -374,6 +374,7 @@ app.get('/api/projects/:id/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name,
+              w.collector_api_version, w.collector_compat,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
@@ -457,7 +458,7 @@ app.get('/api/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
-              w.code_sha, w.code_sha_captured_at,
+              w.code_sha, w.code_sha_captured_at, w.collector_api_version, w.collector_compat,
               p.id AS project_id, p.name AS project_name, p.repo_path,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
        FROM workers w
@@ -3847,6 +3848,12 @@ app.post('/worker/register', async (req, res, next) => {
     // heartbeat path — a value that updates itself defeats the purpose of
     // recording what this process actually loaded into memory.
     const code_sha = req.body.code_sha || null;
+    // Track 10061 (REQ-9): same registration-only convention as code_sha —
+    // the handshake verdict is computed fresh at every registration, so
+    // writing it on the heartbeat path too would just be redundant churn
+    // for a value that's already current the moment it's written.
+    const collector_api_version = Number.isInteger(req.body.collector_api_version) ? req.body.collector_api_version : null;
+    const collector_compat = req.body.collector_compat ? JSON.stringify(req.body.collector_compat) : null;
     // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
     // pid changes on every restart, which under the old (project_id,
     // hostname, pid) key minted a brand-new row per restart and orphaned
@@ -3870,8 +3877,8 @@ app.post('/worker/register', async (req, res, next) => {
     if (type === 'manager') {
       const machine_token = randomUUID();
       const { rows: [{ id: workerId }] } = await pool.query(`
-        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, code_sha, code_sha_captured_at, last_heartbeat)
-        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, $11, NOW(), NOW())
+        INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, type, cli, model, available_models, code_sha, code_sha_captured_at, collector_api_version, collector_compat, last_heartbeat)
+        VALUES(NULL, $1, $2, $3, 'idle', $4, $5, $6, $7, 'manager', $8, $9, $10, $11, NOW(), $12, $13, NOW())
         ON CONFLICT (hostname) WHERE type = 'manager' DO UPDATE SET
         status = 'idle', pid = EXCLUDED.pid, user_uid = EXCLUDED.user_uid,
         mode = EXCLUDED.mode,
@@ -3879,9 +3886,10 @@ app.post('/worker/register', async (req, res, next) => {
         model = COALESCE(EXCLUDED.model, workers.model),
         available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
         code_sha = EXCLUDED.code_sha, code_sha_captured_at = NOW(),
+        collector_api_version = EXCLUDED.collector_api_version, collector_compat = EXCLUDED.collector_compat,
         last_heartbeat = NOW()
         RETURNING id
-      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha]);
+      `, [hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha, collector_api_version, collector_compat]);
       broadcast('worker:updated', { projectId: null });
       return res.json({ ok: true, machine_token, id: workerId });
     }
@@ -3898,8 +3906,8 @@ app.post('/worker/register', async (req, res, next) => {
     }
 
     const { rows: [{ id: workerId }] } = await pool.query(`
-    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, code_sha, code_sha_captured_at, last_heartbeat)
-    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
+    INSERT INTO workers(project_id, hostname, pid, worker_number, status, machine_token, user_uid, visibility, mode, cli, model, available_models, code_sha, code_sha_captured_at, collector_api_version, collector_compat, last_heartbeat)
+    VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, NOW())
     ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
     status = 'idle', pid = EXCLUDED.pid, machine_token = EXCLUDED.machine_token, user_uid = EXCLUDED.user_uid,
     mode = EXCLUDED.mode,
@@ -3907,9 +3915,10 @@ app.post('/worker/register', async (req, res, next) => {
     model = COALESCE(EXCLUDED.model, workers.model),
     available_models = COALESCE(EXCLUDED.available_models, workers.available_models),
     code_sha = EXCLUDED.code_sha, code_sha_captured_at = NOW(),
+    collector_api_version = EXCLUDED.collector_api_version, collector_compat = EXCLUDED.collector_compat,
     last_heartbeat = NOW()
     RETURNING id
-  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha]);
+  `, [projectId, hostname, pid, worker_number, machine_token, user_uid, visibility, mode || 'polling', cli, model, available_models, code_sha, collector_api_version, collector_compat]);
 
 
     broadcast('worker:updated', { projectId });

@@ -40,6 +40,29 @@ function laneActionLabel(currentTask) {
   return currentTask.replace(/\s+track\s+\S+$/, '').trim();
 }
 
+// Track 10061 (D7/REQ-14): the collector handshake result, badged the same
+// way the pre-existing "No worker for this project" badge is (an amber
+// notice, not a blocking modal — "warn and continue degraded" per spec.md,
+// never "warn and stop"). `null` means this worker hasn't handshaken yet
+// (predates this track, or its collector's own /health predates it) — that
+// is explicitly NOT a mismatch (REQ-10), so it renders nothing at all.
+function collectorCompatBadge(worker) {
+  const compat = worker.collector_compat;
+  if (!compat || compat.severity === 'ok') return null;
+
+  const labels = { 'missing-routes': 'ROUTE MISMATCH', 'version-drift': 'VERSION DRIFT', unknown: 'HANDSHAKE UNKNOWN' };
+  const label = labels[compat.severity] || 'COLLECTOR MISMATCH';
+
+  const parts = [compat.reason].filter(Boolean);
+  if (compat.missingRoutes?.length) parts.push(`Missing routes: ${compat.missingRoutes.join(', ')}`);
+  if (Number.isInteger(compat.apiVersionDelta) && compat.apiVersionDelta !== 0) {
+    parts.push(`api_version delta: ${compat.apiVersionDelta}`);
+  }
+  const title = parts.length ? parts.join(' — ') : 'This worker\'s collector handshake reported a mismatch.';
+
+  return { label, title };
+}
+
 function ProviderStatus({ providers }) {
   if (!providers || providers.length === 0) return null;
 
@@ -444,6 +467,19 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const compatBadge = collectorCompatBadge(worker);
+                          if (!compatBadge) return null;
+                          return (
+                            <span
+                              data-testid="worker-collector-compat-badge"
+                              title={compatBadge.title}
+                              className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border text-amber-400 bg-amber-900/20 border-amber-800/50"
+                            >
+                              ⚠ {compatBadge.label}
+                            </span>
+                          );
+                        })()}
                         <button
                           onClick={() => setVisibilityWorker(worker)}
                           data-testid="worker-sharing-btn"
@@ -706,6 +742,19 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                 {worker.project_name}
               </span>
             ) : null}
+            {(() => {
+              const compatBadge = collectorCompatBadge(worker);
+              if (!compatBadge) return null;
+              return (
+                <span
+                  data-testid="worker-collector-compat-badge"
+                  title={compatBadge.title}
+                  className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border text-amber-400 bg-amber-900/20 border-amber-800/50"
+                >
+                  ⚠ {compatBadge.label}
+                </span>
+              );
+            })()}
             {/* Track 10037 REQ-2: promoted running-track chip — track
                 number + lane action, not just the raw current_task text. */}
             {worker.current_task && (() => {
