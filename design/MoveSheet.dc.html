@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #030712;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #60a5fa; } a:hover { color: #93c5fd; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</helmet>
+
+<div style="width:375px;height:812px;background:#030712;display:flex;flex-direction:column;overflow:hidden;position:relative;">
+
+  <!-- Dimmed screen behind the sheet -->
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;opacity:.30;">
+    <header style="display:flex;align-items:center;gap:6px;padding:8px 8px 8px 4px;border-bottom:1px solid #1f2937;flex-shrink:0;">
+      <div style="width:44px;height:44px;"></div>
+      <span class="mono" style="font-size:13px;color:#9ca3af;flex:1;">#1119</span>
+    </header>
+    <div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <p style="margin:0;font-size:17px;font-weight:600;color:#f3f4f6;line-height:1.3;">App Creator Wizard Mode</p>
+        <span style="font-size:11px;padding:3px 9px;border-radius:9999px;background:#581c87;color:#d8b4fe;flex-shrink:0;">quality-gate</span>
+      </div>
+      <div style="width:100%;background:#1f2937;border-radius:9999px;height:6px;">
+        <div style="width:100%;height:6px;border-radius:9999px;background:#a855f7;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scrim -->
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(3,7,18,.72);"></div>
+
+  <!-- Bottom sheet -->
+  <div style="position:absolute;left:0;right:0;bottom:0;background:#111827;border-top:1px solid #374151;border-radius:16px 16px 0 0;display:flex;flex-direction:column;padding-bottom:14px;box-shadow:0 -8px 32px rgba(0,0,0,.5);">
+
+    <!-- Grabber -->
+    <div style="display:flex;justify-content:center;padding:9px 0 3px 0;">
+      <span style="width:36px;height:4px;border-radius:9999px;background:#374151;display:block;"></span>
+    </div>
+
+    <div style="padding:8px 16px 12px 16px;display:flex;flex-direction:column;gap:2px;">
+      <p style="margin:0;font-size:16px;font-weight:600;color:#f3f4f6;">Move track</p>
+      <p style="margin:0;font-size:12px;color:#6b7280;"><span class="mono">#1119</span> App Creator Wizard Mode</p>
+    </div>
+
+    <!-- Lane list -->
+    <div style="display:flex;flex-direction:column;">
+
+      <button style="height:56px;padding:0 16px;background:none;border:none;border-top:1px solid #1f2937;display:flex;align-items:center;gap:11px;cursor:pointer;">
+        <span style="width:9px;height:9px;border-radius:9999px;background:#6b7280;flex-shrink:0;"></span>
+        <span style="font-size:14px;color:#f3f4f6;font-weight:500;flex:1;text-align:left;">Backlog</span>
+        <span class="mono" style="font-size:12px;color:#4b5563;">16</span>
+      </button>
+
+      <button style="height:56px;padding:0 16px;background:none;border:none;border-top:1px solid #1f2937;display:flex;align-items:center;gap:11px;cursor:pointer;">
+        <span style="width:9px;height:9px;border-radius:9999px;background:#6366f1;flex-shrink:0;"></span>
+        <span style="font-size:14px;color:#f3f4f6;font-weight:500;flex:1;text-align:left;">Plan</span>
+        <span class="mono" style="font-size:12px;color:#4b5563;">18</span>
+      </button>
+
+      <button style="height:56px;padding:0 16px;background:none;border:none;border-top:1px solid #1f2937;display:flex;align-items:center;gap:11px;cursor:pointer;">
+        <span style="width:9px;height:9px;border-radius:9999px;background:#3b82f6;flex-shrink:0;"></span>
+        <span style="font-size:14px;color:#f3f4f6;font-weight:500;flex:1;text-align:left;">Implement</span>
+        <span class="mono" style="font-size:12px;color:#4b5563;">1</span>
+      </button>
+
+      <button style="height:56px;padding:0 16px;background:none;border:none;border-top:1px solid #1f2937;display:flex;align-items:center;gap:11px;cursor:pointer;">
+        <span style="width:9px;height:9px;border-radius:9999px;background:#f59e0b;flex-shrink:0;"></span>
+        <span style="font-size:14px;color:#f3f4f6;font-weight:500;flex:1;text-align:left;">Review</span>
+        <span class="mono" style="font-size:12px;color:#4b5563;">0</span>
+      </button>
+
+      <!-- Current lane -->
+      <div style="height:56px;padding:0 16px;border-top:1px solid #1f2937;background:rgba(88,28,135,.18);display:flex;align-items:center;gap:11px;">
+        <span style="width:9px;height:9px;border-radius:9999px;background:#a855f7;flex-shrink:0;"></span>
+        <span style="font-size:14px;color:#d8b4fe;font-weight:600;flex:1;">Quality Gate</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:9999px;background:#581c87;color:#d8b4fe;font-weight:600;letter-spacing:.03em;">CURRENT</span>
+      </div>
+
+      <button style="height:56px;padding:0 16px;background:none;border:none;border-top:1px solid #1f2937;border-bottom:1px solid #1f2937;display:flex;align-items:center;gap:11px;cursor:pointer;">
+        <span style="width:9px;height:9px;border-radius:9999px;background:#22c55e;flex-shrink:0;"></span>
+        <span style="font-size:14px;color:#f3f4f6;font-weight:500;flex:1;text-align:left;">Done</span>
+        <span class="mono" style="font-size:12px;color:#4b5563;">137</span>
+      </button>
+
+    </div>
+
+    <div style="padding:14px 16px 0 16px;">
+      <button style="width:100%;height:48px;border-radius:8px;background:transparent;border:1px solid #374151;color:#9ca3af;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
