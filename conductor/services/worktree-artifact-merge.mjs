@@ -116,6 +116,11 @@ export function mergeIndexMarkers(existingContent, artifactContent, { skipStatus
   return merged;
 }
 
+// Shared by mergeIndexMarkers' own marker table and the skipUnchanged
+// mtime-override below, so the two can never drift on what a status line
+// looks like.
+const LANE_STATUS_RE = /\*\*Lane Status\*\*:\s*([^\n]+)/i;
+
 const MERGE_ONLY_ARTIFACTS = new Set(['index.md']);
 // Track 10019 (REQ-10 / D3): conversation.md is deliberately NOT in this
 // list. It has two independent writers — the UI/human posts comments
@@ -185,7 +190,41 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
     if (skipUnchanged && existsSync(dest)) {
       const srcMtime = statSync(src).mtimeMs;
       const destMtime = statSync(dest).mtimeMs;
-      if (srcMtime <= destMtime) continue; // untouched since the last pass — no read, no write
+      if (srcMtime <= destMtime) {
+        // Everything except index.md: mtime is a sound "nothing changed"
+        // signal, because this merge is that file's only writer on primary.
+        if (!MERGE_ONLY_ARTIFACTS.has(file)) continue;
+
+        // index.md is the exception, and mtime LIES for it (found live
+        // 2026-09-04, tracks 1121/10063/10064 all stuck showing `queue` on
+        // the board while their worktrees said `running` with live agents).
+        // The primary copy has OTHER writers: the FS->DB push and the DB->FS
+        // pull chase each other every ~10s, rewriting it and bumping its
+        // mtime constantly. A worktree's index.md only changes when the
+        // agent itself writes it — a minute or more apart. So primary is
+        // almost always "newer", this guard skips forever, and mergeIndexMarkers
+        // (including its running/waiting exception) is never even reached.
+        // The status therefore never leaves the worktree.
+        //
+        // Compare the marker itself instead of the timestamp. index.md is a
+        // few KB and only read when mtime already said "skip", so the cost is
+        // one small read per live worktree per pass.
+        let srcStatus, destStatus;
+        try {
+          srcStatus = readFileSync(src, 'utf8').match(LANE_STATUS_RE)?.[1]?.trim();
+          destStatus = readFileSync(dest, 'utf8').match(LANE_STATUS_RE)?.[1]?.trim();
+        } catch {
+          continue; // unreadable right now — next pass gets a clean look
+        }
+        if (!srcStatus || srcStatus === destStatus) continue;
+
+        // Only ever let a LIVE status win an mtime-losing race. A terminal
+        // status (success/failure/queue) sitting in a reused worktree is the
+        // exact track-10019 hazard skipStatusMarkers exists to block, and
+        // must not sneak in through this door — same rule as
+        // mergeIndexMarkers' own allowDuringSkip exception.
+        if (!/^(running|waiting)$/i.test(srcStatus)) continue;
+      }
     }
 
     if (MERGE_ONLY_ARTIFACTS.has(file) && existsSync(dest)) {
