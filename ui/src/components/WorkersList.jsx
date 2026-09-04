@@ -167,6 +167,37 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
   // the empty-state "Start Sync Worker" button never rendered for ANY
   // project as long as a manager was running anywhere.
   const hasOwnWorkers = (workers || []).some(w => w.type !== 'manager');
+
+  // Track 10065: recently-offline workers. GET /workers only returns workers
+  // that beat within the last 60s, so a died worker vanishes rather than
+  // showing as offline — the empty state then reads "no workers registered",
+  // which looks like "you never started one" instead of "yours just died".
+  // Found live 2026-09-04: a worker exited on a compromised lock and the
+  // project's automation sat dead for 1h45m with no signal anywhere.
+  const [offlineWorkers, setOfflineWorkers] = useState([]);
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    const load = () => apiFetch(`/api/projects/${projectId}/workers/offline`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(rows => { if (!cancelled) setOfflineWorkers(Array.isArray(rows) ? rows : []); })
+      .catch(() => { /* best-effort: this panel must still render without it */ });
+    load();
+    const t = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [projectId, apiFetch]);
+
+  // A manager doesn't staff this project, so it doesn't count as "something
+  // is running here" — same reasoning as hasOwnWorkers above.
+  const offlineOwnWorkers = offlineWorkers.filter(w => w.type !== 'manager');
+  const showDeadWorkerAlarm = !hasOwnWorkers && offlineOwnWorkers.length > 0;
+
+  function formatOfflineFor(seconds) {
+    if (seconds == null) return 'unknown';
+    if (seconds < 90) return `${seconds}s`;
+    if (seconds < 5400) return `${Math.round(seconds / 60)}m`;
+    return `${(seconds / 3600).toFixed(1)}h`;
+  }
   const [visibilityWorker, setVisibilityWorker] = useState(null);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
   const [configWorker, setConfigWorker] = useState(null);
@@ -239,10 +270,34 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             <div className="w-16 h-16 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mb-4 shadow-inner">
               <span className="text-2xl opacity-50">🤖</span>
             </div>
-            <h3 className="text-gray-300 font-medium mb-1">No Active Workers</h3>
-            <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
-              There are no heartbeat workers currently registered for this project.
-            </p>
+            <h3 className={`font-medium mb-1 ${showDeadWorkerAlarm ? 'text-red-300' : 'text-gray-300'}`}>
+              {showDeadWorkerAlarm ? 'Worker Stopped — Automation Is Down' : 'No Active Workers'}
+            </h3>
+            {showDeadWorkerAlarm ? (
+              <div className="max-w-sm w-full">
+                <p className="text-red-300/90 text-sm leading-relaxed mb-3">
+                  This project had a worker, and it is no longer beating. Nothing is
+                  running: queued lane actions, merges and dispatches all stay stuck
+                  until a worker is back.
+                </p>
+                <div className="rounded-lg border border-red-800/60 bg-red-950/30 p-3 text-left space-y-1.5">
+                  {offlineOwnWorkers.slice(0, 3).map(w => (
+                    <div key={w.id} className="flex items-center justify-between gap-3 text-[11px]">
+                      <span className="font-mono text-red-200/90 truncate">
+                        {w.hostname}{w.worker_number ? `#${w.worker_number}` : ''} (PID {w.pid})
+                      </span>
+                      <span className="text-red-400 font-semibold whitespace-nowrap">
+                        silent {formatOfflineFor(w.offline_seconds)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
+                There are no heartbeat workers currently registered for this project.
+              </p>
+            )}
             <div className="mt-6 flex flex-col items-center gap-4">
               <div className="p-3 bg-gray-900/50 border border-gray-800 rounded-lg text-left w-full max-w-xs">
                 <p className="text-[11px] text-gray-500 uppercase tracking-widest font-bold mb-2">How to start a worker:</p>
@@ -804,6 +859,27 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
               <span>{providerIcon(worker.cli)}</span>
               <span>{workerModelLabel(worker)}</span>
             </button>
+          </div>
+        ))}
+        {/* Track 10065: offline workers stay VISIBLE in the strip instead of
+            silently disappearing the moment they stop beating. Rendered from
+            the separate /workers/offline endpoint, so they are never mixed
+            into `workers` (which feeds dispatch dropdowns — a dead worker
+            must never be selectable as a run target). */}
+        {offlineOwnWorkers.map(worker => (
+          <div
+            key={`offline-${worker.id}`}
+            data-testid="worker-strip-item-offline"
+            className="flex items-center gap-2 bg-gray-950 border border-red-900/50 bg-red-950/20 rounded px-2 py-0.5 whitespace-nowrap opacity-80"
+            title={`OFFLINE — no heartbeat for ${formatOfflineFor(worker.offline_seconds)}. PID ${worker.pid}, last beat ${new Date(worker.last_heartbeat).toLocaleTimeString()}.`}
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-red-600" />
+            <span className="text-[11px] font-mono text-red-300/80 line-through">
+              {worker.hostname}{worker.worker_number ? `#${worker.worker_number}` : ''}
+            </span>
+            <span className="text-[9px] uppercase font-bold tracking-tight text-red-400 border-l border-red-900/50 pl-2">
+              offline {formatOfflineFor(worker.offline_seconds)}
+            </span>
           </div>
         ))}
       </div>
