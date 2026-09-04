@@ -54,6 +54,18 @@ export function decidePreSpawnBlockOutcome({ kind, reason, countBefore, threshol
   return { action: 'silent', kind, reason };
 }
 
+// Track 10060 Phase 3 (REQ-6): a dirty-checkout block is not one card's
+// housekeeping chore. The done lane is forced to workspace: main (track
+// 10035), so this guard gates EVERY merge in the project — one non-exempt
+// dirty path halts all integration until a human resolves it. The original
+// wording named a path and stopped there, which is why the 2026-09-03
+// incident on track 10051 read as routine tidying and went unnoticed
+// (spec Finding 4). Appended only for DIRTY_CHECKOUT; every other kind's
+// wording is deliberately untouched.
+export const DIRTY_CHECKOUT_IMPACT =
+  'This halts main-mode lane actions across the whole project, including every merge — '
+  + 'no track can integrate until the path above is committed, reverted, or ignored.';
+
 /**
  * Formats the comment body for a warn/escalate outcome. The leading emoji
  * is the literal first character of the returned string — the Inbox's
@@ -64,11 +76,12 @@ export function decidePreSpawnBlockOutcome({ kind, reason, countBefore, threshol
  * @returns {string|null} null for 'silent' — nothing should be posted
  */
 export function formatBlockComment(outcome) {
+  const impact = outcome.kind === BLOCK_KINDS.DIRTY_CHECKOUT ? ` ${DIRTY_CHECKOUT_IMPACT}` : '';
   if (outcome.action === 'warn') {
-    return `⚠️ Main-mode run blocked — ${outcome.reason || `(${outcome.kind})`}. Not spawning; will retry next cycle.`;
+    return `⚠️ Main-mode run blocked — ${outcome.reason || `(${outcome.kind})`}. Not spawning; will retry next cycle.${impact}`;
   }
   if (outcome.action === 'escalate') {
-    return `❌ Permanently blocked (${outcome.kind}) after repeated consecutive failures — ${outcome.reason || 'no reason recorded'}. Marking failure; this needs human attention.`;
+    return `❌ Permanently blocked (${outcome.kind}) after repeated consecutive failures — ${outcome.reason || 'no reason recorded'}. Marking failure; this needs human attention.${impact}`;
   }
   return null;
 }

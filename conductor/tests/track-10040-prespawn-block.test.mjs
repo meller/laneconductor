@@ -55,6 +55,50 @@ test('formatBlockComment returns null for silent (nothing should ever be posted)
   assert.equal(formatBlockComment({ action: 'silent', kind: BLOCK_KINDS.DIRTY_CHECKOUT }), null);
 });
 
+// ── Track 10060 Phase 3 (REQ-6) ──────────────────────────────────────────────
+// The done lane is workspace: main, so a dirty-checkout block halts EVERY merge
+// in the project, not just this track. The original wording named a path and
+// nothing else, which read as one card's housekeeping chore — spec Finding 4,
+// and the reason the 10051 incident went unnoticed for a day.
+
+test('TC-14: a dirty-checkout warn leads with ⚠️, states the project-wide halt, and echoes the reason', () => {
+  const reason = "the primary checkout has unrelated uncommitted changes outside this track's folder: prisma/schema.sql.";
+  const body = formatBlockComment({ action: 'warn', kind: BLOCK_KINDS.DIRTY_CHECKOUT, reason });
+  assert.equal(body[0], '⚠️'[0], 'the Inbox buckets match on the literal leading character');
+  assert.match(body, /prisma\/schema\.sql/);
+  assert.match(body, /every merge/i);
+  assert.match(body, /project/i);
+});
+
+test('TC-15: a dirty-checkout escalate leads with ❌ and still states the project-wide halt', () => {
+  const body = formatBlockComment({ action: 'escalate', kind: BLOCK_KINDS.DIRTY_CHECKOUT, reason: 'prisma/schema.sql' });
+  assert.equal(body[0], '❌'[0]);
+  assert.match(body, /every merge/i);
+});
+
+test('TC-16: silent still posts nothing, for dirty-checkout as for any other kind', () => {
+  assert.equal(formatBlockComment({ action: 'silent', kind: BLOCK_KINDS.DIRTY_CHECKOUT, reason: 'x' }), null);
+});
+
+test('TC-17: non-dirty-checkout kinds keep their original wording verbatim', () => {
+  for (const kind of [BLOCK_KINDS.MAIN_MODE_LOCK, BLOCK_KINDS.EXPIRED_CREDENTIALS, BLOCK_KINDS.GITHUB_APP_MISSING, BLOCK_KINDS.PREFLIGHT_FAILED]) {
+    assert.equal(
+      formatBlockComment({ action: 'warn', kind, reason: 'R' }),
+      '⚠️ Main-mode run blocked — R. Not spawning; will retry next cycle.'
+    );
+    assert.equal(
+      formatBlockComment({ action: 'escalate', kind, reason: 'R' }),
+      `❌ Permanently blocked (${kind}) after repeated consecutive failures — R. Marking failure; this needs human attention.`
+    );
+  }
+});
+
+test('formatBlockComment stays pure — same outcome object in, same string out', () => {
+  const outcome = { action: 'warn', kind: BLOCK_KINDS.DIRTY_CHECKOUT, reason: 'r' };
+  assert.equal(formatBlockComment(outcome), formatBlockComment(outcome));
+  assert.deepEqual(outcome, { action: 'warn', kind: BLOCK_KINDS.DIRTY_CHECKOUT, reason: 'r' });
+});
+
 test('DEFAULT_ESCALATE_AFTER is 5 unless overridden by env (module loaded without the env var in this test run)', () => {
   assert.equal(DEFAULT_ESCALATE_AFTER, 5);
 });

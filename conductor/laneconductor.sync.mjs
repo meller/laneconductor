@@ -72,6 +72,7 @@ import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
 import { decideTrackFolder } from './services/track-folder.mjs';
 import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
+import { resolveBlockCountBefore, resetBlockCount, formatCounterBackendWarning } from './services/prespawn-block-counter.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
 import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS, formatProviderBlockReason } from './services/provider-probe-classify.mjs';
@@ -4711,31 +4712,31 @@ setInterval(() => {
 // every other marker write (same lane, so the guard's rank check is a
 // formality here, but it must go through, not around).
 async function handlePreSpawnBlock({ trackNumber, kind, reason, primaryIndexPath, primaryIndexContent, primaryTracksDir, primaryTrackDirName, label, projectId }) {
-  let countBefore = 0;
-
-  if (getIsLocalFs()) {
-    if (primaryTrackDirName) {
-      const countPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-count');
-      const kindPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-kind');
-      // Reset on cause change too — same ".retry-lane"-style guard as the
-      // exit handler's own retry counter: a different kind means a
-      // different streak, not a continuation of the old one.
-      const lastKind = readIfExists(kindPath);
-      countBefore = (lastKind === kind) ? parseInt(readIfExists(countPath) || '0') : 0;
-      writeFileSync(countPath, String(countBefore + 1), 'utf8');
-      writeFileSync(kindPath, kind, 'utf8');
-    }
-  } else {
-    try {
+  // Track 10060 Phase 2 (REQ-2,3): both branches now share ONE counter
+  // implementation, with identical cause-change reset semantics. The
+  // collector branch used to hardcode `countBefore = 0` on any API error,
+  // which pinned every block at first-of-streak forever and made escalation
+  // structurally unreachable wherever migration 013 was never applied — see
+  // prespawn-block-counter.mjs's own doc comment for the full diagnosis.
+  const { countBefore, source, backendError } = await resolveBlockCountBefore({
+    useApi: !getIsLocalFs(),
+    recordViaApi: async () => {
       const { url, token } = primaryCollector();
-      const res = await post(url, token, `/track/${trackNumber}/prespawn-block?project_id=${projectId}`, { kind, reason });
-      countBefore = Math.max(0, (res.count ?? 1) - 1);
-    } catch (err) {
-      // A broken counter call must never silently escalate — fail safe to
-      // "first block of a streak" (warn, don't escalate) rather than
-      // guessing a count that might already be past threshold.
-      console.warn(`[${label}] Track ${trackNumber}: failed to record prespawn-block via API (${err.message}) — treating as first-of-streak.`);
-      countBefore = 0;
+      return post(url, token, `/track/${trackNumber}/prespawn-block?project_id=${projectId}`, { kind, reason });
+    },
+    tracksDir: primaryTracksDir,
+    trackDirName: primaryTrackDirName,
+    kind,
+  });
+
+  // REQ-4: a broken counter backend is its own condition, reported once per
+  // streak (gated on the head of the streak) rather than folded into the
+  // generic block warning or repeated every cycle.
+  if (backendError && countBefore === 0) {
+    if (source === 'fs-fallback') {
+      console.warn(`[${label}] Track ${trackNumber}: ${formatCounterBackendWarning(backendError)}`);
+    } else {
+      console.warn(`[${label}] Track ${trackNumber}: ${formatCounterBackendWarning(backendError)} No track folder resolved, so no on-disk fallback is possible either — this block stays at first-of-streak and cannot escalate.`);
     }
   }
 
@@ -4821,6 +4822,20 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // it's unit-testable directly; see its own doc comment for the full
   // history (worker runtime state, file_sync_queue.md, other tracks'
   // routinely-resynced status markers).
+  //
+  // Track 10060 (2026-09-04), read this before "fixing" the exemptions
+  // again: this guard was reported as being wedged by the worker's own
+  // conductor/tracks/*/index.md status-marker writes. It is not — that
+  // class has been exempt since 2026-08-25 and was measured live at 19
+  // dirty paths / 0 disqualifying on the incident checkout. The real
+  // defects were (a) the escalation counter failing open when the
+  // collector's prespawn-block endpoint is unavailable, so a permanent
+  // block retried forever and never escalated, and (b) a block message
+  // that read as one track's housekeeping when in fact every merge in the
+  // project is halted. Both are fixed below/in prespawn-block.mjs. The
+  // exemption boundary itself is pinned by
+  // conductor/tests/track-10060-dirty-guard-exemptions.test.mjs; see that
+  // track's spec.md Findings 1-5 for the full diagnosis.
   if (workspaceMode === 'main') {
     const ownFolderPrefix = primaryTrackDirName ? `conductor/tracks/${primaryTrackDirName}/` : null;
     const checkDirty = () => {
@@ -4856,8 +4871,13 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // almost immediately. Give it a short bounded window to settle before
     // giving up: same pass/fail criteria as before, just not evaluated at a
     // single unlucky instant.
-    const DIRTY_RETRY_INTERVAL_MS = 5000;
-    const DIRTY_RETRY_MAX_MS = 30000;
+    // Track 10060 Phase 5: overridable so an end-to-end test can drive five
+    // consecutive blocks in seconds rather than 2.5 minutes. Production
+    // defaults are unchanged and no production code path sets these.
+    const DIRTY_RETRY_INTERVAL_MS = Number(process.env.LC_DIRTY_RETRY_INTERVAL_MS) || 5000;
+    const DIRTY_RETRY_MAX_MS = Number(process.env.LC_DIRTY_RETRY_MAX_MS ?? NaN) >= 0
+      ? Number(process.env.LC_DIRTY_RETRY_MAX_MS)
+      : 30000;
     let disqualifying = checkDirty();
     let waitedMs = 0;
     while (disqualifying.length > 0 && waitedMs < DIRTY_RETRY_MAX_MS) {
@@ -4874,6 +4894,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       // ignored). Best-effort: any error here just means no suggestion/
       // heal, never a spawn failure of its own.
       let remedies = [];
+      // Track 10060 Phase 4 (REQ-7): collected separately from `remedies` and
+      // never merged into it. `remedies` is what the auto_heal apply gate
+      // counts; `suggestions` is text for a human and is only ever read into
+      // the block comment below — nothing executes it.
+      let suggestions = [];
       try {
         const porcelainStatusByPath = new Map(
           execSync('git status --porcelain', { cwd: process.cwd(), encoding: 'utf8' })
@@ -4897,6 +4922,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           })();
           const classification = classifyHealableDirtyPath({ path, porcelainStatus, isGitIgnored });
           if (classification.healable) remedies.push({ path, remedy: classification.remedy });
+          else if (classification.suggestion) suggestions.push({ path, reason: classification.reason });
         }
       } catch (err) {
         console.warn(`[${label}] Track ${trackNumber}: dirty-path-heal classification failed (${err.message}) — no suggestion/heal this cycle.`);
@@ -4940,9 +4966,15 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
 
       if (disqualifying.length > 0) {
-        const healSuggestion = remedies.length > 0
+        const healSuggestion = (remedies.length > 0
           ? ` Proposed fix (provably safe, ignored build output): ${remedies.map(r => r.remedy).join(' && ')}`
-          : '';
+          : '')
+          // Track 10060 Phase 4: alongside, never replacing, the remedies
+          // above — a suggestion is information for a human, and carries no
+          // permission to run anything.
+          + (suggestions.length > 0
+            ? ` ${suggestions.map(s => s.reason).join(' ')}`
+            : '');
         const outcome = await handlePreSpawnBlock({
           trackNumber, kind: 'dirty-checkout',
           reason: `the primary checkout has unrelated uncommitted changes outside this track's folder: ${disqualifying.join(', ')}.${healSuggestion}`,
@@ -4989,19 +5021,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // must not keep counting toward escalation just because the run it
   // finally allowed happened to fail for an unrelated reason (blocks and
   // run-failures are separate counters — see the existing .retry-count).
+  //
+  // Track 10060 Phase 2 Task 4 (REQ-5): reset BOTH backends, not whichever
+  // one this mode normally writes. The on-disk counter is no longer
+  // local-fs-only — the collector branch falls back to it whenever the API
+  // counter is unavailable — so a fallback count left behind here would
+  // outlive the block that created it and escalate an unrelated later one.
   if (primaryTrackDirName) {
-    if (getIsLocalFs()) {
-      const countPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-count');
-      const kindPath = join(primaryTracksDir, primaryTrackDirName, '.prespawn-block-kind');
-      if (existsSync(countPath)) rmSync(countPath);
-      if (existsSync(kindPath)) rmSync(kindPath);
-    } else {
-      try {
-        const { url, token } = primaryCollector();
-        await post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {});
-      } catch (err) {
-        console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block counter via API (${err.message}) — a stale count may persist until the next successful spawn.`);
-      }
+    resetBlockCount(primaryTracksDir, primaryTrackDirName);
+  }
+  if (!getIsLocalFs()) {
+    try {
+      const { url, token } = primaryCollector();
+      await post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {});
+    } catch (err) {
+      console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block counter via API (${err.message}) — a stale count may persist until the next successful spawn.`);
     }
   }
 
@@ -5510,22 +5544,28 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           if (existsSync(retryLanePath)) rmSync(retryLanePath);
         }
 
-        // Track 10040 Phase 5 Task 4: a spawn that got THIS FAR ran — it
-        // got past both pre-spawn guards, which is exactly what
-        // "consecutive" in "consecutive blocks" means. Clear regardless of
-        // whether the run itself later succeeds or fails; a run failure is
-        // a different counter (.retry-count, above) — blocks and
-        // run-failures are not the same signal.
-        const blockCountPath = join(tracksDir, trackDir, '.prespawn-block-count');
-        const blockKindPath = join(tracksDir, trackDir, '.prespawn-block-kind');
-        if (existsSync(blockCountPath)) rmSync(blockCountPath);
-        if (existsSync(blockKindPath)) rmSync(blockKindPath);
       }
     } else {
       const res = await get(url, token, `/track/${trackNumber}/retry-count`).catch(() => ({ count: 0 }));
       failCountBefore = res.count ?? 0;
-      // Same reasoning as the local-fs branch above: reaching the exit
-      // handler at all means both pre-spawn guards were passed this cycle.
+    }
+
+    // Track 10040 Phase 5 Task 4: a spawn that got THIS FAR ran — it got
+    // past both pre-spawn guards, which is exactly what "consecutive" in
+    // "consecutive blocks" means. Clear regardless of whether the run itself
+    // later succeeds or fails; a run failure is a different counter
+    // (.retry-count, above) — blocks and run-failures are not the same signal.
+    //
+    // Track 10060 Phase 2 Task 4 (REQ-5): hoisted out of the local-fs branch
+    // and applied to BOTH backends. The on-disk counter is now the collector
+    // branch's fallback too, so leaving it behind here would let a fallback
+    // count outlive its block and escalate an unrelated later one.
+    {
+      const resetTracksDir = join(process.cwd(), 'conductor', 'tracks');
+      const resetTrackDir = resolveTrackFolder(resetTracksDir, trackNumber);
+      if (resetTrackDir) resetBlockCount(resetTracksDir, resetTrackDir);
+    }
+    if (!getIsLocalFs()) {
       post(url, token, `/track/${trackNumber}/prespawn-block/reset?project_id=${projectId}`, {})
         .catch(err => console.warn(`[${label}] Track ${trackNumber}: failed to reset prespawn-block count (${err.message})`));
     }
