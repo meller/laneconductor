@@ -11,6 +11,17 @@ import { test, expect } from '@playwright/test';
 const NEW_PROJECT_PATH = '/home/you/Code/digger-game';
 const MANAGER_WORKER = { id: 1, hostname: 'test-machine', type: 'manager', project_id: null, status: 'idle', last_heartbeat: new Date().toISOString() };
 
+// Track 1121 Phase 6 added a `mobile-chrome` project to this config. This
+// wizard flow was written and verified against Desktop Chrome only, and
+// the header's "+ Project" trigger this spec clicks is now deliberately
+// md:hidden on mobile (Phase 1's header collapse) — a real, correct
+// behavior change, not a bug this spec should chase. Retrofitting the
+// wizard for a narrow viewport is its own scope; skip here rather than
+// leave a permanently-red mobile-chrome run.
+test.beforeEach(async ({}, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'desktop-only wizard flow');
+});
+
 function mockBaseRoutes(page, { onDispatch } = {}) {
   return page.route('**/api/**', async (route) => {
     const { pathname, searchParams } = new URL(route.request().url());
