@@ -1,0 +1,42 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Recommended flow" },
+    { "id": "page-2", "name": "Directions" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Focus (home)", "page": "page-1", "x": 0, "y": 0, "w": 375, "h": 812 },
+    { "file": "Board.dc.html", "title": "Board — one lane", "page": "page-1", "x": 495, "y": 0, "w": 375, "h": 812 },
+    { "file": "TrackDetail.dc.html", "title": "Track detail", "page": "page-1", "x": 990, "y": 0, "w": 375, "h": 812 },
+    { "file": "MoveSheet.dc.html", "title": "Move sheet", "page": "page-1", "x": 1485, "y": 0, "w": 375, "h": 812 },
+    { "file": "DirectionA.dc.html", "title": "A — Lane at a time", "page": "page-2", "x": 0, "y": 0, "w": 375, "h": 812 },
+    { "file": "DirectionB.dc.html", "title": "B — Focus first", "page": "page-2", "x": 495, "y": 0, "w": 375, "h": 812 },
+    { "file": "DirectionC.dc.html", "title": "C — Pipeline accordion", "page": "page-2", "x": 990, "y": 0, "w": 375, "h": 812 }
+  ],
+  "annotations": [
+    {
+      "id": "whats-broken",
+      "page": "page-1",
+      "x": 0,
+      "y": -360,
+      "w": 760,
+      "text": "Why it's unusable today — from the source, not guesswork:\n\n1. KanbanBoard.jsx renders `grid grid-cols-6` with no breakpoints. At 375px each lane is ~41px wide.\n2. Cards use HTML5 drag-and-drop (draggable / onDragStart). That API does nothing on touch — so moving a track is impossible on a phone even if the lanes fit.\n3. TrackDetailPanel is a fixed w-96 / max-w-2xl right panel — wider than the screen.\n4. p-6 / px-6 padding eats 48px of 375px before any content.\n\nOnly 7 of 35 components carry any responsive treatment."
+    },
+    {
+      "id": "move-replaces-drag",
+      "page": "page-1",
+      "x": 1485,
+      "y": -215,
+      "w": 375,
+      "text": "This sheet is the touch replacement for drag-and-drop: tap a card → Move to… → pick a lane. Same action, no dragging."
+    },
+    {
+      "id": "pick-a-structure",
+      "page": "page-2",
+      "x": 0,
+      "y": -230,
+      "w": 760,
+      "text": "Six lanes will never fit a 375px screen, so the real decision is what replaces the side-by-side board. Three honest options — each with its trade-off. B is built out on the 'Recommended flow' page; if you'd rather have A or C, say which and I'll rebuild it there."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

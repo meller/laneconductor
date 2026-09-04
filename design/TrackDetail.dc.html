@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #030712;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #60a5fa; } a:hover { color: #93c5fd; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</helmet>
+
+<div style="width:375px;height:812px;background:#030712;display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- Sheet header -->
+  <header style="display:flex;align-items:center;gap:6px;padding:8px 8px 8px 4px;border-bottom:1px solid #1f2937;flex-shrink:0;">
+    <button style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <span class="mono" style="font-size:13px;color:#9ca3af;flex:1;">#1119</span>
+    <button style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="12" cy="19" r="1.4"></circle></svg>
+    </button>
+  </header>
+
+  <!-- Title + status -->
+  <div style="flex-shrink:0;padding:12px 16px 14px 16px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid #1f2937;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+      <p style="margin:0;font-size:17px;font-weight:600;color:#f3f4f6;line-height:1.3;min-width:0;flex:1;">App Creator Wizard Mode</p>
+      <span style="font-size:11px;padding:3px 9px;border-radius:9999px;font-weight:500;background:#581c87;color:#d8b4fe;flex-shrink:0;">quality-gate</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;color:#6b7280;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">Phase 6 of 6 complete</span>
+        <span style="flex-shrink:0;">100%</span>
+      </div>
+      <div style="width:100%;background:#1f2937;border-radius:9999px;height:6px;">
+        <div style="width:100%;height:6px;border-radius:9999px;background:#a855f7;"></div>
+      </div>
+    </div>
+
+    <!-- Primary actions: Move replaces drag-and-drop -->
+    <div style="display:flex;gap:8px;margin-top:2px;">
+      <button style="flex:1;height:44px;border-radius:8px;background:#1d4ed8;color:#fff;font-size:13px;font-weight:600;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+        Run gate
+      </button>
+      <button style="flex:1;height:44px;border-radius:8px;background:transparent;color:#d1d5db;font-size:13px;font-weight:600;border:1px solid #374151;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="17" y2="12"></line><polyline points="12 7 17 12 12 17"></polyline></svg>
+        Move to…
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="flex-shrink:0;display:flex;border-bottom:1px solid #1f2937;">
+    <button style="flex:1;height:44px;background:none;border:none;border-bottom:2px solid transparent;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;">Overview</button>
+    <button style="flex:1;height:44px;background:none;border:none;border-bottom:2px solid #3b82f6;font-size:13px;font-weight:600;color:#60a5fa;cursor:pointer;">Conversation</button>
+    <button style="flex:1;height:44px;background:none;border:none;border-bottom:2px solid transparent;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;">Plan</button>
+  </div>
+
+  <!-- Conversation -->
+  <div style="flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;justify-content:flex-end;gap:12px;">
+
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;font-weight:600;color:#4ade80;">system</span>
+        <span style="font-size:10px;color:#4b5563;">11:22</span>
+      </div>
+      <div style="border:1px solid #1f2937;background:#111827;border-radius:8px;padding:10px 11px;">
+        <p style="margin:0;font-size:13px;color:#d1d5db;line-height:1.5;">Implementation complete — moved to review.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;font-weight:600;color:#60a5fa;">claude</span>
+        <span style="font-size:10px;color:#4b5563;">11:32</span>
+      </div>
+      <div style="border:1px solid #1f2937;background:#111827;border-radius:8px;padding:10px 11px;">
+        <p style="margin:0;font-size:13px;color:#d1d5db;line-height:1.5;">Review complete — <strong style="color:#4ade80;font-weight:600;">PASSED</strong>, moved to quality-gate. Re-ran all three test commands fresh; 523 tests, zero new failures.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;font-weight:600;color:#fbbf24;">system</span>
+        <span style="font-size:10px;color:#4b5563;">11:53</span>
+      </div>
+      <div style="border:1px solid rgba(146,64,14,.5);background:rgba(69,26,3,.35);border-radius:8px;padding:10px 11px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:7px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          <p style="margin:0;font-size:13px;color:#fde68a;line-height:1.5;">Failed to open a PR: a pull request for branch <span class="mono" style="font-size:12px;">track-1119</span> already exists.</p>
+        </div>
+        <a href="#" style="font-size:12px;text-decoration:none;color:#60a5fa;">github.com/meller/laneconductor/pull/17</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Reply composer -->
+  <div style="flex-shrink:0;border-top:1px solid #1f2937;padding:10px 12px;display:flex;align-items:center;gap:8px;background:#030712;">
+    <div style="flex:1;height:44px;border-radius:9999px;border:1px solid #374151;background:#111827;display:flex;align-items:center;padding:0 15px;">
+      <span style="font-size:13px;color:#4b5563;">Reply to this track…</span>
+    </div>
+    <button style="width:44px;height:44px;border-radius:9999px;background:#1d4ed8;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    </button>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
