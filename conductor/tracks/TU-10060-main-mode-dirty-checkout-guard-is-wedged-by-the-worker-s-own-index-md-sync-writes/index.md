@@ -3,7 +3,7 @@
 **Lane**: implement
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — 5 phases
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
