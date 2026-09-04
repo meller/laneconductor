@@ -57,22 +57,22 @@ lanes at 375px.
 **Solution**: Reuse `LaneFocusView`, which already renders exactly this. Force it below `md`
 and add swipe. **Do not write a new mobile board component** — this phase is mostly wiring.
 
-- [ ] Task 2.1: In `App.jsx`, force the mobile branch: below `md`, render `LaneFocusView`
+- [x] Task 2.1: In `App.jsx`, force the mobile branch: below `md`, render `LaneFocusView`
       regardless of `boardMode`; at/above `md`, keep the existing `boardMode === 'lane'`
       choice. Default `focusedLane` to the first non-empty lane rather than `null`, so the
       mobile board never opens on an empty column.
-- [ ] Task 2.2: In `LaneFocusView.jsx`, hide the "← All lanes" button below `md`
+- [x] Task 2.2: In `LaneFocusView.jsx`, hide the "← All lanes" button below `md`
       (`hidden md:inline-flex`) — there is no all-lanes grid to go back to on mobile.
-- [ ] Task 2.3: Lane rail — confirm it already scrolls (`overflow-x-auto`, line 46) and add
+- [x] Task 2.3: Lane rail — confirm it already scrolls (`overflow-x-auto`, line 46) and add
       `scrollIntoView({ inline: 'center' })` on the focused chip when `focusedLane` changes,
       so lanes 5 and 6 are reachable without hunting.
-- [ ] Task 2.4: Add a pinned lane-position indicator (six dots, or "3 / 6" plus the lane
+- [x] Task 2.4: Add a pinned lane-position indicator (six dots, or "3 / 6" plus the lane
       label) that stays visible when the rail is scrolled away.
-- [ ] Task 2.5: Swipe — add `ui/src/hooks/useSwipe.js` (touchstart/touchmove/touchend,
+- [x] Task 2.5: Swipe — add `ui/src/hooks/useSwipe.js` (touchstart/touchmove/touchend,
       returning handlers). Treat a gesture as a lane swipe only when `|dx| > 50px` **and**
       `|dx| > 1.5 * |dy|`, so vertical scrolling through a long lane is never hijacked.
       Bound at both ends of `LANES` — no wrapping from `done` back to `backlog`.
-- [ ] Task 2.6: Apply the swipe handlers to `LaneFocusView`'s card area only, not the whole
+- [x] Task 2.6: Apply the swipe handlers to `LaneFocusView`'s card area only, not the whole
       screen, so the lane rail's own horizontal scroll is not fighting the gesture.
 
 **Impact**: `ui/src/App.jsx`, `ui/src/components/LaneFocusView.jsx`, new
