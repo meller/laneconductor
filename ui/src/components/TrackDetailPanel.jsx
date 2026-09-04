@@ -3,6 +3,7 @@ import { MarkdownRenderer } from './MarkdownRenderer.jsx';
 import { DevServerButton } from './DevServerButton.jsx';
 import { TranscriptView } from './TranscriptView.jsx';
 import { useApi } from '../hooks/useApi';
+import { useIsMobile } from '../hooks/useIsMobile.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
 import { isWorkerOffline, selectDefaultWorker } from '../lib/workerStatus.js';
@@ -53,6 +54,7 @@ const SEND_MODE_HELP = {
 
 export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTranscriptOpen = false, onClose }) {
   const { apiFetch } = useApi();
+  const isMobile = useIsMobile();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -678,8 +680,15 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
       <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
 
       {/* Panel (+ Track 1087 Phase 4: collapsible transcript drawer, docked to its left) */}
-      <div className="fixed top-0 right-0 h-full z-50 flex flex-row shadow-2xl">
-        {transcriptOpen && (
+      <div className="fixed inset-0 md:inset-auto md:top-0 md:right-0 h-full z-50 flex flex-row shadow-2xl" data-testid="track-detail-container">
+        {/* Track 1121 REQ-22: below `md` this never docks as a side-by-side
+            column — gated by `!isMobile` (not just a `hidden` CSS class) so
+            it never double-mounts alongside the mobile in-panel transcript
+            view below, which would fight it for the shared
+            `transcriptEndRef` and render TranscriptView twice. The
+            transcript toggle instead switches the main panel's own content
+            on mobile — see showMobileTranscript below. */}
+        {transcriptOpen && !isMobile && (
           <div className="h-full w-96 bg-gray-950 border-l border-gray-800 flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
               <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Live Transcript</span>
@@ -697,10 +706,17 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
             </div>
           </div>
         )}
-        <div className="h-full w-full max-w-2xl bg-gray-950 border-l border-gray-800 flex flex-col">
+        {/* Track 1121 REQ-21/AC-1: min-w-0 overrides the flex item default of
+            min-width:auto — without it, wide unshrinkable content in the
+            header (the Merge Mode / Workspace <select>s in particular)
+            forces this panel wider than the viewport on mobile, pushing the
+            close button off-screen even though the document itself never
+            registers the overflow (this is a `position: fixed` container,
+            which browsers exclude from document scrollWidth). */}
+        <div className="h-full w-full min-w-0 max-w-none md:max-w-2xl bg-gray-950 border-l border-gray-800 flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-800">
-          <div>
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-800 min-w-0">
+          <div className="min-w-0 flex-1">
             {detail ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
@@ -999,14 +1015,28 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
             </button>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-200 text-xl leading-none mt-0.5 shrink-0"
+              aria-label="Close"
+              data-testid="track-detail-close"
+              className="min-h-11 min-w-11 flex items-center justify-center text-gray-500 hover:text-gray-200 text-xl leading-none shrink-0"
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Track 1121 REQ-22: on a narrow viewport, the transcript toggle
+            swaps the panel's own content instead of docking a second
+            column (see the drawer's `!isMobile` gate above). */}
+        {isMobile && transcriptOpen ? (
+          <div className="flex-1 overflow-y-auto px-3 py-3" data-testid="mobile-transcript-view">
+            <TranscriptView blocks={transcriptState.blocks} />
+            <div ref={transcriptEndRef} />
+          </div>
+        ) : (
+          <>
+        {/* Tabs — REQ-23: overflow-x-auto + whitespace-nowrap on each tab
+            already makes this scroll horizontally rather than wrap; no
+            change needed here beyond what already existed. */}
         <div className="flex border-b border-gray-800 overflow-x-auto">
           {allTabs.map(t => (
             <button
@@ -1161,6 +1191,8 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
               <MarkdownRenderer content={detail?.[tab]} />
             )}
           </div>
+        )}
+          </>
         )}
         </div>
       </div>

@@ -33,5 +33,9 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // Track 1121 Phase 6: real-phone-viewport coverage for the mobile UX
+    // work (Phases 1-5) — everything else in this config (mocked API,
+    // isolated port 8190) applies unchanged to this project too.
+    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
   ],
 });
