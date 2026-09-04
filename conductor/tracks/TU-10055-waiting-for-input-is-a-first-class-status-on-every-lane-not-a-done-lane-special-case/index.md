@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
 **Type**: dev

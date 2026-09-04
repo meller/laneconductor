@@ -227,6 +227,8 @@ freshly-migrated database matches production.
 
 ## ✅ REVIEWED
 
+## ✅ QUALITY PASSED
+
 ## Notes for the implementer
 
 - **Do not** widen scope to the 1067 sighting (REQ-7). It is not caused by these rows;
