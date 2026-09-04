@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {
   classifyClaudeProbe,
   isBlockingProviderStatus,
+  formatProviderBlockReason,
   PROVIDER_STATUS,
 } from '../services/provider-probe-classify.mjs';
 
@@ -133,6 +134,18 @@ describe('classifyClaudeProbe', () => {
     assert.equal(isBlockingProviderStatus('ok'), false);
     assert.equal(isBlockingProviderStatus('available'), false);
     assert.equal(isBlockingProviderStatus(undefined), false);
+  });
+
+  it('TC-22: formatProviderBlockReason names the provider and login remedy for auth_required', () => {
+    const reason = formatProviderBlockReason('claude', { status: 'auth_required', reset_at: null, last_error: 'x' });
+    assert.match(reason, /claude/);
+    assert.match(reason, /claude login/i);
+  });
+
+  it('TC-22: formatProviderBlockReason names the reset time for exhausted', () => {
+    const reason = formatProviderBlockReason('claude', { status: 'exhausted', reset_at: '2026-09-04T15:00:00.000Z', last_error: 'Capacity exhausted' });
+    assert.match(reason, /claude/);
+    assert.match(reason, /2026-09-04T15:00:00\.000Z/);
   });
 
   it('PROVIDER_STATUS enumerates exactly the four statuses', () => {
