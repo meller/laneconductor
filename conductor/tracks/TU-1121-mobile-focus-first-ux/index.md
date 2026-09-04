@@ -1,10 +1,10 @@
 # Track TU-1121: Mobile UX — focus-first board
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 16%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planning complete
+**Phase**: Implementing Phase 2
 **Type**: dev
 **Track Kind**: feature
 **Auto Run**: yes
@@ -32,7 +32,7 @@ On a phone the job is monitoring autonomous agents, not re-planning — so the h
 
 ## Phases
 
-- [ ] Phase 1: Mobile app shell — bottom tab nav (Focus / Board / Workers / More), responsive header with 44px targets, mobile padding scale
+- [x] Phase 1: Mobile app shell — bottom tab nav (Focus / Board / Workers / More), responsive header with 44px targets, mobile padding scale
 - [ ] Phase 2: Board — replace `grid-cols-6` with a lane-at-a-time view below `md`, scrollable lane rail with counts, pinned swipe indicator; desktop grid untouched
 - [ ] Phase 3: Tap-to-move — a Move-to-lane bottom sheet replacing drag-and-drop on touch, sharing the lane-transition path drag already uses
 - [ ] Phase 4: Focus screen — "Needs your input" / "Running now" / pipeline summary, driven by the existing inbox classification
