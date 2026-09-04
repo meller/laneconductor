@@ -1,4 +1,15 @@
 // conductor/agent-runtime.mjs
+//
+// UNUSED — imported by nothing (verified: no other file in this repo
+// imports from './agent-runtime.mjs' or 'agent-runtime.mjs', track 10062).
+// This file carries a near-verbatim, older copy of provider-availability
+// logic (including the same 'exhausted'-collapses-every-failure bug fixed
+// in conductor/laneconductor.sync.mjs by track 10062's
+// provider-probe-classify.mjs) that a future reader could mistake for the
+// live implementation. It is not — laneconductor.sync.mjs is. Left
+// unmodified rather than fixed or deleted; see
+// conductor/tracks/TU-10062-*/spec.md's Non-Goals for why the duplicated
+// logic itself is deliberately out of scope for this track.
 import { spawn, execSync } from 'child_process';
 import { readFileSync, existsSync, readdirSync, writeFileSync, openSync, mkdirSync, statSync, copyFileSync, rmSync } from 'fs';
 import { join, dirname, basename, resolve } from 'path';
