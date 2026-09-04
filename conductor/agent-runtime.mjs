@@ -15,7 +15,12 @@ import { readFileSync, existsSync, readdirSync, writeFileSync, openSync, mkdirSy
 import { join, dirname, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
-import { post, patch, get, resolveToken, getUserToken } from './collector-client.mjs';
+// Track 10051 renamed collector-client.mjs -> target-client.mjs (Collectors
+// -> Remote Instances/Targets) and deleted the old path outright. Nothing
+// currently imports this file, so the stale import never crashed anything —
+// found while restoring two OTHER files that same commit broke while still
+// in active use (conductor/jira-collector.mjs, conductor/tests/mock-collector.mjs).
+import { post, patch, get, resolveToken, getUserToken } from './target-client.mjs';
 import { Lanes, LaneActionStatus, LaneAliases, ActionStatusAliases } from './constants.mjs';
 
 const __filename = fileURLToPath(import.meta.url);

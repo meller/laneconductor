@@ -161,6 +161,9 @@ describe('Track 10020 Phase 2/3/4: periodic orphan reconciliation', () => {
         LC_RECONCILE_ACTIVE_POLL_MS: '300',
         LC_ORPHAN_RECONCILE_POLL_MS: '300',
         LC_ORPHAN_RECONCILE_GRACE_MS: '900',
+        // Track 10065: same scale-down as GRACE_MS above, for the same
+        // reason — keeps this suite in the seconds range.
+        LC_ORPHAN_RECONCILE_NO_MARKER_MS: '900',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -311,6 +314,102 @@ describe('Track 10020 Phase 2/3/4: periodic orphan reconciliation', () => {
     assert.match(conversation, /implement/, 'the comment must name the action to re-run');
 
     assert.ok(!existsSync(markerPath), 'the stale run marker must be deleted once reconciled (TC-2.6)');
+  });
+
+  it('Track 10065: a run marker that NEVER EXISTED (not proven dead, simply absent) still reconciles once the no-marker window passes, via the claiming git lock\'s dead pid', async () => {
+    // The gap TC-4.3 does not cover: that scenario always had a marker (it
+    // proves the marker dead). Found live: a worker restart that takes the
+    // whole process group with it (e.g. systemd's default cgroup KillMode)
+    // can kill the spawned child before it ever gets far enough to write
+    // one at all — runnerExited then stays undefined forever, and this
+    // dispatch had no path to resolution whatsoever.
+    const track = '10065';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    writeFileSync(join(primaryTrackDir(track), 'conversation.md'), '');
+    // No forward transition and no terminal status — the worktree looks
+    // identical to a genuinely still-running session. Only the missing
+    // marker plus a dead claiming-lock pid can tell them apart.
+    writeIndex(worktreeIndexPath(track), { lane: 'implement', laneStatus: 'running' });
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    // The per-track git lock checkAndClaimGitLock() would have written
+    // BEFORE spawning — independent evidence from the same claim, not a
+    // re-derivation of the run marker. Its pid is real but definitely dead.
+    const deadPid = 999999; // astronomically unlikely to collide with a live pid
+    const lockPath = join(TMP, '.conductor', 'locks', `${track}.lock`);
+    mkdirSync(dirname(lockPath), { recursive: true });
+    writeFileSync(lockPath, JSON.stringify({
+      user: 'test', machine: 'test-host', pid: deadPid,
+      started_at: new Date(Date.now() - 60000).toISOString(), track_number: track,
+    }));
+    // No run marker written at all for this track — that omission is the point.
+    assert.ok(!existsSync(runMarkerPath(TMP, track)), 'sanity: no marker must exist for this scenario');
+
+    const state = await poll(async () => {
+      const s = await getState(collectorPort);
+      const e = s.dispatch.find(d => d.id === dispatchId);
+      return e && e.status !== 'claimed' ? s : null;
+    }, { timeout: 5000, label: 'Track 10065 reconciles a no-marker-ever dispatch' });
+
+    const entry = state.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'failed');
+    assert.match(entry.result, /implement/);
+    assert.ok(!existsSync(lockPath), 'the dead lock must be cleaned up once reconciled, same as checkAndClaimGitLock does on its own next claim');
+  });
+
+  it('Track 10065: the no-marker fallback stays conservative — inside its own window, or with a LIVE lock pid, nothing is touched', async () => {
+    const trackLive = '10067';
+    mkdirSync(primaryTrackDir(trackLive), { recursive: true });
+    writeIndex(join(primaryTrackDir(trackLive), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    writeIndex(worktreeIndexPath(trackLive), { lane: 'implement', laneStatus: 'running' });
+    const dispatchLive = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: trackLive, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+    const liveProc = spawn('sleep', ['300'], { detached: true, stdio: 'ignore' });
+    liveProc.unref();
+    const liveLockPath = join(TMP, '.conductor', 'locks', `${trackLive}.lock`);
+    mkdirSync(dirname(liveLockPath), { recursive: true });
+    writeFileSync(liveLockPath, JSON.stringify({
+      user: 'test', machine: 'test-host', pid: liveProc.pid,
+      started_at: new Date(Date.now() - 60000).toISOString(), track_number: trackLive,
+    }));
+
+    try {
+      await sleepMs(1200); // several ticks
+      const state = await getState(collectorPort);
+      assert.equal(state.dispatch.find(d => d.id === dispatchLive).status, 'claimed',
+        'the claiming lock pid is genuinely alive — a marker not having appeared YET does not mean the claim is dead');
+    } finally {
+      try { process.kill(liveProc.pid, 'SIGKILL'); } catch { /* already gone */ }
+    }
+
+    // Guards against the failure mode this fix could itself introduce: a
+    // dispatch that legitimately has not written its marker YET (spawn is
+    // slow, or simply hasn't happened this tick) must not be reaped. Seeded
+    // and checked on its own short timescale — well under both graceMs and
+    // NO_MARKER_FALLBACK_MS (900ms each in this suite) — since the LIVE
+    // case above needed a long wait first and this claim must still read as
+    // "recent" at the moment it's actually evaluated.
+    const trackRecent = '10066';
+    mkdirSync(primaryTrackDir(trackRecent), { recursive: true });
+    writeIndex(join(primaryTrackDir(trackRecent), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    writeIndex(worktreeIndexPath(trackRecent), { lane: 'implement', laneStatus: 'running' });
+    const dispatchRecent = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: trackRecent, action: 'implement',
+      status: 'claimed', claimed_at: new Date().toISOString(),
+    });
+    // No lock file at all yet either — mid-claim, before checkAndClaimGitLock
+    // has even run. Still must not be touched this soon.
+    await sleepMs(400); // a tick or two, still comfortably under both thresholds
+    const recentState = await getState(collectorPort);
+    assert.equal(recentState.dispatch.find(d => d.id === dispatchRecent).status, 'claimed',
+      'inside the no-marker window — too soon to conclude anything, must not be reaped');
   });
 
   it('TC-2.3: this worker\'s own in-flight dispatch is never touched by the orphan tick — reconcileActiveDispatch stays the sole finalizer', async () => {
