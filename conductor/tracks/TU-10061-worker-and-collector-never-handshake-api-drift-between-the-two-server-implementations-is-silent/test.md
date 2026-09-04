@@ -1,4 +1,4 @@
-# Tests: Track 10057 — Main-mode dirty-checkout guard is wedged by the worker's own index.md sync writes
+# Tests: Track 10061 — Worker and collector never handshake — API drift between the two server implementations is silent
 
 ## Test Commands
 ```bash

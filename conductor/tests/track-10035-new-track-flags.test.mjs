@@ -90,4 +90,36 @@ describe('lc new --merge-mode / --auto-run (Track 10035 REQ-12)', () => {
     assert.match(stdout, /Invalid --auto-run value/);
     assert.equal(readdirSync(join(REPO, 'conductor/tracks')).length, 0);
   });
+
+  // Fixed 2026-09-04 (found live: tracks 10056-10058's own write-ups came back
+  // truncated): a long description used to go straight into
+  // **Summary**, the one marker the sync worker's parseSummaryMarker()
+  // unconditionally truncates to 200 chars for the DB's content_summary. The
+  // next sync tick then found the file's full Summary no longer matching the
+  // DB's truncated one, read that as "DB is newer", and overwrote the file's
+  // Summary with the truncated value — permanently; nothing else stored the
+  // original. Fixed by writing the description into **Problem** instead,
+  // which parseSummary()'s own existing fallback derives a display Summary
+  // from at READ time only, and which the DB->disk pull path never writes to.
+  it('a long description is written in full to **Problem**, not truncated into **Summary**', () => {
+    setupProject();
+    const longDesc = 'x'.repeat(500);
+    lc(['new', 'Long Desc Track', longDesc]);
+    const content = readCreatedIndex('long-desc-track');
+    assert.doesNotMatch(content, /\*\*Summary\*\*/, 'no Summary marker should be written at all — it is derived, not stored');
+    assert.match(content, new RegExp(`\\*\\*Problem\\*\\*:\\s*${longDesc}`), 'the full, untruncated description must be in **Problem**');
+  });
+
+  it('a short description also goes to **Problem**, and omits both markers when there is no description', () => {
+    setupProject();
+    lc(['new', 'Short Desc Track', 'a short description']);
+    const shortContent = readCreatedIndex('short-desc-track');
+    assert.match(shortContent, /\*\*Problem\*\*:\s*a short description/);
+
+    setupProject();
+    lc(['new', 'No Desc Track']);
+    const noDescContent = readCreatedIndex('no-desc-track');
+    assert.doesNotMatch(noDescContent, /\*\*Problem\*\*/);
+    assert.doesNotMatch(noDescContent, /\*\*Summary\*\*/);
+  });
 });
