@@ -1222,13 +1222,20 @@ app.post('/worker/register', auth, async (req, res) => {
     if (projCheck.rows.length === 0) return res.status(403).json({ error: 'forbidden: project not in workspace' });
 
     const machine_token = crypto.randomUUID();
+    // Track 10061 (REQ-9): same registration-only convention the local
+    // server follows — computed fresh every registration, never touched by
+    // the heartbeat route below.
+    const collector_api_version = Number.isInteger(req.body.collector_api_version) ? req.body.collector_api_version : null;
+    const collector_compat = req.body.collector_compat ? JSON.stringify(req.body.collector_compat) : null;
 
     await query(`
-      INSERT INTO workers(project_id, hostname, pid, status, mode, machine_token, last_heartbeat)
-      VALUES($1, $2, $3, 'idle', $4, $5, NOW())
+      INSERT INTO workers(project_id, hostname, pid, status, mode, machine_token, collector_api_version, collector_compat, last_heartbeat)
+      VALUES($1, $2, $3, 'idle', $4, $5, $6, $7, NOW())
       ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
-      status = 'idle', mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token, last_heartbeat = NOW()
-    `, [projectId, hostname, pid, mode || 'polling', machine_token]);
+      status = 'idle', mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token,
+      collector_api_version = EXCLUDED.collector_api_version, collector_compat = EXCLUDED.collector_compat,
+      last_heartbeat = NOW()
+    `, [projectId, hostname, pid, mode || 'polling', machine_token, collector_api_version, collector_compat]);
 
     res.json({ ok: true, machine_token });
   } catch (err) {
