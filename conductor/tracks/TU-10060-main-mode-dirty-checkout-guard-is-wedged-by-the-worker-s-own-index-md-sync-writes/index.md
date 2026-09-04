@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: running
 **Progress**: 0%
-**Phase**: Planned — 5 phases
+**Phase**: New
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
