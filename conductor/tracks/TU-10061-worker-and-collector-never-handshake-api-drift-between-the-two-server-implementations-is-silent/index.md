@@ -1,10 +1,10 @@
 # Track TU-10061: Worker and collector never handshake — API drift between the two server implementations is silent
 
 **Lane**: done
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phase 1 committed (recovered from uncommitted worktree state); Phases 2-5 remaining
+**Phase**: New
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com

@@ -128,3 +128,26 @@ while the auto-apply boundary stays exactly where it is.
       hot-reload, and this repo has produced false passes from verifying
       against a stale worker process.
 - [x] Task 4: Confirm no regression in `cd ui && npm test`.
+
+## ✅ COMPLETE
+
+All five phases implemented and verified 2026-09-04.
+
+Verification, same worktree, real commands:
+
+| Suite | Result |
+|---|---|
+| The three new 10060 suites + the new end-to-end one, plus track-10040-prespawn-block, track-10040-dirty-path-heal, track-1115-workspace-mode | 78 pass, 0 fail |
+| `conductor/tests/*.test.mjs` excluding the ~49 broken by track 10051's `mock-collector.mjs` rename, with these changes | 771 pass, 25 fail |
+| Same sweep, pre-change baseline in the same worktree | 725 pass, 44 fail |
+| `cd ui && npm test`, with these changes | 650 pass, 35 fail |
+| `cd ui && npm test`, untouched primary checkout | 650 pass, 35 fail |
+
+The remaining conductor failures are worker-spawning suites that reach the
+live API on port 8091 and contend with the running worker's identity lock —
+environment-dependent, present before and after, and fewer after (the jira
+import fix lets 19 of them start at all). The UI failures are byte-identical
+on the untouched checkout.
+
+The end-to-end test was confirmed to actually catch the defect: restoring the
+old `countBefore = 0` fail-open behaviour makes TC-24 fail, and only TC-24.

@@ -1,10 +1,10 @@
 # Track TU-10060: Main-mode dirty-checkout guard is wedged by the worker's own index.md sync writes
 
 **Lane**: done
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Implemented — 5 phases complete
+**Phase**: New
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
