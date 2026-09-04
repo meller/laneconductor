@@ -3,7 +3,7 @@ import { usePolling } from './hooks/usePolling.js';
 import { useApi } from './hooks/useApi.js';
 import { useIsMobile, MOBILE_MEDIA_QUERY } from './hooks/useIsMobile.js';
 import { ProjectSelector } from './components/ProjectSelector.jsx';
-import { KanbanBoard } from './components/KanbanBoard.jsx';
+import { KanbanBoard, LANES } from './components/KanbanBoard.jsx';
 import { LaneFocusView } from './components/LaneFocusView.jsx';
 import { MobileTabBar } from './components/MobileTabBar.jsx';
 import { MobileMoreSheet } from './components/MobileMoreSheet.jsx';
@@ -223,6 +223,14 @@ function AppContent({ user, logout }) {
     setBoardMode('lane');
     setFocusedLane(laneId);
   }
+
+  // Track 1121 REQ (Phase 2 Task 2.1): on mobile, LaneFocusView is forced
+  // on regardless of boardMode, so a `focusedLane` of null (nothing ever
+  // clicked "Expand lane") must not open on an empty column. Desktop's own
+  // fallback (LaneFocusView defaults to LANES[0] when focusedLane is null)
+  // is untouched — this only computes a *better* default for the mobile
+  // case, it never overrides an explicit choice.
+  const mobileDefaultLane = LANES.find(l => displayTracks.some(t => t.lane_status === l.id))?.id ?? LANES[0].id;
 
   async function handleRerunImplement(track) {
     const pid = track.project_id ?? selectedProjectId;
@@ -615,11 +623,11 @@ function AppContent({ user, logout }) {
               <div className="flex items-center justify-center h-64 text-gray-600 text-sm">
                 No tracks match "{searchText.trim()}".
               </div>
-            ) : boardMode === 'lane' ? (
+            ) : boardMode === 'lane' || isMobile ? (
               <LaneFocusView
                 projectId={selectedProjectId}
                 tracks={displayTracks}
-                focusedLane={focusedLane}
+                focusedLane={focusedLane ?? (isMobile ? mobileDefaultLane : undefined)}
                 onFocusLane={setFocusedLane}
                 onBackToBoard={() => setBoardMode('board')}
                 onTrackClick={handleTrackClick}
