@@ -1,0 +1,6 @@
+name: laneconductor-phase1b-spike
+description: Track 10039 Phase 1b — throwaway environment for the Managed Agents live-validation spike
+config:
+  type: cloud
+  networking:
+    type: unrestricted
