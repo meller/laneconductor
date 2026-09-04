@@ -1,6 +1,6 @@
 # Track TU-10062: Claude capacity probe misclassifies an expired CLI login as rate-limit exhaustion
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: success
 **Progress**: 0%
 **Phase**: New
