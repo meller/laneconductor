@@ -69,7 +69,7 @@ import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqual
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
 import { getConversationRunWriteScope, CONVERSATION_REPLY_ACTION } from './services/conversation-run-write-scope.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
-import { decideTrackFolder } from './services/track-folder.mjs';
+import { resolveTrackFolderFs } from './services/track-folder-fs.mjs';
 import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
@@ -1509,44 +1509,22 @@ function isTrackDirName(name) {
   return /\d+/.test(name) && !name.startsWith('_duplicate-');
 }
 
-// Track 10040 Phase 3 (REQ-15): thin wrapper — the actual decision lives
-// in decideTrackFolder (conductor/services/track-folder.mjs), pure and
-// I/O-free so `lc track-dir` can resolve a folder read-only. This function
-// supplies the fs facts the pure function needs and applies its decision
-// as real effects (quarantine renames, metadata writes). Behavior must
-// stay byte-identical to the pre-extraction version — the quarantine
-// semantics are load-bearing (track 1119).
+// Track 10040 Phase 3 (REQ-15) / Track 10063 Phase 2: thin wrapper — the
+// fact-gathering lives in resolveTrackFolderFs
+// (conductor/services/track-folder-fs.mjs), shared with `lc track-dir` and
+// the Collector API so all three readers can never disagree on which folder
+// is canonical. This function supplies its own cached tracks-metadata.json
+// reader (getTrackMetadata) rather than a bare path, so this hot path keeps
+// its existing in-memory-cache behavior instead of re-reading the metadata
+// file from disk on every single resolution — then applies the decision as
+// real effects (quarantine renames, metadata writes), which
+// resolveTrackFolderFs deliberately never does itself. Behavior must stay
+// byte-identical to the pre-extraction version — the quarantine semantics
+// are load-bearing (track 1119).
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
-  const dirNames = readdirSync(tracksDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
 
-  const meta = getTrackMetadata(trackNumber);
-  const registeredFolder = meta?.folder_path ? basename(meta.folder_path) : null;
-  const registeredExists = !!(registeredFolder && existsSync(join(tracksDir, registeredFolder)));
-
-  // AM-10046 root cause: only computed when 2+ folders could plausibly
-  // match this track number (cheap substring pre-check) — the ambiguous,
-  // unregistered case decideTrackFolder needs real data for. No extra I/O
-  // in the common single-folder case.
-  const candidateNames = dirNames.filter(name => name.includes(trackNumber));
-  let contentSizeByName = null;
-  if (candidateNames.length > 1) {
-    contentSizeByName = {};
-    for (const name of candidateNames) {
-      try {
-        const dirPath = join(tracksDir, name);
-        let total = 0;
-        for (const f of readdirSync(dirPath)) {
-          try { total += statSync(join(dirPath, f)).size; } catch { /* unreadable entry — skip */ }
-        }
-        contentSizeByName[name] = total;
-      } catch { /* unreadable dir — leave unset, decideTrackFolder treats missing as -1 */ }
-    }
-  }
-
-  const decision = decideTrackFolder({ dirNames, trackNumber, registeredFolder, registeredExists, contentSizeByName });
+  const decision = resolveTrackFolderFs({ tracksDir, trackNumber, lookupRegisteredFolder: getTrackMetadata });
 
   if (decision.quarantine.length > 1) {
     const allMatches = [decision.folder, ...decision.quarantine].sort();
