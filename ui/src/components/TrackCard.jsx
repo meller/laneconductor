@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DevServerButton } from './DevServerButton.jsx';
 import { normalizeProviderId, providerLabel } from '../../../conductor/providers.mjs';
 import { useApi } from '../hooks/useApi';
+import { MoveToLaneSheet } from './MoveToLaneSheet.jsx';
 
 const LANE_STYLES = {
   plan: { card: 'border-indigo-700 bg-gray-900', bar: 'bg-indigo-500', badge: 'bg-indigo-900 text-indigo-300' },
@@ -328,6 +329,12 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
 
   const [launching, setLaunching] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [moveSheetOpen, setMoveSheetOpen] = useState(false);
+
+  function handleMoveSelect(targetLane) {
+    onLaneChange?.(track, targetLane);
+    setMoveSheetOpen(false);
+  }
 
   function startDrag(e) {
     e.dataTransfer.setData('trackNum', track.track_number);
@@ -348,6 +355,7 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
       : 'Plan is queued — run it before advancing';
 
   return (
+    <>
     <div
       className={`rounded-lg border p-3 space-y-2 cursor-pointer hover:brightness-125 transition-all ${styles.card}`}
       draggable
@@ -625,9 +633,29 @@ export function TrackCard({ projectId, track, onClick, onLaneChange, onFixReview
                 →
               </button>
             )}
+            {/* Track 1121 REQ-10/REQ-14: touch replacement for drag-and-drop,
+                additive — draggable/onDragStart above stay for desktop.
+                md:hidden since desktop still uses drag. stopPropagation so
+                this never also fires the card's own onClick (opens detail). */}
+            <button
+              onClick={e => { e.stopPropagation(); setMoveSheetOpen(true); }}
+              data-testid="track-card-move-btn"
+              className="md:hidden shrink-0 min-h-11 min-w-11 flex items-center justify-center text-[10px] rounded border border-gray-700 text-gray-400 hover:bg-gray-800"
+              title="Move to another lane"
+            >
+              ⇄
+            </button>
           </div>
         </div>
       </div>
     </div>
+    {moveSheetOpen && (
+      <MoveToLaneSheet
+        track={track}
+        onSelect={handleMoveSelect}
+        onClose={() => setMoveSheetOpen(false)}
+      />
+    )}
+    </>
   );
 }
