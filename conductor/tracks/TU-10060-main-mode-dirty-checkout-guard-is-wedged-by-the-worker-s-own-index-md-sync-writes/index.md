@@ -1,6 +1,6 @@
 # Track TU-10060: Main-mode dirty-checkout guard is wedged by the worker's own index.md sync writes
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: Planned — 5 phases
