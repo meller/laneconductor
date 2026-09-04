@@ -87,13 +87,13 @@ value — so an `auth_required` provider would render as healthy.
 
 **Solution**: Give the two non-exhausted blocking states their own presentation.
 
-- [ ] Strip layout `ProviderStatus` (~:43) — `auth_required` → amber/red dot, `LOGIN REQUIRED`,
+- [x] Strip layout `ProviderStatus` (~:43) — `auth_required` → amber/red dot, `LOGIN REQUIRED`,
       remedy in the existing `title` tooltip; `probe_failed` → `PROBE FAILED` with `last_error`
-- [ ] Grid layout card (~:293) — same two states: badge text, body copy stating plainly that an
+- [x] Grid layout card (~:293) — same two states: badge text, body copy stating plainly that an
       expired login will **not** recover on its own and naming `claude login`, and the card's
       red border/background treatment
-- [ ] Neither state may render the green dot or `HEALTHY` badge (REQ-11)
-- [ ] Extend `ui/src/components/WorkersList.test.jsx` with the render cases (TC-13 … TC-16)
+- [x] Neither state may render the green dot or `HEALTHY` badge (REQ-11)
+- [x] Extend `ui/src/components/WorkersList.test.jsx` with the render cases (TC-13 … TC-16)
 
 **Impact**: The state is visible where a human already looks, which is the gap that let this go
 unnoticed.
@@ -105,11 +105,11 @@ health.
 
 **Solution**: One line beside the existing health lines.
 
-- [ ] `bin/lc.mjs` API-mode status branch (~:2237) — query `provider_status` for this project
+- [x] `bin/lc.mjs` API-mode status branch (~:2237) — query `provider_status` for this project
       alongside the existing tracks query and print any non-`ok` provider with its `last_error`
       (REQ-12)
-- [ ] Skip entirely in local-fs mode — there is no `provider_status` table to read
-- [ ] Keep the existing `psql` failure fallback path intact
+- [x] Skip entirely in local-fs mode — there is no `provider_status` table to read
+- [x] Keep the existing `psql` failure fallback path intact
 
 **Impact**: `lc status` answers "why is nothing running?" without opening the DB.
 
