@@ -1,8 +1,8 @@
 # Track TU-10055: Waiting-for-input is a first-class status on every lane, not a done-lane special case
 
-**Lane**: implement
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
