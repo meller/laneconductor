@@ -225,6 +225,8 @@ freshly-migrated database matches production.
 
 **Impact**: Confirms the fix works in the product, not only in tests.
 
+## ✅ REVIEWED
+
 ## Notes for the implementer
 
 - **Do not** widen scope to the 1067 sighting (REQ-7). It is not caused by these rows;
