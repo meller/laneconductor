@@ -1,10 +1,10 @@
 # Track TU-10063: syncTrackToFile writes marker updates to the wrong duplicate folder, and can silently flap the DB back
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 90%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned - Phase 1 (Shared filesystem resolver)
+**Phase**: Phases 1-4 complete, tested; Phase 5 live-restart verification deliberately deferred (see plan.md)
 **Type**: dev
 **Track Kind**: bug
 **Author**: TU

@@ -24,6 +24,7 @@ import { CLAIMABLE_LANES, MOVABLE_LANES, PERSISTED_LANE_ACTION_STATUSES } from '
 import { shouldBlockLaneWrite } from '../../conductor/services/lane-regression-guard.mjs';
 import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
+import { resolveTrackFolderFs } from '../../conductor/services/track-folder-fs.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -1249,11 +1250,16 @@ app.delete('/api/projects/:id/tracks/:num', async (req, res) => {
     await pool.query('DELETE FROM track_comments WHERE track_id = $1', [trackId]);
     await pool.query('DELETE FROM tracks WHERE id = $1', [trackId]);
 
-    // Delete filesystem folder
+    // Delete filesystem folder (track 10063: resolved via the shared
+    // primitive, not a legacy-only `startsWith` scan blind to prefixed
+    // INITIALS-NNN-slug folders)
     if (repo_path && existsSync(repo_path)) {
       const tracksDir = join(repo_path, 'conductor', 'tracks');
       if (existsSync(tracksDir)) {
-        const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+        const dir = resolveTrackFolderFs({
+          tracksDir, trackNumber: trackNum.toString(),
+          metadataPath: join(repo_path, 'conductor', 'tracks-metadata.json'),
+        }).folder;
         if (dir) {
           rmSync(join(tracksDir, dir), { recursive: true, force: true });
         }
@@ -1558,18 +1564,32 @@ async function syncTrackToFile(projectId, trackNum, updates) {
 
     const repoPath = projectRes.rows[0].repo_path;
 
-    // Find track folder: conductor/tracks/NNN-* where NNN matches trackNum
+    // Find track folder: resolved through the SAME shared primitive the
+    // worker's resolveTrackFolder and `lc track-dir` use (track 10063), not
+    // an inline regex — the old `^(\d+)-` scan here was structurally blind
+    // to the modern INITIALS-NNN-slug convention, declared every prefixed
+    // track's real folder "missing", and recreated a bare-numeric duplicate
+    // from DB content on every single write. Every marker landed in that
+    // duplicate; the worker then quarantined it and pushed the untouched
+    // canonical folder's state back over the DB, silently undoing the write.
     const tracksDir = resolve(repoPath, 'conductor', 'tracks');
     if (!existsSync(tracksDir)) return;
 
-    const trackDirs = readdirSync(tracksDir).filter(d => {
-      const match = d.match(/^(\d+)-/);
-      return match && match[1] === trackNum.toString();
-    });
-    if (!trackDirs.length) {
+    const metadataPath = resolve(repoPath, 'conductor', 'tracks-metadata.json');
+    const decision = resolveTrackFolderFs({ tracksDir, trackNumber: trackNum.toString(), metadataPath });
+
+    if (decision.matches > 1) {
+      logger.warn(
+        { trackNum, folder: decision.folder, nonCanonicalMatches: decision.quarantine },
+        '[sync-to-file] Track has more than one matching folder on disk — writing to the canonical one only'
+      );
+    }
+
+    let folderName = decision.folder;
+    if (!folderName) {
       // Folder missing — try to recreate it from DB content
       const dbRow = await pool.query(
-        'SELECT title, lane_status, lane_action_status, progress_percent, current_phase, content_summary, index_content, plan_content, spec_content FROM tracks WHERE project_id = $1 AND track_number = $2',
+        'SELECT title, lane_status, lane_action_status, progress_percent, current_phase, content_summary, index_content, plan_content, spec_content, author FROM tracks WHERE project_id = $1 AND track_number = $2',
         [projectId, trackNum]
       );
       if (!dbRow.rows[0]) {
@@ -1578,19 +1598,23 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       }
       const t = dbRow.rows[0];
       const slug = (t.title || 'track').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const folderName = `${trackNum}-${slug}`;
+      // Track 10063 REQ-4: recover the author-prefix convention rather than
+      // always falling back to bare NNN-slug — prefer the DB's own author
+      // column, then the "# Track PREFIX-NNN:" heading already embedded in
+      // a saved index_content, and only then bare NNN-slug.
+      const headingMatch = (t.index_content || '').match(/^#\s*Track\s+([A-Za-z]+)-\d+:/m);
+      const prefix = t.author || headingMatch?.[1] || null;
+      folderName = prefix ? `${prefix}-${trackNum}-${slug}` : `${trackNum}-${slug}`;
       const folderPath = resolve(tracksDir, folderName);
       mkdirSync(folderPath, { recursive: true });
-      const indexContent = t.index_content || `# Track ${trackNum}: ${t.title || 'Untitled'}\n\n**Lane**: ${t.lane_status || 'plan'}\n**Lane Status**: ${t.lane_action_status || 'queue'}\n**Progress**: ${t.progress_percent || 0}%\n**Phase**: ${t.current_phase || 'New'}\n**Summary**: ${t.content_summary || ''}\n`;
+      const indexContent = t.index_content || `# Track ${prefix ? `${prefix}-` : ''}${trackNum}: ${t.title || 'Untitled'}\n\n**Lane**: ${t.lane_status || 'plan'}\n**Lane Status**: ${t.lane_action_status || 'queue'}\n**Progress**: ${t.progress_percent || 0}%\n**Phase**: ${t.current_phase || 'New'}\n**Summary**: ${t.content_summary || ''}\n`;
       writeFileSync(resolve(folderPath, 'index.md'), indexContent, 'utf8');
       if (t.plan_content) writeFileSync(resolve(folderPath, 'plan.md'), t.plan_content, 'utf8');
       if (t.spec_content) writeFileSync(resolve(folderPath, 'spec.md'), t.spec_content, 'utf8');
       console.log(`[sync-to-file] Recreated folder for track ${trackNum} at ${folderPath}`);
-      // Now apply the updates to the newly created index.md
-      trackDirs.push(folderName);
     }
 
-    const trackIndexPath = resolve(tracksDir, trackDirs[0], 'index.md');
+    const trackIndexPath = resolve(tracksDir, folderName, 'index.md');
     if (!existsSync(trackIndexPath)) {
       console.warn(`[sync-to-file] index.md not found for track ${trackNum}`);
       return;
@@ -1719,7 +1743,10 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
           const repoPath = projRes.rows[0].repo_path;
           const tracksDir = join(repoPath, 'conductor', 'tracks');
           if (existsSync(tracksDir)) {
-            const dir = readdirSync(tracksDir).find(d => d.startsWith(`${req.params.num}-`));
+            const dir = resolveTrackFolderFs({
+              tracksDir, trackNumber: req.params.num.toString(),
+              metadataPath: join(repoPath, 'conductor', 'tracks-metadata.json'),
+            }).folder;
             if (dir) {
               const convPath = join(tracksDir, dir, 'conversation.md');
               const cursorPath = join(tracksDir, dir, '.conv-cursor');
@@ -1791,7 +1818,10 @@ app.post('/api/projects/:id/tracks/:num/open-bug', async (req, res) => {
     // 5. Write updated test.md to disk
     const tracksDir = join(repo_path, 'conductor', 'tracks');
     if (existsSync(tracksDir)) {
-      const dir = readdirSync(tracksDir).find(d => d.startsWith(`${req.params.num}-`));
+      const dir = resolveTrackFolderFs({
+        tracksDir, trackNumber: req.params.num.toString(),
+        metadataPath: join(repo_path, 'conductor', 'tracks-metadata.json'),
+      }).folder;
       if (dir) {
         const testMdPath = join(tracksDir, dir, 'test.md');
         writeFileSync(testMdPath, updatedContent, 'utf8');
@@ -2067,7 +2097,10 @@ app.post('/api/projects/:id/tracks/:num/fix-review', async (req, res) => {
 
     // Find track directory and plan.md
     const tracksDir = join(repo_path, 'conductor', 'tracks');
-    const trackDir = readdirSync(tracksDir).find(d => d.startsWith(req.params.num + '-'));
+    const trackDir = resolveTrackFolderFs({
+      tracksDir, trackNumber: req.params.num.toString(),
+      metadataPath: join(repo_path, 'conductor', 'tracks-metadata.json'),
+    }).folder;
     if (!trackDir) return res.status(404).json({ error: 'Track directory not found on disk' });
 
     const planPath = join(tracksDir, trackDir, 'plan.md');
