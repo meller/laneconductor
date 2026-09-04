@@ -1,8 +1,8 @@
 # Track 1108: Worker VM provisioning from the remote app (first-host onboarding)
 
 **Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane Status**: queue
+**Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Summary**: In remote app/api mode, a user who logs in with zero registered hosts currently hits a dead end — nothing can run anywhere. Detect that state and offer creating a worker VM on the major hosting…
@@ -84,6 +84,51 @@ scope as its own effort rather than scope-creep on 1089.
 - [ ] Phase 2: Zero-hosts onboarding UI (remote mode): detection + the two-path chooser + "I have a machine" instructions
 - [ ] Phase 3: VM creation path for the first cloud(s), incl. startup script that installs, registers the manager, and appears on the dashboard
 - [ ] Phase 4: Tests + the negative paths (bad credentials, VM never phones home, user closes mid-provision)
+
+## Scope extension (2026-09-04): retire the direct api->machine provisioning route
+
+Folded in here rather than filed separately, deliberately: this track builds the
+bootstrap that makes the legacy route removable, and designing the bootstrap
+while knowing the other path is going away yields one coherent design instead of
+building to spec and retrofitting afterwards.
+
+**Two provisioning routes exist today and they have different machine semantics,
+which is the actual confusion to eliminate:**
+
+1. **Direct (legacy, to be retired).** `POST /api/projects/:id/worker/start`
+   (ui/server/index.mjs:519) shells out to `make lc-start` via execAsync with
+   cwd = repo_path. It runs on *whatever machine the API server is running on*.
+   On localhost that is the same box as the target so it works; from
+   app.laneconductor.com it would execute inside the Cloud Function container —
+   the wrong machine entirely. WorkersList.jsx already gates these buttons
+   behind an `IS_LOCAL_HOST` constant with a comment saying exactly this, so the
+   limitation is known and worked around rather than solved.
+2. **Dispatch (the correct route, already built).** The API enqueues a
+   `provision-worker` dispatch; a manager worker polling from the target machine
+   claims it and starts the worker locally — laneconductor.sync.mjs:8359. Track
+   1089 Phase 6 dropped SSH entirely for this reason, recorded in its own
+   comment: the inbox is outbound-polling, so a machine that should run workers
+   already has a manager polling from it, which means no inbound network path,
+   no stored credentials, and it works through NAT/firewalls.
+
+**Why the direct route cannot simply be deleted today:** dispatch only reaches a
+machine that is *already* polling. The second worker on a host is fine; the
+first one is a chicken-and-egg — nothing is there to receive the dispatch. That
+bootstrap gap is precisely what this track's existing phases solve, which is why
+the retirement belongs here and is blocked on them.
+
+**Additional phase to plan and execute after the bootstrap phases land:**
+- Remove `POST /api/projects/:id/worker/start` and its `make lc-start`/`lc-stop`
+  execAsync shell-outs, or reduce them to a localhost-only developer
+  convenience explicitly documented as not part of the product surface.
+- Remove the `IS_LOCAL_HOST` gate in WorkersList.jsx along with the comment
+  describing the gap, since the gap will no longer exist.
+- Confirm no other caller depends on the direct route (check `worker/stop` and
+  the per-worker stop path at /api/workers/:id/stop, which have the same
+  runs-on-the-API's-machine assumption).
+- Make dispatch the single documented provisioning path in product.md, so a
+  reader can tell from the docs which component is responsible for starting a
+  worker on which machine.
 
 ## Depends on
 [1033](../1033-track-1033-worker-use-connection/index.md) — auth/API-key machinery the VM registers through. [1091](../1091-manager-worker-and-new-project-flow/index.md) — the manager worker the VM bootstraps. [1103](../1103-e2e-onboarding-experience/index.md) — the onboarding design this extends to "zero machines".
