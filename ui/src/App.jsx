@@ -591,8 +591,8 @@ function AppContent({ user, logout }) {
             projects={projects}
             tracks={tracks}
             workers={workers}
-            onOpen={p => { setSelectedProjectId(p.id); setViewMode('lanes'); }}
-            onManageContext={p => { setSelectedProjectId(p.id); setConductorOpen(true); setViewMode('lanes'); }}
+            onOpen={p => { setSelectedProjectId(p.id); setViewMode(isMobile ? 'focus' : 'lanes'); }}
+            onManageContext={p => { setSelectedProjectId(p.id); setConductorOpen(true); setViewMode(isMobile ? 'focus' : 'lanes'); }}
             onRename={p => setRenameTarget(p)}
             onDelete={p => setDeleteTarget(p)}
             onNewProject={openNewProject}
