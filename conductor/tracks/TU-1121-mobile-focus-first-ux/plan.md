@@ -183,27 +183,48 @@ and confirm the board below still scrolls. At 1440px the panel is still right-do
 **Solution**: A `mobile-chrome` Playwright project and a spec that drives the whole mobile
 flow, plus a manual device pass.
 
-- [ ] Task 6.1: Add `{ name: 'mobile-chrome', use: { ...devices['Pixel 5'] } }` to
+- [x] Task 6.1: Add `{ name: 'mobile-chrome', use: { ...devices['Pixel 5'] } }` to
       `playwright.config.js`'s `projects`. Leave the `chromium` project, the port-8190
       `webServer` block and `reuseExistingServer: false` exactly as they are — that config
       carries a documented reason (track AM-1119).
-- [ ] Task 6.2: Add `ui/e2e/track-1121-mobile.spec.js`, mocking the API with `page.route()` —
+- [x] Task 6.2: Add `ui/e2e/track-1121-mobile.spec.js`, mocking the API with `page.route()` —
       the pattern both existing specs use, so no Express server or Postgres is needed.
-- [ ] Task 6.3: Spec coverage — Focus screen renders its three sections; Board tab shows one
+- [x] Task 6.3: Spec coverage — Focus screen renders its three sections; Board tab shows one
       lane; swipe advances the lane; move sheet opens, selects a lane, confirmation appears;
       detail sheet opens full-screen and closes.
-- [ ] Task 6.4: Overflow assertion at 375px on Focus, Board and detail:
+- [x] Task 6.4: Overflow assertion at 375px on Focus, Board and detail:
       `document.documentElement.scrollWidth <= window.innerWidth`.
-- [ ] Task 6.5: Desktop regression — run the full suite for both projects and confirm the two
+- [x] Task 6.5: Desktop regression — run the full suite for both projects and confirm the two
       existing specs still pass under `chromium`.
-- [ ] Task 6.6: Run `cd ui && npm test` and `cd ui && npm run build`; paste real output into
+- [x] Task 6.6: Run `cd ui && npm test` and `cd ui && npm run build`; paste real output into
       `conversation.md`. No test may be deleted or weakened to make this pass.
 - [ ] Task 6.7: Manual pass on a real phone. Record the device, viewport and observed result
       in `conversation.md`. If the track-10052 Firebase Hosting routing gap blocks
       `app.laneconductor.com`, run against a local `local-api` stack instead and say which
       environment was used.
+      **NOT PERFORMED — no physical device access in this autonomous session.** This is an
+      environment constraint, not a deferred capability: there is no phone available to this
+      Claude Code session. `mobile-chrome`'s Pixel 5 emulation (Task 6.1-6.4, all passing) is
+      the closest automated proxy — it exercises real Chromium layout/touch-event handling at
+      the true viewport dimensions — but it cannot verify real-OS chrome (address bar
+      show/hide reflow), iOS Safari-specific quirks, actual finger-gesture feel, or
+      `safe-area-inset` on a notched device. See `conversation.md` for the explicit flag to a
+      human. This checkbox stays unticked until a human actually does this.
 
-**Impact**: `ui/playwright.config.js`, new `ui/e2e/track-1121-mobile.spec.js`.
+**Impact**: `ui/playwright.config.js`, new `ui/e2e/track-1121-mobile.spec.js`. Also added a
+`test.beforeEach` project guard to `ui/e2e/app-creator-wizard.spec.js` and
+`ui/e2e/track-10049-connections.spec.js` — both click a "+ Project" header button that Phase 1
+correctly hides below `md`; those two desktop-authored wizard specs now skip under
+`mobile-chrome` rather than failing on a real (not-a-bug) behavior change.
 
 **Verify before ticking**: both Playwright projects green, Vitest green, build green, and a
-recorded manual observation. Reasoning about a diff is not verification.
+recorded manual observation. Reasoning about a diff is not verification. 6.1-6.6 verified this
+way; 6.7 could not be attempted at all in this environment (see above) — not the same as
+attempted-and-failed.
+
+## ✅ COMPLETE
+
+All 6 phases implemented and committed. Automated verification (Vitest, both Playwright
+projects, production build) is green with zero regressions against the pre-existing baseline.
+Task 6.7 (manual on-device pass) was not performed — no physical phone is available in this
+autonomous session; flagged to a human in conversation.md. Moving to review.
