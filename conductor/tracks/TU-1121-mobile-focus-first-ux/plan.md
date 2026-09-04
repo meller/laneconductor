@@ -21,24 +21,24 @@ it.
 collapses, and a mobile padding scale. No new routing — `viewMode` already carries the whole
 navigation model.
 
-- [ ] Task 1.1: Add `ui/src/hooks/useIsMobile.js` — `window.matchMedia('(max-width: 767px)')`
+- [x] Task 1.1: Add `ui/src/hooks/useIsMobile.js` — `window.matchMedia('(max-width: 767px)')`
       with a `change` listener and SSR-safe initial value. Comment it to state that 767px must
       stay in lockstep with Tailwind's `md` breakpoint, since the two together are the only
       definition of "mobile" in this codebase.
-- [ ] Task 1.2: Add `ui/src/components/MobileTabBar.jsx` — `fixed bottom-0 inset-x-0 z-30
+- [x] Task 1.2: Add `ui/src/components/MobileTabBar.jsx` — `fixed bottom-0 inset-x-0 z-30
       md:hidden`, four tabs (Focus / Board / Workers / More), each `min-h-11 min-w-11`
       (44px), active tab visually marked. Props: `active`, `onSelect`.
-- [ ] Task 1.3: Add `ui/src/components/MobileMoreSheet.jsx` — bottom sheet listing Projects,
+- [x] Task 1.3: Add `ui/src/components/MobileMoreSheet.jsx` — bottom sheet listing Projects,
       CI/CD, Worktrees, Inbox, Account. Each entry calls the same setter the desktop header
       button calls, so there is one navigation path per destination, not two.
-- [ ] Task 1.4: Wire both into `App.jsx`. Introduce a `mobileTab` state (`focus` | `board` |
+- [x] Task 1.4: Wire both into `App.jsx`. Introduce a `mobileTab` state (`focus` | `board` |
       `workers` | `more`) that derives from and writes to the existing `viewMode`; do not fork
       view state. Render the tab bar only when a project is selected, matching the existing
       gating on the desktop view-mode switcher.
-- [ ] Task 1.5: Padding scale in `App.jsx` — `p-6` → `p-3 md:p-6` on `main` (line 525),
+- [x] Task 1.5: Padding scale in `App.jsx` — `p-6` → `p-3 md:p-6` on `main` (line 525),
       `px-6` → `px-3 md:px-6` on the header (line 278) and the repo-path strip (line 514).
       Add `pb-20 md:pb-6` to `main` so the last card clears the fixed tab bar.
-- [ ] Task 1.6: Header collapse — hide the New Track / Bug / New Project button cluster below
+- [x] Task 1.6: Header collapse — hide the New Track / Bug / New Project button cluster below
       `md` (they move into the More sheet), and raise the remaining controls to 44px targets.
 
 **Impact**: `ui/src/App.jsx`, new `ui/src/hooks/useIsMobile.js`,
@@ -57,22 +57,22 @@ lanes at 375px.
 **Solution**: Reuse `LaneFocusView`, which already renders exactly this. Force it below `md`
 and add swipe. **Do not write a new mobile board component** — this phase is mostly wiring.
 
-- [ ] Task 2.1: In `App.jsx`, force the mobile branch: below `md`, render `LaneFocusView`
+- [x] Task 2.1: In `App.jsx`, force the mobile branch: below `md`, render `LaneFocusView`
       regardless of `boardMode`; at/above `md`, keep the existing `boardMode === 'lane'`
       choice. Default `focusedLane` to the first non-empty lane rather than `null`, so the
       mobile board never opens on an empty column.
-- [ ] Task 2.2: In `LaneFocusView.jsx`, hide the "← All lanes" button below `md`
+- [x] Task 2.2: In `LaneFocusView.jsx`, hide the "← All lanes" button below `md`
       (`hidden md:inline-flex`) — there is no all-lanes grid to go back to on mobile.
-- [ ] Task 2.3: Lane rail — confirm it already scrolls (`overflow-x-auto`, line 46) and add
+- [x] Task 2.3: Lane rail — confirm it already scrolls (`overflow-x-auto`, line 46) and add
       `scrollIntoView({ inline: 'center' })` on the focused chip when `focusedLane` changes,
       so lanes 5 and 6 are reachable without hunting.
-- [ ] Task 2.4: Add a pinned lane-position indicator (six dots, or "3 / 6" plus the lane
+- [x] Task 2.4: Add a pinned lane-position indicator (six dots, or "3 / 6" plus the lane
       label) that stays visible when the rail is scrolled away.
-- [ ] Task 2.5: Swipe — add `ui/src/hooks/useSwipe.js` (touchstart/touchmove/touchend,
+- [x] Task 2.5: Swipe — add `ui/src/hooks/useSwipe.js` (touchstart/touchmove/touchend,
       returning handlers). Treat a gesture as a lane swipe only when `|dx| > 50px` **and**
       `|dx| > 1.5 * |dy|`, so vertical scrolling through a long lane is never hijacked.
       Bound at both ends of `LANES` — no wrapping from `done` back to `backlog`.
-- [ ] Task 2.6: Apply the swipe handlers to `LaneFocusView`'s card area only, not the whole
+- [x] Task 2.6: Apply the swipe handlers to `LaneFocusView`'s card area only, not the whole
       screen, so the lane rail's own horizontal scroll is not fighting the gesture.
 
 **Impact**: `ui/src/App.jsx`, `ui/src/components/LaneFocusView.jsx`, new
@@ -92,21 +92,21 @@ events on touch, so moving a track on a phone is impossible.
 **Solution**: A "Move to lane" bottom sheet that calls the **same** `onLaneChange(track,
 targetLane)` prop drag-drop calls. Additive — the desktop drag path is untouched.
 
-- [ ] Task 3.1: Add `ui/src/components/MoveToLaneSheet.jsx`. Props: `track`, `onSelect(laneId)`,
+- [x] Task 3.1: Add `ui/src/components/MoveToLaneSheet.jsx`. Props: `track`, `onSelect(laneId)`,
       `onClose`. Lists all six lanes from `LANES` with the current lane marked and
       non-selectable.
-- [ ] Task 3.2: Port the guard from `KanbanBoard.handleDrop` (lines 50-53): a `plan`-lane track
+- [x] Task 3.2: Port the guard from `KanbanBoard.handleDrop` (lines 50-53): a `plan`-lane track
       with `lane_action_status === 'running'` is not movable. The sheet renders every lane
       disabled with a visible reason line, rather than accepting the tap and silently doing
       nothing — the existing drag path only `console.warn`s, which is invisible to a user.
-- [ ] Task 3.3: Add a move affordance to `TrackCard` shown only below `md` (`md:hidden`), with
+- [x] Task 3.3: Add a move affordance to `TrackCard` shown only below `md` (`md:hidden`), with
       `onClick` calling `e.stopPropagation()` so it never also opens the detail panel
       (`TrackCard.jsx:355`'s card-level `onClick`).
-- [ ] Task 3.4: Wire the sheet's selection to `onLaneChange` in both `LaneFocusView` and
+- [x] Task 3.4: Wire the sheet's selection to `onLaneChange` in both `LaneFocusView` and
       `KanbanBoard` — `handleLaneChange` in `App.jsx:182` then sets `pendingAction`, and the
       existing confirmation modal (`App.jsx:710`) runs unchanged. No new API call anywhere in
       this phase; if this phase adds an `apiFetch`, it is wrong.
-- [ ] Task 3.5: Dismissal — backdrop tap and an explicit close control, both >= 44px.
+- [x] Task 3.5: Dismissal — backdrop tap and an explicit close control, both >= 44px.
 
 **Impact**: new `ui/src/components/MoveToLaneSheet.jsx`, `ui/src/components/TrackCard.jsx`,
 `ui/src/components/LaneFocusView.jsx`, `ui/src/components/KanbanBoard.jsx`.
@@ -123,22 +123,22 @@ is blocked and what is running.
 
 **Solution**: A Focus screen reading `GET /api/inbox`'s existing `bucket` classification.
 
-- [ ] Task 4.1: Add `ui/src/components/MobileFocusView.jsx`. Fetch via the existing `useApi`
+- [x] Task 4.1: Add `ui/src/components/MobileFocusView.jsx`. Fetch via the existing `useApi`
       hook against `/api/inbox?project_id=<id>` — the same endpoint `InboxPanel` uses.
-- [ ] Task 4.2: Section "Needs your input" — rows where `bucket` is `needs_input` or
+- [x] Task 4.2: Section "Needs your input" — rows where `bucket` is `needs_input` or
       `awaiting_ai`. **Use the server's `bucket` field.** Do not re-derive severity from the
       comment body client-side; `ui/server/index.mjs:1049-1056` already does that, and a second
       classifier will drift from it.
-- [ ] Task 4.3: Section "Running now" — tracks from the existing `tracks` array with
+- [x] Task 4.3: Section "Running now" — tracks from the existing `tracks` array with
       `lane_action_status === 'running'`, showing lane, title and progress.
-- [ ] Task 4.4: Section "Pipeline" — one row per lane in `LANES` order with its count. Tapping
+- [x] Task 4.4: Section "Pipeline" — one row per lane in `LANES` order with its count. Tapping
       a row switches to the Board tab with `focusedLane` set to that lane (REQ-19).
-- [ ] Task 4.5: Row tap → `handleInboxSelect(projectId, trackNumber, ...)` (`App.jsx:177`),
+- [x] Task 4.5: Row tap → `handleInboxSelect(projectId, trackNumber, ...)` (`App.jsx:177`),
       which already opens the detail panel on the conversation tab. Reuse it; do not
       reimplement.
-- [ ] Task 4.6: Empty states per section, written as reassurance ("Nothing needs you right
+- [x] Task 4.6: Empty states per section, written as reassurance ("Nothing needs you right
       now"), never as an error.
-- [ ] Task 4.7: Make Focus the default mobile tab on first load for a project.
+- [x] Task 4.7: Make Focus the default mobile tab on first load for a project.
 
 **Impact**: new `ui/src/components/MobileFocusView.jsx`, `ui/src/App.jsx`.
 
