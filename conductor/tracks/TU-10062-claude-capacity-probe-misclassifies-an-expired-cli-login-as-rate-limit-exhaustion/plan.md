@@ -12,24 +12,24 @@ decision without spawning a real CLI.
 **Solution**: Extract the decision into a pure module, mirroring `capacity-probe-throttle.mjs`
 and `exhaustion-detector.mjs`.
 
-- [ ] Create `conductor/services/provider-probe-classify.mjs`
-    - [ ] `PROVIDER_STATUS = { OK: 'ok', EXHAUSTED: 'exhausted', AUTH_REQUIRED: 'auth_required', PROBE_FAILED: 'probe_failed' }`
-    - [ ] `isBlockingProviderStatus(status)` — true for `exhausted`, `auth_required`,
+- [x] Create `conductor/services/provider-probe-classify.mjs`
+    - [x] `PROVIDER_STATUS = { OK: 'ok', EXHAUSTED: 'exhausted', AUTH_REQUIRED: 'auth_required', PROBE_FAILED: 'probe_failed' }`
+    - [x] `isBlockingProviderStatus(status)` — true for `exhausted`, `auth_required`,
           `probe_failed`; false for `ok`, `available` (the value posted at
           `laneconductor.sync.mjs:2972`) and anything unrecognised
-    - [ ] `classifyClaudeProbe({ code, output, nowMs })` →
+    - [x] `classifyClaudeProbe({ code, output, nowMs })` →
           `{ status, available, reset_at, last_error, remedy }`
-    - [ ] `code === 0` → `ok`, `available: true`, `reset_at: null` (REQ-1)
-    - [ ] Auth matchers checked **first** (REQ-2), tight enumerated list, no bare `401`
-    - [ ] Rate-limit gate = `isProviderExhausted(output, 'claude')` OR `/\bresets\b/i` OR
+    - [x] `code === 0` → `ok`, `available: true`, `reset_at: null` (REQ-1)
+    - [x] Auth matchers checked **first** (REQ-2), tight enumerated list, no bare `401`
+    - [x] Rate-limit gate = `isProviderExhausted(output, 'claude')` OR `/\bresets\b/i` OR
           `/\bexhausted\b/i` — imported, not re-implemented (REQ-3)
-    - [ ] Keep the existing `/resets\s+(\d{1,2})(:?\d{2})?(am|pm)/i` parse and its
+    - [x] Keep the existing `/resets\s+(\d{1,2})(:?\d{2})?(am|pm)/i` parse and its
           roll-to-tomorrow behaviour; `+15m` fallback when exhausted but unparseable
-    - [ ] `auth_required` and `probe_failed` return `reset_at: null` unconditionally (REQ-4)
-    - [ ] `last_error` / `remedy` strings per REQ-7; `probe_failed` carries a truncated first
+    - [x] `auth_required` and `probe_failed` return `reset_at: null` unconditionally (REQ-4)
+    - [x] `last_error` / `remedy` strings per REQ-7; `probe_failed` carries a truncated first
           line of the probe's own output
-- [ ] Write `conductor/tests/provider-probe-classify.test.mjs` (TC-1 … TC-12 in `test.md`)
-    - [ ] Confirm the auth and no-rolling-reset cases fail against no module, then pass
+- [x] Write `conductor/tests/provider-probe-classify.test.mjs` (TC-1 … TC-12 in `test.md`)
+    - [x] Confirm the auth and no-rolling-reset cases fail against no module, then pass
 
 **Impact**: A testable seam. No behaviour change yet — nothing imports the module.
 
