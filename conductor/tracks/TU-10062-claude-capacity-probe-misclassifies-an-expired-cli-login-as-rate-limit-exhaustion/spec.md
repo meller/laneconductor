@@ -97,6 +97,14 @@ LLM Providers card, `lc status`, and the blocked dispatch's own result text.
   new `auth_required` value would read as **available** at all three sites — strictly worse
   than today's behaviour, so this requirement is not optional polish.
 
+  **Exactly three — do not sweep the file.** A grep for the same comparison also hits
+  `laneconductor.sync.mjs:3780` and `:3810`, both inside `checkExhaustion()`. Those two mean
+  something different: they are *change-detection* guards ("has this provider already been
+  recorded exhausted, so skip the redundant POST"), not availability tests. Swapping them for
+  `isBlockingProviderStatus` would suppress the `/provider-status` POST that upgrades a provider
+  from `auth_required` to a genuine `exhausted` when a real rate limit shows up in a run log.
+  Leave both exactly as they are.
+
 - **REQ-6** — `auth_required` and `probe_failed` are re-probed normally once the existing 60s
   capacity-probe TTL elapses. They are blocking, not sticky: the moment a human runs
   `claude login`, the next probe returns `ok` and work resumes with no manual reset, no cache

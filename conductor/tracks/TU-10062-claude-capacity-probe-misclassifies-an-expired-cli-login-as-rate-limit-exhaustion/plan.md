@@ -121,17 +121,19 @@ future reader will mistake for live code.
 
 **Solution**:
 
-- [ ] `conductor/tests/track-10062-auth-required.test.mjs` — the end-to-end regressions
+- [x] `conductor/tests/track-10062-auth-required.test.mjs` — the end-to-end regressions
       (TC-17 … TC-21 in `test.md`), driven through a fake CLI (`conductor/tests/mock-cli.mjs` /
       `fake-claude-recorder.mjs` pattern) and the mock collector, never a real `claude` binary
-    - [ ] Repeated probes against a persistently expired login leave `reset_at` null every time
+    - [x] Repeated probes against a persistently expired login leave `reset_at` null every time
           (AC-3) — the direct regression for the rolling estimate
-    - [ ] `isProviderAvailable('claude')` stays false across cycles while `auth_required`
+    - [x] `isProviderAvailable('claude')` stays false across cycles while `auth_required`
           (AC-4) — the direct regression for the burned claim/spawn attempt
-    - [ ] A genuine rate limit still produces `exhausted` + a parsed `reset_at` (AC-2)
-    - [ ] Recovery: probe returns `ok` after the TTL once the fake CLI exits 0 (AC-8)
-- [ ] Mark `conductor/agent-runtime.mjs` as unused at the top of the file, pointing at this
+    - [x] A genuine rate limit still produces `exhausted` + a parsed `reset_at` (AC-2)
+    - [x] Recovery: probe returns `ok` after the TTL once the fake CLI exits 0 (AC-8)
+- [x] Mark `conductor/agent-runtime.mjs` as unused at the top of the file, pointing at this
       track and at `laneconductor.sync.mjs` as the live implementation. Behaviour unchanged —
       see `spec.md` Non-Goals for why the duplicated logic itself is deliberately not touched.
 
 **Impact**: The three defects cannot regress silently, and the duplicate stops being a trap.
+
+## ✅ COMPLETE

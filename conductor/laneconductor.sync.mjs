@@ -26,7 +26,7 @@ import {
   mapLaneToJiraStatus,
   mapLaneToLaneStatus,
   validateJiraStatuses,
-} from './jira-collector.mjs';
+} from './jira-target.mjs';
 import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
 import { getBuildById, createBuildArtifact } from '../ui/server/build-manager.mjs';
@@ -6110,7 +6110,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
 
   let chosenCli = primary, chosenModel = primaryModel;
   let chosenTier = 'primary';
-  const primaryAvailable = await isProviderAvailable(primary);
+  let primaryAvailable = await isProviderAvailable(primary);
   const secondaryAvailable = secondary ? await isProviderAvailable(secondary) : false;
 
   if (primary === 'claude') {
@@ -6123,6 +6123,17 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
       console.log(`[blocked] ${providerBlockReason('claude')}${secondary ? ` and secondary ${secondary} unavailable` : ''}`);
       return null;
     }
+    // Track 10062: checkClaudeCapacity() may have just performed a real
+    // probe and refreshed providerStatusCache — the `primaryAvailable`
+    // snapshot taken above predates that write, so a probe that just
+    // discovered recovery would otherwise still be blocked by the generic
+    // gate below reading its own stale pre-probe value. Confirmed live: a
+    // dispatch made on the very next tick after `claude login` succeeds
+    // was incorrectly blocked with a nonsensical "claude is unavailable"
+    // (providerBlockReason falling through its generic branch, since the
+    // cache had already flipped to 'ok' by the time it read it). Re-read
+    // fresh so recovery takes effect on this same call, not the next one.
+    primaryAvailable = await isProviderAvailable(primary);
   }
 
   if (!primaryAvailable) {
