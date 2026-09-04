@@ -1,7 +1,7 @@
 # Track TU-10059: 156 tracks rows have a NULL project_id and leak into unscoped views
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
