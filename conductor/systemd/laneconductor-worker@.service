@@ -1,0 +1,61 @@
+[Unit]
+# LaneConductor heartbeat worker, supervised.
+#
+# Why this exists (found live 2026-09-04): the worker deliberately exits when
+# its lock is compromised (see conductor/services/worker-lock.mjs — the hold
+# cannot be re-acquired in place, so exiting is the correct, safe response).
+# Nothing restarted it, so one deleted lock file left the whole project's
+# automation dead for 1h45m with no visible signal. The same session also lost
+# workers to a crash on a missing import and to manual cleanup. Exiting is
+# fine; going away permanently is not. That is what a supervisor is for.
+#
+# Templated on the project path so one unit file serves every project:
+#   systemctl --user start laneconductor-worker@$(systemd-escape /path/to/project)
+Description=LaneConductor worker (%f)
+Documentation=https://github.com/asafmeller/laneconductor
+After=network-online.target
+Wants=network-online.target
+
+# These belong in [Unit], not [Service] — systemd 229+ ignores them under
+# [Service], which silently disables the limit entirely (observed: the restart
+# counter ran past 7 unchecked while they were misplaced).
+#
+# Budget must outlast worker-lock.mjs's DEFAULT_STALE_MS (60s). After a SIGKILL
+# the lock is never released, so every restart correctly refuses to start as a
+# duplicate until that window expires. 10 tries x 20s = 200s of runway, well
+# clear of 60s, while still stopping a genuinely broken worker eventually.
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+# %f, not %I: `systemd-escape -p` strips the leading slash, so %I expands to a
+# RELATIVE "home/meller/..." and systemd rejects the unit outright. %f is the
+# unescaped instance name WITH the leading / restored.
+WorkingDirectory=%f
+# --sync-only is MANUAL mode: syncs and serves dispatches, never claims queued
+# work on its own. Drop the flag (or override ExecStart) for AUTOMATIC mode.
+ExecStart=/usr/bin/node conductor/laneconductor.sync.mjs --sync-only
+
+# The whole point of this unit. `always` (not `on-failure`) is deliberate: the
+# lock-compromise path exits 1, but a clean exit that leaves no worker running
+# is just as bad for a daemon that is supposed to be permanently present.
+Restart=always
+# 20s, not 5s: a SIGKILLed worker leaves its lock held until the 60s stale
+# window passes, so anything faster just burns restart budget on guaranteed
+# "refusing to start a duplicate" exits. See StartLimit* in [Unit] above.
+RestartSec=20s
+
+# Logs go to the journal AND stay greppable per-project via the identifier.
+# The worker's own pino stream (conductor/services/logger.mjs) is unaffected.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=laneconductor-worker
+
+# Give in-flight lane actions a chance to finish; the worker's SIGTERM handler
+# de-registers from the collector before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

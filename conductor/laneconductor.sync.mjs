@@ -253,6 +253,33 @@ if (!process.env.LC_SKIP_WORKER_LOCK) {
   const release = await acquireWorkerLock(lockPath, {
     ...(staleMsOverride ? { staleMs: staleMsOverride } : {}),
     onCompromised: (err) => {
+      // Found live 2026-09-04: this fired with a bare
+      // "ENOENT ... stat 'conductor/.sync.lock-target.lock'" and the whole
+      // project's automation sat dead for 1h45m. Exiting is correct and
+      // deliberate (see worker-lock.mjs — the hold cannot be re-acquired in
+      // place), but `err.message` alone was not enough to work out WHAT
+      // removed the lock, so the trigger stayed unidentified. Capture the
+      // surrounding filesystem state at the moment of compromise, while it
+      // is still observable, rather than re-deriving it later from a log
+      // line that no longer has the context.
+      let forensics = {};
+      try {
+        const lockDirPath = `${lockPath}.lock`;
+        forensics = {
+          lockPath,
+          lockDirPath,
+          lockTargetExists: existsSync(lockPath),
+          lockDirExists: existsSync(lockDirPath),
+          parentDirExists: existsSync(dirname(lockPath)),
+          lockTargetMtime: existsSync(lockPath) ? statSync(lockPath).mtimeMs : null,
+          cwd: process.cwd(),
+          uptimeSec: Math.round(process.uptime()),
+        };
+      } catch (probeErr) {
+        forensics = { probeFailed: probeErr.message, lockPath };
+      }
+      logger.error({ err: err.message, code: err.code, ...forensics },
+        '[worker-lock] Lock compromised — de-registering and exiting cleanly. A supervisor (systemd) should restart this worker.');
       console.error(`[worker-lock] Lock compromised (${err.message}) — de-registering and exiting cleanly.`);
       removeWorker().finally(() => process.exit(1));
     },
