@@ -43,18 +43,18 @@ strictly worse than today.
 **Solution**: Route the probe through the classifier and make every availability decision use
 the shared predicate.
 
-- [ ] `conductor/services/capacity-probe-throttle.mjs` — replace `cached.status !== 'exhausted'`
+- [x] `conductor/services/capacity-probe-throttle.mjs` — replace `cached.status !== 'exhausted'`
       with `!isBlockingProviderStatus(cached.status)` (REQ-5). Existing
       `capacity-probe-throttle.test.mjs` must still pass unchanged.
-- [ ] `laneconductor.sync.mjs` `checkClaudeCapacity()` (~:3641) — call `classifyClaudeProbe`;
+- [x] `laneconductor.sync.mjs` `checkClaudeCapacity()` (~:3641) — call `classifyClaudeProbe`;
       set the cache and POST `/provider-status` with the classified `status`, `reset_at` and
       `last_error` (REQ-7)
-- [ ] `laneconductor.sync.mjs` `isProviderAvailable()` (~:3709, ~:3738) — both branches use
+- [x] `laneconductor.sync.mjs` `isProviderAvailable()` (~:3709, ~:3738) — both branches use
       `isBlockingProviderStatus` (REQ-5). A blocking status with a null `reset_at` returns
       false and does **not** delete the cache entry (REQ-4/REQ-6).
-- [ ] Distinct log lines per status (REQ-8) — `auth_required` must not print the existing
+- [x] Distinct log lines per status (REQ-8) — `auth_required` must not print the existing
       `[status] Claude capacity exhausted, marking in DB (cool down until ...)`
-- [ ] Confirm the 60s TTL still governs re-probing, so recovery is automatic (REQ-6)
+- [x] Confirm the 60s TTL still governs re-probing, so recovery is automatic (REQ-6)
 
 **Impact**: The DB now tells the truth. `reset_at` stops rolling; the optimistic
 reset-time-passed re-trigger can no longer fire for an auth failure.
