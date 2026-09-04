@@ -121,7 +121,7 @@ model track_comments {
 
 model tracks {
   id                      Int               @id @default(autoincrement())
-  project_id              Int?
+  project_id              Int
   track_number            String
   title                   String
   lane_status             String?           @default("planning")
@@ -189,7 +189,7 @@ model tracks {
   prespawn_block_reason   String?
   prespawn_blocked_at     DateTime?         @db.Timestamptz(6)
   track_comments          track_comments[]
-  projects                projects?         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  projects                projects          @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([project_id, track_number])
   @@index([priority, created_at], map: "idx_tracks_priority_queue")
