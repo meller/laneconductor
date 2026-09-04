@@ -391,6 +391,46 @@ app.get('/api/projects/:id/workers', async (req, res) => {
   }
 });
 
+// Recently-offline workers — deliberately a SEPARATE endpoint, not extra rows
+// on GET /workers above.
+//
+// Found live 2026-09-04: a worker died and the whole project's automation sat
+// dead for 1h45m with nobody noticing. The reason it was invisible is that
+// /workers filters on `last_heartbeat > NOW() - INTERVAL '60 seconds'`, so a
+// dead worker does not render as "offline" — it disappears entirely, and the
+// empty state ("no heartbeat workers currently registered") reads like "you
+// never started one" rather than "yours died".
+//
+// Why not just widen that filter: the same /workers response feeds the
+// "Run on worker" dropdown in TrackDetailPanel. Putting dead workers in that
+// array would make them selectable dispatch targets — trading a visibility
+// bug for a correctness one. Keeping this additive leaves every existing
+// consumer byte-identical to before.
+//
+// Window: seen in the last 24h but not in the last 60s. The upper bound keeps
+// week-old ghosts (this project has registrations going back to August) out of
+// the UI; the 60s lower bound matches /workers exactly, so a worker is in
+// exactly one of the two lists and never both.
+app.get('/api/projects/:id/workers/offline', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task,
+              w.last_heartbeat, w.mode, w.type, w.cli, w.model, p.name AS project_name,
+              EXTRACT(EPOCH FROM (NOW() - w.last_heartbeat))::int AS offline_seconds
+         FROM workers w
+         LEFT JOIN projects p ON p.id = w.project_id
+        WHERE (w.project_id = $1 OR w.type = 'manager')
+          AND w.last_heartbeat <= NOW() - INTERVAL '60 seconds'
+          AND w.last_heartbeat >  NOW() - INTERVAL '24 hours'
+        ORDER BY w.last_heartbeat DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Track 1112 Phase 7 (D-6): project-scoped, not worker-scoped — `.worktrees/`
 // lives at the shared repo checkout's cwd, not inside any one worker's
 // private state, so every worker for this project on a given host reports
