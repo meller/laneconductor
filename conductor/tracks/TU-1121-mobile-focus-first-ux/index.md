@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 66%
-**Phase**: Implementing Phase 5
+**Progress**: 83%
+**Phase**: Implementing Phase 6
 **Type**: dev
 **Track Kind**: feature
 **Auto Run**: yes
