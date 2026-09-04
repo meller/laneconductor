@@ -8,6 +8,7 @@ const crypto = require("crypto");
 const dns = require("node:dns");
 const fetch = require("node-fetch");
 const adapterRegistry = require("./src/adapters");
+const { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } = require("./collector-manifest");
 
 require('dotenv').config();
 admin.initializeApp();
@@ -325,7 +326,18 @@ async function checkProject(req, res, next) {
 // Credentials should be managed per-project in the 'projects' table.
 
 // Routes
-app.get('/health', (req, res) => res.json({ ok: true, cloud: true }));
+// Track 10061: the collector handshake. `cloud: true` kept for existing
+// consumers (D2) — route manifest is derived from this app's own live
+// router at request time (D1), via the vendored copy of
+// conductor/services/collector-manifest.mjs (D4; see
+// cloud/functions/collector-manifest.js's DO NOT EDIT banner).
+app.get('/health', (req, res) => res.json({
+  ok: true,
+  cloud: true,
+  server: 'cloud',
+  api_version: COLLECTOR_API_VERSION,
+  routes: formatManifestRoutes(buildRouteManifest(app)),
+}));
 
 app.get('/auth/config', (req, res) => {
   res.json({

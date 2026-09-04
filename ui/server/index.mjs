@@ -24,6 +24,7 @@ import { CLAIMABLE_LANES, MOVABLE_LANES, PERSISTED_LANE_ACTION_STATUSES } from '
 import { shouldBlockLaneWrite } from '../../conductor/services/lane-regression-guard.mjs';
 import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
+import { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } from '../../conductor/services/collector-manifest.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -179,6 +180,22 @@ app.post('/internal/sync-event', (req, res) => {
 });
 
 // ── Health (public) ────────────────────────────────────────────────────────
+
+// Track 10061: the collector handshake. Deliberately NOT behind requireAuth
+// (registered above `app.use('/api', requireAuth)`, and outside the `/api`
+// prefix that guard covers anyway) — this is the endpoint a worker uses to
+// diagnose a broken connection, so requiring a working connection to reach
+// it would defeat its purpose (REQ-3). Route manifest is derived from this
+// app's own live router at request time (D1) — never a hand-kept list, so a
+// route added/removed/renamed here changes this response in the same commit.
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    server: 'local',
+    api_version: COLLECTOR_API_VERSION,
+    routes: formatManifestRoutes(buildRouteManifest(app)),
+  });
+});
 
 app.get('/api/health', async (req, res) => {
   try {
