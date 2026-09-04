@@ -21,24 +21,24 @@ it.
 collapses, and a mobile padding scale. No new routing — `viewMode` already carries the whole
 navigation model.
 
-- [ ] Task 1.1: Add `ui/src/hooks/useIsMobile.js` — `window.matchMedia('(max-width: 767px)')`
+- [x] Task 1.1: Add `ui/src/hooks/useIsMobile.js` — `window.matchMedia('(max-width: 767px)')`
       with a `change` listener and SSR-safe initial value. Comment it to state that 767px must
       stay in lockstep with Tailwind's `md` breakpoint, since the two together are the only
       definition of "mobile" in this codebase.
-- [ ] Task 1.2: Add `ui/src/components/MobileTabBar.jsx` — `fixed bottom-0 inset-x-0 z-30
+- [x] Task 1.2: Add `ui/src/components/MobileTabBar.jsx` — `fixed bottom-0 inset-x-0 z-30
       md:hidden`, four tabs (Focus / Board / Workers / More), each `min-h-11 min-w-11`
       (44px), active tab visually marked. Props: `active`, `onSelect`.
-- [ ] Task 1.3: Add `ui/src/components/MobileMoreSheet.jsx` — bottom sheet listing Projects,
+- [x] Task 1.3: Add `ui/src/components/MobileMoreSheet.jsx` — bottom sheet listing Projects,
       CI/CD, Worktrees, Inbox, Account. Each entry calls the same setter the desktop header
       button calls, so there is one navigation path per destination, not two.
-- [ ] Task 1.4: Wire both into `App.jsx`. Introduce a `mobileTab` state (`focus` | `board` |
+- [x] Task 1.4: Wire both into `App.jsx`. Introduce a `mobileTab` state (`focus` | `board` |
       `workers` | `more`) that derives from and writes to the existing `viewMode`; do not fork
       view state. Render the tab bar only when a project is selected, matching the existing
       gating on the desktop view-mode switcher.
-- [ ] Task 1.5: Padding scale in `App.jsx` — `p-6` → `p-3 md:p-6` on `main` (line 525),
+- [x] Task 1.5: Padding scale in `App.jsx` — `p-6` → `p-3 md:p-6` on `main` (line 525),
       `px-6` → `px-3 md:px-6` on the header (line 278) and the repo-path strip (line 514).
       Add `pb-20 md:pb-6` to `main` so the last card clears the fixed tab bar.
-- [ ] Task 1.6: Header collapse — hide the New Track / Bug / New Project button cluster below
+- [x] Task 1.6: Header collapse — hide the New Track / Bug / New Project button cluster below
       `md` (they move into the More sheet), and raise the remaining controls to 44px targets.
 
 **Impact**: `ui/src/App.jsx`, new `ui/src/hooks/useIsMobile.js`,

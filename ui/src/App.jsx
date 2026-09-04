@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePolling } from './hooks/usePolling.js';
 import { useApi } from './hooks/useApi.js';
+import { useIsMobile, MOBILE_MEDIA_QUERY } from './hooks/useIsMobile.js';
 import { ProjectSelector } from './components/ProjectSelector.jsx';
 import { KanbanBoard } from './components/KanbanBoard.jsx';
 import { LaneFocusView } from './components/LaneFocusView.jsx';
+import { MobileTabBar } from './components/MobileTabBar.jsx';
+import { MobileMoreSheet } from './components/MobileMoreSheet.jsx';
+import { MobileFocusView } from './components/MobileFocusView.jsx';
 import { BoardToolbar } from './components/BoardToolbar.jsx';
 import { ConductorPanel } from './components/ConductorPanel.jsx';
 import { TrackDetailPanel } from './components/TrackDetailPanel.jsx';
@@ -108,7 +112,18 @@ function AppContent({ user, logout }) {
   const [followBuildProjectId, setFollowBuildProjectId] = useState(null); // Track AM-1119 Phase 5
   const [managerWorkers, setManagerWorkers] = useState([]);
   const [knownHostnames, setKnownHostnames] = useState([]);
-  const [viewMode, setViewMode] = useState('lanes'); // 'lanes' | 'workers' | 'cicd' | 'projects'
+  // Track 1121 REQ-15: Focus is the default view below `md` on first load;
+  // desktop keeps the existing 'lanes' default. Computed once at mount from
+  // the same media query useIsMobile() reads, so there is one definition of
+  // "mobile" even though this particular read has to happen before the
+  // hook itself could report a value.
+  const [viewMode, setViewMode] = useState(() => (
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(MOBILE_MEDIA_QUERY).matches
+      ? 'focus'
+      : 'lanes'
+  )); // 'lanes' | 'workers' | 'cicd' | 'projects' | 'worktrees' | 'focus' (mobile only)
+  const isMobile = useIsMobile();
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [worktreeHighlightTrack, setWorktreeHighlightTrack] = useState(null); // set by a done-lane card's "View in Worktrees" link
   const [inboxOpen, setInboxOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false); // Track 1087 Phase 5: worker activity latch
@@ -186,6 +201,27 @@ function AppContent({ user, logout }) {
   function handleExpandLane(laneId) {
     setFocusedLane(laneId);
     setBoardMode('lane');
+  }
+
+  // Track 1121: the mobile tab bar's active tab derives from viewMode
+  // rather than forking its own state — Projects/CI/CD/Worktrees (reached
+  // via the More sheet) all read back as the "more" tab.
+  const mobileTab = viewMode === 'focus' ? 'focus'
+    : viewMode === 'lanes' ? 'board'
+      : viewMode === 'workers' ? 'workers'
+        : 'more';
+
+  function handleMobileTabSelect(tab) {
+    if (tab === 'more') { setMobileMoreOpen(true); return; }
+    if (tab === 'focus') { setViewMode('focus'); return; }
+    if (tab === 'board') { setViewMode('lanes'); return; }
+    if (tab === 'workers') { setViewMode('workers'); return; }
+  }
+
+  function handleFocusGoToLane(laneId) {
+    setViewMode('lanes');
+    setBoardMode('lane');
+    setFocusedLane(laneId);
   }
 
   async function handleRerunImplement(track) {
@@ -275,7 +311,7 @@ function AppContent({ user, logout }) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-950 px-6 py-3 flex items-center justify-between">
+      <header className="border-b border-gray-800 bg-gray-950 px-3 md:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="LaneConductor" className="h-8 w-auto" />
@@ -291,7 +327,7 @@ function AppContent({ user, logout }) {
 
         <div className="flex items-center gap-4">
           {(selectedProject || projects.length > 0) && (
-            <div className="flex bg-gray-900 border border-gray-800 rounded-lg p-0.5">
+            <div className="hidden md:flex bg-gray-900 border border-gray-800 rounded-lg p-0.5">
               {/* Track 10014: unlike Lanes/Workers/CI/CD/Worktrees, Projects
                   is how you PICK a project in the first place, so it must
                   never be gated behind selectedProjectId. */}
@@ -355,7 +391,7 @@ function AppContent({ user, logout }) {
           {selectedProject && (
             <button
               onClick={() => setConductorOpen(v => !v)}
-              className={`text-xs px-2.5 py-1 rounded border transition-colors ${conductorOpen
+              className={`hidden md:inline-flex text-xs px-2.5 py-1 rounded border transition-colors ${conductorOpen
                 ? 'bg-blue-900 border-blue-700 text-blue-200'
                 : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
                 }`}
@@ -367,7 +403,7 @@ function AppContent({ user, logout }) {
           {selectedProject && (
             <button
               onClick={() => setWorkflowOpen(v => !v)}
-              className={`text-xs px-2.5 py-1 rounded border transition-colors ${workflowOpen
+              className={`hidden md:inline-flex text-xs px-2.5 py-1 rounded border transition-colors ${workflowOpen
                 ? 'bg-purple-900 border-purple-700 text-purple-200'
                 : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
                 }`}
@@ -380,7 +416,7 @@ function AppContent({ user, logout }) {
             <button
               onClick={() => setConfigOpen(v => !v)}
               data-testid="config-btn"
-              className={`text-xs px-2.5 py-1 rounded border transition-colors ${configOpen
+              className={`hidden md:inline-flex text-xs px-2.5 py-1 rounded border transition-colors ${configOpen
                 ? 'bg-blue-900 border-blue-700 text-blue-200'
                 : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
                 }`}
@@ -389,7 +425,7 @@ function AppContent({ user, logout }) {
             </button>
           )}
 
-          <div className="flex items-center gap-1">
+          <div className="hidden md:flex items-center gap-1">
             {/* Track 1087 Phase 5: worker activity latch — reachable from anywhere */}
             <button
               onClick={() => setActivityOpen(true)}
@@ -511,7 +547,7 @@ function AppContent({ user, logout }) {
       )}
 
       {!conductorOpen && selectedProject && (
-        <div className="px-6 py-2 bg-blue-500/5 border-b border-white/5 text-[10px] text-gray-500 font-mono flex items-center gap-2">
+        <div className="px-3 md:px-6 py-2 bg-blue-500/5 border-b border-white/5 text-[10px] text-gray-500 font-mono flex items-center gap-2">
           <span className="w-1 h-1 rounded-full bg-blue-500" />
           {selectedProject.repo_path}
           <div className="flex-1" />
@@ -522,7 +558,7 @@ function AppContent({ user, logout }) {
       )}
 
       {/* Board */}
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-3 pb-20 md:p-6 md:pb-6 overflow-auto">
         {loading && !lastUpdated ? (
           <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
             Connecting to LaneConductor DB…
@@ -535,6 +571,13 @@ function AppContent({ user, logout }) {
               <code className="px-1 bg-gray-800 rounded">make lc-ui-start</code>
             </p>
           </div>
+        ) : viewMode === 'focus' && selectedProjectId ? (
+          <MobileFocusView
+            projectId={selectedProjectId}
+            tracks={displayTracks}
+            onSelectTrack={handleInboxSelect}
+            onGoToLane={handleFocusGoToLane}
+          />
         ) : viewMode === 'projects' ? (
           <ProjectsPage
             projects={projects}
@@ -636,6 +679,26 @@ function AppContent({ user, logout }) {
       )}
 
 
+
+      {/* Track 1121: mobile bottom tab nav — only once a project is picked,
+          matching the desktop view-mode switcher's own gating. */}
+      {(selectedProject || projects.length > 0) && (
+        <MobileTabBar active={mobileTab} onSelect={handleMobileTabSelect} />
+      )}
+
+      {mobileMoreOpen && (
+        <MobileMoreSheet
+          onClose={() => setMobileMoreOpen(false)}
+          onNavigate={setViewMode}
+          onOpenConductor={selectedProject ? () => setConductorOpen(true) : undefined}
+          onOpenWorkflow={selectedProject ? () => setWorkflowOpen(true) : undefined}
+          onOpenConfig={selectedProject ? () => setConfigOpen(true) : undefined}
+          onOpenInbox={() => setInboxOpen(true)}
+          onOpenActivity={() => setActivityOpen(true)}
+          onOpenAccount={() => setAccountOpen(true)}
+          showAccount={Boolean(user && !user.local)}
+        />
+      )}
 
       {/* Account panel */}
       {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
