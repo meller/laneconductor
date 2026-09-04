@@ -92,7 +92,7 @@ state — which is exactly the variable under test.
       `'no provider available'` — and exactly one `⚠️` `> **system**:` comment is appended to
       the track's `conversation.md`. Assert **one**, not one-or-more: the throttling in REQ-10
       is the point.
-- [ ] TC-20 (**AC-8**): After the fake CLI is switched to exit 0, the next probe past the 60s
+- [x] TC-20 (**AC-8**): After the fake CLI is switched to exit 0, the next probe past the 60s
       TTL records `ok`, and a dispatch proceeds — with no worker restart and no manual cache or
       DB edit.
 - [x] TC-21 (**AC-2**): A fake CLI emitting a genuine rate-limit message still produces
@@ -109,13 +109,13 @@ state — which is exactly the variable under test.
 
 ## Acceptance Criteria
 
-- [ ] All test cases above pass.
-- [ ] `conductor/tests/capacity-probe-throttle.test.mjs` and
+- [x] All test cases above pass.
+- [x] `conductor/tests/capacity-probe-throttle.test.mjs` and
       `conductor/tests/exhaustion-detector.test.mjs` pass unmodified — the shared modules were
       extended, not repurposed.
-- [ ] No test invokes the real `claude` binary; results are independent of the developer's own
+- [x] No test invokes the real `claude` binary; results are independent of the developer's own
       login state.
-- [ ] Full worker suite shows no new failures relative to `main`, diff-confirmed against a
+- [x] Full worker suite shows no new failures relative to `main`, diff-confirmed against a
       worktree at `main`'s tip rather than assumed (the comparison method
       `conductor/quality-gate.md` records for track 1102).
 - [ ] `find conductor ui bin -name "*.mjs" -not -path "*/node_modules/*" -exec node --check {} +`
