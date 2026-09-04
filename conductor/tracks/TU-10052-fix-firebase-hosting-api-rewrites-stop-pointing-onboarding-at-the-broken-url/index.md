@@ -2,9 +2,9 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: All 6 phases complete — deployed and verified live in production
+**Phase**: New
 **Waiting for reply**: no
 **Type**: dev
 **Track Kind**: bug
