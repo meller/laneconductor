@@ -127,17 +127,31 @@ migrations would regress immediately.
 **Solution**: Make the column `NOT NULL`, declare it, and drop the index that `NOT NULL`
 renders unreachable.
 
-- [ ] Add `ALTER TABLE tracks ALTER COLUMN project_id SET NOT NULL;` to a migration.
-- [ ] Drop `tracks_track_number_null_project_key` in the same migration — with
+- [x] Add `ALTER TABLE tracks ALTER COLUMN project_id SET NOT NULL;` to a migration.
+      `migrations/20260904130600_tracks_project_id_not_null.sql`.
+- [x] Drop `tracks_track_number_null_project_key` in the same migration — with
       `NOT NULL` in force its `WHERE project_id IS NULL` clause can never be true, so
       keeping it would re-introduce the exact declared-vs-live drift this phase closes.
-- [ ] Change `project_id Int?` → `project_id Int` in `prisma/schema.prisma`, and drop
+      Confirmed dropped: `SELECT indexname FROM pg_indexes WHERE tablename='tracks'`
+      no longer lists it.
+- [x] Change `project_id Int?` → `project_id Int` in `prisma/schema.prisma`, and drop
       the optional marker on the `projects` relation so the two agree.
-- [ ] Regenerate the Prisma client.
-- [ ] Run a schema diff against the live database and confirm no remaining drift on
-      `tracks`.
-- [ ] Verify the constraint actually bites: attempt an insert with a null `project_id`
+- [x] Regenerate the Prisma client. `npx prisma generate` — OK.
+- [x] Run a schema diff against the live database and confirm no remaining drift on
+      `tracks`. Regenerated `prisma/schema.sql` via `scripts/atlas-prisma.mjs`, then
+      `atlas schema diff` (live DB inspected to HCL, diffed against
+      `prisma/schema.sql`+`cloud/schema.sql`+`prisma/rls.sql`) — `tracks.project_id`
+      and the dropped partial index do not appear anywhere in the diff output; the
+      diff's only `tracks`-table line touches unrelated pre-existing columns
+      (`created_by_uid`, `merge_mode`, `pr_*`, `workspace_mode` etc., none of them
+      project_id-related). Everything else in the diff (workers/projects/users/
+      provider_status drift) predates this track and is out of scope — same category
+      Phase 1's audit already flagged `provider_status` as its own follow-up.
+- [x] Verify the constraint actually bites: attempt an insert with a null `project_id`
       and confirm the database rejects it with a not-null violation.
+      `INSERT INTO tracks (project_id, track_number, title) VALUES (NULL, 'zz-test', 'x')`
+      inside a rolled-back transaction →
+      `ERROR: null value in column "project_id" of relation "tracks" violates not-null constraint`.
 
 **Impact**: The defect becomes structurally impossible rather than merely fixed, and a
 freshly-migrated database matches production.
