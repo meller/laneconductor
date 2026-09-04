@@ -706,10 +706,17 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
             </div>
           </div>
         )}
-        <div className="h-full w-full max-w-none md:max-w-2xl bg-gray-950 border-l border-gray-800 flex flex-col">
+        {/* Track 1121 REQ-21/AC-1: min-w-0 overrides the flex item default of
+            min-width:auto — without it, wide unshrinkable content in the
+            header (the Merge Mode / Workspace <select>s in particular)
+            forces this panel wider than the viewport on mobile, pushing the
+            close button off-screen even though the document itself never
+            registers the overflow (this is a `position: fixed` container,
+            which browsers exclude from document scrollWidth). */}
+        <div className="h-full w-full min-w-0 max-w-none md:max-w-2xl bg-gray-950 border-l border-gray-800 flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-800">
-          <div>
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-800 min-w-0">
+          <div className="min-w-0 flex-1">
             {detail ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
