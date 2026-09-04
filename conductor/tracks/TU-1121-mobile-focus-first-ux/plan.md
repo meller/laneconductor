@@ -155,16 +155,16 @@ optional `w-96` transcript drawer beside it (line 683). Both are wider than 375p
 **Solution**: Below `md`, render the panel `inset-0` full-screen and make the transcript a
 switchable view rather than a side-by-side column.
 
-- [ ] Task 5.1: Container — `fixed inset-0` below `md`, `fixed top-0 right-0 h-full` at `md`
+- [x] Task 5.1: Container — `fixed inset-0` below `md`, `fixed top-0 right-0 h-full` at `md`
       and above. Panel body `w-full max-w-none md:max-w-2xl`.
-- [ ] Task 5.2: Transcript drawer — `hidden md:flex` for the side-by-side column; below `md`,
+- [x] Task 5.2: Transcript drawer — `hidden md:flex` for the side-by-side column; below `md`,
       the existing transcript toggle switches the sheet's own content between detail and
       transcript instead of docking a second column.
-- [ ] Task 5.3: Close control >= 44px, pinned at the top of the sheet and reachable without
+- [x] Task 5.3: Close control >= 44px, pinned at the top of the sheet and reachable without
       scrolling.
-- [ ] Task 5.4: Panel tabs get `overflow-x-auto` with non-shrinking items so they scroll rather
+- [x] Task 5.4: Panel tabs get `overflow-x-auto` with non-shrinking items so they scroll rather
       than wrapping into an unusable stack at 375px.
-- [ ] Task 5.5: Confirm no body scroll-lock leaks after close — opening and closing the sheet
+- [x] Task 5.5: Confirm no body scroll-lock leaks after close — opening and closing the sheet
       must leave the underlying view scrollable.
 
 **Impact**: `ui/src/components/TrackDetailPanel.jsx`.
