@@ -3,7 +3,7 @@
 **Lane**: implement
 **Lane Status**: running
 **Progress**: 90%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implementing — Phase 5 (E2E verification)
 **Type**: dev
 **Track Kind**: bug
