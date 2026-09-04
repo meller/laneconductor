@@ -8,7 +8,10 @@
 // whole spawnCli exit-handler flow.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeIndexMarkers } from '../services/worktree-artifact-merge.mjs';
+import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from '../services/worktree-artifact-merge.mjs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('mergeIndexMarkers', () => {
   it('merges Lane and Lane Status from the worktree artifact onto the primary copy', () => {
@@ -137,6 +140,62 @@ describe('mergeIndexMarkers', () => {
       const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
       assert.match(merged, /\*\*Lane Status\*\*: running/,
         `a stale worktree "${stale}" left over from a previous cycle must not clobber primary's genuine "running" — this is the exact track-10019 incident shape`);
+    }
+  });
+});
+
+// Found live 2026-09-04: tracks 1121, 10063 and 10064 all sat on the board
+// showing `queue` while their worktrees said `running` with live agent
+// processes. mergeIndexMarkers' running/waiting exception (above) was correct
+// but never reached — copyWorktreeArtifactsToPrimary's `skipUnchanged` mtime
+// gate returned first. The primary index.md has OTHER writers (the FS->DB
+// push and DB->FS pull rewrite it every ~10s), so its mtime is essentially
+// always newer than the worktree's, which only changes when the agent writes.
+// mtime is not a usable "nothing changed" signal for index.md.
+describe('copyWorktreeArtifactsToPrimary: index.md escapes a stale-mtime skip', () => {
+  function setup(worktreeStatus, primaryStatus) {
+    const root = mkdtempSync(join(tmpdir(), 'lc-mtime-'));
+    const wt = join(root, 'wt'), primary = join(root, 'primary');
+    mkdirSync(join(wt, 'conductor', 'tracks', '9001-t'), { recursive: true });
+    mkdirSync(join(primary, 'conductor', 'tracks', '9001-t'), { recursive: true });
+    const wtIdx = join(wt, 'conductor', 'tracks', '9001-t', 'index.md');
+    const prIdx = join(primary, 'conductor', 'tracks', '9001-t', 'index.md');
+    // >=10 lines and >500 bytes, so the shrink guard (lineCount < 10) does not
+    // reject the incoming copy and mask what this test is actually asserting.
+    const body = '\n\n## Body\n' + Array.from({ length: 14 },
+      (_, i) => `line ${i + 1}: real prose so the incoming artifact is not judged suspiciously truncated.`).join('\n') + '\n';
+    writeFileSync(wtIdx, `# Track 9001\n\n**Lane**: implement\n**Lane Status**: ${worktreeStatus}\n**Progress**: 40%${body}`);
+    writeFileSync(prIdx, `# Track 9001\n\n**Lane**: implement\n**Lane Status**: ${primaryStatus}\n**Progress**: 10%${body}`);
+    // The bug's exact shape: primary is NEWER than the worktree.
+    const old = new Date(Date.now() - 600000);
+    utimesSync(wtIdx, old, old);
+    return { wt, primary, prIdx };
+  }
+
+  const run = (wt, primary) => copyWorktreeArtifactsToPrimary({
+    worktreePath: wt, trackNumber: '9001', isSuccess: false, primaryRoot: primary,
+    resolveTrackFolder: () => '9001-t', skipUnchanged: true, skipStatusMarkers: true,
+  });
+
+  it('a live "running" reaches primary even though primary has the newer mtime', () => {
+    const { wt, primary, prIdx } = setup('running', 'queue');
+    run(wt, primary);
+    assert.match(readFileSync(prIdx, 'utf8'), /\*\*Lane Status\*\*: running/,
+      'an mtime-losing worktree must still be able to report that it is running');
+  });
+
+  it('"waiting" reaches primary the same way', () => {
+    const { wt, primary, prIdx } = setup('waiting', 'queue');
+    run(wt, primary);
+    assert.match(readFileSync(prIdx, 'utf8'), /\*\*Lane Status\*\*: waiting/);
+  });
+
+  it('a TERMINAL status still does NOT win an mtime-losing race (track-10019 hazard stays blocked)', () => {
+    for (const stale of ['success', 'failure', 'queue']) {
+      const { wt, primary, prIdx } = setup(stale, 'running');
+      run(wt, primary);
+      assert.match(readFileSync(prIdx, 'utf8'), /\*\*Lane Status\*\*: running/,
+        `a stale worktree "${stale}" must not clobber primary's genuine running`);
     }
   });
 });
