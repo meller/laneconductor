@@ -1,7 +1,7 @@
 # Track TU-1121: Mobile UX — focus-first board
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implementation complete — Task 6.7 (manual device pass) not performable in this environment, see conversation.md
