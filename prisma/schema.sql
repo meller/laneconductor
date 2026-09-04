@@ -108,7 +108,7 @@ CREATE TABLE "track_comments" (
 -- CreateTable
 CREATE TABLE "tracks" (
     "id" SERIAL NOT NULL,
-    "project_id" INTEGER,
+    "project_id" INTEGER NOT NULL,
     "track_number" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "lane_status" TEXT DEFAULT 'planning',
@@ -157,6 +157,7 @@ CREATE TABLE "tracks" (
     "auto_run" BOOLEAN NOT NULL DEFAULT false,
     "dismissed_at" TIMESTAMPTZ(6),
     "model_override" TEXT,
+    "waiting_reason" TEXT,
     "prespawn_block_count" INTEGER NOT NULL DEFAULT 0,
     "prespawn_block_kind" TEXT,
     "prespawn_block_reason" TEXT,
