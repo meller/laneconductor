@@ -92,21 +92,21 @@ events on touch, so moving a track on a phone is impossible.
 **Solution**: A "Move to lane" bottom sheet that calls the **same** `onLaneChange(track,
 targetLane)` prop drag-drop calls. Additive — the desktop drag path is untouched.
 
-- [ ] Task 3.1: Add `ui/src/components/MoveToLaneSheet.jsx`. Props: `track`, `onSelect(laneId)`,
+- [x] Task 3.1: Add `ui/src/components/MoveToLaneSheet.jsx`. Props: `track`, `onSelect(laneId)`,
       `onClose`. Lists all six lanes from `LANES` with the current lane marked and
       non-selectable.
-- [ ] Task 3.2: Port the guard from `KanbanBoard.handleDrop` (lines 50-53): a `plan`-lane track
+- [x] Task 3.2: Port the guard from `KanbanBoard.handleDrop` (lines 50-53): a `plan`-lane track
       with `lane_action_status === 'running'` is not movable. The sheet renders every lane
       disabled with a visible reason line, rather than accepting the tap and silently doing
       nothing — the existing drag path only `console.warn`s, which is invisible to a user.
-- [ ] Task 3.3: Add a move affordance to `TrackCard` shown only below `md` (`md:hidden`), with
+- [x] Task 3.3: Add a move affordance to `TrackCard` shown only below `md` (`md:hidden`), with
       `onClick` calling `e.stopPropagation()` so it never also opens the detail panel
       (`TrackCard.jsx:355`'s card-level `onClick`).
-- [ ] Task 3.4: Wire the sheet's selection to `onLaneChange` in both `LaneFocusView` and
+- [x] Task 3.4: Wire the sheet's selection to `onLaneChange` in both `LaneFocusView` and
       `KanbanBoard` — `handleLaneChange` in `App.jsx:182` then sets `pendingAction`, and the
       existing confirmation modal (`App.jsx:710`) runs unchanged. No new API call anywhere in
       this phase; if this phase adds an `apiFetch`, it is wrong.
-- [ ] Task 3.5: Dismissal — backdrop tap and an explicit close control, both >= 44px.
+- [x] Task 3.5: Dismissal — backdrop tap and an explicit close control, both >= 44px.
 
 **Impact**: new `ui/src/components/MoveToLaneSheet.jsx`, `ui/src/components/TrackCard.jsx`,
 `ui/src/components/LaneFocusView.jsx`, `ui/src/components/KanbanBoard.jsx`.
