@@ -1,4 +1,4 @@
-# Tests: Track 10056 — 156 tracks rows have a NULL project_id and leak into unscoped views
+# Tests: Track 10060 — Main-mode dirty-checkout guard is wedged by the worker's own index.md sync writes
 
 ## Test Commands
 ```bash

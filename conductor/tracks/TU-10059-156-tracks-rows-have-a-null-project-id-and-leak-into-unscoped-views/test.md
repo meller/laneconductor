@@ -1,4 +1,4 @@
-# Tests: Track 10058 — Worker and collector never handshake — API drift between the two server implementations is silent
+# Tests: Track 10059 — 156 tracks rows have a NULL project_id and leak into unscoped views
 
 ## Test Commands
 ```bash

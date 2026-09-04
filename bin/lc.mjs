@@ -2378,7 +2378,20 @@ Please review this, answer any questions (some fields may contain questions rath
     const workspaceLine = workspaceMode ? `**Workspace**: ${workspaceMode}\n` : '';
     const mergeModeLine = mergeMode ? `**Merge Mode**: ${mergeMode}\n` : '';
     const autoRunLine = autoRun ? `**Auto Run**: ${autoRun}\n` : '';
-    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}${mergeModeLine}${autoRunLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${desc}\n`;
+    // Found live 2026-09-04 (discovered when tracks 10056-10058's own detailed
+    // write-ups came back truncated): this used to put the FULL description into
+    // **Summary** — the one marker parseSummaryMarker() (laneconductor.sync.mjs)
+    // unconditionally truncates to 200 chars for the DB's content_summary. The
+    // next sync tick then finds the file's (full) Summary no longer matches the
+    // DB's (truncated) content_summary, treats that as "DB is newer", and
+    // updateIndexMDFromDB() overwrites the file's Summary with the truncated
+    // value — permanently. Nothing else ever stored the original. **Problem**
+    // is the existing, already-tested long-form field: parseSummary()'s own
+    // fallback derives a truncated display Summary from it on read, without
+    // ever touching the stored text, and updateIndexMDFromDB() never writes to
+    // **Problem** at all — so there is no round-trip to lose data through.
+    const problemLine = desc ? `**Problem**: ${desc}\n` : '';
+    const indexContent = `# Track ${displayId}: ${name}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n${workspaceLine}${mergeModeLine}${autoRunLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n${problemLine}`;
     writeFileSync(indexPath, indexContent);
 
     // Warn about missing skills for non-dev track types
