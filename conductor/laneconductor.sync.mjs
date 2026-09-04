@@ -74,7 +74,7 @@ import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/presp
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
-import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS } from './services/provider-probe-classify.mjs';
+import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS, formatProviderBlockReason } from './services/provider-probe-classify.mjs';
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -3741,6 +3741,15 @@ async function isProviderAvailable(provider) {
   }
 }
 
+// Track 10062 REQ-9: thin wrapper supplying the module's own provider
+// status cache to the pure formatter (provider-probe-classify.mjs), so
+// every buildCliArgs()===null site can say more than the bare 'no provider
+// available' that hid an expired login until a dispatch was manually
+// chased down.
+function providerBlockReason(cli) {
+  return formatProviderBlockReason(cli, providerStatusCache.get(cli));
+}
+
 async function checkExhaustion(logPath, cli) {
   if (!existsSync(logPath) || !cli) return;
   await new Promise(r => setTimeout(r, 1000)); // wait longer for flush
@@ -6111,7 +6120,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
       chosenCli = secondary; chosenModel = secondaryModel;
       chosenTier = 'secondary';
     } else if (!hasCapacity && !secondaryAvailable) {
-      console.log(`[blocked] Claude capacity exhausted and secondary ${secondary || ''} unavailable`);
+      console.log(`[blocked] ${providerBlockReason('claude')}${secondary ? ` and secondary ${secondary} unavailable` : ''}`);
       return null;
     }
   }
@@ -6122,7 +6131,7 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
       chosenCli = secondary; chosenModel = secondaryModel;
       chosenTier = 'secondary';
     } else {
-      console.log(`[blocked] ${primary} exhausted and no available secondary`);
+      console.log(`[blocked] ${providerBlockReason(primary)}${secondary ? ' and no available secondary' : ''}`);
       return null;
     }
   }
@@ -6584,7 +6593,7 @@ Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversat
 
     const cliArgs = await buildCliArgs('laneconductor', cmd_type, track_number, customPrompt, laneConfig);
     if (!cliArgs) {
-      console.log(`[local-fs] No available provider for track ${track_number}. Skipping.`);
+      console.log(`[local-fs] Track ${track_number} skipped — ${providerBlockReason(getProject()?.primary?.cli)}.`);
       continue;
     }
 
@@ -6775,7 +6784,7 @@ async function startNextAutoCompleteStage(trackNumber, dispatchId, stagesRun) {
 
   const cliArgs = await buildCliArgs('laneconductor', currentLane, trackNumber, null, laneConfig);
   if (!cliArgs) {
-    await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: no available provider for track ${trackNumber} at lane ${currentLane}`);
+    await reportAutoCompleteResult(dispatchId, 'failed', `Stopped after [${stagesRun.join(' → ') || 'no stages'}]: track ${trackNumber} at lane ${currentLane} — ${providerBlockReason(getProject()?.primary?.cli)}`);
     activeAutoComplete.delete(trackNumber);
     return;
   }
@@ -8427,8 +8436,19 @@ async function checkDispatchInbox() {
 
     const cliArgs = await buildCliArgs('laneconductor', entry.action, trackNumber, null, laneConfig);
     if (!cliArgs) {
-      logger.warn({ dispatchId: entry.id, trackNumber }, `[dispatch] no available provider for track`);
-      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: 'no provider available' }).catch(() => { });
+      const blockReason = providerBlockReason(getProject()?.primary?.cli);
+      logger.warn({ dispatchId: entry.id, trackNumber, blockReason }, `[dispatch] no available provider for track`);
+      await patch(url, token, `/worker-dispatch/${entry.id}`, { status: 'failed', result: blockReason }).catch(() => { });
+      // REQ-10: scoped to explicit dispatch only — a human clicked ▶, so
+      // volume is bounded by human action. The idle auto-launch tick must
+      // NOT post this; it fires every 5s across every queued track and
+      // would flood every conversation in the project.
+      try {
+        appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
+          `\n> **system**: ⚠️ ${entry.action} blocked — ${blockReason}\n`);
+      } catch (writeErr) {
+        logger.warn({ trackNumber, err: writeErr.message }, '[dispatch] Failed to post provider-block conversation comment');
+      }
       continue;
     }
 

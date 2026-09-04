@@ -66,13 +66,13 @@ cause. This is what kept the real failure hidden until a dispatch was chased dow
 
 **Solution**: Format the reason from the same cache entry the block decision came from.
 
-- [ ] Add `providerBlockReason(cli)` to `laneconductor.sync.mjs`, reading `providerStatusCache`
-- [ ] Use it at all three `buildCliArgs() === null` sites (REQ-9):
-    - [ ] `:6598` local-fs auto-launch — replaces `[local-fs] No available provider for track N. Skipping.`
-    - [ ] `:6789` auto-complete — folded into the existing `reportAutoCompleteResult` message
-    - [ ] `:8443` explicit dispatch — replaces the `'no provider available'` result string
-- [ ] Also name the reason in `buildCliArgs`'s own `[blocked]` logs (`:6124`, `:6135`)
-- [ ] REQ-10: at `:8443` only, append one `> **system**: ⚠️ ...` line to the track's
+- [x] Add `providerBlockReason(cli)` to `laneconductor.sync.mjs`, reading `providerStatusCache`
+- [x] Use it at all three `buildCliArgs() === null` sites (REQ-9):
+    - [x] `:6598` local-fs auto-launch — replaces `[local-fs] No available provider for track N. Skipping.`
+    - [x] `:6789` auto-complete — folded into the existing `reportAutoCompleteResult` message
+    - [x] `:8443` explicit dispatch — replaces the `'no provider available'` result string
+- [x] Also name the reason in `buildCliArgs`'s own `[blocked]` logs (`:6124`, `:6135`)
+- [x] REQ-10: at `:8443` only, append one `> **system**: ⚠️ ...` line to the track's
       `conversation.md` (same `appendFileSync` pattern as `:8540`), naming the `claude login`
       remedy. **Not** at `:6598` — that path runs on the 5s idle tick across every queued
       track and would flood every conversation in the project.

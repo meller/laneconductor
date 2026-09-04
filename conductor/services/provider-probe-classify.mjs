@@ -126,3 +126,23 @@ export function classifyClaudeProbe({ code, output = '', nowMs = Date.now() }) {
     remedy: null,
   };
 }
+
+// Track 10062 REQ-9: formats WHY a provider is unavailable from the same
+// cache entry the block decision came from, so every buildCliArgs()===null
+// site can say more than the bare 'no provider available' that hid an
+// expired login until a dispatch was manually chased down. Pure — the
+// caller (laneconductor.sync.mjs's providerBlockReason) supplies the cache
+// entry, keeping this testable without the module-level cache Map.
+export function formatProviderBlockReason(cli, cached) {
+  if (!cached) return `${cli} is unavailable`;
+  if (cached.status === PROVIDER_STATUS.AUTH_REQUIRED) {
+    return `${cli} login expired — run \`claude login\` to re-authenticate`;
+  }
+  if (cached.status === PROVIDER_STATUS.EXHAUSTED && cached.reset_at) {
+    return `${cli} capacity exhausted — resets at ${cached.reset_at}`;
+  }
+  if (cached.last_error) {
+    return `${cli} unavailable — ${cached.last_error}`;
+  }
+  return `${cli} is unavailable`;
+}
