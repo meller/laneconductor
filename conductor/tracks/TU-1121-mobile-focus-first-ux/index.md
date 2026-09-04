@@ -1,7 +1,7 @@
 # Track TU-1121: Mobile UX — focus-first board
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planning complete
