@@ -21,6 +21,25 @@ export const HEALABLE_BASENAMES = Object.freeze([
   'node_modules', 'dist', 'build', 'out', '.next', 'coverage', '.venv', '__pycache__', '.turbo',
 ]);
 
+// Track 10060 Phase 4 (REQ-7, spec Findings 2 and 4): generated artifacts that
+// are tracked in git and therefore show up as ordinary modified files when they
+// drift. `prisma/schema.sql` is written only by `scripts/atlas-prisma.mjs`
+// (called only from `scripts/setup-db.mjs`); nothing in the worker, CLI or
+// Makefile regenerates it, so its drift on 2026-09-03 came from a human running
+// the DB setup script during track 10053's migration work — a one-off in that
+// instance, but a class that recurs every time anyone runs that script.
+//
+// A drifting dump matched none of the conjunctive conditions below, so it
+// produced NO guidance while halting every merge in the project. This map
+// exists to name what regenerated the file, and nothing more: the value is
+// shown to a human, never executed, and never returned as `healable: true`.
+// Committing a schema dump unattended is exactly the kind of thing a tool
+// should not do — see REQ-8 and the module header's safety boundary.
+export const REGENERABLE_ARTIFACTS = Object.freeze({
+  'prisma/schema.sql': 'node scripts/atlas-prisma.mjs',
+  'cloud/schema.sql': 'node scripts/atlas-prisma.mjs',
+});
+
 /**
  * Classifies whether a single dirty path is safe to propose/apply a heal
  * for.
@@ -38,6 +57,21 @@ export function classifyHealableDirtyPath({ path, porcelainStatus, isGitIgnored 
   // be able to name something outside the repo.
   if (!path || path.startsWith('/') || path.includes('..')) {
     return { healable: false, remedy: null, reason: `refusing to classify a path outside the repo: ${path}` };
+  }
+
+  // Track 10060 (REQ-7): a third, suggestion-only classification, checked
+  // before the 'D' gate below because this class is modified-and-tracked, not
+  // deleted. It returns `healable: false` like every other non-healable
+  // answer — the only difference is that it can say what regenerated the file,
+  // so the operator has somewhere to start instead of a bare path name.
+  if (porcelainStatus === 'M' && REGENERABLE_ARTIFACTS[path]) {
+    const command = REGENERABLE_ARTIFACTS[path];
+    return {
+      healable: false,
+      remedy: null,
+      suggestion: command,
+      reason: `${path} is a regenerable generated artifact (produced by \`${command}\`), not human WIP — settle it by committing the regenerated dump or reverting it (\`git checkout -- ${path}\`). Not auto-applied: a schema dump is never committed unattended`,
+    };
   }
 
   if (porcelainStatus !== 'D') {
