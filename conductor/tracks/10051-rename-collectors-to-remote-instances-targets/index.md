@@ -1,7 +1,7 @@
 # Track TU-10051: Rename 'Collectors' to Remote Instances / Targets
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
