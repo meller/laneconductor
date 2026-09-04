@@ -57,27 +57,16 @@ describe('TC-2: buildRouteManifest — mounted sub-router', () => {
   });
 });
 
-describe('TC-3: buildRouteManifest — the real local server app', () => {
-  it('extracts a plausible number of real routes, every one absolute', async () => {
-    process.env.NODE_ENV = 'test';
-    const { app } = await import('../../ui/server/index.mjs');
-    const entries = buildRouteManifest(app);
-    assert.ok(entries.length >= 100, `expected >=100 entries, got ${entries.length}`);
-    for (const e of entries) {
-      assert.ok(e.route.startsWith('/'), `route "${e.route}" should be absolute`);
-    }
-  });
-
-  it('includes a route mounted via app.use(\'/auth\', authRouter)', async () => {
-    const { app } = await import('../../ui/server/index.mjs');
-    const formatted = formatManifestRoutes(buildRouteManifest(app));
-    const authRoutes = formatted.filter((r) => r.includes('/auth/'));
-    assert.ok(
-      authRoutes.length > 0,
-      'expected at least one /auth/* route from the mounted authRouter — buildRouteManifest missed a mounted sub-router',
-    );
-  });
-});
+// TC-3 is verified against the same spawned-child server as TC-6/TC-7
+// (below), reading buildRouteManifest's output through the real GET /health
+// response rather than importing ui/server/index.mjs into this test's own
+// process. Importing it directly (even under NODE_ENV=test, which only
+// skips server.listen()) pulls in ./logger.mjs's pinorama-transport stream,
+// which keeps this process's event loop alive indefinitely — observed live:
+// every assertion passed in well under a second, but `node --test` itself
+// never exited on its own afterward. A spawned child sidesteps this
+// entirely: proc.kill() ends the whole OS process regardless of what
+// handles it holds internally.
 
 // ── TC-4/TC-5/TC-5b/TC-5c: compareManifest ──────────────────────────────────────
 
@@ -194,7 +183,7 @@ function getFreePort() {
   });
 }
 
-describe('TC-6/TC-7: GET /health against a real, spawned local API server process', () => {
+describe('TC-3/TC-6/TC-7: GET /health against a real, spawned local API server process', () => {
   let proc;
   let port;
 
@@ -239,6 +228,26 @@ describe('TC-6/TC-7: GET /health against a real, spawned local API server proces
   it('TC-7: succeeds with no Authorization header', async () => {
     const r = await fetch(`http://127.0.0.1:${port}/health`);
     assert.equal(r.status, 200);
+  });
+
+  it('TC-3: reports a plausible number of real routes, every one absolute', async () => {
+    const r = await fetch(`http://127.0.0.1:${port}/health`);
+    const { routes } = await r.json();
+    assert.ok(routes.length >= 100, `expected >=100 entries, got ${routes.length}`);
+    for (const entry of routes) {
+      const route = entry.slice(entry.indexOf(' ') + 1);
+      assert.ok(route.startsWith('/'), `route "${route}" should be absolute`);
+    }
+  });
+
+  it('TC-3: includes a route mounted via app.use(\'/auth\', authRouter)', async () => {
+    const r = await fetch(`http://127.0.0.1:${port}/health`);
+    const { routes } = await r.json();
+    const authRoutes = routes.filter((r2) => r2.includes('/auth/'));
+    assert.ok(
+      authRoutes.length > 0,
+      `expected at least one /auth/* route from the mounted authRouter, got:\n  ${routes.join('\n  ')}`,
+    );
   });
 });
 
