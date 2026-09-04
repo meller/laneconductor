@@ -74,6 +74,7 @@ import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/presp
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
+import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS } from './services/provider-probe-classify.mjs';
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
@@ -3655,45 +3656,32 @@ async function checkClaudeCapacity() {
     proc.stderr.on('data', d => output += d);
 
     proc.on('exit', async (code) => {
-      // If code is 0, it means it answered successfully
-      const available = code === 0;
-      if (available) {
-        providerStatusCache.set('claude', { status: 'ok', reset_at: null, last_error: null, lastCapacityCheckAt: Date.now() });
+      // Track 10062: classify the actual failure reason instead of
+      // collapsing every non-zero exit into 'exhausted' with a rolling
+      // Date.now() + 60000 guess — an expired OAuth login does not
+      // self-heal by waiting, and deserves its own status (auth_required)
+      // with no reset_at, so it isn't optimistically re-marked available.
+      const nowMs = Date.now();
+      const { status, available, reset_at, last_error } = classifyClaudeProbe({ code, output, nowMs });
+
+      providerStatusCache.set('claude', { status, reset_at, last_error, lastCapacityCheckAt: nowMs });
+
+      if (status === PROVIDER_STATUS.OK) {
+        resolve(available);
+        return;
       }
-      if (!available) {
-        let resetAt = new Date(Date.now() + 60000); // 1 min default just in case
 
-        // Output usually contains: "You've hit your limit · resets 3pm (Europe/Berlin)"
-        if (output.includes("hit your limit") || output.includes("exhausted") || output.includes("resets")) {
-          const match = output.match(/resets\s+(\d{1,2})(:?\d{2})?(am|pm)/i);
-          if (match) {
-            let h = parseInt(match[1]);
-            const isPM = match[3].toLowerCase() === 'pm';
-            if (isPM && h !== 12) h += 12;
-            if (!isPM && h === 12) h = 0;
+      await post(url, token, '/provider-status', { provider: 'claude', status, reset_at, last_error }).catch(() => { });
 
-            const now = new Date();
-            resetAt = new Date(now);
-            resetAt.setHours(h, match[2] ? parseInt(match[2].slice(1)) : 0, 0, 0);
-
-            // If the time parsed is in the past, it means it resets tomorrow
-            if (resetAt <= now) {
-              resetAt.setDate(resetAt.getDate() + 1);
-            }
-          } else {
-            // Fallback to 15m if we know it's exhausted but couldn't parse time
-            resetAt = new Date(Date.now() + 15 * 60000);
-          }
-        }
-
-        providerStatusCache.set('claude', {
-          status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Capacity exhausted',
-          lastCapacityCheckAt: Date.now(),
-        });
-        await post(url, token, '/provider-status', {
-          provider: 'claude', status: 'exhausted', reset_at: resetAt.toISOString(), last_error: 'Capacity exhausted'
-        }).catch(() => { });
-        console.log(`[status] Claude capacity exhausted, marking in DB (cool down until ${resetAt.toISOString()})`);
+      if (status === 'auth_required') {
+        // Deliberately NOT the old "[status] Claude capacity exhausted,
+        // marking in DB (cool down until ...)" line — that phrasing is
+        // exactly what made this go unnoticed as an auth failure.
+        console.log(`[status] Claude CLI login expired — auth_required, no auto-recovery. ${last_error}`);
+      } else if (status === 'probe_failed') {
+        console.log(`[status] Claude capacity probe failed unrecognisably: ${last_error}`);
+      } else {
+        console.log(`[status] Claude capacity exhausted, marking in DB (cool down until ${reset_at})`);
       }
       resolve(available);
     });
@@ -3706,7 +3694,7 @@ async function isProviderAvailable(provider) {
   // 1. Check in-memory cache first
   const cached = providerStatusCache.get(provider);
   if (cached) {
-    if (cached.status !== 'exhausted') return true;
+    if (!isBlockingProviderStatus(cached.status)) return true;
     if (!cached.reset_at) return false;
     const resetAt = new Date(cached.reset_at);
     const now = new Date();
@@ -3735,7 +3723,7 @@ async function isProviderAvailable(provider) {
       });
     }
 
-    if (!p || p.status !== 'exhausted') {
+    if (!p || !isBlockingProviderStatus(p.status)) {
       return true;
     }
 
