@@ -1,6 +1,6 @@
 # Track TU-10059: 156 tracks rows have a NULL project_id and leak into unscoped views
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: Implementation complete — all 5 phases done
