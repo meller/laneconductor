@@ -7635,6 +7635,10 @@ async function reconcileOrphanedDispatchesInner() {
 
   const stillRunningTracks = new Set(runningTrackMap.values());
   const graceMs = Number(process.env.LC_ORPHAN_RECONCILE_GRACE_MS) || 30000;
+  // Track 10065: deliberately several multiples of graceMs — see the
+  // no-marker git-lock fallback below. A missing marker is weaker evidence
+  // than one proven dead, so it gets a longer window before acting on it.
+  const NO_MARKER_FALLBACK_MS = Number(process.env.LC_ORPHAN_RECONCILE_NO_MARKER_MS) || 180000;
 
   for (const entry of entries) {
     const trackNumber = entry.track_number;
@@ -7690,6 +7694,47 @@ async function reconcileOrphanedDispatchesInner() {
         continue;
       }
       runnerExited = true;
+    } else if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs > NO_MARKER_FALLBACK_MS) {
+      // Track 10065 (found live 2026-09-04): a marker proven dead is REQ-6's
+      // designed case, but a marker that never existed at all had no path to
+      // resolution whatsoever — runnerExited stayed undefined forever, and a
+      // claimed dispatch whose spawn never got as far as writing one (killed
+      // in the claim -> lock -> spawn window, e.g. a supervised restart that
+      // takes the whole process group with it) was stuck permanently, not
+      // just past the normal 30s claim grace window above.
+      //
+      // Fall back to the per-track git lock (.conductor/locks/<track>.lock):
+      // it is written synchronously by checkAndClaimGitLock(), BEFORE the
+      // spawn that would later write the run marker — so its pid is
+      // independent evidence from the same claim, not a re-derivation of the
+      // same fact. If that pid is provably dead too, or the lock itself is
+      // already gone, treat it the same as a proven-dead marker.
+      //
+      // Deliberately more conservative than the marker path: a missing
+      // marker is weaker evidence than one proven dead (it could simply not
+      // have been written yet), so this only fires well past the ordinary
+      // claim grace window, via its own longer threshold.
+      try {
+        const lockPath = join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`);
+        if (!existsSync(lockPath)) {
+          runnerExited = true;
+        } else {
+          const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+          let lockPidAlive = false;
+          if (lock.pid) {
+            try { process.kill(lock.pid, 0); lockPidAlive = true; } catch { lockPidAlive = false; }
+          }
+          if (!lockPidAlive) {
+            logger.warn({ trackNumber, dispatchId: entry.id, lockPid: lock.pid },
+              '[orphan-reconcile] No run marker ever appeared and the claiming git-lock pid is dead — treating as a crashed run');
+            runnerExited = true;
+            rmSync(lockPath, { force: true }); // same dead-lock cleanup checkAndClaimGitLock does on its own next claim
+          }
+        }
+      } catch (err) {
+        logger.debug({ trackNumber, dispatchId: entry.id, err: err.message },
+          '[orphan-reconcile] No-marker fallback: could not read/parse git lock (leaving undecided this cycle)');
+      }
     }
 
     const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
