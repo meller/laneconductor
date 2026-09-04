@@ -2240,6 +2240,28 @@ Please review this, answer any questions (some fields may contain questions rath
                 console.log('\n   Worker Status : ' + (running ? colors.green + '✅ Running' : colors.red + '❌ Stopped') + colors.reset);
                 console.log('   Active Targets: ' + (cfg.collectors || []).filter(c => c.enabled !== false).length + ' sites connected');
 
+                // Track 10062 REQ-12: surface a non-'ok' provider (e.g. an
+                // expired CLI login) right where a human already looks for
+                // "why is nothing running?" — skipped entirely in local-fs
+                // mode above, which has no provider_status table to read.
+                const providerSql = `
+                    SELECT ps.provider, ps.status, ps.last_error
+                    FROM provider_status ps
+                    JOIN projects p ON p.id = ps.project_id
+                    WHERE (p.repo_path = '${normalizedRoot}' OR p.repo_path = '${projectRoot}')
+                      AND ps.status <> 'ok';
+                `;
+                const providerPsql = spawnSync('psql', [
+                    '-h', dbHost, '-p', dbPort, '-U', dbUser, '-d', dbName, '-t', '-A', '-F', '|', '-c', providerSql
+                ], { env: { ...process.env, PGPASSWORD: dbPass } });
+                if (providerPsql.status === 0) {
+                    const providerRows = providerPsql.stdout.toString().trim().split('\n').filter(Boolean);
+                    providerRows.forEach(row => {
+                        const [provider, status, lastError] = row.split('|');
+                        console.log(`   Provider      : ${colors.red}⚠️  ${provider} — ${status}${colors.reset}${lastError ? ` (${lastError})` : ''}`);
+                    });
+                }
+
                 console.log('');
                 process.exit(0);
             } else { throw new Error(psql.stderr.toString()); }

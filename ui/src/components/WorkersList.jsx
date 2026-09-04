@@ -50,12 +50,18 @@ function ProviderStatus({ providers }) {
       </div>
       {providers.map(p => {
         const isExhausted = p.status === 'exhausted';
+        const isAuthRequired = p.status === 'auth_required';
+        const isProbeFailed = p.status === 'probe_failed';
         const resetTime = p.reset_at ? new Date(p.reset_at) : null;
         const now = new Date();
         const diffSecs = resetTime ? Math.max(0, Math.floor((resetTime - now) / 1000)) : 0;
 
         // If reset time is in the past, it's actually available but DB hasn't updated yet
         const effectivelyExhausted = isExhausted && diffSecs > 0;
+        // Track 10062: auth_required/probe_failed never carry a reset_at
+        // (REQ-4), so they can't self-heal by waiting — always unhealthy
+        // until the next real probe returns 'ok'.
+        const isUnhealthy = effectivelyExhausted || isAuthRequired || isProbeFailed;
 
         const waitFmt = diffSecs > 3600
           ? `${Math.floor(diffSecs / 3600)}h ${Math.floor((diffSecs % 3600) / 60)}m`
@@ -65,11 +71,21 @@ function ProviderStatus({ providers }) {
 
         return (
           <div key={p.provider} className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded px-2 py-0.5 whitespace-nowrap" title={p.last_error}>
-            <div className={`w-1.5 h-1.5 rounded-full ${effectivelyExhausted ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
+            <div className={`w-1.5 h-1.5 rounded-full ${isUnhealthy ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
             <span className="text-[11px] font-medium text-gray-300 capitalize">{p.provider}</span>
             {effectivelyExhausted && (
               <span className="text-[10px] text-red-400 border-l border-gray-700 pl-2">
                 Exhausted (resets in {waitFmt})
+              </span>
+            )}
+            {isAuthRequired && (
+              <span className="text-[10px] text-red-400 border-l border-gray-700 pl-2">
+                LOGIN REQUIRED — run `claude login` (won't recover on its own)
+              </span>
+            )}
+            {isProbeFailed && (
+              <span className="text-[10px] text-red-400 border-l border-gray-700 pl-2">
+                PROBE FAILED{p.last_error ? `: ${p.last_error}` : ''}
               </span>
             )}
           </div>
@@ -296,10 +312,16 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {providers.map(p => {
                   const isExhausted = p.status === 'exhausted';
+                  const isAuthRequired = p.status === 'auth_required';
+                  const isProbeFailed = p.status === 'probe_failed';
                   const resetTime = p.reset_at ? new Date(p.reset_at) : null;
                   const now = new Date();
                   const diffSecs = resetTime ? Math.max(0, Math.floor((resetTime - now) / 1000)) : 0;
                   const effectivelyExhausted = isExhausted && diffSecs > 0;
+                  // Track 10062: auth_required/probe_failed never carry a
+                  // reset_at (REQ-4) — they cannot self-heal by waiting, so
+                  // they're always unhealthy until the next real probe.
+                  const isUnhealthy = effectivelyExhausted || isAuthRequired || isProbeFailed;
 
                   const waitFmt = diffSecs > 3600
                     ? `${Math.floor(diffSecs / 3600)}h ${Math.floor((diffSecs % 3600) / 60)}m`
@@ -307,25 +329,44 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                       ? `${Math.floor(diffSecs / 60)}m`
                       : `${diffSecs}s`;
 
+                  const badgeText = isAuthRequired ? 'LOGIN REQUIRED'
+                    : isProbeFailed ? 'PROBE FAILED'
+                      : effectivelyExhausted ? 'EXHAUSTED'
+                        : 'HEALTHY';
+
                   return (
                     <div
                       key={p.provider}
-                      className={`bg-gray-900 border rounded-xl p-4 flex flex-col gap-3 transition-colors shadow-sm group ${effectivelyExhausted ? 'border-red-900/50 bg-red-950/5' : 'border-gray-800'
+                      className={`bg-gray-900 border rounded-xl p-4 flex flex-col gap-3 transition-colors shadow-sm group ${isUnhealthy ? 'border-red-900/50 bg-red-950/5' : 'border-gray-800'
                         }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className={`w-2.5 h-2.5 rounded-full ${effectivelyExhausted ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
+                          <div className={`w-2.5 h-2.5 rounded-full ${isUnhealthy ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
                           <span className="font-semibold text-gray-200 capitalize">{p.provider}</span>
                         </div>
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${effectivelyExhausted ? 'text-red-400 border-red-900/50 bg-red-900/10' : 'text-gray-500 border-gray-800 bg-black/30'
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${isUnhealthy ? 'text-red-400 border-red-900/50 bg-red-900/10' : 'text-gray-500 border-gray-800 bg-black/30'
                           }`}>
-                          {effectivelyExhausted ? 'EXHAUSTED' : 'HEALTHY'}
+                          {badgeText}
                         </span>
                       </div>
 
                       <div className="flex-1 min-h-[3rem]">
-                        {effectivelyExhausted ? (
+                        {isAuthRequired ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-red-500/70 uppercase font-bold tracking-tight">Manual action required</span>
+                            <p className="text-xs text-red-200/80 leading-relaxed bg-red-900/10 p-2 rounded border border-red-900/20 font-mono">
+                              Login expired — run `claude login` to re-authenticate. This will not recover on its own.
+                            </p>
+                          </div>
+                        ) : isProbeFailed ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-red-500/70 uppercase font-bold tracking-tight">Probe failed</span>
+                            <p className="text-xs text-red-200/80 leading-relaxed bg-red-900/10 p-2 rounded border border-red-900/20 font-mono">
+                              {p.last_error || 'Unrecognised probe failure'}
+                            </p>
+                          </div>
+                        ) : effectivelyExhausted ? (
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] text-red-500/70 uppercase font-bold tracking-tight">Cooldown Active</span>
                             <p className="text-xs text-red-200/80 leading-relaxed bg-red-900/10 p-2 rounded border border-red-900/20 font-mono">
