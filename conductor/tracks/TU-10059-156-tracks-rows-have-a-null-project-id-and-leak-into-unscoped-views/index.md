@@ -1,10 +1,10 @@
 # Track TU-10059: 156 tracks rows have a NULL project_id and leak into unscoped views
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
-**Phase**: Planned
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 90%
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Implementing — Phase 5 (E2E verification)
 **Type**: dev
 **Track Kind**: bug
 **Author**: TU
