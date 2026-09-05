@@ -316,6 +316,42 @@ describe('Track 10020 Phase 2/3/4: periodic orphan reconciliation', () => {
     assert.ok(!existsSync(markerPath), 'the stale run marker must be deleted once reconciled (TC-2.6)');
   });
 
+  it('Found live 2026-09-05 (tracks 10064/10065/10067): a crash-detected orphan must also flip tracks.lane_action_status, not just worker_dispatch.status — the skipArtifactCopy branch never runs syncTrack, so nothing else ever clears "running" off the board', async () => {
+    const track = '10064';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'running' });
+    writeFileSync(join(primaryTrackDir(track), 'conversation.md'), '');
+    writeIndex(worktreeIndexPath(track), { lane: 'implement', laneStatus: 'running' });
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    const crashedProc = spawn('sleep', ['300'], { detached: true, stdio: 'ignore' });
+    crashedProc.unref();
+    writeRunMarker(track, { pid: crashedProc.pid, command: 'sleep', dispatchId, action: 'implement' });
+    process.kill(crashedProc.pid, 'SIGKILL');
+    await sleepMs(300);
+
+    // Poll the actual condition under test (the tracks-row patch), not a
+    // proxy signal — the worker_dispatch patch and the tracks-row patch are
+    // two separate awaited network calls in sequence, so waiting on the
+    // first one alone raced against the second under full-suite load.
+    const state = await poll(async () => {
+      const s = await getState(collectorPort);
+      return s.tracks[track]?.lane_action_status === 'failure' ? s : null;
+    }, { timeout: 5000, label: 'track lane_action_status flips to failure' });
+
+    // The primary checkout's own index.md still reads "running" (nothing
+    // ever rewrote it — skipArtifactCopy means the worktree's stale/
+    // untrustworthy state is deliberately never copied over). Before this
+    // fix, tracks.lane_action_status was left however it started, forever,
+    // because only worker_dispatch.status got patched.
+    assert.equal(state.tracks[track]?.lane_action_status, 'failure',
+      'the track itself must be flipped out of "running" once its dispatch is reconciled as failed, using the tracks-table vocabulary (failure), not the dispatch one (failed)');
+  });
+
   it('Track 10065: a run marker that NEVER EXISTED (not proven dead, simply absent) still reconciles once the no-marker window passes, via the claiming git lock\'s dead pid', async () => {
     // The gap TC-4.3 does not cover: that scenario always had a marker (it
     // proves the marker dead). Found live: a worker restart that takes the

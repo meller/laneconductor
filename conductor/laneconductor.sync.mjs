@@ -8072,13 +8072,13 @@ async function reconcileOrphanedDispatchesInner() {
       }
     } else {
       console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}"; leaving the primary's own state untouched`);
+      const tracksDir = 'conductor/tracks';
+      const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
       // Track 1117 Bug 2 (REQ-4): a mismatch that ISN'T a recognized
       // workflow.json transition is a genuine anomaly, not routine — surface
       // it to a human rather than letting it sit as a console-only warning.
       if (classification.flagForHuman) {
         try {
-          const tracksDir = 'conductor/tracks';
-          const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
           if (trackDirName) {
             appendFileSync(
               join(tracksDir, trackDirName, 'conversation.md'),
@@ -8089,6 +8089,42 @@ async function reconcileOrphanedDispatchesInner() {
           console.warn(`[orphan-reconcile] Failed to post mismatch flag to conversation.md: ${err.message}`);
         }
       }
+
+      // Found live 2026-09-05 (tracks 10064/10065/10067): this branch never
+      // touches the `tracks` row at all — the artifact-copy branch above
+      // updates it indirectly via syncTrack() parsing the copied index.md,
+      // but skipArtifactCopy means that never runs. The dispatch below gets
+      // correctly marked done/failed in worker_dispatch, while
+      // tracks.lane_action_status is left at whatever it was ("running")
+      // forever, with no other path that ever revisits it — the board shows
+      // a track running that nothing is touching, indistinguishable from a
+      // genuinely stuck one. Mirror the outcome onto the track itself so the
+      // board reflects reality. classification.status is in worker_dispatch's
+      // own vocabulary ('done'/'failed'), not tracks.lane_action_status's
+      // ('success'/'failure'/'queue'/'running'/'waiting') — translate rather
+      // than pass the dispatch-status string straight through, which the
+      // PERSISTED_LANE_ACTION_STATUSES check on /track/:num/action would
+      // reject outright.
+      const trackLaneActionStatus = classification.status === 'done' ? 'success' : 'failure';
+      const resultMessage = classification.result || `Reconciled after worker restart orphaned this dispatch — worktree's own Lane Status: "${laneStatus}"`;
+
+      // The PATCH below fixes the DB, but the PRIMARY checkout's own
+      // index.md still has whatever Lane Status the crashed run last wrote
+      // (here, "running") — the routine periodic file->DB sync treats that
+      // file as authoritative and pushes it straight back over this PATCH
+      // within one heartbeat (confirmed live: the DB flips to "failure" then
+      // right back to "running" a cycle later). Write the same terminal
+      // value into the file first, the same way the PR-reconciler's own
+      // done:waiting->done:success/queue transitions do (writeIndexMarker),
+      // so the two sides agree instead of fighting.
+      if (trackDirName) {
+        writeIndexMarker(join(tracksDir, trackDirName, 'index.md'), 'Lane Status', trackLaneActionStatus);
+      }
+
+      await patch(url, token, `/track/${trackNumber}/action`, {
+        lane_action_status: trackLaneActionStatus,
+        lane_action_result: resultMessage,
+      }).catch(err => console.warn(`[orphan-reconcile] Failed to update track ${trackNumber} lane_action_status: ${err.message}`));
     }
 
     await patch(url, token, `/worker-dispatch/${entry.id}`, {
