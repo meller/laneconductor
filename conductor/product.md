@@ -57,6 +57,70 @@ directly (bypasses Hosting's rewrite layer entirely). Two route families are
 also missing from `cloud/functions/index.js` outright (not just misrouted) —
 filed as a Phase 6 follow-up on the same track.
 
+### Who Owns Remote Sync (Track 10064)
+
+The naming here is genuinely ambiguous — the local API server is called a
+collector, the remote endpoint is called a collector, and the API server
+even holds a `CLOUD_FUNCTIONS_URL` constant — so it's worth stating plainly:
+**the sync worker (`conductor/laneconductor.sync.mjs`) is the only
+component that ever writes to a remote collector.** The local API server
+(`ui/server/index.mjs`) does not write to the cloud at all: its
+`collectorWrite` helper posts to `COLLECTOR_URL`, which defaults to
+`http://127.0.0.1:8091` — itself. `CLOUD_FUNCTIONS_URL` there is used only
+to *proxy reads* in production, which is what makes the API server look
+cloud-responsible for writes when it structurally isn't.
+
+**Collector-0 vs collector-1..n.** `.laneconductor.json`'s `collectors`
+array has one privileged member: index 0 is awaited by
+`postToCollectors`/`patchCollectors`, and its result is what the caller
+actually gets back — this is the authoritative write. Every other
+configured collector (1..n, typically a remote/cloud target layered on top
+of a local primary) is fire-and-forget: the call still happens, but nothing
+downstream waits on or depends on its outcome. A remote collector failing
+is deliberately **degraded-but-acceptable** — it never fails the worker or
+changes the awaited result — but as of track 10064 it can no longer be
+*silently* degraded: per-collector health (attempts, consecutive failures,
+last error, last success, token source) is tracked in-process, ships on
+every `/worker/register` and `/worker/heartbeat` call as `collector_health`,
+and renders as a "SYNC DEGRADED" badge on that worker's card in the Kanban
+UI once any collector has a nonzero consecutive-failure count. Five
+consecutive failures escalate the worker's own log from `warn` to a
+throttled `error` (at most one line per `LC_COLLECTOR_FAILURE_LOG_INTERVAL_MS`,
+default 60s) — the direct fix for a real incident where 560 consecutive
+identical 401s produced 560 identical log lines and nothing else.
+
+**Token resolution and `.env`.** `.env`, `conductor/defaults.json`, and
+`.laneconductor.json` are all resolved against the **primary checkout**
+(`conductor/services/config-root.mjs`), not a bare relative path — a worker
+launched with its cwd inside a linked track worktree, or a machine-level
+`--manager` worker (never chdir'd to any project checkout by design), reads
+the same `.env` a worker in the primary checkout would. `.env` is also
+re-read on every `.laneconductor.json` config-file change: a collector
+added to the config while the worker is already running goes live
+immediately (the config watcher replaces `config` wholesale), so its token
+must be re-readable immediately too, not only at the next process restart.
+A genuine ambient environment variable always outranks a `.env` file value,
+exactly as before.
+
+**A failed fire-and-forget write isn't necessarily lost.** Non-primary
+collector writes that fail are queued in a small in-memory, bounded
+(`LC_COLLECTOR_RETRY_MAX`, default 100), coalescing retry buffer
+(`conductor/services/collector-retry-buffer.mjs`) with exponential backoff,
+and replayed on a periodic tick (`LC_COLLECTOR_RETRY_INTERVAL_MS`, default
+15s) once the collector starts accepting writes again. This is memory-only
+by design (see the track's spec.md Non-Goals) — track state re-syncs from
+the filesystem on the worker's own next cycle regardless, so a durable
+write-ahead log wasn't judged worth the complexity.
+
+**Related silent-failure tracks:** 10052 covers the Hosting-rewrite/missing-route
+gap described above — a *routing* problem, distinct from this section's
+*auth* problem, though both currently point at the same underlying "the
+cloud collector doesn't reliably receive what the worker sends" symptom.
+10061 covers the absence of any version/capability handshake between
+worker and collector — the same category of silent-drift failure, but
+about the two sides silently disagreeing on what a payload should look
+like rather than one side never getting the payload at all.
+
 ## Feature Availability — Skill-Only vs Worker Modes
 
 "Skill-only" means no worker process at all: an AI session (Claude Desktop, an
