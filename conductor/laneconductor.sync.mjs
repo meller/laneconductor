@@ -66,6 +66,7 @@ import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { resolveConfigRoot } from './services/config-root.mjs';
 import { createCollectorHealthTracker } from './services/collector-health.mjs';
+import { createCollectorRetryBuffer } from './services/collector-retry-buffer.mjs';
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
@@ -1165,9 +1166,29 @@ function resolveToken(collector, envKey) {
 // module just wires it to the real collector list/console.
 const collectorHealthTracker = createCollectorHealthTracker();
 const serializeCollectorHealth = () => collectorHealthTracker.serialize();
-const recordCollectorTokenSource = (url, source) => collectorHealthTracker.recordTokenSource(url, source);
 const recordCollectorSuccess = (url) => collectorHealthTracker.recordSuccess(url);
 const recordCollectorFailure = (url, err) => collectorHealthTracker.recordFailure(url, err);
+
+// Track 10064 (REQ-11): bounded, coalescing retry buffer for fire-and-forget
+// (non-primary) collector writes — see services/collector-retry-buffer.mjs.
+const collectorRetryBuffer = createCollectorRetryBuffer();
+
+// Track 10064 (REQ-11 Task 5): a token-source change (e.g. a real token
+// finally landing in .env after this worker already started, or an owned
+// machine token being adopted) invalidates anything already queued for
+// that collector — it was built against a stale/absent credential, and
+// replaying it as-is would either fail again or authenticate as the wrong
+// identity. Drop rather than reattempt; the next real write requeues fresh.
+const lastTokenSourceByUrl = new Map();
+function recordCollectorTokenSource(url, source) {
+  const prev = lastTokenSourceByUrl.get(url);
+  if (prev !== undefined && prev !== source && collectorRetryBuffer.size() > 0) {
+    collectorRetryBuffer.clearForCollector(url);
+    console.log(`[collector-retry] ${url} token source changed (${prev} → ${source}) — cleared queued retries built against the stale credential.`);
+  }
+  lastTokenSourceByUrl.set(url, source);
+  collectorHealthTracker.recordTokenSource(url, source);
+}
 
 // Track 10064 (REQ-5/REQ-6): logs, once per call, where each enabled
 // collector's token came from — and fails loudly at `error` level, naming
@@ -1213,7 +1234,12 @@ async function postToCollectors(path, body) {
     recordCollectorTokenSource(rest[i].url, source);
     post(rest[i].url, token, path, body)
       .then(() => recordCollectorSuccess(rest[i].url))
-      .catch(err => recordCollectorFailure(rest[i].url, err));
+      .catch(err => {
+        recordCollectorFailure(rest[i].url, err);
+        // Track 10064 (REQ-11): queue for replay once the collector
+        // recovers, instead of the write being silently gone forever.
+        collectorRetryBuffer.enqueue({ collector: rest[i].url, method: 'POST', path, body });
+      });
   }
   return result;
 }
@@ -1239,14 +1265,54 @@ async function patchCollectors(path, body) {
     recordCollectorTokenSource(rest[i].url, source);
     patch(rest[i].url, token, path, body)
       .then(() => recordCollectorSuccess(rest[i].url))
-      .catch(err => recordCollectorFailure(rest[i].url, err));
+      .catch(err => {
+        recordCollectorFailure(rest[i].url, err);
+        collectorRetryBuffer.enqueue({ collector: rest[i].url, method: 'PATCH', path, body });
+      });
   }
   return result;
+}
+
+// Track 10064 (REQ-11): periodically replay whatever's due in the retry
+// buffer. Only ever touches non-primary collectors — collector 0's result
+// is awaited synchronously by its caller and was never buffered.
+async function runCollectorRetryTick() {
+  if (getIsLocalFs()) return;
+  const cls = getCollectors();
+  if (cls.length < 2) return;
+  const [, ...rest] = cls;
+  for (let i = 0; i < rest.length; i++) {
+    const collector = rest[i];
+    const due = collectorRetryBuffer.dueEntries(collector.url);
+    if (!due.length) continue;
+    const envKey = `COLLECTOR_${i + 1}_TOKEN`;
+    const { token } = resolveToken(collector, envKey);
+    for (const entry of due) {
+      try {
+        if (entry.method === 'POST') await post(collector.url, token, entry.path, entry.body);
+        else await patch(collector.url, token, entry.path, entry.body);
+        collectorRetryBuffer.recordAttemptResult(collector.url, entry.method, entry.path, true);
+        recordCollectorSuccess(collector.url);
+        console.log(`[collector-retry] ${collector.url} ${entry.method} ${entry.path} — replayed successfully.`);
+      } catch (err) {
+        collectorRetryBuffer.recordAttemptResult(collector.url, entry.method, entry.path, false);
+        recordCollectorFailure(collector.url, err);
+      }
+    }
+  }
 }
 
 // Track 10064 (REQ-5/REQ-6): report token resolution at startup, before the
 // first collector request is ever sent — not after a downstream 401.
 if (!getIsLocalFs()) logCollectorTokenSources('startup');
+
+// Track 10064 (REQ-11): periodic replay of whatever's due in the retry
+// buffer. Independent of the 10s heartbeat interval — a slow, exponentially
+// backed-off retry schedule shouldn't be coupled to how chatty the
+// heartbeat is.
+setInterval(() => {
+  runCollectorRetryTick().catch(err => console.error('[collector-retry error]:', err.message));
+}, Number(process.env.LC_COLLECTOR_RETRY_INTERVAL_MS) || 15000);
 
 // Primary collector only (orchestration queries — local only)
 // Returns { url: null, token: null } in local-fs mode — all HTTP calls will be no-ops
