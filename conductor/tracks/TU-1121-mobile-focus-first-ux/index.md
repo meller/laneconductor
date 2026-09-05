@@ -2,9 +2,9 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Implementation complete — Task 6.7 (manual device pass) not performable in this environment, see conversation.md
+**Phase**: Planning complete
 **Type**: dev
 **Track Kind**: feature
 **Auto Run**: yes

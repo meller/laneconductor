@@ -1,7 +1,7 @@
 # Track TU-10061: Worker and collector never handshake — API drift between the two server implementations is silent
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: New
 **Type**: dev

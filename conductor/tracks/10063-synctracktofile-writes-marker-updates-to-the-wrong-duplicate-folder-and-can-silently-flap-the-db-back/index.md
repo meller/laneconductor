@@ -1,7 +1,7 @@
 # Track TU-10063: syncTrackToFile writes marker updates to the wrong duplicate folder, and can silently flap the DB back
 
-**Lane**: implement
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
