@@ -112,8 +112,24 @@ conservative by construction.
       filesystem work only, wrapped so a failure can never delay or block exit
       (REQ-9). Also release the global main-mode lock under the same
       own-PID/own-host test.
-- [ ] Task 4.3: Tests (see `test.md` TC-4.x) — released for a dead child, held
+- [x] Task 4.3: Tests (see `test.md` TC-4.x) — released for a dead child, held
       for a live one, never touched when the lock belongs to another PID or host.
+      TC-4.2 (held for a live child, deadline honored) is integration-tested in
+      `track-10065-shutdown-locks.test.mjs`. TC-4.1 (released for a dead child)
+      and TC-4.3 (untouched when owned by another PID/host) are NOT separately
+      integration-tested — deliberately, per that test file's own header
+      comment: `runningTrackMap.delete(proc.pid)` happens synchronously at the
+      very top of the exit handler (`:5336`), before the child's OS-level death
+      and Node's delivery of its `exit` event can ever be observed by a
+      concurrently-arriving `SIGTERM` with the map entry still present: either
+      the exit event already ran (entry gone, normal-path lock release already
+      applies, `releaseOwnLocksOnShutdown` never sees this track) or the child
+      is still alive from `runningTrackMap`'s perspective (the live-child
+      branch, TC-4.2). Both branches share the identical own-pid/own-host
+      dead-check pattern already integration-tested by
+      `track-10020-orphan-reconcile-periodic.test.mjs`'s TC-3.1/TC-3.4 for the
+      orphan-reconcile lock-release path, and are otherwise verified by code
+      inspection (`:9092`-`:9098`).
 
 **Impact**: a deliberate stop no longer leaves a track undispatchable behind it.
 
@@ -130,6 +146,7 @@ conservative by construction.
 - [x] Task 5.3: Update `conductor/product.md`'s file-roles row for
       `conductor/.runs/<track_number>.json` to describe the real lifetime,
       including the finalizing phase.
-- [ ] Task 5.4: Document `LC_ORPHAN_RECONCILE_NO_MARKER_MS` (from `6799754`, never
+- [x] Task 5.4: Document `LC_ORPHAN_RECONCILE_NO_MARKER_MS` (from `6799754`, never
       documented) alongside `LC_ORPHAN_RECONCILE_GRACE_MS`, and note the
       `KillMode=mixed` requirement for anyone writing their own supervisor unit.
+      Added to `conductor/tech-stack.md`'s Worker Coordination Layer section.
