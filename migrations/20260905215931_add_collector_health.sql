@@ -1,0 +1,14 @@
+-- Track 10064: per-collector auth/health snapshot on workers, so a failing
+-- remote collector is visible in the workers API/UI, not just a worker log.
+--
+-- NOTE: `atlas migrate diff` against the current `prisma/schema.sql` target
+-- also proposed dropping `workers.worker_number`, `workers.type`,
+-- `workers.available_models`, and the `track_sessions`/`worker_dispatch`
+-- tables — pre-existing drift between the declarative schema and the real
+-- database (those columns/tables were added directly against the DB over
+-- time without ever being added back to schema.prisma/schema.sql — none of
+-- them are declared there before this migration either). That drift
+-- predates this track and reconciling it is a separate effort; this
+-- migration is hand-trimmed to the one additive, non-destructive change
+-- this track actually needs.
+ALTER TABLE "public"."workers" ADD COLUMN "collector_health" jsonb NULL;

@@ -65,6 +65,7 @@ import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAl
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { resolveConfigRoot } from './services/config-root.mjs';
+import { createCollectorHealthTracker } from './services/collector-health.mjs';
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
@@ -1158,66 +1159,15 @@ function resolveToken(collector, envKey) {
 // produced 560 identical log lines, no counter, no escalation, and nothing
 // reached the heartbeat, the API, or the UI. `collectorHealth` is read by
 // upsertWorker()/updateWorkerHeartbeat() (REQ-9) to ship this off-process.
-const collectorHealth = new Map();
-const collectorFailureLogState = new Map(); // url -> { lastLoggedAt }
-const COLLECTOR_FAILURE_THRESHOLD = Number(process.env.LC_COLLECTOR_FAILURE_THRESHOLD) || 5;
-const COLLECTOR_FAILURE_LOG_INTERVAL_MS = Number(process.env.LC_COLLECTOR_FAILURE_LOG_INTERVAL_MS) || 60000;
-
-function getCollectorHealthEntry(url) {
-  let entry = collectorHealth.get(url);
-  if (!entry) {
-    entry = {
-      attempts: 0,
-      consecutive_failures: 0,
-      last_error_status: null,
-      last_error: null,
-      last_success_at: null,
-      token_source: null,
-    };
-    collectorHealth.set(url, entry);
-  }
-  return entry;
-}
-
-function recordCollectorTokenSource(url, source) {
-  getCollectorHealthEntry(url).token_source = source;
-}
-
-function recordCollectorSuccess(url) {
-  const entry = getCollectorHealthEntry(url);
-  entry.attempts += 1;
-  const wasFailing = entry.consecutive_failures > 0;
-  entry.consecutive_failures = 0;
-  entry.last_error_status = null;
-  entry.last_error = null;
-  entry.last_success_at = new Date().toISOString();
-  if (wasFailing) {
-    console.log(`[collector] ${url} recovered.`);
-    collectorFailureLogState.delete(url);
-  }
-}
-
-function recordCollectorFailure(url, err) {
-  const entry = getCollectorHealthEntry(url);
-  entry.attempts += 1;
-  entry.consecutive_failures += 1;
-  entry.last_error_status = err?.status ?? null;
-  entry.last_error = err?.message ?? String(err);
-
-  if (entry.consecutive_failures < COLLECTOR_FAILURE_THRESHOLD) {
-    console.warn(`[collector] ${url} write failed (${entry.consecutive_failures}/${COLLECTOR_FAILURE_THRESHOLD} before escalation):`, entry.last_error);
-    return;
-  }
-
-  // Track 10064 (REQ-8): past the threshold, escalate to `error` but
-  // throttle to at most one line per interval — this is the direct fix for
-  // the 560-identical-lines incident.
-  const logState = collectorFailureLogState.get(url);
-  const now = Date.now();
-  if (logState && now - logState.lastLoggedAt < COLLECTOR_FAILURE_LOG_INTERVAL_MS) return;
-  collectorFailureLogState.set(url, { lastLoggedAt: now });
-  console.error(`[collector] ${url} has failed ${entry.consecutive_failures} consecutive writes — last error: ${entry.last_error}`);
-}
+// Track 10064: pure escalation/throttle logic lives in
+// services/collector-health.mjs (unit-testable without spawning a real
+// worker process, same reasoning as primary-cwd.mjs/config-root.mjs). This
+// module just wires it to the real collector list/console.
+const collectorHealthTracker = createCollectorHealthTracker();
+const serializeCollectorHealth = () => collectorHealthTracker.serialize();
+const recordCollectorTokenSource = (url, source) => collectorHealthTracker.recordTokenSource(url, source);
+const recordCollectorSuccess = (url) => collectorHealthTracker.recordSuccess(url);
+const recordCollectorFailure = (url, err) => collectorHealthTracker.recordFailure(url, err);
 
 // Track 10064 (REQ-5/REQ-6): logs, once per call, where each enabled
 // collector's token came from — and fails loudly at `error` level, naming
@@ -1461,6 +1411,7 @@ async function upsertWorker() {
         code_sha: workerCodeSha,
         collector_compat: handshake.verdict,
         collector_api_version: handshake.collectorApiVersion,
+        collector_health: serializeCollectorHealth(),
       };
       if (isManager) registerBody.type = 'manager';
       const res = await post(url, token, '/worker/register', registerBody);
@@ -1477,9 +1428,11 @@ async function upsertWorker() {
       // as whichever one registered last (see rememberOwnMachineToken).
       if (res.machine_token) rememberOwnMachineToken(url, res.machine_token);
 
+      recordCollectorSuccess(url);
       console.log(`[LaneConductor] Worker registered to ${url}: ${hostname} (PID: ${pid}) [${workerMode}]`);
       if (proj.id) notifyApi('worker:updated', { projectId: proj.id });
     } catch (err) {
+      recordCollectorFailure(url, err);
       console.error(`[worker error] registration failed for ${url}:`, err.message);
     }
   }
@@ -1577,12 +1530,15 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
         // every restart. This is persisted state, not per-process
         // scratch — no reason a restart should ever blank it.
         worktrees: (isManager || cachedWorktreeSummary === null) ? undefined : cachedWorktreeSummary,
+        collector_health: serializeCollectorHealth(),
       };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
       await patch(c.url, token, '/worker/heartbeat', body);
+      recordCollectorSuccess(c.url);
       // console.log(`[heartbeat] worker beat sent to ${c.url}: ${hostname}:${pid}`);
     } catch (err) {
+      recordCollectorFailure(c.url, err);
       console.error(`[worker heartbeat error] ${c.url}: ${err.message}`);
       handleHeartbeatError(c.url, err);
     }
