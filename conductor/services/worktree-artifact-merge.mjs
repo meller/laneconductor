@@ -26,7 +26,7 @@ import { join } from 'node:path';
 // other marker (Progress/Phase/Summary/Waiting for reply) has no such
 // hazard — nothing treats those as a completion signal — so they still flow
 // through for mid-run freshness, which is the whole point of that pass.
-export function mergeIndexMarkers(existingContent, artifactContent, { skipStatusMarkers = false } = {}) {
+export function mergeIndexMarkers(existingContent, artifactContent, { skipStatusMarkers = false, trustRunningStatus = true } = {}) {
   const markerPatterns = [
     { re: /\*\*Lane\*\*:\s*[^\n]+/i, isStatusMarker: true },
     // Track 10053 (2026-09-03), UI-confirmed: skipStatusMarkers blocked
@@ -70,7 +70,23 @@ export function mergeIndexMarkers(existingContent, artifactContent, { skipStatus
       // treat 'waiting' as a completion signal to act on), so the actual
       // track-10019 hazard (wrongly closing a live dispatch) still can't
       // recur through this exception.
-      allowDuringSkip: (matchedText) => /running|waiting/i.test(matchedText),
+      //
+      // Found live 2026-09-05 (tracks 10064/10065/10067): the "an exit
+      // handler only ever leaves a worktree in a terminal state, never
+      // running" premise above assumes a run that ends WITHOUT ever
+      // exiting cleanly is impossible — but that is exactly what a crash
+      // or a restart-orphaned dispatch is: no exit handler ever ran, so
+      // "running" is left behind as stale as any terminal value would be.
+      // Once the orphan-reconciler (conductor/services/orphaned-dispatch.mjs)
+      // correctly writes a terminal status onto primary for exactly that
+      // case, this exception let the worktree's own still-"running" copy
+      // immediately clobber it back on the very next doc-sync tick — a
+      // fight the reconciler can never win, repeating forever. `trustRunningStatus`
+      // is real, independent evidence (this worker's own runningTrackMap,
+      // or a live run marker) that a run is actually still going, supplied
+      // by the caller — never re-derived from the worktree's own claim,
+      // since that claim is exactly what's in question.
+      allowDuringSkip: (matchedText) => trustRunningStatus && /running|waiting/i.test(matchedText),
     },
     { re: /\*\*Progress\*\*:\s*[^\n]+/i },
     { re: /\*\*Phase\*\*:\s*[^\n]+/i },
@@ -165,7 +181,7 @@ const ARTIFACTS = ['index.md', 'plan.md', 'spec.md', 'test.md', 'quality-gate.md
 // declined, with enough detail (file, reason, both sizes) for a caller to
 // log it and mark the track's docs as possibly stale — see Phase 5's
 // syncWorktreeDocsToprimary usage.
-export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder, skipUnchanged = false, skipStatusMarkers = false }) {
+export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSuccess, primaryRoot, resolveTrackFolder, skipUnchanged = false, skipStatusMarkers = false, trustRunningStatus = true }) {
   const mainTracksDir = join(primaryRoot, 'conductor', 'tracks');
   const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
   const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
@@ -222,14 +238,20 @@ export function copyWorktreeArtifactsToPrimary({ worktreePath, trackNumber, isSu
         // status (success/failure/queue) sitting in a reused worktree is the
         // exact track-10019 hazard skipStatusMarkers exists to block, and
         // must not sneak in through this door — same rule as
-        // mergeIndexMarkers' own allowDuringSkip exception.
-        if (!/^(running|waiting)$/i.test(srcStatus)) continue;
+        // mergeIndexMarkers' own allowDuringSkip exception. And, same as
+        // that exception (found live 2026-09-05, tracks 10064/10065/10067),
+        // "running" in the worktree's own copy is only trustworthy evidence
+        // of a genuinely live run when the caller has independently verified
+        // one — never on the worktree's say-so alone, since a crashed run
+        // leaves "running" behind exactly as statically as a clean exit
+        // leaves a terminal value.
+        if (!trustRunningStatus || !/^(running|waiting)$/i.test(srcStatus)) continue;
       }
     }
 
     if (MERGE_ONLY_ARTIFACTS.has(file) && existsSync(dest)) {
       const artifact = readFileSync(src, 'utf8');
-      const merged = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact, { skipStatusMarkers });
+      const merged = mergeIndexMarkers(readFileSync(dest, 'utf8'), artifact, { skipStatusMarkers, trustRunningStatus });
 
       const artifactStats = statSync(src);
       const existingStats = statSync(dest);

@@ -142,6 +142,32 @@ describe('mergeIndexMarkers', () => {
         `a stale worktree "${stale}" left over from a previous cycle must not clobber primary's genuine "running" — this is the exact track-10019 incident shape`);
     }
   });
+
+  // Found live 2026-09-05 (tracks 10064/10065/10067): the "running" exception
+  // above assumes a worktree can only ever read "running" because a run is
+  // genuinely live right now — false for a crashed/restart-orphaned run,
+  // where no exit handler ever ran to leave a terminal value behind. Once
+  // the orphan-reconciler correctly wrote a terminal status onto primary,
+  // this same "running" exception let the worktree's stale copy clobber it
+  // right back on the next doc-sync tick, forever. `trustRunningStatus` is
+  // the caller's independently-verified signal (its own runningTrackMap, or
+  // a live run marker) — without it, "running"/"waiting" must NOT flow
+  // through, same as any other value skipStatusMarkers blocks.
+  it('with skipStatusMarkers: true AND trustRunningStatus: false, "running" does NOT flow through — a crashed run leaves "running" stale exactly like a terminal value', () => {
+    const existing = '**Lane**: implement\n**Lane Status**: failure\n**Progress**: 0%\n';
+    const artifact = '**Lane**: implement\n**Lane Status**: running\n**Progress**: 25%\n';
+    const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true, trustRunningStatus: false });
+    assert.match(merged, /\*\*Lane Status\*\*: failure/,
+      'without independent evidence of a live run, the reconciler\'s own terminal write must survive the next doc-sync pass');
+    assert.match(merged, /\*\*Progress\*\*: 25%/, 'non-hazard markers still flow through regardless of trustRunningStatus');
+  });
+
+  it('trustRunningStatus defaults to true — existing callers that never pass it see byte-identical behavior to before this fix', () => {
+    const existing = '**Lane**: implement\n**Lane Status**: queue\n';
+    const artifact = '**Lane**: implement\n**Lane Status**: running\n';
+    const merged = mergeIndexMarkers(existing, artifact, { skipStatusMarkers: true });
+    assert.match(merged, /\*\*Lane Status\*\*: running/);
+  });
 });
 
 // Found live 2026-09-04: tracks 1121, 10063 and 10064 all sat on the board
@@ -197,5 +223,21 @@ describe('copyWorktreeArtifactsToPrimary: index.md escapes a stale-mtime skip', 
       assert.match(readFileSync(prIdx, 'utf8'), /\*\*Lane Status\*\*: running/,
         `a stale worktree "${stale}" must not clobber primary's genuine running`);
     }
+  });
+
+  // Found live 2026-09-05 (tracks 10064/10065/10067): a crashed run leaves
+  // the worktree's OWN copy reading "running" forever — indistinguishable,
+  // by content alone, from a genuinely live one. Once the orphan-reconciler
+  // writes a terminal status onto primary, this mtime-loss door must not
+  // let that stale "running" back in without independent proof (the
+  // caller's trustRunningStatus) that a run is actually still going.
+  it('without trustRunningStatus, a stale "running" left by a crashed run does NOT win the mtime-losing race either', () => {
+    const { wt, primary, prIdx } = setup('running', 'failure');
+    copyWorktreeArtifactsToPrimary({
+      worktreePath: wt, trackNumber: '9001', isSuccess: false, primaryRoot: primary,
+      resolveTrackFolder: () => '9001-t', skipUnchanged: true, skipStatusMarkers: true, trustRunningStatus: false,
+    });
+    assert.match(readFileSync(prIdx, 'utf8'), /\*\*Lane Status\*\*: failure/,
+      'the reconciler\'s own terminal write must survive when nothing verifies the worktree\'s "running" claim');
   });
 });

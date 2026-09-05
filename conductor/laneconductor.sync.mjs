@@ -4813,9 +4813,30 @@ async function syncWorktreeDocsToPrimary() {
     // dispatch out while the real child process is still alive (confirmed
     // live on track 10019's review and quality-gate dispatches). Every
     // other marker this copies is safe to keep live-syncing.
+    //
+    // Found live 2026-09-05 (tracks 10064/10065/10067): mergeIndexMarkers'
+    // and copyWorktreeArtifactsToPrimary's own "running"/"waiting"
+    // exceptions to skipStatusMarkers assumed the worktree's own claim of
+    // "running" is trustworthy by construction — true for a clean exit,
+    // false for a crash or restart-orphaned run, where "running" is left
+    // behind exactly as stale as any other value would be. This process's
+    // own runningTrackMap (it spawned the child, it's alive) or a live run
+    // marker (a DIFFERENT process on this box spawned it) are the only two
+    // ways to actually know, independent of what the worktree's file says —
+    // without either, don't let "running"/"waiting" through the skip.
+    let trustRunningStatus = [...runningTrackMap.values()].includes(trackNumber);
+    if (!trustRunningStatus) {
+      try {
+        const markerPath = runMarkerPath(process.cwd(), trackNumber);
+        if (existsSync(markerPath)) {
+          const marker = parseRunMarker(readFileSync(markerPath, 'utf8'));
+          trustRunningStatus = isRunMarkerLive(marker, { isPidAlive, readProcessCommand }).live;
+        }
+      } catch { /* unreadable/malformed marker — treat as not verifiably running */ }
+    }
     const { copied, skipped } = copyWorktreeArtifactsToPrimary({
       worktreePath, trackNumber, isSuccess: false,
-      primaryRoot: process.cwd(), resolveTrackFolder, skipUnchanged: true, skipStatusMarkers: true,
+      primaryRoot: process.cwd(), resolveTrackFolder, skipUnchanged: true, skipStatusMarkers: true, trustRunningStatus,
     });
 
     if (copied.length) {
@@ -8071,7 +8092,21 @@ async function reconcileOrphanedDispatchesInner() {
         }
       }
     } else {
-      console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}"; leaving the primary's own state untouched`);
+      // Found live 2026-09-05 (tracks 10064/10065/10067): this warning text
+      // was written for Track 1117 Bug 2's specific "lane isn't a recognized
+      // workflow.json transition from action" case, but skipArtifactCopy is
+      // also set by BOTH of classifyOrphanedDispatch's crash-detection
+      // branches (runnerExited proven true; the no-marker git-lock
+      // fallback) — neither of which is a lane/action mismatch at all. In
+      // those cases wtLane and entry.action are typically THE SAME string
+      // (a crashed "implement" dispatch leaves the worktree still reading
+      // lane "implement"), so this hardcoded text rendered the nonsensical
+      // "worktree lane \"implement\" doesn't match dispatched action
+      // \"implement\"". classification.result is already accurate and
+      // situation-specific for every branch that reaches here — use it
+      // instead of re-deriving a description of the reason.
+      const skipReason = classification.result || `worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}" and isn't a recognized workflow.json transition`;
+      console.warn(`[orphan-reconcile] Skipping artifact copy for track ${trackNumber} (${skipReason}); leaving the primary's own state untouched`);
       const tracksDir = 'conductor/tracks';
       const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
       // Track 1117 Bug 2 (REQ-4): a mismatch that ISN'T a recognized
@@ -8082,7 +8117,7 @@ async function reconcileOrphanedDispatchesInner() {
           if (trackDirName) {
             appendFileSync(
               join(tracksDir, trackDirName, 'conversation.md'),
-              `\n> **system**: ⚠️ Orphan-reconcile skipped artifact copy for this dispatch — worktree lane "${wtLane}" doesn't match dispatched action "${entry.action}" and isn't a recognized workflow.json transition. Please review the worktree manually.\n`,
+              `\n> **system**: ⚠️ Orphan-reconcile skipped artifact copy for this dispatch — ${skipReason}. Please review the worktree manually.\n`,
             );
           }
         } catch (err) {
