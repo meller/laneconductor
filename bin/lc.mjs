@@ -18,7 +18,7 @@ import { createTrackPr, checkGhAuth } from '../conductor/services/pr-flow.mjs';
 import { planDoneLaneMigration } from '../conductor/services/done-lane-migration.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
-import { decideTrackFolder } from '../conductor/services/track-folder.mjs';
+import { resolveTrackFolderFs } from '../conductor/services/track-folder-fs.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../conductor/services/jira-auth.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
@@ -3370,39 +3370,59 @@ Please review this, answer any questions (some fields may contain questions rath
     // "directory starting with the track number" scan (the legacy-only
     // pattern that made the implement skill invisible to prefixed
     // INITIALS-NNN-slug folders and scaffold a duplicate legacy one
-    // beside them). Uses the SAME decision logic the worker's own
-    // resolveTrackFolder runs (decideTrackFolder), but applies NONE of
-    // its effects — no quarantine rename, no tracks-metadata.json write.
-    // A lookup must never mutate the tree as a side effect of answering
-    // a question.
-    const trackNum = args[1];
-    const asJson = args.includes('--json');
-    if (!trackNum) {
-        console.error('Usage: lc track-dir <track-number> [--json]');
-        process.exit(1);
-    }
+    // beside them). Track 10063 Phase 2: now backed by resolveTrackFolderFs
+    // (conductor/services/track-folder-fs.mjs), the same fact-gatherer the
+    // worker's resolveTrackFolder uses — this is what gives the CLI the
+    // content-size tie-break on an ambiguous, unregistered track, which the
+    // old inline call to decideTrackFolder (with no contentSizeByName) was
+    // missing, so it silently fell back to alphabetical order and could
+    // disagree with the worker. Still applies NONE of the decision's
+    // effects — no quarantine rename, no tracks-metadata.json write. A
+    // lookup must never mutate the tree as a side effect of answering a
+    // question.
     if (!projectRoot) {
         console.error('❌ Error: No LaneConductor project found in this directory or parents.');
         process.exit(1);
     }
-
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-    const dirNames = existsSync(tracksDir)
-        ? readdirSync(tracksDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)
-        : [];
-
     const metadataPath = join(projectRoot, 'conductor', 'tracks-metadata.json');
-    let registeredFolder = null;
-    if (existsSync(metadataPath)) {
-        try {
-            const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
-            const meta = metadata.tracks?.[trackNum] || metadata[trackNum];
-            registeredFolder = meta?.folder_path ? basename(meta.folder_path) : null;
-        } catch { /* malformed metadata — treat as unregistered, don't crash a read-only lookup */ }
-    }
-    const registeredExists = !!(registeredFolder && dirNames.includes(registeredFolder));
 
-    const decision = decideTrackFolder({ dirNames, trackNumber: trackNum, registeredFolder, registeredExists });
+    if (args.includes('--audit')) {
+        // Track 10063 REQ-7: duplicate folders are silently tolerated
+        // everywhere today — this makes that state visible on demand,
+        // without quarantining anything (still read-only).
+        const dirNames = existsSync(tracksDir)
+            ? readdirSync(tracksDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name)
+            : [];
+        const byTrackNumber = new Map();
+        for (const name of dirNames) {
+            if (name.startsWith('_duplicate-')) continue; // already quarantined — not a live duplicate
+            const m = name.match(/^(?:[A-Za-z]+-)?(\d+)-/);
+            if (!m) continue;
+            const num = m[1];
+            if (!byTrackNumber.has(num)) byTrackNumber.set(num, []);
+            byTrackNumber.get(num).push(name);
+        }
+        const duplicated = [...byTrackNumber.entries()].filter(([, names]) => names.length > 1);
+        if (duplicated.length === 0) {
+            console.log('✅ No duplicate track folders found.');
+            process.exit(0);
+        }
+        console.log(`⚠️  ${duplicated.length} track(s) have more than one live matching folder:\n`);
+        for (const [num, names] of duplicated.sort((a, b) => Number(a[0]) - Number(b[0]))) {
+            console.log(`  ${num}: ${names.sort().join(', ')}`);
+        }
+        process.exit(1);
+    }
+
+    const trackNum = args[1];
+    const asJson = args.includes('--json');
+    if (!trackNum) {
+        console.error('Usage: lc track-dir <track-number> [--json] | lc track-dir --audit');
+        process.exit(1);
+    }
+
+    const decision = resolveTrackFolderFs({ tracksDir, trackNumber: trackNum, metadataPath });
 
     if (!decision.folder) {
         console.error(`❌ No folder found for track ${trackNum}`);
@@ -3411,7 +3431,7 @@ Please review this, answer any questions (some fields may contain questions rath
 
     const fullPath = join('conductor', 'tracks', decision.folder);
     if (asJson) {
-        console.log(JSON.stringify({ folder: fullPath, matches: decision.quarantine.length + 1, registered: registeredFolder }));
+        console.log(JSON.stringify({ folder: fullPath, matches: decision.matches, registered: decision.registeredFolder }));
     } else {
         console.log(fullPath);
     }
