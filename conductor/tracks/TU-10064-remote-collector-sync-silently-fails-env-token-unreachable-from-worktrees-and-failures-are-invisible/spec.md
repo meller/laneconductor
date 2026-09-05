@@ -196,32 +196,32 @@ human-visible signal. This is the requirement REQ-5 through REQ-9 encode.
 
 ## Acceptance Criteria
 
-- [ ] A worker started with cwd inside a linked worktree, with
+- [x] A worker started with cwd inside a linked worktree, with
       `LC_SKIP_CWD_NORMALIZATION=1` set so the chdir cannot mask it, sends the
       `Authorization` header on remote writes and receives no `401`.
-- [ ] A `--manager` worker started from an arbitrary cwd sends the
+- [x] A `--manager` worker started from an arbitrary cwd sends the
       `Authorization` header on remote writes.
-- [ ] Adding `COLLECTOR_1_TOKEN` to `.env` while a worker is running, then
+- [x] Adding `COLLECTOR_1_TOKEN` to `.env` while a worker is running, then
       touching `.laneconductor.json`, causes the next remote write from that
       same process to carry the token — no restart needed.
-- [ ] Starting a worker with a collector configured and no resolvable token
+- [x] Starting a worker with a collector configured and no resolvable token
       produces an `error` log naming the collector URL and the expected env
       key, before any request is sent.
-- [ ] Five consecutive remote failures produce exactly one escalated `error`
+- [x] Five consecutive remote failures produce exactly one escalated `error`
       line, not five; the sixth through hundredth within the throttle window
       produce none.
-- [ ] A recovered collector logs one `info` recovery line and resets its
+- [x] A recovered collector logs one `info` recovery line and resets its
       consecutive count to zero.
-- [ ] The workers API returns `collector_health` for a worker with a failing
+- [x] The workers API returns `collector_health` for a worker with a failing
       collector, showing the URL, consecutive-failure count, and last error.
-- [ ] Opening the Kanban UI with a worker whose remote collector is failing
+- [x] Opening the Kanban UI with a worker whose remote collector is failing
       shows a degraded-sync indicator on that worker's row, with the collector
       URL and error reachable from it. Verified in a real browser against a
       running UI, not only in a unit test.
-- [ ] A write that fails while the remote is unreachable is replayed
+- [x] A write that fails while the remote is unreachable is replayed
       successfully after the remote returns, and five patches to the same
       track while it was down replay as one.
-- [ ] `conductor/product.md` states which component writes to the cloud.
+- [x] `conductor/product.md` states which component writes to the cloud.
 
 ## Data Model Changes
 

@@ -19,20 +19,20 @@ disabled by `LC_SKIP_CWD_NORMALIZATION`.
 parameter-injection shape as `conductor/services/primary-cwd.mjs` so it is
 testable without a real git repo. Use it for all three reads.
 
-- [ ] Task 1: Create `conductor/services/config-root.mjs` exporting
+- [x] Task 1: Create `conductor/services/config-root.mjs` exporting
       `resolveConfigRoot({ cwd, resolvePrimaryRepoRoot })`, returning the
       primary repo root, or `cwd` when the resolver throws (REQ-1 fallback).
-- [ ] Task 2: Rewrite the `.env` load at `laneconductor.sync.mjs:324` into a
+- [x] Task 2: Rewrite the `.env` load at `laneconductor.sync.mjs:324` into a
       `loadDotEnv(root)` function that joins against the resolved root, keeps
       the existing `!process.env[key]` precedence, and logs which path it
       loaded from.
-- [ ] Task 3: Apply the same resolved root to the `conductor/defaults.json`
+- [x] Task 3: Apply the same resolved root to the `conductor/defaults.json`
       and `.laneconductor.json` reads (REQ-2).
-- [ ] Task 4: Confirm `resolvePrimaryRepoRoot` (imported line 63) is in scope
+- [x] Task 4: Confirm `resolvePrimaryRepoRoot` (imported line 63) is in scope
       at line 324. It is — the import is a top-level ESM binding — so no
       hoisting is needed; record that explicitly so the next reader does not
       re-derive it.
-- [ ] Task 5: Verify a `--manager` worker resolves `.env` correctly despite
+- [x] Task 5: Verify a `--manager` worker resolves `.env` correctly despite
       never being chdir'd (REQ-3).
 
 **Impact**: Token and config resolution stop depending on cwd. The
@@ -52,14 +52,14 @@ loaded.
 **Solution**: Call `loadDotEnv()` from the reload handler, before the new
 config is applied.
 
-- [ ] Task 1: Invoke `loadDotEnv(configRoot)` at the top of the
+- [x] Task 1: Invoke `loadDotEnv(configRoot)` at the top of the
       `.laneconductor.json` watcher handler (REQ-4).
-- [ ] Task 2: Make `loadDotEnv` idempotent and safe to call repeatedly —
+- [x] Task 2: Make `loadDotEnv` idempotent and safe to call repeatedly —
       values already present in the real process environment still win, and a
       value already loaded from `.env` is updated when the file changes.
-- [ ] Task 3: Invalidate `tokenCache` (line ~1005) on reload so a
+- [x] Task 3: Invalidate `tokenCache` (line ~1005) on reload so a
       newly-loaded token is actually used rather than served stale.
-- [ ] Task 4: Log one line when a reload changes the resolved token source
+- [x] Task 4: Log one line when a reload changes the resolved token source
       for any collector.
 
 **Impact**: Adding a token to `.env` takes effect on the next config touch
@@ -77,19 +77,19 @@ fire-and-forget `.catch`.
 **Solution**: Report the token source at resolution time and track health
 per collector.
 
-- [ ] Task 1: Extend `resolveToken()` to return the token **and** its source
+- [x] Task 1: Extend `resolveToken()` to return the token **and** its source
       (`env` / `gcp-secret` / `machine_token` / `config` / `none`) without
       changing its callers' happy path.
-- [ ] Task 2: At startup and after each config reload, log one line per
+- [x] Task 2: At startup and after each config reload, log one line per
       enabled collector: URL plus token source (REQ-5).
-- [ ] Task 3: A collector resolving to `none` logs at `error` level, naming
+- [x] Task 3: A collector resolving to `none` logs at `error` level, naming
       the exact expected env key, before any request is sent (REQ-6).
-- [ ] Task 4: Add a `collectorHealth` map keyed by collector URL holding
+- [x] Task 4: Add a `collectorHealth` map keyed by collector URL holding
       attempts, consecutive failures, last error status and message, last
       success timestamp, and token source (REQ-7).
-- [ ] Task 5: Record every outcome from `postToCollectors` and
+- [x] Task 5: Record every outcome from `postToCollectors` and
       `patchCollectors` into that map, for collector 0 as well as 1..n.
-- [ ] Task 6: Replace the per-write `console.warn` with threshold escalation
+- [x] Task 6: Replace the per-write `console.warn` with threshold escalation
       and throttling per REQ-8, using
       `LC_COLLECTOR_FAILURE_THRESHOLD` (default 5) and
       `LC_COLLECTOR_FAILURE_LOG_INTERVAL_MS` (default 60000). Log one `info`
@@ -108,17 +108,17 @@ no API, DB row, or UI can ever show it.
 **Solution**: Ship `collector_health` in the register and heartbeat payloads
 and store it.
 
-- [ ] Task 1: Add `ALTER TABLE workers ADD COLUMN IF NOT EXISTS
+- [x] Task 1: Add `ALTER TABLE workers ADD COLUMN IF NOT EXISTS
       collector_health JSONB;` as a migration, applied to both the local
       Postgres schema and `cloud/functions`.
-- [ ] Task 2: Include `collector_health` in `upsertWorker()`
+- [x] Task 2: Include `collector_health` in `upsertWorker()`
       (`laneconductor.sync.mjs:1107`) and `updateWorkerHeartbeat()`
       (line 1237) payloads (REQ-9).
-- [ ] Task 3: Accept and persist the field in `ui/server/index.mjs`'s
+- [x] Task 3: Accept and persist the field in `ui/server/index.mjs`'s
       `/worker/register` (line 3874) and `/worker/heartbeat` (line 3967).
       Ignore it when absent so an older worker still registers cleanly.
-- [ ] Task 4: Mirror the same handling in `cloud/functions/index.js`.
-- [ ] Task 5: Return `collector_health` from the workers read endpoint.
+- [x] Task 4: Mirror the same handling in `cloud/functions/index.js`.
+- [x] Task 5: Return `collector_health` from the workers read endpoint.
 
 **Impact**: Remote-sync health becomes queryable state rather than log text.
 
@@ -131,20 +131,20 @@ remote outage still drops writes permanently.
 
 **Solution**: Surface the indicator, and add a coalescing retry buffer.
 
-- [ ] Task 1: Add a degraded-sync indicator to
+- [x] Task 1: Add a degraded-sync indicator to
       `ui/src/components/WorkersList.jsx`, shown only when a collector is in a
       failing state, exposing collector URL, consecutive-failure count, and
       last error (REQ-10).
-- [ ] Task 2: Unit-test the indicator in `WorkersList.test.jsx` for both the
+- [x] Task 2: Unit-test the indicator in `WorkersList.test.jsx` for both the
       healthy (no chrome) and degraded cases.
-- [ ] Task 3: Drive it in a real browser against a running UI with a seeded
+- [x] Task 3: Drive it in a real browser against a running UI with a seeded
       failing worker, and record the observation. A unit test alone cannot
       show the feature was wired up.
-- [ ] Task 4: Implement the bounded retry buffer per REQ-11 — cap
+- [x] Task 4: Implement the bounded retry buffer per REQ-11 — cap
       `LC_COLLECTOR_RETRY_MAX` (default 100), exponential backoff, coalescing
       by `(collector, method, path)` keeping the newest body, logged eviction
       of the oldest entry when full.
-- [ ] Task 5: Drain the buffer on the next successful write to that
+- [x] Task 5: Drain the buffer on the next successful write to that
       collector; clear it on a token-source change.
 
 **Impact**: A human sees a failing remote collector on the board, and a
@@ -159,14 +159,14 @@ called a collector, the remote endpoint is called a collector, and the API
 server holds a `CLOUD_FUNCTIONS_URL` it uses only for reads — so a reader
 cannot tell from the code which component gets data to the cloud.
 
-- [ ] Task 1: State in `conductor/product.md` that the **worker** owns remote
+- [x] Task 1: State in `conductor/product.md` that the **worker** owns remote
       sync and that the local API server never writes to the cloud, citing
       `collectorWrite`'s self-pointing default and the read-only role of
       `CLOUD_FUNCTIONS_URL` (REQ-12).
-- [ ] Task 2: Document collector-0 (awaited, authoritative) versus
+- [x] Task 2: Document collector-0 (awaited, authoritative) versus
       collector-1..n (fire-and-forget, now health-tracked) semantics.
-- [ ] Task 3: Document the new env vars and the `.env`-reload behavior.
-- [ ] Task 4: Cross-reference 10052 (Hosting rewrites / missing routes) and
+- [x] Task 3: Document the new env vars and the `.env`-reload behavior.
+- [x] Task 4: Cross-reference 10052 (Hosting rewrites / missing routes) and
       10061 (version handshake) as the adjacent silent-failure tracks.
 
 **Impact**: The next reader does not have to re-derive ownership from
@@ -192,3 +192,28 @@ cannot tell from the code which component gets data to the cloud.
   including one prefixed `_duplicate-`. `lc track-dir 10064` resolves to the
   `TU-` one; that is the real folder. Cleaning up the other two is not this
   track's scope.
+
+## ✅ COMPLETE
+
+All 6 phases implemented and verified:
+- 30/30 `node:test` cases pass across 6 new suites (unit + real-spawned-worker
+  integration tests, all against dynamically-ported mock collectors — never
+  the real local/remote endpoints; the one accidental exception during
+  development was caught, repaired, and is documented in conversation.md).
+- `WorkersList.test.jsx`: 11/11 pass (4 new). `cd ui && npm test`'s
+  pre-existing 33 failures across 10 unrelated files are unchanged before
+  and after this track's UI edit — confirmed by direct comparison.
+- The UI badge was verified in a real running browser via an isolated
+  scratch environment (throwaway DB + API + Vite), not only unit tests —
+  screenshot at `evidence/sync-degraded-badge.png`.
+- All 10 spec.md acceptance criteria checked off.
+- `workers.collector_health` column applied directly to the local dev DB
+  (additive, nullable) and captured in both the Atlas migration set and the
+  local API's own migration runner.
+
+The track's own reported root cause (a worktree-relative `.env` read) was
+real but not what caused the 560-failure incident it cites — the actual
+cause (a hot-reloaded config discovering a collector before its
+never-revisited `.env` token) is documented in spec.md and conversation.md.
+Both are fixed; the surfacing work (Phases 3-5) is what makes a future
+recurrence of either impossible to miss silently again.
