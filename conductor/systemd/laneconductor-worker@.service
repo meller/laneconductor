@@ -56,6 +56,18 @@ SyslogIdentifier=laneconductor-worker
 # de-registers from the collector before exiting.
 KillSignal=SIGTERM
 TimeoutStopSec=30
+# Track 10065, found live 2026-09-04: the default KillMode (control-group)
+# signals every process in the worker's cgroup on stop/restart — including
+# the detached, unref()'d CLI child spawnCli() launches for an in-flight lane
+# action. That contradicts this unit's own comment above, and the entire
+# orphan-reconcile design (conductor/services/run-marker.mjs,
+# reconcileOrphanedDispatchesInner in laneconductor.sync.mjs) assumes that
+# child SURVIVES a worker restart so a replacement process can find it still
+# alive. `mixed` signals only the main process on stop; the child is spared
+# and keeps running to completion, exactly as the reconciler expects. The
+# TimeoutStopSec escalation to SIGKILL above still applies to the whole
+# cgroup if the main process doesn't exit in time.
+KillMode=mixed
 
 [Install]
 WantedBy=default.target
