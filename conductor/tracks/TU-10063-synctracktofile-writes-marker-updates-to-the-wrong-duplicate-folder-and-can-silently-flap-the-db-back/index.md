@@ -1,7 +1,7 @@
 # Track TU-10063: syncTrackToFile writes marker updates to the wrong duplicate folder, and can silently flap the DB back
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Phases 1-4 complete, tested; Phase 5 live-restart verification deliberately deferred (see plan.md)
