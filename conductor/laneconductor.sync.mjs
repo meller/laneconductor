@@ -9534,6 +9534,63 @@ const SHUTDOWN_DEADLINE_MS = Number(process.env.LC_SHUTDOWN_DEADLINE_MS) || 2000
 
 function shutdownSleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
+// Track 10065 Phase 4 (REQ-8, REQ-9, F4): shutdown() used to de-register and
+// exit without ever touching the per-track git locks THIS worker itself
+// holds. A track whose spawned child had already exited by the time the stop
+// signal arrived left `.conductor/locks/<track>.lock` stamped with a PID
+// about to be dead too, undispatchable until some later claim attempt
+// happened to rediscover and clear it. Conservative by construction: a lock
+// is only released when this process's OWN tracked child for that track is
+// confirmed dead — a still-live child means the run genuinely isn't over,
+// and releasing its lock would let another worker claim a track that's still
+// actively being worked on; that marker is stamped instead, so a
+// replacement process can tell this was a deliberate shutdown mid-run.
+// Synchronous filesystem work only (REQ-9) — never awaited, never network —
+// so it can't itself delay the SHUTDOWN_DEADLINE_MS watchdog above, and every
+// step is independently wrapped so one failure can't skip the rest.
+function releaseOwnLocksOnShutdown() {
+  const hostname = os.hostname();
+  for (const [pid, trackNumber] of runningTrackMap) {
+    try {
+      const lockPath = join(process.cwd(), '.conductor', 'locks', `${trackNumber}.lock`);
+      const markerPath = runMarkerPath(process.cwd(), trackNumber);
+      if (isPidAlive(pid)) {
+        if (existsSync(markerPath)) {
+          const marker = parseRunMarker(readFileSync(markerPath, 'utf8'));
+          if (marker) writeFileSync(markerPath, JSON.stringify({ ...marker, worker_shutdown_at: new Date().toISOString() }, null, 2), 'utf8');
+        }
+        continue;
+      }
+      if (existsSync(lockPath)) {
+        const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+        if (lock.machine === hostname && lock.pid === process.pid) {
+          rmSync(lockPath, { force: true });
+          console.log(`[shutdown] Released lock for track ${trackNumber} — its spawned child had already exited`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[shutdown] Track ${trackNumber}: failed to check/release lock (non-fatal): ${err.message}`);
+    }
+  }
+  // Same own-pid/own-host check for the global main-mode lock — it's stamped
+  // with the worker daemon's own pid too (checkAndClaimGlobalMainModeLock),
+  // never the child's, so this correctly only fires for a lock THIS process
+  // itself is holding.
+  try {
+    const globalLockPath = join(process.cwd(), '.conductor', 'locks', '_main-mode-global.lock');
+    if (existsSync(globalLockPath)) {
+      const lock = JSON.parse(readFileSync(globalLockPath, 'utf8'));
+      const childPid = [...runningTrackMap.entries()].find(([, t]) => String(t) === String(lock.track_number))?.[0];
+      if (lock.machine === hostname && lock.pid === process.pid && !(childPid && isPidAlive(childPid))) {
+        rmSync(globalLockPath, { force: true });
+        console.log(`[shutdown] Released global main-mode lock (was held for track ${lock.track_number})`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[shutdown] Failed to check/release global main-mode lock (non-fatal): ${err.message}`);
+  }
+}
+
 async function shutdown(signal) {
   // unref()'d so this timer alone can never be the reason the process
   // stays alive — it exists purely as a ceiling on the OTHER work below.
@@ -9542,6 +9599,12 @@ async function shutdown(signal) {
     process.exit(0);
   }, SHUTDOWN_DEADLINE_MS);
   watchdog.unref();
+
+  try {
+    releaseOwnLocksOnShutdown();
+  } catch (err) {
+    console.warn(`[shutdown] releaseOwnLocksOnShutdown failed (non-fatal): ${err.message}`);
+  }
 
   await Promise.race([removeWorker(), shutdownSleep(SHUTDOWN_DEADLINE_MS)]);
   clearTimeout(watchdog);
