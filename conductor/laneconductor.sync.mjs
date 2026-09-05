@@ -64,6 +64,7 @@ import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree
 import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand } from './services/run-marker.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
+import { resolveConfigRoot } from './services/config-root.mjs';
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
@@ -324,12 +325,43 @@ let orphanReconcileInFlight = false;
 const workerStartedAt = Date.now();
 let workerIdResolvedLoggedStale = false;
 
-if (existsSync('.env')) {
-  for (const line of readFileSync('.env', 'utf8').split('\n')) {
+// Track 10064 (REQ-1/REQ-2/REQ-3): resolve `.env`, `conductor/defaults.json`,
+// and `.laneconductor.json` against the PRIMARY checkout explicitly, rather
+// than relying on track 10019's chdir (above) having already run by the time
+// execution reaches here — that chdir intentionally never fires for a
+// `--manager` worker, and can be disabled via LC_SKIP_CWD_NORMALIZATION for
+// tests. Both cases previously fell through to reading these three files
+// via a bare relative path against whatever cwd the process happened to be
+// launched with.
+const configRoot = resolveConfigRoot({ cwd: process.cwd(), isManager, resolvePrimaryRepoRoot });
+
+// Track 10064 (REQ-4): keys this process itself populated FROM `.env` (as
+// opposed to a real, ambient environment variable) — the ONLY keys a later
+// reload is allowed to overwrite. A genuine environment variable set before
+// this process started must keep winning forever, matching the original
+// `!process.env[key]` precedence; but that same check made a `.env` value
+// unable to ever update itself on reload, which is exactly the lifecycle gap
+// that caused this track's incident (a token added to `.env` after the
+// worker had already loaded a `.env` with no such key stayed invisible for
+// the rest of that process's life).
+const dotEnvLoadedKeys = new Set();
+
+function loadDotEnv(root) {
+  const envPath = join(root, '.env');
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim();
+    if (!m) continue;
+    const [, key, rawValue] = m;
+    const value = rawValue.trim();
+    const isRealEnvVar = (key in process.env) && !dotEnvLoadedKeys.has(key);
+    if (isRealEnvVar) continue;
+    process.env[key] = value;
+    dotEnvLoadedKeys.add(key);
   }
 }
+
+loadDotEnv(configRoot);
 
 const HARDCODED_DEFAULTS = {
   mode: 'local-fs',
@@ -343,7 +375,7 @@ const HARDCODED_DEFAULTS = {
 };
 
 let config = HARDCODED_DEFAULTS;
-const defaultsPath = 'conductor/defaults.json';
+const defaultsPath = join(configRoot, 'conductor/defaults.json');
 if (existsSync(defaultsPath)) {
   try {
     const fileDefaults = JSON.parse(readFileSync(defaultsPath, 'utf8'));
@@ -355,9 +387,10 @@ if (existsSync(defaultsPath)) {
   }
 }
 
-if (existsSync('.laneconductor.json')) {
+const laneConductorJsonPath = join(configRoot, '.laneconductor.json');
+if (existsSync(laneConductorJsonPath)) {
   try {
-    const userConfig = JSON.parse(readFileSync('.laneconductor.json', 'utf8'));
+    const userConfig = JSON.parse(readFileSync(laneConductorJsonPath, 'utf8'));
     config = {
       ...config,
       ...userConfig,
@@ -1071,15 +1104,19 @@ function rememberOwnMachineToken(url, token) {
 
 loadOwnMachineTokens();
 
-// Resolve auth token for a collector entry (handles GCP Secret Manager, env, and machine tokens)
+// Resolve auth token for a collector entry (handles GCP Secret Manager, env,
+// and machine tokens). Returns { token, source } — Track 10064 (REQ-5/REQ-6):
+// a null token used to be indistinguishable from a successfully-resolved
+// one until the remote answered 401 for it; `source` lets a caller log
+// (or fail loudly on) exactly where a credential came from, or didn't.
 function resolveToken(collector, envKey) {
   // 1. Try environment variable override
-  if (process.env[envKey]) return process.env[envKey];
+  if (process.env[envKey]) return { token: process.env[envKey], source: `env ${envKey}` };
 
   // 1b. This worker's OWN machine token wins over anything in the shared
   // config — see the comment above rememberOwnMachineToken.
   const own = collector.url ? ownMachineTokens.get(collector.url) : null;
-  if (own) return own;
+  if (own) return { token: own, source: 'machine_token (own)' };
 
   // 2. Try GCP Secret Manager if configured
   if (collector.store_type === 'gcp-secret' && collector.secret_name) {
@@ -1096,7 +1133,7 @@ function resolveToken(collector, envKey) {
       });
 
       if (secret) {
-        return secret.trim();
+        return { token: secret.trim(), source: `gcp-secret ${collector.secret_name}` };
       }
     } catch (e) {
       // Silent fallback - don't log GCP details in production
@@ -1110,8 +1147,98 @@ function resolveToken(collector, envKey) {
   // worker it definitionally belongs to someone else, so using it would
   // re-create the impersonation this store exists to prevent — register
   // anonymously instead and adopt the token the server hands back.
-  if (workerNumber === 1 && collector.machine_token) return collector.machine_token;
-  return collector.token ?? null;
+  if (workerNumber === 1 && collector.machine_token) return { token: collector.machine_token, source: 'config machine_token' };
+  if (collector.token) return { token: collector.token, source: 'config token' };
+  return { token: null, source: 'none' };
+}
+
+// Track 10064 (REQ-5..REQ-8): per-collector auth/health visibility. Before
+// this, a remote write failure was a fire-and-forget `.catch` that only ever
+// called console.warn — confirmed live, 560 consecutive identical 401s
+// produced 560 identical log lines, no counter, no escalation, and nothing
+// reached the heartbeat, the API, or the UI. `collectorHealth` is read by
+// upsertWorker()/updateWorkerHeartbeat() (REQ-9) to ship this off-process.
+const collectorHealth = new Map();
+const collectorFailureLogState = new Map(); // url -> { lastLoggedAt }
+const COLLECTOR_FAILURE_THRESHOLD = Number(process.env.LC_COLLECTOR_FAILURE_THRESHOLD) || 5;
+const COLLECTOR_FAILURE_LOG_INTERVAL_MS = Number(process.env.LC_COLLECTOR_FAILURE_LOG_INTERVAL_MS) || 60000;
+
+function getCollectorHealthEntry(url) {
+  let entry = collectorHealth.get(url);
+  if (!entry) {
+    entry = {
+      attempts: 0,
+      consecutive_failures: 0,
+      last_error_status: null,
+      last_error: null,
+      last_success_at: null,
+      token_source: null,
+    };
+    collectorHealth.set(url, entry);
+  }
+  return entry;
+}
+
+function recordCollectorTokenSource(url, source) {
+  getCollectorHealthEntry(url).token_source = source;
+}
+
+function recordCollectorSuccess(url) {
+  const entry = getCollectorHealthEntry(url);
+  entry.attempts += 1;
+  const wasFailing = entry.consecutive_failures > 0;
+  entry.consecutive_failures = 0;
+  entry.last_error_status = null;
+  entry.last_error = null;
+  entry.last_success_at = new Date().toISOString();
+  if (wasFailing) {
+    console.log(`[collector] ${url} recovered.`);
+    collectorFailureLogState.delete(url);
+  }
+}
+
+function recordCollectorFailure(url, err) {
+  const entry = getCollectorHealthEntry(url);
+  entry.attempts += 1;
+  entry.consecutive_failures += 1;
+  entry.last_error_status = err?.status ?? null;
+  entry.last_error = err?.message ?? String(err);
+
+  if (entry.consecutive_failures < COLLECTOR_FAILURE_THRESHOLD) {
+    console.warn(`[collector] ${url} write failed (${entry.consecutive_failures}/${COLLECTOR_FAILURE_THRESHOLD} before escalation):`, entry.last_error);
+    return;
+  }
+
+  // Track 10064 (REQ-8): past the threshold, escalate to `error` but
+  // throttle to at most one line per interval — this is the direct fix for
+  // the 560-identical-lines incident.
+  const logState = collectorFailureLogState.get(url);
+  const now = Date.now();
+  if (logState && now - logState.lastLoggedAt < COLLECTOR_FAILURE_LOG_INTERVAL_MS) return;
+  collectorFailureLogState.set(url, { lastLoggedAt: now });
+  console.error(`[collector] ${url} has failed ${entry.consecutive_failures} consecutive writes — last error: ${entry.last_error}`);
+}
+
+// Track 10064 (REQ-5/REQ-6): logs, once per call, where each enabled
+// collector's token came from — and fails loudly at `error` level, naming
+// the exact expected env key, for one that resolves to nothing. Called at
+// startup and again after every config reload, so a missing token is
+// visible before the first request is ever sent, not after a downstream 401.
+function logCollectorTokenSources(reason) {
+  const cls = getCollectors();
+  if (!cls.length) return;
+  const [primary, ...rest] = cls;
+  const describe = (collector, envKey) => {
+    const { token, source } = resolveToken(collector, envKey);
+    recordCollectorTokenSource(collector.url, source);
+    if (!token) {
+      console.error(`[collector] (${reason}) ${collector.url} has no resolvable token — expected ${envKey} in .env (or a configured machine_token/gcp-secret).`);
+    } else {
+      console.log(`[collector] (${reason}) ${collector.url} token source: ${source}`);
+    }
+  };
+  describe(primary, 'COLLECTOR_0_TOKEN');
+  rest.forEach((c, i) => describe(c, `COLLECTOR_${i + 1}_TOKEN`));
 }
 
 // Post to ALL collectors. Primary (index 0) is awaited; rest are fire-and-forget.
@@ -1121,12 +1248,22 @@ async function postToCollectors(path, body) {
   if (!cls.length) throw new Error('No collectors configured');
   const [primary, ...rest] = cls;
   const token0 = resolveToken(primary, 'COLLECTOR_0_TOKEN');
-  const result = await post(primary.url, token0, path, body);
+  recordCollectorTokenSource(primary.url, token0.source);
+  let result;
+  try {
+    result = await post(primary.url, token0.token, path, body);
+    recordCollectorSuccess(primary.url);
+  } catch (err) {
+    recordCollectorFailure(primary.url, err);
+    throw err;
+  }
   for (let i = 0; i < rest.length; i++) {
-    const token = resolveToken(rest[i], `COLLECTOR_${i + 1}_TOKEN`);
-    post(rest[i].url, token, path, body).catch(e =>
-      console.warn(`[collector-${i + 1}] write failed:`, e.message)
-    );
+    const envKey = `COLLECTOR_${i + 1}_TOKEN`;
+    const { token, source } = resolveToken(rest[i], envKey);
+    recordCollectorTokenSource(rest[i].url, source);
+    post(rest[i].url, token, path, body)
+      .then(() => recordCollectorSuccess(rest[i].url))
+      .catch(err => recordCollectorFailure(rest[i].url, err));
   }
   return result;
 }
@@ -1137,15 +1274,29 @@ async function patchCollectors(path, body) {
   if (!cls.length) return;
   const [primary, ...rest] = cls;
   const token0 = resolveToken(primary, 'COLLECTOR_0_TOKEN');
-  const result = await patch(primary.url, token0, path, body);
+  recordCollectorTokenSource(primary.url, token0.source);
+  let result;
+  try {
+    result = await patch(primary.url, token0.token, path, body);
+    recordCollectorSuccess(primary.url);
+  } catch (err) {
+    recordCollectorFailure(primary.url, err);
+    throw err;
+  }
   for (let i = 0; i < rest.length; i++) {
-    const token = resolveToken(rest[i], `COLLECTOR_${i + 1}_TOKEN`);
-    patch(rest[i].url, token, path, body).catch(e =>
-      console.warn(`[collector-${i + 1}] patch failed:`, e.message)
-    );
+    const envKey = `COLLECTOR_${i + 1}_TOKEN`;
+    const { token, source } = resolveToken(rest[i], envKey);
+    recordCollectorTokenSource(rest[i].url, source);
+    patch(rest[i].url, token, path, body)
+      .then(() => recordCollectorSuccess(rest[i].url))
+      .catch(err => recordCollectorFailure(rest[i].url, err));
   }
   return result;
 }
+
+// Track 10064 (REQ-5/REQ-6): report token resolution at startup, before the
+// first collector request is ever sent — not after a downstream 401.
+if (!getIsLocalFs()) logCollectorTokenSources('startup');
 
 // Primary collector only (orchestration queries — local only)
 // Returns { url: null, token: null } in local-fs mode — all HTTP calls will be no-ops
@@ -3095,17 +3246,25 @@ watch('conductor/tracks/file_sync_queue.md', { ignoreInitial: true })
   .on('add', () => debounce('file-queue', () => processFileSyncQueue().catch(e => console.error('[file-queue error]:', e.message)), 1000));
 
 let lastConfigHash = '';
-watch('.laneconductor.json')
+watch(laneConductorJsonPath)
   .on('change', () => {
     debounce('config-reload', async () => {
-      const content = readFileSync('.laneconductor.json', 'utf8');
+      const content = readFileSync(laneConductorJsonPath, 'utf8');
       const hash = createHash('md5').update(content).digest('hex');
       if (hash === lastConfigHash) return;
       lastConfigHash = hash;
 
       console.log('[config] .laneconductor.json changed, reloading...');
       try {
-        const newConfig = JSON.parse(readFileSync('.laneconductor.json', 'utf8'));
+        // Track 10064 (REQ-4): re-read .env BEFORE applying the new config,
+        // so a collector added in this same edit (or a token added in a
+        // prior edit to .env that this worker hadn't picked up yet) is
+        // resolvable by the time the collector logging/health check below
+        // runs. This is the actual fix for the incident this track
+        // investigated: a collector went live via this watcher mid-process
+        // while its token, sitting in .env, was never re-read.
+        loadDotEnv(configRoot);
+        const newConfig = JSON.parse(readFileSync(laneConductorJsonPath, 'utf8'));
         // Fully replace config object to avoid stale references
         config = {
           ...HARDCODED_DEFAULTS,
@@ -3113,6 +3272,8 @@ watch('.laneconductor.json')
           project: { ...HARDCODED_DEFAULTS.project, ...newConfig.project },
           ui: { ...HARDCODED_DEFAULTS.ui, ...newConfig.ui }
         };
+        tokenCache.clear();
+        logCollectorTokenSources('reload');
         const p = config.project.primary;
         console.log(`[config] Reloaded — mode: ${getMode()}, primary: ${p.cli}${p.model ? '/' + p.model : ' (default model)'}`);
         if (!getIsLocalFs()) {

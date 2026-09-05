@@ -43,6 +43,8 @@ const state = {
   projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
   providerStatus: {}, // Track 10062: { [provider]: { status, reset_at, last_error, updated_at } } — every /provider-status POST, keyed by provider, so a test can see the classified status (auth_required/exhausted/probe_failed/ok) actually reaching the collector, not just guess from worker stdout
   healthConfig: null, // Track 10061: null = complete manifest (every DEFAULT_HEALTH_ROUTES entry, api_version 1). Set via /_set-health: { mode: '404'|'html200'|'hang', omit: [...], api_version: N }.
+  requestAuthLog: [], // Track 10064: [{ method, path, hasAuth, authHeader }] for every non-underscore request — lets a test prove the worker did (or didn't) send Authorization, without needing this mock to itself enforce auth like the real Cloud Function does.
+  requireAuth: false, // Track 10064: when true, mirrors cloud/functions/index.js's `auth` middleware — 401s any non-GET, non-underscore request with no bearer token, so a test can reproduce the real "unauthorized: missing token" failure end-to-end.
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -77,6 +79,16 @@ function route(method, urlPattern, req) {
 const server = createServer(async (req, res) => {
   const body = await readBody(req);
   const bearerToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || null;
+  const urlPath = req.url.split('?')[0];
+  // Track 10064: record every real (non-`/_...` test-control) request's auth
+  // presence, so a test can assert the worker actually sent (or omitted)
+  // Authorization without this mock needing to enforce auth itself.
+  if (!urlPath.startsWith('/_')) {
+    state.requestAuthLog.push({ method: req.method, path: urlPath, hasAuth: !!bearerToken, authHeader: req.headers.authorization || null });
+  }
+  if (state.requireAuth && req.method !== 'GET' && !urlPath.startsWith('/_') && !bearerToken) {
+    return reply(res, 401, { error: 'unauthorized: missing token' });
+  }
   let params;
 
   // Track 1102 F12: simulate a genuine full outage window — every write
@@ -120,6 +132,12 @@ const server = createServer(async (req, res) => {
 
   if ((params = route('POST', '/_set-health', req)) !== null) {
     state.healthConfig = body;
+    return reply(res, 200, { ok: true });
+  }
+
+  // Track 10064: toggle real Cloud-Function-style auth enforcement.
+  if ((params = route('POST', '/_set-require-auth', req)) !== null) {
+    state.requireAuth = body.require !== false;
     return reply(res, 200, { ok: true });
   }
 
@@ -499,6 +517,8 @@ const server = createServer(async (req, res) => {
     state.failHeartbeatWith401 = false;
     state.heartbeat200WithLiteral404InBody = false;
     state.heartbeatCount = 0;
+    state.requestAuthLog = [];
+    state.requireAuth = false;
     return reply(res, 200, { ok: true });
   }
 
