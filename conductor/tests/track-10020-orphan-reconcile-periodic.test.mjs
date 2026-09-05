@@ -37,7 +37,7 @@ import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execSync } from 'node:child_process';
-import { runMarkerPath, buildRunMarker } from '../services/run-marker.mjs';
+import { runMarkerPath, buildRunMarker, markRunFinalizing, parseRunMarker } from '../services/run-marker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -86,7 +86,7 @@ async function enqueueDispatch(port, entry) {
 function primaryTrackDir(track) { return join(TMP, 'conductor/tracks', `${track}-test-track`); }
 function worktreeIndexPath(track) { return join(TMP, '.worktrees', track, 'conductor/tracks', `${track}-test-track`, 'index.md'); }
 
-function writeIndex(path, { lane, laneStatus }) {
+function writeIndex(path, { lane, laneStatus, workspace, trackKind }) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, [
     `# Track ${path.includes('.worktrees') ? 'worktree' : 'primary'} copy`,
@@ -94,6 +94,8 @@ function writeIndex(path, { lane, laneStatus }) {
     `**Lane**: ${lane}`,
     `**Lane Status**: ${laneStatus}`,
     '**Progress**: 0%',
+    ...(workspace ? [`**Workspace**: ${workspace}`] : []),
+    ...(trackKind ? [`**Track Kind**: ${trackKind}`] : []),
     '',
     '## Problem',
     'Test problem.',
@@ -105,6 +107,17 @@ function writeRunMarker(track, { pid, command, dispatchId, action }) {
   mkdirSync(dirname(markerPath), { recursive: true });
   const marker = buildRunMarker({ pid, pgid: pid, workerPid: 999999, trackNumber: track, dispatchId, action, command });
   writeFileSync(markerPath, JSON.stringify(marker, null, 2));
+  return markerPath;
+}
+
+// Track 10065: a marker whose owning worker is mid-finalization (see
+// markRunFinalizing in spawnCli's proc.on('exit')) — `workerPid` stands in
+// for the finalizing worker itself, not the (already-exited) CLI child.
+function writeFinalizingRunMarker(track, { childPid, workerPid, command, dispatchId, action }) {
+  const markerPath = runMarkerPath(TMP, track);
+  mkdirSync(dirname(markerPath), { recursive: true });
+  const marker = buildRunMarker({ pid: childPid, pgid: childPid, workerPid, trackNumber: track, dispatchId, action, command });
+  writeFileSync(markerPath, JSON.stringify(markRunFinalizing(marker, { exitCode: 0 }), null, 2));
   return markerPath;
 }
 
@@ -531,6 +544,213 @@ describe('Track 10020 Phase 2/3/4: periodic orphan reconciliation', () => {
     entry = state.dispatch.find(d => d.id === dispatchId);
     assert.equal(entry.status, 'done');
     assert.notEqual(String(entry.worker_id), String(workerId), 'sanity: this dispatch really was claimed by the OTHER identity, not the live worker itself');
+  });
+
+  // ── Track 10065 Phase 2: the marker must outlive the exit handler's own finalization ──
+
+  it('TC-2.5: a marker whose owning worker is still finalizing (finalizing-live) protects the dispatch — that worker is still the sole finalizer', async () => {
+    const track = '007';
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    writeIndex(worktreeIndexPath(track), { lane: 'implement', laneStatus: 'running' });
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(), // well past every grace window
+    });
+
+    // A REAL process standing in for "the OTHER worker that is finalizing
+    // this run" — this suite's own worker never spawned it, so only the
+    // marker's finalizing-live classification can be protecting this.
+    const finalizingWorker = spawn('sleep', ['300'], { detached: true, stdio: 'ignore' });
+    finalizingWorker.unref();
+    try {
+      writeFinalizingRunMarker(track, {
+        childPid: 424242, workerPid: finalizingWorker.pid, command: 'claude', dispatchId, action: 'implement',
+      });
+
+      await sleepMs(1200); // several orphan-reconcile ticks
+      const state = await getState(collectorPort);
+      assert.equal(state.dispatch.find(d => d.id === dispatchId).status, 'claimed',
+        'a finalizing-live marker must never be reconciled out from under its owning worker');
+    } finally {
+      try { process.kill(finalizingWorker.pid, 'SIGKILL'); } catch { /* already gone */ }
+    }
+  });
+
+  it('TC-2.6: a marker whose owning worker died mid-finalization (finalizing-dead) reconciles promptly — stronger evidence than an absent marker, no need to wait out the no-marker window', async () => {
+    const track = '008';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    writeFileSync(join(primaryTrackDir(track), 'conversation.md'), '');
+    writeIndex(worktreeIndexPath(track), { lane: 'implement', laneStatus: 'running' });
+
+    // Reuse the same dead-pid trick TC-4.3 uses: a real process, killed and
+    // reaped, so the pid is genuinely gone rather than merely never-issued.
+    const deadWorker = spawn('sleep', ['300'], { detached: true, stdio: 'ignore' });
+    deadWorker.unref();
+    process.kill(deadWorker.pid, 'SIGKILL');
+    await sleepMs(300);
+
+    // Just past the ordinary 900ms grace window, deliberately NOT past
+    // grace + the 900ms no-marker window (1800ms total) — proving this
+    // path doesn't fall through to (and wait out) the no-marker fallback.
+    const claimedAtMs = Date.now() - 950;
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(claimedAtMs).toISOString(),
+    });
+    writeFinalizingRunMarker(track, {
+      childPid: 424243, workerPid: deadWorker.pid, command: 'claude', dispatchId, action: 'implement',
+    });
+
+    const state = await poll(async () => {
+      const s = await getState(collectorPort);
+      const e = s.dispatch.find(d => d.id === dispatchId);
+      return e && e.status !== 'claimed' ? s : null;
+    }, { timeout: 3000, label: 'TC-2.6 reconciles a finalizing-dead marker' });
+
+    assert.ok(Date.now() - claimedAtMs < 1500,
+      'must reconcile well before grace + NO_MARKER_FALLBACK_MS (1800ms) — finalizing-dead is stronger evidence than "no marker at all" and skips that extra wait');
+
+    const entry = state.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'failed');
+    assert.match(entry.result, /implement/);
+    const conversation = readFileSync(join(primaryTrackDir(track), 'conversation.md'), 'utf8');
+    assert.match(conversation, />\s*\*\*system\*\*:\s*⚠️/, 'must post a human-flag comment to conversation.md');
+    assert.ok(!existsSync(runMarkerPath(TMP, track)), 'the finalizing marker must be deleted once reconciled');
+  });
+
+  it('TC-2.7: a real spawned run keeps its marker throughout the exit handler and removes it only once finalization completes', async () => {
+    const track = '009';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'queue' });
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement', status: 'pending',
+    });
+
+    // Wait until this worker has claimed + spawned it (own runningTrackMap
+    // / activeDispatch protect it from the orphan tick — this test is about
+    // the MARKER's lifecycle, not about restart recovery).
+    await poll(async () => {
+      const content = existsSync(join(primaryTrackDir(track), 'index.md')) ? readFileSync(join(primaryTrackDir(track), 'index.md'), 'utf8') : '';
+      return /\*\*Lane Status\*\*:\s*running/i.test(content) ? true : null;
+    }, { label: 'TC-2.7 dispatch claimed and marked running' });
+
+    assert.ok(existsSync(runMarkerPath(TMP, track)), 'the run marker must exist while the CLI child is genuinely running');
+
+    const finalState = await poll(async () => {
+      const s = await getState(collectorPort);
+      const e = s.dispatch.find(d => d.id === dispatchId);
+      return e && e.status !== 'pending' && e.status !== 'claimed' ? s : null;
+    }, { timeout: 10000, label: 'TC-2.7 self-dispatch resolves normally' });
+
+    const entry = finalState.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'done');
+    assert.equal(entry.finalizePatchCount, 1, 'exactly one finalizing PATCH');
+    assert.ok(!existsSync(runMarkerPath(TMP, track)), 'the marker must be removed once the exit handler\'s own finalization actually completed');
+  });
+
+  // ── Track 10065 Phase 3 (F3): main-mode dispatches have no worktree at all ──
+
+  it('TC-3.1: a main-mode dispatch (no worktree, ever) is reconciled from the PRIMARY checkout\'s own index.md, and its stale lock is released', async () => {
+    const track = '10068';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    // **Workspace**: main means this track never had a worktree — the bug
+    // this phase fixes. The primary index.md itself shows the crash shape
+    // (still "running", nobody finished the write).
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'running', workspace: 'main' });
+    writeFileSync(join(primaryTrackDir(track), 'conversation.md'), '');
+    assert.ok(!existsSync(join(TMP, '.worktrees', track)), 'sanity: no worktree must exist for this scenario');
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    // Independent evidence the dispatch is really dead, same as the
+    // no-marker fallback's own git-lock trick — a main-mode dispatch still
+    // takes this same per-track lock even though it has no worktree.
+    const lockPath = join(TMP, '.conductor', 'locks', `${track}.lock`);
+    mkdirSync(dirname(lockPath), { recursive: true });
+    writeFileSync(lockPath, JSON.stringify({ user: 'test', machine: 'test-host', pid: 999999, started_at: new Date(Date.now() - 60000).toISOString(), track_number: track }));
+
+    const state = await poll(async () => {
+      const s = await getState(collectorPort);
+      const e = s.dispatch.find(d => d.id === dispatchId);
+      return e && e.status !== 'claimed' ? s : null;
+    }, { timeout: 3000, label: 'TC-3.1 reconciles a main-mode dispatch with no worktree' });
+
+    const entry = state.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'failed');
+    assert.match(entry.result, /implement/);
+    assert.ok(!existsSync(lockPath), 'the stale lock must be released once the main-mode dispatch is reconciled');
+  });
+
+  it('TC-3.2: a main-mode dispatch whose primary index.md already shows the finished, matching lane is reconciled as done, with artifact copy skipped (nothing to copy)', async () => {
+    const track = '10069';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    // Same lane as the dispatched action, terminal "success" status — the
+    // ordinary finished-while-orphaned shape (mirrors TC-4.1), just sourced
+    // from the primary since main-mode never created a worktree.
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'success', workspace: 'main' });
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    const state = await poll(async () => {
+      const s = await getState(collectorPort);
+      const e = s.dispatch.find(d => d.id === dispatchId);
+      return e && e.status !== 'claimed' ? s : null;
+    }, { timeout: 3000, label: 'TC-3.2 reconciles a main-mode finished dispatch' });
+
+    const entry = state.dispatch.find(d => d.id === dispatchId);
+    assert.equal(entry.status, 'done');
+  });
+
+  it('TC-3.3 (regression): a branch-mode track with no worktree is left alone, exactly as before this track', async () => {
+    const track = '10070';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    // No **Workspace** marker and no bug **Track Kind** — resolves to
+    // 'branch' (today's default), so a missing worktree stays unexplained
+    // rather than being treated as expected main-mode behavior.
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'running' });
+    assert.ok(!existsSync(join(TMP, '.worktrees', track)));
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    await sleepMs(1200); // several ticks
+    const state = await getState(collectorPort);
+    assert.equal(state.dispatch.find(d => d.id === dispatchId).status, 'claimed',
+      'a branch-mode track with no worktree must still be left alone — unchanged from before Phase 3');
+  });
+
+  it('TC-3.4 (REQ-7): the no-marker fallback never deletes the git lock before a reconcile decision is actually reached', async () => {
+    const track = '10071';
+    mkdirSync(primaryTrackDir(track), { recursive: true });
+    // Branch-mode, no worktree — TC-3.3's shape, so the dispatch is
+    // ultimately left untouched. The no-marker fallback still runs first
+    // (it's evaluated before the worktree/source-of-truth check) and must
+    // not release the lock just because it concluded runnerExited: true.
+    writeIndex(join(primaryTrackDir(track), 'index.md'), { lane: 'implement', laneStatus: 'running' });
+
+    const dispatchId = await enqueueDispatch(collectorPort, {
+      worker_id: workerId, track_number: track, action: 'implement',
+      status: 'claimed', claimed_at: new Date(Date.now() - 60000).toISOString(),
+    });
+
+    const lockPath = join(TMP, '.conductor', 'locks', `${track}.lock`);
+    mkdirSync(dirname(lockPath), { recursive: true });
+    writeFileSync(lockPath, JSON.stringify({ user: 'test', machine: 'test-host', pid: 999999, started_at: new Date(Date.now() - 60000).toISOString(), track_number: track }));
+
+    await sleepMs(1200); // several ticks — enough for the no-marker fallback to have fired
+    const state = await getState(collectorPort);
+    assert.equal(state.dispatch.find(d => d.id === dispatchId).status, 'claimed', 'still left alone (TC-3.3\'s shape)');
+    assert.ok(existsSync(lockPath), 'the lock must still be present — only released once a reconcile decision is actually reached, never speculatively');
   });
 });
 
