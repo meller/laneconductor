@@ -77,6 +77,8 @@ import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orpha
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
 import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS, formatProviderBlockReason } from './services/provider-probe-classify.mjs';
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
+import { COLLECTOR_API_VERSION, compareManifest } from './services/collector-manifest.mjs';
+import { extractWorkerCalls } from './services/collector-route-parity.mjs';
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -663,6 +665,23 @@ async function refreshModels() {
 
 // ── Collector HTTP client ─────────────────────────────────────────────────────
 
+/**
+ * Track 10061 (REQ-11): a non-ok response used to only become a formatted
+ * message (`"${status} ${body}"`) — indistinguishable from any other thrown
+ * Error to a catch block, and matched (badly) by
+ * `err.message.includes('404')`-style string checks. `err.status`/`err.body`
+ * let callers (the heartbeat error path) branch on the real HTTP status
+ * instead of grepping a message string — kept alongside the existing message
+ * format so nothing that already reads it regresses.
+ */
+async function throwHttpError(r, url) {
+  const text = await r.text();
+  const err = new Error(`${r.status} ${text}`);
+  err.status = r.status;
+  err.body = text;
+  throw err;
+}
+
 async function get(collectorUrl, token, path, timeoutMs = 10000) {
   if (!collectorUrl) return {};
   const headers = {};
@@ -676,7 +695,7 @@ async function get(collectorUrl, token, path, timeoutMs = 10000) {
   try {
     const r = await fetch(url, { headers, signal: controller.signal });
     clearTimeout(id);
-    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    if (!r.ok) await throwHttpError(r, url);
     return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`Fetch timeout after ${timeoutMs}ms: ${url}`);
@@ -703,7 +722,7 @@ async function post(collectorUrl, token, path, body, timeoutMs = 15000) {
       signal: controller.signal
     });
     clearTimeout(id);
-    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    if (!r.ok) await throwHttpError(r, url);
     return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`POST timeout after ${timeoutMs}ms: ${url}`);
@@ -730,7 +749,7 @@ async function patch(collectorUrl, token, path, body, timeoutMs = 15000) {
       signal: controller.signal
     });
     clearTimeout(id);
-    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    if (!r.ok) await throwHttpError(r, url);
     return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`PATCH timeout after ${timeoutMs}ms: ${url}`);
@@ -755,12 +774,132 @@ async function del(collectorUrl, token, path, body = {}, timeoutMs = 10000) {
       signal: controller.signal
     });
     clearTimeout(id);
-    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    if (!r.ok) await throwHttpError(r, url);
     return parseJsonResponse(r, url);
   } catch (err) {
     if (err.name === 'AbortError') throw new Error(`DELETE timeout after ${timeoutMs}ms: ${url}`);
     throw err;
   }
+}
+
+// ── Collector handshake (Track 10061) ───────────────────────────────────────────
+// Neither server implementation ever told a worker what it actually serves, so
+// drift (tracks 10052/10053) was silent until a human noticed something weird
+// and went digging. The worker fetches each collector's GET /health, compares
+// it against its own call list, and continues regardless of the result — see
+// conductor/services/collector-manifest.mjs for why this can never block.
+
+/**
+ * Fetch a collector's handshake manifest (its GET /health response). Never
+ * throws — returns `null` on any failure (network error, timeout, non-JSON
+ * body such as an SPA fallback from a Hosting misroute, a 404 from a server
+ * predating this track). `compareManifest` treats `null` as `severity:
+ * 'unknown'`, not an error.
+ *
+ * @param {string} url collector base URL
+ * @param {string|null} token
+ * @returns {Promise<object|null>}
+ */
+async function fetchCollectorManifest(url, token) {
+  try {
+    return await get(url, token, '/health', 5000);
+  } catch {
+    return null;
+  }
+}
+
+// This worker's own collector call list, extracted from its own source
+// (REQ-8) via the same extractor the build-time parity test already trusts
+// (conductor/tests/cloud-route-parity.test.mjs) — never a hand-maintained
+// list. Computed once and cached: the worker's own source doesn't change
+// during its own lifetime.
+let cachedOwnCollectorCalls = null;
+function getOwnCollectorCalls() {
+  if (!cachedOwnCollectorCalls) {
+    const ownSource = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+    cachedOwnCollectorCalls = extractWorkerCalls(ownSource);
+  }
+  return cachedOwnCollectorCalls;
+}
+
+// Per-collector handshake state, keyed by collector URL:
+//   { verdict, collectorApiVersion, signature, consecutiveReregisters, capWarned }
+// `signature` is how log-on-change-only (not every cycle) is implemented —
+// see recordHandshakeVerdict. `consecutiveReregisters`/`capWarned` are Phase
+// 3's bound on the heartbeat 404 re-register loop when no manifest is
+// available at all (D6.3) — per collector, since one collector being
+// unreachable shouldn't affect another's.
+const collectorCompat = new Map();
+
+function verdictSignature(verdict) {
+  return JSON.stringify({
+    severity: verdict.severity,
+    apiVersionDelta: verdict.apiVersionDelta,
+    missingRoutes: [...verdict.missingRoutes].sort(),
+  });
+}
+
+/**
+ * Run the handshake against one collector, log the verdict (only when it
+ * changed from what was last logged for this collector — REQ: "log exactly
+ * one line per collector per verdict change"), and remember it for the
+ * heartbeat 404 path and the register body. A failed/absent handshake is
+ * recorded as `severity: 'unknown'` and never throws (REQ-7, REQ-16) — a
+ * handshake problem must never block registration.
+ *
+ * @param {string} url
+ * @param {string|null} token
+ * @returns {Promise<{verdict: object, collectorApiVersion: number|null}>}
+ */
+async function runCollectorHandshake(url, token) {
+  let manifest = null;
+  try {
+    manifest = await fetchCollectorManifest(url, token);
+  } catch (err) {
+    // fetchCollectorManifest already swallows its own errors, but this
+    // belt-and-suspenders catch is what makes the "never blocks
+    // registration" contract true even if that changes later.
+    logger.warn({ url, err: err.message }, '[handshake] unexpected error fetching collector manifest');
+  }
+
+  const verdict = compareManifest({
+    workerVersion: COLLECTOR_API_VERSION,
+    workerCalls: getOwnCollectorCalls(),
+    manifest,
+  });
+  const collectorApiVersion = Number.isInteger(manifest?.api_version) ? manifest.api_version : null;
+
+  const prior = collectorCompat.get(url);
+  const signature = verdictSignature(verdict);
+  const changed = !prior || prior.signature !== signature;
+
+  const entry = {
+    verdict,
+    collectorApiVersion,
+    signature,
+    // A real handshake response (anything but 'unknown') resets the
+    // re-register cap and its warned-once flag — Phase 5's periodic
+    // re-handshake is what keeps this true over a long-lived worker's life,
+    // not just at its first registration (D8).
+    consecutiveReregisters: verdict.severity === 'unknown' ? (prior?.consecutiveReregisters ?? 0) : 0,
+    capWarned: verdict.severity === 'unknown' ? (prior?.capWarned ?? false) : false,
+  };
+  collectorCompat.set(url, entry);
+
+  if (changed) {
+    if (verdict.severity === 'ok') {
+      logger.info({ url, workerVersion: COLLECTOR_API_VERSION }, `[handshake] ${url}: collector matches this worker's expectations`);
+    } else if (verdict.severity === 'unknown') {
+      logger.warn({ url, reason: verdict.reason }, `[handshake] ${url}: no usable manifest — continuing degraded (${verdict.reason})`);
+    } else {
+      logger.warn(
+        { url, severity: verdict.severity, apiVersionDelta: verdict.apiVersionDelta, missingRoutes: verdict.missingRoutes },
+        `[handshake] ${url}: ${verdict.reason}`,
+      );
+    }
+  }
+
+  return { verdict, collectorApiVersion };
 }
 
 /**
@@ -1144,6 +1283,18 @@ async function upsertWorker() {
         }
       }
 
+      // Track 10061 (REQ-7): handshake before registering. Guarded so a
+      // handshake failure (bad manifest, timeout, unreachable) can never
+      // block registration itself — runCollectorHandshake already never
+      // throws, but this repeats the same belt-and-suspenders wrapper the
+      // rest of this function's I/O gets, in case that contract changes.
+      let handshake = { verdict: null, collectorApiVersion: null };
+      try {
+        handshake = await runCollectorHandshake(url, token);
+      } catch (err) {
+        logger.warn({ url, err: err.message }, '[handshake] collector handshake failed — continuing to register anyway');
+      }
+
       const primary = proj.primary || { cli: 'claude', model: null };
       const visibility = proj.worker?.visibility || config.worker?.visibility || 'private';
       const registerBody = {
@@ -1157,6 +1308,8 @@ async function upsertWorker() {
         model: primary.model || null,
         available_models: cachedModels || undefined,
         code_sha: workerCodeSha,
+        collector_compat: handshake.verdict,
+        collector_api_version: handshake.collectorApiVersion,
       };
       if (isManager) registerBody.type = 'manager';
       const res = await post(url, token, '/worker/register', registerBody);
@@ -1280,13 +1433,72 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
       // console.log(`[heartbeat] worker beat sent to ${c.url}: ${hostname}:${pid}`);
     } catch (err) {
       console.error(`[worker heartbeat error] ${c.url}: ${err.message}`);
-      if (err.message.includes('401') || err.message.includes('404')) {
-        // Re-register if token is invalid or worker not found
-        upsertWorker().catch(() => { });
-      }
+      handleHeartbeatError(c.url, err);
     }
   }
   notifyApi('worker:updated', { projectId: proj.id });
+}
+
+// Track 10061 (D6/REQ-12/REQ-13): a 404 here used to be treated exactly like
+// a 401 — "the worker record vanished, re-register" — on the theory that any
+// non-ok response meant that. A 404 actually just as often means *this
+// collector doesn't implement this route* (tracks 10052/10053's failure
+// mode), and against a server missing the route, re-registering on every
+// beat forever never surfaces the real cause. Branches on the structural
+// `err.status` (see throwHttpError) rather than string-matching the message.
+const MAX_CONSECUTIVE_REREGISTERS = Number(process.env.LC_MAX_REREGISTER_ATTEMPTS) || 5;
+const HEARTBEAT_ROUTE = 'PATCH /worker/heartbeat';
+
+function handleHeartbeatError(url, err) {
+  if (err.status === 401) {
+    // Unchanged behaviour: an invalid/expired token means re-register.
+    upsertWorker().catch(() => { });
+    return;
+  }
+
+  if (err.status !== 404) return; // some other failure (network, 5xx) — nothing to branch on here
+
+  const compat = collectorCompat.get(url);
+
+  if (compat && compat.verdict.severity !== 'unknown') {
+    // A real, current manifest is available for this collector.
+    if (compat.verdict.missingRoutes.includes(HEARTBEAT_ROUTE)) {
+      // The collector itself says it doesn't serve this route — a missing
+      // route reporting itself as a missing route, not a phantom
+      // worker-not-found. Re-registering would never fix this and would
+      // just repeat forever (the exact bug this track exists to end).
+      logger.warn({ url }, `⚠️ route not implemented by this collector: ${HEARTBEAT_ROUTE}`);
+      return;
+    }
+    // The manifest says this collector DOES serve /worker/heartbeat, so a
+    // 404 here means the worker record itself is genuinely gone (deleted,
+    // DB reset, etc.) — re-register, exactly as before this track.
+    upsertWorker().catch(() => { });
+    return;
+  }
+
+  // No usable manifest for this collector (handshake itself failed/timed
+  // out/returned garbage) — the pre-existing behaviour (re-register) is the
+  // closest to a sane default, but it must be BOUNDED: a worker must never
+  // be able to re-register forever just because it can never reach /health
+  // either (D6.3).
+  const attempts = (compat?.consecutiveReregisters ?? 0) + 1;
+  const capWarned = compat?.capWarned ?? false;
+  collectorCompat.set(url, {
+    ...(compat ?? { verdict: { severity: 'unknown', apiVersionDelta: null, missingRoutes: [], reason: 'no handshake yet', compatible: true }, collectorApiVersion: null, signature: null }),
+    consecutiveReregisters: attempts,
+    capWarned,
+  });
+
+  if (attempts <= MAX_CONSECUTIVE_REREGISTERS) {
+    upsertWorker().catch(() => { });
+  } else if (!capWarned) {
+    collectorCompat.set(url, { ...collectorCompat.get(url), capWarned: true });
+    logger.warn(
+      { url, cap: MAX_CONSECUTIVE_REREGISTERS },
+      `⚠️ re-register cap (${MAX_CONSECUTIVE_REREGISTERS}) reached for ${url} with no usable collector manifest — stopping until the next successful handshake`,
+    );
+  }
 }
 
 async function removeWorker() {
@@ -3039,6 +3251,34 @@ setInterval(pullTracksMetadataFromDB, 5000);
 // ── Heartbeat intervals ───────────────────────────────────────────────────────
 
 setInterval(() => updateWorkerHeartbeat(), Number(process.env.LC_HEARTBEAT_INTERVAL_MS) || 10000);
+
+// Track 10061 Phase 5 (D8): a server can be redeployed under a long-lived
+// worker — a registration-time-only handshake would report a verdict that
+// quietly went stale hours ago, the same class of staleness this whole
+// track exists to end. Deliberately NOT the 10-second heartbeat cadence:
+// this only changes on deploy, so checking every beat would just be a
+// wasted request per collector for information that almost never changes.
+async function recheckCollectorHandshakes() {
+  if (getIsLocalFs()) return;
+  const cls = getCollectors();
+  for (let i = 0; i < cls.length; i++) {
+    const c = cls[i];
+    if (!c.url) continue;
+    const token = resolveCollectorToken(i);
+    const before = collectorCompat.get(c.url)?.signature ?? null;
+    await runCollectorHandshake(c.url, token).catch(err => {
+      logger.warn({ url: c.url, err: err.message }, '[handshake] periodic re-check failed');
+    });
+    const after = collectorCompat.get(c.url)?.signature ?? null;
+    // Verdict changed since the last check — push it so the UI badge
+    // updates without a worker restart. Registration is idempotent (ON
+    // CONFLICT DO UPDATE on the workers row), so re-running it is a safe
+    // way to persist an updated collector_compat outside the one-time
+    // registration flow (REQ-9 keeps this off the heartbeat path itself).
+    if (before !== after) upsertWorker().catch(() => { });
+  }
+}
+setInterval(() => { recheckCollectorHandshakes(); }, Number(process.env.LC_HANDSHAKE_INTERVAL_MS) || 15 * 60 * 1000);
 
 setInterval(async () => {
   try {
