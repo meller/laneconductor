@@ -13,6 +13,8 @@ import {
   buildRunMarker,
   parseRunMarker,
   isRunMarkerLive,
+  markRunFinalizing,
+  classifyMarkerPhase,
 } from '../services/run-marker.mjs';
 
 describe('run-marker.mjs', () => {
@@ -99,5 +101,44 @@ describe('run-marker.mjs', () => {
       });
       assert.deepEqual(result, { live: false });
     });
+  });
+
+  // Track 10065: markRunFinalizing / classifyMarkerPhase — see test.md TC-2.1..TC-2.4
+  it('TC-2.1: markRunFinalizing sets finalizing/exited_at/exit_code and preserves the rest of the marker', () => {
+    const marker = buildRunMarker({
+      pid: 123456, pgid: 123456, workerPid: 99887, trackNumber: '10065',
+      dispatchId: 3566, action: 'implement', command: 'claude',
+      now: new Date('2026-09-05T18:48:26.108Z'),
+    });
+    const now = new Date('2026-09-05T18:50:00.000Z');
+    const finalized = markRunFinalizing(marker, { exitCode: 0, now });
+    assert.deepEqual(finalized, {
+      ...marker,
+      finalizing: true,
+      exited_at: '2026-09-05T18:50:00.000Z',
+      exit_code: 0,
+    });
+    // round-trips through JSON exactly like a plain marker
+    const parsed = parseRunMarker(JSON.stringify(finalized));
+    assert.deepEqual(parsed, finalized);
+  });
+
+  it('TC-2.2: classifyMarkerPhase is finalizing-live when the finalizing marker\'s worker_pid is alive', () => {
+    const marker = markRunFinalizing({ pid: 1, worker_pid: 500, command: 'claude' }, { exitCode: 0 });
+    assert.equal(classifyMarkerPhase(marker, { isPidAlive: () => true }), 'finalizing-live');
+  });
+
+  it('TC-2.3: classifyMarkerPhase is finalizing-dead when the finalizing marker\'s worker_pid is dead', () => {
+    const marker = markRunFinalizing({ pid: 1, worker_pid: 500, command: 'claude' }, { exitCode: 1 });
+    assert.equal(classifyMarkerPhase(marker, { isPidAlive: () => false }), 'finalizing-dead');
+  });
+
+  it('TC-2.4: classifyMarkerPhase on a legacy marker (no finalizing field at all) is "running" — zero change for pre-10065 markers', () => {
+    const legacyMarker = buildRunMarker({
+      pid: 111, pgid: 111, workerPid: 222, trackNumber: '10020',
+      dispatchId: 1, action: 'implement', command: 'claude',
+    });
+    assert.equal(classifyMarkerPhase(legacyMarker, { isPidAlive: () => { throw new Error('must not be called'); } }), 'running');
+    assert.equal(classifyMarkerPhase(null, { isPidAlive: () => { throw new Error('must not be called'); } }), 'running');
   });
 });

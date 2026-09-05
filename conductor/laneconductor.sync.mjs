@@ -61,7 +61,7 @@ import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-mod
 import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
 import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
-import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand } from './services/run-marker.mjs';
+import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand, markRunFinalizing, classifyMarkerPhase } from './services/run-marker.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { resolveConfigRoot } from './services/config-root.mjs';
@@ -5756,15 +5756,43 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     runningPids.delete(proc.pid);
     runningLaneMap.delete(proc.pid);
     runningTrackMap.delete(proc.pid);
-    // Track 10020 Phase 1: unconditional, best-effort — same shape as
-    // releaseTrackClaim just below — so a kill/crash path still clears the
-    // marker, not just a clean exit.
+    // Track 10065: this used to DELETE the marker right here, before
+    // everything below it (retry counts, the action PATCH, artifact copy,
+    // git-lock release, dispatch finalization — several hundred lines of
+    // async work). A worker killed anywhere in that tail left NO marker at
+    // all for this track, even though the CLI child had, in fact, already
+    // exited — indistinguishable from a claim that never got as far as
+    // spawning one in the first place (found live: track 10063). Rewriting
+    // it to record that finalization is in progress instead lets a
+    // replacement process tell "still finalizing, leave it alone" apart
+    // from "was finalizing, but that worker died too" (positive evidence,
+    // stronger than an absent marker) — see classifyMarkerPhase's callers in
+    // reconcileOrphanedDispatchesInner. The marker is only actually removed
+    // in the `finally` at the bottom of this handler, once finalization has
+    // genuinely completed.
+    const markerPath = runMarkerPath(process.cwd(), trackNumber);
     try {
-      const markerPath = runMarkerPath(process.cwd(), trackNumber);
-      if (existsSync(markerPath)) rmSync(markerPath);
+      if (existsSync(markerPath)) {
+        const marker = parseRunMarker(readFileSync(markerPath, 'utf8'));
+        if (marker) {
+          writeFileSync(markerPath, JSON.stringify(markRunFinalizing(marker, { exitCode: code }), null, 2), 'utf8');
+        }
+      }
     } catch (err) {
-      console.warn(`[${label}] Track ${trackNumber}: failed to remove run marker (non-fatal): ${err.message}`);
+      console.warn(`[${label}] Track ${trackNumber}: failed to mark run finalizing (non-fatal): ${err.message}`);
     }
+    // Track 10065 test-only hook (mirrors MOCK_CLI_DELAY_MS's role for the
+    // child process, LC_SHUTDOWN_DEADLINE_MS's for shutdown): widens the
+    // window between the finalizing-marker write above and the rest of this
+    // handler completing, so a test can deterministically kill the WORKER
+    // itself mid-finalization and prove a replacement process recovers via
+    // classifyMarkerPhase's finalizing-dead branch, instead of racing a real
+    // kill against however fast finalization happens to run. No-op unless
+    // explicitly set.
+    if (process.env.LC_TEST_FINALIZE_DELAY_MS) {
+      await new Promise(r => setTimeout(r, Number(process.env.LC_TEST_FINALIZE_DELAY_MS)));
+    }
+    try {
     updateWorkerHeartbeat('idle', null);
 
     // Track 1110 Phase 4: release this track's local-fs claim marker, if
@@ -6448,6 +6476,16 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }).catch(() => { });
     }
     console.log(`[${label}] Process ${proc.pid} exited with code ${code}`);
+    } finally {
+      // Track 10065: the marker has now served its purpose for real —
+      // finalization (everything in the try{} above) actually completed, on
+      // every path including a throw. Only NOW is it safe to remove.
+      try {
+        if (existsSync(markerPath)) rmSync(markerPath);
+      } catch (err) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to remove run marker (non-fatal): ${err.message}`);
+      }
+    }
   });
 
   console.log(`[${label}] Launched (PID: ${proc.pid}) — ${command} ${args.join(' ')}`);
@@ -8150,12 +8188,34 @@ async function reconcileOrphanedDispatchesInner() {
     let runnerExited; // stays undefined when no marker exists — REQ-6
     if (existsSync(markerPath)) {
       const marker = parseRunMarker(readFileSync(markerPath, 'utf8'));
-      const liveness = isRunMarkerLive(marker, { isPidAlive, readProcessCommand });
-      if (liveness.live) {
-        logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — live run marker');
+      // Track 10065: a marker the exit handler is actively finalizing (see
+      // markRunFinalizing in spawnCli's proc.on('exit')) is neither "the CLI
+      // child is still running" (isRunMarkerLive checks marker.pid, the CHILD
+      // — already dead by the time finalization starts) nor "provably dead
+      // with nothing to say about it" — it's positive evidence of exactly
+      // which worker is responsible right now.
+      const phase = classifyMarkerPhase(marker, { isPidAlive });
+      if (phase === 'finalizing-live') {
+        // That worker's own proc.on('exit') handler is still the sole
+        // finalizer for this dispatch — same non-interference rule as
+        // activeDispatch/runningTrackMap for the in-process case (REQ-4).
+        logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — another worker is still finalizing this run');
         continue;
       }
-      runnerExited = true;
+      if (phase === 'finalizing-dead') {
+        // The worker that was finalizing this run died too — stronger
+        // evidence than an absent marker, so this doesn't wait out
+        // NO_MARKER_FALLBACK_MS below (REQ-5).
+        logger.warn({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Marker shows finalization was in progress when its worker died — treating as a crashed run');
+        runnerExited = true;
+      } else {
+        const liveness = isRunMarkerLive(marker, { isPidAlive, readProcessCommand });
+        if (liveness.live) {
+          logger.debug({ trackNumber, dispatchId: entry.id }, '[orphan-reconcile] Skipping — live run marker');
+          continue;
+        }
+        runnerExited = true;
+      }
     } else if (Number.isFinite(claimedAtMs) && Date.now() - claimedAtMs > NO_MARKER_FALLBACK_MS) {
       // Track 10065 (found live 2026-09-04): a marker proven dead is REQ-6's
       // designed case, but a marker that never existed at all had no path to
@@ -8190,7 +8250,15 @@ async function reconcileOrphanedDispatchesInner() {
             logger.warn({ trackNumber, dispatchId: entry.id, lockPid: lock.pid },
               '[orphan-reconcile] No run marker ever appeared and the claiming git-lock pid is dead — treating as a crashed run');
             runnerExited = true;
-            rmSync(lockPath, { force: true }); // same dead-lock cleanup checkAndClaimGitLock does on its own next claim
+            // Track 10065 (REQ-7): do NOT delete the lock here — this is
+            // only evidence toward a `runnerExited` verdict, not a reconcile
+            // decision yet. The classification below can still `continue`
+            // (no worktree AND not resolvable as main-mode — F3's regression
+            // case), in which case deleting the lock here would destroy the
+            // one piece of state that made this track's next claim attempt
+            // able to clean it up. The unified lock-release below already
+            // runs on the SAME dead-pid evidence, but only once
+            // `classification.orphaned` is actually true.
           }
         }
       } catch (err) {
@@ -8200,18 +8268,54 @@ async function reconcileOrphanedDispatchesInner() {
     }
 
     const worktreePath = join(process.cwd(), '.worktrees', String(trackNumber));
-    if (!existsSync(worktreePath)) continue; // no worktree left to check — genuinely nothing recoverable here
+    const worktreeExists = existsSync(worktreePath);
 
-    const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
-    const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
-    const wtIndexPath = wtTrackDir ? join(wtTracksDir, wtTrackDir, 'index.md') : null;
-    if (!wtIndexPath || !existsSync(wtIndexPath)) continue;
+    // Track 10065 (F3): a `**Workspace**: main` dispatch NEVER creates a
+    // worktree — the old unconditional `continue` below meant those
+    // dispatches could never be reconciled, no matter how long they sat
+    // claimed (worse still, the no-marker fallback above had already
+    // released the stale git lock by this point, destroying the one piece
+    // of evidence the next cycle could have used). The primary checkout is
+    // where a main-mode agent writes its own markers, so it's a legitimate
+    // substitute source of truth — but ONLY when a worktree genuinely never
+    // existed for this run (checked first, below); a branch-mode track
+    // whose worktree is merely missing/already cleaned up keeps today's
+    // skip, since by now the primary's own lane/status may belong to a
+    // completely different, unrelated later run.
+    let sourceIndexContent = null;
+    let sourceIsPrimary = false;
+    if (worktreeExists) {
+      const wtTracksDir = join(worktreePath, 'conductor', 'tracks');
+      const wtTrackDir = existsSync(wtTracksDir) ? resolveTrackFolder(wtTracksDir, trackNumber) : null;
+      const wtIndexPath = wtTrackDir ? join(wtTracksDir, wtTrackDir, 'index.md') : null;
+      if (wtIndexPath && existsSync(wtIndexPath)) sourceIndexContent = readFileSync(wtIndexPath, 'utf8');
+    } else {
+      const primaryTracksDirForMode = join(process.cwd(), 'conductor', 'tracks');
+      const primaryTrackDirForMode = resolveTrackFolder(primaryTracksDirForMode, trackNumber);
+      const primaryIndexPathForMode = primaryTrackDirForMode ? join(primaryTracksDirForMode, primaryTrackDirForMode, 'index.md') : null;
+      const primaryContentForMode = primaryIndexPathForMode && existsSync(primaryIndexPathForMode) ? readFileSync(primaryIndexPathForMode, 'utf8') : null;
+      if (primaryContentForMode) {
+        const resolvedMode = resolveWorkspaceMode({
+          laneStatus: entry.action,
+          workspaceMarker: parseWorkspaceMarker(primaryContentForMode),
+          trackType: parseTrackKind(primaryContentForMode),
+          projectWorkspaceMode: getProject()?.workspace_mode ?? null,
+        });
+        if (resolvedMode === 'main') {
+          sourceIndexContent = primaryContentForMode;
+          sourceIsPrimary = true;
+        }
+      }
+    }
+    if (!sourceIndexContent) continue; // no worktree, and not resolvable as main-mode — genuinely nothing recoverable here
 
-    const wtIndexContent = readFileSync(wtIndexPath, 'utf8');
-    const laneStatus = wtIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
-    const wtLane = wtIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
+    const laneStatus = sourceIndexContent.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1];
+    const wtLane = sourceIndexContent.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1];
     const classification = classifyOrphanedDispatch({ laneStatus, lane: wtLane, action: entry.action, workflowConfig, runnerExited });
     if (!classification.orphaned) continue; // still genuinely "running", or nothing to go on yet
+    // A main-mode source has nothing to copy — the primary IS the run's own
+    // state already, not a separate worktree snapshot to merge back.
+    if (sourceIsPrimary) classification.skipArtifactCopy = true;
 
     console.warn(`[orphan-reconcile] Dispatch ${entry.id} (track ${trackNumber}, action ${entry.action}) finished after a worker restart orphaned it — worktree's own Lane Status reads "${laneStatus}"`);
 
@@ -8274,6 +8378,12 @@ async function reconcileOrphanedDispatchesInner() {
           await syncTrack(indexPath).catch(e => console.warn(`[orphan-reconcile] Failed to sync artifacts to DB: ${e.message}`));
         }
       }
+    } else if (sourceIsPrimary && !classification.flagForHuman) {
+      // Forced above purely because there's no worktree to copy FROM — the
+      // primary already IS this run's own state. Not a mismatch, so no
+      // anomaly to surface (that still falls through to the branch below
+      // when classifyOrphanedDispatch itself flagged one).
+      console.log(`[orphan-reconcile] Track ${trackNumber} has no worktree (main-mode dispatch) — its own index.md IS the primary's state already, nothing to copy`);
     } else {
       // Found live 2026-09-05 (tracks 10064/10065/10067): this warning text
       // was written for Track 1117 Bug 2's specific "lane isn't a recognized

@@ -61,6 +61,38 @@ export function isRunMarkerLive(marker, { isPidAlive, readProcessCommand } = {})
   return { live: true };
 }
 
+// Track 10065: the exit handler used to delete the marker at the very top of
+// proc.on('exit'), before ~690 lines of async finalization (retry counts, the
+// action PATCH, artifact copy, git-lock release, dispatch finalization). A
+// worker killed anywhere in that tail left no marker at all — indistinguishable
+// from a claim that never got as far as spawning — even though the CLI child
+// had, in fact, already finished. Rewriting the marker to record that
+// finalization is IN PROGRESS (rather than deleting it outright) closes that
+// window: a replacement process can now tell "still finalizing, leave it
+// alone" (the finalizing worker is still the sole finalizer, same as
+// activeDispatch/runningTrackMap for the in-process case) apart from "was
+// finalizing, but that worker died too" (positive evidence, stronger than an
+// absent marker — no need to wait out the no-marker fallback window).
+export function markRunFinalizing(marker, { exitCode = null, now = new Date() } = {}) {
+  return {
+    ...marker,
+    finalizing: true,
+    exited_at: now.toISOString(),
+    exit_code: exitCode,
+  };
+}
+
+// A marker with no `finalizing` field (every marker written before this
+// track, or one still mid-run) classifies as 'running' — byte-identical to
+// this function not existing at all. Only a marker THIS module itself wrote
+// via markRunFinalizing ever has `finalizing: true`, so a legacy caller sees
+// zero behavior change.
+export function classifyMarkerPhase(marker, { isPidAlive } = {}) {
+  if (!marker) return 'running';
+  if (!marker.finalizing) return 'running';
+  return isPidAlive(marker.worker_pid) ? 'finalizing-live' : 'finalizing-dead';
+}
+
 // ESRCH means no such process — genuinely gone. Any other error (notably
 // EPERM) means the pid exists but isn't ours to signal, which still counts
 // as "alive" for this purpose.
