@@ -1,6 +1,6 @@
 # Track TU-10061: Worker and collector never handshake — API drift between the two server implementations is silent
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
