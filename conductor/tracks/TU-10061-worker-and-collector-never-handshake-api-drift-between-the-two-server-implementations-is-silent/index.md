@@ -3,7 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implemented — 5/5 phases
 **Track Kind**: feature
 **Type**: dev
