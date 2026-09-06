@@ -1,9 +1,9 @@
 # Track AM-10069: Manager chat surface — persistent, target-switchable conversation with live state and the /laneconductor skill
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Planning complete (replanned for the revised 10067 boundary)
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: pr
@@ -31,4 +31,4 @@
 7. **Live coding-agent affordances while a turn is running** — the same things Claude Code's own CLI/terminal UI shows: an updating elapsed-time counter, a running token count, and a changing status line during the "thinking"/tool-use phase (e.g. cycling through what it's doing — "Thinking…", "Reading file…", "Running command…" — not a single static "Running" label for the whole turn). Every worker dispatch already runs the CLI with `--output-format stream-json --include-partial-messages --verbose` (confirmed live in `ps aux` output across this session) — that stream already carries per-message usage/token data and naturally exposes timing via when events arrive, so this is a matter of surfacing data the CLI already emits, not inventing new instrumentation. Applies to any target's live turn, not just the manager's.
 
 **Open questions for planning**: which of the two intervention models (3a vs 3b) is v1; how much of the manager's system-state context is pre-loaded vs. queried on demand and what that costs per turn; what "genuinely incomplete setup" means precisely for gating the wizard message; whether per-worker chat (as opposed to manager chat) needs the same live-state/skill-driven treatment or can stay a simpler transcript-plus-comment surface for v1; and, for item 7, exactly which `stream-json` event types the UI needs to parse for token/timing data and whether that parsing already exists anywhere in the transcript viewer 10067 is building or needs to be added here.
-**Summary**: Depends on track 10067's transcript/chat-target-resolver infrastructure; see Problem field for full scope.
+**Summary**: Persistent top-level Chat view with a target switcher — manager target runs a real /laneconductor skill session via the existing conversation-reply spawn path, worker targets reuse 10037's…

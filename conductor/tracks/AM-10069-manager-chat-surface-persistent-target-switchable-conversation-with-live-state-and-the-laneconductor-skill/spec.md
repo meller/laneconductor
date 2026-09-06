@@ -62,7 +62,8 @@ One persistent top-level **Chat** view, with a target switcher. Two target tiers
 surface, one renderer.
 
 - **Manager target (default)** — a full `/laneconductor`-skill session against the
-  supervision pseudo-track track 10067 provides. Free-form input, real tool access, live
+  supervision pseudo-track track 10067 provides (a directory — everything interactive on top
+  of it is built here, D7). Free-form input, real tool access, live
   transcript with tool calls, on-demand instance state, and a conditional setup wizard.
 - **Worker target** — the track-scoped conversation and transcript `WorkerChatPanel`
   already resolves (10037's `resolveWorkerChatTarget`), rendered in the same persistent
@@ -70,6 +71,12 @@ surface, one renderer.
 
 Plus the two things that make either tier usable: honest queued-intervention semantics,
 and the live-turn affordances (elapsed, tokens, changing status) on **any** target's turn.
+
+And, since the boundary with track 10067 was revised on 2026-09-06 (D7), the chat plumbing
+underneath the manager tier: the chat-target resolver returning a manager target instead of
+`null`, the composer enabled for it, a filesystem-backed conversation adapter for a
+pseudo-track that has no `tracks` row, the reply-pickup trigger (D8), and the worker-side
+skip that stops `syncConversation` mis-parsing the reserved folder name as a track number.
 
 ## Decisions
 
@@ -165,29 +172,107 @@ Consequence worth stating: this improves **every** existing transcript surface
 (`TrackDetailPanel`, `WorkerActivityLatch`, `WorkerChatPanel`) at once, because they all
 already share `useTrackTranscript` and `streamTranscript.js`.
 
-### D7 — Dependency on track 10067, and what happens if its shape differs
+### D7 — Revised dependency boundary (changed 2026-09-06, commit `aa5e0958`)
 
-This track consumes 10067's REQ-14 through REQ-18 and rebuilds none of them. Concretely it
-assumes:
+The split with track 10067 was rewritten by hand after this track's first planning pass, and
+the change is not cosmetic — it moves roughly a phase of work into this track. 10067 now
+ships **visibility only**.
 
-1. `conductor/tracks/manager/` exists per supervised project, with `index.md` and
-   `conversation.md` (REQ-14).
-2. `resolveWorkerChatTarget()` returns a usable target for `type === 'manager'`, resolving
-   to the currently-viewed project's supervision track (REQ-15, D5).
-3. A human comment in that conversation triggers a reply turn the same way it does on a
-   numbered track (REQ-18).
+Every REQ number in the table below is **10067's**, not this track's — this track's own
+numbering for the moved-in work is REQ-25..REQ-31.
 
-Assumption 3 is the one to watch. On a numbered track a human comment sets
-`lane_action_status = 'queue'` (`ui/server/index.mjs:3658`) and the lane action re-fires;
-`local-fs-answer` fires only when `**Waiting for reply**: yes`. The pseudo-track is
-deliberately invisible to the claim loop — `remainingScopedWork()` matches `/^(\d+)/`
-(`:9123`), which `manager` does not — so neither existing trigger reaches it for free.
-**Which mechanism 10067 lands is a shared contract, not this track's to choose.**
+| Consumed from 10067 (unchanged) | Built here (previously assumed from 10067) |
+|---|---|
+| REQ-14 — `conductor/tracks/manager/` exists per supervised project, with `index.md` and `conversation.md` | REQ-15 — `resolveWorkerChatTarget()` returning a manager target |
+| REQ-21 — the reserved folder name contains no digit in any position | REQ-16 — the composer enabled for a manager worker |
+| REQ-17 — the live transcript path working for a supervision session, with no new renderer | REQ-18 — a human reply in that conversation being picked up |
+| | REQ-22 — the comments routes' filesystem-backed reserved-name branch |
+| | REQ-23 — the worker's `syncConversation` skipping the pseudo-track |
 
-Phase 4 therefore begins by asserting the contract against the merged 10067 rather than
-assuming it, and Phase 4's plan carries an explicit contingency task: if reply pickup on
-the pseudo-track is absent or narrower than REQ-18 states, raise it on 10067 as a
-shared-contract change and block this phase — do **not** fork a second trigger here.
+The reason recorded on both tracks: this track has to build resolver and composer-enabling
+logic for every target type it supports anyway, so a manager-specific slice of the same
+logic in 10067 risked two different answers to "how does chat find its target."
+
+**What survives from 10067's planning and is reused rather than re-derived** — its D5 and
+D7, each re-verified against this checkout on 2026-09-06:
+
+- The pseudo-track is addressed as track number `manager` and is invisible to claiming, to
+  `tracks.md`, and to the auto-launch scan because every folder consumer requires a digit —
+  `isTrackDirName` is `/\d+/.test(name) && !name.startsWith('_duplicate-')`
+  (`laneconductor.sync.mjs:1748`). The reserved name must therefore contain no digit
+  *anywhere*, not merely lack a numeric prefix.
+- Giving it a real `tracks` row was considered and rejected: every route would work for
+  free, but it puts a card on every project's board, which then needs a new exclusion in the
+  tracks-list query — the exact cost this design avoids, traded for one branch in two routes.
+- `GET /comments` 404s for it (`getTrackId` → `SELECT id FROM tracks`, `ui/server/index.mjs:1604`);
+  `POST /comments` writes through `collectorWrite` to a row that does not exist; and the
+  worker's `syncConversation` is worse than not running, because `extractTrackNumber`'s
+  fallback is `?? trackDir` (`:2090`), so it returns the literal string `manager` and POSTs
+  every turn to a nonexistent track.
+- A manager's worker row has `project_id: null` and the workers API deliberately returns the
+  manager in every project's worker list, so a manager chat target resolves to the project
+  whose board the user is currently viewing — `resolveWorkerChatTarget`'s existing
+  `fallbackProjectId` argument, no new mechanism.
+- `parseConversationComments()` (`conductor/sync-conversation-utils.mjs:13`) is already a
+  pure exported parser producing the shape `useTrackComments` renders, so the filesystem
+  adapter is a mapping, not a new parser.
+
+**Residual dependency, now genuinely thin.** All this track needs from merged 10067 is a
+directory containing two files. Everything in Phase 4 is built and tested against a fixture
+folder (REQ-31); only the end-to-end verification in Phase 8 needs the real one. This
+removes the blocking risk the first planning pass flagged.
+
+### D8 — Reply pickup on the pseudo-track: a reserved-name allowance in the existing claim scan, gated to conversation replies only
+
+This is the mechanism D7 previously deferred to 10067 as a shared contract. It is now this
+track's to choose, and one finding decides it.
+
+**Launch decisions are filesystem-based in every mode, not only local-fs.** At
+`laneconductor.sync.mjs:9202`, API mode pulls the workflow and the claimable set from the
+collector and then calls the same `autoLaunchLocalFs()` that local-fs mode uses — the
+comment there states it outright: "DB is used only for heartbeats and UI sync, not for
+concurrency control." So a `**Waiting for reply**: yes` marker in a folder's own `index.md`
+is read from disk in every mode. 10067's D7 assumed that flag needed a DB row to carry it,
+which is why it leaned toward a manager-owned file poll; it does not.
+
+The pseudo-track is excluded by exactly two guards, both cheap and both explicit: the `dirs`
+filter's `isTrackDirName` (no digit → excluded), and
+`const trackNumMatch = dir.match(/(\d+)/); if (!trackNumMatch) continue;` at `:6642`.
+
+**Decision: admit the reserved name past both guards only when `**Waiting for reply**: yes`
+is set, and force the action to `CONVERSATION_REPLY_ACTION`.** It is never eligible for a
+lane action, never claimable from the open queue, and never receives a lane transition.
+
+Everything else then comes for free, and each item is a mechanism this track would otherwise
+have to re-derive: the conversation-reply path already bypasses the git lock and the
+worktree (`isConversationRun` → `workspaceMode = null`, which is independently 10067's D8
+conclusion), resumes the same session, names its log the way the transcript endpoint
+expects, writes a run marker, pushes `session:event` to the browser, defers while a run is
+live (`:6866`), and refuses to fire when the last human turn was already answered
+(`hasGenuineUnansweredHumanComment`, `:6846`).
+
+Rejected — **a poll inside the manager's own sweep loop** (10067's D7 leaning, "the manager
+reading the file it owns"). Two problems. It puts the reply path back inside 10067's Phase 3
+loop, re-coupling the two tracks the revised split just separated. And it makes chat
+unavailable exactly when it is most wanted: a dead or missing manager is the thing a user
+opens this pane to ask about. Any non-sync-only worker being able to answer is strictly
+better.
+
+Who sets the marker: the POST comments reserved-name branch (REQ-27), as it appends the
+turn, since there is no DB row to carry it. The conversation-reply exit handler already
+clears it on completion (`:6033`).
+
+**One consequence, stated rather than discovered later.** `track_sessions` is keyed
+`PRIMARY KEY (track_number, worker_id)` (`migrations/20260809103807_add_track_sessions.sql`),
+so session continuity on the manager thread is per worker. On the normal single-worker
+instance, consecutive manager messages resume one session — AC-6 as written. On an instance
+with several non-sync-only workers, a second message answered by a *different* worker
+cold-starts, because there is no warm session for that pair. That is acceptable, and it is
+precisely what REQ-8's continuity notice exists to surface: the pane says the session
+restarted instead of the user inferring it from an answer that forgot the last turn. Pinning
+the manager thread to one worker was considered and rejected for the same reason the poll
+was — it reintroduces a single point of failure into the one surface a user opens when
+things are broken.
 
 ## Requirements
 
@@ -252,6 +337,28 @@ shared-contract change and block this phase — do **not** fork a second trigger
 - REQ-24: Affordances apply to any target's live turn, manager or worker (D5), and
   degrade to nothing rendered for a non-Claude CLI run that emits no stream-json.
 
+**Manager chat plumbing (moved in from 10067 — D7, D8)**
+- REQ-25: `resolveWorkerChatTarget()` returns a usable target for `type === 'manager'`,
+  resolving to the reserved track number `manager` in the project whose board is being
+  viewed (`fallbackProjectId`), instead of `null` (`ui/src/lib/workerTaskInfo.js:33`).
+- REQ-26: `WorkerChatPanel`'s composer is enabled for a manager target, replacing the
+  `disabled={isManager || !target}` gate and the "Managers are transcript-only" hint.
+- REQ-27: `GET` and `POST /api/projects/:id/tracks/:num/comments` serve the reserved name
+  from the filesystem — reading and appending
+  `<repo_path>/conductor/tracks/manager/conversation.md` via `parseConversationComments()`,
+  bypassing `getTrackId` and `collectorWrite` entirely. The POST branch additionally sets
+  `**Waiting for reply**: yes` in that folder's `index.md`, since no DB row can carry it.
+- REQ-28: `autoLaunchLocalFs` admits the reserved pseudo-track past its two digit guards
+  **only** when that marker is set, dispatches it as `CONVERSATION_REPLY_ACTION`, and never
+  as a lane action or an open-queue claim.
+- REQ-29: The worker's `syncConversation` skips the reserved pseudo-track by name, without
+  changing `extractTrackNumber`'s shared fallback — that fallback has callers well outside
+  this track.
+- REQ-30: None of this makes the pseudo-track visible to the board: no Kanban card, no
+  `tracks.md` entry, no `tracks` row.
+- REQ-31: Every requirement in this group is exercisable against a fixture `manager/`
+  folder, so the phase does not block on merged 10067.
+
 ## Acceptance Criteria
 
 Each is stated as something an operator could observe.
@@ -269,7 +376,9 @@ Each is stated as something an operator could observe.
       run's own log (`extractSessionContextTokens` over the same file).
 - [ ] AC-6: Sending a second message to the same manager target continues the same
       session — verified by the second turn referencing the first without re-reading the
-      same files, and by one `track_sessions` row rather than two.
+      same files, and by one `track_sessions` row rather than two. Scoped to one worker
+      answering both, which is the single-worker default; where a second worker answers, the
+      pane states the restart (REQ-8) rather than hiding it — see D8.
 - [ ] AC-7: Sending a message while the target has a live run marker shows the message as
       **queued** with the reason, and it is answered after the live turn ends, with no
       further clicks.
@@ -290,6 +399,17 @@ Each is stated as something an operator could observe.
       no broken or zeroed affordance UI.
 - [ ] AC-14: `track_chat` / `worker_adhoc_chat` still work unchanged from the Activity
       panel's chat bar — this track does not regress the path it declines to extend.
+- [ ] AC-15: With a manager worker selected, the composer is enabled and sending produces a
+      turn in `conductor/tracks/manager/conversation.md` — verified by reading the file.
+- [ ] AC-16: `GET /api/projects/:id/tracks/manager/comments` returns that turn as JSON
+      rather than 404, and no `tracks` row was created — verified by querying the table.
+- [ ] AC-17: A human turn there is answered by a running worker within one auto-launch
+      cycle, with the reply's transcript visible live in the pane; with the marker absent,
+      the same folder is never claimed.
+- [ ] AC-18: The pseudo-track appears on no Kanban board and in no `tracks.md`, checked
+      before and after a chat exchange.
+- [ ] AC-19: While the manager conversation is being written, the worker log contains no
+      failed `/track/manager/comment` POSTs — noise that is present without REQ-29's skip.
 
 ## Out of Scope (FFU — deliberately deferred, and therefore not acceptance criteria)
 
@@ -298,7 +418,9 @@ Each is stated as something an operator could observe.
   concurrent-run deferral at `:6866`. A separate track.
 - **A free-roaming skill session per worker target (D5).** Worker targets stay
   track-scoped in v1.
-- **Rebuilding anything in 10067's REQ-14..REQ-18.** Consumed, not duplicated (D7).
+- **Rebuilding 10067's REQ-14, REQ-17 and REQ-21** — the pseudo-track's existence, its
+  digit-free reserved name, and the read-only live transcript path. Consumed, not
+  duplicated (D7). Everything that used to sit behind that boundary is now in scope here.
 - **Mobile-first layout for the Chat view.** It gets a More-sheet entry so it is
   reachable, not a redesigned mobile surface.
 - **Multi-turn streaming of *partial* assistant text.** `content_block_delta` arrives and
@@ -309,7 +431,17 @@ Each is stated as something an operator could observe.
 
 ## Data Model Changes
 
-None, and no migration. Chat messages are `track_comments` rows written through the
-existing comments endpoint and `conversation.md`; sessions reuse `track_sessions`;
-transcripts reuse `conductor/logs/*.log`; the state snapshot and gap list are computed per
-request and never stored.
+None, and no migration — in either tier, and the manager tier is the reason to say so
+explicitly.
+
+A **worker**-target message is a `track_comments` row written through the existing comments
+endpoint, plus the matching `conversation.md` turn, exactly as today. A **manager**-target
+message is a `conversation.md` turn and nothing else: the supervision pseudo-track has no
+`tracks` row by deliberate design (D7), so its comments route reads and appends the file
+directly and never reaches `track_comments`. That asymmetry is the whole point of the
+filesystem adapter — it buys "no card on any board" for the cost of one branch in two
+routes.
+
+Sessions reuse `track_sessions` keyed by the string track number `manager`, which the column
+already accommodates (`track_number` is `TEXT`). Transcripts reuse `conductor/logs/*.log`.
+The state snapshot and the gap list are computed per request and never stored.
