@@ -1,13 +1,13 @@
 # Track AM-10072: Human-needs-reply marks only the single most recent human comment, burying older unreplied ones forever
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Workspace**: branch
-**Merge Mode**: pr
-**Auto Run**: no
+**Merge Mode**: direct
+**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Problem**: The `💬 Waiting` badge on a track card (`TrackCard.jsx:385`, `track.human_needs_reply`) is driven by a real DB query (`ui/server/index.mjs`, multiple call sites e.g. line 787): `EXISTS(SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE)`. Any unreplied human comment anywhere in the thread trips it — correct so far.
