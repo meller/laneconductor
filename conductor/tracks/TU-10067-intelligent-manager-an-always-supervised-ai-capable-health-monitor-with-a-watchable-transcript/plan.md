@@ -17,21 +17,24 @@ CLI — `bin/systemd-user.mjs` only knows about the API service.
 **Solution**: A machine-level singleton unit for the manager plus a `lc` subcommand that
 installs either unit through the existing systemd helper.
 
-- [ ] Task 1.1: Write `conductor/systemd/laneconductor-manager.service` — a singleton, not
+- [x] Task 1.1: Write `conductor/systemd/laneconductor-manager.service` — a singleton, not
       templated (the manager has no project path; `laneconductor.sync.mjs:134`).
-    - [ ] `Restart=always`, and `RestartSec`/`StartLimit*` justified in comments against the
+    - [x] `Restart=always`, and `RestartSec`/`StartLimit*` justified in comments against the
           manager's lock-stale window, mirroring the worker unit's reasoning
-    - [ ] Carry over the worker unit's `[Unit]`-not-`[Service]` `StartLimit*` placement note
+    - [x] Carry over the worker unit's `[Unit]`-not-`[Service]` `StartLimit*` placement note
           — that was a real, silently-disabling bug
-    - [ ] `WorkingDirectory` from the manager's resolved serving root; `ExecStart` includes
+    - [x] `WorkingDirectory` from the manager's resolved serving root; `ExecStart` includes
           `--manager`
-- [ ] Task 1.2: Extend `bin/systemd-user.mjs` from one hardcoded service to a small registry
+- [x] Task 1.2: Extend `bin/systemd-user.mjs` from one hardcoded service to a small registry
       (`api`, `worker@`, `manager`), keeping `hasSystemdUser()` / `startService()` /
       `isServiceActive()` / `getServicePid()` as the single systemd integration point.
-- [ ] Task 1.3: Add `lc worker install-service [--manager]` — writes, `daemon-reload`s,
+- [x] Task 1.3: Add `lc worker install-service [--manager]` — writes, `daemon-reload`s,
       enables and starts. On a non-systemd host, explain and exit non-zero.
-- [ ] Task 1.4: Add supervision state to `lc worker status [--manager]`.
-- [ ] Task 1.5: Call `enableLinger()` on install so supervision survives logout.
+- [x] Task 1.4: Add supervision state to `lc worker status [--manager]`.
+- [ ] Task 1.5: Call `enableLinger()` on install so supervision survives logout. Wired
+      into `install-service` (both branches); not yet exercised against a real install
+      (see conversation.md — deferred to Phase 7's live check rather than run against this
+      machine's real, already-running manager identity).
 
 **Impact**: The manager becomes a permanently-present process. This is the precondition for
 D3's decision that layer 1 lives only in the manager.
@@ -145,25 +148,25 @@ moved to Track 10069 — reading/writing comments over HTTP is interactivity, 10
 now; the manager's own findings still get written directly to `conversation.md` by Task 4.3
 below, which needs no API and stays here.)
 
-- [ ] Task 4.1: Create the pseudo-track on first sweep if absent, **only in projects the
+- [x] Task 4.1: Create the pseudo-track on first sweep if absent, **only in projects the
       manager supervises** — never in the manager's own serving root, which is not a project
       checkout (D6). `index.md` marks it clearly as not a workflow track, plus
       `conversation.md`.
-- [ ] Task 4.2: Route host-scoped findings (D6 step 3) to the manager's log and worker row
+- [x] Task 4.2: Route host-scoped findings (D6 step 3) to the manager's log and worker row
       only — no pseudo-track, no comment.
-- [ ] Task 4.3: Route project-scoped findings into its `conversation.md` as `> **system**:` comments in the
+- [x] Task 4.3: Route project-scoped findings into its `conversation.md` as `> **system**:` comments in the
       required parser format, deduped by fingerprint so a persistent finding is not re-posted
       every 30 seconds.
-- [ ] Task 4.4: Skip the reserved pseudo-track in the worker's `syncConversation`
+- [x] Task 4.4: Skip the reserved pseudo-track in the worker's `syncConversation`
       (REQ-23). **Do this before Task 4.3 ships**, not after — without it, every finding
       written by 4.3 becomes a failed `/track/manager/comment` POST once per sweep. Put the
       check in `syncConversation`; do **not** touch `extractTrackNumber`'s no-digit fallback,
       which every other caller shares.
-- [ ] Task 4.6: Confirm live that the transcript route already works unchanged for a
+- [x] Task 4.6: Confirm live that the transcript route already works unchanged for a
       non-numeric segment — its pattern is `-${trackNum}-\d+\.log$` over `conductor/logs/`
       with no DB lookup, so `-manager-<ts>.log` matches. Verified by reading during planning;
       re-confirm against a real log file rather than trusting the note.
-- [ ] Task 4.7: Regression test — after the pseudo-track exists, `tracks.md` is unchanged,
+- [x] Task 4.7: Regression test — after the pseudo-track exists, `tracks.md` is unchanged,
       `lc track-dir manager` does not resolve it as a track, and auto-launch never claims it.
       Include the REQ-21 assertion that the reserved name contains no digit in any position,
       since that (not a numeric *prefix*) is what `isTrackDirName` actually tests.

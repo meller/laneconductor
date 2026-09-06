@@ -3,8 +3,8 @@
 **Lane**: implement
 **Merge Mode**: direct
 **Lane Status**: running
-**Progress**: 42%
-**Phase**: Phase 3 - Wire the sweep loop into the manager (complete, board-fs-mismatch wiring deferred)
+**Progress**: 57%
+**Phase**: Phase 4 - Supervision pseudo-track (complete)
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
