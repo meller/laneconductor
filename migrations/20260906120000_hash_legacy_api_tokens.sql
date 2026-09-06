@@ -1,0 +1,49 @@
+-- Track 10070: rehash the plaintext api_tokens rows in place.
+--
+-- api_tokens.token stored the raw bearer token, so a database read — SQL
+-- injection, stolen credentials, an exposed backup — yielded credentials an
+-- attacker could authenticate with directly. The sibling api_keys table has
+-- always stored only a SHA-256 digest; this brings api_tokens in line, using the
+-- same digest the application computes (hashToken, cloud/functions/index.js).
+-- Reported externally as PR #1; that report was correct, but its diff changed
+-- only the lookup side, which without this migration would have broken every
+-- already-issued token instead of protecting it.
+--
+-- Rehash in place rather than forcing reissue: clients already hold the raw
+-- token outside the database — .env COLLECTOR_<n>_TOKEN, collectors[].token in
+-- .laneconductor.json, or GCP Secret Manager (getCollectorToken, bin/lc.mjs) —
+-- and only the digest is needed here, so every existing worker keeps
+-- authenticating with no client change and no downtime. Reissue would mean
+-- manual re-entry per target plus manual GCP secret rotation, with no
+-- lc login/refresh command and no api_tokens revoke endpoint to drive it.
+--
+-- Idempotent, and exactly so rather than heuristically: every plaintext token
+-- begins 'lc_' (index.js mints 'lc_' + 24 random bytes; older rows use the
+-- 'lc_live_' shape), while a lowercase hex digest can never contain 'l' at all.
+-- So the predicate matches precisely the not-yet-migrated rows, and re-running
+-- this migration is a no-op. left(token, 3) rather than LIKE 'lc\_%' to keep it
+-- free of any dependence on standard_conforming_strings and on '_' being a
+-- LIKE wildcard.
+--
+-- Safe as a primary-key rewrite: token is the PK, so plaintext values were
+-- already unique and distinct plaintexts give distinct digests — no collision is
+-- possible. Nothing has an inbound foreign key to api_tokens.token; the table's
+-- only FK points outward to workspaces.
+--
+-- Either apply order is safe. auth() matches the digest OR a still-plaintext
+-- row, and rehashes a plaintext row in place as it passes, so there is no window
+-- in which authentication breaks by deploying the function and applying this
+-- migration out of order — and the table converges even if this never runs.
+--
+-- NOT a revocation. Rehashing preserves the tokens, so anything a past leak
+-- already exposed stays valid until an operator rotates it. Rotation is a
+-- separate, deliberate decision — worth making here, since this repo's history
+-- already had to revoke one leaked lc_live_ token.
+--
+-- After applying, this should return 0:
+--   SELECT count(*) FROM api_tokens WHERE left(token, 3) = 'lc_';
+--
+-- sha256(bytea) is built into PostgreSQL 11+, so no pgcrypto extension.
+UPDATE api_tokens
+SET token = encode(sha256(token::bytea), 'hex')
+WHERE left(token, 3) = 'lc_';

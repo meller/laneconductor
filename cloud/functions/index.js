@@ -220,6 +220,17 @@ async function resolveWorkerIdentity(req, res, next) {
   }
 }
 
+// Track 10070: the only form an lc_ credential is ever stored or compared in.
+//
+// SHA-256 is right here for the same reason it is right for api_keys: these are
+// full-entropy random values, not user-chosen passwords, so there is nothing for
+// a slow KDF to protect against and no dictionary to attack. The property that
+// matters is that a database read — via SQL injection, stolen credentials, or an
+// exposed backup — yields nothing a caller can authenticate with.
+function hashToken(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
 // Auth middleware - supports lc_xxxx API tokens or Firebase ID tokens
 async function auth(req, res, next) {
   const bearer = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-collector-token'];
@@ -229,26 +240,43 @@ async function auth(req, res, next) {
 
   try {
     if (bearer.startsWith('lc_')) {
-      // 1. Try api_tokens table (plaintext — legacy worker tokens)
+      // Both credential tables store only the SHA-256 digest, so a database
+      // read never yields a usable token. One digest serves both lookups.
+      const tokenHash = hashToken(bearer);
+
+      // 1. Try api_tokens table (SHA-256 hash — legacy worker tokens)
+      //
+      // The `OR token = $2` arm matches a row still in the pre-migration
+      // plaintext form. It cannot be used to smuggle a hash past the digest
+      // check: $2 is the raw bearer, which reached here only by starting with
+      // 'lc_', and a hex digest can never start with 'l' (not a hex digit), so
+      // the two arms address disjoint sets of rows.
       const { rows: tokenRows } = await query(
-        'SELECT workspace_id FROM api_tokens WHERE token = $1',
-        [bearer]
+        'SELECT workspace_id, token FROM api_tokens WHERE token = $1 OR token = $2',
+        [tokenHash, bearer]
       );
       if (tokenRows.length > 0) {
+        // Rehash a plaintext row in place on the way through, so the table
+        // converges even where the bulk migration hasn't been applied yet and
+        // there is no window in which auth is broken by deploy ordering.
+        // Fire-and-forget: the request must not fail or wait on a storage
+        // upgrade. Removable once every deployment has been migrated.
+        if (tokenRows[0].token === bearer) {
+          query('UPDATE api_tokens SET token = $1 WHERE token = $2', [tokenHash, bearer]).catch(() => {});
+        }
         req.workspace_id = tokenRows[0].workspace_id;
-        req.api_token = bearer;
+        req.api_token_hash = tokenHash;
         return resolveWorkerIdentity(req, res, next);
       }
 
       // 2. Try api_keys table (SHA-256 hash — UI-generated keys)
-      const keyHash = crypto.createHash('sha256').update(bearer).digest('hex');
       const { rows: keyRows } = await query(
         'SELECT user_uid FROM api_keys WHERE key_hash = $1',
-        [keyHash]
+        [tokenHash]
       );
       if (keyRows.length > 0) {
         // Update last_used_at asynchronously
-        query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [keyHash]).catch(() => {});
+        query('UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = $1', [tokenHash]).catch(() => {});
         // Resolve workspace_id from user_uid
         const { rows: wsRows } = await query(
           'SELECT workspace_id FROM workspace_members WHERE firebase_uid = $1 LIMIT 1',
@@ -258,7 +286,7 @@ async function auth(req, res, next) {
           return res.status(403).json({ error: 'forbidden: no workspace associated with key owner' });
         }
         req.workspace_id = wsRows[0].workspace_id;
-        req.api_token = bearer;
+        req.api_token_hash = tokenHash;
         return resolveWorkerIdentity(req, res, next);
       }
 
@@ -362,7 +390,7 @@ app.post('/api/keys', auth, async (req, res) => {
     const user_uid = req.user.uid;
     const name = req.body.name || null;
     const rawKey = `lc_live_${crypto.randomUUID().replace(/-/g, '')}`;
-    const key_hash = crypto.createHash('sha256').update(rawKey).digest('hex');
+    const key_hash = hashToken(rawKey);
     const key_prefix = rawKey.slice(0, 16);
     await query(
       'INSERT INTO api_keys(user_uid, key_hash, key_prefix, name) VALUES($1, $2, $3, $4)',
@@ -433,12 +461,29 @@ app.post('/auth/token', async (req, res) => {
       ON CONFLICT (workspace_id, firebase_uid) DO NOTHING
     `, [workspace_id, decoded.uid, github_username]);
 
-    // Generate new token
+    // Mint a token only for a caller who doesn't already have one.
+    //
+    // The UI calls this on every onAuthStateChanged and discards the response
+    // body (ui/src/contexts/AuthContext.jsx), so the endpoint's real job is the
+    // two upserts above — minting unconditionally accumulated one live
+    // credential per sign-in, forever, none of which anyone could use. Now that
+    // only the digest is stored, a second call also cannot return the earlier
+    // token, so the honest response for a repeat caller is no token at all.
+    const { rows: existing } = await query(
+      'SELECT 1 FROM api_tokens WHERE workspace_id = $1 AND created_by = $2 LIMIT 1',
+      [workspace_id, decoded.uid]
+    );
+    if (existing.length > 0) {
+      return res.json({ workspace_id });
+    }
+
+    // Stored as a SHA-256 digest; the raw value is returned to the caller here
+    // and never persisted, so this is the only moment it exists server-side.
     const token = 'lc_' + crypto.randomBytes(24).toString('hex');
     await query(`
       INSERT INTO api_tokens (token, workspace_id, created_by)
       VALUES ($1, $2, $3)
-    `, [token, workspace_id, decoded.uid]);
+    `, [hashToken(token), workspace_id, decoded.uid]);
 
     res.json({ token, workspace_id });
   } catch (err) {
@@ -1657,6 +1702,12 @@ app.post('/file-sync/claim', auth, async (req, res) => {
     );
     if (projCheck.rows.length === 0) return res.status(403).json({ error: 'forbidden: project not in workspace' });
 
+    // worker_id is a claim label for debugging, never matched on — it is only
+    // ever written (here) and read back as an opaque column. It used to be the
+    // caller's raw bearer token, which put a live credential at rest in a second
+    // table; the digest prefix identifies the same caller without being one.
+    const claimedBy = req.api_token_hash ? req.api_token_hash.slice(0, 12) : 'machine';
+
     const client = await getPool().connect();
     try {
       await client.query('BEGIN');
@@ -1671,7 +1722,7 @@ app.post('/file-sync/claim', auth, async (req, res) => {
           LIMIT $3
         )
         RETURNING id, file_path, content
-      `, [projectId, req.api_token || 'machine', limit]);
+      `, [projectId, claimedBy, limit]);
       await client.query('COMMIT');
       res.json({ tasks: r.rows });
     } catch (err) {

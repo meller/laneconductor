@@ -255,6 +255,8 @@ model workspace_members {
 }
 
 model api_tokens {
+  // SHA-256 digest of the token, hex — never the raw value. See hashToken in
+  // cloud/functions/index.js and Track 10070's migration.
   token        String      @id
   workspace_id String?     @db.Uuid
   created_by   String

@@ -4,6 +4,7 @@ const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const crypto = require("crypto");
 const dns = require("node:dns");
 
 const cloudDbPassword = defineSecret('CLOUD_DB_PASSWORD');
@@ -62,10 +63,15 @@ async function auth(req, res, next) {
 
   try {
     if (bearer.startsWith('lc_')) {
-      // API token auth (from worker)
+      // API token auth (from worker). api_tokens stores a SHA-256 digest, so the
+      // raw bearer is hashed before comparison — see hashToken in index.js. The
+      // second arm matches a row still in the pre-migration plaintext form; the
+      // two arms address disjoint sets of rows, because a bearer reaching here
+      // starts with 'lc_' and a hex digest cannot. Unlike index.js this handler
+      // does not rehash on the way through: the reader function is read-only.
       const { rows } = await db.query(
-        'SELECT workspace_id FROM api_tokens WHERE token = $1',
-        [bearer]
+        'SELECT workspace_id FROM api_tokens WHERE token = $1 OR token = $2',
+        [crypto.createHash('sha256').update(bearer).digest('hex'), bearer]
       );
       if (rows.length === 0) {
         return res.status(401).json({ error: 'unauthorized: invalid api token' });
