@@ -68,6 +68,15 @@ they are listed separately.
       the registered folder, not the duplicate (track 10063's bug class).
 - [ ] TC-2.11: Fingerprint stability — the same underlying condition observed twice produces
       the identical fingerprint string; two different subjects produce different ones.
+- [ ] TC-2.12: Project resolution (D6) for a track-scoped finding — expected: the
+      `project_id` of the checkout the lock/dispatch was read from.
+- [ ] TC-2.13: Project resolution for a leaked worker process whose cwd is inside a known
+      project — expected: attributed to that project, not marked host-scoped (AC-13).
+- [ ] TC-2.14: Project resolution for a process whose cwd is deleted or outside every known
+      project — expected: explicitly marked host-scoped, **not** dropped and not given a
+      guessed project (REQ-20).
+- [ ] TC-2.15: A registered worker with a `project_id` on its row — expected: that value is
+      used without needing the cwd read at all.
 
 ### Phase 3 — Sweep loop
 
@@ -87,8 +96,12 @@ they are listed separately.
 
 ### Phase 4 — Supervision pseudo-track
 
-- [ ] TC-4.1: First sweep with no `conductor/tracks/manager/` — expected: created with
-      `index.md` and `conversation.md`.
+- [ ] TC-4.1: First sweep with no `conductor/tracks/manager/` in a supervised project —
+      expected: created with `index.md` and `conversation.md`.
+- [ ] TC-4.1b: Sweep with the manager's serving root not being a project checkout —
+      expected: no pseudo-track created there (D6).
+- [ ] TC-4.1c: A host-scoped finding — expected: written to the manager's log and worker
+      row, and **no** comment written to any project's supervision thread (AC-14).
 - [ ] TC-4.2: A finding is written as a `> **system**:` comment — expected: it matches the
       conversation parser's required format (a malformed comment syncs silently to nothing,
       which is exactly the failure this asserts against).
@@ -107,6 +120,9 @@ they are listed separately.
 
 - [ ] TC-5.1: `resolveWorkerChatTarget({ type: 'manager', ... })` — expected: a target for the
       supervision track. Currently returns `null`, so this test fails before the change.
+- [ ] TC-5.1b: The same manager resolved with two different `fallbackProjectId` values —
+      expected: two different targets, one per project, since a manager's own `project_id`
+      and `last_track_project_id` are both null (AC-15).
 - [ ] TC-5.2: A manager mid-escalation on a real track — expected: the target prefers that
       track's number over `manager`.
 - [ ] TC-5.3: `WorkerChatPanel` rendered for a manager — expected: composer enabled, no
@@ -129,8 +145,11 @@ they are listed separately.
 - [ ] TC-6.4: `mode: report` with an escalatable finding — expected: zero dispatches (AC-10).
 - [ ] TC-6.5: The built prompt — expected: contains the finding, its evidence, the allowlist,
       and the propose-don't-execute instruction (REQ-11).
-- [ ] TC-6.6: A machine-level finding with no track — expected: dispatched against `manager`.
-      A track-scoped finding — expected: dispatched against that track's number.
+- [ ] TC-6.6: A project-scoped finding with no track — expected: dispatched against that
+      project's `manager` pseudo-track. A track-scoped finding — expected: dispatched against
+      that track's number.
+- [ ] TC-6.6b: A host-scoped finding (D6 step 3) — expected: zero dispatches, and a report
+      in the manager's log (REQ-10).
 - [ ] TC-6.7: A session concluding with a non-allowlisted remedy — expected: a proposal
       comment plus `**Waiting for reply**: yes`, and nothing executed (AC-11).
 - [ ] TC-6.8: A concluded escalation — expected: exactly one `> **system**:` comment whose
@@ -153,6 +172,6 @@ they are listed separately.
 - [ ] `cd ui && npm test` green, including the updated `WorkerChatPanel` manager cases
 - [ ] `node --test conductor/tests/local-fs-e2e.test.mjs` and `local-api-e2e.test.mjs` still
       green — no regression from the new interval or the pseudo-track
-- [ ] Every AC-1..AC-12 in `spec.md` observed and its evidence recorded in `conversation.md`
+- [ ] Every AC-1..AC-15 in `spec.md` observed and its evidence recorded in `conversation.md`
 - [ ] No stub scan hits (`not yet implemented` / `TODO` / `FIXME` / `FFU`) in any code path
       whose `plan.md` task is marked `[x]`

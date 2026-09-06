@@ -58,8 +58,13 @@ without a live process, matching `stuck-track-sweep.mjs`'s established style.
 - [ ] Task 2.6: `duplicate-worker-identity`, built on `parsePsWorkerRows`.
 - [ ] Task 2.7: `board-fs-mismatch` — DB lane/status vs the worktree's `index.md`, reusing
       `resolveTrackFolder` so it cannot repeat track 10063's wrong-duplicate-folder bug.
-- [ ] Task 2.8: Unit tests per check: fires when it should, and specifically **does not**
+- [ ] Task 2.8: Project resolution per spec.md D6 — every finding carries a `project_id`
+      or is explicitly marked host-scoped. Track-scoped checks already know it;
+      process-scoped checks derive it from the process cwd (the same `/proc/<pid>/cwd` read
+      `reapOrphanedWorkerProcesses` already does) or from the worker row.
+- [ ] Task 2.9: Unit tests per check: fires when it should, and specifically **does not**
       fire for the live-PID / in-flight-race / within-grace cases.
+- [ ] Task 2.10: Unit tests for D6's resolution order, including the host-scoped residue.
 
 **Impact**: Every failure class from the incident becomes a named, testable predicate.
 
@@ -97,14 +102,18 @@ the manager has neither.
 **Solution**: A reserved per-project `conductor/tracks/manager/` pseudo-track, invisible to
 every numeric-prefix folder matcher.
 
-- [ ] Task 4.1: Create the pseudo-track on first sweep if absent — `index.md` marking it
-      clearly as not a workflow track, plus `conversation.md`.
-- [ ] Task 4.2: Route findings into its `conversation.md` as `> **system**:` comments in the
+- [ ] Task 4.1: Create the pseudo-track on first sweep if absent, **only in projects the
+      manager supervises** — never in the manager's own serving root, which is not a project
+      checkout (D6). `index.md` marks it clearly as not a workflow track, plus
+      `conversation.md`.
+- [ ] Task 4.2: Route host-scoped findings (D6 step 3) to the manager's log and worker row
+      only — no pseudo-track, no comment.
+- [ ] Task 4.3: Route project-scoped findings into its `conversation.md` as `> **system**:` comments in the
       required parser format, deduped by fingerprint so a persistent finding is not re-posted
       every 30 seconds.
-- [ ] Task 4.3: Confirm the API transcript route accepts a non-numeric track segment and
+- [ ] Task 4.4: Confirm the API transcript route accepts a non-numeric track segment and
       that `-manager-<ts>.log` matches its existing filename pattern.
-- [ ] Task 4.4: Regression test — after the pseudo-track exists, `tracks.md` is unchanged,
+- [ ] Task 4.5: Regression test — after the pseudo-track exists, `tracks.md` is unchanged,
       `lc track-dir manager` does not resolve it as a track, and auto-launch never claims it.
 
 **Impact**: The manager gains an addressable identity inside machinery that already works.
@@ -118,7 +127,10 @@ hard-disabled — the manager is structurally unwatchable today.
 **Solution**: Point manager chat at the supervision track. No new renderer.
 
 - [ ] Task 5.1: `resolveWorkerChatTarget()` returns the supervision target for
-      `type === 'manager'`, preferring a currently-escalated real track when one exists.
+      `type === 'manager'`, scoped to the currently-viewed project via the existing
+      `fallbackProjectId` argument (a manager's own `project_id` and `last_track_project_id`
+      are both null by construction — see D5), preferring a currently-escalated real track
+      when one exists.
 - [ ] Task 5.2: Enable the `WorkerChatPanel` composer for managers; replace the
       manager-specific empty state with the transcript.
 - [ ] Task 5.3: Render findings distinctly from AI turns so "what it noticed" reads apart
@@ -142,8 +154,10 @@ the allowlist and the budget.
       ceiling (REQ-12). Written and tested first: this is the runaway-spend guard.
 - [ ] Task 6.2: Prompt builder stating finding, evidence, allowlist, and the
       propose-don't-execute rule for everything else (REQ-11).
-- [ ] Task 6.3: Dispatch via `spawnCli()` against the affected track's number, or `manager`
-      for machine-level findings — inheriting transcript, logging, run marker unchanged.
+- [ ] Task 6.3: Dispatch via `spawnCli()` against the affected track's number, or the
+      project's `manager` pseudo-track for a project-scoped finding with no track —
+      inheriting transcript, logging, run marker unchanged. A host-scoped finding (D6 step 3)
+      is never dispatched; assert this rather than relying on it not happening.
 - [ ] Task 6.4: Conclusion written to `conversation.md` per the Completion Comment
       Convention, so it reaches the Inbox (REQ-13).
 - [ ] Task 6.5: Non-allowlisted remedy path sets `**Waiting for reply**: yes` instead of

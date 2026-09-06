@@ -148,6 +148,54 @@ This is safe because every track-folder consumer requires a numeric prefix, veri
 `manager` matches none of them, so the pseudo-track is invisible to claiming, to
 `tracks.md`, and to the auto-launch loop without needing a single exclusion list.
 
+**Which project's supervision track a manager's chat resolves to.** A manager's worker row
+has `project_id: null` by construction (`laneconductor.sync.mjs:1259`), and the workers API
+deliberately returns the manager in *every* project's worker list —
+`WHERE (w.project_id = $1 OR w.type = 'manager')` (`ui/server/index.mjs:367`). Its
+`last_track_project_id` is aliased straight from that null `w.project_id` (`:360`), so it is
+null too. The chat target therefore resolves to the **project whose board the user is
+currently viewing** (`resolveWorkerChatTarget`'s existing `fallbackProjectId` argument). That
+is coherent rather than arbitrary: the manager already appears on every board, so "the
+manager's supervision thread for the project I am looking at" is exactly what a user asking
+"what is it doing?" from that board means.
+
+
+### D6 — Where a finding lands when it has no project
+
+D5 leaves one case unresolved, and it has to be settled before implementation rather than
+discovered during it: the transcript and conversation stack is addressed as
+`/api/projects/:id/tracks/:num/...`, so **a finding with no resolvable `project_id` has no
+addressable transcript at all**. Two of layer 1's six checks can produce exactly that —
+`duplicate-worker-identity` and `worker-heartbeat-silent` are about processes, not tracks.
+
+Every finding therefore carries a `project_id`, resolved in this order:
+
+1. **Track-scoped findings** (`stale-main-mode-lock`, `stale-git-lock`,
+   `dispatch-no-run-marker`, `board-fs-mismatch`) — the project is already known, since the
+   lock/dispatch/track was read from that project's checkout.
+2. **Process-scoped findings** (`duplicate-worker-identity`, `worker-heartbeat-silent`) —
+   derive the project from the process's working directory. This needs no new mechanism:
+   `reapOrphanedWorkerProcesses` already reads `/proc/<pid>/cwd` for precisely this kind of
+   question (`laneconductor.sync.mjs`'s `cwdExists`). A registered worker also carries its
+   `project_id` on its own worker row.
+3. **Host-scoped residue** — a process whose cwd is unreadable, deleted, or outside every
+   known project. These are **report-only in this track**: logged by the manager and visible
+   on its worker row, with no pseudo-track and no layer-2 escalation.
+
+Host-scoped findings get no pseudo-track deliberately. The manager's own serving root is
+explicitly *not* a project checkout — it prints
+`Manager worker starting from <root> — not scoped to any project checkout`
+(`laneconductor.sync.mjs:191`) — so there is no `conductor/tracks/` there to write into and
+no project id to address a transcript with. Inventing a synthetic "host" project to hold
+them would add a DB-visible fake project to every board to serve a residue case, which is a
+worse trade than logging them. The residue is also small by construction: step 2 resolves
+the common cases, and the 2026-09-04 incident's leaked processes all had resolvable cwds.
+
+**Consequence for layer 2**: escalation requires a resolvable `project_id`, because
+`spawnCli()` needs one to write a transcript anywhere a human can read it. A host-scoped
+finding is reported and never escalated. This is a real limit and is listed in Out of Scope
+rather than hidden.
+
 ⚠️ **Fundamentals conflict — flagged, non-blocking.** `conductor/product.md`'s "File Roles —
 Separation of Concerns" table documents `conductor/tracks/NNN-slug/index.md` as *per-track
 state* and `conductor/tracks/tracks.md` as a summary of all tracks. A folder under
@@ -200,9 +248,11 @@ should live outside `conductor/tracks/` entirely.
   never prevents the other checks in the same tick from running.
 
 **Layer 2 — AI escalation (req 2, req 3)**
-- REQ-10: A non-allowlisted finding dispatches a scoped session via the existing
-  `spawnCli()` path, so it inherits transcript streaming, log-file naming, session
-  continuity and the run marker with no new machinery.
+- REQ-10: A non-allowlisted finding **with a resolvable `project_id`** (D6) dispatches a
+  scoped session via the existing `spawnCli()` path, so it inherits transcript streaming,
+  log-file naming, session continuity and the run marker with no new machinery. A
+  host-scoped finding is reported and never dispatched — there is nowhere addressable to
+  write its transcript.
 - REQ-11: The session prompt states the finding, the evidence behind it, the allowlist it
   may act within, and the explicit instruction to propose rather than execute anything
   outside it.
@@ -214,7 +264,9 @@ should live outside `conductor/tracks/` entirely.
 
 **Visibility and interactivity (req 3)**
 - REQ-14: The supervision pseudo-track exists per project as `conductor/tracks/manager/`
-  with an `index.md` and a `conversation.md`.
+  with an `index.md` and a `conversation.md`. It is created only in projects the manager
+  actually supervises — never in the manager's own serving root, which is not a project
+  checkout (D6).
 - REQ-15: `resolveWorkerChatTarget()` returns a usable target for `type === 'manager'`
   instead of `null`.
 - REQ-16: `WorkerChatPanel`'s composer is enabled for a manager worker and posts into the
@@ -228,6 +280,8 @@ should live outside `conductor/tracks/` entirely.
 - REQ-19: All of D1–D4's knobs live under `manager.supervision` in `.laneconductor.json`,
   are optional, and default to `mode: report` — an existing install gains reporting and
   nothing else until a human opts in.
+- REQ-20: Every finding carries a `project_id` resolved per D6's three-step order, or is
+  explicitly marked host-scoped. No finding is silently dropped for lacking one.
 
 ## Acceptance Criteria
 
@@ -262,6 +316,14 @@ Each is stated as something an operator could observe.
       and sets `**Waiting for reply**: yes`, rather than executing it.
 - [ ] AC-12: Adding `conductor/tracks/manager/` leaves `conductor/tracks.md` and the
       auto-launch loop unchanged — the pseudo-track is never listed and never claimed.
+- [ ] AC-13: A leaked worker process belonging to a known project produces a finding
+      attributed to that project, readable in that project's supervision thread — not
+      dropped for being "machine-level".
+- [ ] AC-14: A leaked process whose working directory is deleted or outside every known
+      project is still reported in the manager's log and on its worker row, and is not
+      escalated to an AI session.
+- [ ] AC-15: Opening the manager's chat from two different project boards shows each
+      project's own supervision thread, not one shared thread.
 
 ## Out of Scope (FFU — deliberately deferred, and therefore not acceptance criteria)
 
@@ -272,6 +334,9 @@ Each is stated as something an operator could observe.
   `w.hostname === hostname` filter.
 - launchd equivalents for macOS. `hasSystemdUser()` already returns false there and the
   fallback path is unchanged.
+- Layer-2 escalation for host-scoped findings (D6 step 3). It needs a transcript identity
+  that is not tied to a project, which is a design question of its own; reporting them is
+  enough to have caught the 2026-09-04 leaked processes.
 - Correcting the misclassified capacity-probe-vs-auth/billing diagnosis itself. The sweep
   can surface the symptom, but `provider-probe-classify.mjs` is where that fix belongs and
   it is a separate track.
