@@ -37,6 +37,20 @@ WorkingDirectory=%f
 # work on its own. Drop the flag (or override ExecStart) for AUTOMATIC mode.
 ExecStart=/usr/bin/node conductor/laneconductor.sync.mjs --sync-only
 
+# systemd's own PATH (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
+# has no ~/.local/bin, where `claude` actually lives on this machine. Every
+# dispatch that needs to spawn a claude session crashed the whole worker with
+# "spawn claude ENOENT" (found live 2026-09-04, track 1121's implement dispatch).
+# child_process.spawn('claude', ...) resolves purely from this PATH, not a login
+# shell's, so the unit must carry it explicitly. This was previously applied
+# directly to the deployed unit file only, never committed here — found live
+# 2026-09-06 in the opposite direction: KillMode=mixed (below) had landed in
+# this repo file but was never actually redeployed, so a routine restart
+# still killed two in-flight dispatches despite the fix existing in git.
+# Committing this PATH line here too so a future redeploy carries both fixes
+# instead of silently reverting whichever one wasn't in the file being copied.
+Environment=PATH=/home/meller/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 # The whole point of this unit. `always` (not `on-failure`) is deliberate: the
 # lock-compromise path exits 1, but a clean exit that leaves no worker running
 # is just as bad for a daemon that is supposed to be permanently present.
