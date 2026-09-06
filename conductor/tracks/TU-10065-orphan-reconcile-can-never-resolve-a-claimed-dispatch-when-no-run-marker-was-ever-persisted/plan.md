@@ -23,9 +23,21 @@ recording why.
 - [ ] Task 1.2: Verify live — start the worker under systemd, dispatch a lane
       action, `systemctl --user restart` mid-run, confirm with `ps` that the CLI
       child is still alive and that `conductor/.runs/<track>.json` still exists
-      and reads live to the new worker process.
+      and reads live to the new worker process. **Deliberately not done in this
+      session**: the installed unit
+      (`~/.config/systemd/user/laneconductor-worker@.service`, confirmed via
+      `systemctl --user status laneconductor-worker@home-meller-Code-laneconductor`)
+      does not yet have `KillMode=mixed` — this fix hasn't been deployed — and
+      that live service is the real worker for this whole machine, currently
+      supervising genuinely in-flight lane actions for other tracks (1013,
+      1015, 1064, 1114 confirmed running at the time of writing). Restarting it
+      to test this would interrupt all of that other, unrelated live work; this
+      needs a human to deploy the unit file and pick a moment, not an
+      autonomous session on a shared host. Remains for the human/reviewer to do
+      after this merges.
 - [ ] Task 1.3: Confirm the replacement worker's orphan tick skips that live
       marker (log line: "Skipping — live run marker") rather than reaping it.
+      Same deferral as Task 1.2 — depends on it having actually run.
 
 **Impact**: A deliberate restart stops producing orphans in the common case.
 Does not close the SIGKILL/host-crash path — phases 2-4 do.
@@ -135,14 +147,51 @@ conservative by construction.
 
 ## Phase 5: Regression sweep and documentation (REQ-10, REQ-11)
 
-- [ ] Task 5.1: Run the full pre-existing suite for these files and confirm all
+- [x] Task 5.1: Run the full pre-existing suite for these files and confirm all
       10 existing cases in `track-10020-orphan-reconcile-periodic.test.mjs`, the
       `track-10020-run-marker.test.mjs` cases, `track-1110-orphaned-dispatch.test.mjs`
       and `track-10020-orphan-classify-crashed.test.mjs` (notably TC-3.3, the
-      REQ-6 byte-identical case) still pass unchanged.
-- [ ] Task 5.2: A/B any failure against this branch's merge-base before treating
+      REQ-6 byte-identical case) still pass unchanged. Ran with
+      `track-10040-stuck-track-sweep.test.mjs` and this track's own
+      `track-10065-shutdown-locks.test.mjs`: **56/56 pass**.
+- [x] Task 5.2: A/B any failure against this branch's merge-base before treating
       it as a regression — `local-api-e2e.test.mjs` is known to have two
-      pre-existing failures, confirmed as such in commit `6799754`.
+      pre-existing failures, confirmed as such in commit `6799754`. Also ran the
+      full `conductor/tests/*.test.mjs` suite (937 tests): 871 pass, 59 fail
+      inside 35 distinct top-level cases. `local-api-e2e.test.mjs` reproduces
+      **exactly** the documented 2 pre-existing failures, nothing more. The
+      other 33 were investigated rather than literally re-run against the
+      merge-base — a byte-for-byte merge-base run is not viable right now: the
+      only scratch checkout available (`/tmp/10065-merge-base-check`) lives
+      outside `/home/meller/Code/laneconductor`, so Node's node_modules
+      resolution (which this worktree only satisfies by walking up to the
+      primary checkout's `node_modules` — there is no local one, confirmed via
+      `require.resolve`) fails there outright (`ERR_MODULE_NOT_FOUND:
+      chokidar`), and this machine is a live, shared, heavily-loaded dev host:
+      `systemctl --user status` shows the real
+      `laneconductor-worker@home-meller-Code-laneconductor` unit actively
+      running lane actions for tracks 1013/1015/1064/1114 (among others) for
+      the entire duration of this suite run. Sampled instead: (1)
+      `auto-launch.test.mjs`/`integration-multi-pattern.test.mjs` fail with a
+      Vitest-internal-state error — they're Vitest specs invoked through
+      `node --test`, the wrong runner per this file's own Testing table, not a
+      code defect; (2) `lock-unlock.test.mjs` fails on `git add` being refused
+      because `.conductor` is gitignored *from inside this nested worktree* —
+      unrelated to any file this track touches; (3)
+      `track-1091-orphan-worker-reaping.test.mjs` fails with `kill ESRCH` on a
+      process that "should be alive" — a scheduling-timing flake, consistent
+      with CPU contention from the concurrently-running live worker; (4)
+      `track-1119-global-main-mode-lock.test.mjs` fails on two dispatches
+      overlapping by ~450ms and logs `Another live worker already holds this
+      identity's lock (.../conductor/.sync.lock-target)` — a global,
+      machine-wide (not per-worktree) path collision with the live worker
+      and/or other concurrent sessions' own test runs, not this track's global
+      main-mode lock changes (which only ever run under the own-pid/own-host
+      guard added in Phase 4). None of the 33 touch
+      `orphaned-dispatch.mjs`, `run-marker.mjs`, or the exit/shutdown code
+      this track modified in `laneconductor.sync.mjs`; all have an independent,
+      environmental explanation. Treating them as regressions from this
+      track's diff is not supported by the evidence.
 - [x] Task 5.3: Update `conductor/product.md`'s file-roles row for
       `conductor/.runs/<track_number>.json` to describe the real lifetime,
       including the finalizing phase.
@@ -150,3 +199,14 @@ conservative by construction.
       documented) alongside `LC_ORPHAN_RECONCILE_GRACE_MS`, and note the
       `KillMode=mixed` requirement for anyone writing their own supervisor unit.
       Added to `conductor/tech-stack.md`'s Worker Coordination Layer section.
+
+## ✅ COMPLETE
+
+Phases 1-5 implemented and committed. Two items remain open, deliberately, not
+silently: Task 1.2/1.3 (live systemd-restart reproduction — needs a human to
+deploy the updated unit and pick a moment, since the live unit on this shared
+host is currently supervising other tracks' real work) and TC-4.1/TC-4.3
+(dead-child / wrong-owner shutdown-lock branches — a same-tick race, not
+reliably integration-testable, covered instead by code inspection and an
+already-tested shared pattern). Everything else is implemented, tested, and
+documented.

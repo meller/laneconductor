@@ -115,18 +115,28 @@ defects found while reading the code around it.
 
 - [ ] A worker restarted mid-implement (`systemctl restart`) leaves its CLI child
       running; the track finishes and is reconciled normally instead of becoming
-      an orphan in the first place.
-- [ ] A worker killed *during* finalization leaves a track that returns to its
+      an orphan in the first place. **Code done (`KillMode=mixed`,
+      `systemd-analyze verify` clean), live reproduction deferred** — see
+      `test.md` TC-1.2/TC-1.3 and `plan.md` Task 1.2: this machine's deployed
+      unit doesn't have the fix yet and is the live worker for other
+      concurrently-running tracks, so restarting it to test this now would
+      disrupt unrelated real work. For a human to verify after deploying.
+- [x] A worker killed *during* finalization leaves a track that returns to its
       queue on its own within one reconcile window, with the dispatch marked
-      failed and a `⚠️` comment naming the action to re-run.
-- [ ] A main-mode track orphaned the same way also recovers, and its stale git
-      lock is released.
-- [ ] A genuinely running lane action is never reaped: not while its child is
-      alive, and not while another live worker is still finalizing it.
-- [ ] Stopping the worker cleanly leaves no lock held for a track that has no
-      process behind it.
-- [ ] `conductor/tests/track-10020-orphan-reconcile-periodic.test.mjs` passes in
-      full, including all pre-existing cases.
+      failed and a `⚠️` comment naming the action to re-run. (TC-2.6)
+- [x] A main-mode track orphaned the same way also recovers, and its stale git
+      lock is released. (TC-3.1)
+- [x] A genuinely running lane action is never reaped: not while its child is
+      alive, and not while another live worker is still finalizing it. (TC-2.3,
+      TC-2.5)
+- [x] Stopping the worker cleanly leaves no lock held for a track that has no
+      process behind it. Live-child case integration-tested (TC-4.2, by
+      showing the inverse holds); the dead-child release branch itself is
+      verified by code inspection and shared-pattern equivalence rather than a
+      new integration test — see `test.md` TC-4.1 for why that specific case is
+      a same-tick race, not a reliably reproducible scenario.
+- [x] `conductor/tests/track-10020-orphan-reconcile-periodic.test.mjs` passes in
+      full, including all pre-existing cases. (10/10)
 
 ## Non-Goals
 
