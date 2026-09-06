@@ -227,3 +227,5 @@
 > merging on top of a corrupted tree; confirmed via the repo's stash list that this same ambient
 > corruption has been stashed away by prior sessions multiple times before, so left it stashed
 > rather than reapplying stale data.
+
+> **system**: ⚠️ Orphan-reconcile skipped artifact copy for this dispatch — Worker restart interrupted this before "plan" made any recorded progress — worktree still shows lane "done" (status "success"), not "plan". Re-run the plan action.. Please review the worktree manually.

@@ -16,3 +16,4 @@ Document all three modes clearly, write tests for each, and polish local-fs mode
 - [ ] Phase 3: Tests for Mode 2 (local-api with mock collector)
 - [ ] Phase 4: Tests for Mode 3 (remote-api with mock collector)
 - [ ] Phase 5: Update SKILL.md quick reference with mode config
+**Summary**: Users don't know LaneConductor has three modes or how to configure them.

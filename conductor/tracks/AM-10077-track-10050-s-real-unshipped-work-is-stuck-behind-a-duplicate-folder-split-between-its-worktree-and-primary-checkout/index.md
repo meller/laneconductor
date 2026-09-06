@@ -71,3 +71,4 @@ fallback order.
    only once (1) determines the primary copy is actually trustworthy here,
    since right now it's unclear whether that copy's `direct` marker predates
    or postdates the duplicate-folder confusion.
+**Merge Mode**: direct

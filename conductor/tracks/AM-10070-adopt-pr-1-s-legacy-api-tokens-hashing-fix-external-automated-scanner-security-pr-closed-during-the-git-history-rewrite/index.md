@@ -1,10 +1,9 @@
 # Track AM-10070: Adopt PR #1's legacy api_tokens hashing fix — external, automated-scanner security PR closed during the git history rewrite
 
 **Lane**: done
-**Lane Status**: waiting
+**Lane Status**: success
 **Progress**: 100%
 **Phase**: Quality Gate passed — PR open, awaiting maintainer merge
-**Waiting Reason**: Merge Mode is `pr`; the PR is open and needs @meller to review and merge it. Nothing else is blocked.
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: pr
@@ -30,7 +29,7 @@ The PR was closed (not merged) as a side effect of an unrelated git-history rewr
 This hashes the *incoming* token before comparing, but never touches the *already-stored* rows in `api_tokens.token`, which remain plaintext. Merged exactly as submitted, this would silently break authentication for every existing legacy worker token the very next time it's used — a hash will never equal the plaintext value already sitting in the column. Adopting this fix correctly needs a migration step (re-hash existing values in place, or force-reissue legacy tokens) as part of the same change, not just the lookup-side diff.
 
 **Scope for planning**: (1) decide the migration approach for already-stored plaintext `api_tokens` rows — in-place SHA-256 rehash (same hash function the fix already uses, so a single UPDATE could do it) versus forced reissue, weighing whether any legacy worker currently depends on a still-active plaintext token that would need to pick up a new one; (2) adopt the lookup-side fix from PR #1's diff (crediting the original report — this track exists because of that PR, not despite it); (3) if the PR's author engages directly with this track, that supersedes a maintainer-only implementation — check for activity here before assuming solo execution; (4) check whether any other code path reads `api_tokens.token` directly (assuming plaintext) and would also need updating for consistency with the new hashed storage.
-**Summary**: An automated AI security scanner's PR found a real gap (legacy api_tokens stored in plaintext); the submitted fix is valid but incomplete on its own — see Problem field. Completed: in-place SHA-256 rehash migration plus hashing on both write and read, with a self-healing plaintext fallback so deploy order can't break auth. See `spec.md` / `plan.md` / `test.md`.
+**Summary**: An automated AI security scanner's PR found a real gap (legacy api_tokens stored in plaintext); the submitted fix is valid but incomplete on its own — see Problem field. Completed: in-place SHA-256…
 
 ---
 
