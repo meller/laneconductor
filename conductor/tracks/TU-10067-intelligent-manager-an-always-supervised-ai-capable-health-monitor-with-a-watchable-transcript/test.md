@@ -5,7 +5,9 @@
 ```bash
 # Pure-module + worker unit tests (node:test — spawns real processes, touches fs)
 node --test conductor/tests/manager-sweep.test.mjs
-node --test conductor/tests/manager-supervision.test.mjs
+node --test conductor/tests/manager-sweep-runner.test.mjs
+node --test conductor/tests/track-10067-manager-supervision.test.mjs
+node --test conductor/tests/track-10067-manager-sweep-e2e.test.mjs
 node --test conductor/tests/manager-escalation.test.mjs
 
 # UI unit/integration (Vitest)

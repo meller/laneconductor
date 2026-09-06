@@ -76,22 +76,62 @@ without a live process, matching `stuck-track-sweep.mjs`'s established style.
 **Solution**: An `isManager`-gated interval, plus the config surface and the remedy
 allowlist, defaulting to report-only.
 
-- [ ] Task 3.1: Read `manager.supervision` config with defaults (`mode: report`,
+- [x] Task 3.1: Read `manager.supervision` config with defaults (`mode: report`,
       `sweep_interval_ms: 30000`) and the `LC_MANAGER_SWEEP_MS` test override.
-- [ ] Task 3.2: Add the sweep `setInterval` alongside the existing dispatch/reconcile
+      `getManagerSupervisionConfig()` reads `~/.laneconductor/manager-config.json`'s
+      `supervision` block, not `.laneconductor.json` as spec.md REQ-19 literally says — the
+      manager has no single project checkout to read that file from. Documented deviation,
+      not silent (see conversation.md).
+- [x] Task 3.2: Add the sweep `setInterval` alongside the existing dispatch/reconcile
       intervals, `isManager`-gated, documenting why it is separate (same reasoning already
       written above `reapOrphanedWorkerProcesses`'s own interval).
-- [ ] Task 3.3: Gather the injected facts each tick — lock files, `ps`, registered workers,
-      claimed dispatches, run markers, track `index.md` state.
-- [ ] Task 3.4: Per-check error isolation so one failing check cannot abort the tick (REQ-9).
-- [ ] Task 3.5: Implement the five allowlisted remedies, each gated on `mode: remediate`,
-      each logging observation and action.
-- [ ] Task 3.6: Test the loop end to end against a mock collector: planted dead-PID lock is
-      reported in `report` mode, removed in `remediate` mode, and a live-PID lock is left
-      alone in both.
+- [x] Task 3.3: Gather the injected facts each tick — lock files, `ps`, registered workers,
+      claimed dispatches, run markers are all wired to real collaborators in
+      `runManagerHealthSweep()`. `track index.md state` (for board-fs-mismatch) is the one
+      fact source NOT wired this pass — see Task 3.5's note and manager-sweep-runner.mjs's
+      own scope-note comment for the specific reason (a same-lane, status-only mismatch can
+      be wrongly forgiven by `matchForwardTransition` for a self-referential lane like
+      `done`; needs a real fix there, not a guessed DB-status mapping).
+- [x] Task 3.4: Per-check error isolation so one failing check cannot abort the tick (REQ-9).
+      `safeRun()` wraps every check category in `manager-sweep-runner.mjs`.
+- [~] Task 3.5: Implement the five allowlisted remedies, each gated on `mode: remediate`.
+      Two of five are wired for real: `remove-dead-lock` (fires and is tested) and
+      `correct-board-display` (coded and tested at the runner level, but currently
+      unreachable in production since `board-fs-mismatch` itself isn't wired to real DB/fs
+      data — see Task 3.3). The other three are correctly NOT new code here:
+      restart-via-systemd is passive (systemd's own `Restart=always`, Phase 1); SIGTERM/
+      SIGKILL of a leaked process is `reapOrphanedWorkerProcesses`, already existing and
+      unchanged; resetting a phantom `running` marker has no wired finding yet (no check
+      in this pass produces that specific finding). Left unchecked rather than marked done,
+      since "the five" isn't accurate yet.
+- [x] Task 3.6: Two layers, not one. Orchestration-level tests
+      (`manager-sweep-runner.test.mjs`, 18 cases, including the new
+      dispatch-no-run-marker wiring above) verify report vs. remediate, error isolation,
+      and D6 project resolution against fully injected fakes. On top of that,
+      `conductor/tests/track-10067-manager-sweep-e2e.test.mjs` spawns a REAL `--manager`
+      process against a REAL planted dead-PID lock file and a mock collector — no injected
+      collaborators at all — and confirms report mode reports without touching the file
+      (asserting on the actual "stale-main-mode-lock" log line, not merely the file's
+      survival, which would trivially "pass" if the sweep silently never ran), remediate
+      mode removes it within one interval, and a live-PID lock survives remediate mode too.
+      **Found and fixed while writing that E2E test, worth flagging on its own**: the shared
+      `startIsolatedWorker()` test helper deliberately redirects a worktree checkout to the
+      PRIMARY repo's copy of `laneconductor.sync.mjs` (that's the whole point of track
+      10045 — deterministic script resolution, not incidental). Run unmodified from inside
+      *this* track's own worktree, every assertion in that E2E file silently exercised the
+      unmodified primary checkout instead of this track's Phase 3 code — a false pass/fail
+      unrelated to the code actually under test. Fixed locally in that one test file via the
+      documented `LC_TEST_REPO_ROOT` override (set on the test runner's own `process.env`,
+      not the spawned child's — a subtlety that cost a second round of debugging), not by
+      changing the shared helper's default (which exists for a good, separate reason and
+      other tracks' suites depend on it). Any FUTURE track writing a new
+      `startIsolatedWorker()`-based e2e test for in-progress worktree code should expect the
+      same trap and apply the same fix.
 
-**Impact**: Ships a working deterministic supervisor. Everything below this line is the
-human-facing half.
+**Impact**: Ships a working deterministic supervisor for 5 of 6 layer-1 checks
+(stale-main-mode-lock, stale-git-lock, worker-heartbeat-silent, duplicate-worker-identity,
+dispatch-no-run-marker). `board-fs-mismatch` is the one still unwired (Task 3.3/3.5). Everything
+below this line is the human-facing half.
 
 ---
 
