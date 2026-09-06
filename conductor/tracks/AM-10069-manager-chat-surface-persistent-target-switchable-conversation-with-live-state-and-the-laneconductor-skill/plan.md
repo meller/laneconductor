@@ -1,11 +1,16 @@
 # Track AM-10069: Manager chat surface — persistent, target-switchable conversation with live state and the /laneconductor skill
 
-Seven phases. Phases 1 and 2 are independent of track 10067 and can start immediately;
-phases 3 onward consume 10067's merged REQ-14..REQ-18 (see spec.md D7).
+Eight phases. Phases 1 through 4 carry no blocking dependency on track 10067 and can start
+immediately; phases 5 onward consume its merged REQ-14/REQ-17 (see spec.md D7).
 
-**Sequencing note.** Track 10067 is itself still in `plan` at the time this plan was
-written. Phases 1–2 deliberately carry no dependency on it so this track is never fully
-blocked, and Phase 4 opens by asserting the contract rather than assuming it.
+**Sequencing note, revised 2026-09-06.** The boundary with track 10067 changed after this
+plan's first pass (commit `aa5e0958`): 10067 now ships visibility only, and every
+interactive piece — the chat-target resolver, the composer, the pseudo-track's
+filesystem-backed conversation adapter, the reply-pickup trigger and the `syncConversation`
+skip — moved into this track as the new Phase 4. What remains consumed from 10067 is a
+directory containing `index.md` and `conversation.md`, so Phase 4 is built against a fixture
+folder and only Phase 8's end-to-end verification needs the merged track. The blocking
+dependency the first pass flagged is therefore gone.
 
 ---
 
@@ -28,7 +33,7 @@ already-configured user.
       D4's table, returning `[{ id, severity, subject, detail, remedy }]`.
     - [ ] `severity` is exactly `blocking` or `advisory`; nothing else
     - [ ] `remedy` is a concrete command or UI action string per gap, used verbatim by
-          Phase 6's wizard message (REQ-19)
+          Phase 7's wizard message (REQ-19)
 - [ ] Task 1.3: `lc state --json` in `bin/lc.mjs` — serializes Task 1.1's snapshot with
       Task 1.2's gaps attached. Non-`--json` form prints a short human summary.
 - [ ] Task 1.4: `GET /api/state` in `ui/server/index.mjs` — same snapshot for the UI,
@@ -91,7 +96,10 @@ composer pieces inside it.
       right. Reuses `useTrackTranscript`, `TranscriptView`, `TrackChatComposer`,
       `CommentBubble` and Phase 2's `TurnStatusBar`. **No second renderer.**
 - [ ] Task 3.3: Target list — the manager first and selected by default, then workers,
-      each row showing live status via the existing `workerStatus.js` helpers (REQ-3).
+      each row showing live status via the existing `workerStatus.js` helpers (REQ-3). The
+      manager row renders here but only resolves to a usable target once Phase 4's resolver
+      lands; until then it shows the transcript with a disabled composer, which is exactly
+      today's behaviour rather than a new dead end.
 - [ ] Task 3.4: Persist the selected target across re-renders and project switches
       (REQ-2), and preserve per-target scroll position on switch back (REQ-4).
 - [ ] Task 3.5: Add a Chat entry to `MobileMoreSheet` so the view is reachable on mobile
@@ -105,31 +113,79 @@ this phase even before the manager tier lands.
 
 ---
 
-## Phase 4: Manager target — skill-driven turns with live state (REQ-6..REQ-8, REQ-14, REQ-15)
+## Phase 4: Manager chat plumbing — resolver, composer, filesystem conversation adapter, reply pickup (REQ-25..REQ-31)
+
+**Problem**: The revised 10067 boundary (spec.md D7) moved every interactive piece of manager
+chat into this track, and none of it exists today. The resolver returns `null` for managers,
+the composer is hard-disabled, both comments routes assume a `tracks` row the pseudo-track
+deliberately does not have, the claim scan skips any folder without a digit, and
+`syncConversation` mis-parses the folder name as a track number and POSTs to nothing.
+**Solution**: One reserved-name branch in each of the five places that need it — no new
+subsystem, no second renderer, no DB row. Built against a fixture `manager/` folder so the
+phase does not block on merged 10067 (REQ-31).
+
+- [ ] Task 4.1: `resolveWorkerChatTarget()` returns
+      `{ trackNumber: 'manager', projectId: fallbackProjectId, source: 'manager' }` for
+      `type === 'manager'` (REQ-25). Keep the `null` return for an idle non-manager worker
+      with no last-context track — that case is still genuinely "nothing to talk about".
+- [ ] Task 4.2: Enable `WorkerChatPanel`'s composer for a manager target and drop the
+      "Managers are transcript-only" hint (REQ-26). Phase 3's pane reuses the same composer,
+      so both surfaces gain it from this one change.
+- [ ] Task 4.3: `GET /api/projects/:id/tracks/:num/comments` — reserved-name branch reading
+      `conductor/tracks/manager/conversation.md` through `parseConversationComments()` and
+      mapping turns to the `{ id, author, body, created_at }` shape `useTrackComments`
+      already renders. No `getTrackId`, no 404 (REQ-27).
+- [ ] Task 4.4: `POST .../comments` — reserved-name branch that skips `collectorWrite`,
+      appends the turn in the documented `> **human**: …` format, advances `.conv-cursor`
+      exactly as the existing branch does, sets `**Waiting for reply**: yes` in the
+      pseudo-track's `index.md`, and broadcasts `track:updated` (REQ-27, D8).
+- [ ] Task 4.5: `autoLaunchLocalFs` — admit the reserved name past both digit guards
+      (`isTrackDirName` and the `dir.match(/(\d+)/)` skip) **only** when that marker is set,
+      force `CONVERSATION_REPLY_ACTION`, and bypass every path that assumes a numbered track
+      (lane transition, `claimableSet`, `autoRun`, dependency gating) (REQ-28, D8).
+    - [ ] Assert the negative as its own test: with the marker absent, the folder is still
+          skipped by both guards — the property that keeps the pseudo-track off the board.
+- [ ] Task 4.6: `syncConversation` — explicit reserved-name early return, leaving
+      `extractTrackNumber`'s shared fallback untouched, since its callers reach well outside
+      this track (REQ-29).
+- [ ] Task 4.7: Confirm invisibility end to end: no Kanban card, no `tracks.md` line, no
+      `tracks` row, before and after a full chat exchange (REQ-30).
+
+**Impact**: The manager becomes addressable end to end with no DB row, and this track's
+dependency on 10067 shrinks to "a directory with two files in it".
+
+---
+
+## Phase 5: Manager target — skill-driven turns with live state (REQ-6..REQ-8, REQ-14, REQ-15)
 
 **Problem**: The manager tier is the part that is genuinely new: a free-form turn with real
 tool access, grounded in this instance's state.
-**Solution**: Route the manager target's messages into 10067's supervision pseudo-track and
-let the existing conversation-reply path answer them, with Phase 1's digest injected on the
-opening turn only.
+**Solution**: Route the manager target's messages through Phase 4's plumbing into the
+supervision pseudo-track and let the existing conversation-reply path answer them, with
+Phase 1's digest injected on the opening turn only.
 
-- [ ] Task 4.0 (**contract assertion — do this first, spec.md D7**): against merged 10067,
-      verify all three assumptions hold: `conductor/tracks/manager/` exists per supervised
-      project; `resolveWorkerChatTarget` returns a manager target; a human comment there
-      triggers a reply turn. Write a test that asserts each.
-    - [ ] If reply pickup is absent or narrower than REQ-18, **stop and raise it on 10067**
-          as a shared-contract change. Do not fork a second trigger in this track.
-- [ ] Task 4.1: Manager-target composer posts into the supervision track's conversation
+- [ ] Task 5.0 (**contract assertion — do this first, spec.md D7**): assert the two things
+      this track still consumes from merged 10067, and nothing more: `conductor/tracks/manager/`
+      exists per supervised project with `index.md` and `conversation.md` (its REQ-14), and
+      the reserved folder name contains no digit in any position (its REQ-21). Write a test
+      for each.
+    - [ ] Until 10067 merges, run this phase against Phase 4's fixture folder and leave the
+          assertion failing rather than stubbing it — a green stub here is exactly the false
+          pass this ordering exists to prevent.
+    - [ ] A rename, or a digit anywhere in the reserved name, is a shared-contract break:
+          raise it on 10067 rather than adding a compensating pattern here. Reply pickup is
+          no longer in that category — Phase 4 owns it (D8).
+- [ ] Task 5.1: Manager-target composer posts into the supervision track's conversation
       through the same comments endpoint (REQ-6) — no new dispatch action, `track_chat`
       untouched (AC-14).
-- [ ] Task 4.2: Inject Phase 1's digest into the manager session's **opening** turn only,
+- [ ] Task 5.2: Inject Phase 1's digest into the manager session's **opening** turn only,
       alongside the line telling it `lc state --json` returns the full snapshot on demand
       (REQ-14). Gate re-injection on the same fresh-vs-resumed signal the existing paths
       use — `session.isFresh` / `resumingChat` (REQ-15).
-- [ ] Task 4.3: Surface session continuity state in the pane: which session is live, and an
+- [ ] Task 5.3: Surface session continuity state in the pane: which session is live, and an
       explicit notice when track 10047's context cap resets it (REQ-8) rather than a silent
       restart.
-- [ ] Task 4.4: Verify tool calls render live in the pane during a manager turn (REQ-7) —
+- [ ] Task 5.4: Verify tool calls render live in the pane during a manager turn (REQ-7) —
       this should require no new code, since the events are the same ones Phase 2 already
       handles; the task is the verification, and fixing anything it exposes.
 
@@ -138,61 +194,67 @@ tool-backed answers from.
 
 ---
 
-## Phase 5: Queued intervention semantics (REQ-9..REQ-11)
+## Phase 6: Queued intervention semantics (REQ-9..REQ-11)
 
 **Problem**: Sending during a live turn appears to work and silently does nothing for the
 duration of that turn — the deferral at `laneconductor.sync.mjs:6866` is correct behaviour
 that the UI does not communicate.
 **Solution**: Make the queueing visible and self-resolving. No mid-stream injection (D1).
 
-- [ ] Task 5.1: Expose per-target run liveness to the UI — whether a run marker is live for
+- [ ] Task 6.1: Expose per-target run liveness to the UI — whether a run marker is live for
       the target's track, and what action it is running. Prefer deriving it from data the
       workers/tracks endpoints already return; add a field only if genuinely absent.
-- [ ] Task 5.2: Composer shows **queued** state on send during a live turn, naming what it
+- [ ] Task 6.2: Composer shows **queued** state on send during a live turn, naming what it
       is waiting on (REQ-9), instead of an unqualified "Sending…".
-- [ ] Task 5.3: Clear the queued state when the reply turn picks the message up, driven by
+- [ ] Task 6.3: Clear the queued state when the reply turn picks the message up, driven by
       the existing WS events rather than a new poll (REQ-10).
-- [ ] Task 5.4: Wording review — nothing in the pane may imply the running turn is being
+- [ ] Task 6.4: Wording review — nothing in the pane may imply the running turn is being
       interrupted (REQ-11).
 
 **Impact**: The one behaviour most likely to read as "the chat is broken" becomes legible.
 
 ---
 
-## Phase 6: Conditional setup wizard (REQ-17..REQ-19)
+## Phase 7: Conditional setup wizard (REQ-17..REQ-19)
 
 **Problem**: A new instance needs guidance; a configured one must not be nagged, and must
 not pay a model turn for the system to decide that.
 **Solution**: Gate on Phase 1's deterministic gap list; render the opening message client-side.
 
-- [ ] Task 6.1: On opening the Chat view, fetch `GET /api/state` and read its gaps.
-- [ ] Task 6.2: Render the wizard opening message only when a **blocking** gap exists
+- [ ] Task 7.1: On opening the Chat view, fetch `GET /api/state` and read its gaps.
+- [ ] Task 7.2: Render the wizard opening message only when a **blocking** gap exists
       (REQ-17), naming each gap and its `remedy` verbatim from Phase 1 (REQ-19).
-- [ ] Task 6.3: Advisory gaps render as a dismissible header note, never an opening message.
-- [ ] Task 6.4: Assert the zero-gap path is inert: no `worker_dispatch` row, no spawned
+- [ ] Task 7.3: Advisory gaps render as a dismissible header note, never an opening message.
+- [ ] Task 7.4: Assert the zero-gap path is inert: no `worker_dispatch` row, no spawned
       process, no comment written (REQ-18 / AC-10).
 
 **Impact**: First-run guidance that costs nothing on every subsequent run.
 
 ---
 
-## Phase 7: Real-product verification and documentation
+## Phase 8: Real-product verification and documentation
 
 **Problem**: Unit tests cannot detect a chat surface that was never wired up. Several of
 this track's requirements are only observable by driving the real app against a real
 worker.
 **Solution**: Drive it, record what was observed, then document.
 
-- [ ] Task 7.1: Restart the worker and API before verifying — neither hot-reloads, and this
+- [ ] Task 8.1: Restart the worker and API before verifying — neither hot-reloads, and this
       repo has produced false passes from exactly that (see the skill's quality-gate step 2a).
-- [ ] Task 7.2: Playwright spec covering AC-1, AC-8, AC-9 and AC-10.
-- [ ] Task 7.3: Manual end-to-end run of AC-2 through AC-7 against a live manager, with the
+- [ ] Task 8.2: Playwright spec covering AC-1, AC-8, AC-9 and AC-10.
+- [ ] Task 8.3: Manual end-to-end run of AC-2 through AC-7 against a live manager, with the
       observed result recorded in `conversation.md` — including the `lc status` comparison
       AC-2 requires and the log-derived token check AC-5 requires.
-- [ ] Task 7.4: Confirm AC-14 — the Activity panel's `track_chat` bar still works.
-- [ ] Task 7.5: Update `conductor/product.md`'s feature-availability table with a Chat row,
+- [ ] Task 8.4: Confirm AC-14 — the Activity panel's `track_chat` bar still works.
+- [ ] Task 8.4b: Confirm Phase 4's plumbing against the **real** merged 10067 pseudo-track,
+      not the fixture: AC-15 through AC-19 — composer enabled, turn lands in
+      `conversation.md`, `GET .../tracks/manager/comments` returns it with no `tracks` row
+      created, a worker answers within one auto-launch cycle, the pseudo-track appears on no
+      board and in no `tracks.md`, and the worker log carries no failed
+      `/track/manager/comment` POSTs.
+- [ ] Task 8.5: Update `conductor/product.md`'s feature-availability table with a Chat row,
       and document `lc state` in the skill's command reference.
-- [ ] Task 7.6: Re-check spec.md's Out of Scope list against what actually shipped; anything
+- [ ] Task 8.6: Re-check spec.md's Out of Scope list against what actually shipped; anything
       deferred stays deferred and unchecked, and the track does not reach 100% while a
       Solution-level capability is missing.
 
