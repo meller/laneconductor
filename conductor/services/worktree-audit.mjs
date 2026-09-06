@@ -302,18 +302,37 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     // stay committed-only per this file's own documented single-code-path
     // reasoning above.
     let prFields = { prNumber: state?.prNumber ?? null, prUrl: state?.prUrl ?? null, prStatus: state?.prStatus ?? null };
-    if (hasWorktree && state?.trackDir) {
+    // Found live 2026-09-06: once a worktree is gone, the branch above has
+    // nothing left to fall back to but readTrackStateFromBranch()'s git-show
+    // read — which, per this function's own doc comment, can NEVER see
+    // these three fields (they are only ever written uncommitted). But
+    // reconcilePrTracks() (laneconductor.sync.mjs) polls `gh pr view` and
+    // keeps the PRIMARY checkout's own conductor/tracks/<dir>/index.md
+    // current independent of whether any worktree or branch still exists —
+    // that's a second, worktree-independent place these fields genuinely
+    // live. Confirmed live: tracks 1102/10012/10013/1053 had no worktree but
+    // their primary-checkout copy already said "PR Status: merged" (written
+    // by reconcilePrTracks days ago), while this function still reported
+    // prStatus: null and left them stuck as 'pr-open'. Try the worktree's
+    // copy first (freshest — the merge action just wrote it there), then
+    // the primary checkout's copy as a fallback for exactly this case. Uses
+    // `primaryPath`, not the raw `repoRoot` param — per parsePorcelainWorktreeList
+    // above, repoRoot can itself be a linked worktree's path when called from
+    // one (see the S11 lock-file test below for the same distinction).
+    for (const dir of [hasWorktree ? worktreePath : null, primaryPath]) {
+      if (!dir || !state?.trackDir) continue;
       try {
-        const wtIndexContent = readFileSync(join(worktreePath, state.trackDir, 'index.md'), 'utf8');
-        const prNumber = wtIndexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
+        const indexContent = readFileSync(join(dir, state.trackDir, 'index.md'), 'utf8');
+        const prNumber = indexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
         if (prNumber) {
           prFields = {
             prNumber,
-            prUrl: wtIndexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null,
-            prStatus: wtIndexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null,
+            prUrl: indexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null,
+            prStatus: indexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null,
           };
+          break;
         }
-      } catch { /* file unreadable — fall back to state's (likely null) values */ }
+      } catch { /* file unreadable — try the next candidate, or fall back to state's (likely null) values */ }
     }
 
     // Found live 2026-09-06: the isAncestor() check above (line ~279) is

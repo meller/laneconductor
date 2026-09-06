@@ -240,6 +240,57 @@ describe('auditWorktrees()', () => {
     assert.equal(row, undefined, 'a PR confirmed merged on GitHub must be excluded entirely, same as a locally-provable merge — no "Run Merge Action" for already-shipped work');
   });
 
+  it('excludes a merged-PR track even with NO worktree left, by falling back to the primary checkout\'s own index.md', async () => {
+    // Found live 2026-09-06: the previous fix (test above) only reads PR
+    // fields fresh from the WORKTREE's own uncommitted index.md — but once
+    // the worktree is gone entirely (the real live case for tracks
+    // 1102/10012/10013/1053), there is nothing left to read but
+    // readTrackStateFromBranch()'s git-show, which can never see these
+    // fields (openTrackPrOnDone/reconcilePrTracks write them uncommitted
+    // only). reconcilePrTracks() (laneconductor.sync.mjs) independently
+    // keeps the PRIMARY checkout's own conductor/tracks/<dir>/index.md
+    // current via `gh pr view` polling regardless of worktree existence —
+    // that must be the fallback source once the worktree is gone.
+    setupRepo();
+    writeTrackIndex(REPO, '205', 'Merged No Worktree Left', 'plan', 'queue', 'Test.', null);
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-205 .worktrees/205 HEAD');
+    const wtTrackDir = join(REPO, '.worktrees/205', 'conductor/tracks/205-merged-no-worktree-left');
+    mkdirSync(wtTrackDir, { recursive: true });
+    writeFileSync(join(wtTrackDir, 'index.md'), [
+      '# Track 205: Merged No Worktree Left', '',
+      '**Lane**: done', '**Lane Status**: success', '**Progress**: 100%',
+      '**Merge Mode**: pr', '',
+    ].join('\n'));
+    git('add -A', join(REPO, '.worktrees/205'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 205 done"', join(REPO, '.worktrees/205'));
+    git('worktree remove --force .worktrees/205');
+
+    // The PRIMARY checkout's own copy of the track dir, updated uncommitted
+    // by reconcilePrTracks() polling GitHub — this is the only place left
+    // that knows the PR merged, now that the worktree is gone.
+    const primaryTrackDir = join(REPO, 'conductor/tracks/205-merged-no-worktree-left');
+    mkdirSync(primaryTrackDir, { recursive: true });
+    writeFileSync(join(primaryTrackDir, 'index.md'), [
+      '# Track 205: Merged No Worktree Left', '',
+      '**Lane**: done', '**Lane Status**: success', '**Progress**: 100%',
+      '**Merge Mode**: pr', '**PR Number**: 8', '**PR URL**: https://github.com/org/repo/pull/8',
+      '**PR Status**: merged', '',
+    ].join('\n'));
+
+    // Simulate the rewrite, same as the test above — isAncestor() alone
+    // cannot prove this branch merged any more.
+    git('checkout -q --orphan main-rewritten');
+    git('-c user.email=t@t -c user.name=t commit -q --allow-empty -m "rewritten root"');
+    git('branch -f main main-rewritten');
+    git('checkout -q main');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '205');
+    assert.equal(row, undefined, 'must fall back to the primary checkout\'s own index.md when no worktree exists, and exclude the confirmed-merged track');
+  });
+
   it('classifies a done:success branch whose worktree directory is gone as stranded', async () => {
     setupRepo();
     writeTrackIndex(REPO, '102', 'Stranded Track', 'plan', 'queue');
