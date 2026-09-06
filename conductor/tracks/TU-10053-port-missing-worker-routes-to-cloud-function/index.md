@@ -1,7 +1,7 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: done
-**Lane Status**: waiting
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -103,3 +103,4 @@ So this track's own deliverable — the port and the routing — is verified in
 production. End-to-end worker behaviour against the cloud is not, and does
 not become true by this track reaching `done`.
 **Waiting for reply**: no
+**Auto Run**: yes
