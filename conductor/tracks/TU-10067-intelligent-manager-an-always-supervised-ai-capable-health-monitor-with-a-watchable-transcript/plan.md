@@ -45,26 +45,26 @@ paths that only run when a worker is alive, some in pure modules nothing calls p
 **Solution**: One pure, injected-I/O module producing structured findings, unit-testable
 without a live process, matching `stuck-track-sweep.mjs`'s established style.
 
-- [ ] Task 2.1: Create `conductor/services/manager-sweep.mjs` with the finding shape
+- [x] Task 2.1: Create `conductor/services/manager-sweep.mjs` with the finding shape
       `{ check_id, subject, severity, evidence, remedy }` and a stable fingerprint helper
       (`check_id + subject` — the dedupe key D4 depends on).
-- [ ] Task 2.2: `stale-main-mode-lock` — reuse `checkAndClaimGlobalMainModeLock`'s existing
+- [x] Task 2.2: `stale-main-mode-lock` — reuse `checkAndClaimGlobalMainModeLock`'s existing
       staleness and `process.kill(pid, 0)` semantics rather than inventing a second rule.
-- [ ] Task 2.3: `stale-git-lock`, per track, same semantics.
-- [ ] Task 2.4: `worker-heartbeat-silent`, threshold aligned with the existing
+- [x] Task 2.3: `stale-git-lock`, per track, same semantics.
+- [x] Task 2.4: `worker-heartbeat-silent`, threshold aligned with the existing
       `ORPHAN_WORKER_STALE_HEARTBEAT_MS`.
-- [ ] Task 2.5: `dispatch-no-run-marker` — compose `run-marker.mjs`'s `isRunMarkerLive` with
+- [x] Task 2.5: `dispatch-no-run-marker` — compose `run-marker.mjs`'s `isRunMarkerLive` with
       claimed-dispatch rows; do not fork track 10065's logic.
-- [ ] Task 2.6: `duplicate-worker-identity`, built on `parsePsWorkerRows`.
-- [ ] Task 2.7: `board-fs-mismatch` — DB lane/status vs the worktree's `index.md`, reusing
+- [x] Task 2.6: `duplicate-worker-identity`, built on `parsePsWorkerRows`.
+- [x] Task 2.7: `board-fs-mismatch` — DB lane/status vs the worktree's `index.md`, reusing
       `resolveTrackFolder` so it cannot repeat track 10063's wrong-duplicate-folder bug.
-- [ ] Task 2.8: Project resolution per spec.md D6 — every finding carries a `project_id`
+- [x] Task 2.8: Project resolution per spec.md D6 — every finding carries a `project_id`
       or is explicitly marked host-scoped. Track-scoped checks already know it;
       process-scoped checks derive it from the process cwd (the same `/proc/<pid>/cwd` read
       `reapOrphanedWorkerProcesses` already does) or from the worker row.
-- [ ] Task 2.9: Unit tests per check: fires when it should, and specifically **does not**
+- [x] Task 2.9: Unit tests per check: fires when it should, and specifically **does not**
       fire for the live-PID / in-flight-race / within-grace cases.
-- [ ] Task 2.10: Unit tests for D6's resolution order, including the host-scoped residue.
+- [x] Task 2.10: Unit tests for D6's resolution order, including the host-scoped residue.
 
 **Impact**: Every failure class from the incident becomes a named, testable predicate.
 
