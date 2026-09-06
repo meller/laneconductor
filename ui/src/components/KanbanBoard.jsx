@@ -29,6 +29,15 @@ export const LANE_STATUS_CONFIG = {
 const DONE_LANE_STATUS_CONFIG = {
   queue: { emoji: '🔀', label: 'Unmerged', color: 'text-orange-400', show: true },
   waiting: { emoji: '🔵', label: 'PR open', color: 'text-blue-400', show: true },
+  // Found live 2026-09-06 (track 10065): a done-lane merge that actually
+  // FAILS (not just "not yet attempted") is exactly as unmerged as
+  // done:queue, but fell through to the base LANE_STATUS_CONFIG's generic
+  // "❌ Failed" entry — invisible under the "Unmerged" heading this lane
+  // exists to surface, while the Worktrees panel (still git-state-based,
+  // not lane_action_status-based) correctly kept showing it as mergeable.
+  // Same bucket as queue, distinct label so "never attempted" and "attempted
+  // and failed" aren't visually conflated.
+  failure: { emoji: '🔀', label: 'Unmerged — merge failed', color: 'text-orange-400', show: true },
 };
 
 const LANE_EXPAND_THRESHOLD = 5;

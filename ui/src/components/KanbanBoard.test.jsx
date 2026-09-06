@@ -73,6 +73,23 @@ describe('KanbanBoard — Done lane groups', () => {
     expect(group.textContent).toMatch(/Success/i);
   });
 
+  // Found live 2026-09-06 (track 10065): a done-lane merge that actually
+  // FAILS (e.g. an unmerged-git-history conflict the merge action correctly
+  // refuses to force through) is exactly as unmerged as done:queue, but
+  // fell through to the base config's generic "Failed" label — invisible
+  // under "Unmerged" while the Worktrees panel (still git-state-based)
+  // correctly kept showing it as needing a merge.
+  it('renders a done:failure track (a merge attempt that failed) under "Unmerged", not the generic "Failed"', () => {
+    render(
+      <KanbanBoard
+        tracks={[doneTrack({ track_number: '105', lane_action_status: 'failure' })]}
+      />
+    );
+    const group = screen.getByTestId('lane-group-done-failure');
+    expect(group).toBeTruthy();
+    expect(group.textContent).toMatch(/Unmerged/i);
+  });
+
   it('forwards onViewInWorktrees down to the card and calls it with the track number', () => {
     const onViewInWorktrees = vi.fn();
     render(
