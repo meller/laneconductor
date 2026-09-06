@@ -522,7 +522,12 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers, highli
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchRows = useCallback(() => {
-    if (!projectId) return;
+    // Found live 2026-09-06: with "All Projects" selected, projectId is
+    // falsy and this used to bail out with a bare `return` — `loading`
+    // (set true by the effect below on every projectId change) was never
+    // set back to false, so the panel showed "Loading worktrees…"
+    // indefinitely, with no error and no way to tell it wasn't just slow.
+    if (!projectId) { setRows([]); setLoading(false); return; }
     apiFetch(`/api/projects/${projectId}/worktrees`)
       .then(r => r.ok ? r.json() : [])
       .then(data => {
@@ -799,6 +804,20 @@ export function WorktreesPanel({ projectId, onSelectTrack, onGoToWorkers, highli
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-500 text-sm">Loading worktrees…</div>;
+  }
+
+  if (!projectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-center px-6">
+        <div className="w-16 h-16 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mb-4 shadow-inner">
+          <span className="text-2xl opacity-50">🌳</span>
+        </div>
+        <h3 className="text-gray-300 font-medium mb-1">Select a Project</h3>
+        <p className="text-gray-500 text-sm max-w-xs leading-relaxed">
+          Worktrees are per-project — pick a specific project above to see its unmerged branches.
+        </p>
+      </div>
+    );
   }
 
   if (!rows.length) {

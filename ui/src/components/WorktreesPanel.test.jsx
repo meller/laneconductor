@@ -82,4 +82,17 @@ describe('WorktreesPanel — running-row transcript deep link', () => {
     expect(screen.queryByTestId('worktree-running-badge')).toBeNull();
     expect(screen.queryByText('scratch/foo', { selector: 'button', exact: false })).toBeNull();
   });
+
+  // Found live 2026-09-06: with "All Projects" selected, projectId is
+  // falsy, and fetchRows() used to bail out with a bare `return` before
+  // ever calling setLoading(false) — the effect that fires it always sets
+  // loading true first, so the panel showed "Loading worktrees…"
+  // indefinitely, with no error and no way to tell it wasn't just slow.
+  it('TC-12: with no project selected, shows "Select a Project" instead of spinning forever', async () => {
+    mockWorktreesEndpoints([]);
+    render(<WorktreesPanel projectId={null} onSelectTrack={vi.fn()} />);
+    await waitFor(() => expect(screen.queryByText('Loading worktrees…')).not.toBeInTheDocument());
+    expect(screen.getByText('Select a Project')).toBeTruthy();
+    expect(mockApiFetch).not.toHaveBeenCalledWith(expect.stringContaining('/worktrees'));
+  });
 });
