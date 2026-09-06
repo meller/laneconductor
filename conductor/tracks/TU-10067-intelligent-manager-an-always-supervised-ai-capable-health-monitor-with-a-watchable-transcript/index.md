@@ -3,8 +3,8 @@
 **Lane**: implement
 **Merge Mode**: direct
 **Lane Status**: running
-**Progress**: 57%
-**Phase**: Phase 4 - Supervision pseudo-track (complete)
+**Progress**: 71%
+**Phase**: Phase 6 - Layer-2 budget/prompt/workspace-bypass done, dispatch wiring deferred
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com

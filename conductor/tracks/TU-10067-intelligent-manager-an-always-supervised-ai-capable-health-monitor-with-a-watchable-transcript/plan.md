@@ -198,29 +198,82 @@ this track alone until Track 10069 ships — an explicit, accepted gap, not an o
 **Solution**: Dispatch a scoped session through the existing `spawnCli()` path, bounded by
 the allowlist and the budget.
 
-- [ ] Task 6.1: Budget gate before dispatch — concurrency, per-fingerprint cooldown, hourly
-      ceiling (REQ-12). Written and tested first: this is the runaway-spend guard.
-- [ ] Task 6.2: Prompt builder stating finding, evidence, allowlist, and the
-      propose-don't-execute rule for everything else (REQ-11).
-- [ ] Task 6.3: Add the supervision bypass to `spawnCli()` **before** wiring any dispatch
-      through it (D8, REQ-24..26) — a reserved action that skips `resolveWorkspaceMode`,
+- [x] Task 6.1: Budget gate before dispatch — concurrency, per-fingerprint cooldown, hourly
+      ceiling (REQ-12). `conductor/services/manager-escalation.mjs`'s `canEscalate()`, written
+      and tested (11 cases) before anything dispatches through it.
+- [x] Task 6.2: Prompt builder stating finding, evidence, allowlist, and the
+      propose-don't-execute rule for everything else (REQ-11). `buildEscalationPrompt()`,
+      same file.
+- [x] Task 6.3: Add the supervision bypass to `spawnCli()` (D8, REQ-24..26) — a reserved
+      action (`MANAGER_ESCALATION_ACTION`) that skips `resolveWorkspaceMode`,
       `createWorktree`, `checkAndClaimGitLock` and `checkAndClaimGlobalMainModeLock`, running
-      in the primary checkout. Model it on the existing `isConversationRun` bypass rather
-      than inventing a second shape.
-    - [ ] Assert no branch and no worktree are created (AC-19)
-    - [ ] Assert a track-scoped escalation does not take that track's git lock (AC-20)
+      in the primary checkout. Modeled on `isConversationRun`, extended in three places, not
+      one — verified by reading, not assumed:
+      1. `workspaceMode = (isConversationRun || isSupervisionRun) ? null : ...` (the bypass itself)
+      2. `checkAndClaimGitLock` — runs **unconditionally** today, including for
+         `isConversationRun`; that variable's own bypass comment only ever promised no
+         worktree and no main-mode lock, never the per-track lock. A supervision run needed
+         its own additional `!isSupervisionRun` guard here — this would have been a silent
+         AC-20 failure if I'd only mirrored the workspace-mode bypass.
+      3. The exit handler's OWN separate `isConversationRun` (label-based, not action-based) —
+         kept deliberately un-merged with the supervision flag, because that variable also
+         drives an unconditional "clear **Waiting for reply**" on completion (3b), which is
+         the opposite of AC-11. A parallel `isSupervisionRun` flag shares the *lane*-write
+         restriction (`getConversationRunWriteScope`) without inheriting that clear.
+      Also found and fixed the same class of gap in the manual-dispatch pre-check
+      (`wouldBeWorkspaceMode`, ~line 8890): it calls `resolveWorkspaceMode` directly with no
+      bypass awareness at all, so it could reject an escalation as "needs main-mode, busy"
+      for a run that never actually needs main-mode. Skipped entirely for
+      `MANAGER_ESCALATION_ACTION`.
+    - [x] Assert no branch and no worktree are created (AC-19) —
+          `track-10067-manager-escalation-workspace-bypass.test.mjs`, real spawned worker,
+          real git repo.
+    - [x] Assert a track-scoped escalation does not take that track's git lock (AC-20) — same
+          test: a REAL per-track lock (this test process's own, genuinely-alive pid) is
+          planted before the dispatch and asserted byte-identical afterward.
 - [ ] Task 6.4: Dispatch via `spawnCli()` against the affected track's number, or the
-      project's `manager` pseudo-track for a project-scoped finding with no track —
-      inheriting transcript, logging and run marker. A host-scoped finding (D6 step 3) is
-      never dispatched; assert this rather than relying on it not happening.
+      project's `manager` pseudo-track for a project-scoped finding with no track.
+      **Not wired — three structural blockers found, none safe to patch under this pass's
+      remaining scope, all documented rather than guessed at:**
+      1. **Cross-project cwd.** `spawnCli()` resolves ~24 paths off `process.cwd()`, assuming
+         the caller's cwd already IS the target project's checkout. The manager's own serving
+         root is a DIFFERENT directory (D6) — dispatching against project N's track requires
+         either a global `process.chdir()` (unsafe: the sweep's own 30s interval, or any
+         other concurrent async tick in this one process, could resolve paths against the
+         wrong project mid-flight) or threading an explicit root parameter through spawnCli's
+         ~24 call sites — a real refactor, not a fix-in-place.
+      2. **The manual-dispatch pre-check bug** — found and fixed as part of Task 6.3 above,
+         since it also affects any real dispatch, but noted here because it was discovered
+         while investigating this wiring.
+      3. **Dispatch-row finalization.** `reconcileActiveDispatch()` decides a manual dispatch
+         is complete by reading the target's **Lane Status** from disk and checking it's no
+         longer `running` — but a supervision run is REQUIRED to leave that marker untouched
+         (`writeScope.canWriteLaneStatus: false`, Task 6.3). For a track that's genuinely
+         mid-run (the exact case an escalation exists to investigate), that file permanently
+         reads "running" and the dispatch row is never finalized — confirmed live in this
+         phase's own e2e test (see its comment for the full trace). The session's own outcome
+         still lands correctly on the track via `lane_action_result` (unaffected); only the
+         `worker_dispatch` row's bookkeeping is stuck. Needs its own resolution (e.g.
+         finalize a supervision dispatch purely off `runningTrackMap`/process-exit, never
+         file state) before any manager can safely self-dispatch escalations.
+      Given these, Tasks 6.5–6.7 (comment convention, waiting-for-reply, budget-in-practice)
+      are also deferred — each assumes a working dispatch to observe.
 - [ ] Task 6.5: Conclusion written to `conversation.md` per the Completion Comment
-      Convention, so it reaches the Inbox (REQ-13).
+      Convention, so it reaches the Inbox (REQ-13). Blocked on Task 6.4.
 - [ ] Task 6.6: Non-allowlisted remedy path sets `**Waiting for reply**: yes` instead of
-      acting (AC-11).
+      acting (AC-11). Blocked on Task 6.4 — but the mechanism itself needs no new code: the
+      session writes `**Waiting for reply**: yes` directly (same as any dispatched agent
+      writing its own markers, and NOT auto-cleared, since the exit handler's 3b block
+      deliberately excludes `isSupervisionRun` — see Task 6.3).
 - [ ] Task 6.7: Test that a finding held true across many sweeps produces exactly one
-      dispatch (AC-9), and that `mode: report` produces zero (AC-10).
+      dispatch (AC-9), and that `mode: report` produces zero (AC-10). The budget gate itself
+      is tested in isolation (Task 6.1); this task is the sweep-loop integration of it, which
+      needs Task 6.4's actual call site to exist first.
 
-**Impact**: The judgement calls a human made by hand become watchable, bounded automation.
+**Impact**: The dispatch mechanism's safety properties (workspace isolation, no lock
+contention, budget) are built and independently verified. The manager cannot yet actually
+place a call to them — that requires solving the cross-project cwd problem first, which is
+real scope, not an oversight.
 
 ---
 
