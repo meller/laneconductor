@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS workspace_members (
 );
 
 CREATE TABLE IF NOT EXISTS api_tokens (
+  -- SHA-256 digest of the token, hex — never the raw value. See hashToken in
+  -- cloud/functions/index.js and Track 10070's migration.
   token           TEXT PRIMARY KEY,
   workspace_id    UUID REFERENCES workspaces(id) ON DELETE CASCADE,
   created_by      TEXT NOT NULL, -- firebase_uid
