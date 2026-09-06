@@ -1,7 +1,7 @@
 # Track TU-10066: local-api-e2e: on_success/on_failure lane transition tests time out (pre-existing, unrelated to today's fixes)
 
-**Lane**: review
-**Lane Status**: running
+**Lane**: quality-gate
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Planned
