@@ -1,13 +1,13 @@
 # Track AM-10076: Kanban done-lane grouping should read the same git/PR-derived classification the Worktrees panel already trusts, not lane_action_status alone
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Workspace**: branch
-**Merge Mode**: pr
-**Auto Run**: no
+**Merge Mode**: direct
+**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Problem**: Confirmed live on track 10065: its merge attempt correctly failed (unrelated git history, refused to force through), landing in `lane_action_status='failure'`. `KanbanBoard.jsx`'s `DONE_LANE_STATUS_CONFIG` (added by track 10035/REQ-9, deliberately replacing an earlier git-state-based split) only maps `queue`→"Unmerged" and `waiting`→"PR open"; `failure` fell through to the generic base "Failed" label, invisible under the "Unmerged" heading this lane exists to surface. Meanwhile the Worktrees panel — computed by `worktree-audit.mjs`, cached via `refreshWorktreeSummaryCache()` — correctly still showed it as needing a merge, because it classifies from real git/GitHub state (`mergeable`/`stranded`/`conflicted`/`pr-open`/`open`), independent of `lane_action_status` entirely. The two views disagreed the moment a merge failed instead of just not having been attempted yet — a stopgap was applied directly to `KanbanBoard.jsx` (adding a `failure` entry) to fix this one case, but the underlying architectural gap remains: two independent computations of the same fact, free to drift again for any other reason `lane_action_status` and git reality disagree.
