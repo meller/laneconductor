@@ -5,7 +5,7 @@
 // Tests (local-api mode):
 //   1. Parallelism: max 1 per lane (parallel_limit: 1)
 //   2. on_success: implement → review
-//   3. on_failure: quality-gate exhausts retries → failure status
+//   3. on_failure: quality-gate exhausts retries → failure status in quality-gate
 //   4. Full pipeline: implement → review → quality-gate → done
 //   5. Custom transition: review → implement:queue on failure
 //
@@ -26,7 +26,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -94,6 +94,13 @@ async function setupProject(sandbox, collectorPort, mode = 'local-api') {
     ui: { port: 8090 },
   }, null, 2));
 
+  // Track 10066: the collector `_reset` above only clears the MOCK
+  // COLLECTOR's in-memory state — the worker claims tracks from the
+  // FILESYSTEM, not from collector state. Without also clearing the
+  // sandbox's tracks dir, tracks left behind by a previous subtest in
+  // this shared sandbox are still queued and claimable, competing with
+  // whatever track the current subtest actually means to test.
+  rmSync(join(sandbox, 'conductor/tracks'), { recursive: true, force: true });
   mkdirSync(join(sandbox, 'conductor/tracks'), { recursive: true });
   writeFileSync(join(sandbox, 'conductor/workflow.json'), JSON.stringify({
     global: { total_parallel_limit: 3 },
@@ -215,9 +222,22 @@ describe('LaneConductor local-api E2E', () => {
     }
   });
 
-  it('on_failure: quality-gate exhausts retries → failure status', async () => {
+  it('on_failure: quality-gate exhausts retries → failure status in quality-gate', async () => {
     await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
+    // Track 10066: the suite's base fixture sets quality-gate's on_failure
+    // to 'review' — a lane-MOVING transition, which resolveTransition()
+    // always resolves to lane_action_status 'queue', never 'failure'.
+    // 'failure' is only produced by a transition that STAYS in the same
+    // lane. Override to an in-lane transition here so this subtest
+    // actually observes retry exhaustion in quality-gate itself, rather
+    // than incidentally observing 'failure' several lane transitions
+    // later after the track cascades quality-gate → review → implement.
+    const wf = JSON.parse(readFileSync(join(TMP, 'conductor/workflow.json'), 'utf8'));
+    wf.lanes['quality-gate'].on_failure = 'quality-gate';
+    writeFileSync(join(TMP, 'conductor/workflow.json'), JSON.stringify(wf));
+    await sleep(500); // Give worker time to reload config
+
     createTrack(tracksDir, '301', 'quality-gate', 'queue');
 
     const worker = await startWorker(TMP, collectorPort, { MOCK_CLI_EXIT_CODE: '1', MOCK_CLI_DELAY_MS: '200' });
@@ -228,6 +248,7 @@ describe('LaneConductor local-api E2E', () => {
         return t?.lane_action_status === 'failure' ? t : null;
       }, { label: 'lane_action_status → failure', timeout: 20000 });
 
+      assert.equal(final.lane_status, 'quality-gate');
       assert.equal(final.lane_action_status, 'failure');
     } finally {
       await stopWorker(worker);

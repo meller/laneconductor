@@ -143,6 +143,12 @@ export async function startIsolatedWorker({ sandbox, args = [], env = {}, collec
       ...process.env,
       LC_SKIP_WORKER_LOCK: '1',
       LC_ASSERT_SERVING_ROOT: sandbox,
+      // Track 10066: the worker's auto-launch loop defaults to a 5s tick in
+      // production; every suite that spawns the real worker through this
+      // helper gets a fast 500ms tick instead, so a multi-lane-transition
+      // assertion doesn't have to wait out several real seconds per step.
+      // A caller's own `env` (spread below) still wins over this default.
+      LC_AUTO_LAUNCH_INTERVAL_MS: '500',
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

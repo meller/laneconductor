@@ -9449,6 +9449,10 @@ async function maybeExitWhenScopedWorkDone() {
 }
 
 // Auto-launch: Pick up one queued track per lane (respects lane limits)
+// LC_AUTO_LAUNCH_INTERVAL_MS: test-only override (default stays 5s) — same
+// reasoning as LC_RECONCILE_INTERVAL_MS/LC_DOC_SYNC_INTERVAL_MS above: a
+// test asserting a multi-step lane cascade shouldn't have to wait out a
+// full 5s tick per step just to observe it (track 10066).
 setInterval(async () => {
   if (syncOnly) return; // SKIP auto-launch in sync-only mode
   if (autoLaunchRunning) return;  // prevent concurrent runs (async setInterval)
@@ -9517,7 +9521,7 @@ setInterval(async () => {
     autoLaunchRunning = false;
     if (exitWhenDone) await maybeExitWhenScopedWorkDone();
   }
-}, 5000);
+}, Number(process.env.LC_AUTO_LAUNCH_INTERVAL_MS) || 5000);
 
 // ── Shutdown ──────────────────────────────────────────────────────────────────
 
