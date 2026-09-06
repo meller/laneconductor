@@ -142,13 +142,32 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
 // as 'open' — it took a manual, out-of-band `git merge` to land it. A
 // `running` status is now only trusted as independent progress when a
 // matching lock file backs it; unlocked, it's a dead artifact.
-function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, trackDir, trackNumber) {
+function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, trackDir, trackNumber, branchLane, branchLaneStatus) {
   const base = git(['merge-base', branch, mainBranch], repoRoot).trim();
-  if (!base) return false;
-  const baseState = readTrackStateFromBranch(repoRoot, base, trackNumber);
+  let baseLane, baseLaneStatus;
+  if (base) {
+    const baseState = readTrackStateFromBranch(repoRoot, base, trackNumber);
+    if (!baseState) return false;
+    baseLane = baseState.lane;
+    baseLaneStatus = baseState.laneStatus;
+  } else {
+    // Found live 2026-09-06: `git merge-base` returns nothing once a
+    // branch's history shares no common ancestor with main at all — the
+    // same rewrite discontinuity that defeats isAncestor() and the
+    // prStatus fallback above. Without a merge-base there's no "how main
+    // saw this track before it diverged" baseline — but the caller already
+    // has the branch's own current state, which is exactly the "before"
+    // discard-track's own action changed things. Confirmed live: tracks
+    // 9997/10011, discarded via the Worktrees panel (Lane: backlog
+    // committed onto the PRIMARY checkout, never onto the topic branch
+    // itself), kept showing pr-open/done indefinitely because this
+    // function silently gave up the moment `base` came back empty.
+    baseLane = branchLane;
+    baseLaneStatus = branchLaneStatus;
+  }
   const mainState = readTrackStateFromBranch(repoRoot, mainBranch, trackNumber);
-  if (!baseState || !mainState) return false;
-  if (baseState.lane === mainState.lane && baseState.laneStatus === mainState.laneStatus) return false;
+  if (!mainState) return false;
+  if (baseLane === mainState.lane && baseLaneStatus === mainState.laneStatus) return false;
 
   if (mainState.laneStatus?.trim().toLowerCase() === 'running') {
     // Track 10019 (REQ-5 / S11): locks always live under the PRIMARY
@@ -371,7 +390,7 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     // affordances entirely.
     const isDone = state?.lane === 'done';
     const superseded = state?.trackDir
-      ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber)
+      ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber, state.lane, state.laneStatus)
       : false;
     // Track 10018: a pr-mode track must NEVER classify as 'mergeable' —
     // that's the classification that drives the plain, local-merge "Merge

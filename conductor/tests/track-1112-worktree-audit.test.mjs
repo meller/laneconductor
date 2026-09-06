@@ -459,6 +459,47 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'open', 'a stale done:success snapshot must not be trusted once main has independently moved the same track');
   });
 
+  it('still recognizes a discard-track reopen even when a history rewrite leaves no merge-base at all', async () => {
+    // Found live 2026-09-06: discard-track (laneconductor.sync.mjs) commits
+    // its Lane: backlog update onto the PRIMARY checkout (main), never onto
+    // the abandoned topic branch itself — exactly the shape
+    // mainHasReopenedTrackIndependently() exists to catch. But that function
+    // opens with `git merge-base branch main`, and once a branch's history
+    // shares no common ancestor with main at all (the same rewrite
+    // discontinuity behind the isAncestor()/prStatus fixes above), that call
+    // returns nothing and the function gave up immediately — confirmed
+    // live: tracks 9997 and 10011, discarded via the Worktrees panel, kept
+    // showing pr-open/done indefinitely because of exactly this.
+    setupRepo();
+    writeTrackIndex(REPO, '206', 'Discarded Post-Rewrite', 'plan', 'queue');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-206 .worktrees/206 HEAD');
+    writeTrackIndex(join(REPO, '.worktrees/206'), '206', 'Discarded Post-Rewrite', 'done', 'success');
+    git('add -A', join(REPO, '.worktrees/206'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 206 done"', join(REPO, '.worktrees/206'));
+    git('worktree remove --force .worktrees/206');
+
+    // Simulate the rewrite: main gets a brand-new, unrelated root commit —
+    // `git merge-base track-206 main` now returns nothing at all.
+    git('checkout -q --orphan main-rewritten');
+    git('-c user.email=t@t -c user.name=t commit -q --allow-empty -m "rewritten root"');
+    git('branch -f main main-rewritten');
+    git('checkout -q main');
+
+    // discard-track's own action: commit Lane: backlog onto main's copy,
+    // never touching track-206 itself.
+    writeTrackIndex(REPO, '206', 'Discarded Post-Rewrite', 'backlog', 'queue');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "Track 206: discarded"');
+
+    assert.equal(git('merge-base track-206 main 2>&1 || true').trim(), '', 'sanity: the rewrite must leave no merge-base, or this test proves nothing new');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '206');
+    assert.ok(row, 'a discarded-but-still-unmerged branch must still be listed, not silently dropped');
+    assert.equal(row.classification, 'open', 'a discarded track must not keep showing as pr-open/stranded just because merge-base can no longer prove the reopen');
+  });
+
   it('fully resolves a dead "running" marker on main to mergeable — the exact track-10011/10014 shape', async () => {
     // Reproduces this repo's own track-10011 incident: an earlier, premature
     // merge landed the track on main while it was still mid-pipeline. Main's
