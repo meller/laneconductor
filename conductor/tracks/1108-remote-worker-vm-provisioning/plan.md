@@ -24,6 +24,12 @@ a reviewer can disagree with the decision rather than guess at it.
 - [x] Read the actual current behavior rather than the description of it:
       `worker/start` no longer shells `make lc-start` (track 1114 changed it),
       `worker/stop` still does, and `/api/workers/:id/stop` has the same defect
+- [x] Second pass (2026-09-06): re-verified every code reference in `spec.md`
+      against the current tree — all correct — and found three gaps the first
+      pass missed: a fifth defective route (REQ-23), the auth-vs-capability
+      confusion (REQ-24), and the Atlas-managed migration constraint. The
+      stale line numbers in `index.md` (`:519`, `:8359`) were corrected to the
+      real ones (`:432`, `:6571`)
 - [ ] Human confirms D4 and the D2 spin-out before Phase 5 starts
 
 **Impact**: Phases 2–6 have a single contract to build against.
@@ -42,8 +48,13 @@ hostname (`IS_LOCAL_HOST` in `WorkersList.jsx`). The server never says.
       authenticated user recorded when the list is empty (REQ, D2)
 - [ ] Gate `POST /api/workers/manager/start` on `api+workers`, returning 409
       with an explanation (REQ-3)
-- [ ] Delete `IS_LOCAL_HOST`; drive every one of its three call sites from
-      `capabilities.local_worker_start` (REQ-4)
+- [ ] Delete `IS_LOCAL_HOST`; drive its three call sites in `WorkersList.jsx`
+      (lines 209, 328, 409) from `capabilities.local_worker_start`, and update
+      the stale reference to it in `CreateManagerWorkerForm.jsx:21`'s comment
+      (REQ-4)
+- [ ] Add `requireAuth` to the four unauthenticated worker-spawning routes, and
+      admin-only to `workers/manager/start` (REQ-24) — the capability flag
+      answers "may this instance", never "may this caller"
 - [ ] Add `instance.json` to `.gitignore`
 
 **Impact**: A hosted deployment stops offering buttons that would run on the
@@ -57,7 +68,9 @@ polling there yet — and the only existing answer is a hand-typed
 **Solution**: A single-use, short-TTL enrollment token that a one-line command
 trades for a real API key, then starts a manager worker.
 
-- [ ] Migration: `enrollment_tokens` table (REQ-8)
+- [ ] Migration: `enrollment_tokens` table (REQ-8) — through `schema.prisma` +
+      `atlas migrate dev`, never a hand-dropped `.sql` (see spec's
+      Implementation constraints; `migrations/atlas.sum` breaks repo-wide)
 - [ ] `POST /api/enrollment-tokens`, `GET /api/enrollment-tokens` (REQ-9)
 - [ ] `POST /worker/enroll` — validate, mark used, mint the `lc_live_*` key
       through the existing `api_keys` path, return collector URL and projects
@@ -100,7 +113,7 @@ with or without Phase 5.
 **Problem**: A user with no machine at all still has to go get one.
 **Solution**: Create it for them, from a token they paste and we never keep.
 
-- [ ] Migration: `vm_provisions` table (REQ-16)
+- [ ] Migration: `vm_provisions` table (REQ-16) — same Atlas path as Phase 3
 - [ ] Provider driver interface plus the Hetzner implementation (REQ-14)
 - [ ] `POST /api/vm-provisions` — mints its own enrollment token, passes the
       bootstrap as `user_data`, uses the provider token for that call only and
@@ -125,11 +138,17 @@ which silently targets the wrong machine off localhost.
       their callers (REQ-19)
 - [ ] Fix or gate `POST /api/workers/:id/stop` (REQ-20) — same defect,
       confirmed
+- [ ] Fix or gate `POST /api/projects/:id/workers/start-new` (REQ-23) — the
+      fifth route, missing from every earlier list including index.md's,
+      reached from the track panel rather than `WorkersList.jsx`
 - [ ] Keep `POST /api/workers/manager/start` and `CreateManagerWorkerForm`,
       gated on `api+workers` rather than deleted (REQ-21)
 - [ ] `conductor/product.md`: enrollment for the first worker on a host,
       dispatch for every one after it (REQ-22)
 - [ ] Confirm no remaining caller depends on the removed routes
+- [ ] Enumerate every `execAsync`/`execFileAsync` call site in
+      `ui/server/index.mjs` and account for each (AC-10) — enumerate the shell
+      calls, do not grep for route names; that is how REQ-23 was missed
 
 **Impact**: One documented answer to "which component starts a worker on which
 machine".

@@ -118,8 +118,14 @@ additive.
 ### Zero-hosts detection
 - **REQ-5**: `GET /api/hosts/summary` returns `{ live, mine, pending_enrollments,
   stale }` for the calling identity. "Mine" counts workers of any type whose
-  `user_uid` is the caller, or that the caller reaches through
-  `worker_permissions`.
+  `user_uid` is the caller, or that the caller reaches through an explicit
+  `worker_permissions` grant. The line is **explicit grant, not visibility**: a
+  `worker_permissions` row is someone deliberately handing you a machine to run
+  on, so it is not a dead end; `visibility = 'public'` is only someone letting
+  you watch theirs, and does not count (TC-21). The three `OR w.user_uid IS
+  NULL` clauses already in `ui/server/index.mjs` (lines 339, 418 and 3971) are
+  all *visibility* predicates answering "may this user see this row" — none of
+  them is an ownership test, and none may be copied into this query. See REQ-7.
 - **REQ-6**: The zero-hosts state is `mine == 0` over live workers only
   (`last_heartbeat > now() - 60s`). A registered-but-dead host is still a dead
   end and must not suppress onboarding.
@@ -199,6 +205,27 @@ additive.
   per situation — enrollment for the first worker on a host, dispatch for every
   subsequent one — so a reader can tell which component starts a worker on
   which machine.
+- **REQ-23**: `POST /api/projects/:id/workers/start-new`
+  (`ui/server/index.mjs:461`) is the **fifth** route with this defect and was
+  missed by every list above, including index.md's. It runs `lc start
+  --worker-number N` through `execFileAsync` with `cwd = repo_path` — the same
+  wrong-machine assumption as REQ-19's routes, reached from the track panel's
+  "add capacity" path (tracks 1112/1084) rather than from `WorkersList.jsx`,
+  which is why the `IS_LOCAL_HOST` sweep never covered it. It must be gated on
+  `capabilities.local_worker_start` alongside REQ-20, or made dispatch-backed.
+  Without this, AC-10 is unsatisfiable as written: Phase 6 would land with a
+  live ungated shell-out and the track would still pass its own gate.
+- **REQ-24**: Every route kept under REQ-20, REQ-21 and REQ-23 gains
+  `requireAuth`, and `POST /api/workers/manager/start` additionally requires an
+  instance admin (D2). Confirmed present-tense defect, not a hypothetical: of
+  the five, only `/api/workers/:id/stop` carries `requireAuth` today —
+  `worker/start`, `worker/stop`, `workers/start-new` and `workers/manager/start`
+  have none, and the last of those takes a caller-supplied `projectsDir` and
+  spawns a manager against it. **The capability flag is not an authorization
+  check.** An `api+workers` instance sets `local_worker_start: true`, so gating
+  on it alone would leave those four reachable unauthenticated on exactly the
+  deployments where they do the most. REQ-3's 409 answers "may this instance",
+  never "may this caller".
 
 ## Acceptance Criteria
 
@@ -232,8 +259,26 @@ Written as observable user outcomes. No criterion is satisfiable by a stub.
       start a worker on the API's machine; on an `api+workers` instance it does,
       and that button works.
 - [ ] **AC-10**: After REQ-19, no HTTP route remains that starts or stops a
-      worker by shelling out on the API's machine except ones gated by
-      `capabilities.local_worker_start`.
+      worker by shelling out on the API's machine except ones gated by **both**
+      `capabilities.local_worker_start` and `requireAuth` (REQ-24). Demonstrated
+      by enumerating every `execAsync`/`execFileAsync` call site in
+      `ui/server/index.mjs` — five today, at lines 446, 488, 501, 537 and 563 —
+      and showing each is removed or doubly gated. An enumeration of the shell
+      call sites is the check, not a grep for route names: REQ-23's route was
+      missed precisely because it was searched for the wrong way.
+
+## Implementation constraints
+
+- **Both new tables are Atlas-managed, not hand-written SQL.** `migrations/`
+  carries an `atlas.sum` checksum file and `prisma/schema.prisma` is the
+  declarative source (see `conductor/tech-stack.md`). Dropping a `.sql` file
+  into `migrations/` without regenerating the sum breaks every subsequent
+  `atlas migrate` for the whole repo, not just this track. The order is: edit
+  `schema.prisma`, generate the SQL, `atlas migrate dev`, apply. Applies to
+  `enrollment_tokens` (REQ-8) and `vm_provisions` (REQ-16).
+- Neither table, and neither of `GET /api/instance` and `GET /api/hosts/summary`,
+  exists in any form today — verified, so nothing here is a modification of an
+  existing surface.
 
 ## Non-goals
 

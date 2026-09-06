@@ -43,6 +43,14 @@ is correct — none of them drives an LLM run).
       button renders anywhere in `WorkersList`; with `true`, they do — expected
       to hold with the browser at a non-localhost origin, which is exactly the
       case `IS_LOCAL_HOST` got wrong
+- [ ] TC-8a: unauthenticated `POST /api/workers/manager/start` on an
+      `api+workers` instance with auth enabled — expected: 401, no `lc` process
+      spawned. Today this returns 200 and starts a manager against a
+      caller-supplied `projectsDir` (REQ-24)
+- [ ] TC-8b: authenticated but non-admin caller, same endpoint — expected: 403
+      (D2), distinguishable from TC-8a's 401
+- [ ] TC-8c: unauthenticated `POST /api/projects/:id/workers/start-new` and
+      `.../worker/stop` — expected: 401 each (REQ-24)
 
 ### Phase 3 — enrollment
 
@@ -79,6 +87,11 @@ is correct — none of them drives an LLM run).
       `mine: 0`, `stale: 1` — a dead host is still a dead end
 - [ ] TC-21: another user's `public` worker is visible — expected: `mine: 0`,
       because visibility is not ownership
+- [ ] TC-21a: another user's worker granted to the caller by an explicit
+      `worker_permissions` row — expected: `mine: 1`. This is the other side of
+      TC-21's line and the only case REQ-5 counts as yours without owning it;
+      untested, the implementation could satisfy TC-21 by dropping the grant
+      path entirely and stranding a user who has only shared machines
 - [ ] TC-22 (browser): signed in with zero hosts — expected: the first-host
       screen, both paths, and the cost statement, rather than an empty board
 - [ ] TC-23 (browser): a minted, unconsumed enrollment — expected: the waiting
@@ -111,8 +124,17 @@ is correct — none of them drives an LLM run).
 - [ ] TC-33: `POST /api/projects/:id/worker/stop` — expected: 404, route gone
 - [ ] TC-34: `POST /api/workers/:id/stop` on an `api-only` instance — expected:
       it does not shell out on the API's machine (REQ-20)
+- [ ] TC-34a: `POST /api/projects/:id/workers/start-new` on an `api-only`
+      instance — expected: 409, no `lc` spawned (REQ-23). Distinct from TC-34:
+      this is the route reached from the track panel's add-capacity control,
+      not from `WorkersList`
 - [ ] TC-35: repo-wide grep — expected: no remaining caller of the removed
       routes in `ui/src`, `bin`, or `conductor`
+- [ ] TC-35a: enumerate every `execAsync`/`execFileAsync` call site in
+      `ui/server/index.mjs` — expected: each one is either gone or reached only
+      behind `requireAuth` **and** `capabilities.local_worker_start` (AC-10).
+      The baseline is five call sites, at lines 446, 488, 501, 537 and 563;
+      a sixth appearing later must fail this case rather than slip through
 
 ### Phase 7 — end-to-end
 
