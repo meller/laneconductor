@@ -1,6 +1,7 @@
 **Lane**: quality-gate
 **Lane Status**: queue
 : queue
-**Progress**: 100%
-**Summary**: Root cause found during planning — both subtests are fixture defects, not worker bugs. `on_success` competes with three tracks the previous subtest left in the shared sandbox; `on_failure` asserts a…
+**Progress**: 0%
+**Summary**: conductor/tests/local-api-e2e.test.mjs's 'on_success: implement -> review' and 'on_failure: quality-gate exhausts retries -> failure status' subtests both time out after 20s polling for a lane…
 **Merge Mode**: direct
+**Phase**: New
