@@ -1,8 +1,8 @@
 # Track 9997: Orphan Reconciliation Test Fixture
 
-**Lane**: done
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 **Progress**: 100%
 **Phase**: Synthetic fixture for Track 1110 Phase 6 live verification
 **Type**: dev
-**Summary**: Not a real track — disposable fixture to verify reconcileOrphanedDispatches picks up a genuinely-finished-but-orphaned dispatch.
+**Summary**: Confirmed intentional test fixture (its own Summary says so), not real work — investigated 2026-09-06
