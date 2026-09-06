@@ -3,6 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Merged to main
 **Type**: dev
 **Author**: TU
