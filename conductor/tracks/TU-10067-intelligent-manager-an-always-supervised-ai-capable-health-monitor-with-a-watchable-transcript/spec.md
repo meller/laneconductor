@@ -139,14 +139,29 @@ per-project pseudo-track: **`conductor/tracks/manager/`**, addressed as track nu
 (so the reasoning lands where a human would look for it); machine-level findings with no
 track spawn against `manager`.
 
-This is safe because every track-folder consumer requires a numeric prefix, verified:
+This is safe because every track-folder consumer skips a folder with no track number in
+it. Re-verified 2026-09-06, and the governing guard is **not** the numeric *prefix* the
+first planning pass assumed:
 
+- `laneconductor.sync.mjs:1536` — `isTrackDirName(name)` = `/\d+/.test(name) && !name.startsWith('_duplicate-')`.
+  This is the filter on **three** of the four folder scans: the concurrency scan (`:3050`),
+  the artifact scan (`:6311`), and — the one that matters most — the **auto-launch scan**
+  (`:6342`).
+- `laneconductor.sync.mjs`'s `remainingScopedWork()` (`:8833`) — `/^(\d+)/`
+- The Jira outbound scan (`:3267`) — `^LAN-\d+` or `^\d+`
+- `conductor/init-tracks-summary.mjs:39` — `/^(\d+)-(.+)$/` (this is what keeps it out of
+  `tracks.md`)
 - `conductor/services/track-folder.mjs:48` — `^(?:[A-Za-z]+-)?${trackNumber}-`
-- `conductor/init-tracks-summary.mjs:39` — `/^(\d+)-(.+)$/`
-- `laneconductor.sync.mjs`'s `remainingScopedWork()` — `/^(\d+)/`
 
 `manager` matches none of them, so the pseudo-track is invisible to claiming, to
 `tracks.md`, and to the auto-launch loop without needing a single exclusion list.
+
+**The reserved name must therefore contain no digit anywhere** — not merely lack a numeric
+prefix. `isTrackDirName` tests `/\d+/` unanchored, so a folder named `manager-2` or
+`supervision-1` *would* be scanned and could be claimed by the auto-launch loop. The same
+scan then sorts on `parseInt(a.match(/\d+/)[0])`, which throws outright on a digitless name
+that somehow reached it. Both facts point the same way and are pinned as REQ-21 so a later
+rename cannot silently un-hide the pseudo-track.
 
 **Which project's supervision track a manager's chat resolves to.** A manager's worker row
 has `project_id: null` by construction (`laneconductor.sync.mjs:1259`), and the workers API
@@ -204,6 +219,60 @@ alternative (a parallel transcript stack keyed on worker id) is materially worse
 duplicates four working components. `product.md` is **not** modified by this track — a human
 should decide whether the file-roles table gains a row for the pseudo-track or whether it
 should live outside `conductor/tracks/` entirely.
+
+### D7 — The pseudo-track's transcript works unchanged; its **conversation** does not
+
+D5 claims the existing "transcript + conversation + chat stack works on it unchanged." Half
+of that is true, and the other half would have failed during Phase 5 as an unbuildable
+requirement — the same class of gap D6 closed. Verified by reading the routes, 2026-09-06:
+
+| Path | Backed by | Works for `manager`? |
+|---|---|---|
+| `GET /api/projects/:id/tracks/:num/transcript` (`ui/server/index.mjs:1492`) | pure filesystem — `new RegExp(\`-${trackNum}-\\d+\\.log$\`)` over `conductor/logs/` | **yes, unchanged** |
+| `GET /api/projects/:id/tracks/:num/comments` (`:1733`) | `getTrackId()` (`:1580`) → `SELECT id FROM tracks WHERE track_number = $2` | **no — 404.** The pseudo-track has no DB row, by design |
+| `POST /api/projects/:id/tracks/:num/comments` (`:1747`) | `collectorWrite('POST', '/track/manager/comment')`, then appends to the folder found by `readdirSync(tracksDir).find(d => d.startsWith(\`${num}-\`))` | **no.** The collector write needs a track row, and the folder probe looks for `manager-`, while the folder is literally `manager` |
+| Worker `syncConversation` (`:2687`) | `extractTrackNumber` (`:1896`) | **worse than not running.** Its no-digit fallback is `?.[1] ?? trackDir`, so it returns the string `'manager'` rather than null. `syncConversation` does not early-return; it POSTs every finding to `/track/manager/comment`, which fails and logs a warning — one failed POST per finding, per sweep |
+
+So Phase 4's "route findings into `conversation.md`" would have written comments the UI
+returns 404 for, and Phase 5's "enable the composer" would have posted into nothing. The
+`useTrackComments` hook (`ui/src/lib/useTrackComments.js`) reads that 404ing endpoint on a
+2s poll, so the panel would have rendered permanently empty.
+
+**Decision: a filesystem-backed conversation adapter, keyed on the reserved name — not a DB
+row.** When `:num === 'manager'`, both comments routes bypass `getTrackId` and the collector
+entirely and read/append `<repo_path>/conductor/tracks/manager/conversation.md` directly.
+
+Rejected — **give the pseudo-track a real `tracks` row** (`track_number` is `TEXT`, so it
+would fit). It would make every route work with no new code, but it puts a card on every
+project's Kanban board, which then needs a new exclusion in the tracks-list query. That is
+exactly the exclusion-list cost D5 chose this design to avoid, traded for one branch in two
+routes.
+
+The adapter is cheap because the parser already exists as a pure, exported function:
+`parseConversationComments()` in `conductor/sync-conversation-utils.mjs:13`. Nothing needs
+extracting — the route imports it and maps turns to the same `{ author, body, created_at }`
+shape `useTrackComments` already renders.
+
+Two consequences that are requirements, not notes:
+
+- The manager must **skip its own pseudo-track in `syncConversation`** — otherwise every
+  sweep that writes a finding produces a failed collector POST. The skip is explicit
+  (a reserved-name check in `syncConversation`), *not* a change to `extractTrackNumber`'s
+  fallback: that fallback is shared by every other caller and changing it has blast radius
+  well outside this track.
+- REQ-18's "a human reply is picked up the same way" resolves to the **manager reading the
+  file it owns**, not to the DB `waiting_for_reply` path, since no DB row exists to carry
+  that flag. This is simpler, not a workaround: the manager is the only writer and the only
+  reader of that thread.
+
+**Shared contract — track 10069 must know about this.** `index.md`'s cross-reference asks
+that any change to the pseudo-track mechanism be stated rather than silently reshaped. D7 is
+such a change, and it moves in 10069's favour: the supervision thread is **filesystem-backed
+and has no `tracks` row**, so a persistent, target-switchable manager chat built on top of it
+reads and writes `conductor/tracks/manager/conversation.md` through the comments routes'
+reserved-name branch — it must not assume a DB-backed track behind that endpoint. REQ-15's
+resolver shape and the transcript event format are **unchanged**; only the conversation
+backing store is now specified where it previously was assumed.
 
 ## Requirements
 
@@ -273,8 +342,9 @@ should live outside `conductor/tracks/` entirely.
   supervision track's conversation via the same comments endpoint it already uses.
 - REQ-17: A layer-2 session's transcript is visible live through the existing "Show live
   session transcript" path, with no new renderer.
-- REQ-18: A human reply in that conversation is picked up the same way a reply on any other
-  track is.
+- REQ-18: A human reply in that conversation is picked up by the manager. Per D7 this means
+  reading the pseudo-track's `conversation.md` directly — there is no DB row to carry a
+  `waiting_for_reply` flag, and the manager is the thread's only writer and only reader.
 
 **Configuration**
 - REQ-19: All of D1–D4's knobs live under `manager.supervision` in `.laneconductor.json`,
@@ -282,6 +352,23 @@ should live outside `conductor/tracks/` entirely.
   nothing else until a human opts in.
 - REQ-20: Every finding carries a `project_id` resolved per D6's three-step order, or is
   explicitly marked host-scoped. No finding is silently dropped for lacking one.
+
+**Pseudo-track plumbing (D7)**
+- REQ-21: The reserved pseudo-track folder name contains **no digit in any position**, and a
+  test asserts this. `isTrackDirName` (`laneconductor.sync.mjs:1536`) tests `/\d+/`
+  unanchored, so a digit anywhere would make the folder scannable and claimable by the
+  auto-launch loop; the same scan then sorts on `parseInt(name.match(/\d+/)[0])`, which
+  throws on a digitless name that reaches it. `manager` satisfies both.
+- REQ-22: `GET` and `POST /api/projects/:id/tracks/:num/comments` handle the reserved name by
+  reading and appending `<repo_path>/conductor/tracks/manager/conversation.md` directly,
+  bypassing `getTrackId()` and `collectorWrite()`. Rendering reuses the already-exported pure
+  `parseConversationComments()` (`conductor/sync-conversation-utils.mjs:13`) and returns the
+  same comment shape `useTrackComments` renders today. No `tracks` row is created.
+- REQ-23: The worker's `syncConversation` explicitly skips the reserved pseudo-track. Without
+  this, `extractTrackNumber`'s no-digit fallback returns the literal string `'manager'`, so
+  every finding written becomes a failed `/track/manager/comment` POST — once per finding,
+  per sweep. The skip is a reserved-name check in `syncConversation`, **not** a change to
+  `extractTrackNumber`, whose fallback every other caller shares.
 
 ## Acceptance Criteria
 
@@ -324,6 +411,15 @@ Each is stated as something an operator could observe.
       escalated to an AI session.
 - [ ] AC-15: Opening the manager's chat from two different project boards shows each
       project's own supervision thread, not one shared thread.
+- [ ] AC-16: The manager's chat panel lists the findings already written to the supervision
+      thread. Today the endpoint behind that list returns 404 for a track with no DB row, so
+      this fails before the change and is the observable proof REQ-22 landed.
+- [ ] AC-17: A message typed into the manager's composer appears in
+      `conductor/tracks/manager/conversation.md` on disk in the `> **human**: ...` format,
+      and no `tracks` row named `manager` exists in the database afterwards.
+- [ ] AC-18: Running a sweep that writes findings to the supervision thread produces **no**
+      `[conv-sync] post comment failed` warnings in the worker log — the reserved-name skip
+      (REQ-23) is observable as the absence of that noise, which is present without it.
 
 ## Out of Scope (FFU — deliberately deferred, and therefore not acceptance criteria)
 

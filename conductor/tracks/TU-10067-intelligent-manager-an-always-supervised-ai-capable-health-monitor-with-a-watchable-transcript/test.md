@@ -115,6 +115,24 @@ they are listed separately.
 - [ ] TC-4.7: `GET /api/projects/:id/tracks/manager/transcript` with a
       `sweep-manager-<ts>.log` present — expected: parsed events returned, not a 404 or a
       numeric-parse error.
+- [ ] TC-4.8: `GET /api/projects/:id/tracks/manager/comments` with findings already in
+      `conductor/tracks/manager/conversation.md` — expected: those turns returned in the shape
+      `useTrackComments` renders. **Fails before the change**: the route calls `getTrackId()`,
+      which returns null for a track with no DB row, so it 404s (AC-16).
+- [ ] TC-4.9: `POST /api/projects/:id/tracks/manager/comments` with a body — expected: a
+      `> **human**: <body>` turn appended to that file in the required parser format, and
+      `SELECT id FROM tracks WHERE track_number = 'manager'` still returns no row (AC-17).
+      Note the pre-existing folder probe searches for a directory starting `manager-`, which
+      never matches a folder named exactly `manager` — a test that only asserts a 201 would
+      pass while nothing was written.
+- [ ] TC-4.10: `syncConversation` invoked on `conductor/tracks/manager/conversation.md` —
+      expected: skipped, zero collector POSTs. **The naive assertion is wrong here**:
+      `extractTrackNumber` returns the string `'manager'`, not null, so without the explicit
+      skip the function proceeds and posts. Assert on POST count, not on an early return
+      (AC-18).
+- [ ] TC-4.11: The reserved pseudo-track name — expected: `/\d+/.test(name)` is false
+      (REQ-21). Guards a rename to `manager-2` or similar, which `isTrackDirName` would
+      accept and the auto-launch loop would then scan.
 
 ### Phase 5 — UI
 
@@ -133,6 +151,10 @@ they are listed separately.
       the suite green afterwards. A skipped test does not count.
 - [ ] TC-5.6: Findings render distinctly from AI turns — expected: distinguishable by test id
       or role, not by styling alone.
+- [ ] TC-5.7: `WorkerChatPanel` for a manager against a supervision thread containing
+      findings — expected: those findings are listed. This is the end-to-end proof that
+      Task 5.2 and Task 4.5 are wired to each other; with the composer enabled but no
+      adapter, the panel renders empty and this test is what catches it.
 
 ### Phase 6 — Layer-2 escalation
 
@@ -172,6 +194,6 @@ they are listed separately.
 - [ ] `cd ui && npm test` green, including the updated `WorkerChatPanel` manager cases
 - [ ] `node --test conductor/tests/local-fs-e2e.test.mjs` and `local-api-e2e.test.mjs` still
       green — no regression from the new interval or the pseudo-track
-- [ ] Every AC-1..AC-15 in `spec.md` observed and its evidence recorded in `conversation.md`
+- [ ] Every AC-1..AC-18 in `spec.md` observed and its evidence recorded in `conversation.md`
 - [ ] No stub scan hits (`not yet implemented` / `TODO` / `FIXME` / `FFU`) in any code path
       whose `plan.md` task is marked `[x]`

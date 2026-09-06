@@ -95,12 +95,14 @@ human-facing half.
 
 ---
 
-## Phase 4: Supervision pseudo-track (REQ-14, D5)
+## Phase 4: Supervision pseudo-track (REQ-14, REQ-21..REQ-23, D5, D7)
 
 **Problem**: The transcript and conversation stack is keyed on `(projectId, trackNumber)`;
-the manager has neither.
+the manager has neither. And only half that stack works for a track with no DB row — the
+transcript route is pure filesystem, but comments go through `getTrackId()` and the
+collector (D7).
 **Solution**: A reserved per-project `conductor/tracks/manager/` pseudo-track, invisible to
-every numeric-prefix folder matcher.
+every folder scan, plus a filesystem-backed conversation adapter for the two comments routes.
 
 - [ ] Task 4.1: Create the pseudo-track on first sweep if absent, **only in projects the
       manager supervises** — never in the manager's own serving root, which is not a project
@@ -111,12 +113,33 @@ every numeric-prefix folder matcher.
 - [ ] Task 4.3: Route project-scoped findings into its `conversation.md` as `> **system**:` comments in the
       required parser format, deduped by fingerprint so a persistent finding is not re-posted
       every 30 seconds.
-- [ ] Task 4.4: Confirm the API transcript route accepts a non-numeric track segment and
-      that `-manager-<ts>.log` matches its existing filename pattern.
-- [ ] Task 4.5: Regression test — after the pseudo-track exists, `tracks.md` is unchanged,
+- [ ] Task 4.4: Skip the reserved pseudo-track in the worker's `syncConversation`
+      (REQ-23). **Do this before Task 4.3 ships**, not after — without it, every finding
+      written by 4.3 becomes a failed `/track/manager/comment` POST once per sweep. Put the
+      check in `syncConversation`; do **not** touch `extractTrackNumber`'s no-digit fallback,
+      which every other caller shares.
+- [ ] Task 4.5: Filesystem-backed comments adapter (REQ-22) — in `ui/server/index.mjs`,
+      handle the reserved name in both `GET` and `POST /api/projects/:id/tracks/:num/comments`
+      before they reach `getTrackId()` / `collectorWrite()`:
+    - [ ] GET reads `<repo_path>/conductor/tracks/manager/conversation.md` and maps it with
+          the already-exported pure `parseConversationComments()`
+          (`conductor/sync-conversation-utils.mjs:13` — nothing to extract) into the same
+          shape `useTrackComments` renders.
+    - [ ] POST appends `> **human**: <body>` in the required parser format. Note the existing
+          folder probe (`d.startsWith(\`${num}-\`)`) does not match a folder named exactly
+          `manager` — the adapter addresses the folder directly rather than reusing it.
+    - [ ] Assert no `tracks` row is created for the reserved name (AC-17).
+- [ ] Task 4.6: Confirm live that the transcript route already works unchanged for a
+      non-numeric segment — its pattern is `-${trackNum}-\d+\.log$` over `conductor/logs/`
+      with no DB lookup, so `-manager-<ts>.log` matches. Verified by reading during planning;
+      re-confirm against a real log file rather than trusting the note.
+- [ ] Task 4.7: Regression test — after the pseudo-track exists, `tracks.md` is unchanged,
       `lc track-dir manager` does not resolve it as a track, and auto-launch never claims it.
+      Include the REQ-21 assertion that the reserved name contains no digit in any position,
+      since that (not a numeric *prefix*) is what `isTrackDirName` actually tests.
 
-**Impact**: The manager gains an addressable identity inside machinery that already works.
+**Impact**: The manager gains an addressable identity inside machinery that already works —
+and the one part that did not work is adapted rather than assumed.
 
 ---
 
@@ -125,6 +148,10 @@ every numeric-prefix folder matcher.
 **Problem**: `resolveWorkerChatTarget()` returns `null` for managers and the composer is
 hard-disabled — the manager is structurally unwatchable today.
 **Solution**: Point manager chat at the supervision track. No new renderer.
+
+**Depends on Phase 4's Task 4.5.** `useTrackComments` polls the comments endpoint every 2s;
+without the adapter that endpoint 404s for the reserved name, so enabling the composer here
+first yields a panel that renders permanently empty and posts into nothing.
 
 - [ ] Task 5.1: `resolveWorkerChatTarget()` returns the supervision target for
       `type === 'manager'`, scoped to the currently-viewed project via the existing
@@ -200,3 +227,10 @@ a supervisor supervises.
 - **`mode: report` is the default on purpose.** Anything that makes remediation the default
   contradicts D1 and AC-10.
 - **The budget gate (Task 6.1) is written before the dispatch path (Task 6.3)**, not after.
+- **Two orderings inside Phase 4 are load-bearing**, both for the same reason — writing
+  findings before the plumbing that carries them produces noise rather than a partial
+  feature. Task 4.4 (the `syncConversation` skip) lands before Task 4.3 starts writing
+  findings; Task 4.5 (the comments adapter) lands before Phase 5 enables the composer.
+- **`manager` is a reserved name with a hard constraint, not a label.** Any rename must keep
+  it digit-free (REQ-21) — `isTrackDirName` tests `/\d+/` unanchored, so `manager-2` would
+  become claimable by the auto-launch loop.
