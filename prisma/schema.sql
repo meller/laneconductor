@@ -193,6 +193,7 @@ CREATE TABLE "workers" (
     "user_uid" TEXT,
     "visibility" TEXT DEFAULT 'private',
     "worktrees" JSONB,
+    "collector_health" JSONB,
 
     CONSTRAINT "workers_pkey" PRIMARY KEY ("id")
 );

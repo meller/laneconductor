@@ -63,6 +63,19 @@ function collectorCompatBadge(worker) {
   return { label, title };
 }
 
+// Track 10064 (REQ-10): worker.collector_health is a snapshot keyed by
+// collector URL (see services/collector-health.mjs and the
+// /worker/register, /worker/heartbeat payloads). A collector currently
+// failing means consecutive_failures > 0 — this is exactly the signal that
+// was invisible during the incident that motivated this track (560
+// consecutive failures with zero surface anywhere but a raw log grep).
+export function getFailingCollectors(collectorHealth) {
+  if (!collectorHealth) return [];
+  return Object.entries(collectorHealth)
+    .filter(([, health]) => health?.consecutive_failures > 0)
+    .map(([url, health]) => ({ url, ...health }));
+}
+
 function ProviderStatus({ providers }) {
   if (!providers || providers.length === 0) return null;
 
@@ -510,6 +523,7 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {workers.map(worker => {
                 const vis = VISIBILITY_BADGE[worker.visibility || 'private'];
+                const failingCollectors = getFailingCollectors(worker.collector_health);
                 return (
                   <div
                     key={worker.id}
@@ -548,6 +562,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                             ) : (
                               <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gray-600/20 text-gray-500 border-gray-500/50">
                                 UNKNOWN MODE
+                              </span>
+                            )}
+                            {failingCollectors.length > 0 && (
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm bg-red-600/20 text-red-400 border-red-500/50 animate-pulse"
+                                data-testid="collector-degraded-badge"
+                                title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
+                              >
+                                ⚠ SYNC DEGRADED
                               </span>
                             )}
                           </div>
@@ -829,6 +852,20 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                 UNKNOWN
               </span>
             )}
+            {(() => {
+              const failingCollectors = getFailingCollectors(worker.collector_health);
+              if (failingCollectors.length === 0) return null;
+              // Track 1103 D6: see the grid layout's identical badge above for the full note.
+              return (
+                <span
+                  className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-red-900/40 text-red-400 border-red-700/60 animate-pulse"
+                  data-testid="collector-degraded-badge-strip"
+                  title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
+                >
+                  ⚠ SYNC DEGRADED
+                </span>
+              );
+            })()}
             {worker.type === 'manager' ? (
               <span className="text-[9px] font-mono text-purple-400 font-bold uppercase tracking-tight border-l border-gray-800 pl-2">
                 MANAGER

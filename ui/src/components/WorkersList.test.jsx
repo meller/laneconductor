@@ -109,3 +109,53 @@ describe('WorkersList — provider status card (track 10062)', () => {
     expect(okContainer.textContent).not.toContain('PROBE FAILED');
   });
 });
+
+// Track 10064: a remote collector failing continuously (confirmed live: 560
+// consecutive 401s) previously had zero surface anywhere but a raw log
+// grep. worker.collector_health (shipped on every register/heartbeat, see
+// services/collector-health.mjs) should render as a visible degraded badge
+// on that worker's own row/card, and nowhere else.
+describe('WorkersList — collector health / degraded-sync indicator (track 10064)', () => {
+  const healthyCollectorHealth = {
+    'http://127.0.0.1:8091': { attempts: 10, consecutive_failures: 0, last_error_status: null, last_error: null, last_success_at: new Date().toISOString(), token_source: 'machine_token (own)' },
+  };
+  const degradedCollectorHealth = {
+    'http://127.0.0.1:8091': { attempts: 10, consecutive_failures: 0, last_error_status: null, last_error: null, last_success_at: new Date().toISOString(), token_source: 'machine_token (own)' },
+    'https://api-pu7bcq73zq-uc.a.run.app': { attempts: 560, consecutive_failures: 560, last_error_status: 401, last_error: '401 unauthorized: missing token', last_success_at: null, token_source: 'none' },
+  };
+
+  it('TC-23: grid layout renders a degraded-sync indicator for a worker with a failing collector, naming the URL and failure count', () => {
+    const worker = makeWorker({ collector_health: degradedCollectorHealth });
+    render(<WorkersList projectId={1} workers={[worker]} layout="grid" />);
+    const badge = screen.getByTestId('collector-degraded-badge');
+    expect(badge.textContent).toMatch(/SYNC DEGRADED/i);
+    expect(badge.title).toContain('api-pu7bcq73zq-uc.a.run.app');
+    expect(badge.title).toContain('560');
+  });
+
+  it('TC-23 (strip): strip layout renders the same indicator', () => {
+    const worker = makeWorker({ collector_health: degradedCollectorHealth });
+    render(<WorkersList projectId={1} workers={[worker]} layout="strip" />);
+    const badge = screen.getByTestId('collector-degraded-badge-strip');
+    expect(badge.textContent).toMatch(/SYNC DEGRADED/i);
+    expect(badge.title).toContain('api-pu7bcq73zq-uc.a.run.app');
+  });
+
+  it('TC-24: a healthy worker (no failing collector) renders no degraded badge in either layout', () => {
+    const worker = makeWorker({ collector_health: healthyCollectorHealth });
+    const grid = render(<WorkersList projectId={1} workers={[worker]} layout="grid" />);
+    expect(screen.queryByTestId('collector-degraded-badge')).toBeNull();
+    expect(grid.container.textContent).not.toContain('SYNC DEGRADED');
+    grid.unmount();
+
+    render(<WorkersList projectId={1} workers={[worker]} layout="strip" />);
+    expect(screen.queryByTestId('collector-degraded-badge-strip')).toBeNull();
+  });
+
+  it('TC-25: a worker with no collector_health at all (older worker, or local-fs) renders no new chrome', () => {
+    const worker = makeWorker({ collector_health: undefined });
+    const { container } = render(<WorkersList projectId={1} workers={[worker]} layout="grid" />);
+    expect(screen.queryByTestId('collector-degraded-badge')).toBeNull();
+    expect(container.textContent).not.toContain('SYNC DEGRADED');
+  });
+});

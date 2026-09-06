@@ -709,7 +709,7 @@ app.get('/api/workers', auth, async (req, res) => {
     // pool via query() wrapper
     const result = await query(
       `SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, w.project_id, p.name AS project_name
+              w.visibility, w.user_uid, w.project_id, w.collector_health, p.name AS project_name
          FROM workers w
          JOIN projects p ON p.id = w.project_id
          WHERE p.workspace_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
@@ -727,7 +727,7 @@ app.get('/api/projects/:id/workers', auth, checkProject, async (req, res) => {
     // pool via query() wrapper
     const result = await query(
       `SELECT w.id, w.hostname, w.pid, w.status, w.current_task, w.last_heartbeat, w.created_at,
-              w.visibility, w.user_uid, p.name AS project_name
+              w.visibility, w.user_uid, w.collector_health, p.name AS project_name
          FROM workers w
          JOIN projects p ON p.id = w.project_id
          WHERE w.project_id = $1 AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
@@ -1227,15 +1227,20 @@ app.post('/worker/register', auth, async (req, res) => {
     // the heartbeat route below.
     const collector_api_version = Number.isInteger(req.body.collector_api_version) ? req.body.collector_api_version : null;
     const collector_compat = req.body.collector_compat ? JSON.stringify(req.body.collector_compat) : null;
+    // Track 10064 (REQ-9): per-collector auth/health snapshot — absent for
+    // a worker running older code. COALESCE keeps whatever was already
+    // stored rather than wiping it to null on every register call.
+    const collector_health = req.body.collector_health ? JSON.stringify(req.body.collector_health) : null;
 
     await query(`
-      INSERT INTO workers(project_id, hostname, pid, status, mode, machine_token, collector_api_version, collector_compat, last_heartbeat)
-      VALUES($1, $2, $3, 'idle', $4, $5, $6, $7, NOW())
+      INSERT INTO workers(project_id, hostname, pid, status, mode, machine_token, collector_api_version, collector_compat, collector_health, last_heartbeat)
+      VALUES($1, $2, $3, 'idle', $4, $5, $6, $7, $8, NOW())
       ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
       status = 'idle', mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token,
       collector_api_version = EXCLUDED.collector_api_version, collector_compat = EXCLUDED.collector_compat,
+      collector_health = COALESCE(EXCLUDED.collector_health, workers.collector_health),
       last_heartbeat = NOW()
-    `, [projectId, hostname, pid, mode || 'polling', machine_token, collector_api_version, collector_compat]);
+    `, [projectId, hostname, pid, mode || 'polling', machine_token, collector_api_version, collector_compat, collector_health]);
 
     res.json({ ok: true, machine_token });
   } catch (err) {
@@ -1245,7 +1250,7 @@ app.post('/worker/register', auth, async (req, res) => {
 
 app.patch('/worker/heartbeat', auth, async (req, res) => {
   try {
-    const { hostname, pid, status, current_task, mode } = req.body;
+    const { hostname, pid, status, current_task, mode, collector_health } = req.body;
     const projectId = req.body.project_id;
     if (!projectId) return res.status(400).json({ error: 'project_id required' });
 
@@ -1263,6 +1268,9 @@ app.patch('/worker/heartbeat', auth, async (req, res) => {
     if (status) { sets.push(`status = $${i++}`); params.push(status); }
     if (current_task !== undefined) { sets.push(`current_task = $${i++}`); params.push(current_task); }
     if (mode) { sets.push(`mode = $${i++}`); params.push(mode); }
+    // Track 10064 (REQ-9): only written when the worker actually sent it —
+    // see the matching comment in ui/server/index.mjs's /worker/heartbeat.
+    if (collector_health !== undefined) { sets.push(`collector_health = $${i++}`); params.push(JSON.stringify(collector_health)); }
 
     await query(
       `UPDATE workers SET ${sets.join(', ')}
