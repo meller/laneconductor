@@ -23,19 +23,21 @@ reached.
 directory, matching the isolation the `remote-api` block already gets for free
 by having its own sandbox.
 
-- [ ] Task 1.1: In `conductor/tests/local-api-e2e.test.mjs`, have `setupProject()`
+- [x] Task 1.1: In `conductor/tests/local-api-e2e.test.mjs`, have `setupProject()`
       `rmSync(join(sandbox, 'conductor/tracks'), { recursive: true, force: true })`
       before the existing `mkdirSync`, and import `rmSync` alongside the existing
       `node:fs` imports.
-- [ ] Task 1.2: Add a comment at that call explaining why — the collector `_reset`
+- [x] Task 1.2: Add a comment at that call explaining why — the collector `_reset`
       alone is not isolation, because the worker claims from the filesystem, not
       from collector state.
-- [ ] Task 1.3: Confirm no subtest depends on a track surviving from an earlier
+- [x] Task 1.3: Confirm no subtest depends on a track surviving from an earlier
       subtest. Read all five `local-api` subtests and check each creates every
-      track it asserts on.
-- [ ] Task 1.4: Run `node --test conductor/tests/local-api-e2e.test.mjs` and record
-      the real output. Expect `on_success` to pass. `on_failure` is expected to
-      still fail here — Phase 2 owns it.
+      track it asserts on. Confirmed: each subtest creates its own track numbers
+      (101-103, 201, 301, 401, 601) and none reference another subtest's tracks.
+- [x] Task 1.4: Run `node --test conductor/tests/local-api-e2e.test.mjs` and record
+      the real output. `on_success` now passes (5.6s in-suite, down from 20.4s
+      timeout). `parallelism` still passes. `on_failure` still fails at 20.4s
+      exactly as expected — Phase 2 owns it.
 
 **Impact**: `on_success` stops competing with three stale tracks. Every subtest
 becomes order-independent, which is what makes the per-subtest acceptance
@@ -54,17 +56,21 @@ if quality-gate's retry handling broke entirely.
 quality-gate `on_failure` that stays in lane, and assert the lane as well as the
 status.
 
-- [ ] Task 2.1: In the `on_failure` subtest, override the fixture's
+- [x] Task 2.1: In the `on_failure` subtest, override the fixture's
       `lanes['quality-gate'].on_failure` to `'quality-gate'` before creating track
       301, following the same in-subtest workflow override the `custom transition`
       subtest already uses.
-- [ ] Task 2.2: Assert both `final.lane_status === 'quality-gate'` and
+- [x] Task 2.2: Assert both `final.lane_status === 'quality-gate'` and
       `final.lane_action_status === 'failure'`, so a regression that reroutes the
       track through other lanes fails rather than passing slowly.
-- [ ] Task 2.3: Update the subtest's name and the file's header comment block to
+- [x] Task 2.3: Update the subtest's name and the file's header comment block to
       describe the assertion accurately.
-- [ ] Task 2.4: Run the suite and record real output. Expect the subtest to now
-      reach `failure` in roughly two lane actions instead of six.
+- [x] Task 2.4: Run the suite and record real output. Subtest now passes in
+      11.2s (down from 20.4s timeout) — reaches `failure` in quality-gate after
+      two lane actions instead of six. Also verified discrimination: reverting
+      the override back to `on_failure: 'review'` makes the subtest fail again
+      (poll timeout), proving the new assertion actually distinguishes the
+      correct in-lane behaviour from the old cascade-through-implement path.
 
 **Impact**: The subtest becomes a genuine regression test for quality-gate retry
 exhaustion, and stops being deadline-marginal for a reason unrelated to what it
