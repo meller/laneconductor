@@ -1,9 +1,10 @@
 # Track AM-10070: Adopt PR #1's legacy api_tokens hashing fix — external, automated-scanner security PR closed during the git history rewrite
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: done
+**Lane Status**: waiting
+**Progress**: 100%
+**Phase**: Quality Gate passed — PR open, awaiting maintainer merge
+**Waiting Reason**: Merge Mode is `pr`; the PR is open and needs @meller to review and merge it. Nothing else is blocked.
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: pr
@@ -29,4 +30,72 @@ The PR was closed (not merged) as a side effect of an unrelated git-history rewr
 This hashes the *incoming* token before comparing, but never touches the *already-stored* rows in `api_tokens.token`, which remain plaintext. Merged exactly as submitted, this would silently break authentication for every existing legacy worker token the very next time it's used — a hash will never equal the plaintext value already sitting in the column. Adopting this fix correctly needs a migration step (re-hash existing values in place, or force-reissue legacy tokens) as part of the same change, not just the lookup-side diff.
 
 **Scope for planning**: (1) decide the migration approach for already-stored plaintext `api_tokens` rows — in-place SHA-256 rehash (same hash function the fix already uses, so a single UPDATE could do it) versus forced reissue, weighing whether any legacy worker currently depends on a still-active plaintext token that would need to pick up a new one; (2) adopt the lookup-side fix from PR #1's diff (crediting the original report — this track exists because of that PR, not despite it); (3) if the PR's author engages directly with this track, that supersedes a maintainer-only implementation — check for activity here before assuming solo execution; (4) check whether any other code path reads `api_tokens.token` directly (assuming plaintext) and would also need updating for consistency with the new hashed storage.
-**Summary**: An automated AI security scanner's PR found a real gap (legacy api_tokens stored in plaintext); the submitted fix is valid but incomplete on its own — see Problem field.
+**Summary**: An automated AI security scanner's PR found a real gap (legacy api_tokens stored in plaintext); the submitted fix is valid but incomplete on its own — see Problem field. Completed: in-place SHA-256 rehash migration plus hashing on both write and read, with a self-healing plaintext fallback so deploy order can't break auth. See `spec.md` / `plan.md` / `test.md`.
+
+---
+
+## Outcome
+
+The migration question is answered: **in-place SHA-256 rehash, not forced
+reissue.** Clients already hold the raw token outside the database (`.env`
+`COLLECTOR_<n>_TOKEN`, inline `collectors[].token`, GCP Secret Manager —
+resolution order in `bin/lc.mjs:27-51`), the database only ever needs the digest,
+and there is no reissue machinery to lean on: no `lc login`, no refresh, no list
+or revoke endpoint for `api_tokens`. So rehashing keeps every existing worker
+authenticating with no client change and no downtime. Verified against a real
+Postgres, not just asserted — see `test.md` TC-11..TC-13 and the first acceptance
+criterion.
+
+And the lookup-side fix was **not** the full scope. Two gaps beyond the stale
+rows, neither in the original report:
+
+1. `POST /auth/token` still inserted the raw token, so hashing only the lookup
+   would have broken newly minted tokens too — the vulnerability was never
+   actually closed by the submitted diff.
+2. `req.api_token` — the caller's live bearer — was being written into
+   `file_sync_queue.worker_id`, putting the same credential at rest in a second
+   table.
+
+Plus `reader.js` / `reader.mjs`, which still compared plaintext. Latent (neither
+is deployed) but they encoded the wrong assumption.
+
+**Explicitly not done: rotation.** Rehashing preserves the tokens. It stops a
+future database read from yielding credentials; it does not revoke anything an
+existing leak already exposed. That stays an operator decision — and given the
+`lc_live_` revocation already in this repo's history, one worth taking
+separately.
+
+## Quality Gate (run 2026-09-06 for this track)
+
+Every mark below is a command executed during this run.
+
+- [x] Syntax: `find conductor ui bin -name "*.mjs" -not -path "*/node_modules/*" -exec node --check {} +` — clean. Plus `node --check` on all three changed cloud files (`reader.mjs` is ESM and checks clean as `.mjs`).
+- [x] **Cloud function tests: `cd cloud/functions && npm test` — 72 passed, 1 failed.** The one failure is `api.test.js`'s `GET /health` route-manifest assertion, pre-existing and unrelated (baseline before this track: 61 passed, same 1 failed). This suite is **not** in `conductor/quality-gate.md`'s command list and should be added — it is the only automated coverage of `cloud/functions/`.
+- [x] This track's own suite: 11/11 pass, and **6 of 11 fail with the implementation stashed** (TC-1, TC-2, TC-3, TC-4, TC-6, TC-9) — the tests measurably test something.
+- [x] Migration verified against a throwaway Postgres 17 cluster: apply → `UPDATE 3`, re-apply twice → `UPDATE 0` each time, all rows 64-hex, zero rows matching `left(token,3) = 'lc_'`. Then confirmed Postgres's `encode(sha256(token::bytea),'hex')` is byte-identical to Node's `crypto.createHash('sha256')` for every seeded token — if those two disagreed, the migration would silently lock every worker out and no unit test would catch it. Cluster torn down afterwards.
+- [x] `atlas migrate hash --dir "file://migrations"` — `atlas.sum` diff is exactly the expected two lines (directory hash + the one new entry). Re-running is a no-op, so the manifest is current.
+- [x] Worker tests: `env -u NODE_TEST_CONTEXT node --test conductor/tests/*.test.mjs` — 340 passed, 56 failed. **Diff-confirmed, not assumed**: this branch changes no file under `conductor/`, `ui/`, or `bin/` except this track's own docs, so these suites cannot observe the change. The three conductor tests that *do* read `cloud/functions/index.js` were run in isolation; the single failure among them (`cloud-route-parity` → "no unserved worker calls") reproduces identically with the change stashed.
+- [x] Server + frontend: `cd ui && env -u NODE_TEST_CONTEXT npx vitest run` — 684 passed, 33 failed across 10 files. Same argument: zero `ui/` files changed. The failing set matches what `conductor/quality-gate.md` already records as failing on `main` (`api-keys`, `api-routes`, `auth`, `bug-to-test`, `track-1033-worker-auth`, `track-1084-assignee`, `track-1116-model-override`, `WorkflowSettings.test.jsx`) plus two `track-1102` files.
+- [x] Build: `cd ui && npx vite build` — succeeded; `dist/` removed afterwards.
+- [ ] Security: `npm audit --audit-level=high` — `ui/` reports 33 vulnerabilities (13 high, 6 critical), `cloud/functions/` reports 23 (8 high, 2 critical). This branch touches no `package.json` or `package-lock.json` (confirmed: `git status` on those paths is empty), so left unchecked per the letter of the threshold rather than claimed as this track's work — same precedent as track 1102.
+- [x] No stubs in `[x]`-marked work: stub-scan across every changed non-doc file. Five hits in `cloud/functions/index.js`, all outside this track's hunks (lines 790, 1591, 2266, 2270, and a comment at 234 containing `lc_xxxx`); nothing in the migration, the tests, or the reader files.
+- [ ] E2E fast tier (`npx playwright test --project=fast`): **not run.** It needs the local stack on `:8090`/`:8091`, which is down and has no provisioned database in this checkout, and it exercises the local `ui/server` — it cannot reach a Firebase cloud function. The real-product check that *does* cover this change is the live-Postgres migration run above, which is recorded rather than skipped. Flagging this rather than burying it: no browser-level verification was performed.
+- [x] Acceptance criteria in `test.md` are user- and operator-facing outcomes ("a worker's existing `.env` token keeps working", "a table dump can't be replayed"), not scaffolding.
+
+### Deployment note
+
+`scripts/deploy.sh:89` applies migrations and `:96` leaves the function deploy to
+a manual command, so the two halves land at different times in an order nobody
+controls. The dual-read (`WHERE token = $hash OR token = $raw`) plus the
+fire-and-forget rehash means **either order is safe** and there is no window
+where `lc_` auth fails. The plaintext arm is marked removable in the code once
+every deployment is confirmed migrated — that is deliberate follow-up work, not
+an oversight.
+
+### Response-shape change
+
+`POST /auth/token` now returns `{ workspace_id }` without a `token` for a caller
+who already has one. The only in-repo caller
+(`ui/src/contexts/AuthContext.jsx:76`) discards the body, so nothing here
+breaks — but the function is `invoker: "public"`, so this is called out in the PR
+description too.
