@@ -274,6 +274,56 @@ reserved-name branch — it must not assume a DB-backed track behind that endpoi
 resolver shape and the transcript event format are **unchanged**; only the conversation
 backing store is now specified where it previously was assumed.
 
+### D8 — A supervision session is a third workspace case: no worktree, no lock
+
+D5 and D7 established that a layer-2 escalation reuses `spawnCli()` "with no new
+machinery." Verified against the real spawn path on 2026-09-06, that is not safe as written,
+and it fails in the same way for **every** escalation — not just pseudo-track ones.
+
+`spawnCli()` resolves a workspace mode before it does anything else
+(`laneconductor.sync.mjs:4806`). A supervision dispatch carries no `**Workspace**` marker and
+no `**Track Kind**`, and a manager sweep is unattended by definition, so
+`resolveWorkspaceMode` returns `'branch'` twice over — once at the unattended-trigger rule
+(`workspace-mode.mjs`, "an unattended trigger forces 'branch'") and again at the row-6
+default. Three things then happen, all wrong:
+
+| What `spawnCli` does | Why it is wrong for a supervisor |
+|---|---|
+| `createWorktree(trackNumber)` → `.worktrees/manager`, branch `track-manager` (`:4047`) | A diagnostic session has no code to isolate and nothing to merge. It also leaves a branch and a worktree row in the Worktrees panel for something that is not a track. |
+| `checkAndClaimGitLock(trackNumber)` (`:5043`) | For a **track-scoped** escalation this takes the lock of the very track being diagnosed — colliding with the real run whose health is in question. |
+| The session runs **inside the worktree** | This is the serious one. A worktree is a checkout of `HEAD`, not the live primary checkout. Every condition layer 1 detects — a stale lock file, a phantom `running` marker, a board/filesystem mismatch — exists in the primary checkout's working tree. A supervisor that reads a clean snapshot of `HEAD` cannot see any of them. It would reliably report that the problem it was dispatched to investigate does not exist. |
+
+There is also a circularity worth stating plainly: if the finding is `stale-main-mode-lock`
+and the escalation itself claims locks, the diagnosis perturbs the condition it was sent to
+diagnose — and `checkAndClaimGlobalMainModeLock` *removes* a dead-PID lock as a side effect
+of claiming, so the evidence would be gone before the session looked at it.
+
+**Decision: supervision runs directly in `process.cwd()` — neither `'main'` nor `'branch'`.**
+
+This is not a new concept; it is the existing third case. `spawnCli` already carves out
+exactly this for conversation replies (`isConversationRun`, `:4806`), whose own comment
+describes it as "a genuinely distinct third case, not 'main' and not 'branch'" that operates
+"directly in `process.cwd()` ... with neither a worktree nor the main-mode lock." A
+supervision run has the same three properties: it observes rather than edits code, it must
+see live state, and it must not serialize against real work. It takes the same bypass.
+
+Concretely: supervision dispatches set a reserved action, and `spawnCli` treats that action
+the way it already treats `CONVERSATION_REPLY_ACTION` — skip `resolveWorkspaceMode`, skip
+`createWorktree`, skip both locks, run in the primary checkout.
+
+Rejected — **mark the pseudo-track `**Workspace**: main`**. It skips the worktree, but
+`'main'` still takes the global main-mode lock, which both serializes supervision against
+every real main-mode lane action and re-introduces the circularity above. Rejected —
+**let it take a worktree and diagnose from the DB only**: it gives up the filesystem evidence
+(lock files, `index.md` markers, run markers) that four of the six layer-1 checks are built
+on.
+
+**Consequence for D1's allowlist.** Remedies now execute in the primary checkout, which is
+what makes them work at all — removing a dead lock file or resetting a phantom marker in a
+worktree copy would fix nothing observable. It also means the propose-don't-execute boundary
+is the *only* thing standing between a supervision session and the live checkout, which
+raises its importance rather than changing it.
+
 ## Requirements
 
 **Supervision of the manager (req 1)**
@@ -331,20 +381,21 @@ backing store is now specified where it previously was assumed.
   `> **system**:` comment following the **Completion Comment Convention** (`✅` / `⚠️` /
   `❌` as the leading character), so it lands in the Inbox like every other outcome.
 
-**Visibility and interactivity (req 3)**
+**Visibility (req 3, half) — interactivity moved to Track 10069**
 - REQ-14: The supervision pseudo-track exists per project as `conductor/tracks/manager/`
   with an `index.md` and a `conversation.md`. It is created only in projects the manager
   actually supervises — never in the manager's own serving root, which is not a project
   checkout (D6).
-- REQ-15: `resolveWorkerChatTarget()` returns a usable target for `type === 'manager'`
-  instead of `null`.
-- REQ-16: `WorkerChatPanel`'s composer is enabled for a manager worker and posts into the
-  supervision track's conversation via the same comments endpoint it already uses.
 - REQ-17: A layer-2 session's transcript is visible live through the existing "Show live
   session transcript" path, with no new renderer.
-- REQ-18: A human reply in that conversation is picked up by the manager. Per D7 this means
-  reading the pseudo-track's `conversation.md` directly — there is no DB row to carry a
-  `waiting_for_reply` flag, and the manager is the thread's only writer and only reader.
+- **Moved to Track 10069** (revised split — this track ships watchable, not chattable;
+  10069 needs to build resolver/composer logic for every worker type it supports anyway,
+  so a manager-specific slice of it here risked two different answers to "how does chat
+  find its target"): former REQ-15 (`resolveWorkerChatTarget()` returning a usable target
+  for `type === 'manager'`), former REQ-16 (`WorkerChatPanel`'s composer enabled for
+  managers), former REQ-18 (a human reply in the pseudo-track's `conversation.md` being
+  picked up). 10069 depends on REQ-14 and REQ-21/23 below (the pseudo-track existing and
+  being safely reserved) — it does not rebuild those.
 
 **Configuration**
 - REQ-19: All of D1–D4's knobs live under `manager.supervision` in `.laneconductor.json`,
@@ -359,16 +410,25 @@ backing store is now specified where it previously was assumed.
   unanchored, so a digit anywhere would make the folder scannable and claimable by the
   auto-launch loop; the same scan then sorts on `parseInt(name.match(/\d+/)[0])`, which
   throws on a digitless name that reaches it. `manager` satisfies both.
-- REQ-22: `GET` and `POST /api/projects/:id/tracks/:num/comments` handle the reserved name by
-  reading and appending `<repo_path>/conductor/tracks/manager/conversation.md` directly,
-  bypassing `getTrackId()` and `collectorWrite()`. Rendering reuses the already-exported pure
-  `parseConversationComments()` (`conductor/sync-conversation-utils.mjs:13`) and returns the
-  same comment shape `useTrackComments` renders today. No `tracks` row is created.
+- **Moved to Track 10069**: former REQ-22, the `GET`/`POST /api/projects/:id/tracks/:num/comments`
+  filesystem-backed adapter for the reserved name. Reading and writing comments is
+  interactivity, not visibility — the manager's own findings still land in
+  `conversation.md` directly via Task 4.3 below (the manager writes to its own filesystem,
+  no API involved), but the HTTP route a browser uses to read/post into that same file is
+  10069's to build, for the same reason as REQ-15/16/18 above.
 - REQ-23: The worker's `syncConversation` explicitly skips the reserved pseudo-track. Without
   this, `extractTrackNumber`'s no-digit fallback returns the literal string `'manager'`, so
   every finding written becomes a failed `/track/manager/comment` POST — once per finding,
   per sweep. The skip is a reserved-name check in `syncConversation`, **not** a change to
   `extractTrackNumber`, whose fallback every other caller shares.
+- REQ-24: A layer-2 supervision dispatch runs in the primary checkout: `spawnCli()` skips
+  workspace-mode resolution, worktree creation, the per-track git lock and the global
+  main-mode lock for it, via the same reserved-action bypass `CONVERSATION_REPLY_ACTION`
+  already uses (D8).
+- REQ-25: This applies to **every** supervision dispatch, including track-scoped ones. An
+  escalation about track N must never claim track N's git lock or run in track N's worktree.
+- REQ-26: No supervision dispatch ever creates a git branch or a worktree. `track-manager`
+  and `.worktrees/manager` must never come into existence.
 
 ## Acceptance Criteria
 
@@ -388,9 +448,10 @@ Each is stated as something an operator could observe.
 - [ ] AC-6: A worker killed with SIGKILL is reported as `worker-heartbeat-silent` within the
       staleness threshold, and — when it is systemd-supervised — the manager observes it come
       back rather than restarting it a second time.
-- [ ] AC-7: Opening the manager's chat panel in the UI shows its supervisory transcript and
-      accepts a typed message. Today this is impossible: the composer is hard-disabled for
-      managers.
+- [ ] AC-7 (revised — composer half moved to Track 10069): Opening the manager's live
+      session transcript (the existing "Show live session transcript" path, REQ-17) shows
+      its supervisory reasoning as a layer-2 escalation runs. Accepting a typed reply is
+      10069's AC, not this track's — see that track's spec.
 - [ ] AC-8: A layer-2 escalation's reasoning is readable live in the transcript view while
       it runs, and its conclusion is present in `conversation.md` afterwards with a leading
       `✅` / `⚠️` / `❌`.
@@ -409,17 +470,25 @@ Each is stated as something an operator could observe.
 - [ ] AC-14: A leaked process whose working directory is deleted or outside every known
       project is still reported in the manager's log and on its worker row, and is not
       escalated to an AI session.
-- [ ] AC-15: Opening the manager's chat from two different project boards shows each
-      project's own supervision thread, not one shared thread.
-- [ ] AC-16: The manager's chat panel lists the findings already written to the supervision
-      thread. Today the endpoint behind that list returns 404 for a track with no DB row, so
-      this fails before the change and is the observable proof REQ-22 landed.
-- [ ] AC-17: A message typed into the manager's composer appears in
-      `conductor/tracks/manager/conversation.md` on disk in the `> **human**: ...` format,
-      and no `tracks` row named `manager` exists in the database afterwards.
+- **Moved to Track 10069**: former AC-15 (opening the manager's chat from two different
+  project boards shows each project's own supervision thread), former AC-16 (the manager's
+  chat panel lists findings already written to the thread — proof of the comments adapter),
+  former AC-17 (a message typed into the manager's composer lands in
+  `conversation.md` as `> **human**: ...`, no `tracks` row created). All three are
+  interactivity ACs against the comments API/composer, which is 10069's build now.
 - [ ] AC-18: Running a sweep that writes findings to the supervision thread produces **no**
       `[conv-sync] post comment failed` warnings in the worker log — the reserved-name skip
       (REQ-23) is observable as the absence of that noise, which is present without it.
+
+- [ ] AC-19: After a layer-2 escalation runs, `git branch --list 'track-manager'` and
+      `ls .worktrees/manager` are both empty, and `git worktree list` is unchanged (REQ-26).
+- [ ] AC-20: An escalation dispatched about a track that is genuinely running does not block
+      or disturb that run — the track's own git lock is still held by the real run
+      throughout, and the real run completes normally (REQ-25).
+- [ ] AC-21: An escalation about a planted dead-PID stale lock can still see that lock file
+      when it starts. This is the observable proof it is reading the primary checkout rather
+      than a worktree snapshot: in a worktree the file is simply absent, so the session would
+      report no problem found.
 
 ## Out of Scope (FFU — deliberately deferred, and therefore not acceptance criteria)
 

@@ -95,14 +95,15 @@ human-facing half.
 
 ---
 
-## Phase 4: Supervision pseudo-track (REQ-14, REQ-21..REQ-23, D5, D7)
+## Phase 4: Supervision pseudo-track (REQ-14, REQ-21, REQ-23, D5, D7)
 
 **Problem**: The transcript and conversation stack is keyed on `(projectId, trackNumber)`;
-the manager has neither. And only half that stack works for a track with no DB row — the
-transcript route is pure filesystem, but comments go through `getTrackId()` and the
-collector (D7).
+the manager has neither.
 **Solution**: A reserved per-project `conductor/tracks/manager/` pseudo-track, invisible to
-every folder scan, plus a filesystem-backed conversation adapter for the two comments routes.
+every folder scan. (The filesystem-backed comments-API adapter that used to be Task 4.5 here
+moved to Track 10069 — reading/writing comments over HTTP is interactivity, 10069's scope
+now; the manager's own findings still get written directly to `conversation.md` by Task 4.3
+below, which needs no API and stays here.)
 
 - [ ] Task 4.1: Create the pseudo-track on first sweep if absent, **only in projects the
       manager supervises** — never in the manager's own serving root, which is not a project
@@ -118,17 +119,6 @@ every folder scan, plus a filesystem-backed conversation adapter for the two com
       written by 4.3 becomes a failed `/track/manager/comment` POST once per sweep. Put the
       check in `syncConversation`; do **not** touch `extractTrackNumber`'s no-digit fallback,
       which every other caller shares.
-- [ ] Task 4.5: Filesystem-backed comments adapter (REQ-22) — in `ui/server/index.mjs`,
-      handle the reserved name in both `GET` and `POST /api/projects/:id/tracks/:num/comments`
-      before they reach `getTrackId()` / `collectorWrite()`:
-    - [ ] GET reads `<repo_path>/conductor/tracks/manager/conversation.md` and maps it with
-          the already-exported pure `parseConversationComments()`
-          (`conductor/sync-conversation-utils.mjs:13` — nothing to extract) into the same
-          shape `useTrackComments` renders.
-    - [ ] POST appends `> **human**: <body>` in the required parser format. Note the existing
-          folder probe (`d.startsWith(\`${num}-\`)`) does not match a folder named exactly
-          `manager` — the adapter addresses the folder directly rather than reusing it.
-    - [ ] Assert no `tracks` row is created for the reserved name (AC-17).
 - [ ] Task 4.6: Confirm live that the transcript route already works unchanged for a
       non-numeric segment — its pattern is `-${trackNum}-\d+\.log$` over `conductor/logs/`
       with no DB lookup, so `-manager-<ts>.log` matches. Verified by reading during planning;
@@ -143,35 +133,23 @@ and the one part that did not work is adapted rather than assumed.
 
 ---
 
-## Phase 5: Manager chat and transcript in the UI (REQ-15..REQ-18)
+## Phase 5: (removed — moved to Track 10069)
 
-**Problem**: `resolveWorkerChatTarget()` returns `null` for managers and the composer is
-hard-disabled — the manager is structurally unwatchable today.
-**Solution**: Point manager chat at the supervision track. No new renderer.
+This phase used to cover manager chat interactivity: `resolveWorkerChatTarget()` returning a
+usable target for managers, enabling the `WorkerChatPanel` composer, rendering findings
+distinctly from AI turns, and the comments-API adapter Phase 4's Task 4.5 used to build for
+it. Revised split (see this track's index.md cross-reference note): 10069 has to build
+resolver/composer-enabling logic for every worker type it supports anyway, not just the
+manager, so a manager-specific slice of that here risked two different answers to "how does
+chat find its target." This track ships watchable (Phase 4 + REQ-17's existing transcript
+path); chattable is entirely 10069's build, on top of REQ-14/21/23 here.
 
-**Depends on Phase 4's Task 4.5.** `useTrackComments` polls the comments endpoint every 2s;
-without the adapter that endpoint 404s for the reserved name, so enabling the composer here
-first yields a panel that renders permanently empty and posts into nothing.
-
-- [ ] Task 5.1: `resolveWorkerChatTarget()` returns the supervision target for
-      `type === 'manager'`, scoped to the currently-viewed project via the existing
-      `fallbackProjectId` argument (a manager's own `project_id` and `last_track_project_id`
-      are both null by construction — see D5), preferring a currently-escalated real track
-      when one exists.
-- [ ] Task 5.2: Enable the `WorkerChatPanel` composer for managers; replace the
-      manager-specific empty state with the transcript.
-- [ ] Task 5.3: Render findings distinctly from AI turns so "what it noticed" reads apart
-      from "what it decided".
-- [ ] Task 5.4: Update the existing `WorkerChatPanel.test.jsx` manager cases, which currently
-      assert the disabled behaviour and will correctly fail.
-- [ ] Task 5.5: Verify live in the running UI, not only in tests — open the panel against a
-      real manager and read a real sweep.
-
-**Impact**: Requirement 3 becomes observable.
+**Impact of the removal**: req 3 (visibility AND interactivity) is only half-satisfied by
+this track alone until Track 10069 ships — an explicit, accepted gap, not an oversight.
 
 ---
 
-## Phase 6: Layer-2 AI escalation (REQ-10..REQ-13, D1, D4)
+## Phase 6: Layer-2 AI escalation (REQ-10..REQ-13, REQ-24..REQ-26, D1, D4, D8)
 
 **Problem**: "Is this merge stuck or slow?" cannot be answered by a fixed rule.
 **Solution**: Dispatch a scoped session through the existing `spawnCli()` path, bounded by
@@ -181,15 +159,22 @@ the allowlist and the budget.
       ceiling (REQ-12). Written and tested first: this is the runaway-spend guard.
 - [ ] Task 6.2: Prompt builder stating finding, evidence, allowlist, and the
       propose-don't-execute rule for everything else (REQ-11).
-- [ ] Task 6.3: Dispatch via `spawnCli()` against the affected track's number, or the
+- [ ] Task 6.3: Add the supervision bypass to `spawnCli()` **before** wiring any dispatch
+      through it (D8, REQ-24..26) — a reserved action that skips `resolveWorkspaceMode`,
+      `createWorktree`, `checkAndClaimGitLock` and `checkAndClaimGlobalMainModeLock`, running
+      in the primary checkout. Model it on the existing `isConversationRun` bypass rather
+      than inventing a second shape.
+    - [ ] Assert no branch and no worktree are created (AC-19)
+    - [ ] Assert a track-scoped escalation does not take that track's git lock (AC-20)
+- [ ] Task 6.4: Dispatch via `spawnCli()` against the affected track's number, or the
       project's `manager` pseudo-track for a project-scoped finding with no track —
-      inheriting transcript, logging, run marker unchanged. A host-scoped finding (D6 step 3)
-      is never dispatched; assert this rather than relying on it not happening.
-- [ ] Task 6.4: Conclusion written to `conversation.md` per the Completion Comment
+      inheriting transcript, logging and run marker. A host-scoped finding (D6 step 3) is
+      never dispatched; assert this rather than relying on it not happening.
+- [ ] Task 6.5: Conclusion written to `conversation.md` per the Completion Comment
       Convention, so it reaches the Inbox (REQ-13).
-- [ ] Task 6.5: Non-allowlisted remedy path sets `**Waiting for reply**: yes` instead of
+- [ ] Task 6.6: Non-allowlisted remedy path sets `**Waiting for reply**: yes` instead of
       acting (AC-11).
-- [ ] Task 6.6: Test that a finding held true across many sweeps produces exactly one
+- [ ] Task 6.7: Test that a finding held true across many sweeps produces exactly one
       dispatch (AC-9), and that `mode: report` produces zero (AC-10).
 
 **Impact**: The judgement calls a human made by hand become watchable, bounded automation.
@@ -226,11 +211,14 @@ a supervisor supervises.
   the most likely way to make this track a net negative.
 - **`mode: report` is the default on purpose.** Anything that makes remediation the default
   contradicts D1 and AC-10.
-- **The budget gate (Task 6.1) is written before the dispatch path (Task 6.3)**, not after.
-- **Two orderings inside Phase 4 are load-bearing**, both for the same reason — writing
-  findings before the plumbing that carries them produces noise rather than a partial
-  feature. Task 4.4 (the `syncConversation` skip) lands before Task 4.3 starts writing
-  findings; Task 4.5 (the comments adapter) lands before Phase 5 enables the composer.
+- **The budget gate (Task 6.1) is written before the dispatch path (Task 6.4)**, not after,
+  and the workspace bypass (Task 6.3) before it — a single escalation dispatched without the
+  bypass creates a `track-manager` branch and reads a worktree snapshot in which none of the
+  conditions it was sent to diagnose exist (D8).
+- **One ordering inside Phase 4 is load-bearing.** Task 4.4 (the `syncConversation` skip)
+  lands before Task 4.3 starts writing findings, or every finding becomes a failed collector
+  POST. (The comments-adapter-before-composer ordering that used to live here moved to Track
+  10069 along with both halves of that sequence.)
 - **`manager` is a reserved name with a hard constraint, not a label.** Any rename must keep
   it digit-free (REQ-21) — `isTrackDirName` tests `/\d+/` unanchored, so `manager-2` would
   become claimable by the auto-launch loop.

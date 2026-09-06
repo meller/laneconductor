@@ -115,16 +115,9 @@ they are listed separately.
 - [ ] TC-4.7: `GET /api/projects/:id/tracks/manager/transcript` with a
       `sweep-manager-<ts>.log` present — expected: parsed events returned, not a 404 or a
       numeric-parse error.
-- [ ] TC-4.8: `GET /api/projects/:id/tracks/manager/comments` with findings already in
-      `conductor/tracks/manager/conversation.md` — expected: those turns returned in the shape
-      `useTrackComments` renders. **Fails before the change**: the route calls `getTrackId()`,
-      which returns null for a track with no DB row, so it 404s (AC-16).
-- [ ] TC-4.9: `POST /api/projects/:id/tracks/manager/comments` with a body — expected: a
-      `> **human**: <body>` turn appended to that file in the required parser format, and
-      `SELECT id FROM tracks WHERE track_number = 'manager'` still returns no row (AC-17).
-      Note the pre-existing folder probe searches for a directory starting `manager-`, which
-      never matches a folder named exactly `manager` — a test that only asserts a 201 would
-      pass while nothing was written.
+- **Moved to Track 10069**: former TC-4.8 (`GET .../comments` returning findings via the
+  comments adapter) and TC-4.9 (`POST .../comments` appending a human reply) — both test
+  the comments-API adapter, which moved there along with the rest of interactivity.
 - [ ] TC-4.10: `syncConversation` invoked on `conductor/tracks/manager/conversation.md` —
       expected: skipped, zero collector POSTs. **The naive assertion is wrong here**:
       `extractTrackNumber` returns the string `'manager'`, not null, so without the explicit
@@ -134,27 +127,11 @@ they are listed separately.
       (REQ-21). Guards a rename to `manager-2` or similar, which `isTrackDirName` would
       accept and the auto-launch loop would then scan.
 
-### Phase 5 — UI
+### Phase 5 — removed, moved to Track 10069
 
-- [ ] TC-5.1: `resolveWorkerChatTarget({ type: 'manager', ... })` — expected: a target for the
-      supervision track. Currently returns `null`, so this test fails before the change.
-- [ ] TC-5.1b: The same manager resolved with two different `fallbackProjectId` values —
-      expected: two different targets, one per project, since a manager's own `project_id`
-      and `last_track_project_id` are both null (AC-15).
-- [ ] TC-5.2: A manager mid-escalation on a real track — expected: the target prefers that
-      track's number over `manager`.
-- [ ] TC-5.3: `WorkerChatPanel` rendered for a manager — expected: composer enabled, no
-      manager-specific empty state.
-- [ ] TC-5.4: Typing and submitting in that composer — expected: a POST to the comments
-      endpoint for the resolved target.
-- [ ] TC-5.5: Existing `WorkerChatPanel.test.jsx` manager assertions — expected: updated, and
-      the suite green afterwards. A skipped test does not count.
-- [ ] TC-5.6: Findings render distinctly from AI turns — expected: distinguishable by test id
-      or role, not by styling alone.
-- [ ] TC-5.7: `WorkerChatPanel` for a manager against a supervision thread containing
-      findings — expected: those findings are listed. This is the end-to-end proof that
-      Task 5.2 and Task 4.5 are wired to each other; with the composer enabled but no
-      adapter, the panel renders empty and this test is what catches it.
+All former Phase 5 test cases (resolver target resolution, `WorkerChatPanel` composer
+enablement, findings-vs-AI-turns rendering, the comments-adapter wiring proof) move to
+Track 10069's own test.md — they test interactivity, which is entirely 10069's build now.
 
 ### Phase 6 — Layer-2 escalation
 
@@ -172,6 +149,18 @@ they are listed separately.
       that track's number.
 - [ ] TC-6.6b: A host-scoped finding (D6 step 3) — expected: zero dispatches, and a report
       in the manager's log (REQ-10).
+- [ ] TC-6.9: A supervision dispatch completes — expected: `git branch --list 'track-manager'`
+      empty, `.worktrees/manager` absent, `git worktree list` unchanged (AC-19).
+- [ ] TC-6.10: A supervision dispatch scoped to track N while N's real run holds N's git lock
+      — expected: the escalation runs anyway, N's lock is still held by the real run
+      throughout, and the real run completes normally (AC-20).
+- [ ] TC-6.11: A supervision dispatch with a dead-PID lock file planted in the primary
+      checkout — expected: the session's working directory contains that file. Run the same
+      case without the D8 bypass — expected: it does not, which is the regression this test
+      exists to catch (AC-21).
+- [ ] TC-6.12: A supervision dispatch while an unrelated main-mode lane action holds the
+      global main-mode lock — expected: the escalation is not blocked and does not remove
+      that lock (REQ-24).
 - [ ] TC-6.7: A session concluding with a non-allowlisted remedy — expected: a proposal
       comment plus `**Waiting for reply**: yes`, and nothing executed (AC-11).
 - [ ] TC-6.8: A concluded escalation — expected: exactly one `> **system**:` comment whose
@@ -194,6 +183,6 @@ they are listed separately.
 - [ ] `cd ui && npm test` green, including the updated `WorkerChatPanel` manager cases
 - [ ] `node --test conductor/tests/local-fs-e2e.test.mjs` and `local-api-e2e.test.mjs` still
       green — no regression from the new interval or the pseudo-track
-- [ ] Every AC-1..AC-18 in `spec.md` observed and its evidence recorded in `conversation.md`
+- [ ] Every AC-1..AC-21 in `spec.md` observed and its evidence recorded in `conversation.md`
 - [ ] No stub scan hits (`not yet implemented` / `TODO` / `FIXME` / `FFU`) in any code path
       whose `plan.md` task is marked `[x]`
