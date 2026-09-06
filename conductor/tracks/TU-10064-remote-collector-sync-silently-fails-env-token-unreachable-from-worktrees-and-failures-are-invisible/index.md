@@ -1,7 +1,7 @@
 # Track TU-10064: Remote collector sync silently fails: .env token unreachable from worktrees, and failures are invisible
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
