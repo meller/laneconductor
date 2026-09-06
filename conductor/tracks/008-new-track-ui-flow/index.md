@@ -4,6 +4,10 @@
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
+**Merge Mode**: pr
+**PR Number**: 14
+**PR URL**: https://github.com/meller/laneconductor/pull/14
+**PR Status**: merged
 
 ## Problem
 There is no way to start work from the UI. Creating a track requires the Claude CLI (`/laneconductor newTrack`). The UI should have a "New Track" button that either surfaces an existing track to resume, or creates a new one — without leaving the browser.
