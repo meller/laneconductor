@@ -137,47 +137,68 @@ Track 10069's own test.md — they test interactivity, which is entirely 10069's
 
 ### Phase 6 — Layer-2 escalation
 
-- [ ] TC-6.1: Budget gate at `max_concurrent_escalations: 1` with one in flight — expected:
-      the second finding does not dispatch.
-- [ ] TC-6.2: A finding re-observed inside `escalation_cooldown_ms` — expected: no second
-      dispatch (AC-9).
-- [ ] TC-6.3: Five escalatable findings in an hour with a ceiling of four — expected: exactly
-      four dispatches.
-- [ ] TC-6.4: `mode: report` with an escalatable finding — expected: zero dispatches (AC-10).
-- [ ] TC-6.5: The built prompt — expected: contains the finding, its evidence, the allowlist,
-      and the propose-don't-execute instruction (REQ-11).
-- [ ] TC-6.6: A project-scoped finding with no track — expected: dispatched against that
-      project's `manager` pseudo-track. A track-scoped finding — expected: dispatched against
-      that track's number.
-- [ ] TC-6.6b: A host-scoped finding (D6 step 3) — expected: zero dispatches, and a report
-      in the manager's log (REQ-10).
-- [ ] TC-6.9: A supervision dispatch completes — expected: `git branch --list 'track-manager'`
+**Budget gate, prompt, and the workspace bypass ship here and are covered below. Dispatch
+target resolution and conclusion-writing (TC-6.4, 6.6, 6.6b, 6.7, 6.8) move to Track 10070
+with Task 6.4 — each needs an actual dispatch call site to observe, which is exactly what
+10070 builds. See spec.md D9.**
+
+- [x] TC-6.1: Budget gate at `max_concurrent_escalations: 1` with one in flight — expected:
+      the second finding does not dispatch. `manager-escalation.test.mjs`.
+- [x] TC-6.2: A finding re-observed inside `escalation_cooldown_ms` — expected: no second
+      dispatch (AC-9's budget half). `manager-escalation.test.mjs`.
+- [x] TC-6.3: Five escalatable findings in an hour with a ceiling of four — expected: exactly
+      four dispatches. `manager-escalation.test.mjs`.
+- [ ] TC-6.4 (moved to Track 10070): `mode: report` with an escalatable finding — expected:
+      zero dispatches (AC-10). Needs a real call site to assert zero calls against.
+- [x] TC-6.5: The built prompt — expected: contains the finding, its evidence, the allowlist,
+      and the propose-don't-execute instruction (REQ-11). `manager-escalation.test.mjs`.
+- [ ] TC-6.6 (moved to Track 10070): A project-scoped finding with no track — expected:
+      dispatched against that project's `manager` pseudo-track. A track-scoped finding —
+      expected: dispatched against that track's number. This is the cross-project resolution
+      10070 builds.
+- [ ] TC-6.6b (moved to Track 10070): A host-scoped finding (D6 step 3) — expected: zero
+      dispatches, and a report in the manager's log (REQ-10).
+- [x] TC-6.9: A supervision dispatch completes — expected: `git branch --list 'track-manager'`
       empty, `.worktrees/manager` absent, `git worktree list` unchanged (AC-19).
-- [ ] TC-6.10: A supervision dispatch scoped to track N while N's real run holds N's git lock
+      `track-10067-manager-escalation-workspace-bypass.test.mjs`, real spawned worker via a
+      genuine `checkDispatchInbox` dispatch (single-project case).
+- [x] TC-6.10: A supervision dispatch scoped to track N while N's real run holds N's git lock
       — expected: the escalation runs anyway, N's lock is still held by the real run
-      throughout, and the real run completes normally (AC-20).
-- [ ] TC-6.11: A supervision dispatch with a dead-PID lock file planted in the primary
+      throughout, and the real run completes normally (AC-20). Same test file.
+- [x] TC-6.11: A supervision dispatch with a dead-PID lock file planted in the primary
       checkout — expected: the session's working directory contains that file. Run the same
       case without the D8 bypass — expected: it does not, which is the regression this test
-      exists to catch (AC-21).
-- [ ] TC-6.12: A supervision dispatch while an unrelated main-mode lane action holds the
+      exists to catch (AC-21). Same test file.
+- [x] TC-6.12: A supervision dispatch while an unrelated main-mode lane action holds the
       global main-mode lock — expected: the escalation is not blocked and does not remove
-      that lock (REQ-24).
-- [ ] TC-6.7: A session concluding with a non-allowlisted remedy — expected: a proposal
-      comment plus `**Waiting for reply**: yes`, and nothing executed (AC-11).
-- [ ] TC-6.8: A concluded escalation — expected: exactly one `> **system**:` comment whose
-      first body character is `✅`, `⚠️` or `❌` (REQ-13).
+      that lock (REQ-24). Same test file.
+- [ ] TC-6.7 (moved to Track 10070): A session concluding with a non-allowlisted remedy —
+      expected: a proposal comment plus `**Waiting for reply**: yes`, and nothing executed
+      (AC-11). Needs a real concluded session to observe.
+- [ ] TC-6.8 (moved to Track 10070): A concluded escalation — expected: exactly one
+      `> **system**:` comment whose first body character is `✅`, `⚠️` or `❌` (REQ-13).
 
 ### Phase 7 — Real-product verification (manual, evidence recorded)
 
-- [ ] TC-7.1: Manager SIGKILL-and-recover, PIDs recorded (AC-1).
-- [ ] TC-7.2: Planted dead-PID lock reported in `report`, cleared after flipping to
-      `remediate`, both observed in the live log (AC-4).
+- [ ] TC-7.1: Manager SIGKILL-and-recover, PIDs recorded (AC-1). **Pending deliberate human
+      execution** — this machine has a real `--manager` process supervising other projects'
+      live automation right now; installing/killing the production manager unit is a
+      shared-infrastructure disruption an autonomous implement session should not do
+      unattended. Ready-to-run commands are in plan.md's Phase 7 section.
+- [x] TC-7.2: Planted dead-PID lock reported in `report`, cleared after flipping to
+      `remediate`, both observed in the live log (AC-4). Satisfied by
+      `track-10067-manager-sweep-e2e.test.mjs` (TC-3.4/3.5) — a real spawned `--manager`
+      process, a real planted lock file, asserted against the actual log line, not merely the
+      file's survival. Doesn't need the shared production identity, unlike 7.1/7.3/7.4.
 - [ ] TC-7.3: Supervised worker SIGKILLed — finding raised, worker returns via systemd, and
-      the manager does **not** restart it a second time (AC-6).
+      the manager does **not** restart it a second time (AC-6). **Pending deliberate human
+      execution**, same reason as TC-7.1 — commands in plan.md.
 - [ ] TC-7.4: Manager chat panel opened in the running UI against a live manager — transcript
       visible, message accepted (AC-7, AC-8). API and worker restarted first; neither
-      hot-reloads, and testing against a stale process is a false pass.
+      hot-reloads, and testing against a stale process is a false pass. **Pending deliberate
+      human execution** — restarting the shared API/worker affects any other session
+      currently watching the dashboard. Also partly blocked on Track 10069 (AC-7's composer
+      half is that track's, not this one's).
 
 ## Acceptance Criteria
 

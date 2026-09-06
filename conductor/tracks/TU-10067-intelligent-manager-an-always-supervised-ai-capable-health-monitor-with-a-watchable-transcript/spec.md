@@ -324,6 +324,68 @@ worktree copy would fix nothing observable. It also means the propose-don't-exec
 is the *only* thing standing between a supervision session and the live checkout, which
 raises its importance rather than changing it.
 
+### D9 — Task 6.4 (the manager actually placing an escalation call) splits to a new track
+
+Three implement sessions in a row reached the dispatch call site, built and independently
+verified everything it depends on (D8's bypass, D4's budget gate, REQ-11's prompt), and then
+stopped short of wiring the call itself, each writing up the same three blockers. Re-verified
+a fourth time on 2026-09-06 rather than taken on faith, with one blocker now diagnosed more
+precisely than before:
+
+1. **`spawnCli()` assumes `process.cwd()` is already the target project's checkout.** Confirmed
+   by direct count: 27 real (non-comment) uses of `process.cwd()` inside `spawnCli`'s ~1300-line
+   body (`laneconductor.sync.mjs:4789-6089`), covering everything from the spawned CLI
+   process's own `cwd` option (`:5262`) to the transcript log path (`:5260`) to the run-marker
+   path (`:5349`). This part is **not** the risky half — most of these already read
+   `worktreePath || process.cwd()`, so threading one new optional `repoRoot` parameter and
+   defining `const primaryRoot = repoRoot || process.cwd()` once at the top, then swapping
+   `process.cwd()` for `primaryRoot` at each site, changes behavior for **no** existing caller
+   (the parameter defaults to unset) and is mechanical, not a design problem.
+2. **The actual hazard is one call site up, in `checkDispatchInbox()`'s dispatch loop
+   (`:8185`+), and it is more specific than "cross-project cwd."** That loop computes
+   `tracksDir`, `indexPath`, `content`, and `proj = getProject()` **once per entry, shared by
+   every action type** (`build`, `deploy`, `track_chat`, ordinary lane dispatches, and now
+   `MANAGER_ESCALATION_ACTION`) — correctly, since every one of those *except* the manager's
+   own action is genuinely scoped to the single project the dispatching worker already lives
+   in. Giving `MANAGER_ESCALATION_ACTION` a repo root belonging to a *different* project than
+   the loop's other shared state assumes means either (a) special-casing that one branch to
+   compute its own `tracksDir`/`indexPath`/`proj` independently of the loop's shared
+   variables — safe, but requires first exposing a way for the manager to resolve an arbitrary
+   project's `repo_path` from a `project_id` it does not itself run in, which does not exist
+   yet on either the worker or collector side — or (b) a global `process.chdir()` around the
+   dispatch, which is unsafe for the reason already written up here: this manager process also
+   runs its own 30s sweep interval concurrently, and any `await` between chdir and chdir-back
+   hands control back to the event loop, where a concurrent tick would resolve paths against
+   the wrong project.
+3. **`reconcileActiveDispatch()` finalizes a manual dispatch by reading the target's
+   `**Lane Status**` off disk** and treating anything other than `running` as "done" — but a
+   supervision run's write-scope (Task 6.3, `getConversationRunWriteScope`) is required to
+   never touch that marker, on purpose (that marker belongs to whatever real lane action is
+   or isn't running on that track). Confirmed live in Task 6.3's own e2e test: the session's
+   outcome lands correctly via `lane_action_result`, but the `worker_dispatch` row itself
+   never leaves `claimed`. This needs a supervision-aware finalization signal (process exit /
+   `runningTrackMap`, not file state) independent of blocker 2.
+
+None of these is a correctness question — each has a known-safe shape (a threaded parameter,
+a project-repo-path lookup, a process-exit-based finalization signal). What they share is
+blast radius: `spawnCli` and `checkDispatchInbox` are the single most shared code paths in the
+system, run by every project's every dispatch, and a mistake in either is a system-wide
+regression, not a track-10067-scoped one. Patching that under an implement session's normal
+scope is exactly the risk D8 itself warns about one paragraph up, at one order of magnitude
+higher stakes.
+
+**Decision: split Task 6.4 (and 6.5-6.7, which depend on it existing) to a new track**,
+following the exact precedent this track already set for Phase 5 (chat interactivity → Track
+10069). What ships here is the complete, independently-tested foundation — D1's allowlist,
+D4's budget gate (`manager-escalation.mjs`, 11 tests), REQ-11's prompt builder, and D8's
+workspace bypass verified via a real `checkDispatchInbox` dispatch in the single-project case
+(`track-10067-manager-escalation-workspace-bypass.test.mjs`) — everything Task 6.4 needs and
+nothing it hasn't already checked out as safe. What moves out is only the actual trigger: the
+manager's sweep loop calling this machinery for a project it isn't running in. Rejected —
+**shipping this pass without a design write-up and calling it done anyway**: three sessions
+already produced that outcome, and it left nothing more solved than a fourth attempt at the
+same paragraph would have. See Track 10070 for the follow-up.
+
 ## Requirements
 
 **Supervision of the manager (req 1)**
@@ -367,6 +429,15 @@ raises its importance rather than changing it.
   never prevents the other checks in the same tick from running.
 
 **Layer 2 — AI escalation (req 2, req 3)**
+
+**Moved to Track 10070 (D9): REQ-10's actual dispatch trigger.** What ships here is
+everything REQ-10..13 need in order to be safely wired later — REQ-11's prompt builder,
+REQ-12's budget gate, and REQ-24..26's workspace bypass below, all independently built and
+tested. The one piece that does not ship is the manager's sweep loop actually placing the
+call for a project it does not itself run in (D9's blockers 1-3). REQ-10..13 are kept below,
+unstruck, as the target shape Track 10070 must produce — they are not requirements this track
+itself satisfies.
+
 - REQ-10: A non-allowlisted finding **with a resolvable `project_id`** (D6) dispatches a
   scoped session via the existing `spawnCli()` path, so it inherits transcript streaming,
   log-file naming, session continuity and the run marker with no new machinery. A
@@ -452,12 +523,15 @@ Each is stated as something an operator could observe.
       session transcript (the existing "Show live session transcript" path, REQ-17) shows
       its supervisory reasoning as a layer-2 escalation runs. Accepting a typed reply is
       10069's AC, not this track's — see that track's spec.
-- [ ] AC-8: A layer-2 escalation's reasoning is readable live in the transcript view while
-      it runs, and its conclusion is present in `conversation.md` afterwards with a leading
-      `✅` / `⚠️` / `❌`.
-- [ ] AC-9: A finding that persists across many sweeps produces **one** escalation, not one
-      per sweep — demonstrated by holding a finding true for longer than the cooldown and
-      counting dispatches.
+- [ ] AC-8 (moved to Track 10070, D9): A layer-2 escalation's reasoning is readable live in
+      the transcript view while it runs, and its conclusion is present in `conversation.md`
+      afterwards with a leading `✅` / `⚠️` / `❌`. Requires the manager to actually place the
+      dispatch call (Task 6.4) — not yet wired; see D9.
+- [ ] AC-9 (moved to Track 10070, D9): A finding that persists across many sweeps produces
+      **one** escalation, not one per sweep. The budget gate this depends on
+      (`canEscalate()`'s cooldown) is already built and unit-tested in isolation
+      (`manager-escalation.test.mjs`); what's missing is the sweep-loop call site that would
+      exercise it live — same Task 6.4 gap.
 - [ ] AC-10: With `mode: report` (the default), no lock is removed, no process is killed and
       no AI session is dispatched, however many findings are raised.
 - [ ] AC-11: Layer 2 offered a remedy outside the allowlist proposes it in `conversation.md`
@@ -480,18 +554,26 @@ Each is stated as something an operator could observe.
       `[conv-sync] post comment failed` warnings in the worker log — the reserved-name skip
       (REQ-23) is observable as the absence of that noise, which is present without it.
 
-- [ ] AC-19: After a layer-2 escalation runs, `git branch --list 'track-manager'` and
+- [x] AC-19: After a layer-2 escalation runs, `git branch --list 'track-manager'` and
       `ls .worktrees/manager` are both empty, and `git worktree list` is unchanged (REQ-26).
-- [ ] AC-20: An escalation dispatched about a track that is genuinely running does not block
+      Satisfied — the bypass itself (not the manager triggering it) is what this asserts, and
+      `track-10067-manager-escalation-workspace-bypass.test.mjs` verifies it against a real
+      spawned worker and a real git repo via a genuine `checkDispatchInbox` dispatch.
+- [x] AC-20: An escalation dispatched about a track that is genuinely running does not block
       or disturb that run — the track's own git lock is still held by the real run
-      throughout, and the real run completes normally (REQ-25).
-- [ ] AC-21: An escalation about a planted dead-PID stale lock can still see that lock file
+      throughout, and the real run completes normally (REQ-25). Satisfied — same test, a real
+      alive-PID per-track lock planted and asserted byte-identical afterward.
+- [x] AC-21: An escalation about a planted dead-PID stale lock can still see that lock file
       when it starts. This is the observable proof it is reading the primary checkout rather
       than a worktree snapshot: in a worktree the file is simply absent, so the session would
-      report no problem found.
+      report no problem found. Satisfied — same test file, same real-process dispatch.
 
 ## Out of Scope (FFU — deliberately deferred, and therefore not acceptance criteria)
 
+- **The manager actually placing an escalation dispatch call (D9) — split to Track 10070.**
+  Everything the call needs (budget gate, prompt, workspace bypass) ships here, independently
+  tested; the trigger itself needs a cross-project repo-root resolution this track does not
+  build. AC-8 and AC-9 move with it.
 - Full autonomous operation including unattended merges and production writes (D1's rejected
   third option). Revisit only after bounded autonomy has run for a meaningful period.
 - Cross-machine supervision — a manager supervising workers on *other* hosts. Every check

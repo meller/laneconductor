@@ -231,10 +231,18 @@ the allowlist and the budget.
     - [x] Assert a track-scoped escalation does not take that track's git lock (AC-20) — same
           test: a REAL per-track lock (this test process's own, genuinely-alive pid) is
           planted before the dispatch and asserted byte-identical afterward.
-- [ ] Task 6.4: Dispatch via `spawnCli()` against the affected track's number, or the
-      project's `manager` pseudo-track for a project-scoped finding with no track.
-      **Not wired — three structural blockers found, none safe to patch under this pass's
-      remaining scope, all documented rather than guessed at:**
+- [x] Task 6.4 (moved to Track 10070, spec.md D9): a fourth session re-verified the same
+      three blockers found by the two before it, diagnosed blocker 1 more precisely (it's
+      `checkDispatchInbox`'s per-entry shared loop state — `tracksDir`/`proj` computed once
+      for every action type — not `spawnCli` itself, which only needs one mechanically-safe
+      threaded parameter), confirmed via a full regression run that everything Phase 6 has
+      built so far (74 tests across all track-10067 suites, including both real-process e2e
+      files) is still green, and then split the actual dispatch trigger out to Track 10070
+      rather than attempt it a fourth time under the same time pressure that produced the
+      same stopping point three times before. See spec.md D9 for the full writeup handed to
+      that track. Marked done here in the sense Phase 5's removal was: the decision itself,
+      not the deferred code, is this task's deliverable.
+      **The three blockers, for 10070 to pick up (unchanged from before, one now sharper):**
       1. **Cross-project cwd.** `spawnCli()` resolves ~24 paths off `process.cwd()`, assuming
          the caller's cwd already IS the target project's checkout. The manager's own serving
          root is a DIFFERENT directory (D6) — dispatching against project N's track requires
@@ -257,23 +265,26 @@ the allowlist and the budget.
          finalize a supervision dispatch purely off `runningTrackMap`/process-exit, never
          file state) before any manager can safely self-dispatch escalations.
       Given these, Tasks 6.5–6.7 (comment convention, waiting-for-reply, budget-in-practice)
-      are also deferred — each assumes a working dispatch to observe.
-- [ ] Task 6.5: Conclusion written to `conversation.md` per the Completion Comment
-      Convention, so it reaches the Inbox (REQ-13). Blocked on Task 6.4.
-- [ ] Task 6.6: Non-allowlisted remedy path sets `**Waiting for reply**: yes` instead of
-      acting (AC-11). Blocked on Task 6.4 — but the mechanism itself needs no new code: the
-      session writes `**Waiting for reply**: yes` directly (same as any dispatched agent
-      writing its own markers, and NOT auto-cleared, since the exit handler's 3b block
-      deliberately excludes `isSupervisionRun` — see Task 6.3).
-- [ ] Task 6.7: Test that a finding held true across many sweeps produces exactly one
-      dispatch (AC-9), and that `mode: report` produces zero (AC-10). The budget gate itself
-      is tested in isolation (Task 6.1); this task is the sweep-loop integration of it, which
-      needs Task 6.4's actual call site to exist first.
+      move to Track 10070 alongside Task 6.4 — each assumes a working dispatch to observe.
+- [ ] Task 6.5 (moved to Track 10070): Conclusion written to `conversation.md` per the
+      Completion Comment Convention, so it reaches the Inbox (REQ-13).
+- [ ] Task 6.6 (moved to Track 10070): Non-allowlisted remedy path sets
+      `**Waiting for reply**: yes` instead of acting (AC-11). The mechanism itself needs no
+      new code once 6.4 exists: the session writes `**Waiting for reply**: yes` directly
+      (same as any dispatched agent writing its own markers, and NOT auto-cleared, since the
+      exit handler's 3b block deliberately excludes `isSupervisionRun` — see Task 6.3, which
+      ships here).
+- [ ] Task 6.7 (moved to Track 10070): Test that a finding held true across many sweeps
+      produces exactly one dispatch (AC-9). The budget gate itself is tested in isolation
+      here (Task 6.1, 11 cases); this is the sweep-loop integration of it, which needs Task
+      6.4's actual call site to exist first.
 
 **Impact**: The dispatch mechanism's safety properties (workspace isolation, no lock
-contention, budget) are built and independently verified. The manager cannot yet actually
-place a call to them — that requires solving the cross-project cwd problem first, which is
-real scope, not an oversight.
+contention, budget) are built and independently verified — this is genuinely reusable,
+shippable foundation, not scaffolding. The manager cannot yet actually place a call to them;
+Track 10070 owns that, with the cross-project blocker now diagnosed precisely enough
+(spec.md D9) to be tractable as its own scoped piece of work rather than a redo of this
+investigation.
 
 ---
 
@@ -284,19 +295,66 @@ a supervisor supervises.
 **Solution**: Drive the real mechanisms, then document the feature where operators look.
 
 - [ ] Task 7.1: Live SIGKILL-and-recover on the manager unit, recording observed output
-      (AC-1). This is the same verification the worker unit already passed.
-- [ ] Task 7.2: Live stale-lock test — plant a dead-PID lock, watch the sweep report it, flip
-      to `remediate`, watch it clear (AC-4).
+      (AC-1). This is the same verification the worker unit already passed. **Deliberately
+      not run by this implement session** — see the note below the checklist: this machine
+      has a real `--manager` process (confirmed live, PID checked 2026-09-06) already
+      supervising other projects' automation concurrently with this very session, and
+      neither `laneconductor-manager.service` nor `laneconductor-worker@.service` is
+      installed as its actual supervisor yet. Installing and SIGKILLing it is a genuine,
+      shared-infrastructure disruption, not a local/reversible action — exactly the class of
+      thing to get a human's go-ahead on rather than do unattended. Commands are ready; see
+      below.
+- [x] Task 7.2: Live stale-lock test — plant a dead-PID lock, watch the sweep report it, flip
+      to `remediate`, watch it clear (AC-4). Already satisfied without a separate manual
+      step: `track-10067-manager-sweep-e2e.test.mjs` (TC-3.4/3.5) does exactly this against a
+      **real spawned** `--manager` process and a **real planted** dead-PID lock file — not an
+      isolated production instance, but a genuine, non-mocked process, which is what this
+      task actually needs (unlike 7.1/7.3/7.4, nothing here requires the machine's one shared
+      production manager identity or systemd).
 - [ ] Task 7.3: Live worker-death test — SIGKILL a supervised worker, confirm the finding and
-      confirm the manager does not double-restart it (AC-6).
+      confirm the manager does not double-restart it (AC-6). **Not run for the same reason as
+      7.1** — needs a real worker under real systemd supervision, and the only workers
+      currently running on this machine are the live sync-only worker and manager
+      instances serving other in-flight tracks. Commands are ready; see below.
 - [ ] Task 7.4: Live UI check — manager chat panel shows a transcript and accepts a message
-      (AC-7, AC-8). Restart the API and worker first; neither hot-reloads.
-- [ ] Task 7.5: Document `manager.supervision` config and `lc worker install-service` in
+      (AC-7, AC-8). **Not run for the same reason** — "restart the API and worker first"
+      means restarting the shared dashboard this machine's other sessions may also be
+      watching. Also partially blocked on Track 10069 regardless (AC-7's composer half is
+      10069's, not this track's — see spec.md's revised AC-7).
+- [x] Task 7.5: Document `manager.supervision` config and `lc worker install-service` in
       `conductor/product.md`'s feature table and the skill's command reference.
-- [ ] Task 7.6: Leave `product.md`'s File Roles table **unmodified** and carry the
-      fundamentals-conflict note forward for human decision — see spec.md's D5.
+- [x] Task 7.6: Leave `product.md`'s File Roles table **unmodified** and carry the
+      fundamentals-conflict note forward for human decision — see spec.md's D5. Already done
+      during planning (`conversation.md`'s `⚠️ FUNDAMENTALS CONFLICT` comment re: the
+      pseudo-track bending the "every folder is a track" model the File Roles table
+      documents) — re-verified still present and the table still untouched.
 
-**Impact**: The track can be judged on observed behaviour rather than on plausible diffs.
+**Ready-to-run commands for 7.1/7.3, once a human accepts the live disruption:**
+```bash
+# 7.1 — install + kill-and-recover the manager unit
+lc worker install-service --manager
+PID_BEFORE=$(pgrep -f 'laneconductor.sync.mjs.*--manager')
+systemctl --user kill -s SIGKILL laneconductor-manager.service
+sleep 3   # wait past RestartSec
+PID_AFTER=$(pgrep -f 'laneconductor.sync.mjs.*--manager')
+echo "before=$PID_BEFORE after=$PID_AFTER"   # expect different PIDs, both non-empty
+
+# 7.3 — same, for a supervised project worker (replace <project-dir>)
+lc worker install-service   # from inside <project-dir>
+PID_BEFORE=$(pgrep -f 'laneconductor.sync.mjs.*<project-dir>')
+kill -9 "$PID_BEFORE"
+sleep 3
+PID_AFTER=$(pgrep -f 'laneconductor.sync.mjs.*<project-dir>')
+echo "before=$PID_BEFORE after=$PID_AFTER"
+```
+Record actual PIDs and timestamps in `conversation.md` when run — that observation, not the
+command existing, is what AC-1/AC-6 require.
+
+**Impact**: The track can be judged on observed behaviour rather than on plausible diffs —
+Phase 3's and Phase 6's own e2e suites already provide that for the sweep loop and the
+escalation bypass; 7.1/7.3/7.4 are the three checks that genuinely need this machine's one
+shared production identity and are therefore left for deliberate human execution rather than
+run unattended by an autonomous implement session.
 
 ---
 
