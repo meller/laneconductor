@@ -1,6 +1,6 @@
 # Track TU-10065: Orphan-reconcile can never resolve a claimed dispatch when no run marker was ever persisted
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: Implemented
