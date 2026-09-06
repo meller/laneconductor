@@ -203,6 +203,43 @@ describe('auditWorktrees()', () => {
     assert.equal(row.prStatus, 'open');
   });
 
+  it('excludes a branch whose PR is confirmed merged even when isAncestor() cannot prove it locally (a history rewrite, same shape as track 10065)', async () => {
+    // Found live 2026-09-06: five real done:success pr-mode tracks with
+    // pr_status already 'merged' were still classified 'pr-open' with a
+    // "Run Merge Action" button offered for already-shipped work, because
+    // isAncestor(branch, main) — the primary "fully merged" signal — goes
+    // false the moment a branch's history no longer shares an ancestor
+    // with main at all (a full git history rewrite), even though the
+    // branch's content already landed under different commit hashes.
+    setupRepo();
+    writeTrackIndex(REPO, '204', 'PR Confirmed Merged Post-Rewrite', 'plan', 'queue', 'Test.', null);
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-204 .worktrees/204 HEAD');
+    const trackDir = join(REPO, '.worktrees/204', 'conductor/tracks/204-pr-confirmed-merged-post-rewrite');
+    mkdirSync(trackDir, { recursive: true });
+    writeFileSync(join(trackDir, 'index.md'), [
+      '# Track 204: PR Confirmed Merged Post-Rewrite', '',
+      '**Lane**: done', '**Lane Status**: success', '**Progress**: 100%',
+      '**Merge Mode**: pr', '**PR Number**: 7', '**PR URL**: https://github.com/org/repo/pull/7',
+      '**PR Status**: merged', '',
+    ].join('\n'));
+    git('add -A', join(REPO, '.worktrees/204'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 204 pr merged"', join(REPO, '.worktrees/204'));
+
+    // Simulate the rewrite: main gets a brand-new, unrelated root commit,
+    // so track-204's real commits are provably NOT an ancestor of main
+    // any more — the exact "no common history" shape track 10065 hit.
+    git('checkout -q --orphan main-rewritten');
+    git('-c user.email=t@t -c user.name=t commit -q --allow-empty -m "rewritten root"');
+    git('branch -f main main-rewritten');
+    git('checkout -q main');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '204');
+    assert.equal(row, undefined, 'a PR confirmed merged on GitHub must be excluded entirely, same as a locally-provable merge — no "Run Merge Action" for already-shipped work');
+  });
+
   it('classifies a done:success branch whose worktree directory is gone as stranded', async () => {
     setupRepo();
     writeTrackIndex(REPO, '102', 'Stranded Track', 'plan', 'queue');

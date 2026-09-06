@@ -316,6 +316,21 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       } catch { /* file unreadable — fall back to state's (likely null) values */ }
     }
 
+    // Found live 2026-09-06: the isAncestor() check above (line ~279) is
+    // the primary "fully merged, nothing to report" signal, but it is a
+    // local git fact — it goes false the moment a branch's own history no
+    // longer shares an ancestor with main at all (a full history rewrite,
+    // same root cause as track 10065's blocked merge), even though the
+    // branch's PR was genuinely merged and its content already landed
+    // under different commit hashes. Confirmed live: five real done:success
+    // pr-mode tracks (1102, 10012, 10013, 1053, 10047) with pr_status
+    // already 'merged' were still classified 'pr-open' with a "Run Merge
+    // Action" button offered for already-shipped work, purely because
+    // isAncestor() could no longer prove it locally. prStatus here is
+    // GitHub's own record, sourced independent of local git ref integrity
+    // — trust it over a local ancestor check that a rewrite can defeat.
+    if (prFields.prStatus === 'merged') continue; // GitHub confirms shipped — nothing to report, same as isAncestor above
+
     const ahead = countCommits(repoRoot, `${mainBranch}..${branch}`);
     const behind = countCommits(repoRoot, `${branch}..${mainBranch}`);
     const dirtyCount = hasWorktree
