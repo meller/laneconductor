@@ -1,9 +1,9 @@
 # Track AM-10072: Human-needs-reply marks only the single most recent human comment, burying older unreplied ones forever
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — 5 phases, 23 tasks
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: direct
