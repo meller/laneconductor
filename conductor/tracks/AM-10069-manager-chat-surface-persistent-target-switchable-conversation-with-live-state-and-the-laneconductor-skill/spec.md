@@ -178,6 +178,9 @@ The split with track 10067 was rewritten by hand after this track's first planni
 the change is not cosmetic — it moves roughly a phase of work into this track. 10067 now
 ships **visibility only**.
 
+Every REQ number in the table below is **10067's**, not this track's — this track's own
+numbering for the moved-in work is REQ-25..REQ-31.
+
 | Consumed from 10067 (unchanged) | Built here (previously assumed from 10067) |
 |---|---|
 | REQ-14 — `conductor/tracks/manager/` exists per supervised project, with `index.md` and `conversation.md` | REQ-15 — `resolveWorkerChatTarget()` returning a manager target |
