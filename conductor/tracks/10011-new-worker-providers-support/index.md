@@ -1,9 +1,9 @@
 # Track 10011: new worker providers support
 
-**Lane**: done
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/sonnet (primary)
 **Phase**: New
 **Type**: dev
-**Summary**: new worker -both from worker lane and track - new worker dropdown- - do not supprt non claude well - for example gemini has wrong version in worker lane and drop down doesnt even suggest provdioers
+**Summary**: Confirmed already merged via direct git merge (commit f15b3783) pre-rewrite; its test file track-10011-gemini-discovery.test.mjs already exists on main
