@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: failure
 **Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planning complete
