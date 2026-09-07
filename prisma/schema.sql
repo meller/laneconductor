@@ -242,6 +242,11 @@ CREATE TABLE "api_tokens" (
 CREATE UNIQUE INDEX "api_keys_key_hash_key" ON "api_keys"("key_hash");
 
 -- CreateIndex
+-- Track 10074: at most one token per (workspace_id, created_by) — see
+-- migrations/20260907120000_unique_api_token_per_user.sql.
+CREATE UNIQUE INDEX "api_tokens_workspace_id_created_by_key" ON "api_tokens"("workspace_id", "created_by");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "projects_git_remote_key" ON "projects"("git_remote");
 
 -- CreateIndex

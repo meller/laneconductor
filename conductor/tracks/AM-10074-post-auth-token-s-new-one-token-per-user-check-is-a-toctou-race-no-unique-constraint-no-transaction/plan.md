@@ -19,41 +19,41 @@ row on every `onAuthStateChanged`.
 then creates the index, both idempotent, with the operational reasoning in the
 file header the way `20260906120000_hash_legacy_api_tokens.sql` does it.
 
-- [ ] Task 1.1: Write `migrations/<timestamp>_unique_api_token_per_user.sql`
-    - [ ] Header comment covering: why the index exists (REQ-1), the keep-oldest
+- [x] Task 1.1: Write `migrations/<timestamp>_unique_api_token_per_user.sql`
+    - [x] Header comment covering: why the index exists (REQ-1), the keep-oldest
           policy and what it revokes (D-2), the `workspace_id` NULL carve-out
           (D-3), and the hard requirement that this migration lands before the
           function deploy (REQ-9)
-    - [ ] Include the pre-flight audit query in the header, to be run *before*
+    - [x] Include the pre-flight audit query in the header, to be run *before*
           applying so the blast radius is known rather than discovered:
           `SELECT workspace_id, created_by, count(*) FROM api_tokens
            WHERE workspace_id IS NOT NULL
            GROUP BY 1,2 HAVING count(*) > 1 ORDER BY 3 DESC;`
-    - [ ] Include the post-apply verification query that must return 0 rows
+    - [x] Include the post-apply verification query that must return 0 rows
           (same query — after the migration no group exceeds one row)
-    - [ ] Dedupe `DELETE` using the `row_number()` form from spec.md's Data Model
+    - [x] Dedupe `DELETE` using the `row_number()` form from spec.md's Data Model
           Changes, with `ORDER BY created_at ASC NULLS FIRST, token ASC`
-    - [ ] `CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_workspace_id_created_by_key
+    - [x] `CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_workspace_id_created_by_key
            ON api_tokens (workspace_id, created_by)`
-    - [ ] Confirm both statements are re-runnable: the `DELETE` matches nothing on
+    - [x] Confirm both statements are re-runnable: the `DELETE` matches nothing on
           a second pass, the `CREATE` is guarded by `IF NOT EXISTS` (REQ-7)
-- [ ] Task 1.2: Update the declarative schema sources so Atlas sees no drift (REQ-8)
-    - [ ] `cloud/schema.sql` — add the index next to the `api_tokens` table, with
+- [x] Task 1.2: Update the declarative schema sources so Atlas sees no drift (REQ-8)
+    - [x] `cloud/schema.sql` — add the index next to the `api_tokens` table, with
           a one-line comment pointing at this track
-    - [ ] `prisma/schema.sql` — add the matching `CREATE UNIQUE INDEX` alongside
+    - [x] `prisma/schema.sql` — add the matching `CREATE UNIQUE INDEX` alongside
           the other `-- CreateIndex` entries
-    - [ ] `prisma/schema.prisma` — add `@@unique([workspace_id, created_by])` to
+    - [x] `prisma/schema.prisma` — add `@@unique([workspace_id, created_by])` to
           the `api_tokens` model
-- [ ] Task 1.3: `cd <repo root> && atlas migrate hash` to regenerate
+- [x] Task 1.3: `cd <repo root> && atlas migrate hash` to regenerate
       `migrations/atlas.sum`, then `atlas migrate validate`
-- [ ] Task 1.4: Verify against a real Postgres, not by reading the SQL
-    - [ ] Create a scratch database, apply the table definition, seed it with
+- [x] Task 1.4: Verify against a real Postgres, not by reading the SQL
+    - [x] Create a scratch database, apply the table definition, seed it with
           duplicate `(workspace_id, created_by)` rows including at least one
           group whose oldest member has a NULL `created_at`
-    - [ ] Apply the migration; confirm one row survives per group and it is the
+    - [x] Apply the migration; confirm one row survives per group and it is the
           oldest
-    - [ ] Apply it a second time; confirm zero rows deleted and no error
-    - [ ] `\d api_tokens` shows the unique index
+    - [x] Apply it a second time; confirm zero rows deleted and no error
+    - [x] `\d api_tokens` shows the unique index
 
 **Impact**: The invariant becomes true at the storage layer regardless of what
 any application does. Duplicate rows beyond the oldest per user are deleted,

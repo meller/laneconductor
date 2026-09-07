@@ -263,4 +263,8 @@ model api_tokens {
   created_by   String
   created_at   DateTime?   @default(now()) @db.Timestamp(6)
   workspaces   workspaces? @relation(fields: [workspace_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  // Track 10074: at most one token per (workspace_id, created_by), enforced
+  // by Postgres via ON CONFLICT DO NOTHING instead of a check-then-act race.
+  @@unique([workspace_id, created_by], map: "api_tokens_workspace_id_created_by_key")
 }
