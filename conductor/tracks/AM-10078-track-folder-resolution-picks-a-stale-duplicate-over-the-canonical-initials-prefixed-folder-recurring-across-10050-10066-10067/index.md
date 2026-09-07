@@ -1,13 +1,13 @@
 # Track AM-10078: Track folder resolution picks a stale duplicate over the canonical INITIALS-prefixed folder, recurring across 10050/10066/10067
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
-**Summary**: Three tracks this session (10050, 10066, 10067) each ended up with a stale bare `<n>-slug` and/or `_duplicate-<n>-slug` folder alongside their real `INITIALS-<n>-slug` one — and code that resolves a track number to a folder picks the stale one, not the canonical one.
+**Summary**: Three tracks this session (10050, 10066, 10067) each ended up with a stale bare `<n>-slug` and/or `_duplicate-<n>-slug` folder alongside their real `INITIALS-<n>-slug` one — and code that resolves a…
 
 ## Problem
 
@@ -23,3 +23,4 @@ Found three separate times in one session (2026-09-06/07), always the same shape
 2. **Fix folder resolution to never silently prefer a stale duplicate.** At minimum, `readTrackStateFromBranch()` and `resolveTrackFolder()` should either (a) prefer an INITIALS-prefixed match over a bare one when both exist, or (b) treat multiple matches as an error/warning condition surfaced somewhere visible, rather than silently picking git's alphabetical first. Given how much of the audit/reconcile/dispatch machinery depends on correctly resolving a track number to its one true folder, a wrong silent pick is worse than a loud failure.
 3. **One-time sweep of the existing repo** for any other tracks already carrying this same duplicate shape, beyond the 3+3 (10050/10051/10052 from `016f9e9d`, plus 10066/10067 from this session) already found and quarantined — quarantine them the same way once the root cause (item 1) is understood, so a fresh occurrence doesn't slip back in immediately after.
 4. **Regression coverage**: a test that creates a bare + INITIALS-prefixed duplicate pair and asserts folder-resolution picks the INITIALS-prefixed (or otherwise correct/canonical) one — mirroring the shape of the live bugs found, not just testing the creation-path fix in isolation.
+**Auto Run**: yes
