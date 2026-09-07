@@ -1,6 +1,6 @@
 # Track AM-10075: Fire-and-forget rehash-on-read in auth() swallows errors with no logging
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Planned — 4 phases (throttle helper, wire both catches, convergence warning, operator docs)
@@ -17,4 +17,4 @@
 This directly undermines the PR's own stated safety argument: the entire "deploy-ordering doesn't matter, the table converges on its own" design depends on this UPDATE actually succeeding over time. Right now the only way to check whether it's working is the manual SQL query documented in the migration file (`SELECT count(*) FROM api_tokens WHERE left(token,3)='lc_'`) — nothing surfaces this proactively. It also violates this repo's own `conductor/code_styleguides/javascript.md` Error Handling section: "Don't swallow errors silently" / "Log errors with context."
 
 **Fix**: replace the empty catch with `.catch(err => console.error('[auth] rehash failed:', err.message))` at minimum (matching the existing pattern already used a few lines above for `api_keys`'s `last_used_at` update, which is NOT silent). Consider also: a periodic health check (or extending track 10067's manager health-sweep, once it exists) that runs the "any plaintext rows left?" query and surfaces it as a finding rather than requiring a human to remember to check manually.
-**Summary**: Both fire-and-forget updates in cloud auth() use empty catches (index.js:265 rehash, :279 last_used_at) — the filed premise that the latter already logs is wrong; both are silent and they are the…
+**Summary**: Both fire-and-forget updates in cloud auth() use empty catches (index.js:265 rehash, :279 last_used_at) — the filed premise that the latter already logs is wrong; both are silent and they are the only two empty catches in the file. Plan adds a throttled logger (per-request hot path, so unthrottled logging trades a silent failure for a log flood), wires both call sites, warns when a plaintext row is observed, and documents the log filter.
