@@ -31,6 +31,27 @@ LaneConductor is a **sovereign developer environment** that orchestrates AI agen
 
 ---
 
+## 🛰️ LaneConductor vs. Standalone Coding Agents
+
+While standalone terminal tools (such as Claude Code, Gemini CLI, Aider, or Cursor) provide interactive single-session coding, LaneConductor acts as an **autonomous multi-agent control plane** that orchestrates complex development lifecycles across your entire repository.
+
+| Dimension | Standalone Coding Agents | LaneConductor Control Plane |
+| :--- | :--- | :--- |
+| **Architecture** | Ephemeral, single-terminal REPL | Sovereign multi-agent control plane with background worker fleet |
+| **Visibility** | Terminal scrollback buffer | Real-time Kanban dashboard backed by local Postgres & Markdown bus |
+| **Workspace Isolation** | Runs directly in your active working tree; prone to dirty checkouts | **Git Worktree Isolation**: automated worktrees per track keep `main` pristine |
+| **Lifecycle & Safety** | Open-ended chat; manual testing & manual git committing | **Structured Conductor Pipeline**: Plan → Implement → Review → Automated Quality Gates → PR/Merge |
+| **Target Switchability** | Single monolithic conversation session | Switch between **The Manager** (instance health & gap triage) and **Track Workers** |
+| **Steerable Alignment** | Ad-hoc chat disconnected from project roadmaps | Conversational steering updates live design docs (`spec.md`, `plan.md`) and re-queues tracks |
+| **Parallel Execution** | One task at a time; blocks your terminal | Multi-track concurrent queues running headlessly in parallel worktrees |
+
+### Why LaneConductor?
+- **From Babysitting to Orchestration**: Instead of watching an agent edit one file at a time, queue tracks to background workers that plan, implement, run quality gates, push branches, and open pull requests autonomously.
+- **Dual-Mode Safety**: Chat turns run lock-free in your main working directory for instant planning and design doc synchronization. All code modifications are strictly sandboxed inside dedicated Git Worktrees.
+- **Continuous Project Memory**: Specifications, implementation plans, and conversation histories are persisted directly in `conductor/tracks/`, serving as a durable, human-and-agent readable single source of truth.
+
+---
+
 ## 🛰️ Advanced Track Features
 
 Every Track folder under `conductor/tracks/` is controlled by a stateful `index.md` file. You can configure execution and workflow behavior per-track using simple markers:
