@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TrackCard } from './TrackCard.jsx';
+import { LANE_STATUS_CONFIG, resolveDoneLaneBucket } from '../../../conductor/services/done-lane-bucket.mjs';
 
 export const LANES = [
   { id: 'backlog', label: 'Backlog', color: 'text-gray-400 border-gray-700', drop: 'border-gray-500 bg-gray-800/30' },
@@ -10,35 +11,15 @@ export const LANES = [
   { id: 'done', label: 'Done', color: 'text-green-400 border-green-800', drop: 'border-green-500 bg-green-900/20' },
 ];
 
-export const LANE_STATUS_CONFIG = {
-  waiting: { emoji: '⌛', label: 'Waiting', color: 'text-gray-500', show: true },
-  queue: { emoji: '⏳', label: 'Queued', color: 'text-yellow-500', show: true },
-  running: { emoji: '🔄', label: 'Running', color: 'text-blue-500', show: true },
-  success: { emoji: '✅', label: 'Success', color: 'text-green-500', show: true },
-  failure: { emoji: '❌', label: 'Failed', color: 'text-red-500', show: true },
-};
+export { LANE_STATUS_CONFIG };
 
-// Track 10035: done-lane-only label overrides. done:queue means "unmerged,
-// waiting for the merge action" and done:waiting means "PR open, waiting
-// for human review on GitHub" — lane_action_status alone is now the truth
-// (REQ-9), replacing the old worktree_class-based split that used to carve
-// an extra "Unmerged" group out of "Success" (back when done:success was
-// set at quality-gate exit, before anything actually merged — a genuinely
-// merged track never reaches "success" without having shipped now, so
-// there's nothing left to split out of it).
-const DONE_LANE_STATUS_CONFIG = {
-  queue: { emoji: '🔀', label: 'Unmerged', color: 'text-orange-400', show: true },
-  waiting: { emoji: '🔵', label: 'PR open', color: 'text-blue-400', show: true },
-  // Found live 2026-09-06 (track 10065): a done-lane merge that actually
-  // FAILS (not just "not yet attempted") is exactly as unmerged as
-  // done:queue, but fell through to the base LANE_STATUS_CONFIG's generic
-  // "❌ Failed" entry — invisible under the "Unmerged" heading this lane
-  // exists to surface, while the Worktrees panel (still git-state-based,
-  // not lane_action_status-based) correctly kept showing it as mergeable.
-  // Same bucket as queue, distinct label so "never attempted" and "attempted
-  // and failed" aren't visually conflated.
-  failure: { emoji: '🔀', label: 'Unmerged — merge failed', color: 'text-orange-400', show: true },
-};
+// Track 10076: display order for the done lane's per-track resolved
+// buckets (see resolveDoneLaneBucket in done-lane-bucket.mjs). Distinct
+// from the fixed groupedByStatus keys every other lane uses, because a
+// done-lane track's bucket now depends on live git state, not just
+// lane_action_status — 'unmerged'/'unmerged-failed'/'pr-open' only appear
+// when a live classification overrides the raw status.
+export const DONE_BUCKET_ORDER = ['waiting', 'queue', 'running', 'unmerged', 'unmerged-failed', 'pr-open', 'success', 'failure'];
 
 const LANE_EXPAND_THRESHOLD = 5;
 
@@ -87,19 +68,42 @@ export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onF
         const visibleTracks = laneTracks.slice(0, LANE_EXPAND_THRESHOLD);
         const hiddenCount = laneTracks.length - visibleTracks.length;
 
-        // Group the visible (truncated) tracks by their lane_action_status —
-        // uniform across every lane now, including done (REQ-9).
-        const groupedByStatus = {
-          waiting: visibleTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
-          queue: visibleTracks.filter(t => t.lane_action_status === 'queue'),
-          running: visibleTracks.filter(t => t.lane_action_status === 'running'),
-          success: visibleTracks.filter(t => t.lane_action_status === 'success'),
-          failure: visibleTracks.filter(t => t.lane_action_status === 'failure'),
-        };
-
-        const statusConfig = lane.id === 'done'
-          ? { ...LANE_STATUS_CONFIG, ...DONE_LANE_STATUS_CONFIG }
-          : LANE_STATUS_CONFIG;
+        // Track 10076: the done lane groups each track by its resolved
+        // git-classification bucket (resolveDoneLaneBucket) rather than
+        // lane_action_status alone — a done:success track with a live
+        // unmerged branch groups as "Unmerged", matching what the
+        // Worktrees panel already shows for the same track. Every other
+        // lane keeps the exact groupedByStatus path used before this
+        // track — this must be invisible outside the done column.
+        let groupEntries;
+        if (lane.id === 'done') {
+          const byBucket = new Map();
+          for (const track of visibleTracks) {
+            const resolved = resolveDoneLaneBucket({
+              laneStatus: track.lane_status,
+              laneActionStatus: track.lane_action_status,
+              worktreeClass: track.worktree_class,
+              classificationAvailable: track.worktree_class_available,
+            });
+            if (!byBucket.has(resolved.bucket)) byBucket.set(resolved.bucket, { config: resolved, tracks: [] });
+            byBucket.get(resolved.bucket).tracks.push(track);
+          }
+          groupEntries = DONE_BUCKET_ORDER
+            .filter(key => byBucket.has(key))
+            .map(key => [key, byBucket.get(key).tracks, byBucket.get(key).config]);
+        } else {
+          // Group the visible (truncated) tracks by their lane_action_status.
+          const groupedByStatus = {
+            waiting: visibleTracks.filter(t => !t.lane_action_status || t.lane_action_status === 'waiting'),
+            queue: visibleTracks.filter(t => t.lane_action_status === 'queue'),
+            running: visibleTracks.filter(t => t.lane_action_status === 'running'),
+            success: visibleTracks.filter(t => t.lane_action_status === 'success'),
+            failure: visibleTracks.filter(t => t.lane_action_status === 'failure'),
+          };
+          groupEntries = Object.entries(groupedByStatus)
+            .filter(([status, arr]) => arr.length > 0 && LANE_STATUS_CONFIG[status]?.show)
+            .map(([status, arr]) => [status, arr, LANE_STATUS_CONFIG[status]]);
+        }
 
         return (
           <div
@@ -124,19 +128,17 @@ export function KanbanBoard({ projectId, tracks, onTrackClick, onLaneChange, onF
               className={`flex flex-col gap-4 overflow-y-auto rounded-lg transition-all min-h-16 ${isOver ? 'ring-1 ring-dashed ' + lane.drop.split(' ')[0] + ' p-1' : ''
                 }`}
             >
-              {/* Group tracks by lane_action_status */}
-              {Object.entries(groupedByStatus).map(([status, tracks]) => {
-                if (tracks.length === 0 || !statusConfig[status]?.show) return null;
-                const config = statusConfig[status];
+              {/* Group tracks by resolved bucket (done lane) or lane_action_status (every other lane) */}
+              {groupEntries.map(([key, groupTracks, config]) => {
                 return (
-                  <div key={status} className="space-y-2" data-testid={`lane-group-${lane.id}-${status}`}>
+                  <div key={key} className="space-y-2" data-testid={`lane-group-${lane.id}-${key}`}>
                     <div className={`flex items-center gap-2 px-1 text-[10px] uppercase tracking-wider font-bold`}>
                       <span className={config.color}>{config.emoji}</span>
                       <span className="text-gray-500">{config.label}</span>
-                      <span className="ml-auto text-gray-600">({tracks.length})</span>
+                      <span className="ml-auto text-gray-600">({groupTracks.length})</span>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {tracks.map(track => (
+                      {groupTracks.map(track => (
                         <TrackCard
                           key={track.id}
                           projectId={projectId}

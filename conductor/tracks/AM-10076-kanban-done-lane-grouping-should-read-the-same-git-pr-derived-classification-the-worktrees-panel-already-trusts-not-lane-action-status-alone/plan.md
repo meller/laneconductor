@@ -21,27 +21,27 @@ without git, a DB, or React — the same style as `workspace-mode.mjs` and
 - [x] Create `conductor/services/done-lane-bucket.mjs` exporting
       `resolveDoneLaneBucket({ laneStatus, laneActionStatus, worktreeClass, classificationAvailable })`
       → `{ bucket, emoji, label, color, source }`.
-    - [ ] Returns `null` for any lane other than `done` — callers keep
+    - [x] Returns `null` for any lane other than `done` — callers keep
           using `LANE_STATUS_CONFIG` unchanged there (REQ-3 is scoped to
           the done lane only).
-    - [ ] Priority 1 — classification available AND positively unmerged:
+    - [x] Priority 1 — classification available AND positively unmerged:
           `pr-open` → "PR open"; `mergeable`/`stranded`/`conflicted` →
           "Unmerged", label distinguishing `failure` ("Unmerged — merge
           failed") from the rest. `source: 'git'`.
-    - [ ] Priority 2 — otherwise, the `lane_action_status` fallback table,
+    - [x] Priority 2 — otherwise, the `lane_action_status` fallback table,
           which is verbatim today's `{...LANE_STATUS_CONFIG,
           ...DONE_LANE_STATUS_CONFIG}` merge including the `ffeaf510`
           `failure` entry (REQ-4, REQ-8). `source: 'lane_action_status'`.
-    - [ ] `classificationAvailable === false` short-circuits straight to
+    - [x] `classificationAvailable === false` short-circuits straight to
           priority 2, whatever `worktreeClass` holds. Never treats a
           missing classification as "merged" (the `null` trap, spec).
-- [ ] Export the unmerged-classification set as a named constant and have
+- [x] Export the unmerged-classification set as a named constant and have
       `done-lane-migration.mjs`'s `planDoneLaneMigration` import it instead
       of its own inline `['mergeable','stranded','conflicted','pr-open']`
       array, so the migration sweep and the board cannot disagree about
       what "unmerged" means.
-- [ ] Unit tests: `conductor/tests/track-10076-done-lane-bucket.test.mjs`
-      (see `test.md` TC-1.x). Run them and read the output.
+- [x] Unit tests: `conductor/tests/track-10076-done-lane-bucket.test.mjs`
+      (see `test.md` TC-1.x). Run them and read the output. — 11/11 pass.
 
 **Impact**: No behaviour change yet — nothing imports it. Pure groundwork,
 independently verifiable.
@@ -87,20 +87,23 @@ reads "Unmerged". Second live instance of the same drift.
 **Solution**: Both import `resolveDoneLaneBucket` and stop deciding
 locally.
 
-- [ ] `KanbanBoard.jsx`: replace the `groupedByStatus` + `statusConfig`
+- [x] `KanbanBoard.jsx`: replace the `groupedByStatus` + `statusConfig`
       pair for the done lane with per-track bucket resolution through
       `resolveDoneLaneBucket`, keeping the existing
       `data-testid="lane-group-<lane>-<status>"` contract so the current
       tests and any Playwright selectors keep working.
-    - [ ] Non-done lanes keep their exact current code path. This change
+    - [x] Non-done lanes keep their exact current code path. This change
           must be invisible outside the done column.
-- [ ] Fold `DONE_LANE_STATUS_CONFIG` into the shared module and delete the
-      local const (REQ-8). Verify by grep that nothing else imports it.
-- [ ] `LaneFocusView.jsx`: use the same resolver for its status chips,
+- [x] Fold `DONE_LANE_STATUS_CONFIG` into the shared module and delete the
+      local const (REQ-8). Verify by grep that nothing else imports it. —
+      grep confirms only `done-lane-bucket.mjs` defines it; TC-3.8 pins it.
+- [x] `LaneFocusView.jsx`: use the same resolver for its status chips,
       counts, and `statusFilter` matching, so a done-lane filter labelled
       "Unmerged" actually selects the unmerged tracks (REQ-9).
-- [ ] Component tests (`test.md` TC-3.x), including the worker-down
-      fallback case, which is the one that must not regress.
+- [x] Component tests (`test.md` TC-3.x), including the worker-down
+      fallback case, which is the one that must not regress. — 9/9 new
+      tests pass, plus pre-existing `KanbanBoard.test.jsx` (6/6) and
+      `LaneFocusView.test.jsx` (7/7) pass unmodified.
 
 **Impact**: The board and the Worktrees panel agree, live, for the same
 track at the same moment. Track 10065's exact reported symptom is fixed by
