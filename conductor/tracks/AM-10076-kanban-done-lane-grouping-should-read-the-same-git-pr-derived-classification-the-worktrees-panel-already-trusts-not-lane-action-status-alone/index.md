@@ -1,9 +1,9 @@
 # Track AM-10076: Kanban done-lane grouping should read the same git/PR-derived classification the Worktrees panel already trusts, not lane_action_status alone
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planning complete
 **Type**: dev
 **Workspace**: branch
