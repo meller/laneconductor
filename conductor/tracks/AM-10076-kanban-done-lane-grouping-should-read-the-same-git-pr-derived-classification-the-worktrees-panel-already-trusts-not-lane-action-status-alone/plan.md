@@ -18,7 +18,7 @@ exporting the whole decision. Pure so the priority rules are testable
 without git, a DB, or React — the same style as `workspace-mode.mjs` and
 `done-lane-migration.mjs`.
 
-- [ ] Create `conductor/services/done-lane-bucket.mjs` exporting
+- [x] Create `conductor/services/done-lane-bucket.mjs` exporting
       `resolveDoneLaneBucket({ laneStatus, laneActionStatus, worktreeClass, classificationAvailable })`
       → `{ bucket, emoji, label, color, source }`.
     - [ ] Returns `null` for any lane other than `done` — callers keep
