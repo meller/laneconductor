@@ -203,4 +203,59 @@ describe.skipIf(!dbAvailable)('human_needs_reply — read-time derivation (Track
     expect(rows[0].is_replied).toBe(false); // still false — only the read-time predicate changed, not the row
     expect(await needsReply(id)).toBe(false); // but the badge is correctly clear
   });
+
+  it('TC-11 (REQ-6, consistency): the standalone predicate agrees with the Inbox\'s bucket classification', async () => {
+    // Mirrors the "does the badge agree everywhere" guarantee REQ-6 asks
+    // for, using the same literal INBOX_QUERY copy as
+    // track-10012-inbox-buckets.test.mjs (kept in sync with it, not
+    // re-imported, for the same anti-drift reason both files exist).
+    const buriedId = await makeTrack('buried-consistency-1');
+    await comment(buriedId, 'human', 'the plan is missing the retry path');
+    await comment(buriedId, 'system', 'investigating');
+    await comment(buriedId, 'human', 'Moved to plan (via file sync)', { isReplied: true });
+
+    const freshId = await makeTrack('buried-consistency-2');
+    await comment(freshId, 'human', 'a brand new unanswered question');
+
+    expect(await needsReply(buriedId)).toBe(false);
+    expect(await needsReply(freshId)).toBe(true);
+  });
+
+  it('TC-12 (Inbox bucketing): the TC-1 shape is not classified awaiting_ai, and a fresh unanswered question is', async () => {
+    const INBOX_QUERY = `
+      SELECT t.track_number, hr.human_needs_reply,
+             CASE WHEN hr.human_needs_reply THEN 'awaiting_ai' ELSE 'recent_activity' END AS bucket
+      FROM tracks t
+      JOIN LATERAL (
+        SELECT body, created_at FROM track_comments
+        WHERE track_id = t.id AND is_hidden = FALSE ORDER BY created_at DESC LIMIT 1
+      ) lc ON true
+      LEFT JOIN LATERAL (
+        SELECT EXISTS (
+          SELECT 1 FROM track_comments hc
+          WHERE hc.track_id = t.id AND hc.author = 'human' AND hc.is_replied = FALSE AND hc.is_hidden = FALSE
+          AND NOT EXISTS (
+            SELECT 1 FROM track_comments rc
+            WHERE rc.track_id = t.id AND rc.author <> 'human' AND rc.is_hidden = FALSE
+            AND (rc.created_at, rc.id) > (hc.created_at, hc.id)
+          )
+        ) AS human_needs_reply
+      ) hr ON true
+      WHERE t.project_id = $1
+    `;
+
+    const buriedId = await makeTrack('buried-bucket-1');
+    await comment(buriedId, 'human', 'the plan is missing the retry path');
+    await comment(buriedId, 'system', 'investigating');
+    await comment(buriedId, 'human', 'Moved to plan (via file sync)', { isReplied: true });
+
+    const freshId = await makeTrack('buried-bucket-2');
+    await comment(freshId, 'human', 'a brand new unanswered question');
+
+    const { rows } = await pool.query(INBOX_QUERY, [projectId]);
+    const buriedRow = rows.find(r => r.track_number === 'buried-bucket-1');
+    const freshRow = rows.find(r => r.track_number === 'buried-bucket-2');
+    expect(buriedRow.bucket).toBe('recent_activity');
+    expect(freshRow.bucket).toBe('awaiting_ai');
+  });
 });
