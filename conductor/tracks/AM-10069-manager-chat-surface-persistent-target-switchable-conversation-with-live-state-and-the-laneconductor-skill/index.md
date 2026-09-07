@@ -7,7 +7,7 @@
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: pr
-**Auto Run**: no
+**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Problem**: Today there is no persistent way to talk to a worker or the manager — only a per-track conversation panel, and the chat-target resolver returns null for manager workers entirely (manager chat is hard-disabled in the UI). There is no surface for "what is any given worker doing right now, and can I steer it" outside of watching a track's own transcript after the fact.

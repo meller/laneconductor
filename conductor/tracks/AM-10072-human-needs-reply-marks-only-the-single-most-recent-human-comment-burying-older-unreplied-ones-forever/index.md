@@ -1,9 +1,8 @@
 # Track AM-10072: Human-needs-reply marks only the single most recent human comment, burying older unreplied ones forever
 
-**Lane**: done
-**Lane Status**: queue
+**Lane**: quality-gate
+**Lane Status**: running
 **Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planned — 5 phases, 23 tasks
 **Type**: dev
 **Workspace**: branch
