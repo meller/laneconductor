@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
