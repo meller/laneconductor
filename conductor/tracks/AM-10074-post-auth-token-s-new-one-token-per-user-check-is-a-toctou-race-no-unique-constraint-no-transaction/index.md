@@ -1,13 +1,13 @@
 # Track AM-10074: POST /auth/token's new one-token-per-user check is a TOCTOU race — no unique constraint, no transaction
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Workspace**: branch
-**Merge Mode**: pr
-**Auto Run**: no
+**Merge Mode**: direct
+**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Problem**: [PR #25](https://github.com/meller/laneconductor/pull/25) (track 10070, merged as `bac2902`) fixed plaintext `api_tokens` storage and, along the way, added a "mint at most one token per user" guarantee to `POST /auth/token` — new logic, not present before the PR. Found during that PR's 7-angle code review, independently by three separate review angles (line-by-line, altitude, efficiency), which is itself a signal of how easy the bug is to spot once you're looking at that function.
