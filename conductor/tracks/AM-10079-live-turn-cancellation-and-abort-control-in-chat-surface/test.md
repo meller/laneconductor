@@ -119,10 +119,26 @@ then aborts it — following `track-10020-run-marker-lifecycle.test.mjs`'s patte
       expected: no `**Lane**`/`**Lane Status**` write at all, `**Waiting for reply**: no`,
       and across several subsequent poll cycles the worker does **not** dispatch another
       reply for that track (AC-8, REQ-16).
-- [ ] TC-3.14: **Manager pseudo-track abort.** Same as TC-3.13 for
-      `conductor/tracks/manager/` — expected: no attempt to parse `manager` as a track
-      number, no lane write (REQ-7).
-- [ ] TC-3.15: **Signal recorded.** A signalled exit's `lane_action_result` names the
+- [ ] TC-3.14: **Manager pseudo-track abort — no re-dispatch loop.** Abort a live
+      `local-fs-answer` run on `conductor/tracks/manager/`, then let the worker run
+      several full poll cycles — expected: **no** replacement reply is dispatched (no new
+      `local-fs-answer-manager-*.log` appears). Proves absence over time, following
+      `track-10069-manager-chat-plumbing.test.mjs`'s TC-4.7 pattern.
+      **This test must fail before Task 3.7 and pass after it** — the loop is reachable
+      today, not introduced by this track (AC-13, REQ-23).
+- [ ] TC-3.15: **Manager abort is visible.** After TC-3.14, the manager's
+      `conversation.md` contains a `system` turn whose body begins with `⚠️` naming the
+      cancellation — expected: present, so the cancellation is not silent (AC-14, REQ-22).
+- [ ] TC-3.16: **Manager abort writes no lane state.** After TC-3.14, the manager's
+      `index.md` has no `**Lane**` or `**Lane Status**` change, and `**Waiting for
+      reply**` is `no` — expected: all three, confirming REQ-22 did not widen the
+      pseudo-track into lane eligibility (REQ-7, REQ-22).
+- [ ] TC-3.17: **The resolver gap itself.** `decideTrackFolder({ dirNames: ['manager'],
+      trackNumber: 'manager', registeredFolder: null, registeredExists: false })` —
+      expected: `folder: null`. A unit-level guard so that if a future change makes the
+      resolver handle `manager` directly, whoever makes it sees this expectation and can
+      retire Task 3.7's workaround deliberately rather than leaving dead code.
+- [ ] TC-3.18: **Signal recorded.** A signalled exit's `lane_action_result` names the
       signal rather than reading `error (code null)` (REQ-11).
 
 ### Phase 4 — UI (`TurnStatusBar.test.jsx`, `ChatView.test.jsx`)
@@ -160,6 +176,9 @@ then aborts it — following `track-10020-run-marker-lifecycle.test.mjs`'s patte
       path those tests own.
 - [ ] TC-5.5: `track-10046-*.test.mjs` — expected: unchanged pass. Conversation-run write
       scope must still forbid lane writes on the abort path.
+- [ ] TC-5.5b: `track-10069-manager-chat-plumbing.test.mjs` — expected: unchanged pass.
+      Task 3.7 changes how the exit handler resolves the manager pseudo-track's folder;
+      that suite owns the pseudo-track's dispatch-eligibility rules and must not shift.
 - [ ] TC-5.6: Full `conductor/tests/*.test.mjs` and `cd ui && npm test` — expected: no new
       failures against the pre-change baseline, which is recorded before Phase 1 starts.
 
@@ -174,7 +193,9 @@ then aborts it — following `track-10020-run-marker-lifecycle.test.mjs`'s patte
 ## Acceptance Criteria
 
 - [ ] All Phase 1–5 test cases above pass, with output observed rather than inferred.
-- [ ] AC-1 … AC-12 in `spec.md` each verified against real output.
+- [ ] AC-1 … AC-14 in `spec.md` each verified against real output.
+- [ ] TC-3.14 confirmed **failing before** Task 3.7 and passing after — the one case here
+      that regression-tests a defect reachable today rather than one this track adds.
 - [ ] TC-6.1's real-product check performed and its observation recorded.
 - [ ] No regression in `track-10020`, `track-10046`, `track-10055`, `track-10065` or
       `track-1102` suites.

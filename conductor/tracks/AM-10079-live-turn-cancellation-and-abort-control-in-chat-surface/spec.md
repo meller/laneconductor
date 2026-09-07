@@ -45,6 +45,53 @@ This is most of the mechanism. The gap is narrower than the scope statement impl
 | A conversation run already clears `**Waiting for reply**` on *any* exit | exit handler block 3b (`:6417`) — unconditional, so an aborted reply cannot loop |
 | The manager pseudo-track is already addressable through the ordinary track routes | `isManagerPseudoTrack(req.params.num)` branches in `/api/projects/:id/tracks/:num/comments` |
 
+### Found while refining this plan: the manager pseudo-track loops on abort
+
+Every `conversation.md` and `index.md` write in `spawnCli`'s exit handler is gated
+behind `resolveTrackFolder(tracksDir, trackNumber)` — ten call sites between
+`:5985` and `:6590`. That resolver cannot resolve the manager pseudo-track.
+`decideTrackFolder` matches `^(?:[A-Za-z]+-)?<trackNumber>-`, which requires a
+trailing hyphen, and the folder is named exactly `manager`; there is no
+`tracks-metadata.json` registration to fall back to, because the pseudo-track
+deliberately has no `tracks` row. Verified directly:
+
+```
+decideTrackFolder({ dirNames: ['manager', …], trackNumber: 'manager', … })
+  → { folder: null, quarantine: [], metadataUpdate: null }
+```
+
+For an ordinary run this is harmless — the manager never takes a lane action, so
+there is nothing for those blocks to write. Under abort it is not harmless:
+
+1. Exit-handler block 3b, which clears `**Waiting for reply**` on any
+   conversation-run exit (`:6417`), is inside the `if (trackDir)` gate and so
+   **never runs for the manager**.
+2. The manager's flag is instead cleared one cycle later by
+   `dispatchManagerPseudoTrackReply`, but only when
+   `hasGenuineUnansweredHumanComment` reports the human turn as answered
+   (`:7008`) — that is, only after a reply was actually posted.
+3. An aborted reply is killed before it posts anything. The human turn stays
+   unanswered, `**Waiting for reply**: yes` stays set, the run marker is removed
+   by the exit handler's `finally`, and the very next poll cycle re-dispatches
+   the reply.
+
+So on the manager target, clicking Stop kills one CLI and immediately starts
+another — the exact re-launch failure this spec's "failure-semantics trap"
+identifies for numbered tracks, already present for the manager and reachable the
+moment a Stop button exists. The same gate also means an aborted manager turn
+would post **no** cancellation comment at all, so the loop would be silent.
+
+The fix is one change serving both symptoms: resolve the pseudo-track's folder
+for these writes (REQ-22). Because `hasGenuineUnansweredHumanComment` treats any
+`system`-authored turn after the last human turn as an answer, posting REQ-15's
+cancellation comment into the manager's `conversation.md` **structurally breaks
+the loop** — no separate flag-clearing path is needed.
+
+One related read-only site is worth knowing about but is not a defect: the
+staleness check at `:6135` uses `resolveTrackFolder(...) || ''`, yielding
+`conductor/tracks/conversation.md`, which `existsSync` then rejects. It degrades
+to "no new human message" for the manager rather than writing anywhere wrong.
+
 So scope item 2 ("releases locks, avoids corrupted repository state") is
 **already true** for any exit, and this track's job there is to *prove* it with
 tests rather than build it. What is genuinely missing is three things: a way to
@@ -200,6 +247,18 @@ rather than silently no-op — see REQ-9.
 - REQ-21: Abort is available on a manager target on the same terms as a worker
   target, since REQ-7 makes the endpoint accept it.
 
+**Manager pseudo-track (added during plan refinement — see the finding above)**
+- REQ-22: `spawnCli`'s exit handler resolves the manager pseudo-track's folder for
+  its `conversation.md` and `index.md` writes, so a manager run reaches the same
+  blocks a numbered track's run does. Scoped to the abort path's needs — the
+  cancellation comment (REQ-15) and the conversation-run `**Waiting for reply**`
+  clear (REQ-16). It must not make the pseudo-track eligible for a lane write:
+  `getConversationRunWriteScope` still forbids that, and D8's "never receives a
+  lane transition" rule is unchanged.
+- REQ-23: After aborting a live manager reply, the worker does not dispatch a
+  replacement reply on any subsequent cycle. This is the requirement that must
+  actually be measured; REQ-22 is only the means.
+
 ## Acceptance Criteria
 
 Each criterion is an observable user-facing outcome. None is satisfiable by a stub.
@@ -233,6 +292,11 @@ Each criterion is an observable user-facing outcome. None is satisfiable by a st
 - [ ] AC-11: The Stop control is visible on a live manager-target turn and aborts it.
 - [ ] AC-12: `lc abort <track>` cancels a live run in `local-fs` mode with no API
       server running.
+- [ ] AC-13: Cancelling a live **manager** reply stops it, and across several full
+      worker poll cycles no replacement reply is dispatched — the Stop button does
+      not re-launch what it just killed (REQ-23).
+- [ ] AC-14: After AC-13, the manager's `conversation.md` contains the `⚠️`
+      cancellation turn, so the cancellation is visible rather than silent.
 
 ## API Contracts
 
