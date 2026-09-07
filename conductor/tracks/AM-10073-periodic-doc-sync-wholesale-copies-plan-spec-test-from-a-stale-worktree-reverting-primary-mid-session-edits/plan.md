@@ -7,15 +7,15 @@ the two copies of a track doc last agreed on.
 **Solution**: A small pure module that stores the worktree content last merged into
 primary, per track and per artifact, under `conductor/.doc-sync/<trackNumber>/<file>`.
 
-- [ ] Task 1: Create `conductor/services/doc-sync-base.mjs` with `docSyncBasePath`,
+- [x] Task 1: Create `conductor/services/doc-sync-base.mjs` with `docSyncBasePath`,
       `readDocSyncBase`, `writeDocSyncBase`, `clearDocSyncBase` (REQ-2)
-    - [ ] Sub-task: Model it on `conductor/services/run-marker.mjs` — path helper plus
+    - [x] Sub-task: Model it on `conductor/services/run-marker.mjs` — path helper plus
           tolerant IO, no process-global state, missing or unreadable cache returns `null`
-    - [ ] Sub-task: `writeDocSyncBase` creates the track directory recursively
-    - [ ] Sub-task: `clearDocSyncBase` removes the whole track directory, no-op if absent
-- [ ] Task 2: Add `conductor/.doc-sync/` to `.gitignore` beside the existing
+    - [x] Sub-task: `writeDocSyncBase` creates the track directory recursively
+    - [x] Sub-task: `clearDocSyncBase` removes the whole track directory, no-op if absent
+- [x] Task 2: Add `conductor/.doc-sync/` to `.gitignore` beside the existing
       `conductor/.runs/` and `conductor/.locks/` entries, with a comment saying what it is
-- [ ] Task 3: Write the Phase 1 unit tests from `test.md` first, confirm they fail, then
+- [x] Task 3: Write the Phase 1 unit tests from `test.md` first, confirm they fail, then
       make them pass
 
 **Impact**: Machine-local state only. Nothing reads the cache yet, so this phase changes
@@ -28,14 +28,14 @@ no behavior.
 **Solution**: Wrap `git merge-file -p` behind a small pure-string interface, so callers
 never handle temp files or exit codes.
 
-- [ ] Task 1: Create `conductor/services/three-way-merge.mjs` exporting
+- [x] Task 1: Create `conductor/services/three-way-merge.mjs` exporting
       `threeWayMerge({ ours, base, theirs })` → `{ status, content, error? }` (REQ-3)
-    - [ ] Sub-task: Write the three contents into a unique temp directory, invoke
+    - [x] Sub-task: Write the three contents into a unique temp directory, invoke
           `git merge-file -p -L primary -L base -L worktree`, capture stdout
-    - [ ] Sub-task: Map exit `0` → `clean`, positive → `conflict`, negative or thrown →
+    - [x] Sub-task: Map exit `0` → `clean`, positive → `conflict`, negative or thrown →
           `error`; return merged content only for `clean` (REQ-6, REQ-13)
-    - [ ] Sub-task: Always clean up the temp directory, including on the error path
-- [ ] Task 2: Write the Phase 2 unit tests first (clean merge, conflicting merge,
+    - [x] Sub-task: Always clean up the temp directory, including on the error path
+- [x] Task 2: Write the Phase 2 unit tests first (clean merge, conflicting merge,
       identical inputs, `git` failure), confirm they fail, then make them pass
 
 **Impact**: A new standalone primitive. Still no caller, so still no behavior change.
@@ -47,24 +47,24 @@ is not `index.md`.
 **Solution**: Route those four artifacts through the merge base and the merge primitive,
 and make "the worktree has nothing new" the skip condition instead of mtime.
 
-- [ ] Task 1: In `conductor/services/worktree-artifact-merge.mjs`, replace the non-index
+- [x] Task 1: In `conductor/services/worktree-artifact-merge.mjs`, replace the non-index
       `else` branch with the merge path (REQ-1)
-    - [ ] Sub-task: Read the merge base; if the worktree content equals it, skip the
+    - [x] Sub-task: Read the merge base; if the worktree content equals it, skip the
           artifact and write nothing (REQ-5)
-    - [ ] Sub-task: On no base, seed it — `git show <merge-base>:<path>` first, primary's
+    - [x] Sub-task: On no base, seed it — `git show <merge-base>:<path>` first, primary's
           current content as the fallback — then merge in the same pass (REQ-7)
-    - [ ] Sub-task: Clean merge writes primary, then sets the base to the worktree's
+    - [x] Sub-task: Clean merge writes primary, then sets the base to the worktree's
           content, and pushes the file into `copied` (REQ-4)
-    - [ ] Sub-task: Conflict or merge error pushes `{ file, reason }` into `skipped` and
+    - [x] Sub-task: Conflict or merge error pushes `{ file, reason }` into `skipped` and
           writes nothing to either side (REQ-6, REQ-13)
-- [ ] Task 2: Keep the suspicious-shrink guard ahead of the merge, unchanged, and leave
+- [x] Task 2: Keep the suspicious-shrink guard ahead of the merge, unchanged, and leave
       its `skipped` entry shape alone (REQ-10)
-- [ ] Task 3: Replace the mtime pre-filter for these four artifacts with the base
+- [x] Task 3: Replace the mtime pre-filter for these four artifacts with the base
       comparison; leave `index.md`'s mtime-lies exception and its `LANE_STATUS_RE`
       override exactly as they are (REQ-5, REQ-11)
-- [ ] Task 4: Confirm all three callers get the new behavior with no per-caller branch,
+- [x] Task 4: Confirm all three callers get the new behavior with no per-caller branch,
       and that `isSuccess: true` no longer permits a wholesale overwrite (REQ-9)
-- [ ] Task 5: Write the Phase 3 tests first — including a direct reproduction of the
+- [x] Task 5: Write the Phase 3 tests first — including a direct reproduction of the
       track-10067 revert — confirm they fail against the current code, then make them pass
 
 **Impact**: The core fix. Primary-side edits to `plan.md`, `spec.md`, `test.md`, and
