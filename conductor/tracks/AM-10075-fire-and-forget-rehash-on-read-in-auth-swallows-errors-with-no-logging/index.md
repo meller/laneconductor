@@ -1,13 +1,13 @@
 # Track AM-10075: Fire-and-forget rehash-on-read in auth() swallows errors with no logging
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Workspace**: branch
-**Merge Mode**: pr
-**Auto Run**: no
+**Merge Mode**: direct
+**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Problem**: [PR #25](https://github.com/meller/laneconductor/pull/25) (track 10070, merged as `bac2902`) closed the plaintext `api_tokens` vulnerability with, among other things, a self-healing mechanism: when `auth()` finds a row still in its old plaintext form, it rehashes it in place on the way through, fire-and-forget, so the table converges to all-hashed over time even for a deployment that never runs the bulk migration. Found during that PR's 7-angle code review, independently by two review angles (line-by-line, altitude/conventions).
