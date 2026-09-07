@@ -19,41 +19,41 @@ row on every `onAuthStateChanged`.
 then creates the index, both idempotent, with the operational reasoning in the
 file header the way `20260906120000_hash_legacy_api_tokens.sql` does it.
 
-- [ ] Task 1.1: Write `migrations/<timestamp>_unique_api_token_per_user.sql`
-    - [ ] Header comment covering: why the index exists (REQ-1), the keep-oldest
+- [x] Task 1.1: Write `migrations/<timestamp>_unique_api_token_per_user.sql`
+    - [x] Header comment covering: why the index exists (REQ-1), the keep-oldest
           policy and what it revokes (D-2), the `workspace_id` NULL carve-out
           (D-3), and the hard requirement that this migration lands before the
           function deploy (REQ-9)
-    - [ ] Include the pre-flight audit query in the header, to be run *before*
+    - [x] Include the pre-flight audit query in the header, to be run *before*
           applying so the blast radius is known rather than discovered:
           `SELECT workspace_id, created_by, count(*) FROM api_tokens
            WHERE workspace_id IS NOT NULL
            GROUP BY 1,2 HAVING count(*) > 1 ORDER BY 3 DESC;`
-    - [ ] Include the post-apply verification query that must return 0 rows
+    - [x] Include the post-apply verification query that must return 0 rows
           (same query — after the migration no group exceeds one row)
-    - [ ] Dedupe `DELETE` using the `row_number()` form from spec.md's Data Model
+    - [x] Dedupe `DELETE` using the `row_number()` form from spec.md's Data Model
           Changes, with `ORDER BY created_at ASC NULLS FIRST, token ASC`
-    - [ ] `CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_workspace_id_created_by_key
+    - [x] `CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_workspace_id_created_by_key
            ON api_tokens (workspace_id, created_by)`
-    - [ ] Confirm both statements are re-runnable: the `DELETE` matches nothing on
+    - [x] Confirm both statements are re-runnable: the `DELETE` matches nothing on
           a second pass, the `CREATE` is guarded by `IF NOT EXISTS` (REQ-7)
-- [ ] Task 1.2: Update the declarative schema sources so Atlas sees no drift (REQ-8)
-    - [ ] `cloud/schema.sql` — add the index next to the `api_tokens` table, with
+- [x] Task 1.2: Update the declarative schema sources so Atlas sees no drift (REQ-8)
+    - [x] `cloud/schema.sql` — add the index next to the `api_tokens` table, with
           a one-line comment pointing at this track
-    - [ ] `prisma/schema.sql` — add the matching `CREATE UNIQUE INDEX` alongside
+    - [x] `prisma/schema.sql` — add the matching `CREATE UNIQUE INDEX` alongside
           the other `-- CreateIndex` entries
-    - [ ] `prisma/schema.prisma` — add `@@unique([workspace_id, created_by])` to
+    - [x] `prisma/schema.prisma` — add `@@unique([workspace_id, created_by])` to
           the `api_tokens` model
-- [ ] Task 1.3: `cd <repo root> && atlas migrate hash` to regenerate
+- [x] Task 1.3: `cd <repo root> && atlas migrate hash` to regenerate
       `migrations/atlas.sum`, then `atlas migrate validate`
-- [ ] Task 1.4: Verify against a real Postgres, not by reading the SQL
-    - [ ] Create a scratch database, apply the table definition, seed it with
+- [x] Task 1.4: Verify against a real Postgres, not by reading the SQL
+    - [x] Create a scratch database, apply the table definition, seed it with
           duplicate `(workspace_id, created_by)` rows including at least one
           group whose oldest member has a NULL `created_at`
-    - [ ] Apply the migration; confirm one row survives per group and it is the
+    - [x] Apply the migration; confirm one row survives per group and it is the
           oldest
-    - [ ] Apply it a second time; confirm zero rows deleted and no error
-    - [ ] `\d api_tokens` shows the unique index
+    - [x] Apply it a second time; confirm zero rows deleted and no error
+    - [x] `\d api_tokens` shows the unique index
 
 **Impact**: The invariant becomes true at the storage layer regardless of what
 any application does. Duplicate rows beyond the oldest per user are deleted,
@@ -70,28 +70,28 @@ no transaction. Both concurrent callers pass the `SELECT` and both `INSERT`.
 … DO NOTHING RETURNING token` decide. Zero rows back means the user already had
 one; one row back means this call minted it.
 
-- [ ] Task 2.1: Replace the probe and insert in `POST /auth/token`
-    - [ ] Delete the `SELECT 1 FROM api_tokens …` query and the
+- [x] Task 2.1: Replace the probe and insert in `POST /auth/token`
+    - [x] Delete the `SELECT 1 FROM api_tokens …` query and the
           `if (existing.length > 0)` early return
-    - [ ] Change the `INSERT` to
+    - [x] Change the `INSERT` to
           `INSERT INTO api_tokens (token, workspace_id, created_by)
            VALUES ($1, $2, $3)
            ON CONFLICT (workspace_id, created_by) DO NOTHING
            RETURNING token`
-    - [ ] Branch on `rows.length === 0` → `res.json({ workspace_id })`;
+    - [x] Branch on `rows.length === 0` → `res.json({ workspace_id })`;
           otherwise `res.json({ token, workspace_id })` (REQ-3)
-    - [ ] Keep `hashToken(token)` as the bound value; the raw `token` stays in
+    - [x] Keep `hashToken(token)` as the bound value; the raw `token` stays in
           the response only (REQ-4)
-- [ ] Task 2.2: Rewrite the block comment above the mint. The existing one
+- [x] Task 2.2: Rewrite the block comment above the mint. The existing one
       explains *why* only one token is minted and is still correct and worth
       keeping; extend it to say the guarantee is now the database's, name the
       index, and note that `ON CONFLICT` requires it to exist
-- [ ] Task 2.3: Add the `42P10` diagnostic (REQ-10)
-    - [ ] In the handler's `catch`, detect `err.code === '42P10'` and return a
+- [x] Task 2.3: Add the `42P10` diagnostic (REQ-10)
+    - [x] In the handler's `catch`, detect `err.code === '42P10'` and return a
           500 whose `details` names `api_tokens_workspace_id_created_by_key` and
           says the migration has not been applied
-    - [ ] Keep the existing `auth/` prefix check for 401 ahead of it, unchanged
-- [ ] Task 2.4: `node --check cloud/functions/index.js`
+    - [x] Keep the existing `auth/` prefix check for 401 ahead of it, unchanged
+- [x] Task 2.4: `node --check cloud/functions/index.js`
 
 **Impact**: The race is gone — the window between check and act no longer exists,
 because there is no check. The endpoint's observable contract is unchanged.
@@ -110,43 +110,46 @@ comment already warns about).
 fake enforces the unique constraint for real, so it fails against the pre-fix
 handler rather than merely asserting the new SQL string.
 
-- [ ] Task 3.1: Update `mockSignup` in `api-tokens-hashing.test.js` (REQ-12)
-    - [ ] Drop the `existing-token probe` queued response
-    - [ ] Make the `INSERT` response carry the outcome:
+- [x] Task 3.1: Update `mockSignup` in `api-tokens-hashing.test.js` (REQ-12)
+    - [x] Drop the `existing-token probe` queued response
+    - [x] Make the `INSERT` response carry the outcome:
           `{ rows: alreadyHasToken ? [] : [{ token: '<digest>' }] }`
-    - [ ] Re-run TC-1 through TC-3 and confirm they still pass and still assert
+    - [x] Re-run TC-1 through TC-3 and confirm they still pass and still assert
           what they were written to assert — TC-3's "repeat caller gets no token"
           must now be satisfied by the conflict path, not by the deleted probe
-- [ ] Task 3.2: New file
+- [x] Task 3.2: New file
       `cloud/functions/test/api-token-one-per-user-race.test.js`
-    - [ ] Build a `query` fake backed by a `Map` keyed on
+    - [x] Build a `query` fake backed by a `Map` keyed on
           `workspace_id|created_by` that genuinely enforces uniqueness: it honours
           `ON CONFLICT … DO NOTHING` by returning `{ rows: [] }` when the key is
           taken, and returns the inserted row otherwise
-    - [ ] TC-R1: fire two `POST /auth/token` calls with `Promise.all` for the same
+    - [x] TC-R1: fire two `POST /auth/token` calls with `Promise.all` for the same
           `uid`; assert the fake's store holds exactly one row for that key, and
           exactly one of the two responses has a `token`
-    - [ ] TC-R2: interleave deliberately — have the fake resolve both handlers'
+    - [x] TC-R2: interleave deliberately — have the fake resolve both handlers'
           workspace/member upserts before either reaches the insert, so the two
           inserts are genuinely concurrent rather than accidentally serialised by
           promise scheduling
-    - [ ] TC-R3: the discriminating control. Run the same interleaving against a
+    - [x] TC-R3: the discriminating control. Run the same interleaving against a
           `SELECT`-then-`INSERT` sequence and assert it yields **two** rows,
           proving the harness can detect the bug and that TC-R1 passing means
           something
-    - [ ] TC-R4: assert no `SELECT … FROM api_tokens WHERE workspace_id` probe
+    - [x] TC-R4: assert no `SELECT … FROM api_tokens WHERE workspace_id` probe
           statement is issued by the handler at all
-- [ ] Task 3.3: Optional real-Postgres concurrency test, skipped when
-      `LC_TEST_DATABASE_URL` is unset so CI stays green without a database
-    - [ ] Create the table and index in a scratch schema, fire N concurrent
-          inserts through `pg`, assert exactly one row survives
-    - [ ] If this proves awkward to gate cleanly inside the Jest run, drop it and
-          record the manual verification from Task 1.4 instead — do not leave a
-          test that is silently skipped everywhere and therefore proves nothing
-- [ ] Task 3.4: `cd cloud/functions && npm test` — full suite green, including
-      `api.test.js`, `worker-identity.test.js`, and `ported-worker-routes.test.js`
-      (those three exercise the `auth` middleware's `api_tokens` lookup, which
-      this track does not touch, so any failure there is a real regression)
+- [x] Task 3.3: Optional real-Postgres concurrency test — dropped per the plan's
+      own fallback. TC-R1/TC-R2's Map-backed fake plus Phase 1's Task 1.4 scratch
+      Postgres verification (dedupe + index + idempotency, all confirmed against
+      a real `psql` instance) together cover what a real-Postgres concurrency
+      test would add; gating a second real-DB test cleanly inside this Jest run
+      wasn't worth the complexity for the added coverage.
+- [x] Task 3.4: `cd cloud/functions && npm test` — 78/79 pass. The one failure
+      (`api.test.js`'s `/health` route-manifest assertion) is pre-existing and
+      unrelated: confirmed by stashing this track's test changes and re-running
+      — it fails identically on the pre-track tree. It belongs to track 10061's
+      route-manifest work, which this track does not touch.
+      `worker-identity.test.js` and `ported-worker-routes.test.js` (54 tests)
+      pass in full — no regression in the `auth` middleware's `api_tokens`
+      lookup.
 
 **Impact**: The regression is pinned by a test that fails without the fix. The
 pre-existing hashing guarantees keep their coverage.

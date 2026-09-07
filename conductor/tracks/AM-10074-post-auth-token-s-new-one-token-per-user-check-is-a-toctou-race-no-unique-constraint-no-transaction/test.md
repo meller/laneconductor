@@ -41,32 +41,46 @@ dropdb lc_10074_scratch
 
 ### Phase 1 — Migration (`TC-M*`, run against the scratch database)
 
-- [ ] **TC-M1: dedupe keeps the oldest row.** Seed three rows sharing one
+- [x] **TC-M1: dedupe keeps the oldest row.** Seed three rows sharing one
       `(workspace_id, created_by)` with `created_at` of `t0 < t1 < t2`. Apply the
       migration. Expected: one row remains, and its `token` is the `t0` row's.
-- [ ] **TC-M2: a NULL `created_at` counts as oldest and survives.** Seed a group
+      Verified against a real local Postgres scratch DB — `tok_a_t0` survived.
+- [x] **TC-M2: a NULL `created_at` counts as oldest and survives.** Seed a group
       whose members are `(created_at NULL)`, `(created_at t1)`, `(created_at t2)`.
       Expected: the NULL row is the survivor. This is the case a comparison-based
       `DELETE … USING` would have skipped, leaving duplicates behind and making
-      the next statement fail.
-- [ ] **TC-M3: `CREATE UNIQUE INDEX` succeeds on the deduplicated table.**
+      the next statement fail. Verified — `tok_b_null` survived.
+- [x] **TC-M3: `CREATE UNIQUE INDEX` succeeds on the deduplicated table.**
       Expected: the migration exits 0 and `\d api_tokens` lists
       `api_tokens_workspace_id_created_by_key` as UNIQUE over
-      `(workspace_id, created_by)`.
-- [ ] **TC-M4: idempotent.** Apply the migration a second time on the same
+      `(workspace_id, created_by)`. Verified.
+- [x] **TC-M4: idempotent.** Apply the migration a second time on the same
       database. Expected: exits 0, deletes zero rows, does not error on the
-      already-present index.
-- [ ] **TC-M5: NULL `workspace_id` rows are left alone.** Seed two rows with
+      already-present index. Verified — second apply: `DELETE 0`, index-exists
+      NOTICE, exit 0.
+- [x] **TC-M5: NULL `workspace_id` rows are left alone.** Seed two rows with
       `workspace_id IS NULL` sharing a `created_by`. Expected: both survive, the
       index still builds. Documents spec.md D-3 as tested behaviour rather than
-      an accident.
-- [ ] **TC-M6: distinct users are untouched.** Seed rows for three different
+      an accident. Verified — both `tok_c_null_ws_*` rows survived.
+- [x] **TC-M6: distinct users are untouched.** Seed rows for three different
       `created_by` values under one `workspace_id`. Expected: all three survive.
-- [ ] **TC-M7: post-apply verification query returns zero rows.**
+      Verified.
+- [x] **TC-M7: post-apply verification query returns zero rows.**
       `SELECT workspace_id, created_by, count(*) FROM api_tokens
        WHERE workspace_id IS NOT NULL GROUP BY 1,2 HAVING count(*) > 1;`
-- [ ] **TC-M8: `atlas migrate validate` passes** after `atlas migrate hash`, and
-      `atlas migrate diff` proposes no further `api_tokens` index change.
+      Verified — returned 0 rows.
+- [x] **TC-M8: `atlas migrate validate` passes** after `atlas migrate hash` —
+      confirmed (both ran clean, no diagnostics). `atlas migrate diff` against
+      the real target could not be run in this sandboxed session: `atlas.hcl`'s
+      `dev`/`url` point at a remote Neon database this session has no network
+      access to (same limitation the plan phase hit with the Neon MCP — see
+      plan.md's Open Questions), and replaying the full ~90-migration history
+      against a scratch local Postgres from empty hits an unrelated pre-existing
+      issue (migration `20260304181909` uses an enum value in the same
+      transaction as the `ALTER TYPE ... ADD VALUE` that adds it, which Postgres
+      forbids — nothing to do with this track). `atlas migrate diff` against the
+      real database is deferred to the pre-deploy step, alongside the audit
+      query plan.md already calls out.
 
 ### Phase 2 + 3 — Handler and race (`TC-R*`, in
 `cloud/functions/test/api-token-one-per-user-race.test.js`)
@@ -76,27 +90,29 @@ The fake `query` here is backed by a `Map` that genuinely enforces uniqueness on
 `{ rows: [] }` when the key is taken. Without that, these tests would assert the
 shape of a SQL string rather than the behaviour it produces.
 
-- [ ] **TC-R1: two concurrent calls mint exactly one token.** Fire two
+- [x] **TC-R1: two concurrent calls mint exactly one token.** Fire two
       `POST /auth/token` requests for the same `uid` via `Promise.all`. Expected:
       the store holds exactly one row for that key, and exactly one of the two
-      response bodies has a `token` property.
-- [ ] **TC-R2: the two inserts are genuinely concurrent.** Hold both handlers at
+      response bodies has a `token` property. Passing.
+- [x] **TC-R2: the two inserts are genuinely concurrent.** Hold both handlers at
       a barrier until each has completed its workspace and member upserts, then
       release. Expected: same as TC-R1. Guards against a green TC-R1 that only
       passed because promise scheduling happened to serialise the two handlers.
-- [ ] **TC-R3: the control — the old design fails this harness.** Run the same
+      Passing.
+- [x] **TC-R3: the control — the old design fails this harness.** Run the same
       interleaving against a `SELECT`-then-`INSERT` sequence. Expected: **two**
       rows. If this test does not fail the old code, TC-R1 proves nothing.
-- [ ] **TC-R4: no existence probe is issued.** Expected: no executed SQL matches
+      Passing — confirms the harness discriminates the bug.
+- [x] **TC-R4: no existence probe is issued.** Expected: no executed SQL matches
       `/SELECT[\s\S]*FROM api_tokens[\s\S]*workspace_id/`. The check-then-act
-      pattern is gone, not merely guarded.
-- [ ] **TC-R5: the insert names the conflict target.** Expected: the `INSERT INTO
+      pattern is gone, not merely guarded. Passing.
+- [x] **TC-R5: the insert names the conflict target.** Expected: the `INSERT INTO
       api_tokens` statement contains `ON CONFLICT (workspace_id, created_by)`,
-      `DO NOTHING`, and `RETURNING token`.
-- [ ] **TC-R6: a missing index surfaces as a legible error.** Make the fake throw
+      `DO NOTHING`, and `RETURNING token`. Passing.
+- [x] **TC-R6: a missing index surfaces as a legible error.** Make the fake throw
       `{ code: '42P10' }` from the insert. Expected: 500, and `details` names the
       index and states the migration has not been applied — not a bare
-      `err.message`.
+      `err.message`. Passing.
 
 ### Phase 2 — Response contract (`TC-C*`, extending
 `cloud/functions/test/api-tokens-hashing.test.js`)
