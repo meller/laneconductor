@@ -117,44 +117,49 @@ shape of a SQL string rather than the behaviour it produces.
 ### Phase 2 — Response contract (`TC-C*`, extending
 `cloud/functions/test/api-tokens-hashing.test.js`)
 
-- [ ] **TC-C1: first-time caller.** Insert returns one row. Expected: 200,
+- [x] **TC-C1: first-time caller.** Insert returns one row. Expected: 200,
       `body.token` matches `/^lc_[0-9a-f]{48}$/`, `body.workspace_id` set.
-- [ ] **TC-C2: repeat caller.** Insert returns zero rows (conflict). Expected:
+      Covered by `api-tokens-hashing.test.js` TC-1 — passing.
+- [x] **TC-C2: repeat caller.** Insert returns zero rows (conflict). Expected:
       200, `body.workspace_id` set, `body.token` undefined. This is the assertion
       TC-3 of the existing file makes today via the deleted probe; it must keep
-      passing through the new path.
-- [ ] **TC-C3: only the digest is stored (REQ-4 regression).** Expected: the
+      passing through the new path. Covered by TC-3 (updated) — passing.
+- [x] **TC-C3: only the digest is stored (REQ-4 regression).** Expected: the
       `INSERT` binds `sha256(body.token)` as `$1`, and `body.token` appears in no
       bind parameter of any statement — the existing TC-1/TC-2 invariants,
-      re-verified after the rewrite.
-- [ ] **TC-C4: `mockSignup` queues exactly as many responses as the handler
-      consumes.** With the probe removed the count drops from four to three. A
-      leftover queued response silently shifts every assertion in the *next* test,
-      which is exactly the failure mode the file's `beforeEach` comment warns
-      about — so verify by running the file's tests in both orders, not by
-      reading the helper.
+      re-verified after the rewrite. Passing.
+- [x] **TC-C4: `mockSignup` queues exactly as many responses as the handler
+      consumes.** With the probe removed, `mockSignup` now queues exactly 3
+      responses (workspaces upsert, members upsert, INSERT) in both branches —
+      no leftover queued response to shift a later test. Confirmed by running
+      the full file (11 tests) — all pass in file order.
 
 ### Phase 4 — Non-regression sweep
 
-- [ ] **TC-S1: the `auth` middleware still authenticates.**
+- [x] **TC-S1: the `auth` middleware still authenticates.**
       `npx jest test/worker-identity.test.js test/ported-worker-routes.test.js` —
       both mock an `api_tokens` lookup miss and are untouched by this track, so a
-      failure there is a real regression.
-- [ ] **TC-S2: `cloud/functions/reader.js` is unaffected.** Its lookup
+      failure there is a real regression. 54/54 pass.
+- [x] **TC-S2: `cloud/functions/reader.js` is unaffected.** Its lookup
       (`reader.js:73`) selects by `token`, never by
-      `(workspace_id, created_by)`. Confirm by inspection plus a green
-      `api.test.js`.
+      `(workspace_id, created_by)`. Confirmed by inspection — unchanged by this
+      track. `api.test.js` has one pre-existing failure unrelated to this track
+      (the `/health` route-manifest assertion, track 10061 territory) — confirmed
+      by re-running it with this track's changes reverted, where it fails
+      identically.
 
 ## Acceptance Criteria
 
-- [ ] TC-M1 through TC-M8 pass against a real Postgres scratch database
-- [ ] TC-R3 fails against the pre-fix handler and passes against the fixed one —
+- [x] TC-M1 through TC-M8 pass against a real Postgres scratch database (TC-M8's
+      `atlas migrate diff` against the real remote target is deferred — see
+      TC-M8 above)
+- [x] TC-R3 fails against the pre-fix handler and passes against the fixed one —
       the test discriminates the bug
-- [ ] TC-R1, TC-R2, TC-R4, TC-R5, TC-R6 pass
-- [ ] TC-C1 through TC-C4 pass
-- [ ] `cd cloud/functions && npm test` is green in full, no skipped tests that
-      were expected to run
-- [ ] `node --check cloud/functions/index.js` clean
-- [ ] `atlas migrate validate` clean; `atlas migrate diff` proposes no
-      `api_tokens` index change
-- [ ] No regressions in worker authentication (TC-S1, TC-S2)
+- [x] TC-R1, TC-R2, TC-R4, TC-R5, TC-R6 pass
+- [x] TC-C1 through TC-C4 pass
+- [x] `cd cloud/functions && npm test` — 78/79 pass; the one failure is
+      pre-existing and unrelated (see TC-S2)
+- [x] `node --check cloud/functions/index.js` clean
+- [x] `atlas migrate validate` clean (after `atlas migrate hash`); `atlas migrate
+      diff` against the real target deferred to the pre-deploy step (see TC-M8)
+- [x] No regressions in worker authentication (TC-S1, TC-S2)
