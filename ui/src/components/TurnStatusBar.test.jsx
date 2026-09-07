@@ -47,4 +47,10 @@ describe('TurnStatusBar', () => {
     expect(screen.getByText('1,234 tokens')).toBeInTheDocument();
     expect(screen.getByText('Read')).toBeInTheDocument();
   });
+
+  it('REQ-8: renders truncated session ID when turn.sessionId is present', () => {
+    const turn = { active: true, startedAt: 0, lastEventAt: 0, outputTokens: 50, sessionId: 'abc12345-6789-extra' };
+    render(<TurnStatusBar turn={turn} />);
+    expect(screen.getByTestId('turn-session-id')).toHaveTextContent('session: abc12345');
+  });
 });

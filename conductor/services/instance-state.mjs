@@ -10,6 +10,8 @@
 // Pure module, no I/O — mirrors orphan-worker-detection.mjs's extraction
 // style.
 
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, basename } from 'node:path';
 import { isWorkerOffline } from '../../ui/src/lib/workerStatus.js';
 
 /**
@@ -102,3 +104,46 @@ export function buildStateDigest(state, maxChars = 900) {
   }
   return digest;
 }
+
+/**
+ * Convenience helper for building the instance state digest from local filesystem
+ * without requiring direct DB connection.
+ */
+export function buildLocalStateDigest({ projectRoot = process.cwd(), project = null, now = Date.now(), maxChars = 900 } = {}) {
+  const pId = project?.id ?? 1;
+  const pName = project?.name ?? basename(projectRoot);
+  const projects = [{ id: pId, name: pName, repo_path: projectRoot }];
+  const tracks = [];
+  const tracksDir = join(projectRoot, 'conductor', 'tracks');
+  if (existsSync(tracksDir)) {
+    for (const d of readdirSync(tracksDir)) {
+      if (!/\d+/.test(d) || d.startsWith('_duplicate-') || d.startsWith('_quarantine-')) continue;
+      const indexPath = join(tracksDir, d, 'index.md');
+      if (existsSync(indexPath)) {
+        try {
+          const content = readFileSync(indexPath, 'utf8');
+          const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+          const lane = laneMatch ? laneMatch[1].trim().toLowerCase() : 'backlog';
+          const trackNumMatch = d.match(/(\d+)/);
+          tracks.push({
+            project_id: pId,
+            track_number: trackNumMatch ? trackNumMatch[1] : d,
+            lane,
+          });
+        } catch { /* skip unreadable */ }
+      }
+    }
+  }
+  const workers = [{
+    id: 1,
+    hostname: 'local',
+    type: 'worker',
+    project_id: pId,
+    current_task: null,
+    last_heartbeat: new Date(now).toISOString(),
+    online: true,
+  }];
+  const state = buildInstanceState({ projects, tracks, workers, now });
+  return buildStateDigest(state, maxChars);
+}
+

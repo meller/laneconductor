@@ -31,3 +31,29 @@ export function isManagerPseudoTrack(trackNumber) {
 export function shouldAdmitManagerPseudoTrack(indexContent) {
   return /\*\*Waiting for reply\*\*:\s*yes/i.test(indexContent || '');
 }
+
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * Ensures the manager supervision pseudo-track directory and required files
+ * exist in the given repository path.
+ * @param {string} repoPath
+ * @returns {string} Path to conductor/tracks/manager
+ */
+export function ensureManagerPseudoTrack(repoPath) {
+  const dir = join(repoPath, 'conductor', 'tracks', MANAGER_PSEUDO_TRACK);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const indexPath = join(dir, 'index.md');
+  if (!existsSync(indexPath)) {
+    writeFileSync(indexPath, '# Track: Manager Supervision\n\n**Type**: manager\n**Waiting for reply**: no\n**Summary**: Manager supervision pseudo-track for instance health, setup gap detection, and autonomous orchestration.\n', 'utf8');
+  }
+  const convPath = join(dir, 'conversation.md');
+  if (!existsSync(convPath)) {
+    writeFileSync(convPath, '# Conversation: Manager\n\n> **system**: Manager supervision pseudo-track initialized.\n', 'utf8');
+  }
+  return dir;
+}
+

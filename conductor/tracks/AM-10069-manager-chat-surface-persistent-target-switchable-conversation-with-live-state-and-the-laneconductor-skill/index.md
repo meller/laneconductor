@@ -4,7 +4,7 @@
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: antigravity
-**Phase**: Phase 4c — Steerable Track Chat (in-conversation doc updates & lane moves)
+**Phase**: Phase 5 complete — manager target skill-driven turns with live state
 **Type**: dev
 **Workspace**: main
 **Merge Mode**: direct

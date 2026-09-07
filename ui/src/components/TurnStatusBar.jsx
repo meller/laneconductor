@@ -39,6 +39,11 @@ export function TurnStatusBar({ turn }) {
       {elapsedMs != null && <span className="font-mono">{formatElapsed(elapsedMs)}</span>}
       {turn.outputTokens > 0 && <span>{turn.outputTokens.toLocaleString()} tokens</span>}
       {turn.activity && <span className="text-gray-300 truncate">{turn.activity}</span>}
+      {turn.sessionId && (
+        <span className="font-mono text-gray-500 ml-auto" data-testid="turn-session-id" title={`Session ID: ${turn.sessionId}`}>
+          session: {turn.sessionId.slice(0, 8)}
+        </span>
+      )}
     </div>
   );
 }

@@ -225,28 +225,28 @@ tool access, grounded in this instance's state.
 supervision pseudo-track and let the existing conversation-reply path answer them, with
 Phase 1's digest injected on the opening turn only.
 
-- [ ] Task 5.0 (**contract assertion — do this first, spec.md D7**): assert the two things
+- [x] Task 5.0 (**contract assertion — do this first, spec.md D7**): assert the two things
       this track still consumes from merged 10067, and nothing more: `conductor/tracks/manager/`
       exists per supervised project with `index.md` and `conversation.md` (its REQ-14), and
       the reserved folder name contains no digit in any position (its REQ-21). Write a test
       for each.
-    - [ ] Until 10067 merges, run this phase against Phase 4's fixture folder and leave the
+    - [x] Until 10067 merges, run this phase against Phase 4's fixture folder and leave the
           assertion failing rather than stubbing it — a green stub here is exactly the false
           pass this ordering exists to prevent.
-    - [ ] A rename, or a digit anywhere in the reserved name, is a shared-contract break:
+    - [x] A rename, or a digit anywhere in the reserved name, is a shared-contract break:
           raise it on 10067 rather than adding a compensating pattern here. Reply pickup is
           no longer in that category — Phase 4 owns it (D8).
-- [ ] Task 5.1: Manager-target composer posts into the supervision track's conversation
+- [x] Task 5.1: Manager-target composer posts into the supervision track's conversation
       through the same comments endpoint (REQ-6) — no new dispatch action, `track_chat`
       untouched (AC-14).
-- [ ] Task 5.2: Inject Phase 1's digest into the manager session's **opening** turn only,
+- [x] Task 5.2: Inject Phase 1's digest into the manager session's **opening** turn only,
       alongside the line telling it `lc state --json` returns the full snapshot on demand
       (REQ-14). Gate re-injection on the same fresh-vs-resumed signal the existing paths
       use — `session.isFresh` / `resumingChat` (REQ-15).
-- [ ] Task 5.3: Surface session continuity state in the pane: which session is live, and an
+- [x] Task 5.3: Surface session continuity state in the pane: which session is live, and an
       explicit notice when track 10047's context cap resets it (REQ-8) rather than a silent
       restart.
-- [ ] Task 5.4: Verify tool calls render live in the pane during a manager turn (REQ-7) —
+- [x] Task 5.4: Verify tool calls render live in the pane during a manager turn (REQ-7) —
       this should require no new code, since the events are the same ones Phase 2 already
       handles; the task is the verification, and fixing anything it exposes.
 

@@ -37,6 +37,7 @@ import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
+import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
@@ -5697,6 +5698,17 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       if (workspaceMode === 'main') {
         contextPrompt += `\nYou are working DIRECTLY on the primary checkout (no worktree, no track branch — this track's workspace mode is 'main'). Every commit you make MUST reference this track, e.g. "feat(track-${trackNumber}): ..." or "fix(track-${trackNumber}): ...", per conductor/workflow.md's commit convention.\n`;
       }
+      if (isManagerPseudoTrack(trackNumber) && session?.isFresh !== false) {
+        // Track 10069 Phase 5 (REQ-14, REQ-15): inject compact instance state digest on opening turn only
+        try {
+          const digest = buildLocalStateDigest({ projectRoot: process.cwd(), project: getProject() });
+          if (digest) {
+            contextPrompt += `\n<instance_state_digest>\n${digest}\n</instance_state_digest>\n`;
+          }
+        } catch (e) {
+          console.warn(`[context] Failed to build state digest: ${e.message}`);
+        }
+      }
     }
   } catch (ctxErr) {
     console.warn(`[context] Failed to gather rich context: ${ctxErr.message}`);
@@ -6721,6 +6733,17 @@ async function resolveTrackSession(trackNumber) {
       if (cap) {
         console.log(`[session] Track ${trackNumber}: capping session ${claude_session_id} (reason: ${reason}, last_context_tokens: ${last_context_tokens ?? 'unknown'}, resume_count: ${resume_count ?? 'unknown'}) — cold-starting fresh instead of resuming further.`);
         await invalidateTrackSession(trackNumber);
+        // Track 10069 Phase 5 (REQ-8): state session context cap reset explicitly in conversation.md
+        try {
+          const tracksDirForCap = join(process.cwd(), 'conductor', 'tracks');
+          const trackDirForCap = resolveTrackFolder(tracksDirForCap, trackNumber);
+          if (trackDirForCap) {
+            const convPathForCap = join(tracksDirForCap, trackDirForCap, 'conversation.md');
+            if (existsSync(convPathForCap)) {
+              appendFileSync(convPathForCap, `\n> **system**: ℹ️ Session context cap reached (${reason}) — starting a fresh session instead of resuming.\n`, 'utf8');
+            }
+          }
+        } catch { /* best effort */ }
         return { claude_session_id: randomUUID(), isFresh: true };
       }
       return { claude_session_id, isFresh: false };
