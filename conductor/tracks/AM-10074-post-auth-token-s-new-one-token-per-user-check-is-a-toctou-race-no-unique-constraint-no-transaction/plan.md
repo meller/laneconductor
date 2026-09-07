@@ -110,43 +110,46 @@ comment already warns about).
 fake enforces the unique constraint for real, so it fails against the pre-fix
 handler rather than merely asserting the new SQL string.
 
-- [ ] Task 3.1: Update `mockSignup` in `api-tokens-hashing.test.js` (REQ-12)
-    - [ ] Drop the `existing-token probe` queued response
-    - [ ] Make the `INSERT` response carry the outcome:
+- [x] Task 3.1: Update `mockSignup` in `api-tokens-hashing.test.js` (REQ-12)
+    - [x] Drop the `existing-token probe` queued response
+    - [x] Make the `INSERT` response carry the outcome:
           `{ rows: alreadyHasToken ? [] : [{ token: '<digest>' }] }`
-    - [ ] Re-run TC-1 through TC-3 and confirm they still pass and still assert
+    - [x] Re-run TC-1 through TC-3 and confirm they still pass and still assert
           what they were written to assert — TC-3's "repeat caller gets no token"
           must now be satisfied by the conflict path, not by the deleted probe
-- [ ] Task 3.2: New file
+- [x] Task 3.2: New file
       `cloud/functions/test/api-token-one-per-user-race.test.js`
-    - [ ] Build a `query` fake backed by a `Map` keyed on
+    - [x] Build a `query` fake backed by a `Map` keyed on
           `workspace_id|created_by` that genuinely enforces uniqueness: it honours
           `ON CONFLICT … DO NOTHING` by returning `{ rows: [] }` when the key is
           taken, and returns the inserted row otherwise
-    - [ ] TC-R1: fire two `POST /auth/token` calls with `Promise.all` for the same
+    - [x] TC-R1: fire two `POST /auth/token` calls with `Promise.all` for the same
           `uid`; assert the fake's store holds exactly one row for that key, and
           exactly one of the two responses has a `token`
-    - [ ] TC-R2: interleave deliberately — have the fake resolve both handlers'
+    - [x] TC-R2: interleave deliberately — have the fake resolve both handlers'
           workspace/member upserts before either reaches the insert, so the two
           inserts are genuinely concurrent rather than accidentally serialised by
           promise scheduling
-    - [ ] TC-R3: the discriminating control. Run the same interleaving against a
+    - [x] TC-R3: the discriminating control. Run the same interleaving against a
           `SELECT`-then-`INSERT` sequence and assert it yields **two** rows,
           proving the harness can detect the bug and that TC-R1 passing means
           something
-    - [ ] TC-R4: assert no `SELECT … FROM api_tokens WHERE workspace_id` probe
+    - [x] TC-R4: assert no `SELECT … FROM api_tokens WHERE workspace_id` probe
           statement is issued by the handler at all
-- [ ] Task 3.3: Optional real-Postgres concurrency test, skipped when
-      `LC_TEST_DATABASE_URL` is unset so CI stays green without a database
-    - [ ] Create the table and index in a scratch schema, fire N concurrent
-          inserts through `pg`, assert exactly one row survives
-    - [ ] If this proves awkward to gate cleanly inside the Jest run, drop it and
-          record the manual verification from Task 1.4 instead — do not leave a
-          test that is silently skipped everywhere and therefore proves nothing
-- [ ] Task 3.4: `cd cloud/functions && npm test` — full suite green, including
-      `api.test.js`, `worker-identity.test.js`, and `ported-worker-routes.test.js`
-      (those three exercise the `auth` middleware's `api_tokens` lookup, which
-      this track does not touch, so any failure there is a real regression)
+- [x] Task 3.3: Optional real-Postgres concurrency test — dropped per the plan's
+      own fallback. TC-R1/TC-R2's Map-backed fake plus Phase 1's Task 1.4 scratch
+      Postgres verification (dedupe + index + idempotency, all confirmed against
+      a real `psql` instance) together cover what a real-Postgres concurrency
+      test would add; gating a second real-DB test cleanly inside this Jest run
+      wasn't worth the complexity for the added coverage.
+- [x] Task 3.4: `cd cloud/functions && npm test` — 78/79 pass. The one failure
+      (`api.test.js`'s `/health` route-manifest assertion) is pre-existing and
+      unrelated: confirmed by stashing this track's test changes and re-running
+      — it fails identically on the pre-track tree. It belongs to track 10061's
+      route-manifest work, which this track does not touch.
+      `worker-identity.test.js` and `ported-worker-routes.test.js` (54 tests)
+      pass in full — no regression in the `auth` middleware's `api_tokens`
+      lookup.
 
 **Impact**: The regression is pinned by a test that fails without the fix. The
 pre-existing hashing guarantees keep their coverage.
