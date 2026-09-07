@@ -1,7 +1,7 @@
 # Track AM-10075: Fire-and-forget rehash-on-read in auth() swallows errors with no logging
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Planned — 4 phases (throttle helper, wire both catches, convergence warning, operator docs)
 **Type**: dev
