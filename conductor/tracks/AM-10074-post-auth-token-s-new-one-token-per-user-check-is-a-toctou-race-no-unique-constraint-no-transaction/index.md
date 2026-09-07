@@ -1,6 +1,6 @@
 # Track AM-10074: POST /auth/token's new one-token-per-user check is a TOCTOU race — no unique constraint, no transaction
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
