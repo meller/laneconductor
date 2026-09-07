@@ -3,10 +3,10 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phase 4 complete — manager chat plumbing
+**Last Run**: antigravity
+**Phase**: Phase 4b complete — worker target labeling, auto-scroll, pagination
 **Type**: dev
-**Workspace**: branch
+**Workspace**: main
 **Merge Mode**: direct
 **Auto Run**: yes
 **Author**: AM

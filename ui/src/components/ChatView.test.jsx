@@ -3,7 +3,7 @@
 // target resolves once Phase 4's resolver change lands (verified there).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { ChatView } from './ChatView.jsx';
+import { ChatView, targetLabel } from './ChatView.jsx';
 
 vi.mock('../hooks/useWebSocket.js', () => ({ useWebSocket: () => {} }));
 
@@ -74,3 +74,83 @@ describe('ChatView', () => {
     expect(screen.getByText(/No workers registered yet/)).toBeInTheDocument();
   });
 });
+
+describe('targetLabel — Phase 4b', () => {
+  it('renders Manager for manager type', () => {
+    expect(targetLabel({ type: 'manager' })).toBe('Manager');
+  });
+
+  it('renders active track with title when running a track task', () => {
+    const worker = { hostname: 'worker-node', current_task: 'implement track 42' };
+    const tracks = [{ track_number: '42', title: 'OAuth Support' }];
+    expect(targetLabel(worker, tracks)).toBe('worker-node (Track 42: OAuth Support)');
+  });
+
+  it('renders active track without title when track title is missing', () => {
+    const worker = { hostname: 'worker-node', current_task: 'implement track 42' };
+    expect(targetLabel(worker, [])).toBe('worker-node (Track 42)');
+  });
+
+  it('renders last track with title when idle', () => {
+    const worker = { hostname: 'worker-node', current_task: null, last_track_number: '10' };
+    const tracks = [{ track_number: '10', title: 'Database Schema' }];
+    expect(targetLabel(worker, tracks)).toBe('worker-node (last: Track 10: Database Schema)');
+  });
+
+  it('renders fallback last_track_title from worker payload if tracks prop does not contain it', () => {
+    const worker = { hostname: 'worker-node', current_task: null, last_track_number: '10', last_track_title: 'API Auth' };
+    expect(targetLabel(worker, [])).toBe('worker-node (last: Track 10: API Auth)');
+  });
+
+  it('renders idle when no active or last track exists', () => {
+    const worker = { hostname: 'worker-node', current_task: null, last_track_number: null };
+    expect(targetLabel(worker)).toBe('worker-node (idle)');
+  });
+
+  it('renders dispatch tasks like deploy or create-project', () => {
+    const worker = { hostname: 'worker-node', current_task: 'deploy (dispatch 7)' };
+    expect(targetLabel(worker)).toBe('worker-node (deploy #7)');
+  });
+});
+
+describe('ChatView — Phase 4b target list & pagination', () => {
+  it('renders contextual worker labels in the target list button and header', async () => {
+    const worker = busyWorker({ hostname: 'macbook', current_task: 'implement track 42' });
+    const tracks = [{ track_number: '42', title: 'Magic Auth' }];
+    render(<ChatView projectId={1} workers={[manager(), worker]} tracks={tracks} />);
+
+    const targetBtn = screen.getByTestId('chat-target-2');
+    expect(targetBtn.textContent).toContain('macbook (Track 42: Magic Auth)');
+
+    fireEvent.click(targetBtn);
+    expect(screen.getAllByText('macbook (Track 42: Magic Auth)').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('provides scroll-container with scroll-bottom anchor', async () => {
+    render(<ChatView projectId={1} workers={[manager(), busyWorker()]} />);
+    fireEvent.click(screen.getByTestId('chat-target-2'));
+    await waitFor(() => expect(screen.getByTestId('chat-scroll-container')).toBeInTheDocument());
+    expect(screen.getByTestId('chat-scroll-bottom')).toBeInTheDocument();
+  });
+
+  it('shows load-older-messages button when transcript has over 30 blocks', async () => {
+    const events = Array.from({ length: 35 }, (_, i) => ({
+      type: 'assistant',
+      message: { content: [{ type: 'text', text: `Step message ${i}` }] },
+    }));
+    mockApiFetch.mockImplementation((path) => {
+      if (path.includes('/transcript')) return jsonResponse({ events, rawLog: null });
+      return jsonResponse([]);
+    });
+
+    render(<ChatView projectId={1} workers={[manager(), busyWorker()]} />);
+    fireEvent.click(screen.getByTestId('chat-target-2'));
+
+    await waitFor(() => expect(screen.getByTestId('load-older-messages')).toBeInTheDocument());
+    expect(screen.getByTestId('load-older-messages').textContent).toContain('5 remaining');
+
+    fireEvent.click(screen.getByTestId('load-older-messages'));
+    expect(screen.queryByTestId('load-older-messages')).toBeNull();
+  });
+});
+

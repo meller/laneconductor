@@ -615,7 +615,7 @@ function AppContent({ user, logout }) {
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
         ) : viewMode === 'chat' ? (
-          <ChatView projectId={selectedProjectId} workers={workers} />
+          <ChatView projectId={selectedProjectId} workers={workers} tracks={tracks} />
         ) : viewMode === 'worktrees' ? (
           <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} highlightTrack={worktreeHighlightTrack} />
         ) : tracks.length === 0 && user && !user.local ? (

@@ -405,12 +405,15 @@ app.get('/api/projects/:id/workers', async (req, res) => {
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name,
               w.collector_api_version, w.collector_compat, w.collector_health,
-              w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
+              w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at,
+              ts.last_track_title
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
        LEFT JOIN LATERAL (
-         SELECT track_number, last_used_at FROM track_sessions
-         WHERE worker_id = w.id ORDER BY last_used_at DESC LIMIT 1
+         SELECT ts.track_number, ts.last_used_at, t.title AS last_track_title
+         FROM track_sessions ts
+         LEFT JOIN tracks t ON t.track_number = ts.track_number AND (w.project_id IS NULL OR t.project_id = w.project_id)
+         WHERE ts.worker_id = w.id ORDER BY ts.last_used_at DESC LIMIT 1
        ) ts ON true
        WHERE (w.project_id = $1 OR w.type = 'manager') AND w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;
@@ -543,12 +546,15 @@ app.get('/api/workers', async (req, res) => {
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
               w.code_sha, w.code_sha_captured_at, w.collector_api_version, w.collector_compat, w.collector_health,
               p.id AS project_id, p.name AS project_name, p.repo_path,
-              w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at
+              w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at,
+              ts.last_track_title
        FROM workers w
        LEFT JOIN projects p ON p.id = w.project_id
        LEFT JOIN LATERAL (
-         SELECT track_number, last_used_at FROM track_sessions
-         WHERE worker_id = w.id ORDER BY last_used_at DESC LIMIT 1
+         SELECT ts.track_number, ts.last_used_at, t.title AS last_track_title
+         FROM track_sessions ts
+         LEFT JOIN tracks t ON t.track_number = ts.track_number AND (w.project_id IS NULL OR t.project_id = w.project_id)
+         WHERE ts.worker_id = w.id ORDER BY ts.last_used_at DESC LIMIT 1
        ) ts ON true
        WHERE w.last_heartbeat > NOW() - INTERVAL '60 seconds'
     `;

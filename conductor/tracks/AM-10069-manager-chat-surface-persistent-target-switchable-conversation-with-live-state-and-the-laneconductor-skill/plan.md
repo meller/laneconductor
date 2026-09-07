@@ -185,6 +185,22 @@ so it predates this work.
 
 ---
 
+## Phase 4b: Worker target labeling with track context and ChatView scroll/pagination UX
+
+**Problem**: The Chat view target list displays only the worker machine name/id without context on what track the worker is running or worked on last. Long transcripts/threads also lack auto-scroll and can overwhelm the DOM without pagination.
+**Solution**:
+1. Enrich worker labels to show `hostname (Track NNN: Title)` for active/running tracks, `hostname (last: Track NNN: Title)` for idle workers with session context, and `hostname (idle)` when no context exists.
+2. Auto-scroll to the bottom of the chat view when selecting a target and when new transcript blocks/comments arrive.
+3. Add transcript windowing showing the most recent blocks (default 30) with an `↑ Load older messages` expansion button.
+
+- [x] Task 4b.1: Enrich `targetLabel(worker, tracks)` in `ChatView.jsx` to render active track (`Track NNN: Title`), warm last track (`last: Track NNN: Title`), or `idle`.
+- [x] Task 4b.2: Pass `tracks` to `ChatView` from `App.jsx`, and enrich `/api/workers` / `/api/projects/:id/workers` queries with `last_track_title`.
+- [x] Task 4b.3: Implement auto-scroll to bottom in `ChatView.jsx` using `scrollIntoView` and container scrolling.
+- [x] Task 4b.4: Implement transcript block pagination (latest 30 blocks displayed by default, `↑ Load older messages` button when older blocks exist).
+- [x] Task 4b.5: Unit tests in `ChatView.test.jsx` verifying target labeling, scrolling, and pagination.
+
+---
+
 ## Phase 5: Manager target — skill-driven turns with live state (REQ-6..REQ-8, REQ-14, REQ-15)
 
 **Problem**: The manager tier is the part that is genuinely new: a free-form turn with real
