@@ -1,10 +1,10 @@
 # Track AM-10080: Composer smart autocomplete for @file mentions, @track references, and /slash commands
 
-**Lane**: plan
+**Lane**: implement
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
-**Phase**: Planned — 5 phases, verified against codebase
+**Phase**: Planned — 6 phases (0-5), verified against codebase
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com

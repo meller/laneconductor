@@ -7,6 +7,42 @@ whole thing against a running app.
 Phases 3 and 4 are independent of each other once Phase 2 lands, so they can be reordered if one
 turns out to be blocked. Phase 3 is placed first because it is what a user can see.
 
+## Phase 0: Make the worktree runnable
+
+Do this before anything else. This worktree has **no `node_modules`** at either the repository
+root or under `ui/`, so every test command in `test.md` fails at config-load time until it does
+(observed: `npx vitest` dies with `Cannot find package '@vitejs/plugin-react'`). It is a one-time
+setup step, not a code change.
+
+- [ ] `npm install` at the repository root
+- [ ] `npm install` in `ui/`
+- [ ] Confirm the baseline is green before touching anything:
+      `cd ui && npx vitest run src/components/ChatView.test.jsx src/components/ChatView.queued.test.jsx src/components/ChatView.wizard.test.jsx`
+- [ ] Record that baseline. "No regressions" in Phase 5 is only meaningful against a known-green
+      starting point
+
+### Which runner picks up which test
+
+`ui/vitest.config.mjs` includes exactly `server/tests/**/*.test.mjs`, `src/**/*.test.js` and
+`src/**/*.test.jsx`, all relative to `ui/`. Nothing outside `ui/` is in scope for `npm test`. So
+the two new `conductor/services/` modules cannot be tested by vitest at all — they follow the
+established `node --test conductor/tests/track-NNNNN-*.test.mjs` convention instead, exactly as
+`merge-mode.mjs`, `workspace-mode.mjs` and `done-lane-bucket.mjs` already are.
+
+| Module | Test file | Runner |
+|---|---|---|
+| `conductor/services/fuzzy-match.mjs` | `conductor/tests/track-10080-fuzzy-match.test.mjs` | `node --test` |
+| `conductor/services/slash-commands.mjs` | same file as above | `node --test` |
+| `ui/src/lib/composerTriggers.js` | `ui/src/lib/composerTriggers.test.js` | vitest |
+| `GET /api/projects/:id/files` | `ui/server/tests/track-10080-files-api.test.mjs` | vitest |
+| composer component | `ui/src/components/TrackChatComposer.autocomplete.test.jsx` | vitest (jsdom) |
+| worker manifest sync | `conductor/tests/track-10080-file-manifest.test.mjs` | `node --test` |
+
+Note also that `ui/vitest.config.mjs` enforces coverage thresholds scoped to `server/**/*.mjs`
+(lines 49, functions 50, branches 40, statements 49). Phase 2 adds a non-trivial amount of code to
+`ui/server/index.mjs`, so its tests need to be thorough enough to hold those thresholds, or
+`npm run test:coverage` fails at the quality gate.
+
 ---
 
 ## Phase 1: Shared matching and trigger logic
@@ -39,7 +75,9 @@ wrong, and the hardest to debug through a DOM. There is no fuzzy matcher in the 
     - [ ] `applyCompletion(value, trigger, insertText)` → `{ value, caret }`, replacing only the
           trigger token and appending one trailing space (REQ-19)
 - [ ] Unit tests for all three modules, including the ambiguity cases: `@tracker.js` opens files
-      not tracks, `@src/lib` does not open the command menu, `a#b` and `foo@bar` open nothing
+      not tracks, `@src/lib` does not open the command menu, `a#b` and `foo@bar` open nothing.
+      Split by runner per the table in Phase 0 — the two `conductor/services/` modules under
+      `node --test`, `composerTriggers.js` under vitest
 
 **Impact**: New shared modules. No existing file changes, no behaviour change yet.
 

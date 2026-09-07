@@ -3,6 +3,10 @@
 ## Test Commands
 
 ```bash
+# ONE-TIME: this worktree ships without node_modules, so every vitest command
+# below fails at config load until these run.
+npm install && (cd ui && npm install)
+
 # UI unit + component + server-route tests (vitest)
 cd ui && npm test
 
@@ -11,8 +15,16 @@ cd ui && npx vitest run src/lib/composerTriggers.test.js
 cd ui && npx vitest run server/tests/track-10080-files-api.test.mjs
 cd ui && npx vitest run src/components/TrackChatComposer.autocomplete.test.jsx
 
+# Shared conductor/services modules — NOT covered by `npm test`. vitest's
+# include globs are scoped to ui/, so these run under node:test instead,
+# same as merge-mode.mjs and workspace-mode.mjs already do.
+node --test conductor/tests/track-10080-fuzzy-match.test.mjs
+
 # Worker-side tests (node:test, real processes / filesystem)
 node --test conductor/tests/track-10080-file-manifest.test.mjs
+
+# Coverage gate — thresholds are scoped to server/**/*.mjs, which Phase 2 grows
+cd ui && npm run test:coverage
 
 # Regression: the suites this track's changes could break
 cd ui && npx vitest run src/components/ChatView.test.jsx src/components/ChatView.queued.test.jsx src/components/ChatView.wizard.test.jsx
@@ -163,7 +175,12 @@ running app, after restarting both long-running processes.
 
 ## Acceptance Criteria
 
-- [ ] All unit, component and server-route tests above pass
+- [ ] Dependencies installed in the worktree and a green pre-change baseline recorded, so
+      "no regressions" is measured against something known
+- [ ] All unit, component and server-route tests above pass, under **both** runners — a green
+      `cd ui && npm test` alone does not cover the `conductor/services/` modules
+- [ ] `cd ui && npm run test:coverage` still meets its configured thresholds after Phase 2 grows
+      `ui/server/index.mjs`
 - [ ] The existing `ChatView` and `TrackChatComposer` suites pass unchanged
 - [ ] Real-product verification (TC-65..TC-68) performed and its observation recorded
 - [ ] Stub scan over `conductor/services`, `ui/server`, `ui/src` finds no `TODO` /
