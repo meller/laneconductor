@@ -5,6 +5,10 @@
       "command": "bash scripts/deploy.sh production",
       "description": "Production AWS/Cloud stack"
     },
+    "prod": {
+      "command": "bash scripts/deploy.sh prod",
+      "description": "Production AWS/Cloud stack"
+    },
     "staging": {
       "command": "bash scripts/deploy.sh staging",
       "description": "Staging preview environment"

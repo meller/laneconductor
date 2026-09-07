@@ -71,7 +71,7 @@ echo ""
 echo "🚀 Deploying to $ENV..."
 
 # Deployment options based on environment
-if [ "$ENV" = "prod" ]; then
+if [ "$ENV" = "prod" ] || [ "$ENV" = "production" ]; then
   echo "   [1/4] Applying Database Migrations (Atlas)..."
   if command -v atlas &> /dev/null; then
     # Fetch the secret DATABASE_URL from Secret Manager
