@@ -1,7 +1,7 @@
 # Track AM-10072: Human-needs-reply marks only the single most recent human comment, burying older unreplied ones forever
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — 5 phases, 23 tasks
