@@ -1,6 +1,6 @@
 # Track AM-10073: Periodic doc-sync wholesale-copies plan/spec/test from a stale worktree, reverting primary mid-session edits
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
