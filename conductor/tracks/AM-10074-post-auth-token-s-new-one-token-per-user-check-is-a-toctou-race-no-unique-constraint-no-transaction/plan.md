@@ -70,28 +70,28 @@ no transaction. Both concurrent callers pass the `SELECT` and both `INSERT`.
 … DO NOTHING RETURNING token` decide. Zero rows back means the user already had
 one; one row back means this call minted it.
 
-- [ ] Task 2.1: Replace the probe and insert in `POST /auth/token`
-    - [ ] Delete the `SELECT 1 FROM api_tokens …` query and the
+- [x] Task 2.1: Replace the probe and insert in `POST /auth/token`
+    - [x] Delete the `SELECT 1 FROM api_tokens …` query and the
           `if (existing.length > 0)` early return
-    - [ ] Change the `INSERT` to
+    - [x] Change the `INSERT` to
           `INSERT INTO api_tokens (token, workspace_id, created_by)
            VALUES ($1, $2, $3)
            ON CONFLICT (workspace_id, created_by) DO NOTHING
            RETURNING token`
-    - [ ] Branch on `rows.length === 0` → `res.json({ workspace_id })`;
+    - [x] Branch on `rows.length === 0` → `res.json({ workspace_id })`;
           otherwise `res.json({ token, workspace_id })` (REQ-3)
-    - [ ] Keep `hashToken(token)` as the bound value; the raw `token` stays in
+    - [x] Keep `hashToken(token)` as the bound value; the raw `token` stays in
           the response only (REQ-4)
-- [ ] Task 2.2: Rewrite the block comment above the mint. The existing one
+- [x] Task 2.2: Rewrite the block comment above the mint. The existing one
       explains *why* only one token is minted and is still correct and worth
       keeping; extend it to say the guarantee is now the database's, name the
       index, and note that `ON CONFLICT` requires it to exist
-- [ ] Task 2.3: Add the `42P10` diagnostic (REQ-10)
-    - [ ] In the handler's `catch`, detect `err.code === '42P10'` and return a
+- [x] Task 2.3: Add the `42P10` diagnostic (REQ-10)
+    - [x] In the handler's `catch`, detect `err.code === '42P10'` and return a
           500 whose `details` names `api_tokens_workspace_id_created_by_key` and
           says the migration has not been applied
-    - [ ] Keep the existing `auth/` prefix check for 401 ahead of it, unchanged
-- [ ] Task 2.4: `node --check cloud/functions/index.js`
+    - [x] Keep the existing `auth/` prefix check for 401 ahead of it, unchanged
+- [x] Task 2.4: `node --check cloud/functions/index.js`
 
 **Impact**: The race is gone — the window between check and act no longer exists,
 because there is no check. The endpoint's observable contract is unchanged.
