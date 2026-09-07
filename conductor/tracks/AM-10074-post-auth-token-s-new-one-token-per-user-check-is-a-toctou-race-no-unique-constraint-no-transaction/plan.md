@@ -164,20 +164,38 @@ applying it revokes duplicate credentials.
 
 **Solution**: put both where someone deploying will actually encounter them.
 
-- [ ] Task 4.1: Note the ordering requirement in `scripts/deploy.sh` near the
-      Atlas step, confirming the existing `[1/4]` migrations-then-functions order
-      is load-bearing for this change and not merely conventional
-- [ ] Task 4.2: Add a short subsection to `conductor/product.md`'s remote-api
-      area recording that `api_tokens` now holds at most one row per
-      `(workspace_id, created_by)`, and that no list/revoke endpoint exists yet
-      (the Non-Goal this track leaves open)
-- [ ] Task 4.3: Confirm no other code assumes multiple tokens per user —
-      re-grep `api_tokens` across the repo and check `cloud/functions/reader.js:73`
-      and `cloud/functions/index.js:255`, both of which look up by `token` and are
-      unaffected
+- [x] Task 4.1: Note the ordering requirement in `scripts/deploy.sh` near the
+      Atlas step. Correction to the Problem statement above: `scripts/deploy.sh`
+      does not actually chain a function deploy after the `[1/4]` Atlas step —
+      `[2/4]` only prints "Skipping Cloud Functions (API) deployment
+      (decommissioned to prevent bot compute costs)"; the real function deploy
+      is a separate manual `firebase deploy --only functions` command an
+      operator runs by hand, outside this script entirely. So the ordering
+      isn't automatically load-bearing today — it's an operator discipline
+      requirement. Documented at `scripts/deploy.sh`'s `[2/4]` step: the manual
+      functions deploy command must not be run until
+      `migrations/20260907120000_unique_api_token_per_user.sql` has been
+      applied (via `bash scripts/deploy.sh prod`, which does apply it at
+      `[1/4]`), or every `POST /auth/token` call fails with Postgres 42P10.
+- [x] Task 4.2: Added a subsection to `conductor/product.md` right after the
+      existing remote-api known-gap paragraph (before "Who Owns Remote Sync"),
+      recording that `api_tokens` now holds at most one row per
+      `(workspace_id, created_by)`, enforced by a unique index plus
+      `INSERT ... ON CONFLICT ... DO NOTHING`, and that no list/revoke endpoint
+      exists yet for rows minted before this fix.
+- [x] Task 4.3: Confirmed by inspection and re-grep (`grep -n "api_tokens" -r
+      cloud/ prisma/ scripts/`). `cloud/functions/reader.js:73`
+      (`SELECT workspace_id FROM api_tokens WHERE token = $1 OR token = $2`)
+      and `cloud/functions/index.js:255` (`SELECT workspace_id, token FROM
+      api_tokens WHERE token = $1 OR token = $2`) both look up strictly by
+      `token`, never by `(workspace_id, created_by)` — both are worker-token
+      auth paths, unaffected by this track's change and untouched by the new
+      unique index.
 
 **Impact**: A future deploy or incident has the context in the repo rather than
 in this track's history.
+
+## ✅ COMPLETE
 
 ---
 

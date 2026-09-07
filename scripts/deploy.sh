@@ -93,7 +93,19 @@ if [ "$ENV" = "prod" ]; then
   fi
 
   echo "   [2/4] Skipping Cloud Functions (API) deployment (decommissioned to prevent bot compute costs)..."
-  # To deploy functions, run manually: firebase deploy --project "$GCP_PROJECT" --only functions --non-interactive
+  # To deploy functions, run manually:
+  #   firebase deploy --project "$GCP_PROJECT" --only functions --non-interactive
+  #
+  # Track 10074: that manual command is NOT covered by [1/4]'s automatic
+  # "migrations before deploy" ordering above — it runs completely outside
+  # this script, on its own, whenever an operator remembers to type it. Any
+  # function deploy that ships a handler using
+  # `INSERT ... ON CONFLICT (workspace_id, created_by)` against api_tokens
+  # (POST /auth/token, track 10074) requires
+  # migrations/20260907120000_unique_api_token_per_user.sql to already be
+  # applied, or every call to that endpoint fails with Postgres error 42P10.
+  # Run `bash scripts/deploy.sh prod` (which applies pending Atlas migrations
+  # at [1/4]) before the manual functions deploy, not after.
 
   
   echo "   [3/4] Deploying Dashboard App..."
