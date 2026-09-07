@@ -25,6 +25,9 @@ has to come from somewhere on the server side.
 | Pure logic shared between worker, API server and browser has an established home | `conductor/services/*.mjs` and `conductor/providers.mjs`, imported by `ui/server/index.mjs` **and** by `ui/src/components/*.jsx` |
 | Every `/api/*` route is already authenticated | `app.use('/api', requireAuth)` at `index.mjs:240` |
 | Collector routes authenticate by worker token instead | `app.patch('/worker/heartbeat', collectorAuth, …)` |
+| A collector fan-out helper already handles tokens, health, the collector-0 rule and the retry buffer | `patchCollectors(path, body)` (`laneconductor.sync.mjs:1250`) — a new worker→collector write needs no new transport code |
+| The retry buffer coalesces on `(collector, method, path)` | `keyOf()` in `conductor/services/collector-retry-buffer.mjs` — so a large repeated body is held at most once per collector |
+| A debounced-input pattern with a stale-response guard already exists and is already tested | `ConnectionsStep.jsx:178-194` (`setTimeout` + `cancelled` flag + `clearTimeout` cleanup), asserted by its own TC-24 |
 | There is no fuzzy-matching helper anywhere in the repo yet | no hits for `fuzzy`/`fzf` under `ui/src/lib` or `conductor/` |
 
 ## Solution
@@ -95,7 +98,10 @@ list is unavailable instead of failing the send.
   60-second worktree-summary tick), hashes it, and pushes it only when the hash differs from the
   last hash it successfully sent.
 - REQ-8: The push targets a dedicated collector endpoint, `PATCH /worker/file-manifest`, guarded
-  by `collectorAuth` exactly as `/worker/heartbeat` is. It is not added as a heartbeat field.
+  by `collectorAuth` exactly as `/worker/heartbeat` is. It is not added as a heartbeat field. The
+  worker sends it through the existing `patchCollectors()` fan-out, so it inherits per-collector
+  token resolution, health recording, the collector-0-authoritative rule and the retry buffer
+  rather than reimplementing any of them.
 - REQ-9: The manifest is capped at 20,000 paths. Beyond that it is truncated and flagged, rather
   than sent whole or dropped.
 - REQ-10: A worker in `local-fs` mode does not compute or push a manifest, matching every other
@@ -211,6 +217,12 @@ ALTER TABLE "public"."projects" ADD COLUMN "file_manifest_updated_at" timestamp 
 The manifest is keyed to the **project**, not the worker, because a repository's file list is a
 property of the repository. Storing it per worker would duplicate it across every worker on the
 same checkout for no gain.
+
+The columns are mirrored into both `prisma/schema.prisma` and `prisma/schema.sql`, following the
+`collector_health` precedent — only `schema.sql` carries the raw DDL. `migrations/atlas.sum` is
+hash-verified over the whole directory, so it must be regenerated with `atlas migrate hash` in the
+same change; otherwise `atlas migrate apply`, which `make install-migrate` runs, rejects the
+directory as tampered.
 
 ## Non-Goals
 

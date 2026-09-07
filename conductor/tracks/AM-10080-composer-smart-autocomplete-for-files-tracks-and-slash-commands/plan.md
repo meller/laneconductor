@@ -81,8 +81,13 @@ test id, so no existing test has to change.
 
 - [ ] Create `ui/src/lib/useComposerAutocomplete.js`
     - [ ] Derives the active trigger from value and caret via Phase 1's `detectTrigger`
-    - [ ] File source: debounced fetch of `/api/projects/:id/files?q=…` through `useApi`, with the
-          in-flight request cancelled/ignored on a newer keystroke (REQ-14)
+    - [ ] File source: debounced fetch of `/api/projects/:id/files?q=…` through `useApi` (REQ-14).
+          Use the house debounce pattern already tested in this repo — `useEffect` with a
+          `setTimeout`, a `cancelled` flag, and a `clearTimeout` cleanup, as in
+          `ConnectionsStep.jsx:178-194` (its TC-24 asserts exactly this "far fewer requests than
+          keystrokes" property). The `cancelled` flag is also what discards a stale in-flight
+          response, so no `AbortController` is needed — though `useApi`'s `apiFetch` does spread
+          `options` straight into `fetch`, so passing a `signal` would work if wanted
     - [ ] Track source: filters the `tracks` prop with Phase 1's matcher, no request (REQ-15)
     - [ ] Command source: filters `SLASH_COMMANDS` (REQ-16)
     - [ ] `onKeyDown` handling arrows with wraparound, Enter, Tab, Escape (REQ-17, REQ-18)
@@ -116,14 +121,25 @@ collector endpoint.
 - [ ] Migration `migrations/<ts>_add_project_file_manifest.sql` adding `file_manifest`,
       `file_manifest_digest`, `file_manifest_updated_at` to `projects`; hand-trimmed to only these
       additive changes, per the note in `20260905215931_add_collector_health.sql`
-- [ ] Mirror the columns in `prisma/schema.prisma`
+- [ ] Regenerate `migrations/atlas.sum` (`atlas migrate hash`). The directory is hash-verified, so
+      a new `.sql` file without a refreshed sum makes `atlas migrate apply` — which
+      `make install-migrate` runs — reject the whole directory as tampered
+- [ ] Mirror the columns in **both** `prisma/schema.prisma` and `prisma/schema.sql`; the
+      `collector_health` precedent touches both, and only `schema.sql` carries the raw DDL
 - [ ] Worker changes in `conductor/laneconductor.sync.mjs` (REQ-7, REQ-9, REQ-10)
     - [ ] `refreshFileManifestCache()` alongside `refreshWorktreeSummaryCache()`, on the same
-          60-second interval, early-returning in `local-fs` mode
+          60-second interval. No explicit `local-fs` guard is needed if the push goes through
+          `patchCollectors`, which already early-returns in that mode — but keep the compute
+          behind the same check so a `local-fs` worker does no pointless git work either
     - [ ] Cap at 20,000 paths, set `truncated` beyond that
     - [ ] sha256 digest; push only when it differs from the last successfully sent digest
-    - [ ] Push via `PATCH /worker/file-manifest` to each configured collector, reusing the existing
-          `patch` helper and per-collector health recording
+    - [ ] Push via `patchCollectors('/worker/file-manifest', body)` rather than a hand-rolled loop
+          over `patch`. It already resolves per-collector tokens, records health, awaits
+          collector 0 as the authoritative write, and fires the rest off. Two consequences worth
+          knowing: it **throws** when collector 0 fails, so the digest must only be advanced after
+          a successful await (TC-58); and a failed non-primary push is enqueued in the retry
+          buffer, whose coalescing key is `(collector, method, path)` — so at most one manifest
+          body per collector is ever held in memory, and it is always the newest
 - [ ] Add `PATCH /worker/file-manifest` to `ui/server/index.mjs` (REQ-8, REQ-11)
     - [ ] `collectorAuth`-guarded, same as `/worker/heartbeat`
     - [ ] Absent `files` key leaves the stored manifest untouched

@@ -141,26 +141,31 @@ cd ui && npx vitest run src/components/ChatView.test.jsx src/components/ChatView
       expected: `200` with `source: "worker"` and results drawn from the stored manifest
 - [ ] TC-62: `age_seconds` on a worker-sourced response — expected: derived from
       `file_manifest_updated_at`, not from the request time
+- [ ] TC-63: collector 0 rejects the push, so `patchCollectors` throws — expected: the throw is
+      caught, the last-sent digest is left unadvanced, and the worker's own cycle is not failed
+- [ ] TC-64: `atlas migrate validate` (or `atlas migrate hash --dry-run`) against `migrations/`
+      after adding the new file — expected: clean, confirming `atlas.sum` was regenerated and
+      `make install-migrate` will not reject the directory
 
 ## Real-Product Verification (Phase 5)
 
 Unit tests cannot detect a feature that was never wired up. These are run by hand against the
 running app, after restarting both long-running processes.
 
-- [ ] TC-63: API server and worker restarted before verifying, so neither is serving pre-change
+- [ ] TC-65: API server and worker restarted before verifying, so neither is serving pre-change
       code
-- [ ] TC-64: in the browser at `localhost:8090`, open Chat, type `@` plus a few characters, pick a
+- [ ] TC-66: in the browser at `localhost:8090`, open Chat, type `@` plus a few characters, pick a
       file with the arrow keys and Enter, send the message, and confirm the chosen path appears
       verbatim in the track's `conversation.md`
-- [ ] TC-65: repeat for `#` (track) and `/` (command) triggers
-- [ ] TC-66: observation recorded in `conversation.md` — a screenshot or the resulting
+- [ ] TC-67: repeat for `#` (track) and `/` (command) triggers
+- [ ] TC-68: observation recorded in `conversation.md` — a screenshot or the resulting
       `conversation.md` line, not a description of the code
 
 ## Acceptance Criteria
 
 - [ ] All unit, component and server-route tests above pass
 - [ ] The existing `ChatView` and `TrackChatComposer` suites pass unchanged
-- [ ] Real-product verification (TC-63..TC-66) performed and its observation recorded
+- [ ] Real-product verification (TC-65..TC-68) performed and its observation recorded
 - [ ] Stub scan over `conductor/services`, `ui/server`, `ui/src` finds no `TODO` /
       `not yet implemented` in code paths this track marks complete
 - [ ] No regressions in the Chat send path, the queued-intervention notice, or the worker

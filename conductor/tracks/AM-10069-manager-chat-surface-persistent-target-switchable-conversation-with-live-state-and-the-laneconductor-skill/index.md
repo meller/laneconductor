@@ -2,12 +2,12 @@
 
 **Lane**: done
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Last Run**: antigravity
-**Phase**: Complete — All phases implemented and verified
+**Phase**: New
 **Type**: dev
 **Workspace**: main
-**Merge Mode**: direct
+**Merge Mode**: pr
 **Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
@@ -39,4 +39,4 @@
    - **Default to async, not blocking, dispatch semantics** — mirrors item 3's existing (a)/(b) split (cheap comment-based intervention vs. expensive live-injection): fire the dispatch, let the sweep above report back, rather than the chat holding a turn open for a dispatch that can run 15-20+ minutes (observed live this session for both `implement` and `merge` dispatches).
 
 **Open questions for planning**: which of the two intervention models (3a vs 3b) is v1; how much of the manager's system-state context is pre-loaded vs. queried on demand and what that costs per turn; what "genuinely incomplete setup" means precisely for gating the wizard message; whether per-worker chat (as opposed to manager chat) needs the same live-state/skill-driven treatment or can stay a simpler transcript-plus-comment surface for v1; for item 7, exactly which `stream-json` event types the UI needs to parse for token/timing data and whether that parsing already exists anywhere in the transcript viewer 10067 is building or needs to be added here; and, for item 8, what the manager-facing completion sweep's actual trigger/delivery mechanism into the chat UI should be (a new notification channel, or reuse of the existing per-track comment/conversation plumbing this track already owns).
-**Summary**: Persistent top-level Chat view with a target switcher — manager target runs a real /laneconductor skill session via the existing conversation-reply spawn path, worker targets reuse 10037's…
+**Summary**: Depends on track 10067's transcript/chat-target-resolver infrastructure; see Problem field for full scope.
