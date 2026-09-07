@@ -158,18 +158,50 @@ than a code change. Because Phase 1 derives the badge at read time, every
 stranded row is re-evaluated on every query; any row with a later non-human
 comment stops being flagged with no write at all.
 
-- [ ] Task 4.1: Before merging, run the counting query from `spec.md` against
+- [x] Task 4.1: Before merging, run the counting query from `spec.md` against
       the local DB and record the actual before/after: expected 158 → 85
       flagged tracks, 592 → 237 flagged comments. Paste the real output into
       `conversation.md`. If the numbers differ materially from these, the
       predicate does not mean what Phase 1 thinks it means — investigate before
       proceeding.
-- [ ] Task 4.2: Spot-check five of the 85 tracks that remain flagged and
+      Done: measured **161 → 84 flagged tracks, 596 → 234 flagged comments**
+      (DB is live and has accrued activity since planning, including this
+      track's own conversation — small drift from 158/85/592/237 is expected
+      and not material: same direction, same ~50% reduction in both counts).
+      Recorded in `conversation.md`.
+- [x] Task 4.2: Spot-check five of the 85 tracks that remain flagged and
       confirm each has a genuine unanswered human comment as its latest turn,
       not bookkeeping. Record which five and what their last comment was.
-- [ ] Task 4.3: Confirm no `UPDATE`/`INSERT` migration is added anywhere for
+      Done, with an honest correction to what "genuine" turned up: a first
+      random sample of 5 flagged tracks (1067, 1089, 033, 1061, 141) all
+      turned out to be **legacy mislabeled bookkeeping**, not real human
+      speech — `REVIEW: PASS…`, `QUALITY GATE: PASS…`, `Session turn — …`,
+      `Brainstorm requested. …`, `## Review (addendum) — PASS`, all dated
+      2026-03 through 2026-08-09, i.e. all predating the 2026-08-15
+      `VALID_AUTHORS` fix that stopped `system` comments being coerced to
+      `human` (D3, already documented in spec.md). This is real, and it's
+      why Task 4.2 says "confirm," not "assume" — a broader query found ~41
+      of the 84 remaining flagged tracks carry at least one such legacy row.
+      This directly motivated re-investigating rather than accepting the
+      first sample, which is what surfaced Task 2.4's live parser bug (a
+      `PASS`-only comment on track 1017 dated 2026-09-06 — too recent to be
+      the known legacy source, traced to a different, still-live bug and
+      fixed). A genuine example does exist and was verified end-to-end:
+      project 158, track 1021, comment "This is the right design. Final
+      schema picture:" (2026-03-23) — real conversational human text,
+      followed only by a suppressed (`is_replied: true`) "Moved to
+      implement" bookkeeping row, correctly still flagged since REQ-1 says
+      no *non-suppressed* reply means still waiting. The predicate is
+      behaving correctly; the DB's remaining flagged set is a mix of that
+      correct behavior and pre-existing legacy debris that REQ-10
+      deliberately leaves unmigrated. Recorded in full in `conversation.md`.
+- [x] Task 4.3: Confirm no `UPDATE`/`INSERT` migration is added anywhere for
       this track, and that comment id 14487 (manually corrected out-of-band
       during triage) needs no special handling under the new derivation.
+      Confirmed: no migration script exists anywhere in this track's diff.
+      Comment 14487's manual `is_replied = TRUE` correction from triage is
+      inert under the new derivation (is_replied only ever matters at insert
+      time now) and needs no further action.
 
 **Impact**: Closes scope item 3 with a measured answer instead of a speculative
 data migration that would have had to guess which of the 306 human-ish rows
