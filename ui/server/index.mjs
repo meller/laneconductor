@@ -463,6 +463,19 @@ app.get('/api/projects/:id/workers/offline', async (req, res) => {
 // mergeable/stranded/conflicted/pr-open; the Kanban card needs the same
 // live, git-derived truth the Worktrees panel already has, not a second,
 // possibly-stale copy of it.
+//
+// Track 10076 (REQ-2): returns `{ rows, available }` rather than a bare
+// array. A track's `worktree_class` being null is ambiguous on its own —
+// it means either "genuinely nothing to merge" (a live worker reported and
+// this track has no unmerged branch) or "no signal at all" (no worker
+// reported in the last 60s — stopped, local-fs mode, mid-restart). Only
+// `available` tells those apart. Getting this wrong lets a stopped worker
+// make the board silently report every unmerged track as shipped — see
+// done-lane-bucket.mjs's own doc comment for the full reasoning.
+// `available` is project-wide (true iff ANY worker for this project
+// reported this cycle), matching the granularity `fetchWorktreeRows`
+// already queries at — per-track availability would need a second
+// worker-identity join this data doesn't carry.
 async function fetchWorktreeRows(projectId) {
   const result = await pool.query(
     `SELECT DISTINCT ON (hostname) hostname, worktrees, last_heartbeat
@@ -477,12 +490,12 @@ async function fetchWorktreeRows(projectId) {
     const wtRows = Array.isArray(hostRow.worktrees) ? hostRow.worktrees : [];
     for (const wt of wtRows) rows.push({ ...wt, host: hostRow.hostname });
   }
-  return rows;
+  return { rows, available: result.rows.length > 0 };
 }
 
 app.get('/api/projects/:id/worktrees', async (req, res) => {
   try {
-    const rows = await fetchWorktreeRows(req.params.id);
+    const { rows } = await fetchWorktreeRows(req.params.id);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -837,7 +850,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
     // never had a branch (non-dev work, or nothing to merge) or it's
     // already fully merged — auditWorktrees omits fully-merged branches
     // entirely, so "not in this map" IS the "really done" signal.
-    const worktreeRows = await fetchWorktreeRows(req.params.id);
+    const { rows: worktreeRows, available: worktreeClassAvailable } = await fetchWorktreeRows(req.params.id);
     const worktreeByTrack = new Map(worktreeRows.filter(r => r.track).map(r => [String(r.track), r]));
 
     res.json(result.rows.map(t => {
@@ -848,6 +861,12 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
         // null when there's no live unmerged branch for this track at all
         // (nothing to show — the common, actually-shipped case).
         worktree_class: wt?.class ?? null,
+        // Track 10076 (REQ-2): true iff a worker reported worktree state
+        // for this PROJECT this cycle — false means worktree_class above
+        // is a stale/absent signal, not "merged". A consumer must never
+        // treat worktree_class: null as "shipped" when this is false; see
+        // done-lane-bucket.mjs, the sole place that decision is made.
+        worktree_class_available: worktreeClassAvailable,
         worktree_pr_status: wt?.pr_status ?? null,
         worktree_pr_url: wt?.pr_url ?? null,
         worktree_pr_number: wt?.pr_number ?? null,

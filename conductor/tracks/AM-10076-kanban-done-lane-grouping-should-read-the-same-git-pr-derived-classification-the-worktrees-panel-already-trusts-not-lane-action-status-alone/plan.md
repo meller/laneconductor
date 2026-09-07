@@ -57,19 +57,19 @@ unusable as a truth source unless it can be told apart.
 **Solution**: `fetchWorktreeRows()` already knows whether any worker
 reported inside its 60s window — it just discards that fact.
 
-- [ ] Change `fetchWorktreeRows(projectId)` in `ui/server/index.mjs` to
+- [x] Change `fetchWorktreeRows(projectId)` in `ui/server/index.mjs` to
       return `{ rows, available }`, where `available` is true iff the
       `DISTINCT ON (hostname)` query matched at least one live-reporting
       worker. Update both call sites (`GET .../worktrees` and
       `GET .../tracks`).
-- [ ] `GET /api/projects/:id/tracks` adds `worktree_class_available` to
+- [x] `GET /api/projects/:id/tracks` adds `worktree_class_available` to
       every row (REQ-2), alongside the existing `worktree_class`,
       `worktree_pr_*`, `worktree_branch` fields.
-- [ ] Document at the field, in the same style as the surrounding Track
+- [x] Document at the field, in the same style as the surrounding Track
       10018 comment block, that `worktree_class: null` with
       `worktree_class_available: true` means "genuinely nothing to merge",
       and that the same `null` with `false` means "unknown — fall back".
-- [ ] Server test asserting both shapes (`test.md` TC-2.x).
+- [x] Server test asserting both shapes (`test.md` TC-2.x).
 
 **Impact**: One new field on the tracks payload. Purely additive; no
 existing consumer reads it yet.
