@@ -14,7 +14,7 @@ dependency the first pass flagged is therefore gone.
 
 ---
 
-## Phase 1: Instance state snapshot and setup-gap detection (REQ-12..REQ-13, REQ-16)
+## Phase 1: Instance state snapshot and setup-gap detection (REQ-12..REQ-13, REQ-16) ✅
 
 **Problem**: Scope items 4 and 5 both need the same thing — a cheap, deterministic answer
 to "what does this instance actually look like right now, and what is missing." Neither
@@ -23,24 +23,24 @@ already-configured user.
 **Solution**: Two pure modules with injected I/O (matching `stuck-track-sweep.mjs` and
 `orphan-worker-detection.mjs`), one CLI surface and one API surface over them. No UI yet.
 
-- [ ] Task 1.1: `conductor/services/instance-state.mjs` — pure module, all I/O injected,
+- [x] Task 1.1: `conductor/services/instance-state.mjs` — pure module, all I/O injected,
       returning `{ projects[], tracksByLane, workers[], providers, generatedAt }`.
-    - [ ] Per project: id, name, repo_path, track counts per lane, worker count
-    - [ ] Per worker: id, hostname, type, project_id, current_task, last_heartbeat,
+    - [x] Per project: id, name, repo_path, track counts per lane, worker count
+    - [x] Per worker: id, hostname, type, project_id, current_task, last_heartbeat,
           derived `online` using the same staleness window `isWorkerOffline` uses — import
           the threshold, do not restate it
-- [ ] Task 1.2: `conductor/services/setup-gaps.mjs` — pure module implementing spec.md
+- [x] Task 1.2: `conductor/services/setup-gaps.mjs` — pure module implementing spec.md
       D4's table, returning `[{ id, severity, subject, detail, remedy }]`.
-    - [ ] `severity` is exactly `blocking` or `advisory`; nothing else
-    - [ ] `remedy` is a concrete command or UI action string per gap, used verbatim by
+    - [x] `severity` is exactly `blocking` or `advisory`; nothing else
+    - [x] `remedy` is a concrete command or UI action string per gap, used verbatim by
           Phase 7's wizard message (REQ-19)
-- [ ] Task 1.3: `lc state --json` in `bin/lc.mjs` — serializes Task 1.1's snapshot with
+- [x] Task 1.3: `lc state --json` in `bin/lc.mjs` — serializes Task 1.1's snapshot with
       Task 1.2's gaps attached. Non-`--json` form prints a short human summary.
-- [ ] Task 1.4: `GET /api/state` in `ui/server/index.mjs` — same snapshot for the UI,
+- [x] Task 1.4: `GET /api/state` in `ui/server/index.mjs` — same snapshot for the UI,
       respecting the existing worker-visibility scoping (`AUTH_ENABLED` branch used by
       `/api/workers/:id/chat-history`), so a shared instance does not leak other users'
       workers through a new endpoint.
-- [ ] Task 1.5: Build the compact **digest** projection (D3) as a function of the snapshot,
+- [x] Task 1.5: Build the compact **digest** projection (D3) as a function of the snapshot,
       with a hard character budget and a test asserting it stays under it.
 
 **Impact**: A single authoritative source for instance state, usable by the CLI, the API,
@@ -48,7 +48,7 @@ the wizard gate, and the manager's own prompt — instead of four ad-hoc reads.
 
 ---
 
-## Phase 2: Live-turn affordances in the shared transcript reducer (REQ-20..REQ-24)
+## Phase 2: Live-turn affordances in the shared transcript reducer (REQ-20..REQ-24) ✅
 
 **Problem**: Scope item 7 asks for elapsed time, running tokens and a changing status line.
 All of it already arrives over the existing WS `session:event` channel and is discarded by
@@ -57,25 +57,25 @@ log).
 **Solution**: Extend the reducer to carry a `turn` object beside `blocks`, and render it.
 No worker change, no CLI-invocation change, no new endpoint.
 
-- [ ] Task 2.1: Extend `ui/src/lib/streamTranscript.js`'s state to
+- [x] Task 2.1: Extend `ui/src/lib/streamTranscript.js`'s state to
       `{ blocks, turn }` where `turn` = `{ active, startedAt, lastEventAt, outputTokens,
       contextTokens, activity, model, sessionId }`.
-    - [ ] `blocks` behaviour is byte-for-byte unchanged — existing tests must pass untouched
-    - [ ] `system/init` seeds `model`, `sessionId` and marks the turn active
-    - [ ] `assistant.timestamp` and `message.usage` drive `lastEventAt` and `contextTokens`,
+    - [x] `blocks` behaviour is byte-for-byte unchanged — existing tests must pass untouched
+    - [x] `system/init` seeds `model`, `sessionId` and marks the turn active
+    - [x] `assistant.timestamp` and `message.usage` drive `lastEventAt` and `contextTokens`,
           reusing `extractSessionContextTokens`'s rule (assistant events only, never
           `result` — its cache figure is cumulative across the run)
-    - [ ] `stream_event`/`message_delta` `usage.output_tokens` drives `outputTokens`
-    - [ ] `result` (or stream end) clears `active`
-- [ ] Task 2.2: Derive `activity` (REQ-21) from real events, in priority order:
+    - [x] `stream_event`/`message_delta` `usage.output_tokens` drives `outputTokens`
+    - [x] `result` (or stream end) clears `active`
+- [x] Task 2.2: Derive `activity` (REQ-21) from real events, in priority order:
       `content_block_start` with a `tool_use` block → that tool's name; `system/status` →
       its `status` value; `system/thinking_tokens` → thinking. Never a static fallback
       while active.
-- [ ] Task 2.3: Surface `turn` from `useTrackTranscript` alongside `blocks` and `rawLog`.
-- [ ] Task 2.4: `TurnStatusBar` component — elapsed timer (ticks while active, freezes on
+- [x] Task 2.3: Surface `turn` from `useTrackTranscript` alongside `blocks` and `rawLog`.
+- [x] Task 2.4: `TurnStatusBar` component — elapsed timer (ticks while active, freezes on
       end), token count, activity label. Renders nothing when `turn.active` is false and no
       tokens were seen, so a non-Claude raw-log run shows no empty chrome (REQ-24).
-- [ ] Task 2.5: Mount it in the three existing surfaces that already share the hook —
+- [x] Task 2.5: Mount it in the three existing surfaces that already share the hook —
       `TrackDetailPanel`, `WorkerActivityLatch`, `WorkerChatPanel` (AC-12).
 
 **Impact**: Every transcript surface in the app gains the affordances at once, with one
@@ -83,28 +83,28 @@ implementation. Independent of 10067 — shippable on its own.
 
 ---
 
-## Phase 3: The persistent Chat view and target switcher (REQ-1..REQ-5)
+## Phase 3: The persistent Chat view and target switcher (REQ-1..REQ-5) ✅
 
 **Problem**: Chat is three modals today, each scoped to something other than "a target I
 keep talking to."
 **Solution**: A real view in `viewMode`, with a target list and the existing transcript and
 composer pieces inside it.
 
-- [ ] Task 3.1: Add `'chat'` to `App.jsx`'s `viewMode` union and a **Chat** nav button
+- [x] Task 3.1: Add `'chat'` to `App.jsx`'s `viewMode` union and a **Chat** nav button
       beside CI/CD, ungated by `selectedProjectId` the way Projects is (REQ-1).
-- [ ] Task 3.2: `ChatView.jsx` — two-pane layout: target list left, transcript + composer
+- [x] Task 3.2: `ChatView.jsx` — two-pane layout: target list left, transcript + composer
       right. Reuses `useTrackTranscript`, `TranscriptView`, `TrackChatComposer`,
       `CommentBubble` and Phase 2's `TurnStatusBar`. **No second renderer.**
-- [ ] Task 3.3: Target list — the manager first and selected by default, then workers,
+- [x] Task 3.3: Target list — the manager first and selected by default, then workers,
       each row showing live status via the existing `workerStatus.js` helpers (REQ-3). The
       manager row renders here but only resolves to a usable target once Phase 4's resolver
       lands; until then it shows the transcript with a disabled composer, which is exactly
       today's behaviour rather than a new dead end.
-- [ ] Task 3.4: Persist the selected target across re-renders and project switches
+- [x] Task 3.4: Persist the selected target across re-renders and project switches
       (REQ-2), and preserve per-target scroll position on switch back (REQ-4).
-- [ ] Task 3.5: Add a Chat entry to `MobileMoreSheet` so the view is reachable on mobile
+- [x] Task 3.5: Add a Chat entry to `MobileMoreSheet` so the view is reachable on mobile
       without redesigning it for mobile (spec.md Out of Scope).
-- [ ] Task 3.6: Worker-target tier (D5) — for a worker target, resolve through the existing
+- [x] Task 3.6: Worker-target tier (D5) — for a worker target, resolve through the existing
       `resolveWorkerChatTarget` and post through the existing comments endpoint, i.e.
       10037's behaviour relocated into the persistent pane, not reimplemented.
 
