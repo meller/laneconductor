@@ -25,21 +25,21 @@ so it cannot use that module (spec.md D2).
 one line per key per interval, with an injectable clock so it is testable
 without fake timers (spec.md D6).
 
-- [ ] Write `cloud/functions/test/auth-log-throttle.test.js` first, per `test.md`
+- [x] Write `cloud/functions/test/auth-log-throttle.test.js` first, per `test.md`
       TC-1..TC-5. Run it and confirm it fails.
-- [ ] Create `cloud/functions/log-throttle.js` exporting a factory that returns a
+- [x] Create `cloud/functions/log-throttle.js` exporting a factory that returns a
       `shouldLog(key, nowMs)` predicate, keyed per call site (REQ-4).
-    - [ ] Interval resolves from `LC_AUTH_FAILURE_LOG_INTERVAL_MS` at call time,
+    - [x] Interval resolves from `LC_AUTH_FAILURE_LOG_INTERVAL_MS` at call time,
           defaulting to 60000 (REQ-3) — read at call time, not module load, so a
           test can change it without re-requiring the module. Matches
           `collector-health.mjs`'s own env-at-call-time behaviour.
-    - [ ] First call for a key always logs. Subsequent calls within the interval
+    - [x] First call for a key always logs. Subsequent calls within the interval
           do not. A call after the interval logs again and resets the window.
-    - [ ] Distinct keys never interfere (REQ-4).
-    - [ ] No unbounded growth: the key set is fixed and small (three call sites),
+    - [x] Distinct keys never interfere (REQ-4).
+    - [x] No unbounded growth: the key set is fixed and small (three call sites),
           so a plain object/Map is correct here — note this explicitly in a
           comment so nobody later reaches for an LRU that isn't needed.
-- [ ] Re-run and confirm green.
+- [x] Re-run and confirm green.
 
 **Impact**: New file, no behaviour change yet. Nothing imports it.
 
@@ -54,26 +54,29 @@ already logs, so this is a genuine inconsistency, not a house style.
 **Solution**: Replace both empty handlers with throttled `console.error` calls
 following the file's existing `[auth]`-prefixed convention.
 
-- [ ] Add the failing cases to `cloud/functions/test/api-tokens-hashing.test.js`
-      (or a sibling file — see the note below), per `test.md` TC-6..TC-11. Run
-      and confirm they fail.
-    - [ ] Note for the implementer: these must flush the microtask queue after
+- [x] Add the failing cases to a sibling file,
+      `cloud/functions/test/auth-fire-and-forget-logging.test.js`, per `test.md`
+      TC-6..TC-11. Run and confirm they fail.
+    - [x] Note for the implementer: these must flush the microtask queue after
           the request completes before asserting, because the rejection handler
           runs after the response is sent. `await new Promise(r => setImmediate(r))`.
           A test that asserts immediately after `await request(app)...` will pass
           vacuously whether or not the fix is present — verify each new test
           genuinely fails before the fix.
-- [ ] Wire line 265's rehash catch to log via the Phase 1 helper, key
+- [x] Wire line 265's rehash catch to log via the Phase 1 helper, key
       `rehash`.
-- [ ] Wire line 279's `last_used_at` catch to log via the same helper, key
+- [x] Wire line 279's `last_used_at` catch to log via the same helper, key
       `last_used_at` (REQ-2).
-- [ ] Keep both strictly fire-and-forget (REQ-6): no `await`, no change to the
+- [x] Keep both strictly fire-and-forget (REQ-6): no `await`, no change to the
       `return resolveWorkerIdentity(...)` flow, no new branch on the auth path.
-- [ ] Update the comment above line 265 — it currently justifies the
+- [x] Update the comment above line 265 — it currently justifies the
       fire-and-forget shape without mentioning that the failure is now observable.
-- [ ] Re-run the full `cloud/functions` suite and confirm green, including the
+- [x] Re-run the full `cloud/functions` suite and confirm green, including the
       pre-existing track 10070 tests (TC-5/TC-6/TC-7 there mock the rehash call
-      and must keep passing unchanged).
+      and must keep passing unchanged). (One pre-existing, unrelated failure in
+      `test/api.test.js`'s `/health` route-manifest assertion — confirmed present
+      on this branch before any Phase 1/2 change via `git stash`, not touched by
+      this track.)
 
 **Impact**: A failing rehash or `last_used_at` update becomes visible in Cloud
 Logging. No request-path behaviour change.
@@ -90,17 +93,18 @@ only way to know is the manual SQL query in the migration file.
 **Solution**: `auth()` already knows, because it just matched a plaintext row
 (spec.md D3). Log that observation, throttled, at `warn`.
 
-- [ ] Add `test.md` TC-12..TC-14 and confirm they fail.
-- [ ] Log a throttled `console.warn('[auth] api_tokens row still plaintext ...')`
+- [x] Add TC-12..TC-14 (in `auth-fire-and-forget-logging.test.js`) and confirm
+      TC-12 fails.
+- [x] Log a throttled `console.warn('[auth] api_tokens row still plaintext ...')`
       inside the existing `if (tokenRows[0].token === bearer)` branch, key
       `plaintext_observed`.
-    - [ ] Never include the bearer token, the raw row, or any prefix of either.
+    - [x] Never include the bearer token, the raw row, or any prefix of either.
           The whole point of track 10070 was to stop credentials being at rest;
           putting one in a log line would reintroduce the same class of problem
           in a different store. Log the fact and the workspace_id, nothing more.
-- [ ] Confirm a hashed row produces no warning (REQ-7) — the existing TC-7 in
+- [x] Confirm a hashed row produces no warning (REQ-7) — the existing TC-7 in
       `api-tokens-hashing.test.js` already pins that no UPDATE is issued; this
-      adds that no warning is emitted either.
+      adds that no warning is emitted either (TC-14).
 - [ ] Re-run and confirm green.
 
 **Impact**: "This deployment still holds plaintext credentials" becomes
@@ -117,22 +121,25 @@ to check convergence, and it documents a manual query.
 **Solution**: Document what each line means and what to do, next to the existing
 convergence guidance.
 
-- [ ] Add an operator note to
+- [x] Add an operator note to
       `migrations/20260906120000_hash_legacy_api_tokens.sql`'s comment block —
       it already carries the "after applying, this should return 0" guidance, so
       it is where someone chasing convergence already looks. Point at the log
       lines as the proactive counterpart to that manual query.
-- [ ] Document in the same place (or a short section in `conductor/product.md`'s
-      remote-api area, whichever reviewer prefers — decide during implementation,
-      do not do both):
-    - [ ] The Cloud Logging filter that finds all three lines.
-    - [ ] What each of the three means and the expected operator action:
+- [x] Documented in the same place (migration file comment block — chose this
+      over a `conductor/product.md` section since it sits directly beside the
+      existing manual-query guidance a convergence-chasing operator already
+      reads):
+    - [x] The Cloud Logging filter that finds all three lines (`[auth]`).
+    - [x] What each of the three means and the expected operator action:
           rehash failure → check database write permissions on `api_tokens`;
           `last_used_at` failure → same for `api_keys`, lower severity, purely
           cosmetic data loss; plaintext observed → run the bulk migration.
-    - [ ] That the throttle is per-instance (spec.md D5), so a burst of N
+    - [x] That the throttle is per-instance (spec.md D5), so a burst of N
           identical lines across a minute means N warm instances, not N failures.
-- [ ] Note `LC_AUTH_FAILURE_LOG_INTERVAL_MS` and its 60s default.
+- [x] Note `LC_AUTH_FAILURE_LOG_INTERVAL_MS` and its 60s default.
+- [x] TC-17 added (`auth-fire-and-forget-logging.test.js`), pinning that the
+      documented filter substring `[auth]` matches all three logged lines.
 
 **Impact**: The signals added in Phases 2–3 are actionable by someone who was not
 in this track.
@@ -148,3 +155,11 @@ Non-Goals.
 - A periodic convergence sweep or manager health-sweep integration (spec.md D3).
 - Any metrics or alerting backend beyond log lines and a documented filter.
 - Changes to the migration's SQL, the hashing scheme, or token rotation.
+
+## ✅ COMPLETE
+
+All 4 phases done. `grep -n "catch(() => {})" cloud/functions/index.js` returns
+nothing — both previously-empty catches now log, throttled. `cd cloud/functions
+&& npm test`: 87/88 pass; the one failure (`test/api.test.js`'s `/health`
+route-manifest assertion) is pre-existing on this branch, confirmed via `git
+stash` before any change in this track, and unrelated to auth()/log-throttle.
