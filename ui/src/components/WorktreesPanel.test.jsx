@@ -88,6 +88,17 @@ describe('WorktreesPanel — running-row transcript deep link', () => {
   // ever calling setLoading(false) — the effect that fires it always sets
   // loading true first, so the panel showed "Loading worktrees…"
   // indefinitely, with no error and no way to tell it wasn't just slow.
+  // Found live 2026-09-07: the auto-complete button always said the same
+  // static "Complete" regardless of how many lanes were actually left to
+  // run — misleading for a row still at `plan` (reads like "mark this
+  // track complete", not "run the next lane"). Names the real next lane
+  // instead, same order the Kanban board renders columns in.
+  it('TC-13: the auto-run button names the actual next lane, not a generic "Complete"', async () => {
+    await renderPanel([idleRow]); // idleRow: lane 'implement', class 'open'
+    const card = cardFor('19996');
+    expect(within(card).getByTestId('complete-and-merge-btn')).toHaveTextContent('Review');
+  });
+
   it('TC-12: with no project selected, shows "Select a Project" instead of spinning forever', async () => {
     mockWorktreesEndpoints([]);
     render(<WorktreesPanel projectId={null} onSelectTrack={vi.fn()} />);

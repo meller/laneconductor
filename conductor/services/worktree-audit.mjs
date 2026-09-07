@@ -167,6 +167,27 @@ function mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, br
   }
   const mainState = readTrackStateFromBranch(repoRoot, mainBranch, trackNumber);
   if (!mainState) return false;
+
+  // Found live 2026-09-07 (track 10067): with no merge-base, the fallback
+  // above has no way to distinguish "main genuinely reopened/discarded this
+  // independently" from "the done lane's own merge action just succeeded,
+  // and that success can only ever be recorded on the PRIMARY checkout
+  // (merging happens there by definition), one commit ahead of whatever the
+  // topic branch's own tip last said mid-pipeline (still 'queue' from the
+  // quality-gate → done handoff)." The latter is normal forward completion,
+  // not a reopen — main's status is a genuine terminal outcome the branch's
+  // own commit was always going to be superseded by, whether or not that
+  // branch's own history still has an ancestor to compare against. Confirmed
+  // live: this false positive made an already-shipped track (10067,
+  // done:success) show as 'open' with the "Complete" auto-run button still
+  // live, and clicking it re-ran the already-successful merge action for
+  // nothing.
+  if (!base && branchLane === mainState.lane && mainState.lane === 'done'
+    && ['queue', 'running'].includes(branchLaneStatus?.trim().toLowerCase())
+    && ['success', 'waiting'].includes(mainState.laneStatus?.trim().toLowerCase())) {
+    return false;
+  }
+
   if (baseLane === mainState.lane && baseLaneStatus === mainState.laneStatus) return false;
 
   if (mainState.laneStatus?.trim().toLowerCase() === 'running') {

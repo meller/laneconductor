@@ -4,6 +4,19 @@ import { computeWorktreeStats } from '../lib/worktreeStats.js';
 import { nextArmedState } from '../lib/armedConfirm.js';
 import { removeKey, mergeKey, completeKey, discardKey, computeStaleKeys } from '../lib/worktreePendingKeys.js';
 import { isWorktreeRowRunning } from '../lib/worktreeRunState.js';
+import { LANES } from './KanbanBoard.jsx';
+
+// The "Complete" button runs every remaining lane action in sequence — for
+// a row sitting at `plan`, that's a misleading label (it reads like "mark
+// this track complete", not "run the next lane"). Name the actual next
+// lane instead, same list/order the Kanban board itself renders columns
+// in. Falls back to 'Complete' for a lane not found in LANES (defensive)
+// or one already at the end (done has nothing further to run into).
+function nextLaneLabel(currentLane) {
+  const idx = LANES.findIndex(l => l.id === currentLane);
+  if (idx === -1 || idx === LANES.length - 1) return 'Complete';
+  return LANES[idx + 1].label;
+}
 
 const REC_STYLE = {
   warning: 'bg-amber-950/30 border-amber-800/60 text-amber-300',
@@ -388,7 +401,7 @@ function WorktreeRow({ row, onMerge, merging, onSelectTrack, onRemove, removing,
               : 'border-blue-800/60 bg-blue-950/30 text-blue-300 hover:bg-blue-900/40'
               }`}
           >
-            {autoCompleting ? 'Running…' : armedKey === `complete:${row.track}` ? 'Click again to run' : 'Complete'}
+            {autoCompleting ? 'Running…' : armedKey === `complete:${row.track}` ? 'Click again to run' : nextLaneLabel(row.lane)}
           </button>
         )}
         {/* Track 10035: the done lane's standard lane action — same

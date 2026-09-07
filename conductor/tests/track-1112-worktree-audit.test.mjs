@@ -500,6 +500,53 @@ describe('auditWorktrees()', () => {
     assert.equal(row.classification, 'open', 'a discarded track must not keep showing as pr-open/stranded just because merge-base can no longer prove the reopen');
   });
 
+  it('does not mistake a done lane action\'s own success (recorded on primary) for an independent reopen', async () => {
+    // Found live 2026-09-07 (track 10067): the fallback above (no
+    // merge-base) can't tell "main genuinely reopened this independently"
+    // apart from "the done lane's own merge action just succeeded, and
+    // that success can only ever land on the PRIMARY checkout" — merging
+    // happens there by definition, one commit ahead of whatever the topic
+    // branch's own tip last said mid-pipeline (still done:queue from the
+    // quality-gate handoff, never re-committed once the merge decided
+    // success). Confirmed live: this false positive made an
+    // already-shipped, pr-mode track (10067) show as 'open' with the
+    // "Complete" auto-run button still live — clicking it re-ran the
+    // already-successful merge action for nothing.
+    setupRepo();
+    writeTrackIndex(REPO, '207', 'Done Via Primary Not Reopened', 'plan', 'queue', 'Test.', null);
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m base');
+
+    git('worktree add -q -B track-207 .worktrees/207 HEAD');
+    const trackDir = join(REPO, '.worktrees/207', 'conductor/tracks/207-done-via-primary-not-reopened');
+    mkdirSync(trackDir, { recursive: true });
+    writeFileSync(join(trackDir, 'index.md'), [
+      '# Track 207: Done Via Primary Not Reopened', '',
+      '**Lane**: done', '**Lane Status**: queue', '**Progress**: 100%',
+      '**Merge Mode**: pr', '',
+    ].join('\n'));
+    git('add -A', join(REPO, '.worktrees/207'));
+    git('-c user.email=t@t -c user.name=t commit -q -m "track 207: quality-gate handed off to done"', join(REPO, '.worktrees/207'));
+
+    // Simulate the rewrite: main gets a brand-new, unrelated root commit —
+    // `git merge-base track-207 main` now returns nothing at all.
+    git('checkout -q --orphan main-rewritten');
+    git('-c user.email=t@t -c user.name=t commit -q --allow-empty -m "rewritten root"');
+    git('branch -f main main-rewritten');
+    git('checkout -q main');
+
+    // The done lane's own merge action just succeeded — recorded on the
+    // PRIMARY checkout only, same as every real merge action in this repo.
+    writeTrackIndex(REPO, '207', 'Done Via Primary Not Reopened', 'done', 'success', 'Test.', 'pr');
+    git('add -A'); git('-c user.email=t@t -c user.name=t commit -q -m "Track 207: merged — track shipped to main"');
+
+    assert.equal(git('merge-base track-207 main 2>&1 || true').trim(), '', 'sanity: the rewrite must leave no merge-base, or this test proves nothing new');
+
+    const rows = await auditWorktrees({ repoRoot: REPO, mainBranch: 'main' });
+    const row = rows.find(r => r.trackNumber === '207');
+    assert.ok(row, 'a still-unmerged-by-git branch must still be listed');
+    assert.equal(row.classification, 'pr-open', 'a normal done-lane success recorded on primary must not be mistaken for an independent reopen just because it landed one commit ahead of the branch\'s own mid-pipeline tip');
+  });
+
   it('fully resolves a dead "running" marker on main to mergeable — the exact track-10011/10014 shape', async () => {
     // Reproduces this repo's own track-10011 incident: an earlier, premature
     // merge landed the track on main while it was still mid-pipeline. Main's
