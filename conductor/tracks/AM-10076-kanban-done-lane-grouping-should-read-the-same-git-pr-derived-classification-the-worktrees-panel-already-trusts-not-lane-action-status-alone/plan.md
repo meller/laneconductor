@@ -122,38 +122,73 @@ runs when a human types `lc worktrees migrate-done-lane`.
 **Solution**: Run that same pure decision on the reconciler's normal cycle.
 Reuse, do not reimplement.
 
-- [ ] Add a `reconcileDoneLaneStatus()` pass in
+- [x] Add a `reconcileDoneLaneStatus()` pass in
       `conductor/laneconductor.sync.mjs`, driven by the `auditWorktrees()`
       rows `reconcileWorktrees()` already fetches this cycle — no second
-      audit, no extra git shelling.
-- [ ] Feed those rows to `planDoneLaneMigration(rows)` and act only on
+      audit, no extra git shelling. Called at the end of
+      `reconcileWorktrees()`, wrapped in its own try/catch.
+- [x] Feed those rows to `planDoneLaneMigration(rows)` and act only on
       `type: 'requeue-done-success'` actions. `correct-merge-mode` stays
       the migration command's business (it needs DB state this pass does
       not have).
-- [ ] Guards, all mandatory (REQ-6, REQ-7):
-    - [ ] Skip any track with a live lock in `.conductor/locks/` — mirror
-          `reconcileWorktrees()`'s own `existsSync` check, and reuse the
-          same dead-PID liveness reasoning `worktree-audit.mjs` documents.
-    - [ ] Route the `**Lane Status**` write through `shouldBlockLaneWrite()`
-          and no-op when blocked, like every other marker-write site.
-    - [ ] Demote-only. Assert in code and in test that no path here can
-          ever write `success`.
-    - [ ] Write only the primary checkout's `index.md` (REQ-8 single-writer,
-          same scoping `reconcilePrTracks()` uses).
-- [ ] Patch the collector: `lane_status: 'done', lane_action_status: 'queue'`.
-- [ ] Append one `system` comment naming the classification that triggered
+- [x] Guards, all mandatory (REQ-6, REQ-7):
+    - [x] Skip any track with a live lock in `.conductor/locks/` — new
+          `isLockLive()` helper, built on the shared `isPidAlive()`
+          (run-marker.mjs) this file already imports, same dead-PID
+          liveness reasoning `worktree-audit.mjs`'s
+          `mainHasReopenedTrackIndependently()` documents.
+    - [x] Route the `**Lane Status**` write through `applyGuardedLaneWrite`
+          (which calls `shouldBlockLaneWrite()` internally) and no-op when
+          blocked. Noted in code and in the test file: a same-lane
+          (`done` -> `done`) status change always passes this guard today
+          — it's wired for structural consistency with every other
+          marker-write site, not because this call site can trigger a
+          block currently.
+    - [x] Demote-only. The function only ever writes `intendedStatus:
+          'queue'`, gated on the on-disk status reading exactly `success`
+          first — there is no code path here that can write `success`.
+          TC-4.6 pins this: a `done:queue` track whose branch is fully
+          merged (absent from `rows` entirely) is never promoted.
+    - [x] Write only the primary checkout's `index.md` (REQ-8
+          single-writer, same scoping `reconcilePrTracks()` uses —
+          `process.cwd()`-rooted `tracksDir`).
+- [x] Patch the collector: `lane_status: 'done', lane_action_status: 'queue'`
+      via the existing `patchTrackPrFields()` helper (already a generic
+      fields-patcher despite its pr-flow-era name; already local-fs-safe).
+- [x] Append one `system` comment naming the classification that triggered
       it, per the Completion Comment Convention:
       `> **system**: ⚠️ Moved back to done:queue — branch track-NNN is still
       unmerged (<classification>) despite done:success. The merge action
       will re-claim it.`
-    - [ ] Guard on the current status so a track already at `queue` never
-          re-comments every 60s. This is the same idempotence trap
-          `reconcilePrTracks()` documents for its own transitions.
-- [ ] Runs on the existing `RECONCILE_INTERVAL_MS` schedule, in every mode
+    - [x] Guard on the current status so a track already at `queue` never
+          re-comments every cycle. Achieved by re-reading PRIMARY's own
+          on-disk `**Lane Status**` fresh on every pass (not trusting
+          `planDoneLaneMigration`'s row-sourced status, which is read from
+          the BRANCH's own committed content via `git show` and never
+          changes just because this function wrote primary's file) —
+          TC-4.2 pins this with a real second reconcile cycle.
+- [x] Runs on the existing `RECONCILE_INTERVAL_MS` schedule, in every mode
       including `local-fs` (worktrees are a git concept, not a DB one —
-      same reasoning `reconcileWorktrees()` records).
-- [ ] Tests (`test.md` TC-4.x), including the locked-track and
-      never-promotes cases.
+      same reasoning `reconcileWorktrees()` records; inherits
+      `reconcileWorktrees()`'s own `reconcile_worktrees === false` opt-out
+      too, since it's called from inside that function).
+- [x] Tests (`test.md` TC-4.x): `conductor/tests/track-10076-reconcile-done-status.test.mjs`,
+      a real-worker e2e suite (spawns the actual worker against a real,
+      throwaway git repo — `helpers/isolated-worker.mjs`) rather than a
+      pure-function unit test, since `laneconductor.sync.mjs` has no
+      import-safe entry point (top-level side effects) for a direct unit
+      test the way `worktree-audit.mjs`'s `auditWorktrees()` does. 7/7
+      pass: TC-4.1 (requeue + comment), TC-4.2 (idempotent second cycle),
+      TC-4.3 (live lock skipped), TC-4.4 (dead-PID lock proceeds), TC-4.5
+      (already-queue, no action), TC-4.6 (demote-only / never promotes),
+      TC-4.8 (non-done lane untouched). TC-4.7 (blocked write) and TC-4.9
+      (local-fs mode) are covered structurally/implicitly rather than by a
+      dedicated case — see the test file's own trailing comment for why.
+      **Local dev note**: run with `LC_TEST_REPO_ROOT=<this worktree>` —
+      `startIsolatedWorker()` deliberately always resolves the worker
+      script from the PRIMARY checkout (track AM-10045), so without the
+      override this suite silently exercises primary's on-disk code
+      instead of a worktree's in-progress changes. Not needed once merged.
 
 **Impact**: The stuck state stops being permanent without human
 intervention. This is the phase that turns a display fix into a correctness
