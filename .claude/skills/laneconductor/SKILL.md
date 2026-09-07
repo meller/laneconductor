@@ -131,6 +131,7 @@ make install-cli
 - `lc worker logs`: Stream the worker's activity logs.
 - `lc worker sync`: Manually trigger an immediate fan-out synchronization across all targets.
 - `lc status`: Show a Kanban board of tracks in the terminal (with worker health check).
+- `lc state [--json]`: Output live instance state snapshot and setup diagnostics (tracks per lane, workers, providers, gaps).
 - `lc ui [start|stop]`: Manage the Vite dashboard.
 - `lc new "Title" "Description"`: Create a new track.
 - `lc setup`: Initialize a new project with LaneConductor.
@@ -2244,6 +2245,7 @@ sites have been migrated so far (proof of concept, not a full migration) — new
 | `lc start` | Start heartbeat worker |
 | `lc stop` | Stop heartbeat worker |
 | `lc status` | Quick track list |
+| `lc state [--json]` | Output live instance state snapshot and setup gaps |
 | `lc ui start` | Start Vite dashboard |
 | `lc ui stop` | Stop Vite dashboard |
 

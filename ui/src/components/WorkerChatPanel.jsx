@@ -4,7 +4,7 @@ import { TrackChatComposer } from './TrackChatComposer.jsx';
 import { CommentBubble } from './CommentBubble.jsx';
 import { useTrackTranscript } from '../lib/useTrackTranscript.js';
 import { useTrackComments } from '../lib/useTrackComments.js';
-import { resolveWorkerChatTarget } from '../lib/workerTaskInfo.js';
+import { resolveWorkerChatTarget, resolveTargetRunLiveness } from '../lib/workerTaskInfo.js';
 
 // Track 10037 Phase 3: a chat panel for ONE worker, openable from the
 // strip and the Machine Workers view. Reuses the exact Live Transcript
@@ -29,6 +29,13 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
   const { comments, setComments } = useTrackComments(target?.projectId, target?.trackNumber);
 
   const hostname = worker?.hostname || 'worker';
+
+  const runLiveness = resolveTargetRunLiveness({
+    target,
+    workers: worker ? [worker] : [],
+    tracks: [],
+    turn,
+  });
 
   return (
     <>
@@ -86,6 +93,8 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
           disabledHint="No track to talk about — this worker has no running or last-context track"
           placeholder={`Send a message about track #${target?.trackNumber}…`}
           onSent={(comment) => setComments(prev => [...prev, comment])}
+          isLiveTurn={runLiveness.isLive}
+          liveAction={runLiveness.action}
         />
       </div>
     </>

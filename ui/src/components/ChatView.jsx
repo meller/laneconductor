@@ -3,9 +3,10 @@ import { TranscriptView } from './TranscriptView.jsx';
 import { TurnStatusBar } from './TurnStatusBar.jsx';
 import { TrackChatComposer } from './TrackChatComposer.jsx';
 import { CommentBubble } from './CommentBubble.jsx';
+import { useApi } from '../hooks/useApi.js';
 import { useTrackTranscript } from '../lib/useTrackTranscript.js';
 import { useTrackComments } from '../lib/useTrackComments.js';
-import { parseWorkerTask, resolveWorkerChatTarget } from '../lib/workerTaskInfo.js';
+import { parseWorkerTask, resolveWorkerChatTarget, resolveTargetRunLiveness } from '../lib/workerTaskInfo.js';
 import { isWorkerOffline } from '../lib/workerStatus.js';
 
 // Track 10069 Phase 3 (REQ-1..REQ-5): one persistent Chat view with a
@@ -47,6 +48,28 @@ export function targetLabel(worker, tracks = []) {
 const DEFAULT_PAGE_SIZE = 30;
 
 export function ChatView({ projectId, workers = [], tracks = [] }) {
+  const { apiFetch } = useApi();
+  const [gaps, setGaps] = useState([]);
+  const [advisoryDismissed, setAdvisoryDismissed] = useState(false);
+
+  // Track 10069 Phase 7 (REQ-17..REQ-19): fetch state and setup gaps
+  useEffect(() => {
+    let cancelled = false;
+    const url = projectId ? `/api/state?project_id=${projectId}` : '/api/state';
+    apiFetch(url)
+      .then(res => res && res.ok ? res.json() : null)
+      .then(data => {
+        if (!cancelled && data?.gaps) {
+          setGaps(data.gaps);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [projectId, apiFetch]);
+
+  const blockingGaps = gaps.filter(g => g.severity === 'blocking');
+  const advisoryGaps = gaps.filter(g => g.severity === 'advisory');
+
   const manager = workers.find(w => w.type === 'manager');
   const nonManagerWorkers = workers.filter(w => w.type !== 'manager');
   const targets = [manager, ...nonManagerWorkers].filter(Boolean);
@@ -69,6 +92,13 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
 
   const { blocks, turn, rawLog } = useTrackTranscript(chatTarget?.projectId, chatTarget?.trackNumber);
   const { comments, setComments } = useTrackComments(chatTarget?.projectId, chatTarget?.trackNumber);
+
+  const runLiveness = resolveTargetRunLiveness({
+    target: chatTarget,
+    workers,
+    tracks,
+    turn,
+  });
 
   // Reset pagination and scroll to bottom when switching target
   useEffect(() => {
@@ -123,7 +153,46 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
               </span>
             </div>
             <TurnStatusBar turn={turn} />
+            {advisoryGaps.length > 0 && !advisoryDismissed && (
+              <div className="bg-blue-950/40 border-b border-blue-900/60 px-4 py-2 flex items-center justify-between text-xs text-blue-200 shrink-0" data-testid="advisory-gaps-note">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span>ℹ️</span>
+                  <span className="truncate">
+                    {advisoryGaps.map(g => `${g.subject}: ${g.remedy}`).join(' | ')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdvisoryDismissed(true)}
+                  className="text-blue-400 hover:text-blue-200 text-xs ml-3 shrink-0"
+                  data-testid="dismiss-advisory-gaps"
+                >
+                  ✕ Dismiss
+                </button>
+              </div>
+            )}
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4" data-testid="chat-scroll-container">
+              {blockingGaps.length > 0 && (
+                <div className="bg-amber-950/40 border border-amber-800/80 rounded-lg p-4 mb-4" data-testid="wizard-opening-message">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-amber-400 font-semibold text-sm">⚠️ Setup Incomplete</span>
+                  </div>
+                  <p className="text-gray-300 text-xs mb-3">
+                    The following blocking setup gaps were detected. Follow the remedies below to complete setup:
+                  </p>
+                  <div className="space-y-2">
+                    {blockingGaps.map(gap => (
+                      <div key={gap.id} className="bg-black/40 border border-amber-900/50 rounded p-2.5 text-xs">
+                        <div className="font-medium text-amber-200">{gap.subject}</div>
+                        <div className="text-gray-400 mt-0.5">{gap.detail}</div>
+                        <div className="text-blue-400 font-mono text-[11px] mt-1.5 bg-gray-950/60 p-1.5 rounded">
+                          Remedy: {gap.remedy}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {!chatTarget ? (
                 <p className="text-gray-600 text-sm italic pt-4">This worker has no running or recent track — nothing to talk about yet.</p>
               ) : (
@@ -168,6 +237,8 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
               disabledHint="No track to talk about — this worker has no running or last-context track"
               placeholder={`Message ${targetLabel(selectedWorker, tracks)}…`}
               onSent={(comment) => setComments(prev => [...prev, comment])}
+              isLiveTurn={runLiveness.isLive}
+              liveAction={runLiveness.action}
             />
           </>
         )}

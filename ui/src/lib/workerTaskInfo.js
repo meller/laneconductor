@@ -62,3 +62,53 @@ export function resolveWorkerChatTarget(worker, fallbackProjectId) {
 
   return null;
 }
+
+// Track 10069 Phase 6 (REQ-9..REQ-11, Task 6.1): derive target run liveness
+// (whether a run is actively in-flight on the target's track) and what action
+// it is running. Pure derivation from transcript turn, workers list, and tracks list.
+export function resolveTargetRunLiveness({ target, workers = [], tracks = [], turn = null } = {}) {
+  if (!target || !target.trackNumber) {
+    return { isLive: false, action: null };
+  }
+
+  const trackNumStr = String(target.trackNumber);
+
+  // 1. Live stream-json turn active in transcript (via WS session:event)
+  if (turn?.active) {
+    return {
+      isLive: true,
+      action: turn.activity || 'turn',
+    };
+  }
+
+  // 2. Active busy worker on this track
+  for (const w of workers) {
+    if (w && w.status === 'busy' && w.current_task) {
+      const task = parseWorkerTask(w.current_task);
+      if (task?.kind === 'track' && String(task.trackNumber) === trackNumStr) {
+        const m = w.current_task.match(/^(?:auto-)?(\S+)\s+track\s+/i);
+        let action = m ? m[1] : null;
+        if (action === 'local-fs-answer' || action === 'conversation-reply') {
+          action = 'reply';
+        }
+        return {
+          isLive: true,
+          action: action || 'busy',
+        };
+      }
+    }
+  }
+
+  // 3. Track lane_action_status is running (for numbered tracks)
+  if (trackNumStr !== 'manager' && Array.isArray(tracks)) {
+    const matchedTrack = tracks.find(t => String(t.track_number) === trackNumStr);
+    if (matchedTrack && matchedTrack.lane_action_status === 'running') {
+      return {
+        isLive: true,
+        action: matchedTrack.lane_status || 'running',
+      };
+    }
+  }
+
+  return { isLive: false, action: null };
+}

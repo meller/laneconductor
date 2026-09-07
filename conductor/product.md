@@ -142,6 +142,7 @@ honest upgrade path: each column to the right is a reason to install more.
 | Session continuity across lane actions (`--resume`), bounded (track 10047) | n/a (one human session) | ✅ | ✅ | ✅ |
 | Live model discovery from the machine (heartbeat) | ❌ | ❌ no collector to report to | ✅ | ✅ |
 | Kanban dashboard, Inbox, conversation UI | ❌ | ❌ | ✅ `localhost:8090` | ✅ cloud URL |
+| Persistent Chat surface, target switcher, live streaming & setup wizard | ❌ | ❌ | ✅ `localhost:8090` | ✅ cloud URL |
 | Worker dispatch / manual "run this on that worker" | ❌ | ❌ | ✅ | ✅ |
 | Multi-machine / team coordination, worker identity | ❌ | git locks only | ✅ single machine | ✅ full |
 

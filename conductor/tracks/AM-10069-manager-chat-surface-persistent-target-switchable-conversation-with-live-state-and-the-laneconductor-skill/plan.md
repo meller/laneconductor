@@ -255,38 +255,38 @@ tool-backed answers from.
 
 ---
 
-## Phase 6: Queued intervention semantics (REQ-9..REQ-11)
+## Phase 6: Queued intervention semantics (REQ-9..REQ-11) ✅
 
 **Problem**: Sending during a live turn appears to work and silently does nothing for the
 duration of that turn — the deferral at `laneconductor.sync.mjs:6866` is correct behaviour
 that the UI does not communicate.
 **Solution**: Make the queueing visible and self-resolving. No mid-stream injection (D1).
 
-- [ ] Task 6.1: Expose per-target run liveness to the UI — whether a run marker is live for
-      the target's track, and what action it is running. Prefer deriving it from data the
-      workers/tracks endpoints already return; add a field only if genuinely absent.
-- [ ] Task 6.2: Composer shows **queued** state on send during a live turn, naming what it
+- [x] Task 6.1: Expose per-target run liveness to the UI — whether a run marker is live for
+      the target's track, and what action it is running. Derived pure helper `resolveTargetRunLiveness`
+      from workers, tracks, and WS turn stream.
+- [x] Task 6.2: Composer shows **queued** state on send during a live turn, naming what it
       is waiting on (REQ-9), instead of an unqualified "Sending…".
-- [ ] Task 6.3: Clear the queued state when the reply turn picks the message up, driven by
-      the existing WS events rather than a new poll (REQ-10).
-- [ ] Task 6.4: Wording review — nothing in the pane may imply the running turn is being
+- [x] Task 6.3: Clear the queued state when the reply turn picks the message up, driven by
+      the existing WS events (`session:event`) rather than a new poll (REQ-10).
+- [x] Task 6.4: Wording review — nothing in the pane may imply the running turn is being
       interrupted (REQ-11).
 
 **Impact**: The one behaviour most likely to read as "the chat is broken" becomes legible.
 
 ---
 
-## Phase 7: Conditional setup wizard (REQ-17..REQ-19)
+## Phase 7: Conditional setup wizard (REQ-17..REQ-19) ✅
 
 **Problem**: A new instance needs guidance; a configured one must not be nagged, and must
 not pay a model turn for the system to decide that.
 **Solution**: Gate on Phase 1's deterministic gap list; render the opening message client-side.
 
-- [ ] Task 7.1: On opening the Chat view, fetch `GET /api/state` and read its gaps.
-- [ ] Task 7.2: Render the wizard opening message only when a **blocking** gap exists
+- [x] Task 7.1: On opening the Chat view, fetch `GET /api/state` and read its gaps.
+- [x] Task 7.2: Render the wizard opening message only when a **blocking** gap exists
       (REQ-17), naming each gap and its `remedy` verbatim from Phase 1 (REQ-19).
-- [ ] Task 7.3: Advisory gaps render as a dismissible header note, never an opening message.
-- [ ] Task 7.4: Assert the zero-gap path is inert: no `worker_dispatch` row, no spawned
+- [x] Task 7.3: Advisory gaps render as a dismissible header note, never an opening message.
+- [x] Task 7.4: Assert the zero-gap path is inert: no `worker_dispatch` row, no spawned
       process, no comment written (REQ-18 / AC-10).
 
 **Impact**: First-run guidance that costs nothing on every subsequent run.
@@ -313,9 +313,9 @@ worker.
       created, a worker answers within one auto-launch cycle, the pseudo-track appears on no
       board and in no `tracks.md`, and the worker log carries no failed
       `/track/manager/comment` POSTs.
-- [ ] Task 8.5: Update `conductor/product.md`'s feature-availability table with a Chat row,
+- [x] Task 8.5: Update `conductor/product.md`'s feature-availability table with a Chat row,
       and document `lc state` in the skill's command reference.
-- [ ] Task 8.6: Re-check spec.md's Out of Scope list against what actually shipped; anything
+- [x] Task 8.6: Re-check spec.md's Out of Scope list against what actually shipped; anything
       deferred stays deferred and unchecked, and the track does not reach 100% while a
       Solution-level capability is missing.
 

@@ -4,7 +4,7 @@
 // show — a track's live transcript, or a deploy dispatch's raw log.
 
 import { describe, it, expect } from 'vitest';
-import { parseWorkerTask, resolveWorkerChatTarget } from './workerTaskInfo.js';
+import { parseWorkerTask, resolveWorkerChatTarget, resolveTargetRunLiveness } from './workerTaskInfo.js';
 
 describe('parseWorkerTask', () => {
   it('returns null for an idle worker (no current_task)', () => {
@@ -82,5 +82,55 @@ describe('resolveWorkerChatTarget', () => {
   it('returns null for a null/undefined worker', () => {
     expect(resolveWorkerChatTarget(null, 1)).toBeNull();
     expect(resolveWorkerChatTarget(undefined, 1)).toBeNull();
+  });
+});
+
+describe('resolveTargetRunLiveness', () => {
+  it('returns not live for null or missing target', () => {
+    expect(resolveTargetRunLiveness({ target: null })).toEqual({ isLive: false, action: null });
+    expect(resolveTargetRunLiveness({ target: { trackNumber: null } })).toEqual({ isLive: false, action: null });
+  });
+
+  it('detects live turn from transcript stream state', () => {
+    const target = { trackNumber: '42', projectId: 1 };
+    const turn = { active: true, activity: 'Thinking…' };
+    expect(resolveTargetRunLiveness({ target, turn })).toEqual({ isLive: true, action: 'Thinking…' });
+  });
+
+  it('detects live run from a busy worker task on the same track', () => {
+    const target = { trackNumber: '42', projectId: 1 };
+    const workers = [
+      { id: 1, status: 'busy', current_task: 'implement track 42' },
+      { id: 2, status: 'idle', current_task: null },
+    ];
+    expect(resolveTargetRunLiveness({ target, workers })).toEqual({ isLive: true, action: 'implement' });
+  });
+
+  it('detects live reply from a manager reply task', () => {
+    const target = { trackNumber: 'manager', projectId: 1 };
+    const workers = [
+      { id: 1, status: 'busy', current_task: 'local-fs-answer track manager' },
+    ];
+    expect(resolveTargetRunLiveness({ target, workers })).toEqual({ isLive: true, action: 'reply' });
+  });
+
+  it('detects live run from track lane_action_status', () => {
+    const target = { trackNumber: '42', projectId: 1 };
+    const tracks = [
+      { track_number: '42', lane_status: 'plan', lane_action_status: 'running' },
+    ];
+    expect(resolveTargetRunLiveness({ target, tracks })).toEqual({ isLive: true, action: 'plan' });
+  });
+
+  it('returns not live for idle target with no active runs', () => {
+    const target = { trackNumber: '42', projectId: 1 };
+    const workers = [
+      { id: 1, status: 'idle', current_task: null },
+      { id: 2, status: 'busy', current_task: 'implement track 99' },
+    ];
+    const tracks = [
+      { track_number: '42', lane_status: 'plan', lane_action_status: 'queue' },
+    ];
+    expect(resolveTargetRunLiveness({ target, workers, tracks })).toEqual({ isLive: false, action: null });
   });
 });
