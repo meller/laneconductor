@@ -1,8 +1,8 @@
 # Track AM-10080: Composer smart autocomplete for @file mentions, @track references, and /slash commands
 
-**Lane**: backlog
+**Lane**: plan
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Unplanned
 **Type**: dev
