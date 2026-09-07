@@ -1,10 +1,11 @@
 # Track AM-10077: Track 10050's real unshipped work is stuck behind a duplicate-folder split between its worktree and primary checkout
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 10%
+**Phase**: Planning complete — 4 phases defined
 **Type**: dev
+**Track Kind**: bug
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Track 10050 has real unshipped Phase 1-5 work but is misclassified pr-open and entangled in a known duplicate-folder split (TU-10050 vs 10050) — needs manual reconciliation, not an automatic fallback.
