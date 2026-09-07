@@ -1,7 +1,7 @@
 # Track AM-10077: Track 10050's real unshipped work is stuck behind a duplicate-folder split between its worktree and primary checkout
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Planning complete — 4 phases defined
 **Type**: dev
@@ -72,3 +72,4 @@ fallback order.
    since right now it's unclear whether that copy's `direct` marker predates
    or postdates the duplicate-folder confusion.
 **Merge Mode**: direct
+**Auto Run**: yes
