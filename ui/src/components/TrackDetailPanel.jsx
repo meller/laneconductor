@@ -594,7 +594,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
     try {
       const r = await apiFetch(`/api/projects/${projectId}/tracks/${trackNumber}/comments`, {
         method: 'POST',
-        body: JSON.stringify({ author: 'human', body: body || `Triggering ${command}...`, no_wake: noWake, command }),
+        body: JSON.stringify({ author: 'human', body: body || `Triggering ${command}...`, is_replied: !body, no_wake: noWake, command }),
       });
       if (r.ok) {
         const comment = await r.json();

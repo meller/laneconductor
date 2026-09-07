@@ -37,6 +37,7 @@ const pool = new pg.Pool({
 
 import { randomUUID } from 'crypto';
 import { loadAuthConfig, requireAuth, AUTH_ENABLED } from '../../ui/server/auth.mjs';
+import { PROVIDER_IDS } from '../providers.mjs';
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -571,7 +572,7 @@ app.post('/track/:num/comment', auth, async (req, res) => {
     const projectId = req.worker_project_id || (req.query.project_id ? parseInt(req.query.project_id) : project.id);
     const { author = 'human', body } = req.body;
     if (!body) return res.status(400).json({ error: 'body is required' });
-    const VALID_AUTHORS = ['human', 'claude', 'gemini'];
+    const VALID_AUTHORS = ['human', 'system', ...PROVIDER_IDS];
     const safeAuthor = VALID_AUTHORS.includes(author) ? author : 'human';
 
     const trackRes = await pool.query(
@@ -587,21 +588,15 @@ app.post('/track/:num/comment', auth, async (req, res) => {
       [trackId, safeAuthor, body, req.body.is_replied === true]
     );
 
-    // Business logic: human comment → wake worker; AI "Answered" → mark human replied
+    // Business logic: human comment → wake worker. Whether a human comment
+    // still needs a reply is derived at read time from comment ordering, not
+    // tracked here — see HUMAN_NEEDS_REPLY_SQL in ui/server/index.mjs
+    // (track 10072).
     if (safeAuthor === 'human') {
       await pool.query(
         `UPDATE tracks SET lane_action_status = 'queue', lane_action_result = NULL
          WHERE id = $1 AND lane_status IN('planning', 'in-progress', 'review', 'quality-gate')
            AND lane_action_status != 'running'`,
-        [trackId]
-      );
-    } else if (body.includes('Answered') || body.toLowerCase().includes('i updated') || body.toLowerCase().includes('done')) {
-      await pool.query(
-        `UPDATE track_comments SET is_replied = TRUE
-         WHERE id = (
-      SELECT id FROM track_comments WHERE track_id = $1 AND author = 'human'
-           ORDER BY created_at DESC LIMIT 1
-         )`,
         [trackId]
       );
     }
