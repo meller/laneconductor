@@ -66,6 +66,16 @@ mode — it only writes the track's own docs, and the worktree for a
 `branch`-mode track is created lazily at the first lane action that
 needs one (normally `implement`), not at track creation.
 
+**Worktree base (Track 10050):** when that lazy creation happens for a
+genuinely new `track-NNN` branch, its start point is the freshest base
+that loses nothing — local `<main>` fast-forwarded where possible, the
+remote ref directly when local has nothing unique to lose, and local
+`<main>` (never `origin/<main>` blindly) whenever local carries commits
+the remote doesn't have yet. See `conductor/product.md`'s "Worktree base
+resolution" for the full table. A **resumed** branch (one that already
+exists) is never re-based onto a fresher point — same track-1114
+guarantee as the git-lock/worktree section above.
+
 Two markers control this, in `index.md`:
 - `**Workspace**: main|branch` — a deliberate, explicit choice (set by a
   human, `lc new --workspace`, or a track detail panel control). Always
