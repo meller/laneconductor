@@ -14,20 +14,20 @@ quarantine retired, which is why this problem recurred four times across session
 **Solution**: Make quarantine output invisible to git and to every scan, and give it a
 durable log.
 
-- [ ] Task 1.1: Add `conductor/tracks/_duplicate-*/` and `conductor/tracks/_quarantine-*/`
+- [x] Task 1.1: Add `conductor/tracks/_duplicate-*/` and `conductor/tracks/_quarantine-*/`
       to `.gitignore`.
-- [ ] Task 1.2: `git rm -r --cached` the 34 `_duplicate-*` and 11 `_quarantine-*` folders.
+- [x] Task 1.2: `git rm -r --cached` the 34 `_duplicate-*` and 11 `_quarantine-*` folders.
       Files stay on disk; only tracking is dropped. Commit separately from any code change
       so the diff is reviewable.
-- [ ] Task 1.3: Widen `isTrackDirName()` (`conductor/laneconductor.sync.mjs:1921`) from
+- [x] Task 1.3: Widen `isTrackDirName()` (`conductor/laneconductor.sync.mjs:1921`) from
       `!name.startsWith('_duplicate-')` to `!name.startsWith('_')`. Update the comment to
       explain the rule is "underscore prefix means bookkeeping", stable against future
       quarantine prefixes.
-- [ ] Task 1.4: Apply the same exclusion to the other scanners that filter track dirs by
+- [x] Task 1.4: Apply the same exclusion to the other scanners that filter track dirs by
       a bare `/\d+/` or `/^\d+-/` test: `bin/lc.mjs:2138`, `:2377`, `:2647`;
       `ui/server/build-manager.mjs:142`, `:250`; `conductor/init-tracks-summary.mjs:32`;
       `scripts/summarize.mjs:8`.
-- [ ] Task 1.5: Append a `conductor/tracks/.quarantine-log` line (gitignored) on every
+- [x] Task 1.5: Append a `conductor/tracks/.quarantine-log` line (gitignored) on every
       quarantine: ISO timestamp, track number, winner, loser, and the reason
       `decideTrackFolder` gave.
 
