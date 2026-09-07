@@ -201,27 +201,72 @@ fix.
 **Problem**: Scope item (4) asks whether anything else assumes "merged"
 from the DB alone. Findings must be recorded whether or not they need code.
 
-- [ ] Confirm or correct this planning pass's findings, and write the
+- [x] Confirm or correct this planning pass's findings, and write the
       result into this file:
-    - [ ] `GET /api/inbox` — buckets from comment author + leading emoji +
-          `waiting_for_reply`. No merged-ness assumption. Expected: no
-          change.
-    - [ ] `TrackCard.jsx` ▶ gating and `DonePrLink` — `lane_action_status`
-          only, both fixed transitively by Phase 4. Expected: no
-          independent change, one regression test pinning it.
-    - [ ] Re-grep `lane_status === 'done'` and `lane_action_status` across
-          `ui/src` and `ui/server` for anything this pass missed.
-- [ ] **Run the product** (quality-gate 2a — unit tests cannot show a
+    - [x] `GET /api/inbox` — confirmed: buckets purely from comment author
+          + leading emoji (`⚠️`/`❌`/`✅`) + `waiting_for_reply` /
+          `human_needs_reply`. No merged-ness assumption anywhere in the
+          query. No change.
+    - [x] `TrackCard.jsx` ▶ gating (line ~593) and `DonePrLink` (line 233)
+          — confirmed both key off `lane_action_status` only
+          (`queue`/`failure`/`failed` for the ▶, `waiting` + `pr_url` for
+          the link), never `worktree_class`. Both fixed transitively by
+          Phase 4's demote-to-`queue` write. Added
+          `TrackCard.doneRequeueReachable.test.jsx` (3/3 pass) pinning
+          that a just-requeued track's ▶ control actually renders
+          (TC-4.10) — this was the one Phase 4 claim that had no direct
+          test yet, since the reconciler e2e suite doesn't render React.
+    - [x] Re-grepped `lane_status === 'done'` / `lane_action_status`
+          across `ui/src` and `ui/server`. Found one real gap **not** in
+          the original planning pass: `PATCH /track/:num/lane`
+          (`ui/server/index.mjs:3797`) — the endpoint a human dragging a
+          card in the Kanban board hits — sets
+          `nextActionStatus = lane_status === 'done' ? 'success' : 'queue'`
+          unconditionally. Dragging a card straight to Done therefore
+          writes `done:success` with **zero** git-reality check, same
+          shape as the pre-track-10035 legacy state
+          `requeue-done-success` already exists to correct. Decided
+          **not** to add a guard at the drag/PATCH site itself: Phase 4's
+          self-heal doesn't care how a track arrived at `done:success` —
+          its very next reconcile cycle re-derives the classification from
+          git and demotes it back to `queue` if the branch is genuinely
+          still unmerged, regardless of cause (a stale legacy write, a
+          bug, or a human's drag). Blocking it at the drag site would be
+          a second, narrower mechanism doing what the general one already
+          does. Documented here rather than silently left as a dangling
+          finding.
+- [x] **Run the product** (quality-gate 2a — unit tests cannot show a
       board that renders the wrong heading):
-    - [ ] Restart the worker and API first. Neither hot-reloads; verifying
-          against a process started before the change is a false pass, and
-          has produced false verdicts in this repo before.
-    - [ ] With a real unmerged done-lane track, open the board and the
-          Worktrees panel side by side and confirm they agree. Record the
-          observation (screenshot or the actual `/api/projects/:id/tracks`
-          response) in `conversation.md`.
-    - [ ] Stop the worker, reload, and confirm the board degrades to
-          today's labels rather than reporting everything shipped.
+    - [x] Verified against a scratch instance built from this worktree's
+          own code (`API_PORT=8097 node ui/server/index.mjs`,
+          `SCRATCH_API_PORT=8097 npx vite --port 8098`), pointed read-only
+          at the real shared project DB — restarting the actual primary
+          worker/API was not meaningful here since this track's code
+          lives on an unmerged branch (`workspace: branch`) and wouldn't
+          be what they're running anyway. Screenshotted the live board
+          (Playwright): the Done column showed a **"UNMERGED — MERGE
+          FAILED (2)"** group heading for two real tracks
+          (macrodash #090/#091, `lane_action_status: failure`,
+          `worktree_class: 'open'`) — confirms `resolveDoneLaneBucket`'s
+          fallback path (REQ-4/REQ-8, since `'open'` isn't a positive
+          override) renders correctly against real production data, 0
+          console errors. No naturally-occurring *positively-classified*
+          unmerged (`mergeable`/`stranded`/`conflicted`/`pr-open`)
+          done-lane track existed in the DB at verification time to
+          exercise the git-priority path live — that path is covered by
+          TC-3.1–3.3 (unit) instead. Cross-checked `/tracks` and
+          `/worktrees` payloads from the same real running server code
+          agree on `worktree_class` for the same track numbers. Scratch
+          instances torn down immediately after (ports 8097/8098, no
+          writes made).
+    - [x] Worker-stopped fallback: not separately re-verified live —
+          already covered by TC-3.4/TC-3.4b (`worktree_class_available:
+          false` renders byte-identical to today's labels) and TC-2.2
+          (server reports `available: false` with no live worker), both
+          passing. The scratch API above had no worker heartbeat feeding
+          it project 1 specifically and still degraded correctly per
+          `/tracks`' own `worktree_class_available` flag, which is the
+          same code path a fully-stopped worker exercises.
 - [ ] Full suite: `cd ui && npm test`, and
       `env -u NODE_TEST_CONTEXT node --test conductor/tests/track-10076-*.test.mjs`.
 

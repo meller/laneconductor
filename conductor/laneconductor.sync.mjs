@@ -4743,16 +4743,13 @@ async function mergeAndRemoveWorktree(trackNumber) {
 // machine) put it there. Idempotent, quiet when there's nothing to do
 // (REQ-4), and skips anything actively locked by a running worker (REQ-5).
 async function reconcileWorktrees() {
-  console.error('[DEBUG] reconcileWorktrees called, mainBranch will be', getMainBranch());
   if (getGitConfig().reconcile_worktrees === false) return;
 
   const mainBranch = getMainBranch();
   let rows;
   try {
     rows = await auditWorktrees({ repoRoot: process.cwd(), mainBranch });
-    console.error('[DEBUG] rows.length =', rows.length);
   } catch (err) {
-    console.error('[DEBUG] audit threw:', err.stack);
     console.error(`[reconcile] Audit failed: ${err.message}`);
     return;
   }
