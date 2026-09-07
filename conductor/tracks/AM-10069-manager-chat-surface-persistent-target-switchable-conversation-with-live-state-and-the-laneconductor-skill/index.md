@@ -4,7 +4,7 @@
 **Lane Status**: success
 **Progress**: 100%
 **Last Run**: antigravity
-**Phase**: Phase 4b complete — worker target labeling, auto-scroll, pagination
+**Phase**: Phase 4c — Steerable Track Chat (in-conversation doc updates & lane moves)
 **Type**: dev
 **Workspace**: main
 **Merge Mode**: direct

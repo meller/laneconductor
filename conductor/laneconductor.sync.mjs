@@ -6462,11 +6462,30 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             writeFileSync(targetIndexPath, content, 'utf8');
             console.log(`[${label}] Updated file for track ${trackNumber}: Lane Status → ${nextActionStatus}${targetLane ? `, Lane → ${targetLane}` : ''}`);
 
-            // Commit changes to git (in worktree context)
+            // Commit changes to git (in worktree context, or primary checkout for conversation runs)
             try {
-              execSync(`git add "${relIndexPath}"`, { cwd: workDir, stdio: 'pipe' });
-              execSync(`git commit -m "Track ${trackNumber}: ${isSuccess ? 'success' : 'failed'} (exit: ${code})"`, { cwd: workDir, stdio: 'pipe' });
-              console.log(`[${label}] Committed file changes for track ${trackNumber}`);
+              if (isConversationRun) {
+                // Track AM-10069 Phase 4c: stage track documentation files (index, spec, plan, test)
+                // that may have been updated during the conversation turn in primary checkout.
+                const relTrackDir = join('conductor', 'tracks', trackDir);
+                execSync(`git add "${relTrackDir}"`, { cwd: workDir, stdio: 'pipe' });
+                const hasStaged = (() => {
+                  try {
+                    execSync('git diff --cached --quiet', { cwd: workDir, stdio: 'pipe' });
+                    return false;
+                  } catch {
+                    return true;
+                  }
+                })();
+                if (hasStaged) {
+                  execSync(`git commit -m "Track ${trackNumber}: conversation reply and track updates"`, { cwd: workDir, stdio: 'pipe' });
+                  console.log(`[${label}] Committed file changes for track ${trackNumber}`);
+                }
+              } else {
+                execSync(`git add "${relIndexPath}"`, { cwd: workDir, stdio: 'pipe' });
+                execSync(`git commit -m "Track ${trackNumber}: ${isSuccess ? 'success' : 'failed'} (exit: ${code})"`, { cwd: workDir, stdio: 'pipe' });
+                console.log(`[${label}] Committed file changes for track ${trackNumber}`);
+              }
             } catch (e) {
               console.warn(`[${label}] Failed to commit file changes: ${e.message}`);
             }
@@ -7366,9 +7385,37 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
         // ${lane_status} would tell the agent to write the DISPATCH-TIME
         // lane snapshot back to **Lane**, which may already be stale by
         // the time this turn finishes (the exact race this track fixes).
-        customPrompt = `The user has sent a message in the track conversation. Read conductor/tracks/${dir}/conversation.md to find their message.
+        //
+        // Track AM-10069 Phase 4c: Steerable Track Chat.
+        // A chat turn operates in the context of this track. If the human asks
+        // for design changes, bug fixes, or refinements:
+        // 1. Update the design documents (spec.md, plan.md, test.md, and index.md summary/phase)
+        //    in conductor/tracks/${dir}/ so the track stays in sync with the conversation.
+        // 2. If the user asks to implement, test, or replan: update the design documents first,
+        //    then transition the track's lane using:
+        //    /laneconductor move ${track_number} implement:queue (or plan:queue)
+        //    This hands off execution to the autonomous worker loop in an isolated worktree.
+        // 3. GUARDRAIL: Chat turns run lock-free in primary checkout (no worktree).
+        //    You MUST NEVER write or edit application source code directly during a chat turn.
+        //    Code changes must only happen in worktrees via /laneconductor move.
+        // 4. If this is a general inquiry or discussion, answer it in conversation.md and leave
+        //    the lane and status untouched.
+        if (track_number === 'manager') {
+          customPrompt = `The user has sent a message to the Manager. Read conductor/tracks/${dir}/conversation.md to find their message.
+Use /laneconductor comment manager to post your reply directly in the conversation. If it is a question, answer it. If it is a decision, acknowledge and incorporate it.
+The manager track is a supervisory pseudo-track; do NOT change **Lane**, **Lane Status**, or move this track.`;
+        } else {
+          customPrompt = `The user has sent a message in the track conversation. Read conductor/tracks/${dir}/conversation.md to find their message.
 Use /laneconductor comment ${track_number} to post your reply directly in the conversation. If it is a question, answer it. If it is a decision, acknowledge and incorporate it.
-Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversation reply, not a lane transition. Do not run /laneconductor plan/implement/review/quality-gate/merge for this track as part of answering.`;
+
+If the user is asking for changes, bug fixes, new features, or refinements:
+1. Update the track's design documents in conductor/tracks/${dir}/ (spec.md, plan.md, test.md, and index.md summary/phase) so the track stays connected to the conversation.
+2. If the user asks you to implement or replan, update the design documents first, then transition the lane using:
+   /laneconductor move ${track_number} implement:queue (or plan:queue)
+   This schedules an autonomous worker run in an isolated worktree.
+3. GUARDRAIL: Do NOT write or edit application source code directly during this conversation turn. Chat turns run lock-free in the primary checkout. All code implementation must be performed via /laneconductor move so a worker can claim the track in an isolated worktree.
+4. If this is a general inquiry or discussion that does not require implementation or replanning, do not change the lane.`;
+        }
       }
     }
 

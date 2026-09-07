@@ -1198,6 +1198,13 @@ Move a track to a different lane and optionally set its status (defaults to `que
 - `/laneconductor move NNN implement:queue` (Moves to implement, triggers auto-action)
 - `/laneconductor move NNN plan:success` (Moves to plan, marks as done)
 
+**Logic**:
+1. Run `lc move [track-number] [lane:status]` via Bash/command tool if `lc` is available.
+2. Otherwise, edit `conductor/tracks/NNN-*/index.md` directly:
+   - Update `**Lane**: [lane]`
+   - Update `**Lane Status**: [status]`
+3. The sync worker will detect the change and queue the track for autonomous execution.
+
 ---
 
 ### `/laneconductor pulse [track-number] [status] [progress%] [summary?]`

@@ -201,6 +201,22 @@ so it predates this work.
 
 ---
 
+## Phase 4c: Steerable Track Chat (in-conversation design doc updates & lane moves)
+
+**Problem**: In-conversation chat turns previously contained a strict instruction prohibiting lane transitions and design changes ("Do NOT change **Lane**, **Lane Status**, or **Progress**"). When users request refinements, bug fixes, or feature additions during a track conversation, the worker should update the track's design documents (`spec.md`, `plan.md`, `test.md`, and `index.md` summary/phase) to keep the track connected to the conversation, and transition the track's lane (e.g. `/laneconductor move <track> implement:queue` or `plan:queue`) to kick off execution in an isolated worktree.
+**Solution**:
+1. Update the `conversation-reply` prompt in `laneconductor.sync.mjs` to authorize track design doc updates (`spec.md`, `plan.md`, `test.md`, `index.md`) and lane transitions via `/laneconductor move <track> implement:queue` or `plan:queue`.
+2. Maintain guardrails: conversation turns run lock-free in primary checkout (`workspaceMode = null`), so agents must never write application source code directly during a conversation turn.
+3. Update exit handler to stage track documentation files (`conductor/tracks/${trackDir}`) on conversation-run completion so in-conversation doc updates are committed cleanly to git.
+4. Update `/laneconductor move` documentation in `SKILL.md` to clearly define execution steps.
+
+- [x] Task 4c.1: Update `conversation-reply` prompt in `laneconductor.sync.mjs` with Phase 4c instructions authorizing doc updates and `/laneconductor move` transitions while enforcing the source-code guardrail.
+- [x] Task 4c.2: Update exit handler in `laneconductor.sync.mjs` to stage and commit modified track docs (`relTrackDir`) during conversation run exit, preserving intentional lane moves and committing doc changes.
+- [x] Task 4c.3: Update `SKILL.md` under `/laneconductor move` to document CLI command and file update logic.
+- [x] Task 4c.4: Add unit tests in `conductor/tests/track-10069-steerable-chat.test.mjs` verifying prompt instructions, guardrails, and exit handler git staging behavior.
+
+---
+
 ## Phase 5: Manager target — skill-driven turns with live state (REQ-6..REQ-8, REQ-14, REQ-15)
 
 **Problem**: The manager tier is the part that is genuinely new: a free-form turn with real
