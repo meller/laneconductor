@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: waiting
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planning complete
@@ -14,5 +14,4 @@
 **Cross-reference — revised: interactivity (chat) is entirely Track 10069's scope now, not split across both tracks.** Track 10069 ("Manager chat surface — persistent, target-switchable conversation with live state and the /laneconductor skill") was filed after this track. Originally this track's Phase 5 covered both halves of req (3) below — visibility (the transcript) and interactivity (`resolveWorkerChatTarget()` returning a usable target for managers, the `WorkerChatPanel` composer being enabled) — with 10069 merely consuming that. Revised decision: 10069 needs to build resolver/composer-enabling logic for every worker type it supports anyway, not just the manager, so having this track ALSO build a manager-specific slice of the same thing risked two different answers to "how does chat find its target." This track now ships **visibility only** — the existing "Show live session transcript" path working for a layer-2 session, with no new renderer — and stops there. Enabling the composer, fixing the resolver, and the supervision-pseudo-track's chat/comment plumbing are entirely 10069's job to build, not this track's to ship and 10069's to consume. This track's own two already-worked-out design decisions that interactivity depended on — the reserved pseudo-track name/mechanism (D6/D7: a filesystem-backed conversation adapter, since the pseudo-track has no DB row, plus the reconcile-worker's need to explicitly skip it rather than mis-parse it as a track number) — move to 10069's plan as something it builds on, not something this track delivers. Net effect: req (3) below is only half-satisfied by this track alone (watchable, not yet chattable) until 10069 ships — that's an explicit, accepted gap, not an oversight.
 **Summary**: Two-layer manager supervision — a 30s deterministic sweep (stale locks, silent heartbeats, orphaned dispatches, duplicate workers, board/fs mismatch) plus a bounded-autonomy AI escalation path, with…
 **Auto Run**: yes
-**Waiting Reason**: Track 10067 merge blocked: no common ancestor; needs reconciliation task or cherry-pick scope
 **Waiting for reply**: yes
