@@ -1,6 +1,6 @@
 # Track AM-10072: Human-needs-reply marks only the single most recent human comment, burying older unreplied ones forever
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
