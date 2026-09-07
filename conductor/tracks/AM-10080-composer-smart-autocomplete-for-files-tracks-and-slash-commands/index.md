@@ -2,10 +2,12 @@
 
 **Lane**: plan
 **Merge Mode**: direct
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: Unplanned
+**Lane Status**: success
+**Progress**: 100%
+**Last Run**: claude/claude-opus-5 (primary)
+**Phase**: Planned — 5 phases
 **Type**: dev
+**Track Kind**: feature
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Implement rich autocomplete in the Chat composer for @file mentions, @track references, and /laneconductor commands, backed by worker filesystem metadata sync.
