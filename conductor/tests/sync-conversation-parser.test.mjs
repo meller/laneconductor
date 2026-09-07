@@ -106,6 +106,30 @@ describe('parseConversationComments', () => {
     assert.equal(comments[0].author, 'system');
     assert.match(comments[0].body, /Session turn — dispatch-implement \(resumed session\): PASS/);
   });
+
+  it('BUG CASE (track 10072): a single-word bold label in a continuation line does not split into a fake turn', () => {
+    // Unlike the "1.1 Role." case above (multi-word, never matched the turn
+    // regex to begin with), a ONE-WORD bold label like "**Result**:" fully
+    // matches `> \*\*(\w+)\*\*: ` — genuinely indistinguishable from a real
+    // `> **author**: body` turn by shape alone. Found live: a `gemini`
+    // review comment ending "> **Result**: PASS" got split into a second
+    // comment with author "Result", which — being unrecognized — was
+    // silently coerced to 'human' server-side, minting a permanently
+    // unreplied fake human comment (track 1017, comment id 16660,
+    // 2026-09-06). Fixed by only recognizing known authors as turn starts.
+    const content = [
+      '> **gemini**: Review of Track 1017: Three Operating Modes.',
+      '>',
+      '> **Evaluation**:',
+      '> - Phase 1-4: implemented and verified.',
+      '>',
+      '> **Result**: PASS',
+    ].join('\n');
+    const comments = parseConversationComments(content);
+    assert.equal(comments.length, 1, 'the bold labels inside the review must not split it into multiple turns');
+    assert.equal(comments[0].author, 'gemini');
+    assert.match(comments[0].body, /\*\*Result\*\*: PASS/, 'the bold-label line must survive as part of the gemini comment body');
+  });
 });
 
 describe('findTurnStartOffsets', () => {
@@ -149,6 +173,18 @@ describe('findTurnStartOffsets', () => {
       '> **claude**: Summary.',
       '>',
       '> **1.1 Role.** Contractor shall serve as an advisor.',
+    ].join('\n');
+    assert.deepEqual(findTurnStartOffsets(content), [0]);
+  });
+
+  it('BUG CASE (track 10072): a single-word bold label does not register as a turn-start offset either', () => {
+    // findTurnStartOffsets must agree with parseConversationComments on
+    // where turns start, or cursor-seeding and parsing disagree about turn
+    // boundaries.
+    const content = [
+      '> **gemini**: Review.',
+      '>',
+      '> **Result**: PASS',
     ].join('\n');
     assert.deepEqual(findTurnStartOffsets(content), [0]);
   });

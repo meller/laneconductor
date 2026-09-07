@@ -6471,7 +6471,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         : `⚠️ Automation failed (PID: ${proc.pid}, Exit Code: ${code}).\nResult: ${patchData.lane_action_result}\nCheck logs for details.`;
       await postToCollectors(`/track/${trackNumber}/comment`, {
         project_id: projectId,
-        author: cli === 'npx' ? 'worker' : cli,
+        author: cli === 'npx' ? 'system' : cli,
         body: commentBody,
       }).catch(() => { });
     }

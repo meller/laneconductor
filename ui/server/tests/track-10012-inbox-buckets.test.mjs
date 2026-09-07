@@ -95,8 +95,19 @@ const INBOX_QUERY = `
        )
    ) uc ON true
    LEFT JOIN LATERAL (
-     SELECT EXISTS(
-       SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
+     SELECT EXISTS (
+       SELECT 1 FROM track_comments hc
+       WHERE hc.track_id = t.id
+         AND hc.author = 'human'
+         AND hc.is_replied = FALSE
+         AND hc.is_hidden = FALSE
+         AND NOT EXISTS (
+           SELECT 1 FROM track_comments rc
+           WHERE rc.track_id = t.id
+             AND rc.author <> 'human'
+             AND rc.is_hidden = FALSE
+             AND (rc.created_at, rc.id) > (hc.created_at, hc.id)
+         )
      ) AS human_needs_reply
    ) hr ON true
    WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE)

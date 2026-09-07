@@ -47,6 +47,27 @@ function getPool() {
   return pool;
 }
 
+// ── human_needs_reply (track 10072) ──────────────────────────────────────────
+// Kept in parity with ui/server/index.mjs's HUMAN_NEEDS_REPLY_SQL: a human
+// comment needs a reply when no non-human comment exists after it, derived at
+// read time rather than a write-time flag flip. `(created_at, id)` tuple
+// ordering breaks same-millisecond ties deterministically. Referenced as
+// `t.id` from the enclosing tracks query at every call site.
+const HUMAN_NEEDS_REPLY_SQL = `EXISTS (
+            SELECT 1 FROM track_comments hc
+            WHERE hc.track_id = t.id
+              AND hc.author = 'human'
+              AND hc.is_replied = FALSE
+              AND hc.is_hidden = FALSE
+              AND NOT EXISTS (
+                SELECT 1 FROM track_comments rc
+                WHERE rc.track_id = t.id
+                  AND rc.author <> 'human'
+                  AND rc.is_hidden = FALSE
+                  AND (rc.created_at, rc.id) > (hc.created_at, hc.id)
+              )
+          )`;
+
 const app = express();
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
@@ -184,9 +205,7 @@ app.get('/api/projects/:id/tracks', auth, async (req, res) => {
            )
        ) uc ON true
         LEFT JOIN LATERAL (
-          SELECT EXISTS(
-            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE
-          ) AS human_needs_reply
+          SELECT ${HUMAN_NEEDS_REPLY_SQL} AS human_needs_reply
         ) hr ON true
        WHERE t.project_id = $1
        ORDER BY t.track_number`,
@@ -327,9 +346,7 @@ app.get('/api/tracks', auth, async (req, res) => {
            )
        ) uc ON true
         LEFT JOIN LATERAL (
-          SELECT EXISTS(
-            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE
-          ) AS human_needs_reply
+          SELECT ${HUMAN_NEEDS_REPLY_SQL} AS human_needs_reply
         ) hr ON true
        WHERE p.workspace_id = $1
        ORDER BY p.name, t.track_number`,
@@ -374,9 +391,7 @@ app.get('/api/inbox', auth, async (req, res) => {
            )
        ) uc ON true
        LEFT JOIN LATERAL (
-         SELECT EXISTS(
-           SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE
-         ) AS human_needs_reply
+         SELECT ${HUMAN_NEEDS_REPLY_SQL} AS human_needs_reply
        ) hr ON true
        WHERE p.workspace_id = $1 ${projectFilter}
        ORDER BY lc.created_at DESC`,

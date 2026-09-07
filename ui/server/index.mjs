@@ -118,6 +118,31 @@ initWebSocket(server);
 // is the correct, honest state (nothing is running yet either way).
 const devServers = new Map();
 
+// ── human_needs_reply (track 10072) ──────────────────────────────────────────
+// A human comment needs a reply when no non-human comment exists after it.
+// Derived at read time from comment ordering rather than a write-time flag
+// flip, so it self-heals for every row on every read instead of depending on
+// a comment-insert code path getting the update right (it didn't — see
+// spec.md D1/D2). `is_replied` is retained only as an insert-time suppression
+// marker (bookkeeping rows like "Moved to plan" set it TRUE so they never
+// count as an outstanding question). `(created_at, id)` tuple ordering breaks
+// same-millisecond ties deterministically. Referenced as `t.id` from the
+// enclosing tracks query at every call site — never inlined a 13th time.
+const HUMAN_NEEDS_REPLY_SQL = `EXISTS (
+            SELECT 1 FROM track_comments hc
+            WHERE hc.track_id = t.id
+              AND hc.author = 'human'
+              AND hc.is_replied = FALSE
+              AND hc.is_hidden = FALSE
+              AND NOT EXISTS (
+                SELECT 1 FROM track_comments rc
+                WHERE rc.track_id = t.id
+                  AND rc.author <> 'human'
+                  AND rc.is_hidden = FALSE
+                  AND (rc.created_at, rc.id) > (hc.created_at, hc.id)
+              )
+          )`;
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : ['http://localhost:8090', 'http://127.0.0.1:8090'];
@@ -783,9 +808,7 @@ app.get('/api/projects/:id/tracks', async (req, res) => {
            )
        ) uc ON true
         LEFT JOIN LATERAL (
-          SELECT EXISTS(
-            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE
-          ) AS human_needs_reply
+          SELECT ${HUMAN_NEEDS_REPLY_SQL} AS human_needs_reply
         ) hr ON true
         LEFT JOIN LATERAL (
           SELECT COUNT(*)::int as retry_count FROM track_comments
@@ -1059,9 +1082,7 @@ app.get('/api/tracks', async (req, res) => {
            )
        ) uc ON true
         LEFT JOIN LATERAL (
-          SELECT EXISTS(
-            SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE
-          ) AS human_needs_reply
+          SELECT ${HUMAN_NEEDS_REPLY_SQL} AS human_needs_reply
         ) hr ON true
        ORDER BY p.name, t.track_number`
     );
@@ -1131,9 +1152,7 @@ app.get('/api/inbox', async (req, res) => {
            )
        ) uc ON true
        LEFT JOIN LATERAL (
-         SELECT EXISTS(
-           SELECT 1 FROM track_comments WHERE track_id = t.id AND author = 'human' AND is_replied = FALSE AND is_hidden = FALSE
-         ) AS human_needs_reply
+         SELECT ${HUMAN_NEEDS_REPLY_SQL} AS human_needs_reply
        ) hr ON true
        WHERE (lc.created_at IS NOT NULL OR t.waiting_for_reply = TRUE)
          AND NOT (t.dismissed_at IS NOT NULL AND t.dismissed_at >= COALESCE(lc.created_at, t.dismissed_at))
@@ -3652,7 +3671,10 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
       [trackId, safeAuthor, body, req.body.is_replied === true]
     );
 
-    // Business logic: human comment → wake worker; AI "Answered" → mark human replied
+    // Business logic: human comment → wake worker. Whether a human comment
+    // still needs a reply is no longer tracked here — see
+    // HUMAN_NEEDS_REPLY_SQL, which derives it at read time from comment
+    // ordering instead of flipping is_replied on write (track 10072).
     if (safeAuthor === 'human' && req.body.no_wake !== true) {
       // Track 10040 REQ-13: this used to omit 'done', so a human comment
       // on a done-lane track (the track 10035 merge action) never re-woke
@@ -3672,15 +3694,6 @@ app.post('/track/:num/comment', collectorAuth, async (req, res) => {
         `UPDATE tracks SET prespawn_block_count = 0, prespawn_block_kind = NULL,
                 prespawn_block_reason = NULL, prespawn_blocked_at = NULL
          WHERE id = $1`,
-        [trackId]
-      );
-    } else if (body.includes('Answered') || body.toLowerCase().includes('i updated') || body.toLowerCase().includes('done')) {
-      await pool.query(
-        `UPDATE track_comments SET is_replied = TRUE
-       WHERE id = (
-    SELECT id FROM track_comments WHERE track_id = $1 AND author = 'human'
-         ORDER BY created_at DESC LIMIT 1
-       )`,
         [trackId]
       );
     }
