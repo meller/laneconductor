@@ -71,9 +71,28 @@ the author coercion that turns worker output into human speech.
       since the wake and retry-reset logic keys off `author = 'human'` (that
       coupling is the deferred `kind`-column work, per Non-Goals).
       All four already pass `is_replied: true` — no changes needed.
+- [x] Task 2.4 (found during Phase 4 verification, not in original scope):
+      `conductor/sync-conversation-utils.mjs`'s `parseConversationComments`
+      matched ANY `> **Word**: ...` line as a new turn, including a
+      continuation line whose own prose contains a bold label — e.g. a
+      `gemini` review comment ending `> **Result**: PASS` got split into a
+      second, separate comment with `author: 'Result'`, which
+      `ui/server/index.mjs`'s `VALID_AUTHORS` check then silently coerced to
+      `'human'` (REQ-8's fallback, same mechanism, different unrecognized
+      value) — minting a brand-new, permanently-unreplied fake human comment
+      out of the AI's own review text. Confirmed live: track 1017 (project 1),
+      comment id 16660, `author: 'human', body: 'PASS'`, dated 2026-09-06 —
+      one day before this session, so a currently-reproducing bug, not
+      legacy debris. Fixed by gating turn-start recognition on a bounded
+      `KNOWN_TURN_AUTHORS` vocabulary (`human`, `system`, `PROVIDER_IDS`) in
+      both `parseConversationComments` and `findTurnStartOffsets` (they must
+      agree, since the latter seeds the former's cursor). All 11 pre-existing
+      tests in `conductor/tests/sync-conversation-parser.test.mjs` still pass.
 
 **Impact**: The badge stops being re-triggered by the system's own bookkeeping.
-Without this, Phase 1 still leaves 15 `Triggering …` rows flagged.
+Without this, Phase 1 still leaves 15 `Triggering …` rows flagged. Task 2.4
+additionally stops a live, ongoing source found only by actually reading real
+flagged rows in Phase 4 — see Phase 4's notes for why that mattered.
 
 ---
 
