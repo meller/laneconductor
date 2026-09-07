@@ -99,15 +99,36 @@ existing park path rather than a parallel mechanism.
 - [ ] Task 3.6: Confirm the conversation-run path (REQ-16): `getConversationRunWriteScope`
       already blocks lane writes, and block 3b already clears `**Waiting for reply**` on any
       exit. Assert both hold under an abort; do not add a second clearing path.
-- [ ] Task 3.7: Confirm cleanup holds on the abort path (REQ-17) — `releaseTrackClaim`,
+- [ ] Task 3.7: **Make the manager pseudo-track reachable from the exit handler** (REQ-22).
+      `resolveTrackFolder(tracksDir, 'manager')` returns `null` — `decideTrackFolder`
+      requires a trailing hyphen after the track number and there is no metadata
+      registration to fall back to — so all ten `if (trackDir)`-gated blocks in the exit
+      handler skip the manager. Verified during planning; see spec.md's "Found while
+      refining this plan".
+    - [ ] Resolve the pseudo-track's folder for the exit handler's `conversation.md` and
+          `index.md` writes, scoped to the two blocks the abort path needs: the
+          cancellation comment (Task 3.5) and block 3b's `**Waiting for reply**` clear
+    - [ ] Do **not** widen this into lane eligibility — `getConversationRunWriteScope`
+          still forbids a lane write, and D8's "never receives a lane transition" holds
+    - [ ] Confirm the loop is actually gone by measurement, not by inspection (REQ-23):
+          abort a live manager reply, then let the worker run several full poll cycles and
+          assert no replacement reply is dispatched (AC-13)
+    - [ ] Note that posting the cancellation comment is itself sufficient to break the
+          loop, since `hasGenuineUnansweredHumanComment` counts any `system` turn after
+          the last human turn as an answer — so this needs no separate flag-clearing path
+- [ ] Task 3.8: Confirm cleanup holds on the abort path (REQ-17) — `releaseTrackClaim`,
       `releaseGitLock`, `releaseGlobalMainModeLock`, marker removal in the `finally`, and
       `per-cycle` worktree preservation. Existing code; this task is to prove it, and to
       fix it only if a signalled exit turns out to skip a branch.
-- [ ] Task 3.8: Verify by running a real abort end to end and reading the resulting
-      `index.md`, `conversation.md` and DB row — not by reasoning about the diff.
+- [ ] Task 3.9: Verify by running a real abort end to end and reading the resulting
+      `index.md`, `conversation.md` and DB row — not by reasoning about the diff. Do this
+      for a numbered track **and** for the manager target, since Task 3.7 shows the two
+      take structurally different paths through this handler.
 
 **Impact**: This is the phase that makes cancellation mean something. Changes are confined
-to `spawnCli`'s exit handler.
+to `spawnCli`'s exit handler. Task 3.7 is the one task here that fixes a defect reachable
+*today* rather than one this track introduces — without it, Stop on a manager target kills
+one CLI and silently starts another.
 
 ---
 

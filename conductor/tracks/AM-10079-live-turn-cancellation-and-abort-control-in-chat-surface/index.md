@@ -1,10 +1,10 @@
 # Track AM-10079: Live turn cancellation and abort control in Chat surface
 
-**Lane**: plan
+**Lane**: implement
 **Merge Mode**: direct
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: Planned — 6 phases (5 implemented, 1 deferred)
+**Progress**: 100%
+**Phase**: Planned — 6 phases (5 implemented, 1 deferred); refined with manager re-dispatch finding
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
