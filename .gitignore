@@ -34,6 +34,14 @@ conductor/.locks/
 # reconciliation) — machine-local runtime state, not versioned
 conductor/.runs/
 
+# Found live 2026-09-07 (track 10076): per-track doc-sync merge-base cache
+# (track 10073's design) — machine-local runtime state, not versioned. Left
+# untracked and unignored, it shows up as "dirty" in every main-mode spawn's
+# checkDirty() scan, which halts EVERY track's main-mode lane actions
+# (including every merge) project-wide until someone notices and commits or
+# ignores it — confirmed live, this blocked track 10076's done-lane merge.
+conductor/.doc-sync/
+
 # Runtime state — machine-specific, auto-generated
 .conductor/
 conductor/tracks-metadata.json
