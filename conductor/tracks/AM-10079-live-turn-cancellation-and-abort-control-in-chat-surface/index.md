@@ -4,11 +4,11 @@
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 0%
-**Phase**: Unplanned
+**Phase**: Planned — 6 phases (5 implemented, 1 deferred)
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
-**Summary**: Provide mid-stream cancellation and abort controls in the Chat surface (parity with terminal Ctrl+C), signaling running process groups cleanly and releasing locks.
+**Summary**: Planned. Abort intent is recorded on the existing run marker, the detached process group is signalled SIGINT/SIGTERM/SIGKILL behind a pid-reuse guard, and the exit handler treats the result as a…
 
 > [!NOTE]
 > **Related to Track AM-10069**: This track implements mid-generation cancellation, which was identified during the coding-agent parity comparison and deferred from AM-10069 (spec.md Decision D1).
