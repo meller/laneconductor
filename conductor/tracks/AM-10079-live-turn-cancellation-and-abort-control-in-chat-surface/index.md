@@ -1,8 +1,8 @@
 # Track AM-10079: Live turn cancellation and abort control in Chat surface
 
-**Lane**: backlog
+**Lane**: plan
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Unplanned
 **Type**: dev
@@ -23,3 +23,4 @@ In standalone terminal coding agents (like Claude Code), a user can interrupt mi
 2. **Process & Lock Cleanup**: Ensure aborting a run releases any active worktree git locks, marks the run marker as finalized/aborted, and avoids leaving corrupted repository states.
 3. **UI Cancellation Affordance**: Add a clear "Stop / Abort Turn" button in `TurnStatusBar` and `ChatView` when a run is live.
 4. **Conversation & Track State Reconciliation**: Post a cancellation marker turn to `conversation.md` (`> **system**: Turn cancelled by user`) and reconcile `lane_action_status` / `waiting_for_reply`.
+**Auto Run**: yes
