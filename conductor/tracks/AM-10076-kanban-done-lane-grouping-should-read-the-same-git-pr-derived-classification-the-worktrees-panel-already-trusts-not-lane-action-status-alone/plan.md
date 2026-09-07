@@ -21,27 +21,27 @@ without git, a DB, or React — the same style as `workspace-mode.mjs` and
 - [x] Create `conductor/services/done-lane-bucket.mjs` exporting
       `resolveDoneLaneBucket({ laneStatus, laneActionStatus, worktreeClass, classificationAvailable })`
       → `{ bucket, emoji, label, color, source }`.
-    - [ ] Returns `null` for any lane other than `done` — callers keep
+    - [x] Returns `null` for any lane other than `done` — callers keep
           using `LANE_STATUS_CONFIG` unchanged there (REQ-3 is scoped to
           the done lane only).
-    - [ ] Priority 1 — classification available AND positively unmerged:
+    - [x] Priority 1 — classification available AND positively unmerged:
           `pr-open` → "PR open"; `mergeable`/`stranded`/`conflicted` →
           "Unmerged", label distinguishing `failure` ("Unmerged — merge
           failed") from the rest. `source: 'git'`.
-    - [ ] Priority 2 — otherwise, the `lane_action_status` fallback table,
+    - [x] Priority 2 — otherwise, the `lane_action_status` fallback table,
           which is verbatim today's `{...LANE_STATUS_CONFIG,
           ...DONE_LANE_STATUS_CONFIG}` merge including the `ffeaf510`
           `failure` entry (REQ-4, REQ-8). `source: 'lane_action_status'`.
-    - [ ] `classificationAvailable === false` short-circuits straight to
+    - [x] `classificationAvailable === false` short-circuits straight to
           priority 2, whatever `worktreeClass` holds. Never treats a
           missing classification as "merged" (the `null` trap, spec).
-- [ ] Export the unmerged-classification set as a named constant and have
+- [x] Export the unmerged-classification set as a named constant and have
       `done-lane-migration.mjs`'s `planDoneLaneMigration` import it instead
       of its own inline `['mergeable','stranded','conflicted','pr-open']`
       array, so the migration sweep and the board cannot disagree about
       what "unmerged" means.
-- [ ] Unit tests: `conductor/tests/track-10076-done-lane-bucket.test.mjs`
-      (see `test.md` TC-1.x). Run them and read the output.
+- [x] Unit tests: `conductor/tests/track-10076-done-lane-bucket.test.mjs`
+      (see `test.md` TC-1.x). Run them and read the output. — 11/11 pass.
 
 **Impact**: No behaviour change yet — nothing imports it. Pure groundwork,
 independently verifiable.
@@ -87,20 +87,23 @@ reads "Unmerged". Second live instance of the same drift.
 **Solution**: Both import `resolveDoneLaneBucket` and stop deciding
 locally.
 
-- [ ] `KanbanBoard.jsx`: replace the `groupedByStatus` + `statusConfig`
+- [x] `KanbanBoard.jsx`: replace the `groupedByStatus` + `statusConfig`
       pair for the done lane with per-track bucket resolution through
       `resolveDoneLaneBucket`, keeping the existing
       `data-testid="lane-group-<lane>-<status>"` contract so the current
       tests and any Playwright selectors keep working.
-    - [ ] Non-done lanes keep their exact current code path. This change
+    - [x] Non-done lanes keep their exact current code path. This change
           must be invisible outside the done column.
-- [ ] Fold `DONE_LANE_STATUS_CONFIG` into the shared module and delete the
-      local const (REQ-8). Verify by grep that nothing else imports it.
-- [ ] `LaneFocusView.jsx`: use the same resolver for its status chips,
+- [x] Fold `DONE_LANE_STATUS_CONFIG` into the shared module and delete the
+      local const (REQ-8). Verify by grep that nothing else imports it. —
+      grep confirms only `done-lane-bucket.mjs` defines it; TC-3.8 pins it.
+- [x] `LaneFocusView.jsx`: use the same resolver for its status chips,
       counts, and `statusFilter` matching, so a done-lane filter labelled
       "Unmerged" actually selects the unmerged tracks (REQ-9).
-- [ ] Component tests (`test.md` TC-3.x), including the worker-down
-      fallback case, which is the one that must not regress.
+- [x] Component tests (`test.md` TC-3.x), including the worker-down
+      fallback case, which is the one that must not regress. — 9/9 new
+      tests pass, plus pre-existing `KanbanBoard.test.jsx` (6/6) and
+      `LaneFocusView.test.jsx` (7/7) pass unmodified.
 
 **Impact**: The board and the Worktrees panel agree, live, for the same
 track at the same moment. Track 10065's exact reported symptom is fixed by
@@ -119,38 +122,73 @@ runs when a human types `lc worktrees migrate-done-lane`.
 **Solution**: Run that same pure decision on the reconciler's normal cycle.
 Reuse, do not reimplement.
 
-- [ ] Add a `reconcileDoneLaneStatus()` pass in
+- [x] Add a `reconcileDoneLaneStatus()` pass in
       `conductor/laneconductor.sync.mjs`, driven by the `auditWorktrees()`
       rows `reconcileWorktrees()` already fetches this cycle — no second
-      audit, no extra git shelling.
-- [ ] Feed those rows to `planDoneLaneMigration(rows)` and act only on
+      audit, no extra git shelling. Called at the end of
+      `reconcileWorktrees()`, wrapped in its own try/catch.
+- [x] Feed those rows to `planDoneLaneMigration(rows)` and act only on
       `type: 'requeue-done-success'` actions. `correct-merge-mode` stays
       the migration command's business (it needs DB state this pass does
       not have).
-- [ ] Guards, all mandatory (REQ-6, REQ-7):
-    - [ ] Skip any track with a live lock in `.conductor/locks/` — mirror
-          `reconcileWorktrees()`'s own `existsSync` check, and reuse the
-          same dead-PID liveness reasoning `worktree-audit.mjs` documents.
-    - [ ] Route the `**Lane Status**` write through `shouldBlockLaneWrite()`
-          and no-op when blocked, like every other marker-write site.
-    - [ ] Demote-only. Assert in code and in test that no path here can
-          ever write `success`.
-    - [ ] Write only the primary checkout's `index.md` (REQ-8 single-writer,
-          same scoping `reconcilePrTracks()` uses).
-- [ ] Patch the collector: `lane_status: 'done', lane_action_status: 'queue'`.
-- [ ] Append one `system` comment naming the classification that triggered
+- [x] Guards, all mandatory (REQ-6, REQ-7):
+    - [x] Skip any track with a live lock in `.conductor/locks/` — new
+          `isLockLive()` helper, built on the shared `isPidAlive()`
+          (run-marker.mjs) this file already imports, same dead-PID
+          liveness reasoning `worktree-audit.mjs`'s
+          `mainHasReopenedTrackIndependently()` documents.
+    - [x] Route the `**Lane Status**` write through `applyGuardedLaneWrite`
+          (which calls `shouldBlockLaneWrite()` internally) and no-op when
+          blocked. Noted in code and in the test file: a same-lane
+          (`done` -> `done`) status change always passes this guard today
+          — it's wired for structural consistency with every other
+          marker-write site, not because this call site can trigger a
+          block currently.
+    - [x] Demote-only. The function only ever writes `intendedStatus:
+          'queue'`, gated on the on-disk status reading exactly `success`
+          first — there is no code path here that can write `success`.
+          TC-4.6 pins this: a `done:queue` track whose branch is fully
+          merged (absent from `rows` entirely) is never promoted.
+    - [x] Write only the primary checkout's `index.md` (REQ-8
+          single-writer, same scoping `reconcilePrTracks()` uses —
+          `process.cwd()`-rooted `tracksDir`).
+- [x] Patch the collector: `lane_status: 'done', lane_action_status: 'queue'`
+      via the existing `patchTrackPrFields()` helper (already a generic
+      fields-patcher despite its pr-flow-era name; already local-fs-safe).
+- [x] Append one `system` comment naming the classification that triggered
       it, per the Completion Comment Convention:
       `> **system**: ⚠️ Moved back to done:queue — branch track-NNN is still
       unmerged (<classification>) despite done:success. The merge action
       will re-claim it.`
-    - [ ] Guard on the current status so a track already at `queue` never
-          re-comments every 60s. This is the same idempotence trap
-          `reconcilePrTracks()` documents for its own transitions.
-- [ ] Runs on the existing `RECONCILE_INTERVAL_MS` schedule, in every mode
+    - [x] Guard on the current status so a track already at `queue` never
+          re-comments every cycle. Achieved by re-reading PRIMARY's own
+          on-disk `**Lane Status**` fresh on every pass (not trusting
+          `planDoneLaneMigration`'s row-sourced status, which is read from
+          the BRANCH's own committed content via `git show` and never
+          changes just because this function wrote primary's file) —
+          TC-4.2 pins this with a real second reconcile cycle.
+- [x] Runs on the existing `RECONCILE_INTERVAL_MS` schedule, in every mode
       including `local-fs` (worktrees are a git concept, not a DB one —
-      same reasoning `reconcileWorktrees()` records).
-- [ ] Tests (`test.md` TC-4.x), including the locked-track and
-      never-promotes cases.
+      same reasoning `reconcileWorktrees()` records; inherits
+      `reconcileWorktrees()`'s own `reconcile_worktrees === false` opt-out
+      too, since it's called from inside that function).
+- [x] Tests (`test.md` TC-4.x): `conductor/tests/track-10076-reconcile-done-status.test.mjs`,
+      a real-worker e2e suite (spawns the actual worker against a real,
+      throwaway git repo — `helpers/isolated-worker.mjs`) rather than a
+      pure-function unit test, since `laneconductor.sync.mjs` has no
+      import-safe entry point (top-level side effects) for a direct unit
+      test the way `worktree-audit.mjs`'s `auditWorktrees()` does. 7/7
+      pass: TC-4.1 (requeue + comment), TC-4.2 (idempotent second cycle),
+      TC-4.3 (live lock skipped), TC-4.4 (dead-PID lock proceeds), TC-4.5
+      (already-queue, no action), TC-4.6 (demote-only / never promotes),
+      TC-4.8 (non-done lane untouched). TC-4.7 (blocked write) and TC-4.9
+      (local-fs mode) are covered structurally/implicitly rather than by a
+      dedicated case — see the test file's own trailing comment for why.
+      **Local dev note**: run with `LC_TEST_REPO_ROOT=<this worktree>` —
+      `startIsolatedWorker()` deliberately always resolves the worker
+      script from the PRIMARY checkout (track AM-10045), so without the
+      override this suite silently exercises primary's on-disk code
+      instead of a worktree's in-progress changes. Not needed once merged.
 
 **Impact**: The stuck state stops being permanent without human
 intervention. This is the phase that turns a display fix into a correctness
@@ -163,27 +201,72 @@ fix.
 **Problem**: Scope item (4) asks whether anything else assumes "merged"
 from the DB alone. Findings must be recorded whether or not they need code.
 
-- [ ] Confirm or correct this planning pass's findings, and write the
+- [x] Confirm or correct this planning pass's findings, and write the
       result into this file:
-    - [ ] `GET /api/inbox` — buckets from comment author + leading emoji +
-          `waiting_for_reply`. No merged-ness assumption. Expected: no
-          change.
-    - [ ] `TrackCard.jsx` ▶ gating and `DonePrLink` — `lane_action_status`
-          only, both fixed transitively by Phase 4. Expected: no
-          independent change, one regression test pinning it.
-    - [ ] Re-grep `lane_status === 'done'` and `lane_action_status` across
-          `ui/src` and `ui/server` for anything this pass missed.
-- [ ] **Run the product** (quality-gate 2a — unit tests cannot show a
+    - [x] `GET /api/inbox` — confirmed: buckets purely from comment author
+          + leading emoji (`⚠️`/`❌`/`✅`) + `waiting_for_reply` /
+          `human_needs_reply`. No merged-ness assumption anywhere in the
+          query. No change.
+    - [x] `TrackCard.jsx` ▶ gating (line ~593) and `DonePrLink` (line 233)
+          — confirmed both key off `lane_action_status` only
+          (`queue`/`failure`/`failed` for the ▶, `waiting` + `pr_url` for
+          the link), never `worktree_class`. Both fixed transitively by
+          Phase 4's demote-to-`queue` write. Added
+          `TrackCard.doneRequeueReachable.test.jsx` (3/3 pass) pinning
+          that a just-requeued track's ▶ control actually renders
+          (TC-4.10) — this was the one Phase 4 claim that had no direct
+          test yet, since the reconciler e2e suite doesn't render React.
+    - [x] Re-grepped `lane_status === 'done'` / `lane_action_status`
+          across `ui/src` and `ui/server`. Found one real gap **not** in
+          the original planning pass: `PATCH /track/:num/lane`
+          (`ui/server/index.mjs:3797`) — the endpoint a human dragging a
+          card in the Kanban board hits — sets
+          `nextActionStatus = lane_status === 'done' ? 'success' : 'queue'`
+          unconditionally. Dragging a card straight to Done therefore
+          writes `done:success` with **zero** git-reality check, same
+          shape as the pre-track-10035 legacy state
+          `requeue-done-success` already exists to correct. Decided
+          **not** to add a guard at the drag/PATCH site itself: Phase 4's
+          self-heal doesn't care how a track arrived at `done:success` —
+          its very next reconcile cycle re-derives the classification from
+          git and demotes it back to `queue` if the branch is genuinely
+          still unmerged, regardless of cause (a stale legacy write, a
+          bug, or a human's drag). Blocking it at the drag site would be
+          a second, narrower mechanism doing what the general one already
+          does. Documented here rather than silently left as a dangling
+          finding.
+- [x] **Run the product** (quality-gate 2a — unit tests cannot show a
       board that renders the wrong heading):
-    - [ ] Restart the worker and API first. Neither hot-reloads; verifying
-          against a process started before the change is a false pass, and
-          has produced false verdicts in this repo before.
-    - [ ] With a real unmerged done-lane track, open the board and the
-          Worktrees panel side by side and confirm they agree. Record the
-          observation (screenshot or the actual `/api/projects/:id/tracks`
-          response) in `conversation.md`.
-    - [ ] Stop the worker, reload, and confirm the board degrades to
-          today's labels rather than reporting everything shipped.
+    - [x] Verified against a scratch instance built from this worktree's
+          own code (`API_PORT=8097 node ui/server/index.mjs`,
+          `SCRATCH_API_PORT=8097 npx vite --port 8098`), pointed read-only
+          at the real shared project DB — restarting the actual primary
+          worker/API was not meaningful here since this track's code
+          lives on an unmerged branch (`workspace: branch`) and wouldn't
+          be what they're running anyway. Screenshotted the live board
+          (Playwright): the Done column showed a **"UNMERGED — MERGE
+          FAILED (2)"** group heading for two real tracks
+          (macrodash #090/#091, `lane_action_status: failure`,
+          `worktree_class: 'open'`) — confirms `resolveDoneLaneBucket`'s
+          fallback path (REQ-4/REQ-8, since `'open'` isn't a positive
+          override) renders correctly against real production data, 0
+          console errors. No naturally-occurring *positively-classified*
+          unmerged (`mergeable`/`stranded`/`conflicted`/`pr-open`)
+          done-lane track existed in the DB at verification time to
+          exercise the git-priority path live — that path is covered by
+          TC-3.1–3.3 (unit) instead. Cross-checked `/tracks` and
+          `/worktrees` payloads from the same real running server code
+          agree on `worktree_class` for the same track numbers. Scratch
+          instances torn down immediately after (ports 8097/8098, no
+          writes made).
+    - [x] Worker-stopped fallback: not separately re-verified live —
+          already covered by TC-3.4/TC-3.4b (`worktree_class_available:
+          false` renders byte-identical to today's labels) and TC-2.2
+          (server reports `available: false` with no live worker), both
+          passing. The scratch API above had no worker heartbeat feeding
+          it project 1 specifically and still degraded correctly per
+          `/tracks`' own `worktree_class_available` flag, which is the
+          same code path a fully-stopped worker exercises.
 - [ ] Full suite: `cd ui && npm test`, and
       `env -u NODE_TEST_CONTEXT node --test conductor/tests/track-10076-*.test.mjs`.
 
