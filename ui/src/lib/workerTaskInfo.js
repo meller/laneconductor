@@ -28,10 +28,20 @@ export function parseWorkerTask(currentTask) {
 // scoped to? Running track wins (parseWorkerTask(current_task)); otherwise
 // fall back to the last track the worker holds a warm session for
 // (last_track_number, from track_sessions — see the /api/workers /
-// /api/projects/:id/workers enrichment). Managers and idle workers with no
-// last-context track have nothing to talk about — null, not a guess.
+// /api/projects/:id/workers enrichment). Idle workers with no last-context
+// track have nothing to talk about — null, not a guess.
+//
+// Track 10069 REQ-25: a manager resolves to the reserved 'manager'
+// pseudo-track (10067 REQ-14/REQ-21) instead of null. A manager's own
+// worker.project_id is null by construction (laneconductor.sync.mjs:1259)
+// and it appears on every project's worker list, so its target is scoped
+// to fallbackProjectId — "the manager's supervision thread for the project
+// I'm looking at" — never worker.project_id, which would always be null.
 export function resolveWorkerChatTarget(worker, fallbackProjectId) {
-  if (!worker || worker.type === 'manager') return null;
+  if (!worker) return null;
+  if (worker.type === 'manager') {
+    return { trackNumber: 'manager', projectId: fallbackProjectId, source: 'manager' };
+  }
 
   const task = parseWorkerTask(worker.current_task);
   if (task?.kind === 'track') {

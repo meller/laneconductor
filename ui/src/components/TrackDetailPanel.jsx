@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer.jsx';
 import { DevServerButton } from './DevServerButton.jsx';
 import { TranscriptView } from './TranscriptView.jsx';
+import { TurnStatusBar } from './TurnStatusBar.jsx';
 import { useApi } from '../hooks/useApi';
 import { useIsMobile } from '../hooks/useIsMobile.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
@@ -700,6 +701,7 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
                 ✕
               </button>
             </div>
+            <TurnStatusBar turn={transcriptState.turn} />
             <div className="flex-1 overflow-y-auto px-3 py-3">
               <TranscriptView blocks={transcriptState.blocks} />
               <div ref={transcriptEndRef} />
@@ -1028,9 +1030,12 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
             swaps the panel's own content instead of docking a second
             column (see the drawer's `!isMobile` gate above). */}
         {isMobile && transcriptOpen ? (
-          <div className="flex-1 overflow-y-auto px-3 py-3" data-testid="mobile-transcript-view">
-            <TranscriptView blocks={transcriptState.blocks} />
-            <div ref={transcriptEndRef} />
+          <div className="flex flex-col flex-1 min-h-0">
+            <TurnStatusBar turn={transcriptState.turn} />
+            <div className="flex-1 overflow-y-auto px-3 py-3" data-testid="mobile-transcript-view">
+              <TranscriptView blocks={transcriptState.blocks} />
+              <div ref={transcriptEndRef} />
+            </div>
           </div>
         ) : (
           <>

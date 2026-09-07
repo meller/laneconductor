@@ -13,9 +13,9 @@
 
 const WORKER_OFFLINE_MS = 60_000;
 
-export function isWorkerOffline(worker) {
+export function isWorkerOffline(worker, now = Date.now()) {
   if (!worker?.last_heartbeat) return true;
-  return Date.now() - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
+  return now - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
 }
 
 // Picks a sensible default worker to target for a manual dispatch:

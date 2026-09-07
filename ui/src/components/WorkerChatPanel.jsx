@@ -1,4 +1,5 @@
 import { TranscriptView } from './TranscriptView.jsx';
+import { TurnStatusBar } from './TurnStatusBar.jsx';
 import { TrackChatComposer } from './TrackChatComposer.jsx';
 import { CommentBubble } from './CommentBubble.jsx';
 import { useTrackTranscript } from '../lib/useTrackTranscript.js';
@@ -16,8 +17,6 @@ import { resolveWorkerChatTarget } from '../lib/workerTaskInfo.js';
 // that specific track even when resolveWorkerChatTarget would otherwise
 // prefer the worker's currently-running track.
 export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose, onSelectTrack }) {
-  const isManager = worker?.type === 'manager';
-
   const target = forcedTrackNumber
     ? {
       trackNumber: forcedTrackNumber,
@@ -26,7 +25,7 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
     }
     : resolveWorkerChatTarget(worker, projectId);
 
-  const { blocks, rawLog } = useTrackTranscript(target?.projectId, target?.trackNumber);
+  const { blocks, turn, rawLog } = useTrackTranscript(target?.projectId, target?.trackNumber);
   const { comments, setComments } = useTrackComments(target?.projectId, target?.trackNumber);
 
   const hostname = worker?.hostname || 'worker';
@@ -58,12 +57,13 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {isManager ? (
-            <p className="text-gray-600 text-sm italic pt-4">Managers are transcript-only — no track context to chat about in this pass.</p>
-          ) : !target ? (
+          {!target ? (
             <p className="text-gray-600 text-sm italic pt-4">This worker has no running or recent track — nothing to talk about yet.</p>
           ) : blocks.length > 0 ? (
-            <TranscriptView blocks={blocks} />
+            <>
+              <TurnStatusBar turn={turn} />
+              <TranscriptView blocks={blocks} />
+            </>
           ) : rawLog ? (
             <pre className="text-xs font-mono bg-black/30 p-3 rounded border border-gray-800 text-gray-300 whitespace-pre-wrap max-h-[500px] overflow-y-auto">
               {rawLog}
@@ -82,12 +82,8 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
         <TrackChatComposer
           projectId={target?.projectId}
           trackNumber={target?.trackNumber}
-          disabled={isManager || !target}
-          disabledHint={
-            isManager
-              ? 'Managers are transcript-only'
-              : 'No track to talk about — this worker has no running or last-context track'
-          }
+          disabled={!target}
+          disabledHint="No track to talk about — this worker has no running or last-context track"
           placeholder={`Send a message about track #${target?.trackNumber}…`}
           onSent={(comment) => setComments(prev => [...prev, comment])}
         />

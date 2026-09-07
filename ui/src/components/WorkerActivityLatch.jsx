@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TranscriptView } from './TranscriptView.jsx';
+import { TurnStatusBar } from './TurnStatusBar.jsx';
 import { DeployLogView } from './DeployLogView.jsx';
 import { CreateProjectDispatchView } from './CreateProjectDispatchView.jsx';
 import { TrackChatComposer } from './TrackChatComposer.jsx';
@@ -45,10 +46,9 @@ export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack
   // track if busy, else the last-context track (REQ-3/REQ-5), null for
   // managers or a worker with neither (REQ-7).
   const chatTarget = resolveWorkerChatTarget(selectedWorker, selectedProjectId);
-  const isManager = selectedWorker?.type === 'manager';
 
   const showTrackTranscript = selectedTask?.kind !== 'deploy' && selectedTask?.kind !== 'create-project' && !!chatTarget;
-  const { blocks, rawLog } = useTrackTranscript(
+  const { blocks, turn, rawLog } = useTrackTranscript(
     showTrackTranscript ? chatTarget.projectId : null,
     showTrackTranscript ? chatTarget.trackNumber : null,
   );
@@ -167,7 +167,10 @@ export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack
                   )}
                 </div>
                 {blocks.length > 0 ? (
-                  <TranscriptView blocks={blocks} />
+                  <>
+                    <TurnStatusBar turn={turn} />
+                    <TranscriptView blocks={blocks} />
+                  </>
                 ) : rawLog ? (
                   <pre className="text-xs font-mono bg-black/30 p-3 rounded border border-gray-800 text-gray-300 whitespace-pre-wrap max-h-[500px] overflow-y-auto">
                     {rawLog}
@@ -198,13 +201,11 @@ export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack
             <TrackChatComposer
               projectId={chatTarget?.projectId}
               trackNumber={chatTarget?.trackNumber}
-              disabled={isManager || !chatTarget || isWorkerOffline(selectedWorker)}
+              disabled={!chatTarget || isWorkerOffline(selectedWorker)}
               disabledHint={
-                isManager
-                  ? 'Managers are transcript-only'
-                  : isWorkerOffline(selectedWorker)
-                    ? `${workerDisplayName} is offline`
-                    : 'No track to talk about — this worker has no running or last-context track'
+                isWorkerOffline(selectedWorker)
+                  ? `${workerDisplayName} is offline`
+                  : 'No track to talk about — this worker has no running or last-context track'
               }
               placeholder={chatTarget ? `Send a message about track #${chatTarget.trackNumber}…` : undefined}
               onSent={(comment) => setLocalComments(prev => [...prev, comment])}

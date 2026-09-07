@@ -26,6 +26,10 @@ import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
 import { resolveTrackFolderFs } from '../../conductor/services/track-folder-fs.mjs';
 import { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } from '../../conductor/services/collector-manifest.mjs';
+import { buildInstanceState } from '../../conductor/services/instance-state.mjs';
+import { computeSetupGaps } from '../../conductor/services/setup-gaps.mjs';
+import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack } from '../../conductor/services/manager-pseudo-track.mjs';
+import { parseConversationComments } from '../../conductor/sync-conversation-utils.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -568,6 +572,96 @@ app.get('/api/workers', async (req, res) => {
     queryStr += ' ORDER BY w.hostname, w.pid';
     const result = await pool.query(queryStr, params);
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10069 REQ-13/D3/D4: the instance snapshot the Chat view's setup
+// wizard gates on (D4) and the manager session's digest is built from
+// (D3). `?project_id=` scopes the returned `gaps` to that project (the
+// "project whose board is being viewed" — no-workers/no-manager/etc are
+// meaningless without a project in view); omitted, gaps is []. The
+// `projects`/`workers` lists are always instance-wide, same visibility
+// scoping GET /api/workers already applies.
+function isStubbedDoc(content) {
+  if (!content) return true;
+  const trimmed = content.trim();
+  if (trimmed.length < 40) return true;
+  return /<[a-zA-Z][^>]*>/.test(trimmed.slice(0, 400));
+}
+
+app.get('/api/state', async (req, res) => {
+  try {
+    const userId = req.user?.uid || null;
+
+    let workersQuery = `
+      SELECT w.id, w.hostname, w.type, w.project_id, w.current_task, w.last_heartbeat
+      FROM workers w
+      WHERE w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+    `;
+    const workerParams = [];
+    if (AUTH_ENABLED && userId) {
+      workersQuery += `
+        AND (
+          w.visibility = 'public'
+          OR w.user_uid = $1
+          OR (w.visibility = 'team' AND EXISTS (
+            SELECT 1 FROM worker_permissions wp WHERE wp.worker_id = w.id AND wp.user_uid = $1
+          ))
+          OR w.user_uid IS NULL
+        )
+      `;
+      workerParams.push(userId);
+    }
+    const [projectsResult, workersResult] = await Promise.all([
+      pool.query('SELECT id, name, repo_path, primary_cli, create_quality_gate FROM projects ORDER BY id'),
+      pool.query(workersQuery, workerParams),
+    ]);
+
+    const projects = projectsResult.rows;
+    const tracksResult = await pool.query('SELECT project_id, track_number, lane_status AS lane FROM tracks');
+
+    const state = buildInstanceState({
+      projects,
+      tracks: tracksResult.rows,
+      workers: workersResult.rows,
+    });
+
+    let gaps = [];
+    const projectId = req.query.project_id ? parseInt(req.query.project_id, 10) : null;
+    if (projectId) {
+      const project = projects.find(p => p.id === projectId);
+      const snapshot = state.projects.find(p => p.id === projectId);
+      if (project && snapshot) {
+        const hasProductMd = existsSync(join(project.repo_path, 'conductor', 'product.md'))
+          && !isStubbedDoc(readFileSync(join(project.repo_path, 'conductor', 'product.md'), 'utf8'));
+        const hasTechStackMd = existsSync(join(project.repo_path, 'conductor', 'tech-stack.md'))
+          && !isStubbedDoc(readFileSync(join(project.repo_path, 'conductor', 'tech-stack.md'), 'utf8'));
+        const hasQualityGateMd = existsSync(join(project.repo_path, 'conductor', 'quality-gate.md'));
+        const hasManagerWorker = state.workers.some(w => w.type === 'manager');
+        const hasOnlineWorker = state.workers.some(w => w.project_id === projectId && w.online && w.type !== 'manager');
+        const trackCount = Object.values(snapshot.tracksByLane).reduce((a, b) => a + b, 0);
+        const { rows: provRows } = await pool.query(
+          'SELECT status FROM provider_status WHERE project_id = $1 AND provider = $2',
+          [projectId, project.primary_cli]
+        );
+        gaps = computeSetupGaps({
+          projectCount: projects.length,
+          hasOnlineWorker,
+          hasManagerWorker,
+          primaryCliConfigured: !!project.primary_cli,
+          primaryProviderReachable: provRows.length > 0 && provRows[0].status === 'available',
+          hasProductMd,
+          hasTechStackMd,
+          createQualityGate: !!project.create_quality_gate,
+          hasQualityGateMd,
+          trackCount,
+        });
+      }
+    }
+
+    res.json({ ...state, gaps });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1810,8 +1904,43 @@ async function syncTrackToFile(projectId, trackNum, updates) {
   }
 }
 
+// Track 10069 Phase 4 (REQ-27, D8): the manager pseudo-track
+// (conductor/tracks/manager/, 10067 REQ-14) has no `tracks` row by design
+// (D7 — a real row would put a card on every project's board). getTrackId's
+// query would always 404 it, so this reads straight off conversation.md
+// through the same pure parser syncConversation already uses, mapped to the
+// { id, author, body, created_at } shape useTrackComments/CommentBubble
+// already render — no new parser, no new renderer.
+async function getManagerPseudoTrackComments(projectId) {
+  const projRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [projectId]);
+  const repoPath = projRes.rows[0]?.repo_path;
+  if (!repoPath) return [];
+  const convPath = join(repoPath, 'conductor', 'tracks', MANAGER_PSEUDO_TRACK, 'conversation.md');
+  if (!existsSync(convPath)) return [];
+  const content = readFileSync(convPath, 'utf8');
+  const turns = parseConversationComments(content);
+  if (turns.length === 0) return [];
+  // conversation.md carries no per-turn timestamp (the file format is
+  // `> **author**: body`, nothing else) — a real track's turns only gain a
+  // created_at when synced into a `track_comments` row, which this
+  // pseudo-track deliberately has none of. Derive a monotonic synthetic
+  // timestamp from the file's own mtime instead of `Date.now()` per
+  // request, so re-fetching doesn't make every historical turn read as
+  // "just now" on every poll.
+  const mtimeMs = statSync(convPath).mtimeMs;
+  return turns.map((t, i) => ({
+    id: `${MANAGER_PSEUDO_TRACK}-${i}`,
+    author: t.author,
+    body: t.body,
+    created_at: new Date(mtimeMs - (turns.length - 1 - i) * 1000).toISOString(),
+  }));
+}
+
 app.get('/api/projects/:id/tracks/:num/comments', async (req, res) => {
   try {
+    if (isManagerPseudoTrack(req.params.num)) {
+      return res.json(await getManagerPseudoTrackComments(req.params.id));
+    }
     const trackId = await getTrackId(req.params.id, req.params.num);
     if (!trackId) return res.status(404).json({ error: 'Track not found' });
     const result = await pool.query(
@@ -1828,6 +1957,52 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
   try {
     const { body, author = 'human' } = req.body;
     if (!body) return res.status(400).json({ error: 'body is required' });
+
+    // Track 10069 Phase 4 (REQ-27, D8): the manager pseudo-track has no
+    // `tracks` row (D7 — a real row would put a card on every board), so
+    // collectorWrite would POST to a track that doesn't exist and
+    // queueFileSync (DB→FS sync for other machines) has no DB row to sync
+    // FROM. Append straight to conversation.md in the documented
+    // `> **author**: body` turn format, and for a human turn set
+    // **Waiting for reply**: yes directly in index.md — the only carrier
+    // this pseudo-track has for "a human replied, please answer" (D8),
+    // since there is no lane_action_status column to flip.
+    if (isManagerPseudoTrack(req.params.num)) {
+      const projRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+      const repoPath = projRes.rows[0]?.repo_path;
+      if (!repoPath) return res.status(404).json({ error: 'Project not found' });
+      const dir = join(repoPath, 'conductor', 'tracks', MANAGER_PSEUDO_TRACK);
+      if (!existsSync(dir)) return res.status(404).json({ error: 'Manager pseudo-track not found' });
+
+      const convPath = join(dir, 'conversation.md');
+      const cursorPath = join(dir, '.conv-cursor');
+      const append = `\n> **${author}**: ${body}\n`;
+      appendFileSync(convPath, append, 'utf8');
+      // Advance the cursor past the line we just wrote, same as the
+      // numbered-track path — the marker set below is what the worker's
+      // dirs-filter/reply dispatch actually reacts to (D8); this cursor
+      // only matters if a future numbered-track-style sync ever reads
+      // this file, which today nothing does for this reserved name.
+      writeFileSync(cursorPath, String(statSync(convPath).size), 'utf8');
+
+      if (author === 'human') {
+        const indexPath = join(dir, 'index.md');
+        if (existsSync(indexPath)) {
+          let idxContent = readFileSync(indexPath, 'utf8');
+          const re = /\*\*Waiting for reply\*\*:\s*[^\n]+/i;
+          idxContent = re.test(idxContent)
+            ? idxContent.replace(re, '**Waiting for reply**: yes')
+            : idxContent.trim() + '\n**Waiting for reply**: yes\n';
+          writeFileSync(indexPath, idxContent, 'utf8');
+        }
+      }
+
+      broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+      return res.status(201).json({
+        id: `${MANAGER_PSEUDO_TRACK}-${Date.now()}`, author, body, created_at: new Date().toISOString(),
+      });
+    }
+
     const result = await collectorWrite('POST', `/track/${req.params.num}/comment`, req.body, req.params.id);
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
 

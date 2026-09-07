@@ -40,5 +40,5 @@ export function useTrackTranscript(projectId, trackNumber) {
   }, [trackNumber]);
   useWebSocket(onWsMessage);
 
-  return { blocks: transcriptState.blocks, rawLog };
+  return { blocks: transcriptState.blocks, turn: transcriptState.turn, rawLog };
 }
