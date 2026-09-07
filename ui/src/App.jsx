@@ -20,6 +20,7 @@ import { DeleteProjectModal } from './components/DeleteProjectModal.jsx';
 import { WorkersList } from './components/WorkersList.jsx';
 import { WorktreesPanel } from './components/WorktreesPanel.jsx';
 import { CICDView } from './components/CICDView.jsx';
+import { ChatView } from './components/ChatView.jsx';
 import { InboxPanel } from './components/InboxPanel.jsx';
 import { WorkerActivityLatch } from './components/WorkerActivityLatch.jsx';
 import { CloudOnboarding } from './components/CloudOnboarding.jsx';
@@ -121,7 +122,7 @@ function AppContent({ user, logout }) {
     typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(MOBILE_MEDIA_QUERY).matches
       ? 'focus'
       : 'lanes'
-  )); // 'lanes' | 'workers' | 'cicd' | 'projects' | 'worktrees' | 'focus' (mobile only)
+  )); // 'lanes' | 'workers' | 'cicd' | 'chat' | 'projects' | 'worktrees' | 'focus' (mobile only)
   const isMobile = useIsMobile();
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [worktreeHighlightTrack, setWorktreeHighlightTrack] = useState(null); // set by a done-lane card's "View in Worktrees" link
@@ -375,6 +376,17 @@ function AppContent({ user, logout }) {
               >
                 CI/CD
               </button>
+              {/* Track 10069 REQ-1: ungated by selectedProjectId, same as
+                  Lanes/Workers/CI/CD — reachable in All-Projects mode. */}
+              <button
+                onClick={() => setViewMode('chat')}
+                className={`text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-md transition-all ${viewMode === 'chat'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'
+                  }`}
+              >
+                Chat
+              </button>
               {/* Track 1112 Phase 7: worktrees are physically per-machine,
                   scoped to one project's checkout — no meaningful cross-
                   project view, so this tab only appears once a project is
@@ -602,6 +614,8 @@ function AppContent({ user, logout }) {
           <WorkersList projectId={selectedProjectId} project={selectedProject} workers={workers} providers={providers} waitingTracks={waitingTracks} layout="grid" onRefresh={refetch} onSelectTrack={handleInboxSelect} />
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
+        ) : viewMode === 'chat' ? (
+          <ChatView projectId={selectedProjectId} workers={workers} />
         ) : viewMode === 'worktrees' ? (
           <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} highlightTrack={worktreeHighlightTrack} />
         ) : tracks.length === 0 && user && !user.local ? (

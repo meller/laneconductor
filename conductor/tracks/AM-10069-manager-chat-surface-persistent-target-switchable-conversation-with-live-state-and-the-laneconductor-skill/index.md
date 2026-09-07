@@ -2,7 +2,7 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 25%
+**Progress**: 37%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planning complete (replanned for the revised 10067 boundary)
 **Type**: dev

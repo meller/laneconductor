@@ -8,6 +8,7 @@ export function MobileMoreSheet({ onClose, onNavigate, onOpenConductor, onOpenWo
   const items = [
     { key: 'projects', label: '📁 Projects', onClick: () => onNavigate('projects') },
     { key: 'cicd', label: '🚀 CI/CD', onClick: () => onNavigate('cicd') },
+    { key: 'chat', label: '💬 Chat', onClick: () => onNavigate('chat') },
     { key: 'worktrees', label: '🌳 Worktrees', onClick: () => onNavigate('worktrees') },
     { key: 'context', label: '📄 Context', onClick: onOpenConductor },
     { key: 'workflow', label: '⚙️ Workflow', onClick: onOpenWorkflow },

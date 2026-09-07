@@ -83,28 +83,28 @@ implementation. Independent of 10067 — shippable on its own.
 
 ---
 
-## Phase 3: The persistent Chat view and target switcher (REQ-1..REQ-5)
+## Phase 3: The persistent Chat view and target switcher (REQ-1..REQ-5) ✅
 
 **Problem**: Chat is three modals today, each scoped to something other than "a target I
 keep talking to."
 **Solution**: A real view in `viewMode`, with a target list and the existing transcript and
 composer pieces inside it.
 
-- [ ] Task 3.1: Add `'chat'` to `App.jsx`'s `viewMode` union and a **Chat** nav button
+- [x] Task 3.1: Add `'chat'` to `App.jsx`'s `viewMode` union and a **Chat** nav button
       beside CI/CD, ungated by `selectedProjectId` the way Projects is (REQ-1).
-- [ ] Task 3.2: `ChatView.jsx` — two-pane layout: target list left, transcript + composer
+- [x] Task 3.2: `ChatView.jsx` — two-pane layout: target list left, transcript + composer
       right. Reuses `useTrackTranscript`, `TranscriptView`, `TrackChatComposer`,
       `CommentBubble` and Phase 2's `TurnStatusBar`. **No second renderer.**
-- [ ] Task 3.3: Target list — the manager first and selected by default, then workers,
+- [x] Task 3.3: Target list — the manager first and selected by default, then workers,
       each row showing live status via the existing `workerStatus.js` helpers (REQ-3). The
       manager row renders here but only resolves to a usable target once Phase 4's resolver
       lands; until then it shows the transcript with a disabled composer, which is exactly
       today's behaviour rather than a new dead end.
-- [ ] Task 3.4: Persist the selected target across re-renders and project switches
+- [x] Task 3.4: Persist the selected target across re-renders and project switches
       (REQ-2), and preserve per-target scroll position on switch back (REQ-4).
-- [ ] Task 3.5: Add a Chat entry to `MobileMoreSheet` so the view is reachable on mobile
+- [x] Task 3.5: Add a Chat entry to `MobileMoreSheet` so the view is reachable on mobile
       without redesigning it for mobile (spec.md Out of Scope).
-- [ ] Task 3.6: Worker-target tier (D5) — for a worker target, resolve through the existing
+- [x] Task 3.6: Worker-target tier (D5) — for a worker target, resolve through the existing
       `resolveWorkerChatTarget` and post through the existing comments endpoint, i.e.
       10037's behaviour relocated into the persistent pane, not reimplemented.
 
