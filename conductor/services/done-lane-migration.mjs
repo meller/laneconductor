@@ -20,6 +20,15 @@
 // conductor/tests/track-10035-migration.test.mjs. The caller (bin/lc.mjs)
 // owns applying the plan: file writes/commits, conversation.md comments,
 // and collector PATCH calls.
+//
+// Track 10076: "genuinely unmerged" is imported from done-lane-bucket.mjs
+// rather than kept as a local inline array — that module is now the sole
+// definition of which classifications mean "not actually shipped yet",
+// shared with the board's live done-lane display and the continuous
+// worker-side self-heal. This one-time migration command and the always-on
+// self-heal must never be able to disagree about the set.
+
+import { UNMERGED_CLASSIFICATIONS } from './done-lane-bucket.mjs';
 
 /**
  * @param {Array} rows auditWorktrees() output — trackNumber, lane,
@@ -35,7 +44,7 @@ export function planDoneLaneMigration(rows, dbMergeModeByTrack = {}) {
   for (const row of rows) {
     if (!row.trackNumber) continue; // detached rows have no track to act on
 
-    const genuinelyUnmerged = ['mergeable', 'stranded', 'conflicted', 'pr-open'].includes(row.classification);
+    const genuinelyUnmerged = UNMERGED_CLASSIFICATIONS.includes(row.classification);
     if (genuinelyUnmerged && row.lane === 'done' && row.laneStatus === 'success') {
       actions.push({
         trackNumber: row.trackNumber,

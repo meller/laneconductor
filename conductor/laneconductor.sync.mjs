@@ -70,6 +70,7 @@ import { createCollectorRetryBuffer } from './services/collector-retry-buffer.mj
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
+import { planDoneLaneMigration } from './services/done-lane-migration.mjs';
 import { getConversationRunWriteScope, CONVERSATION_REPLY_ACTION } from './services/conversation-run-write-scope.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
 import { resolveTrackFolderFs } from './services/track-folder-fs.mjs';
@@ -4753,6 +4754,24 @@ async function reconcileWorktrees() {
     return;
   }
 
+  // Track 10076 Phase 4: runs BEFORE the merge loop below, on this same
+  // audit — not after. A row can qualify for BOTH this demotion AND the
+  // merge loop's own merge (a pre-track-10035 legacy track stuck at
+  // done:success with a live mergeable branch matches both). Demoting
+  // first is safe either way: the merge loop's own eligibility never
+  // depends on lane_action_status (only on `row.classification`, read
+  // from this same already-fetched `rows`), so it still merges that same
+  // track a few lines below regardless of order — but reversing the order
+  // would not be: demoting AFTER a successful same-cycle merge would
+  // write done:queue over a track that had just, in this exact tick,
+  // become genuinely shipped, using a `rows` snapshot the merge below had
+  // already made stale.
+  try {
+    await reconcileDoneLaneStatus(rows);
+  } catch (err) {
+    console.error(`[reconcile-done] Failed: ${err.message}`);
+  }
+
   const lockDir = join(process.cwd(), '.conductor', 'locks');
   for (const row of rows) {
     if (row.classification !== 'mergeable' && row.classification !== 'stranded') continue;
@@ -4771,6 +4790,116 @@ async function reconcileWorktrees() {
       console.warn(`[reconcile] track-${row.trackNumber} conflicts with ${mainBranch}: ${(result.conflictPaths || []).join(', ')} — left unmerged, worktree intact`);
     }
   }
+}
+
+// Track 10076 Phase 4 (REQ-5, REQ-6, REQ-7): the continuous counterpart to
+// planDoneLaneMigration's one-time `lc worktrees migrate-done-lane` sweep
+// (track 10035 REQ-11). Phase 3 fixed the DISPLAY drift — a done:success
+// track with a live unmerged branch now renders as "Unmerged" on the
+// board. But lane_action_status is also what the auto-launch queue claims
+// (`done:queue`) and what TrackCard's ▶ control gates on — a track stuck
+// at done:success with an unmerged branch is not just mislabelled, it is
+// UNREACHABLE. Nothing will ever re-merge it. This runs the exact same
+// pure decision planDoneLaneMigration already makes, every cycle instead
+// of only when a human runs the CLI, reusing the rows reconcileWorktrees()
+// already fetched this tick — no second audit, no extra git shelling.
+//
+// Demote-only (REQ-6): may only move done:success -> done:queue, never the
+// reverse. A track whose branch is already fully merged never appears in
+// `rows` at all (auditWorktrees' own isAncestor early-continue drops it),
+// so there is structurally nothing here to act on for the "genuinely
+// shipped" case — this function can only ever demote a row that auditing
+// itself still considers unmerged. The merged -> success direction stays
+// owned by reconcileWorktrees() (direct mode) and reconcilePrTracks() (pr
+// mode) — the two paths that actually observe a merge land.
+async function reconcileDoneLaneStatus(rows) {
+  const actions = planDoneLaneMigration(rows).filter(a => a.type === 'requeue-done-success');
+  if (actions.length === 0) return;
+
+  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+  const lockDir = join(process.cwd(), '.conductor', 'locks');
+
+  for (const action of actions) {
+    const trackNumber = action.trackNumber;
+
+    // REQ-7: never rewrite a track whose lane action (most likely the
+    // merge action itself, re-running right now) holds a live lock. Same
+    // dead-PID liveness reasoning worktree-audit.mjs's
+    // mainHasReopenedTrackIndependently() documents — a lock FILE
+    // existing is not proof of life; only a matching PID still alive on
+    // this machine is.
+    if (isLockLive(join(lockDir, `${trackNumber}.lock`))) continue;
+
+    const trackDirName = resolveTrackFolder(tracksDir, String(trackNumber));
+    if (!trackDirName) continue;
+    const indexPath = join(tracksDir, trackDirName, 'index.md');
+
+    let content;
+    try { content = readFileSync(indexPath, 'utf8'); } catch { continue; }
+
+    // planDoneLaneMigration's `rows` are sourced from the TRACK BRANCH's
+    // own COMMITTED content (auditWorktrees -> readTrackStateFromBranch),
+    // which never changes just because a previous cycle wrote PRIMARY's
+    // index.md (REQ-8 single-writer — this function never commits
+    // anything to the branch). Re-reading primary's own on-disk state
+    // fresh, right before writing, is what makes this idempotent: once
+    // this track reads done:queue on disk, every later cycle's still-stale
+    // `action` for it is silently skipped here rather than re-applied.
+    // Also protects a track a human has since moved to a different lane
+    // entirely — `intendedLane` below is always 'done', so writing
+    // unconditionally would drag it back.
+    const onDiskLane = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim().toLowerCase();
+    const onDiskStatus = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i)?.[1]?.trim().toLowerCase();
+    if (onDiskLane !== 'done' || onDiskStatus !== 'success') continue;
+
+    // Routed through the shared regression guard like every other
+    // marker-write site (REQ-7) — a same-lane status change always passes
+    // it today, but this keeps the invariant enforced in exactly one
+    // place rather than trusting this call site to reimplement it.
+    const applied = applyGuardedLaneWrite(content, { intendedLane: 'done', intendedStatus: 'queue', producedByThisRun: true });
+    if (applied.blocked) {
+      console.warn(`[reconcile-done] track ${trackNumber}: write blocked — ${applied.reason}`);
+      continue;
+    }
+
+    try {
+      writeFileSync(indexPath, applied.content, 'utf8');
+    } catch (err) {
+      console.warn(`[reconcile-done] Failed to write index.md for track ${trackNumber}: ${err.message}`);
+      continue;
+    }
+    console.log(`[reconcile-done] track ${trackNumber}: done:success -> done:queue — ${action.reason}`);
+
+    const row = rows.find(r => r.trackNumber === trackNumber);
+    try {
+      appendFileSync(join(tracksDir, trackDirName, 'conversation.md'),
+        `\n> **system**: ⚠️ Moved back to done:queue — branch track-${trackNumber} is still unmerged (${row?.classification}) despite done:success. The merge action will re-claim it.\n`);
+    } catch (err) {
+      console.warn(`[reconcile-done] Failed to append comment for track ${trackNumber}: ${err.message}`);
+    }
+
+    await patchTrackPrFields(trackNumber, { lane_status: 'done', lane_action_status: 'queue' });
+  }
+}
+
+// Track 10076 Phase 4: a lock FILE existing is not proof of life — a
+// worker that claimed it and then exited (crash, restart) leaves it
+// behind forever. Mirrors worktree-audit.mjs's own inline PID check
+// (mainHasReopenedTrackIndependently), built on the shared isPidAlive()
+// this file already imports from run-marker.mjs rather than duplicating
+// the try/kill(0)/catch dance a second time.
+function isLockLive(lockPath) {
+  if (!existsSync(lockPath)) return false;
+  try {
+    const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+    if (lock.machine === os.hostname() && lock.pid) {
+      return isPidAlive(lock.pid);
+    }
+  } catch {
+    // Unparsable lock file — conservatively still trust its mere existence,
+    // same as worktree-audit.mjs's own documented fallback.
+  }
+  return true;
 }
 
 // Track 10018 Phase 3: the pr-mode counterpart to reconcileWorktrees — polls

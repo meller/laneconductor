@@ -1,7 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TrackCard } from './TrackCard.jsx';
-import { LANES, LANE_STATUS_CONFIG } from './KanbanBoard.jsx';
+import { LANES, LANE_STATUS_CONFIG, DONE_BUCKET_ORDER } from './KanbanBoard.jsx';
+import { resolveDoneLaneBucket } from '../../../conductor/services/done-lane-bucket.mjs';
 import { useSwipe } from '../hooks/useSwipe.js';
+
+// Track 10076 (REQ-9): resolves the same bucket the board's done column
+// uses (git classification when available, lane_action_status fallback
+// otherwise) so this view's status chips and filter never disagree with
+// the board — found live during this track's own planning pass: this file
+// only ever imported LANE_STATUS_CONFIG, so its done-lane chips read
+// "Queued"/"Failed" while the board already read "Unmerged"/"PR open".
+function resolveTrackBucket(track) {
+  if (track.lane_status === 'done') {
+    return resolveDoneLaneBucket({
+      laneStatus: track.lane_status,
+      laneActionStatus: track.lane_action_status,
+      worktreeClass: track.worktree_class,
+      classificationAvailable: track.worktree_class_available,
+    });
+  }
+  const status = track.lane_action_status || 'waiting';
+  return { bucket: status, ...(LANE_STATUS_CONFIG[status] || LANE_STATUS_CONFIG.waiting) };
+}
 
 export function LaneFocusView({
   projectId,
@@ -52,16 +72,24 @@ export function LaneFocusView({
     },
   });
 
+  // Track 10076: bucket per track, resolved once and reused for both the
+  // status chips (counts + labels) and the filter below, so they can never
+  // disagree with each other or with the board.
+  const bucketByTrack = new Map(laneTracks.map(t => [t, resolveTrackBucket(t)]));
+  const bucketConfigByKey = new Map();
+  for (const cfg of bucketByTrack.values()) {
+    if (!bucketConfigByKey.has(cfg.bucket)) bucketConfigByKey.set(cfg.bucket, cfg);
+  }
+  const bucketOrder = lane.id === 'done' ? DONE_BUCKET_ORDER : Object.keys(LANE_STATUS_CONFIG);
+  const orderedBucketKeys = bucketOrder.filter(key => bucketConfigByKey.has(key));
+
   const statusCounts = Object.fromEntries(
-    Object.keys(LANE_STATUS_CONFIG).map(status => [
-      status,
-      laneTracks.filter(t => (t.lane_action_status || 'waiting') === status).length,
-    ])
+    orderedBucketKeys.map(key => [key, laneTracks.filter(t => bucketByTrack.get(t).bucket === key).length])
   );
 
   const filteredTracks = statusFilter === 'all'
     ? laneTracks
-    : laneTracks.filter(t => (t.lane_action_status || 'waiting') === statusFilter);
+    : laneTracks.filter(t => bucketByTrack.get(t).bucket === statusFilter);
 
   return (
     <div className="flex flex-col h-full">
@@ -121,7 +149,8 @@ export function LaneFocusView({
         >
           All ({laneTracks.length})
         </button>
-        {Object.entries(LANE_STATUS_CONFIG).map(([status, config]) => {
+        {orderedBucketKeys.map(status => {
+          const config = bucketConfigByKey.get(status);
           if (statusCounts[status] === 0) return null;
           const isActive = statusFilter === status;
           return (
@@ -148,7 +177,7 @@ export function LaneFocusView({
           onTouchEnd={swipeHandlers.onTouchEnd}
           data-testid="lane-card-area"
         >
-          No {statusFilter === 'all' ? '' : `${LANE_STATUS_CONFIG[statusFilter]?.label.toLowerCase()} `}tracks in {lane.label}.
+          No {statusFilter === 'all' ? '' : `${bucketConfigByKey.get(statusFilter)?.label.toLowerCase()} `}tracks in {lane.label}.
         </div>
       ) : (
         <div
