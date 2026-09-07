@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 37%
+**Progress**: 50%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planning complete (replanned for the revised 10067 boundary)
+**Phase**: Phase 4 complete — manager chat plumbing
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: pr

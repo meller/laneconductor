@@ -52,11 +52,18 @@ describe('WorkerChatPanel — target-track resolution', () => {
     expect(screen.getByTestId('worker-chat-disabled-hint')).toBeInTheDocument();
   });
 
-  it('a manager gets transcript-only view — no target even if it looks busy', async () => {
-    const worker = busyWorker({ type: 'manager' });
+  // Track 10069 REQ-25/REQ-26: a manager resolves to the reserved
+  // 'manager' pseudo-track (10067 REQ-14) and gets an ENABLED composer,
+  // replacing the old "transcript-only" hard-disable — even a worker that
+  // looks "busy" from current_task's track-shaped pattern still resolves
+  // to the manager target, not that phantom track.
+  it('a manager resolves to the pseudo-track and gets an enabled composer', async () => {
+    const worker = busyWorker({ type: 'manager', project_id: null });
     render(<WorkerChatPanel worker={worker} projectId={1} onClose={() => { }} />);
-    await waitFor(() => screen.getByTestId('worker-chat-no-target'));
-    expect(screen.getByTestId('worker-chat-input')).toBeDisabled();
+    await waitFor(() => screen.getByTestId('worker-chat-track-link'));
+    expect(screen.getByTestId('worker-chat-track-link').textContent).toContain('#manager');
+    expect(screen.getByTestId('worker-chat-input')).not.toBeDisabled();
+    expect(screen.queryByTestId('worker-chat-disabled-hint')).not.toBeInTheDocument();
   });
 
   it('forcedTrackNumber (last-track chip) pins the scope even for a busy worker', async () => {

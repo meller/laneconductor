@@ -113,7 +113,7 @@ this phase even before the manager tier lands.
 
 ---
 
-## Phase 4: Manager chat plumbing — resolver, composer, filesystem conversation adapter, reply pickup (REQ-25..REQ-31)
+## Phase 4: Manager chat plumbing — resolver, composer, filesystem conversation adapter, reply pickup (REQ-25..REQ-31) ✅
 
 **Problem**: The revised 10067 boundary (spec.md D7) moved every interactive piece of manager
 chat into this track, and none of it exists today. The resolver returns `null` for managers,
@@ -124,35 +124,64 @@ deliberately does not have, the claim scan skips any folder without a digit, and
 subsystem, no second renderer, no DB row. Built against a fixture `manager/` folder so the
 phase does not block on merged 10067 (REQ-31).
 
-- [ ] Task 4.1: `resolveWorkerChatTarget()` returns
+- [x] Task 4.1: `resolveWorkerChatTarget()` returns
       `{ trackNumber: 'manager', projectId: fallbackProjectId, source: 'manager' }` for
       `type === 'manager'` (REQ-25). Keep the `null` return for an idle non-manager worker
       with no last-context track — that case is still genuinely "nothing to talk about".
-- [ ] Task 4.2: Enable `WorkerChatPanel`'s composer for a manager target and drop the
+- [x] Task 4.2: Enable `WorkerChatPanel`'s composer for a manager target and drop the
       "Managers are transcript-only" hint (REQ-26). Phase 3's pane reuses the same composer,
-      so both surfaces gain it from this one change.
-- [ ] Task 4.3: `GET /api/projects/:id/tracks/:num/comments` — reserved-name branch reading
+      so both surfaces gain it from this one change. (`ChatView.jsx`'s own now-dead
+      `isManager && !chatTarget` branch, left by Phase 3 for this exact phase, was removed
+      too — the resolver alone makes it unreachable.)
+- [x] Task 4.3: `GET /api/projects/:id/tracks/:num/comments` — reserved-name branch reading
       `conductor/tracks/manager/conversation.md` through `parseConversationComments()` and
       mapping turns to the `{ id, author, body, created_at }` shape `useTrackComments`
       already renders. No `getTrackId`, no 404 (REQ-27).
-- [ ] Task 4.4: `POST .../comments` — reserved-name branch that skips `collectorWrite`,
+- [x] Task 4.4: `POST .../comments` — reserved-name branch that skips `collectorWrite`,
       appends the turn in the documented `> **human**: …` format, advances `.conv-cursor`
       exactly as the existing branch does, sets `**Waiting for reply**: yes` in the
       pseudo-track's `index.md`, and broadcasts `track:updated` (REQ-27, D8).
-- [ ] Task 4.5: `autoLaunchLocalFs` — admit the reserved name past both digit guards
+- [x] Task 4.5: `autoLaunchLocalFs` — admit the reserved name past both digit guards
       (`isTrackDirName` and the `dir.match(/(\d+)/)` skip) **only** when that marker is set,
       force `CONVERSATION_REPLY_ACTION`, and bypass every path that assumes a numbered track
       (lane transition, `claimableSet`, `autoRun`, dependency gating) (REQ-28, D8).
-    - [ ] Assert the negative as its own test: with the marker absent, the folder is still
+    - [x] Assert the negative as its own test: with the marker absent, the folder is still
           skipped by both guards — the property that keeps the pseudo-track off the board.
-- [ ] Task 4.6: `syncConversation` — explicit reserved-name early return, leaving
+    - Also required a fix not enumerated above: `resolveTrackFolder` (the worker's own
+      folder-resolution wrapper, called from `buildCliArgs`, the exit handler, and
+      `spawnCli`'s scaffold-if-missing check) used the shared `decideTrackFolder`'s
+      `^(?:[A-Za-z]+-)?${trackNumber}-` regex, which structurally cannot match a bare
+      `manager` folder (it requires a trailing hyphen+slug). Without a guard, every one of
+      those callers saw "no folder" and the scaffold-if-missing block would have created a
+      bogus `manager-manager` duplicate on first dispatch — confirmed live before the fix
+      landed. Added a reserved-name early-return at the top of `resolveTrackFolder` itself.
+- [x] Task 4.6: `syncConversation` — explicit reserved-name early return, leaving
       `extractTrackNumber`'s shared fallback untouched, since its callers reach well outside
       this track (REQ-29).
-- [ ] Task 4.7: Confirm invisibility end to end: no Kanban card, no `tracks.md` line, no
-      `tracks` row, before and after a full chat exchange (REQ-30).
+- [x] Task 4.7: Confirmed invisibility end to end: `init-tracks-summary.mjs` produces no
+      `manager` line (its own digit-anchored regex excludes it, same reasoning as
+      `isTrackDirName`), the auto-launch dirs scan never claims it as a numbered track, and
+      the fixture-based e2e run left `conductor/tracks/` containing only `manager/` — no
+      scaffolded duplicate. "No `tracks` row" is vacuous in local-fs mode (no DB exists);
+      verifying it against a real DB is Phase 8's job, per D7 (REQ-30).
 
 **Impact**: The manager becomes addressable end to end with no DB row, and this track's
 dependency on 10067 shrinks to "a directory with two files in it".
+
+**Verification**: `conductor/tests/track-10069-manager-pseudo-track.test.mjs` (pure module,
+3/3), `conductor/tests/track-10069-manager-chat-plumbing.test.mjs` (real worker + fixture
+folder, 4/4 — TC-4.6, TC-4.7, TC-4.9, plus the no-marker-at-all case),
+`ui/server/tests/track-10069-manager-comments-route.test.mjs` (real fs + mocked pg/fetch,
+5/5), `ui/src/lib/workerTaskInfo.test.js` (updated, 12/12), `WorkerChatPanel.test.jsx` /
+`WorkerActivityLatch.test.jsx` / `ChatView.test.jsx` (updated for the new enabled-composer
+behavior, all green). Regression sweep: `local-fs-e2e.test.mjs` (7/7), the AM-10046
+conversation-reply suites (27/27), `track-1119`/`track-10063` folder-resolution suites
+(all green), and the full `ui && npx vitest run` (757 passing; the 33 pre-existing failures
+in `auth.test.mjs`/`WorkflowSettings.test.jsx`/`track-1116-model-override.test.mjs`/etc. are
+in files this phase never touched — confirmed unrelated by `git diff --stat` against those
+paths). One flaky pre-existing test (`conv-sync-multi-worker-race.test.mjs`, a 3-worker
+registration race) was confirmed to fail identically with this phase's changes stashed out,
+so it predates this work.
 
 ---
 

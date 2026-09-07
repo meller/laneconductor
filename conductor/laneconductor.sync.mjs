@@ -36,6 +36,7 @@ import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
+import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
@@ -1749,6 +1750,22 @@ function isTrackDirName(name) {
   return /\d+/.test(name) && !name.startsWith('_duplicate-');
 }
 
+// Track 10069 Phase 4 (REQ-28, D8): the manager pseudo-track has no digit
+// (isTrackDirName excludes it by design — that's what keeps it off the
+// board, REQ-30) and is never claimable from the open queue. It is
+// admitted into autoLaunchLocalFs's `dirs` scan ONLY when its own
+// **Waiting for reply**: yes marker is set — the sole carrier for "a human
+// replied, please answer" this pseudo-track has, since it has no DB row to
+// flip lane_action_status on (D8). Reads the file directly rather than
+// trusting a caller-supplied flag, so this stays correct even if called
+// from somewhere that hasn't already loaded the content.
+function isAdmissibleManagerPseudoTrackDir(tracksDir, name) {
+  if (!isManagerPseudoTrack(name)) return false;
+  const indexPath = join(tracksDir, name, 'index.md');
+  if (!existsSync(indexPath)) return false;
+  return shouldAdmitManagerPseudoTrack(readFileSync(indexPath, 'utf8'));
+}
+
 // Track 10040 Phase 3 (REQ-15) / Track 10063 Phase 2: thin wrapper — the
 // fact-gathering lives in resolveTrackFolderFs
 // (conductor/services/track-folder-fs.mjs), shared with `lc track-dir` and
@@ -1763,6 +1780,19 @@ function isTrackDirName(name) {
 // are load-bearing (track 1119).
 function resolveTrackFolder(tracksDir, trackNumber) {
   if (!existsSync(tracksDir)) return null;
+
+  // Track 10069 Phase 4 (D8): the reserved manager pseudo-track is a
+  // single, exact, non-numeric folder name — not subject to the
+  // NNN-slug/PREFIX-NNN-slug ambiguity this function otherwise resolves.
+  // decideTrackFolder's own `^(?:[A-Za-z]+-)?${trackNumber}-` regex
+  // structurally cannot match it (it requires a trailing hyphen + slug
+  // this folder deliberately has none of — 10067 REQ-21), so without this
+  // guard every caller below would see "no folder" and the scaffold-if-
+  // missing block in spawnCli would create a bogus "manager-manager"
+  // duplicate.
+  if (isManagerPseudoTrack(trackNumber)) {
+    return existsSync(join(tracksDir, MANAGER_PSEUDO_TRACK)) ? MANAGER_PSEUDO_TRACK : null;
+  }
 
   const decision = resolveTrackFolderFs({ tracksDir, trackNumber, lookupRegisteredFolder: getTrackMetadata });
 
@@ -2878,6 +2908,13 @@ async function syncConversation(filepath) {
   if (getIsLocalFs()) return;
   const trackNumber = extractTrackNumber(filepath);
   if (!trackNumber) return;
+  // Track 10069 Phase 4 (REQ-29, D7): the manager pseudo-track has no
+  // `tracks` row, so posting its turns to /track/manager/comment would hit
+  // a track that doesn't exist on every single cycle. extractTrackNumber's
+  // shared fallback (`?? trackDir`) is untouched — it's used well outside
+  // this track — this just refuses to act on the one value it can return
+  // that names the reserved folder.
+  if (isManagerPseudoTrack(trackNumber)) return;
   const trackDir = dirname(filepath);
   const cursorPath = join(trackDir, '.conv-cursor');
   return withConvSyncLock(cursorPath, () => syncConversationLocked(filepath, trackNumber, trackDir, cursorPath));
@@ -6558,6 +6595,60 @@ const CLAIM_STALE_MS = (Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker
   }
 })();
 
+// Track 10069 Phase 4 (REQ-28, D8): dispatches a reply to the manager
+// pseudo-track. Deliberately separate from the main dirs loop below rather
+// than threaded through it — D8 is explicit that this is "never eligible
+// for a lane action, never claimable from the open queue, and never
+// receives a lane transition," and the main loop's claimableSet/autoRun/
+// dependency-gating/parallel-limit/retry-count machinery all assume a
+// numbered track. Reusing the exact conversation-reply mechanics a
+// numbered track's own waitingForReply branch already uses (same
+// hasGenuineUnansweredHumanComment check, same run-marker liveness defer,
+// same buildCliArgs(..., CONVERSATION_REPLY_ACTION, ...) call, same
+// spawnCli call with label 'local-fs-answer') is what makes everything
+// else — session resume, transcript streaming, Lane/Lane Status staying
+// untouched (getConversationRunWriteScope keys only on that label) — come
+// for free, per D8's own conclusion.
+async function dispatchManagerPseudoTrackReply(tracksDir, content) {
+  const convPath = join(tracksDir, MANAGER_PSEUDO_TRACK, 'conversation.md');
+  const indexPath = join(tracksDir, MANAGER_PSEUDO_TRACK, 'index.md');
+
+  if (!hasGenuineUnansweredHumanComment(convPath)) {
+    console.log(`[local-fs] Manager pseudo-track: **Waiting for reply** was set but no genuine unanswered human comment found — clearing stale flag.`);
+    const cleared = content.replace(/\*\*Waiting for reply\*\*:\s*yes/i, '**Waiting for reply**: no');
+    writeFileSync(indexPath, cleared, 'utf8');
+    return;
+  }
+
+  const liveMarker = parseRunMarker(readIfExists(runMarkerPath(process.cwd(), MANAGER_PSEUDO_TRACK)));
+  const markerLiveness = isRunMarkerLive(liveMarker, { isPidAlive, readProcessCommand });
+  if (markerLiveness.live) {
+    console.log(`[local-fs] Manager pseudo-track: deferring reply dispatch — a run is already live (pid ${liveMarker.pid}, action ${liveMarker.action}). Will retry next cycle.`);
+    return;
+  }
+
+  const customPrompt = `The user has sent a message in the manager's supervision conversation. Read conductor/tracks/${MANAGER_PSEUDO_TRACK}/conversation.md to find their message.
+Use /laneconductor comment ${MANAGER_PSEUDO_TRACK} to post your reply directly in the conversation. If it is a question, answer it. If it is a decision, acknowledge and incorporate it.
+Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversation reply on the manager's own supervision thread, not a numbered track's lane transition. Do not run /laneconductor plan/implement/review/quality-gate/merge.`;
+
+  const cliArgs = await buildCliArgs('laneconductor', CONVERSATION_REPLY_ACTION, MANAGER_PSEUDO_TRACK, customPrompt, {});
+  if (!cliArgs) {
+    console.log(`[local-fs] Manager pseudo-track skipped — ${providerBlockReason(getProject()?.primary?.cli)}.`);
+    return;
+  }
+
+  const [cmd, args, cli, model, tier, session] = cliArgs;
+  try {
+    const spawnedPid = await spawnCli(
+      cmd, args, 'local-fs-answer', MANAGER_PSEUDO_TRACK, cli, model, tier,
+      null, {}, getProject()?.id, session, 'manual-dispatch', null, CONVERSATION_REPLY_ACTION
+    );
+    console.log(`[local-fs] Manager pseudo-track → conversation-reply (PID: ${spawnedPid})`);
+  } catch (err) {
+    console.error(`[local-fs] Failed to spawn manager pseudo-track reply:`, err.message);
+  }
+}
+
 // ── Local-fs auto-launch (Mode 1: no API) ─────────────────────────────────────
 // Scans conductor/tracks/*/index.md for queued tracks, respects workflow.json limits.
 // claimableSet (Track 1084 Phase 3): in API mode, the set of track_numbers this
@@ -6579,8 +6670,20 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
   // track's own Phase 3 auto-generated tracks (which use the modern
   // prefixed convention) never getting claimed by a real running worker.
   const dirs = readdirSync(tracksDir)
-    .filter(isTrackDirName)
-    .sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]));  // process lowest track numbers first
+    .filter(name => isTrackDirName(name) || isAdmissibleManagerPseudoTrackDir(tracksDir, name))
+    .sort((a, b) => {
+      // Track 10069 Phase 4: the pseudo-track has no digit to sort by —
+      // .match(/\d+/)[0] on it would throw. Numbered tracks keep their
+      // existing lowest-first order; the pseudo-track (when admitted)
+      // always sorts last, since it competes with nothing for parallel
+      // limits or claim races (D8 — it's never a numbered lane action).
+      const na = a.match(/\d+/);
+      const nb = b.match(/\d+/);
+      if (na && nb) return parseInt(na[0]) - parseInt(nb[0]);
+      if (na) return -1;
+      if (nb) return 1;
+      return 0;
+    });
 
   const currentlyRunningPerLane = {};
   // Track AM-1119 Phase 3 (Task 2): one pass to know every track's current
@@ -6634,6 +6737,17 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (!existsSync(indexPath)) continue;
 
     const content = readFileSync(indexPath, 'utf8');
+
+    // Track 10069 Phase 4 (REQ-28, D8): the reserved manager pseudo-track
+    // reaches this point ONLY when the dirs filter above already confirmed
+    // **Waiting for reply**: yes — dispatch its reply and move on. It has
+    // no **Lane** marker to require, so it must be handled here, before
+    // the `if (!laneMatch) continue;` guard below would otherwise skip it.
+    if (isManagerPseudoTrack(dir)) {
+      await dispatchManagerPseudoTrackReply(tracksDir, content);
+      continue;
+    }
+
     const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     if (!laneMatch) continue;

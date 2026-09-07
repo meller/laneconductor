@@ -57,11 +57,15 @@ describe('WorkerActivityLatch — chat composer parity', () => {
     expect(screen.getByTestId('worker-chat-disabled-hint')).toBeInTheDocument();
   });
 
-  it('a manager is transcript-only — composer disabled even with a track-shaped task', async () => {
-    const worker = makeWorker({ type: 'manager', status: 'busy', current_task: 'implement track 42' });
+  // Track 10069 REQ-25/REQ-26: a manager resolves to the reserved
+  // 'manager' pseudo-track regardless of current_task's track-shaped
+  // pattern, and gets an enabled composer — the old hard-disable is gone.
+  it('a manager resolves to the pseudo-track and gets an enabled composer', async () => {
+    const worker = makeWorker({ type: 'manager', project_id: null, status: 'busy', current_task: 'implement track 42' });
     render(<WorkerActivityLatch workers={[worker]} projectId={1} onClose={() => { }} onSelectTrack={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /host-a/ }));
-    await waitFor(() => expect(screen.getByTestId('worker-chat-input')).toBeDisabled());
+    await waitFor(() => expect(screen.getByTestId('worker-latch-track-link').textContent).toContain('#manager'));
+    expect(screen.getByTestId('worker-chat-input')).not.toBeDisabled();
   });
 
   it('sending a message POSTs to the track comments endpoint, not a dispatch endpoint', async () => {

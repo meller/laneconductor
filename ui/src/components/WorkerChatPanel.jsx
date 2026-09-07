@@ -17,8 +17,6 @@ import { resolveWorkerChatTarget } from '../lib/workerTaskInfo.js';
 // that specific track even when resolveWorkerChatTarget would otherwise
 // prefer the worker's currently-running track.
 export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose, onSelectTrack }) {
-  const isManager = worker?.type === 'manager';
-
   const target = forcedTrackNumber
     ? {
       trackNumber: forcedTrackNumber,
@@ -59,9 +57,7 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {isManager ? (
-            <p className="text-gray-600 text-sm italic pt-4">Managers are transcript-only — no track context to chat about in this pass.</p>
-          ) : !target ? (
+          {!target ? (
             <p className="text-gray-600 text-sm italic pt-4">This worker has no running or recent track — nothing to talk about yet.</p>
           ) : blocks.length > 0 ? (
             <>
@@ -86,12 +82,8 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
         <TrackChatComposer
           projectId={target?.projectId}
           trackNumber={target?.trackNumber}
-          disabled={isManager || !target}
-          disabledHint={
-            isManager
-              ? 'Managers are transcript-only'
-              : 'No track to talk about — this worker has no running or last-context track'
-          }
+          disabled={!target}
+          disabledHint="No track to talk about — this worker has no running or last-context track"
           placeholder={`Send a message about track #${target?.trackNumber}…`}
           onSent={(comment) => setComments(prev => [...prev, comment])}
         />

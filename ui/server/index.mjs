@@ -28,6 +28,8 @@ import { resolveTrackFolderFs } from '../../conductor/services/track-folder-fs.m
 import { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } from '../../conductor/services/collector-manifest.mjs';
 import { buildInstanceState } from '../../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../../conductor/services/setup-gaps.mjs';
+import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack } from '../../conductor/services/manager-pseudo-track.mjs';
+import { parseConversationComments } from '../../conductor/sync-conversation-utils.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -1864,8 +1866,43 @@ async function syncTrackToFile(projectId, trackNum, updates) {
   }
 }
 
+// Track 10069 Phase 4 (REQ-27, D8): the manager pseudo-track
+// (conductor/tracks/manager/, 10067 REQ-14) has no `tracks` row by design
+// (D7 — a real row would put a card on every project's board). getTrackId's
+// query would always 404 it, so this reads straight off conversation.md
+// through the same pure parser syncConversation already uses, mapped to the
+// { id, author, body, created_at } shape useTrackComments/CommentBubble
+// already render — no new parser, no new renderer.
+async function getManagerPseudoTrackComments(projectId) {
+  const projRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [projectId]);
+  const repoPath = projRes.rows[0]?.repo_path;
+  if (!repoPath) return [];
+  const convPath = join(repoPath, 'conductor', 'tracks', MANAGER_PSEUDO_TRACK, 'conversation.md');
+  if (!existsSync(convPath)) return [];
+  const content = readFileSync(convPath, 'utf8');
+  const turns = parseConversationComments(content);
+  if (turns.length === 0) return [];
+  // conversation.md carries no per-turn timestamp (the file format is
+  // `> **author**: body`, nothing else) — a real track's turns only gain a
+  // created_at when synced into a `track_comments` row, which this
+  // pseudo-track deliberately has none of. Derive a monotonic synthetic
+  // timestamp from the file's own mtime instead of `Date.now()` per
+  // request, so re-fetching doesn't make every historical turn read as
+  // "just now" on every poll.
+  const mtimeMs = statSync(convPath).mtimeMs;
+  return turns.map((t, i) => ({
+    id: `${MANAGER_PSEUDO_TRACK}-${i}`,
+    author: t.author,
+    body: t.body,
+    created_at: new Date(mtimeMs - (turns.length - 1 - i) * 1000).toISOString(),
+  }));
+}
+
 app.get('/api/projects/:id/tracks/:num/comments', async (req, res) => {
   try {
+    if (isManagerPseudoTrack(req.params.num)) {
+      return res.json(await getManagerPseudoTrackComments(req.params.id));
+    }
     const trackId = await getTrackId(req.params.id, req.params.num);
     if (!trackId) return res.status(404).json({ error: 'Track not found' });
     const result = await pool.query(
@@ -1882,6 +1919,52 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
   try {
     const { body, author = 'human' } = req.body;
     if (!body) return res.status(400).json({ error: 'body is required' });
+
+    // Track 10069 Phase 4 (REQ-27, D8): the manager pseudo-track has no
+    // `tracks` row (D7 — a real row would put a card on every board), so
+    // collectorWrite would POST to a track that doesn't exist and
+    // queueFileSync (DB→FS sync for other machines) has no DB row to sync
+    // FROM. Append straight to conversation.md in the documented
+    // `> **author**: body` turn format, and for a human turn set
+    // **Waiting for reply**: yes directly in index.md — the only carrier
+    // this pseudo-track has for "a human replied, please answer" (D8),
+    // since there is no lane_action_status column to flip.
+    if (isManagerPseudoTrack(req.params.num)) {
+      const projRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+      const repoPath = projRes.rows[0]?.repo_path;
+      if (!repoPath) return res.status(404).json({ error: 'Project not found' });
+      const dir = join(repoPath, 'conductor', 'tracks', MANAGER_PSEUDO_TRACK);
+      if (!existsSync(dir)) return res.status(404).json({ error: 'Manager pseudo-track not found' });
+
+      const convPath = join(dir, 'conversation.md');
+      const cursorPath = join(dir, '.conv-cursor');
+      const append = `\n> **${author}**: ${body}\n`;
+      appendFileSync(convPath, append, 'utf8');
+      // Advance the cursor past the line we just wrote, same as the
+      // numbered-track path — the marker set below is what the worker's
+      // dirs-filter/reply dispatch actually reacts to (D8); this cursor
+      // only matters if a future numbered-track-style sync ever reads
+      // this file, which today nothing does for this reserved name.
+      writeFileSync(cursorPath, String(statSync(convPath).size), 'utf8');
+
+      if (author === 'human') {
+        const indexPath = join(dir, 'index.md');
+        if (existsSync(indexPath)) {
+          let idxContent = readFileSync(indexPath, 'utf8');
+          const re = /\*\*Waiting for reply\*\*:\s*[^\n]+/i;
+          idxContent = re.test(idxContent)
+            ? idxContent.replace(re, '**Waiting for reply**: yes')
+            : idxContent.trim() + '\n**Waiting for reply**: yes\n';
+          writeFileSync(indexPath, idxContent, 'utf8');
+        }
+      }
+
+      broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+      return res.status(201).json({
+        id: `${MANAGER_PSEUDO_TRACK}-${Date.now()}`, author, body, created_at: new Date().toISOString(),
+      });
+    }
+
     const result = await collectorWrite('POST', `/track/${req.params.num}/comment`, req.body, req.params.id);
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
 

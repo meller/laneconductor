@@ -38,9 +38,19 @@ describe('parseWorkerTask', () => {
 
 // Track 10037 REQ-5/REQ-7: target-track resolution matrix for worker chat.
 describe('resolveWorkerChatTarget', () => {
-  it('returns null for a manager, even a busy one with a track task', () => {
-    const worker = { type: 'manager', current_task: 'implement track 42', last_track_number: '41' };
-    expect(resolveWorkerChatTarget(worker, 1)).toBeNull();
+  // Track 10069 REQ-25: a manager's own project_id is null by construction
+  // (laneconductor.sync.mjs:1259) and it appears on every project's worker
+  // list, so it resolves to the reserved 'manager' pseudo-track scoped to
+  // whichever project's board the caller is currently viewing
+  // (fallbackProjectId) — never worker.project_id, which is always null.
+  it('resolves a manager to the reserved pseudo-track, scoped to fallbackProjectId', () => {
+    const worker = { type: 'manager', project_id: null, current_task: 'implement track 42', last_track_number: '41' };
+    expect(resolveWorkerChatTarget(worker, 7)).toEqual({ trackNumber: 'manager', projectId: 7, source: 'manager' });
+  });
+
+  it('resolves a manager the same way even with no fallbackProjectId available yet', () => {
+    const worker = { type: 'manager', project_id: null };
+    expect(resolveWorkerChatTarget(worker, null)).toEqual({ trackNumber: 'manager', projectId: null, source: 'manager' });
   });
 
   it('prefers the running track over the last-context track', () => {

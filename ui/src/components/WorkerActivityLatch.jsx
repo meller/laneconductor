@@ -46,7 +46,6 @@ export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack
   // track if busy, else the last-context track (REQ-3/REQ-5), null for
   // managers or a worker with neither (REQ-7).
   const chatTarget = resolveWorkerChatTarget(selectedWorker, selectedProjectId);
-  const isManager = selectedWorker?.type === 'manager';
 
   const showTrackTranscript = selectedTask?.kind !== 'deploy' && selectedTask?.kind !== 'create-project' && !!chatTarget;
   const { blocks, turn, rawLog } = useTrackTranscript(
@@ -202,13 +201,11 @@ export function WorkerActivityLatch({ workers, projectId, onClose, onSelectTrack
             <TrackChatComposer
               projectId={chatTarget?.projectId}
               trackNumber={chatTarget?.trackNumber}
-              disabled={isManager || !chatTarget || isWorkerOffline(selectedWorker)}
+              disabled={!chatTarget || isWorkerOffline(selectedWorker)}
               disabledHint={
-                isManager
-                  ? 'Managers are transcript-only'
-                  : isWorkerOffline(selectedWorker)
-                    ? `${workerDisplayName} is offline`
-                    : 'No track to talk about — this worker has no running or last-context track'
+                isWorkerOffline(selectedWorker)
+                  ? `${workerDisplayName} is offline`
+                  : 'No track to talk about — this worker has no running or last-context track'
               }
               placeholder={chatTarget ? `Send a message about track #${chatTarget.trackNumber}…` : undefined}
               onSent={(comment) => setLocalComments(prev => [...prev, comment])}

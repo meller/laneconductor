@@ -10,10 +10,9 @@ import { isWorkerOffline } from '../lib/workerStatus.js';
 
 // Track 10069 Phase 3 (REQ-1..REQ-5): one persistent Chat view with a
 // target switcher, reusing every piece WorkerChatPanel/WorkerActivityLatch
-// already built — no second renderer (D2, D6). The manager row resolves to
-// a usable target once Phase 4's resolver lands; until then it behaves
-// exactly like today's WorkerChatPanel (transcript-only, disabled
-// composer) rather than a new dead end.
+// already built — no second renderer (D2, D6). Phase 4 (REQ-25) made
+// resolveWorkerChatTarget return a usable target for the manager, so this
+// view needs no manager-specific branch at all — same path as any worker.
 
 function targetLabel(worker) {
   if (worker.type === 'manager') return 'Manager';
@@ -36,7 +35,6 @@ export function ChatView({ projectId, workers = [] }) {
   }, [manager?.id, nonManagerWorkers.length]);
 
   const selectedWorker = targets.find(w => w.id === selectedId) ?? null;
-  const isManager = selectedWorker?.type === 'manager';
   const chatTarget = selectedWorker ? resolveWorkerChatTarget(selectedWorker, projectId) : null;
 
   const { blocks, turn, rawLog } = useTrackTranscript(chatTarget?.projectId, chatTarget?.trackNumber);
@@ -76,9 +74,7 @@ export function ChatView({ projectId, workers = [] }) {
             </div>
             <TurnStatusBar turn={turn} />
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              {isManager && !chatTarget ? (
-                <p className="text-gray-600 text-sm italic pt-4">Managers are transcript-only — no track context to chat about in this pass.</p>
-              ) : !chatTarget ? (
+              {!chatTarget ? (
                 <p className="text-gray-600 text-sm italic pt-4">This worker has no running or recent track — nothing to talk about yet.</p>
               ) : blocks.length > 0 ? (
                 <TranscriptView blocks={blocks} />
@@ -100,12 +96,8 @@ export function ChatView({ projectId, workers = [] }) {
             <TrackChatComposer
               projectId={chatTarget?.projectId}
               trackNumber={chatTarget?.trackNumber}
-              disabled={(isManager && !chatTarget) || !chatTarget}
-              disabledHint={
-                isManager
-                  ? 'Managers are transcript-only'
-                  : 'No track to talk about — this worker has no running or last-context track'
-              }
+              disabled={!chatTarget}
+              disabledHint="No track to talk about — this worker has no running or last-context track"
               placeholder={`Message ${targetLabel(selectedWorker)}…`}
               onSent={(comment) => setComments(prev => [...prev, comment])}
             />
