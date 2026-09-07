@@ -14,7 +14,7 @@ dependency the first pass flagged is therefore gone.
 
 ---
 
-## Phase 1: Instance state snapshot and setup-gap detection (REQ-12..REQ-13, REQ-16)
+## Phase 1: Instance state snapshot and setup-gap detection (REQ-12..REQ-13, REQ-16) ✅
 
 **Problem**: Scope items 4 and 5 both need the same thing — a cheap, deterministic answer
 to "what does this instance actually look like right now, and what is missing." Neither
@@ -23,24 +23,24 @@ already-configured user.
 **Solution**: Two pure modules with injected I/O (matching `stuck-track-sweep.mjs` and
 `orphan-worker-detection.mjs`), one CLI surface and one API surface over them. No UI yet.
 
-- [ ] Task 1.1: `conductor/services/instance-state.mjs` — pure module, all I/O injected,
+- [x] Task 1.1: `conductor/services/instance-state.mjs` — pure module, all I/O injected,
       returning `{ projects[], tracksByLane, workers[], providers, generatedAt }`.
-    - [ ] Per project: id, name, repo_path, track counts per lane, worker count
-    - [ ] Per worker: id, hostname, type, project_id, current_task, last_heartbeat,
+    - [x] Per project: id, name, repo_path, track counts per lane, worker count
+    - [x] Per worker: id, hostname, type, project_id, current_task, last_heartbeat,
           derived `online` using the same staleness window `isWorkerOffline` uses — import
           the threshold, do not restate it
-- [ ] Task 1.2: `conductor/services/setup-gaps.mjs` — pure module implementing spec.md
+- [x] Task 1.2: `conductor/services/setup-gaps.mjs` — pure module implementing spec.md
       D4's table, returning `[{ id, severity, subject, detail, remedy }]`.
-    - [ ] `severity` is exactly `blocking` or `advisory`; nothing else
-    - [ ] `remedy` is a concrete command or UI action string per gap, used verbatim by
+    - [x] `severity` is exactly `blocking` or `advisory`; nothing else
+    - [x] `remedy` is a concrete command or UI action string per gap, used verbatim by
           Phase 7's wizard message (REQ-19)
-- [ ] Task 1.3: `lc state --json` in `bin/lc.mjs` — serializes Task 1.1's snapshot with
+- [x] Task 1.3: `lc state --json` in `bin/lc.mjs` — serializes Task 1.1's snapshot with
       Task 1.2's gaps attached. Non-`--json` form prints a short human summary.
-- [ ] Task 1.4: `GET /api/state` in `ui/server/index.mjs` — same snapshot for the UI,
+- [x] Task 1.4: `GET /api/state` in `ui/server/index.mjs` — same snapshot for the UI,
       respecting the existing worker-visibility scoping (`AUTH_ENABLED` branch used by
       `/api/workers/:id/chat-history`), so a shared instance does not leak other users'
       workers through a new endpoint.
-- [ ] Task 1.5: Build the compact **digest** projection (D3) as a function of the snapshot,
+- [x] Task 1.5: Build the compact **digest** projection (D3) as a function of the snapshot,
       with a hard character budget and a test asserting it stays under it.
 
 **Impact**: A single authoritative source for instance state, usable by the CLI, the API,

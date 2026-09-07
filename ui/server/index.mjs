@@ -26,6 +26,8 @@ import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
 import { resolveTrackFolderFs } from '../../conductor/services/track-folder-fs.mjs';
 import { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } from '../../conductor/services/collector-manifest.mjs';
+import { buildInstanceState } from '../../conductor/services/instance-state.mjs';
+import { computeSetupGaps } from '../../conductor/services/setup-gaps.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -530,6 +532,96 @@ app.get('/api/workers', async (req, res) => {
     queryStr += ' ORDER BY w.hostname, w.pid';
     const result = await pool.query(queryStr, params);
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10069 REQ-13/D3/D4: the instance snapshot the Chat view's setup
+// wizard gates on (D4) and the manager session's digest is built from
+// (D3). `?project_id=` scopes the returned `gaps` to that project (the
+// "project whose board is being viewed" — no-workers/no-manager/etc are
+// meaningless without a project in view); omitted, gaps is []. The
+// `projects`/`workers` lists are always instance-wide, same visibility
+// scoping GET /api/workers already applies.
+function isStubbedDoc(content) {
+  if (!content) return true;
+  const trimmed = content.trim();
+  if (trimmed.length < 40) return true;
+  return /<[a-zA-Z][^>]*>/.test(trimmed.slice(0, 400));
+}
+
+app.get('/api/state', async (req, res) => {
+  try {
+    const userId = req.user?.uid || null;
+
+    let workersQuery = `
+      SELECT w.id, w.hostname, w.type, w.project_id, w.current_task, w.last_heartbeat
+      FROM workers w
+      WHERE w.last_heartbeat > NOW() - INTERVAL '60 seconds'
+    `;
+    const workerParams = [];
+    if (AUTH_ENABLED && userId) {
+      workersQuery += `
+        AND (
+          w.visibility = 'public'
+          OR w.user_uid = $1
+          OR (w.visibility = 'team' AND EXISTS (
+            SELECT 1 FROM worker_permissions wp WHERE wp.worker_id = w.id AND wp.user_uid = $1
+          ))
+          OR w.user_uid IS NULL
+        )
+      `;
+      workerParams.push(userId);
+    }
+    const [projectsResult, workersResult] = await Promise.all([
+      pool.query('SELECT id, name, repo_path, primary_cli, create_quality_gate FROM projects ORDER BY id'),
+      pool.query(workersQuery, workerParams),
+    ]);
+
+    const projects = projectsResult.rows;
+    const tracksResult = await pool.query('SELECT project_id, track_number, lane_status AS lane FROM tracks');
+
+    const state = buildInstanceState({
+      projects,
+      tracks: tracksResult.rows,
+      workers: workersResult.rows,
+    });
+
+    let gaps = [];
+    const projectId = req.query.project_id ? parseInt(req.query.project_id, 10) : null;
+    if (projectId) {
+      const project = projects.find(p => p.id === projectId);
+      const snapshot = state.projects.find(p => p.id === projectId);
+      if (project && snapshot) {
+        const hasProductMd = existsSync(join(project.repo_path, 'conductor', 'product.md'))
+          && !isStubbedDoc(readFileSync(join(project.repo_path, 'conductor', 'product.md'), 'utf8'));
+        const hasTechStackMd = existsSync(join(project.repo_path, 'conductor', 'tech-stack.md'))
+          && !isStubbedDoc(readFileSync(join(project.repo_path, 'conductor', 'tech-stack.md'), 'utf8'));
+        const hasQualityGateMd = existsSync(join(project.repo_path, 'conductor', 'quality-gate.md'));
+        const hasManagerWorker = state.workers.some(w => w.type === 'manager');
+        const hasOnlineWorker = state.workers.some(w => w.project_id === projectId && w.online && w.type !== 'manager');
+        const trackCount = Object.values(snapshot.tracksByLane).reduce((a, b) => a + b, 0);
+        const { rows: provRows } = await pool.query(
+          'SELECT status FROM provider_status WHERE project_id = $1 AND provider = $2',
+          [projectId, project.primary_cli]
+        );
+        gaps = computeSetupGaps({
+          projectCount: projects.length,
+          hasOnlineWorker,
+          hasManagerWorker,
+          primaryCliConfigured: !!project.primary_cli,
+          primaryProviderReachable: provRows.length > 0 && provRows[0].status === 'available',
+          hasProductMd,
+          hasTechStackMd,
+          createQualityGate: !!project.create_quality_gate,
+          hasQualityGateMd,
+          trackCount,
+        });
+      }
+    }
+
+    res.json({ ...state, gaps });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

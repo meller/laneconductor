@@ -1,8 +1,8 @@
 # Track AM-10069: Manager chat surface — persistent, target-switchable conversation with live state and the /laneconductor skill
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 12%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planning complete (replanned for the revised 10067 boundary)
 **Type**: dev

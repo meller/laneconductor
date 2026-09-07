@@ -19,6 +19,8 @@ import { planDoneLaneMigration } from '../conductor/services/done-lane-migration
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
 import { resolveTrackFolderFs } from '../conductor/services/track-folder-fs.mjs';
+import { buildInstanceState } from '../conductor/services/instance-state.mjs';
+import { computeSetupGaps } from '../conductor/services/setup-gaps.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../conductor/services/jira-auth.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
@@ -2270,6 +2272,147 @@ Please review this, answer any questions (some fields may contain questions rath
             process.exit(0);
         }
     }
+} else if (command === 'state') {
+    // Track 10069 REQ-13/D3: the same read `lc status` performs, serialized
+    // through instance-state.mjs/setup-gaps.mjs instead of drawn — used by
+    // a human on demand, and by a manager chat session via a Bash tool call
+    // when it needs more than the opening-turn digest.
+    if (!projectRoot) { console.error('❌ Error: No LaneConductor project found in this directory or parents.'); process.exit(1); }
+
+    const asJson = args.includes('--json');
+    const cfgPath = join(projectRoot, '.laneconductor.json');
+    const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf8')) : {};
+    const mode = cfg.mode || 'local-fs';
+    const projectName = cfg.project?.name || basename(projectRoot);
+    const primaryCli = cfg.project?.primary?.cli || null;
+
+    let projects = [];
+    let tracks = [];
+    let workers = [];
+    let providers = {};
+
+    if (mode === 'local-fs') {
+        const projectId = 'local';
+        projects = [{ id: projectId, name: projectName, repo_path: projectRoot }];
+        const tracksDir = join(projectRoot, 'conductor', 'tracks');
+        if (existsSync(tracksDir)) {
+            tracks = readdirSync(tracksDir).filter(d => /\d+/.test(d)).map(d => {
+                const indexPath = join(tracksDir, d, 'index.md');
+                if (!existsSync(indexPath)) return null;
+                const content = readFileSync(indexPath, 'utf8');
+                const lane = ((content.match(/\*\*Lane\*\*:\s*([^\n]+)/i) || [])[1] || 'unknown').trim();
+                return { project_id: projectId, track_number: d, lane };
+            }).filter(Boolean);
+        }
+        const pidFile = join(projectRoot, 'conductor', '.sync.pid');
+        let workerOnline = false;
+        if (existsSync(pidFile)) {
+            try { process.kill(readFileSync(pidFile, 'utf8').trim(), 0); workerOnline = true; } catch (e) { /* stale pid */ }
+        }
+        if (workerOnline) {
+            workers = [{
+                id: 'local-worker', hostname: 'localhost', type: 'worker', project_id: projectId,
+                current_task: null, last_heartbeat: new Date().toISOString(),
+            }];
+        }
+    } else {
+        const dbCfg = cfg.db || {};
+        const dbHost = process.env.DB_HOST || dbCfg.host || 'localhost';
+        const dbPort = process.env.DB_PORT || dbCfg.port || 5432;
+        const dbName = process.env.DB_NAME || dbCfg.name || 'laneconductor';
+        const dbUser = process.env.DB_USER || dbCfg.user || 'postgres';
+        const dbPass = process.env.DB_PASSWORD || dbCfg.password || 'postgres';
+        const normalizedRoot = projectRoot.replace(/\\/g, '\\\\');
+
+        const runPsql = (sql) => {
+            const r = spawnSync('psql', ['-h', dbHost, '-p', dbPort, '-U', dbUser, '-d', dbName, '-t', '-A', '-F', '|', '-c', sql], { env: { ...process.env, PGPASSWORD: dbPass } });
+            if (r.status !== 0) throw new Error(r.stderr.toString());
+            return r.stdout.toString().trim().split('\n').filter(Boolean);
+        };
+
+        try {
+            // Prefer the project id already recorded in .laneconductor.json:
+            // a worktree's cwd is never the DB row's repo_path (that's
+            // always the primary checkout), so a repo_path match alone
+            // fails for any track running in `workspace: branch` mode.
+            const projRows = cfg.project?.id
+                ? runPsql(`SELECT id, name FROM projects WHERE id = ${parseInt(cfg.project.id, 10)}`)
+                : runPsql(`SELECT id, name FROM projects WHERE repo_path = '${normalizedRoot}' OR repo_path = '${projectRoot}'`);
+            if (projRows.length === 0) {
+                console.error('❌ Project not registered in DB — run `lc setup` first.');
+                process.exit(1);
+            }
+            const [projectIdStr, dbProjectName] = projRows[0].split('|');
+            const projectId = parseInt(projectIdStr, 10);
+            projects = [{ id: projectId, name: dbProjectName, repo_path: projectRoot }];
+
+            const trackRows = runPsql(`SELECT track_number, lane_status FROM tracks WHERE project_id = ${projectId}`);
+            tracks = trackRows.map(row => {
+                const [track_number, lane] = row.split('|');
+                return { project_id: projectId, track_number, lane };
+            });
+
+            const workerRows = runPsql(`SELECT id, hostname, type, project_id, current_task, last_heartbeat FROM workers WHERE (project_id = ${projectId} OR type = 'manager') AND last_heartbeat > NOW() - INTERVAL '60 seconds'`);
+            workers = workerRows.map(row => {
+                const [id, hostname, type, wProjectId, current_task, last_heartbeat] = row.split('|');
+                return {
+                    id: parseInt(id, 10), hostname, type,
+                    project_id: wProjectId ? parseInt(wProjectId, 10) : null,
+                    current_task: current_task || null,
+                    last_heartbeat: last_heartbeat || null,
+                };
+            });
+
+            if (primaryCli) {
+                const provRows = runPsql(`SELECT status FROM provider_status WHERE project_id = ${projectId} AND provider = '${primaryCli}'`);
+                // 'available' / 'exhausted' are the only two values the
+                // worker ever writes (laneconductor.sync.mjs:3191/4034) —
+                // no row at all means never-checked, not "bad".
+                providers[projectId] = { primary_cli: primaryCli, primary_ok: provRows.length > 0 ? provRows[0] === 'available' : null };
+            }
+        } catch (err) {
+            console.error(`❌ Failed to read state from DB: ${err.message}`);
+            process.exit(1);
+        }
+    }
+
+    const state = buildInstanceState({ projects, tracks, workers, providers });
+    const project = state.projects[0];
+    const hasProductMd = existsSync(join(projectRoot, 'conductor', 'product.md'));
+    const hasTechStackMd = existsSync(join(projectRoot, 'conductor', 'tech-stack.md'));
+    const createQualityGate = !!cfg.project?.create_quality_gate;
+    const hasQualityGateMd = existsSync(join(projectRoot, 'conductor', 'quality-gate.md'));
+    const trackCount = Object.values(project?.tracksByLane || {}).reduce((a, b) => a + b, 0);
+    const hasManagerWorker = state.workers.some(w => w.type === 'manager');
+    const hasOnlineWorker = state.workers.some(w => w.online && w.type !== 'manager');
+    const primaryProviderReachable = mode === 'local-fs' ? !!primaryCli : (providers[project?.id]?.primary_ok === true);
+
+    const gaps = computeSetupGaps({
+        projectCount: state.projects.length,
+        hasOnlineWorker,
+        hasManagerWorker,
+        primaryCliConfigured: !!primaryCli,
+        primaryProviderReachable,
+        hasProductMd,
+        hasTechStackMd,
+        createQualityGate,
+        hasQualityGateMd,
+        trackCount,
+    });
+
+    const output = { ...state, gaps };
+
+    if (asJson) {
+        console.log(JSON.stringify(output, null, 2));
+    } else {
+        console.log(`\nInstance state (${mode}) — ${output.generatedAt}`);
+        for (const p of output.projects) {
+            const laneStr = Object.entries(p.tracksByLane).map(([l, c]) => `${l}:${c}`).join(' ') || 'no tracks';
+            console.log(`  ${p.name} — ${laneStr} — workers=${p.workerCount}`);
+        }
+        console.log(`  Gaps: ${gaps.length === 0 ? 'none' : gaps.map(g => `${g.id}(${g.severity})`).join(', ')}`);
+    }
+    process.exit(0);
 } else if (command === 'new') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
 
