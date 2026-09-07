@@ -347,6 +347,7 @@
                 <div class="sidebar-title">Introduction</div>
                 <ul class="sidebar-links">
                     <li><a href="#what-is-it">What is LaneConductor?</a></li>
+                    <li><a href="#vs-coding-agents">LaneConductor vs. Agents</a></li>
                     <li><a href="#conductor-pattern">The Conductor Pattern</a></li>
                     <li><a href="#installation">Installation</a></li>
                     <li><a href="#claude-skill">Use as Claude Skill</a></li>
@@ -372,6 +373,7 @@
                 <div class="sidebar-title">Workflow</div>
                 <ul class="sidebar-links">
                     <li><a href="#lifecycle">Track Lifecycle</a></li>
+                    <li><a href="#chat-control-plane">Persistent Chat Surface</a></li>
                     <li><a href="#workspace-modes">Workspace Modes</a></li>
                     <li><a href="#worktrees-panel">Worktrees &amp; Panel</a></li>
                     <li><a href="#concurrency-model">Concurrency &amp; Locking</a></li>
@@ -424,6 +426,64 @@
                         <tr><td><strong>marketing</strong></td><td>Drafts launch posts, copy, campaigns — human publishes</td><td>KPI: HN score, Reddit upvotes, PH upvotes</td></tr>
                         <tr><td><strong>sales</strong></td><td>Writes outreach sequences, pitches, one-pagers — human sends</td><td>KPI: replies, conversions</td></tr>
                         <tr><td><strong>support</strong></td><td>Drafts responses, knowledge base articles</td><td>KPI: resolution rate, CSAT</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="vs-coding-agents">
+                <h2>LaneConductor vs. Standalone Coding Agents</h2>
+                <p>While standalone CLI tools (such as Claude Code, Gemini CLI, Cursor Agent, or Aider) provide interactive single-session coding in a terminal, LaneConductor functions as an <strong>autonomous multi-agent control plane</strong> orchestrating complex development lifecycles across your entire repository.</p>
+
+                <div class="callout">
+                    <div class="callout-title">The Paradigm Shift</div>
+                    <p>Instead of babysitting a single terminal REPL while it makes in-place file modifications, you coordinate an autonomous fleet. You align on architecture and plans in chat, update design documents, and queue background workers in isolated Git worktrees that plan, implement, verify with quality gates, and open PRs independently.</p>
+                </div>
+
+                <h3>Head-to-Head Comparison</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dimension</th>
+                            <th>Standalone Coding Agents</th>
+                            <th>LaneConductor Control Plane</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Architecture</strong></td>
+                            <td>Ephemeral, single-terminal REPL (1 human &harr; 1 session)</td>
+                            <td>Sovereign multi-agent control plane with background worker fleet</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Visibility</strong></td>
+                            <td>Terminal scrollback buffer (lost across sessions)</td>
+                            <td>Persistent Kanban dashboard backed by local Postgres &amp; Markdown bus</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Workspace Isolation</strong></td>
+                            <td>Direct in-place edits on primary checkout; prone to dirty checkouts</td>
+                            <td><strong>Git Worktree Isolation</strong>: dedicated worktrees keep <code>main</code> pristine</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Execution Safety</strong></td>
+                            <td>Chat turns write code directly to your working tree</td>
+                            <td><strong>Dual-Mode Safety</strong>: chat turns edit design docs only; code changes are sandboxed in worktrees</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Target Switchability</strong></td>
+                            <td>Single monolithic terminal session</td>
+                            <td>Switch dynamically between <strong>The Manager</strong> (instance health &amp; gaps) and <strong>Track Workers</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Steerable Roadmaps</strong></td>
+                            <td>Ad-hoc prompt conversation disconnected from track plans</td>
+                            <td>Conversational steering updates <code>spec.md</code>/<code>plan.md</code> and re-queues tracks (<code>/laneconductor move</code>)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quality Gates &amp; PRs</strong></td>
+                            <td>Manual review, manual commit, manual test execution</td>
+                            <td>Automated Quality Gates, lint/build verification, and automated PR / Direct Merge</td>
+                        </tr>
                     </tbody>
                 </table>
             </section>
@@ -809,6 +869,39 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                 </p>
             </section>
 
+            <section id="chat-control-plane">
+                <h2>Persistent Chat &amp; Control Surface</h2>
+                <p>Accessible at <code>/chat</code> in the web dashboard, the persistent Chat surface provides a unified control room to interact with, steer, and monitor all agents in your LaneConductor instance.</p>
+
+                <h3>1. Target Switchability: Manager vs. Track Workers</h3>
+                <p>The Chat surface allows you to dynamically switch contexts without navigating away or losing conversational state:</p>
+                <ul>
+                    <li><strong>The Manager</strong>: Always available. Possesses instance-wide awareness of all projects, active tracks, worker health, and setup gaps. It uses the <code>/laneconductor</code> skill to triage issues and diagnose system health.</li>
+                    <li><strong>Track Workers</strong>: Grounded in the specific track's context (<code>index.md</code>, <code>spec.md</code>, <code>plan.md</code>, <code>test.md</code>), giving you direct access to the worker executing or assigned to that track.</li>
+                </ul>
+
+                <h3>2. Steerable Track Chat (In-Conversation Alignment)</h3>
+                <p>When you discuss requirements or bug fixes with a worker in the chat, the worker has documentation write permissions. It updates the track's design documents in-place and invokes <code>/laneconductor move &lt;track&gt; implement:queue</code> to kick off background execution in a dedicated Git worktree.</p>
+
+                <h3>3. Live Stream Affordances</h3>
+                <p>Live turns render real-time telemetry matching modern terminal coding agents:</p>
+                <ul>
+                    <li><strong>Active Activity Status</strong>: Dynamically updates through a turn based on real stream-json events (e.g., <code>Thinking…</code>, <code>Tool: Read</code>, <code>Tool: Edit</code>).</li>
+                    <li><strong>Elapsed Timer</strong>: Live timer updating every second while active, freezing on completion.</li>
+                    <li><strong>Live Token Usage</strong>: Cumulative output tokens and context tokens displayed as tokens stream.</li>
+                </ul>
+
+                <h3>4. Honest Queued Intervention</h3>
+                <p>Because background workers execute headless runs without stdin pipes, messages sent while a worker is actively executing are safely <strong>queued</strong>. The UI explicitly states:</p>
+                <div class="callout">
+                    <div class="callout-title">Queued Message Semantics</div>
+                    <p><em>"Queued — waiting for current &lt;action&gt; to complete. Your message will not interrupt the running turn and will be processed next."</em> Messages transition to active reply automatically once the running action concludes.</p>
+                </div>
+
+                <h3>5. Deterministic Setup Diagnostics</h3>
+                <p>The Chat surface queries <code>GET /api/state</code> on load. If blocking gaps are detected (e.g., no live worker or missing CLI provider), a client-side setup wizard card guides the user with exact copy-paste remedies. When setup is complete, zero background turns or model tokens are spent.</p>
+            </section>
+
             <section id="workspace-modes">
                 <h2>Workspace Modes</h2>
                 <p>Every track resolves to one of two workspace modes at execution time:</p>
@@ -996,6 +1089,10 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     <tr>
                         <td>lc status</td>
                         <td>Print a summary of active tracks in the terminal.</td>
+                    </tr>
+                    <tr>
+                        <td>lc state [--json]</td>
+                        <td>Print live instance snapshot and setup diagnostics (tracks by lane, workers, providers, gaps).</td>
                     </tr>
                     <tr>
                         <td>lc verify</td>
