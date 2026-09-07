@@ -267,3 +267,5 @@ central case is the exact 10067 shape.
 
 **Impact**: The specific shape that stranded 10067 is pinned by a test that
 fails on the old code.
+
+## ✅ COMPLETE
