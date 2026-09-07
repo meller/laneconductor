@@ -1,9 +1,9 @@
 # Track AM-10074: POST /auth/token's new one-token-per-user check is a TOCTOU race — no unique constraint, no transaction
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Planned — 4 phases, ready to implement
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: direct

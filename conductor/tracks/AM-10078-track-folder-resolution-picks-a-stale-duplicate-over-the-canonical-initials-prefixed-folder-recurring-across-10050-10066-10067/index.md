@@ -1,13 +1,14 @@
 # Track AM-10078: Track folder resolution picks a stale duplicate over the canonical INITIALS-prefixed folder, recurring across 10050/10066/10067
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Merge Mode**: direct
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Planned — 6 phases
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
-**Summary**: Three tracks this session (10050, 10066, 10067) each ended up with a stale bare `<n>-slug` and/or `_duplicate-<n>-slug` folder alongside their real `INITIALS-<n>-slug` one — and code that resolves a…
+**Summary**: Five compounding root causes found: two creation writers disagree on the INITIALS convention, quarantine output is committed to git so duplicates resurrect on every checkout,…
 
 ## Problem
 

@@ -3,9 +3,9 @@
 **Lane**: done
 **Merge Mode**: direct
 **Lane Status**: success
-**Progress**: 100%
+**Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phases 1-4 done; Phase 6 foundation (budget/prompt/workspace-bypass) done, dispatch trigger split to Track AM-10070 (spec.md D9); Phase 7 docs done, 3 live checks (7.1/7.3/7.4) pending deliberate…
+**Phase**: Planning complete
 **Type**: dev
 **Author**: TU
 **Created By**: test@example.com
