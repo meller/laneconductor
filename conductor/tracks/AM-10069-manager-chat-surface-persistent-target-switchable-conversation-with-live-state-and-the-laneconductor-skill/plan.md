@@ -48,7 +48,7 @@ the wizard gate, and the manager's own prompt — instead of four ad-hoc reads.
 
 ---
 
-## Phase 2: Live-turn affordances in the shared transcript reducer (REQ-20..REQ-24)
+## Phase 2: Live-turn affordances in the shared transcript reducer (REQ-20..REQ-24) ✅
 
 **Problem**: Scope item 7 asks for elapsed time, running tokens and a changing status line.
 All of it already arrives over the existing WS `session:event` channel and is discarded by
@@ -57,25 +57,25 @@ log).
 **Solution**: Extend the reducer to carry a `turn` object beside `blocks`, and render it.
 No worker change, no CLI-invocation change, no new endpoint.
 
-- [ ] Task 2.1: Extend `ui/src/lib/streamTranscript.js`'s state to
+- [x] Task 2.1: Extend `ui/src/lib/streamTranscript.js`'s state to
       `{ blocks, turn }` where `turn` = `{ active, startedAt, lastEventAt, outputTokens,
       contextTokens, activity, model, sessionId }`.
-    - [ ] `blocks` behaviour is byte-for-byte unchanged — existing tests must pass untouched
-    - [ ] `system/init` seeds `model`, `sessionId` and marks the turn active
-    - [ ] `assistant.timestamp` and `message.usage` drive `lastEventAt` and `contextTokens`,
+    - [x] `blocks` behaviour is byte-for-byte unchanged — existing tests must pass untouched
+    - [x] `system/init` seeds `model`, `sessionId` and marks the turn active
+    - [x] `assistant.timestamp` and `message.usage` drive `lastEventAt` and `contextTokens`,
           reusing `extractSessionContextTokens`'s rule (assistant events only, never
           `result` — its cache figure is cumulative across the run)
-    - [ ] `stream_event`/`message_delta` `usage.output_tokens` drives `outputTokens`
-    - [ ] `result` (or stream end) clears `active`
-- [ ] Task 2.2: Derive `activity` (REQ-21) from real events, in priority order:
+    - [x] `stream_event`/`message_delta` `usage.output_tokens` drives `outputTokens`
+    - [x] `result` (or stream end) clears `active`
+- [x] Task 2.2: Derive `activity` (REQ-21) from real events, in priority order:
       `content_block_start` with a `tool_use` block → that tool's name; `system/status` →
       its `status` value; `system/thinking_tokens` → thinking. Never a static fallback
       while active.
-- [ ] Task 2.3: Surface `turn` from `useTrackTranscript` alongside `blocks` and `rawLog`.
-- [ ] Task 2.4: `TurnStatusBar` component — elapsed timer (ticks while active, freezes on
+- [x] Task 2.3: Surface `turn` from `useTrackTranscript` alongside `blocks` and `rawLog`.
+- [x] Task 2.4: `TurnStatusBar` component — elapsed timer (ticks while active, freezes on
       end), token count, activity label. Renders nothing when `turn.active` is false and no
       tokens were seen, so a non-Claude raw-log run shows no empty chrome (REQ-24).
-- [ ] Task 2.5: Mount it in the three existing surfaces that already share the hook —
+- [x] Task 2.5: Mount it in the three existing surfaces that already share the hook —
       `TrackDetailPanel`, `WorkerActivityLatch`, `WorkerChatPanel` (AC-12).
 
 **Impact**: Every transcript surface in the app gains the affordances at once, with one

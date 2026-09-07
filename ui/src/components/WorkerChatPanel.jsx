@@ -1,4 +1,5 @@
 import { TranscriptView } from './TranscriptView.jsx';
+import { TurnStatusBar } from './TurnStatusBar.jsx';
 import { TrackChatComposer } from './TrackChatComposer.jsx';
 import { CommentBubble } from './CommentBubble.jsx';
 import { useTrackTranscript } from '../lib/useTrackTranscript.js';
@@ -26,7 +27,7 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
     }
     : resolveWorkerChatTarget(worker, projectId);
 
-  const { blocks, rawLog } = useTrackTranscript(target?.projectId, target?.trackNumber);
+  const { blocks, turn, rawLog } = useTrackTranscript(target?.projectId, target?.trackNumber);
   const { comments, setComments } = useTrackComments(target?.projectId, target?.trackNumber);
 
   const hostname = worker?.hostname || 'worker';
@@ -63,7 +64,10 @@ export function WorkerChatPanel({ worker, projectId, forcedTrackNumber, onClose,
           ) : !target ? (
             <p className="text-gray-600 text-sm italic pt-4">This worker has no running or recent track — nothing to talk about yet.</p>
           ) : blocks.length > 0 ? (
-            <TranscriptView blocks={blocks} />
+            <>
+              <TurnStatusBar turn={turn} />
+              <TranscriptView blocks={blocks} />
+            </>
           ) : rawLog ? (
             <pre className="text-xs font-mono bg-black/30 p-3 rounded border border-gray-800 text-gray-300 whitespace-pre-wrap max-h-[500px] overflow-y-auto">
               {rawLog}
