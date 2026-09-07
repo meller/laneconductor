@@ -7140,6 +7140,20 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
       continue;
     }
 
+    // Found live 2026-09-07: a manager worker started the normal way
+    // (`lc worker start --manager`, no `--sync-and-work`) runs in
+    // sync-only mode by default — which used to mean this whole function
+    // never even ran (see the `if (syncOnly) return` in the setInterval
+    // below, now relaxed to let a manager always reach this scan). A
+    // manager checking its OWN reserved pseudo-track for a reply is
+    // supervision of one thread, not project-queue claiming — but with no
+    // isManager check anywhere else in this loop, letting it fall through
+    // here would have it claim and run real numbered-track lane actions
+    // too, exactly the general-purpose worker behavior sync-only mode was
+    // chosen to avoid. Skip every other track; only the pseudo-track
+    // dispatch above is reachable when a manager is sync-only.
+    if (isManager && syncOnly) continue;
+
     const laneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     if (!laneMatch) continue;
@@ -9767,7 +9781,16 @@ async function maybeExitWhenScopedWorkDone() {
 // test asserting a multi-step lane cascade shouldn't have to wait out a
 // full 5s tick per step just to observe it (track 10066).
 setInterval(async () => {
-  if (syncOnly) return; // SKIP auto-launch in sync-only mode
+  // Found live 2026-09-07: a manager worker (`lc worker start --manager`,
+  // no `--sync-and-work`) defaults to sync-only same as any other worker —
+  // which used to mean it never reached this scan at all, so a human
+  // message on the manager's own reserved pseudo-track (conversation.md,
+  // **Waiting for reply**: yes) sat unanswered forever with nothing
+  // dispatching a reply. A manager still must not claim general project
+  // work while sync-only (autoLaunchLocalFs's own isManager-gated skip,
+  // just below the pseudo-track dispatch, enforces that) — this only lets
+  // it reach the scan far enough to check its own thread.
+  if (syncOnly && !isManager) return; // SKIP auto-launch in sync-only mode
   if (autoLaunchRunning) return;  // prevent concurrent runs (async setInterval)
   autoLaunchRunning = true;
   try {
