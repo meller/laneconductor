@@ -1,6 +1,6 @@
 # Track AM-10072: Human-needs-reply marks only the single most recent human comment, burying older unreplied ones forever
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Planned — 5 phases, 23 tasks
