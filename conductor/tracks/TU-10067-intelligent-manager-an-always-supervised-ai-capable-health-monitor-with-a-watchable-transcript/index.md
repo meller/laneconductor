@@ -1,6 +1,6 @@
 # Track TU-10067: Intelligent manager: an always-supervised, AI-capable health monitor with a watchable transcript
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
