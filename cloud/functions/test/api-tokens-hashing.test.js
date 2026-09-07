@@ -74,14 +74,15 @@ beforeEach(() => {
 });
 
 describe('TC-1..TC-3: issuance stores only a digest (POST /auth/token)', () => {
+  // Track 10074: the handler no longer issues a separate existing-token probe
+  // — a single INSERT ... ON CONFLICT DO NOTHING RETURNING token decides in
+  // one statement. `alreadyHasToken` now controls what that INSERT itself
+  // returns: zero rows on conflict, one row (with the digest) otherwise.
   function mockSignup({ alreadyHasToken }) {
     mockVerifyIdToken.mockResolvedValue({ uid: 'user-1', name: 'Some One' });
     mockQuery.mockResolvedValueOnce({ rows: [{ id: WORKSPACE }] }); // upsert workspaces
     mockQuery.mockResolvedValueOnce({ rows: [] });                  // upsert workspace_members
-    mockQuery.mockResolvedValueOnce({ rows: alreadyHasToken ? [{}] : [] }); // existing-token probe
-    // Queue the INSERT response only when the handler will get that far, so the
-    // number of queued responses always matches the number consumed.
-    if (!alreadyHasToken) mockQuery.mockResolvedValueOnce({ rows: [] }); // INSERT api_tokens
+    mockQuery.mockResolvedValueOnce({ rows: alreadyHasToken ? [] : [{ token: 'digest' }] }); // INSERT api_tokens
   }
 
   // TC-1 — the core invariant. What comes back over the wire and what lands in
@@ -120,7 +121,9 @@ describe('TC-1..TC-3: issuance stores only a digest (POST /auth/token)', () => {
   // TC-3 — the UI calls this on every onAuthStateChanged and throws the body
   // away, so unconditional minting accumulated one unusable live credential per
   // sign-in. A repeat caller now gets no token, because a digest cannot be
-  // reversed to hand back the earlier one.
+  // reversed to hand back the earlier one. Track 10074: this is now satisfied
+  // by the INSERT's own ON CONFLICT DO NOTHING returning zero rows, not by a
+  // separate probe that short-circuits before any INSERT is attempted.
   test('TC-3: a caller who already has a token gets no new row and no token', async () => {
     mockSignup({ alreadyHasToken: true });
 
@@ -131,7 +134,10 @@ describe('TC-1..TC-3: issuance stores only a digest (POST /auth/token)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ workspace_id: WORKSPACE });
     expect(res.body.token).toBeUndefined();
-    expect(sqls().some((s) => s.includes('INSERT INTO api_tokens'))).toBe(false);
+    expect(sqls().some((s) => /SELECT[\s\S]*FROM api_tokens[\s\S]*workspace_id/.test(s))).toBe(false);
+    const insert = findCall('INSERT INTO api_tokens');
+    expect(insert).toBeDefined();
+    expect(insert[0]).toMatch(/ON CONFLICT \(workspace_id, created_by\) DO NOTHING/);
   });
 });
 

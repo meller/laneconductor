@@ -57,6 +57,23 @@ directly (bypasses Hosting's rewrite layer entirely). Two route families are
 also missing from `cloud/functions/index.js` outright (not just misrouted) —
 filed as a Phase 6 follow-up on the same track.
 
+**`api_tokens` holds at most one row per `(workspace_id, created_by)` (Track
+10074).** `POST /auth/token` used to enforce "mint at most one token per
+user" with a `SELECT`-then-`INSERT` in application code and no unique index
+behind it — a TOCTOU race: two concurrent calls for the same user (two open
+browser tabs, a fast reload, or any double-fire of Firebase's
+`onAuthStateChanged`, which is what calls this endpoint) could both pass the
+check and both insert, leaving two live, valid, unrevoked tokens for one
+user. `api_tokens` now carries a unique index on
+`(workspace_id, created_by)`, and the handler replaces the check-then-act
+pair with a single `INSERT ... ON CONFLICT (workspace_id, created_by) DO
+NOTHING RETURNING token`, so the invariant is enforced by Postgres rather
+than by application sequencing. This does not add a way to list or revoke
+existing `api_tokens` rows — that gap (called out originally in the
+remote-api known gap above and in track 10074's own spec) is still open;
+anyone who already holds a duplicate token from before this fix keeps it
+until it's manually rotated.
+
 ### Who Owns Remote Sync (Track 10064)
 
 The naming here is genuinely ambiguous — the local API server is called a

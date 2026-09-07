@@ -483,7 +483,8 @@ app.post('/auth/token', async (req, res) => {
       ON CONFLICT (workspace_id, firebase_uid) DO NOTHING
     `, [workspace_id, decoded.uid, github_username]);
 
-    // Mint a token only for a caller who doesn't already have one.
+    // Mint a token only for a caller who doesn't already have one — enforced by
+    // the database (Track 10074), not by a separate probe.
     //
     // The UI calls this on every onAuthStateChanged and discards the response
     // body (ui/src/contexts/AuthContext.jsx), so the endpoint's real job is the
@@ -491,25 +492,61 @@ app.post('/auth/token', async (req, res) => {
     // credential per sign-in, forever, none of which anyone could use. Now that
     // only the digest is stored, a second call also cannot return the earlier
     // token, so the honest response for a repeat caller is no token at all.
-    const { rows: existing } = await query(
-      'SELECT 1 FROM api_tokens WHERE workspace_id = $1 AND created_by = $2 LIMIT 1',
-      [workspace_id, decoded.uid]
-    );
-    if (existing.length > 0) {
-      return res.json({ workspace_id });
-    }
-
+    //
+    // This used to be a separate SELECT probe followed by a separate INSERT —
+    // classic check-then-act, racy under two concurrent calls for the same
+    // (workspace_id, created_by) (two tabs, a fast reload, any double-fire of
+    // onAuthStateChanged). Both could pass the SELECT before either INSERT
+    // committed, minting two live tokens for one user. A single
+    // INSERT ... ON CONFLICT DO NOTHING closes that window: Postgres decides
+    // atomically, via the unique index from
+    // migrations/20260907120000_unique_api_token_per_user.sql, which MUST be
+    // applied before this code is deployed (it raises 42P10 otherwise — see
+    // the catch block below). Zero returned rows means the caller already had
+    // one; one row means this call minted it.
+    //
+    // Deliberately not a plain INSERT wrapped in a catch on error 23505: query()
+    // retries once on a recoverable pool error, and if the first attempt
+    // actually committed before the connection dropped, that retry would
+    // violate its own just-written row and be misread as "already had a
+    // token" — losing the token that was just minted. ON CONFLICT ... DO
+    // NOTHING RETURNING has the same retry-returns-zero-rows outcome, but
+    // needs no error-code control flow and can't mask an unrelated unique
+    // violation (token, the primary key, is also unique, though a collision
+    // there is cryptographically impossible with 24 random bytes).
+    //
     // Stored as a SHA-256 digest; the raw value is returned to the caller here
     // and never persisted, so this is the only moment it exists server-side.
     const token = 'lc_' + crypto.randomBytes(24).toString('hex');
-    await query(`
+    const { rows: inserted } = await query(`
       INSERT INTO api_tokens (token, workspace_id, created_by)
       VALUES ($1, $2, $3)
+      ON CONFLICT (workspace_id, created_by) DO NOTHING
+      RETURNING token
     `, [hashToken(token), workspace_id, decoded.uid]);
+
+    if (inserted.length === 0) {
+      return res.json({ workspace_id });
+    }
 
     res.json({ token, workspace_id });
   } catch (err) {
-    res.status(err.code?.startsWith('auth/') ? 401 : 500).json({ error: 'failed to generate token', details: err.message });
+    if (err.code?.startsWith('auth/')) {
+      return res.status(401).json({ error: 'failed to generate token', details: err.message });
+    }
+    // 42P10: "no unique or exclusion constraint matching the ON CONFLICT
+    // specification" — the migration above hasn't been applied yet. Name it
+    // explicitly rather than surfacing an anonymous 500, since deploy order
+    // (migration before function) is load-bearing here and a mis-ordered
+    // deploy should fail loudly.
+    if (err.code === '42P10') {
+      return res.status(500).json({
+        error: 'failed to generate token',
+        details: 'missing unique index api_tokens_workspace_id_created_by_key — ' +
+          'apply migrations/20260907120000_unique_api_token_per_user.sql before deploying this function',
+      });
+    }
+    res.status(500).json({ error: 'failed to generate token', details: err.message });
   }
 });
 

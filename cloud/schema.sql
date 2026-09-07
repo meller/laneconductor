@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   created_at      TIMESTAMP DEFAULT NOW()
 );
 
+-- Track 10074: at most one token per (workspace_id, created_by), enforced by
+-- Postgres via ON CONFLICT DO NOTHING rather than a check-then-act race. See
+-- migrations/20260907120000_unique_api_token_per_user.sql for the dedupe this
+-- required before the index could be created.
+CREATE UNIQUE INDEX IF NOT EXISTS api_tokens_workspace_id_created_by_key
+  ON api_tokens (workspace_id, created_by);
+
 ALTER TABLE projects
   ADD COLUMN IF NOT EXISTS git_global_id UUID UNIQUE,
   ADD COLUMN IF NOT EXISTS workspace_id  UUID REFERENCES workspaces(id);
