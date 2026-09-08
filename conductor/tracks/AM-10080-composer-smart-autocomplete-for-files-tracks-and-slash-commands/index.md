@@ -28,3 +28,4 @@ Standalone terminal coding agents provide path autocompletion and command shortc
    - Support trigger `/` for `/laneconductor` slash commands (`move`, `plan`, `implement`, etc.).
 3. **Context Injection**:
    - Insert selected file paths and relative references cleanly into the composer input.
+**Auto Run**: yes
