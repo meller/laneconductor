@@ -1,0 +1,47 @@
+[Unit]
+# LaneConductor Express API (ui/server/index.mjs), supervised.
+#
+# Why this exists (found live 2026-09-08): this process had no supervision
+# at all — started by hand via `make api-start`, with nothing to bring it
+# back if it died. It went down for ~2 hours with no crash signature in its
+# own log or dmesg (most likely killed by an ending terminal session, not a
+# crash) before anyone noticed via "is our api down". Every worker's
+# primary collector (conductor/laneconductor.sync.mjs's primaryCollector(),
+# always collectors[0] = http://127.0.0.1:8091) is this exact process — its
+# outage silently breaks every local dispatch/heartbeat/sync path project-
+# wide, the same class of single-point-of-failure the worker's own
+# supervision (laneconductor-worker@.service) already exists to prevent.
+#
+# Unlike the worker unit, this one is NOT templated — there is exactly one
+# Express API per machine, serving every local project through one shared
+# Postgres DB (confirmed live: the UI's project dropdown lists 16 different
+# projects against this same API/DB), not one instance per project.
+Description=LaneConductor Express API (ui/server/index.mjs)
+Documentation=https://github.com/asafmeller/laneconductor
+After=network-online.target
+Wants=network-online.target
+
+# See laneconductor-worker@.service's own comment for why these belong in
+# [Unit], not [Service] — systemd 229+ silently ignores them under
+# [Service].
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=/home/meller/Code/laneconductor/ui
+ExecStart=/usr/bin/node server/index.mjs
+
+# Logs go to the journal — the API's own console.log calls are otherwise
+# invisible to systemd. Kept separate from the worker's own SyslogIdentifier
+# so `journalctl -t laneconductor-api` and `-t laneconductor-worker` stay
+# independently greppable.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=laneconductor-api
+
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

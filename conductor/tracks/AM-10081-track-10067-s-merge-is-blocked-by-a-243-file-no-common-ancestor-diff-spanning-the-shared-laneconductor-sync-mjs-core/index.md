@@ -2,7 +2,7 @@
 
 **Lane**: plan
 **Merge Mode**: direct
-**Lane Status**: waiting
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Planned — 3 phases
 **Type**: dev
@@ -74,4 +74,3 @@ other).
    present on main via the reconciliation in (1).
 **Auto Run**: yes
 **Waiting for reply**: yes
-**Waiting Reason**: merge conflict in manager-pseudo-track.mjs; root cause identified
