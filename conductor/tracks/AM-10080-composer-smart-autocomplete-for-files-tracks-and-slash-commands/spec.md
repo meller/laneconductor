@@ -142,24 +142,24 @@ list is unavailable instead of failing the send.
 
 ## Acceptance Criteria
 
-- [ ] Typing `@Chat` in the Chat composer shows a menu of matching repository files, and choosing
+- [x] Typing `@Chat` in the Chat composer shows a menu of matching repository files, and choosing
       one puts its repo-relative path into the message.
-- [ ] Typing `#100` shows matching tracks by number and title, and choosing one inserts `#NNNN`.
-- [ ] Typing `/` at the start of a message shows the `/laneconductor` commands, and choosing one
+- [x] Typing `#100` shows matching tracks by number and title, and choosing one inserts `#NNNN`.
+- [x] Typing `/` at the start of a message shows the `/laneconductor` commands, and choosing one
       inserts the command.
-- [ ] The menu is fully operable from the keyboard: arrows move, Enter or Tab picks, Escape
+- [x] The menu is fully operable from the keyboard: arrows move, Enter or Tab picks, Escape
       dismisses.
-- [ ] Pressing Enter to pick a completion does not send the message; the next Enter does.
-- [ ] Picking a completion mid-sentence replaces only the token being typed and leaves the rest of
+- [x] Pressing Enter to pick a completion does not send the message; the next Enter does.
+- [x] Picking a completion mid-sentence replaces only the token being typed and leaves the rest of
       the sentence untouched.
-- [ ] Holding down a key while the file menu is open does not issue one request per keystroke.
-- [ ] On a project whose repository is not reachable from the API host but whose worker has
+- [x] Holding down a key while the file menu is open does not issue one request per keystroke.
+- [x] On a project whose repository is not reachable from the API host but whose worker has
       reported a manifest, `@` still lists that repository's files.
-- [ ] On a project with neither, the composer still sends messages normally and the menu says the
+- [x] On a project with neither, the composer still sends messages normally and the menu says the
       file list is unavailable.
-- [ ] The files endpoint never returns a path outside the project's repository and never returns
+- [x] The files endpoint never returns a path outside the project's repository and never returns
       file contents.
-- [ ] Existing Chat composer behaviour is unchanged: sending, the disabled hint, the queued
+- [x] Existing Chat composer behaviour is unchanged: sending, the disabled hint, the queued
       notice, and the live-turn hint all still work.
 
 ## API Contracts / Data Models
