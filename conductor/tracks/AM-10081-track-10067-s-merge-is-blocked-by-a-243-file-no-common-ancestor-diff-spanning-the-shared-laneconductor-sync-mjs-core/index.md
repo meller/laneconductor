@@ -1,7 +1,8 @@
 # Track AM-10081: Track 10067's merge is blocked by a 243-file no-common-ancestor diff spanning the shared laneconductor.sync.mjs core
 
 **Lane**: plan
-**Lane Status**: queue
+**Merge Mode**: direct
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -71,3 +72,4 @@ other).
 3. **Once landed**, clean up `track-10067` the same way 10066 was: remove
    the worktree and delete the branch once its real content is confirmed
    present on main via the reconciliation in (1).
+**Auto Run**: yes
