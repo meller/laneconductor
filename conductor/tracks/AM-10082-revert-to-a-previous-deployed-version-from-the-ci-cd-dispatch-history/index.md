@@ -1,9 +1,10 @@
 # Track AM-10082: Revert to a previous deployed version from the CI/CD dispatch history
 
-**Lane**: plan
+**Lane**: implement
+**Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned (5 phases)
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
@@ -78,3 +79,4 @@ decide per-migration whether reverting is even safe.
 [1085](../1085-manual-worker-dispatch/index.md) — the dispatch mechanism this reuses.
 [1092](../1092-deploy-config-ui/index.md), [1098](../1098-targeted-build-deployment/index.md) — the Release tab / dispatch history UI this adds an action to.
 [1097](../1097-build-artifact-system/index.md) — the git-commit-per-build tracking this builds on.
+**Auto Run**: yes
