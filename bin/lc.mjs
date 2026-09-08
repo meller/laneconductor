@@ -22,6 +22,8 @@ import { resolveTrackFolderFs } from '../conductor/services/track-folder-fs.mjs'
 import { buildInstanceState } from '../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../conductor/services/setup-gaps.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../conductor/services/jira-auth.mjs';
+import { isPidAlive, readProcessCommand, runMarkerPath } from '../conductor/services/run-marker.mjs';
+import { abortRun } from '../conductor/services/run-abort.mjs';
 
 const __filename = realpathSync(fileURLToPath(import.meta.url));
 const __dirname = dirname(__filename);
@@ -678,6 +680,13 @@ Track Transitions
   review [id] [--run]        Move to review lane (--run: execute immediately in foreground)
   quality-gate [id] [--run]  Move to quality-gate lane (--run: execute immediately in foreground)
   backlog [id], done [id], rerun [id]
+  abort [id]            Cancel a live lane action or conversation turn for a
+                       track ("manager" is a valid id). Signals the detached
+                       process group directly (SIGINT, escalating to SIGTERM
+                       then SIGKILL) — works with no API server running
+                       (local-fs mode). The track parks at <lane>:waiting
+                       rather than failing; the UI's Resume button (or
+                       POST .../resume) re-queues it.
 
 Configuration  (per project)
   config [set ...]     Manage project configuration (or show if no args)
@@ -3577,6 +3586,49 @@ Please review this, answer any questions (some fields may contain questions rath
         console.log(JSON.stringify({ folder: fullPath, matches: decision.matches, registered: decision.registeredFolder }));
     } else {
         console.log(fullPath);
+    }
+    process.exit(0);
+} else if (command === 'abort') {
+    // Track 10079 (REQ-10): the same abortRun() primitive the API route
+    // calls (conductor/services/run-abort.mjs), invoked directly with no
+    // HTTP server in between — the only cancellation path that works in
+    // local-fs mode, where no API server exists at all.
+    if (!projectRoot) {
+        console.error('❌ Error: No LaneConductor project found in this directory or parents.');
+        process.exit(1);
+    }
+    const trackNum = args[1];
+    if (!trackNum) {
+        console.error('Usage: lc abort <track-number>');
+        process.exit(1);
+    }
+
+    const result = await abortRun({
+        primaryRoot: projectRoot,
+        trackNumber: trackNum,
+        requestedBy: 'cli',
+        isPidAlive,
+        readProcessCommand,
+        kill: process.kill,
+    });
+
+    if (!result.ok) {
+        console.error(`❌ No live run for track ${trackNum} (${result.reason})`);
+        process.exit(1);
+    }
+
+    console.log(`🛑 Sent ${result.signal} to track ${trackNum} (pid ${result.pid}, pgid ${result.pgid})${result.already_requested ? ' — already requested, escalating' : ''}`);
+
+    // Wait (bounded) for the group to actually be gone, so exiting 0 means
+    // what it says rather than merely "a signal was sent into the void".
+    const markerPath = runMarkerPath(projectRoot, trackNum);
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+        if (!existsSync(markerPath)) break;
+        let marker;
+        try { marker = JSON.parse(readFileSync(markerPath, 'utf8')); } catch { break; }
+        if (!isPidAlive(marker.pid)) break;
+        await new Promise(r => setTimeout(r, 200));
     }
     process.exit(0);
 } else if (command === 'verify-isolation') {

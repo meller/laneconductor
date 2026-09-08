@@ -30,6 +30,8 @@ import { buildInstanceState } from '../../conductor/services/instance-state.mjs'
 import { computeSetupGaps } from '../../conductor/services/setup-gaps.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack } from '../../conductor/services/manager-pseudo-track.mjs';
 import { parseConversationComments } from '../../conductor/sync-conversation-utils.mjs';
+import { isPidAlive, readProcessCommand } from '../../conductor/services/run-marker.mjs';
+import { abortRun } from '../../conductor/services/run-abort.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -5443,6 +5445,61 @@ app.post('/api/projects/:id/tracks/:num/resume', async (req, res) => {
 
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true, lane_status: rows[0].lane_status, lane_action_status: 'queue' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10079 (REQ-6..REQ-9): stop a live lane action or conversation turn.
+// Deliberately does no `tracks` row lookup at all — the only state this
+// route touches is the run marker on disk (conductor/.runs/<num>.json) — so
+// `:num` of `manager` (REQ-7) works for free: runMarkerPath just resolves to
+// conductor/.runs/manager.json, same as any other track number, and there is
+// no lane to reconcile here regardless (that happens later, in the exit
+// handler that owns the child — a different process, possibly on a
+// different machine by the time this responds).
+//
+// REQ-9 / spec.md's "Scope boundary: co-located only": this can only signal
+// a process on the machine the API server itself is running on. In
+// remote-api mode the worker's process group is on the user's own machine,
+// not this one — signalling would either hit nothing, or (far worse) an
+// unrelated LOCAL process that happens to reuse the recorded pid. Report the
+// deferral explicitly rather than a fake success or a misleading 409.
+app.post('/api/projects/:id/tracks/:num/abort', async (req, res) => {
+  try {
+    const projRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [req.params.id]);
+    const repoPath = projRes.rows[0]?.repo_path;
+    if (!repoPath) return res.status(404).json({ error: 'Project not found' });
+
+    let mode = 'local-api';
+    try {
+      const lcJsonPath = join(repoPath, '.laneconductor.json');
+      if (existsSync(lcJsonPath)) mode = JSON.parse(readFileSync(lcJsonPath, 'utf8')).mode || mode;
+    } catch { /* unreadable/invalid config — fall through as local-api, the safer default to actually attempt */ }
+
+    if (mode === 'remote-api') {
+      return res.status(501).json({ error: 'run is not on this machine — remote abort is not implemented (track 10079 Phase 6)' });
+    }
+
+    const requestedBy = req.user?.uid || req.user?.email || 'human';
+    const result = await abortRun({
+      primaryRoot: repoPath,
+      trackNumber: req.params.num,
+      requestedBy,
+      isPidAlive,
+      readProcessCommand,
+      kill,
+    });
+
+    if (!result.ok) {
+      return res.status(409).json({ error: `no live run for track ${req.params.num} (${result.reason})` });
+    }
+
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.status(202).json({
+      ok: true, pid: result.pid, pgid: result.pgid, signal: result.signal,
+      ...(result.already_requested ? { already_requested: true } : {}),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

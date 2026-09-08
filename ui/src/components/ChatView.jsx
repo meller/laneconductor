@@ -100,6 +100,43 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
     turn,
   });
 
+  // Track 10079 (REQ-19): the Stop control's liveness comes SOLELY from
+  // resolveTargetRunLiveness — the same computation the rest of this view
+  // already relies on — never a second liveness check of its own.
+  const [aborting, setAborting] = useState(false);
+  const [abortError, setAbortError] = useState(null);
+
+  useEffect(() => {
+    setAborting(false);
+    setAbortError(null);
+  }, [selectedId]);
+
+  const handleAbort = async () => {
+    if (!chatTarget?.projectId || !chatTarget?.trackNumber) return;
+    setAborting(true);
+    setAbortError(null);
+    try {
+      const res = await apiFetch(`/api/projects/${chatTarget.projectId}/tracks/${chatTarget.trackNumber}/abort`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (res.status === 409) {
+        // REQ-20/AC-9: a 409 means nothing is running — informational, not
+        // an error the click itself caused.
+        setAbortError('Nothing is running');
+      } else if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setAbortError(data?.error || `Failed to stop (${res.status})`);
+      }
+      // 202: no error to surface — the board reflects the park once the
+      // worker's own exit handler and the next poll/broadcast land.
+    } catch (err) {
+      setAbortError(err.message || 'Failed to stop');
+    } finally {
+      setAborting(false);
+    }
+  };
+
   // Reset pagination and scroll to bottom when switching target
   useEffect(() => {
     setVisibleBlocksCount(DEFAULT_PAGE_SIZE);
@@ -152,7 +189,13 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
                 {targetLabel(selectedWorker, tracks)}
               </span>
             </div>
-            <TurnStatusBar turn={turn} />
+            <TurnStatusBar
+              turn={turn}
+              canAbort={runLiveness.isLive}
+              onAbort={handleAbort}
+              aborting={aborting}
+              abortError={abortError}
+            />
             {advisoryGaps.length > 0 && !advisoryDismissed && (
               <div className="bg-blue-950/40 border-b border-blue-900/60 px-4 py-2 flex items-center justify-between text-xs text-blue-200 shrink-0" data-testid="advisory-gaps-note">
                 <div className="flex items-center gap-2 flex-1 min-w-0">

@@ -53,4 +53,53 @@ describe('TurnStatusBar', () => {
     render(<TurnStatusBar turn={turn} />);
     expect(screen.getByTestId('turn-session-id')).toHaveTextContent('session: abc12345');
   });
+
+  // Track 10079 — TC-4.1..TC-4.3
+  describe('Stop control (Track 10079)', () => {
+    it('TC-4.1: with canAbort true, a Stop control renders, present and enabled', () => {
+      render(<TurnStatusBar turn={null} canAbort onAbort={() => {}} />);
+      const btn = screen.getByTestId('abort-turn-button');
+      expect(btn).toBeInTheDocument();
+      expect(btn).not.toBeDisabled();
+      expect(btn).toHaveTextContent('Stop');
+    });
+
+    it('TC-4.2: canAbort true with turn null/inactive still renders the bar — regression guard on the old `if (!turn) return null`', () => {
+      const { container } = render(<TurnStatusBar turn={null} canAbort onAbort={() => {}} />);
+      expect(container).not.toBeEmptyDOMElement();
+      expect(screen.getByTestId('abort-turn-button')).toBeInTheDocument();
+    });
+
+    it('TC-4.3: canAbort false and no turn data renders nothing — REQ-24 "no empty chrome" preserved', () => {
+      const { container } = render(<TurnStatusBar turn={null} canAbort={false} />);
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it('TC-4.4: clicking Stop fires onAbort exactly once, and shows "Stopping…" disabled while in flight', () => {
+      const onAbort = vi.fn();
+      const { rerender } = render(<TurnStatusBar turn={null} canAbort onAbort={onAbort} aborting={false} />);
+      const btn = screen.getByTestId('abort-turn-button');
+      btn.click();
+      expect(onAbort).toHaveBeenCalledTimes(1);
+
+      rerender(<TurnStatusBar turn={null} canAbort onAbort={onAbort} aborting />);
+      const inFlight = screen.getByTestId('abort-turn-button');
+      expect(inFlight).toHaveTextContent('Stopping…');
+      expect(inFlight).toBeDisabled();
+    });
+
+    it('TC-4.5: a 409 (nothing running) is surfaced via abortError as informational, not styled as failure of the click itself', () => {
+      render(<TurnStatusBar turn={null} canAbort onAbort={() => {}} abortError="Nothing is running" />);
+      expect(screen.getByTestId('abort-error')).toHaveTextContent('Nothing is running');
+      // The control itself returns to idle — a 409 is not a stuck "Stopping…".
+      expect(screen.getByTestId('abort-turn-button')).toHaveTextContent('Stop');
+      expect(screen.getByTestId('abort-turn-button')).not.toBeDisabled();
+    });
+
+    it('TC-4.6: a 500 surfaces the server message and the control returns to idle so a retry is possible', () => {
+      render(<TurnStatusBar turn={null} canAbort onAbort={() => {}} aborting={false} abortError="Internal error: boom" />);
+      expect(screen.getByTestId('abort-error')).toHaveTextContent('Internal error: boom');
+      expect(screen.getByTestId('abort-turn-button')).not.toBeDisabled();
+    });
+  });
 });
