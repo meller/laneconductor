@@ -2,7 +2,7 @@
 
 **Lane**: review
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
 **Phase**: Planned — 6 phases
 **Type**: dev
