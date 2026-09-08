@@ -101,20 +101,31 @@ would be wasteful even where the repository is local.
 **Solution**: One `/api` route that resolves a cached path list and filters it with Phase 1's
 matcher. Registered after `app.use('/api', requireAuth)` so it inherits authentication.
 
-- [ ] Add a manifest resolver to `ui/server/index.mjs`
-    - [ ] `readTrackedFiles(repoPath)` — `execFile('git', ['ls-files', '-z'])` in `repoPath`,
+- [x] Add a manifest resolver to `ui/server/index.mjs`
+    - [x] `readTrackedFiles(repoPath)` — `execFile('git', ['ls-files', '-z'])` in `repoPath`,
           split on NUL, no shell (REQ-5)
-    - [ ] Per-project in-memory cache with TTL and an in-flight promise map so concurrent misses
+    - [x] Per-project in-memory cache with TTL and an in-flight promise map so concurrent misses
           share one git invocation rather than stampeding (REQ-2)
-    - [ ] Source tiering: disk → stored manifest → empty, reporting `source` (REQ-6)
-- [ ] Add `GET /api/projects/:id/files` (REQ-1, REQ-3, REQ-4)
-    - [ ] Clamp `limit` to 100, truncate `q` at 128 chars, both silently
-    - [ ] Return `{ files, source, total, truncated, age_seconds }`
-    - [ ] Missing project → 404; missing/unreadable repo → 200 with `source: "none"`
-- [ ] Server tests in `ui/server/tests/track-10080-files-api.test.mjs`, following the
+    - [x] Source tiering: disk → stored manifest → empty, reporting `source` (REQ-6)
+- [x] Add `GET /api/projects/:id/files` (REQ-1, REQ-3, REQ-4)
+    - [x] Clamp `limit` to 100, truncate `q` at 128 chars, both silently
+    - [x] Return `{ files, source, total, truncated, age_seconds }`
+    - [x] Missing project → 404; missing/unreadable repo → 200 with `source: "none"`
+- [x] Server tests in `ui/server/tests/track-10080-files-api.test.mjs`, following the
       supertest + mocked `pg`/`fs` harness used by `track-10014-conductor-edit.test.mjs`
 
 **Impact**: New route. `git ls-files` becomes a thing the API server runs. Nothing else changes.
+
+**Done (2026-09-08)**: 13/13 tests pass in `ui/server/tests/track-10080-files-api.test.mjs`
+(TC-24..TC-34, TC-61, TC-62 — the last two anticipate Phase 4's worker-manifest fallback since the
+resolver already implements all three tiers). Also fixed a "not a git repository" edge case the
+first draft missed: `readTrackedFiles` failing must fall through to the worker-manifest tier
+(and then to `none`), not report `source: "disk"` with an empty list — REQ-6 requires `none` for
+both "repo missing" and "not a git repo". Verified the rest of the server suite is unaffected: ran
+the full `ui/server/tests/` suite both with and without this phase's changes (via a scoped `git
+stash`) — the same 24 pre-existing failures (auth.test.mjs, track-1116-model-override.test.mjs,
+api-routes.test.mjs, etc.) appear identically in both runs, confirming they predate this track
+rather than being a regression it introduced.
 
 ---
 
