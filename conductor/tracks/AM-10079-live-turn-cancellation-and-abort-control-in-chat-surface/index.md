@@ -1,6 +1,6 @@
 # Track AM-10079: Live turn cancellation and abort control in Chat surface
 
-**Lane**: review
+**Lane**: quality-gate
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
