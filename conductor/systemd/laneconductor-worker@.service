@@ -33,9 +33,18 @@ Type=simple
 # RELATIVE "home/meller/..." and systemd rejects the unit outright. %f is the
 # unescaped instance name WITH the leading / restored.
 WorkingDirectory=%f
-# --sync-only is MANUAL mode: syncs and serves dispatches, never claims queued
-# work on its own. Drop the flag (or override ExecStart) for AUTOMATIC mode.
-ExecStart=/usr/bin/node conductor/laneconductor.sync.mjs --sync-only
+# AUTOMATIC mode (no --sync-only): syncs, serves dispatches, AND claims
+# queued/auto_run work on its own. Decided live 2026-09-08: found that
+# auto_run tracks sitting in review were never progressing because this
+# unit — the only worker with real crash supervision — was hardcoded to
+# --sync-only (manual), while the only workers actually capable of
+# auto-launch were ad hoc, unsupervised processes someone started by hand
+# and had no restart-on-death protection at all. Standing default is now
+# automatic so the supervised worker is also the one doing the work; pass
+# --sync-only back in (override ExecStart, or use `lc worker start` without
+# --sync-and-work for a manual, unsupervised instance) if manual-only
+# behavior is ever wanted again for a specific project.
+ExecStart=/usr/bin/node conductor/laneconductor.sync.mjs
 
 # systemd's own PATH (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin)
 # has no ~/.local/bin, where `claude` actually lives on this machine. Every
