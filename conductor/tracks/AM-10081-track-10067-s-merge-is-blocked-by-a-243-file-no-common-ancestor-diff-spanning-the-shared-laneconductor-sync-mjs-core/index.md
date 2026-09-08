@@ -2,9 +2,9 @@
 
 **Lane**: plan
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: waiting
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — 3 phases
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
@@ -73,3 +73,5 @@ other).
    the worktree and delete the branch once its real content is confirmed
    present on main via the reconciliation in (1).
 **Auto Run**: yes
+**Waiting for reply**: yes
+**Waiting Reason**: merge conflict in manager-pseudo-track.mjs; root cause identified

@@ -1,6 +1,6 @@
 # Track AM-10077: Track 10050's real unshipped work is stuck behind a duplicate-folder split between its worktree and primary checkout
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
 **Phase**: Implementation complete — all 4 phases done

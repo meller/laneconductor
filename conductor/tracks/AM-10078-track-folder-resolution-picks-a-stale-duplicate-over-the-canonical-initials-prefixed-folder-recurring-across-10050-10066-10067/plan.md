@@ -138,6 +138,18 @@ recur; the remediation has to be a reviewable script.
 
 **Impact**: The repo reaches a clean state that Phases 1-4 keep clean.
 
+## ⚠️ Gaps from Review
+
+**Blocking**: Task 2.3 — UI `/track-create` endpoint still writes bare `<n>-slug` instead of canonical INITIALS-NNN-slug. This is the primary duplicate-creation mechanism REQ-1 aims to fix. The endpoint must be updated to:
+1. Call `resolveTrackFolderFs()` first (check for existing folder)
+2. Derive author initials from git config or request auth
+3. Call `buildTrackFolderName()` with those initials
+4. Reuse the existing folder if found; only create on genuine miss
+
+**Also verify**: Task 2.6 (`syncTrackToFile` at line 1662-1666) — needs confirmation it uses the shared helper, not hard-coded naming.
+
+**Not yet started**: Phases 3–6 remain unimplemented.
+
 ## Phase 6: Regression coverage (REQ, AC-7)
 
 **Problem**: Prior fixes (10040, 10046, 10063, 1119) each landed with tests for their own
