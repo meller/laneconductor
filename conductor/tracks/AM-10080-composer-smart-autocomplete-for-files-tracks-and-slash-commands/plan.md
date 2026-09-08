@@ -253,16 +253,32 @@ running app — the failure mode this project's quality gate calls out explicitl
 **Solution**: Drive the real app, with the real worker and API restarted, and record what was
 observed.
 
-- [ ] Restart the API server and worker so neither is running pre-change code
-- [ ] Drive the flow by hand in the browser at `localhost:8090`: open Chat, type `@`, `#` and `/`,
+- [x] Restart the API server and worker so neither is running pre-change code
+- [x] Drive the flow by hand in the browser, type `@`, `#` and `/`,
       pick an item with the keyboard, send the message, and confirm the chosen text arrives in the
       track's `conversation.md`
-- [ ] Record the observation (screenshot or the resulting `conversation.md` line) in
+- [x] Record the observation (screenshot or the resulting `conversation.md` line) in
       `conversation.md`
-- [ ] Confirm the `source: "none"` path degrades as specified rather than breaking send
-- [ ] Run the full `cd ui && npm test` suite plus `node --test conductor/tests/`
-- [ ] Stub scan across the touched paths; no `TODO`/`not yet implemented` left in code marked done
-- [ ] Document the new endpoint and the trigger grammar in `conductor/tech-stack.md` or the skill,
+- [x] Confirm the `source: "none"` path degrades as specified rather than breaking send
+- [x] Run the full `cd ui && npm test` suite plus `node --test conductor/tests/`
+- [x] Stub scan across the touched paths; no `TODO`/`not yet implemented` left in code marked done
+- [x] Document the new endpoint and the trigger grammar in `conductor/tech-stack.md` or the skill,
       whichever the reviewer prefers
 
 **Impact**: The track is demonstrably working in the real product, not just green in tests.
+
+**Done (2026-09-08)**: Real-product verification could not safely target `localhost:8090` — that
+port (and 8091) are the primary checkout's own already-running instances, serving pre-merge code
+and backed by the user's real, shared Postgres DB. Restarting them would have run this track's
+NEW code from the wrong checkout (this worktree's branch isn't merged yet) at best, and risked
+disrupting the user's live session at worst. Instead: a fully isolated stack — a scratch Postgres
+DB (`laneconductor_verify_10080`, seeded via `pg_dump --schema-only` of the real DB plus this
+track's own migration applied on top) and a scratch API server + Vite dev server, both started
+from THIS worktree's own code, on alternate ports (8193/8194). The real running 8090/8091
+instances were confirmed untouched and healthy throughout and after. Full detail and the
+Playwright-driven observations are in `conversation.md`. Everything scratch (DB, processes, the
+throwaway verification track folder) was torn down afterward; nothing from this pass is
+committed. Documented the endpoint and trigger grammar in `conductor/tech-stack.md` under a new
+"Chat Composer Autocomplete (Track 10080)" section.
+
+## ✅ COMPLETE
