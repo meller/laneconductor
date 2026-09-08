@@ -28,8 +28,8 @@ the *pre-rewrite* main history beneath its own work, and the boundary is
 explicit and unambiguous: commit `1b164edf`
 (`chore(track-10067): sync files before worktree`), the standard marker the
 worker writes immediately before creating a worktree. Everything below it
-is shared (pre-rewrite) main. Everything above it — 16 commits — is track
-10067's own work.
+is shared (pre-rewrite) main. Everything above it — 17 commits as of
+2026-09-08 — is track 10067's own work.
 
 Using `1b164edf` as an explicit merge base changes the picture completely:
 
@@ -44,21 +44,28 @@ actual change in 10067's own range is `+362` lines. The rest was main-side
 drift the tip-to-tip diff misattributed to this branch.
 
 A three-way merge with `1b164edf` supplied as the base
-(`git merge-tree 1b164edf main track-10067`) produces **six conflict hunks
-across five files**. Sixteen new files add cleanly. Six shared files
-auto-merge cleanly (`bin/systemd-user.mjs`,
-`conductor/services/orphaned-dispatch.mjs`, `.claude/skills/laneconductor/SKILL.md`,
-`conductor/product.md`, `conductor/tracks/file_sync_queue.md`,
-`conductor/tests/track-10046-stale-lane-snapshot.test.mjs`).
+(`git merge-tree --write-tree --merge-base=1b164edf main track-10067`)
+produces conflicts in **five files** and nothing else. Of the 15 files
+10067 adds, 13 apply cleanly; of the 12 it modifies, 9 auto-merge cleanly
+(`.claude/skills/laneconductor/SKILL.md`, `bin/lc.mjs`,
+`bin/systemd-user.mjs`, `conductor/product.md`,
+`conductor/services/orphaned-dispatch.mjs`,
+`conductor/tests/track-10046-stale-lane-snapshot.test.mjs`,
+`conductor/tracks/file_sync_queue.md`, and TU-10067's own `spec.md` and
+`test.md`).
 
-The six conflicts, all of them characterized:
+**Re-verified 2026-09-08 against `main` at `07b580d1`**, which has moved
+since this spec was first written: the conflict set is unchanged — the same
+five files, the same blob hashes on all three sides.
+
+The five conflicts, all of them characterized:
 
 | # | File | Nature | Resolution |
 |---|---|---|---|
 | 1 | `conductor/services/manager-pseudo-track.mjs` | **Real design clash.** Two tracks independently created this filename with completely disjoint APIs. | See below — the only judgment call in the whole reconciliation. |
 | 2 | `conductor/laneconductor.sync.mjs` | Same guard, two names: main calls `isManagerPseudoTrack()` (10069), 10067 calls `isReservedPseudoTrackName()`. Identical intent, identical placement. | Keep main's call; drop 10067's duplicate. |
 | 3 | `ui/server/index.mjs` | Pure adjacency. 10069 added `GET /api/instance-state` and 10067 adds `GET /manager/workers` at the same line. Not a semantic conflict. | Keep both routes. |
-| 4–6 | `TU-10067-.../index.md` (×2), `TU-10067-.../plan.md` (×1) | Track-bookkeeping churn only — `Lane Status`, `Last Run`, `Progress`, a `## ✅ REVIEWED` block. | Bookkeeping-only; the existing `isSafeToAutoResolveBookkeepingConflict` rule already covers this class. |
+| 4–5 | `TU-10067-.../index.md`, `TU-10067-.../plan.md` (add/add) | Track-bookkeeping churn only — `Lane Status`, `Last Run`, `Progress`, a `## ✅ REVIEWED` block. | Bookkeeping-only; the existing `isSafeToAutoResolveBookkeepingConflict` rule already covers this class. |
 
 **Conflict 1 in detail.** `conductor/services/manager-pseudo-track.mjs`
 exists on `main` from track **10069** (the manager chat surface) and on
@@ -113,7 +120,9 @@ the session's.
 
 - **REQ-1**: Land track 10067's work on `main` as a three-way merge with
   `1b164edf` supplied as the explicit merge base. Do not diff tip-to-tip,
-  and do not cherry-pick blind.
+  and do not cherry-pick blind. The merge is performed **on this track's
+  own branch** (`track-10081`), not in the primary checkout; `main` receives
+  it through this track's ordinary `done`-lane direct merge. See D5.
 - **REQ-2**: `conductor/services/manager-pseudo-track.mjs` must retain
   every export `main` has today. Track 10069's manager chat surface must
   keep working unchanged.
@@ -168,18 +177,21 @@ stub or by a log line.
       reports no differences in 10067's own 27 changed paths, confirming
       the content actually landed rather than a merge commit merely
       existing.
-- [ ] **AC-3**: A running manager worker on `main` performs a layer-1
-      sweep and writes at least one finding to the supervision
-      pseudo-track's `conversation.md`. Observed live, with the written
-      file recorded.
-- [ ] **AC-4**: The manager chat surface still works on `main` — opening
-      the Chat view, selecting the manager target, and sending a message
-      produces a reply. Observed in the browser, with a screenshot.
+- [ ] **AC-3**: A running manager worker performs a layer-1 sweep and
+      writes at least one finding to the supervision pseudo-track's
+      `conversation.md`. Observed live against the reconciled branch, with
+      the written file recorded.
+- [ ] **AC-4**: The manager chat surface still works — opening the Chat
+      view, selecting the manager target, and sending a message produces a
+      reply. Observed in the browser against the reconciled branch, with a
+      screenshot. This is 10069's feature and is what an incorrect
+      resolution of the pseudo-track conflict would break.
 - [ ] **AC-5**: `curl` against a running API server returns a valid
       response from both `GET /api/instance-state` and `GET /manager/workers`.
-- [ ] **AC-6**: `node --test conductor/tests/` passes on `main` after the
-      merge, including all five of 10067's new test files. Full output
-      recorded, not summarized.
+- [ ] **AC-6**: `node --test conductor/tests/` passes on the reconciled
+      branch, including all five of 10067's new test files, and again on
+      `main` after the done-lane merge lands. Full output recorded, not
+      summarized.
 
 ### Retry-loop containment
 
@@ -195,6 +207,18 @@ stub or by a log line.
       Verified with a deliberately-failing run that recovers on retry.
 - [ ] **AC-10**: A worker log line names the losing writer whenever the
       reaper and a live session contend for the same track row.
+
+### Workspace
+
+- [ ] **AC-13**: No phase of this track leaves the primary checkout
+      (`/home/meller/Code/laneconductor`) in a conflicted or half-merged
+      state. `git -C /home/meller/Code/laneconductor status --short` is
+      checked before and after each phase and shows no unmerged paths and
+      no unexpected modifications.
+- [ ] **AC-14**: After the live-verification phase, the primary worker and
+      API server are running from the primary checkout again, and
+      `ps aux | grep laneconductor.sync.mjs` shows exactly the expected
+      process set with no orphans left from the worktree-run processes.
 
 ### Cleanup
 
@@ -238,14 +262,63 @@ increment `.retry-count` when the liveness killer fires, not to make the
 exit handler more robust. The killer already knows it is ending the run; a
 SIGTERM'd process cannot be relied on to run its own bookkeeping.
 
-**D5 — Workspace mode.** Every phase of this track has to run in the
-primary checkout. Phase 1 merges another branch into `main`, which is
-meaningless inside a track worktree, and Phases 2–3 change the worker and
-API server that are serving this project right now — a fix on a branch has
-no effect until it is merged and the process restarts. A human should set
-`**Workspace**: main` on this track before it leaves the plan lane.
-Planning deliberately writes only `**Track Kind**: bug`, which feeds that
-default without silently authorizing an unattended run on `main`.
+**D5 — Branch workspace. Revised 2026-09-08 after human review.**
+
+The first version of this decision said every phase had to run in the
+primary checkout, on the reasoning that Phase 1 "merges another branch into
+`main`, which is meaningless inside a track worktree." A human pushed back
+on that in `conversation.md`, and they were right. The reasoning was wrong
+on the facts.
+
+`track-10067` is merged into `track-10081`, not into `main` directly.
+`main` then receives the whole thing through this track's own `done`-lane
+direct merge, which is an ordinary merge — `track-10081` and `main` do
+share a common ancestor (`fa25857d`), unlike `track-10067` and `main`. The
+rewrite discontinuity is absorbed once, on the branch, and never has to be
+handled again.
+
+Doing it on the branch costs nothing. Measured directly:
+
+```
+git merge-tree --write-tree --merge-base=1b164edf main         track-10067
+git merge-tree --write-tree --merge-base=1b164edf track-10081  track-10067
+```
+
+Both produce the identical conflict set — the same five files, with
+identical blob hashes on all three stages. Substituting `track-10081` for
+`main` as the "ours" side changes nothing about the work.
+
+What the branch buys is real. There are 28 live worktrees on this
+repository; resolving a five-file conflict directly in the shared primary
+checkout puts a half-merged working tree under every one of them, and under
+the worker and API server that are running out of that checkout right now.
+On the branch the whole reconciliation is reviewable, testable, and
+revertable before anything reaches `main`.
+
+Three things genuinely cannot happen on the branch, and they are separated
+into their own phases rather than used to justify moving everything:
+
+1. **Live verification** (AC-3, AC-4, AC-5, AC-7 – AC-10). The worker and
+   API server do not hot-reload, so a running process is required. This is
+   done by *stopping* the primary processes and starting them from the
+   10081 worktree on the same ports — the branch's code, the primary
+   checkout's config (`conductor/services/config-root.mjs` resolves `.env`
+   and `.laneconductor.json` against the primary checkout regardless of
+   cwd), then restoring the primary processes afterwards. No code is
+   written into the primary checkout at any point, and verification still
+   happens *before* the merge, which is where the quality gate needs it.
+2. **The merge itself** (`done` lane). Already forced to `workspace: main`
+   by track 10035's merge action. Nothing to decide.
+3. **Repository cleanup** (Phase 5). Removing worktrees and deleting
+   branches is repo-level administration, not a file change, and there is
+   no branch on which it could be staged.
+
+`**Workspace**: branch` is written explicitly on this track. `branch` is
+already the project default, so the marker is technically redundant — but
+`**Track Kind**: bug` feeds a `bug → main` default that would otherwise
+apply to a manual dispatch, and the human asked for a branch. The marker
+records that as a deliberate choice rather than leaving it to an
+inference.
 
 ## Non-Goals
 
