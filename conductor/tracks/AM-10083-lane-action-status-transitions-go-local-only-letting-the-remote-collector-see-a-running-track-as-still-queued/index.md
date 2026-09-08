@@ -1,10 +1,10 @@
 # Track AM-10083: Lane action status transitions go local-only, letting the remote collector see a running track as still queued
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planning complete
+**Last Run**: claude/claude-sonnet-5 (primary)
+**Phase**: Implementation complete — cloud deploy and live dashboard verification deferred to a human (see plan.md Tasks 2.5/6.6)
 **Type**: dev
 **Track Kind**: bug
 **Author**: AM

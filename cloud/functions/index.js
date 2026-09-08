@@ -1112,17 +1112,48 @@ app.post('/track', auth, checkProject, async (req, res) => {
     // vocabulary and is deliberately untouched.
     const insertActionStatus = lane_action_status ?? 'queue';
 
+    // Track 10083 (RC-2): the old ON CONFLICT clause derived
+    // lane_action_status purely from the row already in the database —
+    // `WHEN tracks.lane_action_status = 'running' THEN 'running'` pinned a
+    // running row forever, and the fallback derived from a lane_status
+    // comparison never consulted the payload at all. So a payload saying
+    // 'running' could never arrive, and a stale 'running' could never
+    // clear (spec.md RC-2 — this is the root cause behind both live
+    // symptoms track AM-10083 was filed for).
+    //
+    // Fixed by mirroring ui/server/index.mjs's rule instead of re-deriving
+    // it in SQL: fetch the existing row, then in JS — the payload's own
+    // lane_action_status wins whenever it supplies one; with no explicit
+    // status, a lane change resets to 'queue' and clears
+    // lane_action_result; otherwise neither column is touched. This also
+    // fixes REQ-3: since laneChanging is computed independently of whether
+    // lane_status is null, an explicit status still writes even when the
+    // payload carries no lane_status at all (the old clause dropped the
+    // entire block, status included, whenever lane_status was null).
+    const { rows: existingRows } = await query(
+      'SELECT lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [req.project_id, track_number]
+    );
+    const existingTrack = existingRows[0] || null;
+    const laneChanging = !!existingTrack && lane_status !== null && existingTrack.lane_status !== lane_status;
+    const hasExplicitActionStatus = lane_action_status !== undefined && lane_action_status !== null;
+
+    // NULL means "leave the existing column alone" — COALESCE below falls
+    // through to tracks.lane_action_status in that case. This can only ever
+    // relax the update path; it has no effect on the INSERT VALUES list,
+    // which still uses insertActionStatus (TC-2.6 stays exactly as today).
+    let updateActionStatus = null;
+    let resetActionResult = false;
+    if (hasExplicitActionStatus) {
+      updateActionStatus = lane_action_status;
+      resetActionResult = laneChanging;
+    } else if (laneChanging) {
+      updateActionStatus = 'queue';
+      resetActionResult = true;
+    }
+
     const laneStatusClause = lane_status !== null
-      ? `lane_status = EXCLUDED.lane_status,
-         lane_action_status = CASE
-           WHEN tracks.lane_action_status = 'running' THEN 'running'
-           WHEN tracks.lane_status != EXCLUDED.lane_status THEN 'queue'
-           ELSE tracks.lane_action_status
-         END,
-         lane_action_result = CASE
-           WHEN tracks.lane_status != EXCLUDED.lane_status THEN NULL
-           ELSE tracks.lane_action_result
-         END,`
+      ? `lane_status = EXCLUDED.lane_status,`
       : '';
 
     // pool via query() wrapper
@@ -1135,6 +1166,8 @@ app.post('/track', auth, checkProject, async (req, res) => {
       ON CONFLICT (project_id, track_number) DO UPDATE SET
         title            = EXCLUDED.title,
         ${laneStatusClause}
+        lane_action_status = COALESCE($15, tracks.lane_action_status),
+        lane_action_result = CASE WHEN $16 THEN NULL ELSE tracks.lane_action_result END,
         progress_percent = EXCLUDED.progress_percent,
         current_phase    = EXCLUDED.current_phase,
         content_summary  = EXCLUDED.content_summary,
@@ -1157,7 +1190,7 @@ app.post('/track', auth, checkProject, async (req, res) => {
     `, [req.project_id, track_number, title, insertLaneStatus, progress_percent,
       current_phase, content_summary, phase_step,
       index_content, plan_content, spec_content, test_content, insertActionStatus,
-      waiting_reason ?? null]);
+      waiting_reason ?? null, updateActionStatus, resetActionResult]);
 
     res.json({ ok: true });
   } catch (err) {
@@ -1179,6 +1212,19 @@ app.patch('/track/:num/action', auth, checkProject, async (req, res) => {
       // Track 10055: leaving `waiting` retires the reason that explained it,
       // unless this same request supplies a new one below.
       if (lane_action_status !== 'waiting' && waiting_reason === undefined) sets.push('waiting_reason = NULL');
+      // Track AM-10083 (REQ-6): mirrors /tracks/claim-queue's own
+      // claimed_by write — a 'running' write records WHICH worker made it,
+      // identified from auth (req.machine_token), never from client body
+      // data, so a worker's pre-spawn cross-collector check can tell "I
+      // already claimed this here myself (via my own mirror)" apart from
+      // "a different worker has". Any other status releases the claim,
+      // matching /tracks/reset-stuck-actions' own clear-on-reset behaviour.
+      if (lane_action_status === 'running') {
+        sets.push(`claimed_by = $${i++}`);
+        params.push(req.machine_token || null);
+      } else {
+        sets.push('claimed_by = NULL');
+      }
     }
     if (waiting_reason !== undefined) { sets.push(`waiting_reason = $${i++}`); params.push(waiting_reason); }
     if (lane_action_result !== undefined) { sets.push(`lane_action_result = $${i++}`); params.push(lane_action_result); }
