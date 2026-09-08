@@ -162,30 +162,66 @@ judgment call to make before Phase 2 lands, not after.
 
 ## Acceptance Criteria
 
-- [ ] `lc track-dir 10050` resolves `conductor/tracks/TU-10050-...`, and that is
+- [x] `lc track-dir 10050` resolves `conductor/tracks/TU-10050-...`, and that is
       the only directory under `conductor/tracks/` matching track 10050.
-- [ ] Track 10050's `index.md` in the primary checkout shows `Progress: 100%`,
+      Verified 2026-09-07: `lc track-dir 10050` prints exactly that path,
+      exit 0; only two `10050`-matching entries under `conductor/tracks/`
+      are `TU-10050-...` itself and track 10077's own folder (which merely
+      contains "10050" in its slug).
+- [x] Track 10050's `index.md` in the primary checkout shows `Progress: 100%`,
       the real completed phase, `Track Kind: bug`, and `Merge Mode: direct`
-      together in one file.
-- [ ] A developer starting a new track gets a branch based on the freshest base
+      together in one file. Verified — all four present together in
+      `TU-10050-.../index.md`.
+- [x] A developer starting a new track gets a branch based on the freshest base
       that loses no local commits — confirmed by creating a real worktree with
       the worker after the port and observing the branch's actual base commit,
-      not by reading the diff.
-- [ ] Creating a worktree for a track whose branch already exists leaves that
-      branch's existing commits intact.
-- [ ] With `origin` unreachable, worktree creation still succeeds, using the
-      local default branch.
-- [ ] `conductor/lock.mjs` works in a repository whose default branch is not
-      named `main`.
+      not by reading the diff. Verified 2026-09-07 by invoking the actual
+      ported `probeWorktreeStartPoint()`/`renderWorktreeAddCommand()` for real
+      against the live primary checkout (not a fixture): resolved
+      `startPoint: 'main'` (reason `local-ahead`), rendered
+      `git worktree add -B track-999999-verification-scratch <path> main`,
+      and the new branch's HEAD matched `main`'s HEAD exactly. Scratch
+      worktree/branch removed after.
+- [x] Creating a worktree for a track whose branch already exists leaves that
+      branch's existing commits intact. Covered by TC-13
+      (`track-10050-worktree-base-e2e.test.mjs`) against a real git repo —
+      passing.
+- [x] With `origin` unreachable, worktree creation still succeeds, using the
+      local default branch. Covered by TC-14/TC-15 in the same suite, against
+      real disposable repos (a genuinely unreachable remote URL, and a repo
+      with no local main ref) — both passing.
+- [x] `conductor/lock.mjs` works in a repository whose default branch is not
+      named `main`. Covered by TC-17 (`track-10050-lock-cli.test.mjs`, a real
+      `master`-default repo) — passing.
 - [ ] The Worktrees panel shows track 10050 with its real merge mode, and does
       not offer the GitHub-PR flow for it. Confirmed by looking at the panel in
-      the running UI, not by unit test alone.
-- [ ] Tracks 10067 and 1119, which have the same branch-missing/primary-present
+      the running UI, not by unit test alone. **Not yet literally
+      confirmed in the running UI** — the production API server still serves
+      `main`, which does not have this track's fix until track 10077 itself
+      merges (implement runs on its own branch/worktree, never main
+      directly). Substitute verification performed instead: invoked the
+      patched `auditWorktrees()` directly against the real primary
+      checkout's live git state, which is the exact function the panel's
+      data ultimately comes from — it now resolves `mergeMode: 'direct'` for
+      track 10050 (previously `pr`). Literal panel confirmation to be done
+      once this track reaches `main`.
+- [x] Tracks 10067 and 1119, which have the same branch-missing/primary-present
       marker shape, also report `direct` rather than `pr` in the panel.
-- [ ] Track 10050's database row and its `index.md` agree on lane status, and
-      neither claims `done:success` before the code is on `main`.
-- [ ] Track 10050's branch and worktree are gone, and the supersession is
-      recorded on the track.
+      10067 confirmed via the same direct `auditWorktrees()` call — resolves
+      `mergeMode: 'direct'`. 1119 is no longer a candidate at all: it's
+      already fully merged into `main` (excluded by the audit's own
+      "fully merged, nothing to report" early continue), so the fallback
+      doesn't need to apply to it.
+- [x] Track 10050's database row and its `index.md` agree on lane status, and
+      neither claims `done:success` before the code is on `main`. Both read
+      `done`/`queue` — corrected the DB row directly (it still held the
+      stale `success`/`0%`/`New` state despite an earlier session's commit
+      message claiming otherwise) and re-queried to confirm the write
+      landed.
+- [x] Track 10050's branch and worktree are gone, and the supersession is
+      recorded on the track. `git branch --list track-10050` and
+      `git worktree list` both confirm removal; the supersession comment is
+      in `TU-10050-.../conversation.md`.
 - [ ] `grep -rn "resolveWorktreeStartPoint\|probeWorktreeStartPoint" conductor/`
       finds the ported implementation in the primary checkout.
 
