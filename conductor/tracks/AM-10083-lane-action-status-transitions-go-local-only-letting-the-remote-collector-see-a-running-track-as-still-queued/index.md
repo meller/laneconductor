@@ -1,9 +1,10 @@
 # Track AM-10083: Lane action status transitions go local-only, letting the remote collector see a running track as still queued
 
-**Lane**: plan
+**Lane**: implement
+**Merge Mode**: direct
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Progress**: 100%
+**Phase**: Planning complete
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
@@ -90,3 +91,4 @@ claims — but those locks are local files, invisible to a worker whose
 ## Related
 [TU-10064](../TU-10064-remote-collector-sync-silently-fails-env-token-unreachable-from-worktrees-and-failures-are-invisible/index.md) — same "local and remote can silently disagree" family, different specific cause (auth token unreachable from worktree cwd, since fixed) and different endpoint.
 Fixed alongside this investigation, same session: `PATCH /worker/heartbeat` on the cloud function (`cloud/functions/index.js`) had no rowCount check and silently no-op'd forever once a worker's registration row was missing — commit `953f79c8`.
+**Auto Run**: yes
