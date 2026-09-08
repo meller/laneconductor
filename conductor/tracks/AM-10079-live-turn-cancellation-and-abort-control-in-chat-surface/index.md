@@ -1,10 +1,10 @@
 # Track AM-10079: Live turn cancellation and abort control in Chat surface
 
-**Lane**: plan
+**Lane**: implement
 **Merge Mode**: direct
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — 6 phases (5 implemented, 1 deferred); refined with manager re-dispatch finding
 **Type**: dev
 **Track Kind**: feature
