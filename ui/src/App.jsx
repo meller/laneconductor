@@ -108,6 +108,18 @@ function AppContent({ user, logout }) {
   const [newTrackOpen, setNewTrackOpen] = useState(false);
   const [newTrackType, setNewTrackType] = useState('feature');
   const [newProjectOpen, setNewProjectOpen] = useState(false); // Track 1091 Phase 4
+  // Track 1091 Phase 7: "Create with chat" hands off to the Chat view
+  // (manager, default target) with a seeded opening message instead of
+  // dispatching create-project directly — the manager gathers the same
+  // details conversationally and dispatches it itself.
+  const [chatSeed, setChatSeed] = useState(null);
+  // The manager's pseudo-track conversation is scoped to a project's own
+  // repo — this always routes "Create with chat" to the dedicated meta
+  // project (conductor/services/meta-project.mjs) rather than whatever
+  // project happens to be selected (or none, "All Projects"), so the
+  // conversation has somewhere to live regardless, and doesn't get mixed
+  // into some unrelated real project's own manager thread.
+  const [chatHomeProjectId, setChatHomeProjectId] = useState(null);
   const [renameTarget, setRenameTarget] = useState(null); // Track 10014
   const [deleteTarget, setDeleteTarget] = useState(null); // Track 10014
   const [followBuildProjectId, setFollowBuildProjectId] = useState(null); // Track AM-1119 Phase 5
@@ -183,6 +195,41 @@ function AppContent({ user, logout }) {
       setKnownHostnames([]);
     }
     setNewProjectOpen(true);
+  }
+
+  // Track 1091 Phase 7: clears the meta-project chat override once the
+  // user leaves Chat view — it must not silently keep pinning a LATER,
+  // unrelated visit to Chat to the meta project instead of whatever
+  // project is actually selected.
+  useEffect(() => {
+    if (viewMode !== 'chat' && chatHomeProjectId != null) setChatHomeProjectId(null);
+  }, [viewMode, chatHomeProjectId]);
+
+  // Track 1091 Phase 7: closes the modal, switches to the Chat view (whose
+  // own default-target logic already picks the manager first — see
+  // ChatView's REQ-3 effect), and seeds an opening message. Authored as
+  // 'human', not 'system' — hasGenuineUnansweredHumanComment() (the
+  // manager's own reply trigger, conductor/laneconductor.sync.mjs) only
+  // ever fires off a **human**-authored line, so a 'system' line here would
+  // never actually get a reply.
+  async function handleStartChatCreate() {
+    setNewProjectOpen(false);
+    setViewMode('chat');
+    try {
+      const r = await apiFetch('/api/meta-project/ensure', { method: 'POST' });
+      const data = await r.json();
+      if (r.ok) setChatHomeProjectId(data.id);
+    } catch (err) {
+      console.error('Failed to ensure meta project:', err);
+    }
+    setChatSeed(
+      "I want to create a new project. Please guide me through it conversationally — " +
+      "ask about: the project name; whether it's a brand new project or one with existing " +
+      "code (and if existing, its local path or git URL); what it does and who it's for; " +
+      "tech stack (optional); and success metrics/KPIs (optional). Ask a question or two " +
+      "at a time rather than all at once. Once you have enough, go ahead and create the " +
+      "project yourself using your create-project dispatch."
+    );
   }
 
   function handleTrackClick(track) {
@@ -615,7 +662,14 @@ function AppContent({ user, logout }) {
         ) : viewMode === 'cicd' ? (
           <CICDView projectId={selectedProjectId} workers={workers} />
         ) : viewMode === 'chat' ? (
-          <ChatView projectId={selectedProjectId} workers={workers} tracks={tracks} />
+          <ChatView
+            projectId={selectedProjectId}
+            workers={workers}
+            tracks={tracks}
+            pendingSeed={chatSeed}
+            onSeedConsumed={() => setChatSeed(null)}
+            targetProjectIdOverride={chatHomeProjectId}
+          />
         ) : viewMode === 'worktrees' ? (
           <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} highlightTrack={worktreeHighlightTrack} />
         ) : tracks.length === 0 && user && !user.local ? (
@@ -746,6 +800,7 @@ function AppContent({ user, logout }) {
           knownHostnames={knownHostnames}
           onClose={() => setNewProjectOpen(false)}
           onCreated={refetch}
+          onStartChatCreate={handleStartChatCreate}
         />
       )}
 

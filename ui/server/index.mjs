@@ -29,6 +29,7 @@ import { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } from 
 import { buildInstanceState } from '../../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../../conductor/services/setup-gaps.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack } from '../../conductor/services/manager-pseudo-track.mjs';
+import { META_PROJECT_NAME, META_PROJECT_REPO_PATH, ensureMetaProjectOnDisk } from '../../conductor/services/meta-project.mjs';
 import { parseConversationComments } from '../../conductor/sync-conversation-utils.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
@@ -78,6 +79,21 @@ async function queueFileSync(projectId, filePath, content, operation = 'overwrit
   } catch (err) {
     console.error(`[sync-queue] Failed to queue sync for ${filePath}:`, err.message);
   }
+}
+
+// Formats one conversation.md turn block, prefixing every continuation line
+// with '> ' so a multi-line body round-trips correctly through
+// parseConversationComments (conductor/sync-conversation-utils.mjs) — that
+// parser only folds a line into the current turn when it starts with '>';
+// anything else silently ends the turn there. Found live (Track 1091 Phase
+// 7): pasting a multi-paragraph PRD through the chat composer wrote fine to
+// disk, but every reader that goes through the parser — including this same
+// API's own GET .../comments for the manager pseudo-track — only ever saw
+// the first line, since the naive `${body}` interpolation left every line
+// after the first with no '>' prefix at all.
+function formatConversationTurn(authorLine, body) {
+  const lines = String(body).split('\n');
+  return `\n${authorLine}: ${lines[0]}\n` + lines.slice(1).map(l => `> ${l}\n`).join('');
 }
 
 // Track 1076: the `pg` default pool size (10) plus no connectionTimeoutMillis
@@ -246,6 +262,10 @@ app.get('/api/projects', async (req, res) => {
     let result;
     const { AUTH_ENABLED } = await import('./auth.mjs');
 
+    // Track 1091 Phase 7: the meta project is an internal home for the
+    // manager's "Create with chat" conversation, not a project a user ever
+    // chose to create — never list it in the picker. It's still reachable
+    // directly by id (ChatView's targetProjectIdOverride), just not here.
     if (AUTH_ENABLED && req.user?.uid) {
       // Remote mode: only show projects the user is a member of
       result = await pool.query(
@@ -254,9 +274,9 @@ app.get('/api/projects', async (req, res) => {
                 p.create_quality_gate, p.created_at, p.app_url
          FROM projects p
          JOIN project_members pm ON pm.project_id = p.id
-         WHERE pm.user_uid = $1
+         WHERE pm.user_uid = $1 AND p.repo_path != $2
          ORDER BY p.name`,
-        [req.user.uid]
+        [req.user.uid, META_PROJECT_REPO_PATH]
       );
     } else {
       // Local mode (or auth not configured): show all projects
@@ -265,7 +285,9 @@ app.get('/api/projects', async (req, res) => {
                 primary_cli, primary_model, secondary_cli, secondary_model,
                 create_quality_gate, created_at, app_url
          FROM projects
-         ORDER BY name`
+         WHERE repo_path != $1
+         ORDER BY name`,
+        [META_PROJECT_REPO_PATH]
       );
     }
     res.json(result.rows);
@@ -1982,7 +2004,7 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
 
       const convPath = join(dir, 'conversation.md');
       const cursorPath = join(dir, '.conv-cursor');
-      const append = `\n> **${author}**: ${body}\n`;
+      const append = formatConversationTurn(`> **${author}**`, body);
       appendFileSync(convPath, append, 'utf8');
       // Advance the cursor past the line we just wrote, same as the
       // numbered-track path — the marker set below is what the worker's
@@ -2031,7 +2053,7 @@ app.post('/api/projects/:id/tracks/:num/comments', async (req, res) => {
               if (req.body.no_wake) options.push('note');
               if (req.body.command) options.push(req.body.command);
               const optionsStr = options.length ? ` (${options.join(', ')})` : '';
-              const append = `\n> **human**${optionsStr}: ${body}\n`;
+              const append = formatConversationTurn(`> **human**${optionsStr}`, body);
               appendFileSync(convPath, append, 'utf8');
               // Advance cursor past the line we just wrote so the worker doesn't re-sync it
               const newSize = existsSync(convPath) ? statSync(convPath).size : 0;
@@ -5547,6 +5569,30 @@ app.post('/project/ensure', async (req, res, next) => {
     }
 
     res.json({ project_id, git_global_id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1091 Phase 7: the fs-first half (directory + pseudo-track
+// structure, no DB involved) lives in conductor/services/meta-project.mjs
+// so it's callable directly from the /laneconductor skill or `lc` CLI, not
+// just this API server — this route is only the DB-registration half,
+// for when the app is running in a DB-backed mode. Registered the exact
+// same way any real project does (a projects-table upsert keyed on
+// repo_path), so repeated calls are safe, idempotent no-ops.
+app.post('/api/meta-project/ensure', async (req, res) => {
+  try {
+    ensureMetaProjectOnDisk();
+
+    const projRes = await pool.query(`
+      INSERT INTO projects (name, repo_path)
+      VALUES ($1, $2)
+      ON CONFLICT (repo_path) DO UPDATE SET name = projects.name
+      RETURNING id
+    `, [META_PROJECT_NAME, META_PROJECT_REPO_PATH]);
+
+    res.json({ id: projRes.rows[0].id, repo_path: META_PROJECT_REPO_PATH });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

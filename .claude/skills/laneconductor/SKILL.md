@@ -1242,21 +1242,25 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Progress**: 0%
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
-   **Merge Mode**: [direct|pr]        ← only if specified at creation (track 10035 REQ-12)
-   **Auto Run**: [yes|no]             ← only if specified at creation (track 10035 REQ-12)
+   **Merge Mode**: direct              ← default; write `pr` only if the user asked for review-gated merging on this track
+   **Auto Run**: yes                   ← default; write `no` only if the user asked for this track to sit until claimed by hand
    **Author**: INITIALS
    **Created By**: user@email.com
    **Summary**: [description]
    ```
    Default `**Type**` to `dev` unless the user specified a type. `**Merge
-   Mode**` and `**Auto Run**` are sparse-emission, same convention as
-   `**Workspace**` — omit the line entirely unless the user explicitly
-   asked for one at creation (e.g. "make this direct-mode and
-   auto-runnable"); an absent marker falls through to each field's own
-   documented default (`pr` for merge mode, not-auto-run for Auto Run) via
-   the normal resolution the worker already applies everywhere else. The
-   CLI equivalent is `lc new "Title" "Description" --merge-mode
-   direct|pr --auto-run yes|no`.
+   Mode**` and `**Auto Run**` default to `direct` and `yes` respectively
+   (changed 2026-09-08 — previously sparse-emission, omitted unless asked,
+   falling through to each field's own conservative absent-marker default
+   of `pr`/not-auto-run) — always write both lines unless the user
+   explicitly asks for the old, more conservative behavior for this
+   specific track (e.g. "this one needs a PR, don't auto-run it"), in
+   which case write `pr`/`no` instead. This only changes what NEW tracks
+   are created with; it does not touch `resolveMergeMode()`/`parseAutoRun`'s
+   own absent-marker fallback, so a track that already exists without
+   either marker is unaffected. The CLI equivalent (`lc new "Title"
+   "Description"`) applies the same new default automatically; pass
+   `--merge-mode pr` / `--auto-run no` to opt a specific track out.
 3. Append a typed entry to `conductor/tracks/file_sync_queue.md` (under `## Track Creation Requests`):
    ```markdown
    ### Track NNN: [name]

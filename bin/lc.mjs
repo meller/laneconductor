@@ -18,6 +18,7 @@ import { createTrackPr, checkGhAuth } from '../conductor/services/pr-flow.mjs';
 import { planDoneLaneMigration } from '../conductor/services/done-lane-migration.mjs';
 import { checkDivergence } from '../conductor/services/git-divergence.mjs';
 import { getAuthorInfo } from '../conductor/services/author.mjs';
+import { META_PROJECT_NAME, META_PROJECT_REPO_PATH, ensureMetaProjectOnDisk } from '../conductor/services/meta-project.mjs';
 import { resolveTrackFolderFs } from '../conductor/services/track-folder-fs.mjs';
 import { buildInstanceState } from '../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../conductor/services/setup-gaps.mjs';
@@ -1964,6 +1965,23 @@ Please review this, answer any questions (some fields may contain questions rath
         }
         process.exit(0);
     }
+} else if (command === 'meta-project') {
+    // Track 1091 Phase 7: machine-level, no project context required —
+    // same "run from anywhere" category as `api`/`ui` above. Filesystem-
+    // first (conductor/services/meta-project.mjs has no DB dependency), so
+    // this works in every mode including local-fs. The web UI's own
+    // POST /api/meta-project/ensure calls the same shared function for the
+    // DB-registration half when running in a DB-backed mode — this command
+    // exists so the /laneconductor skill (or a human in a terminal) can
+    // ensure/use it without the API server at all.
+    if (args[1] === 'ensure' || !args[1]) {
+        ensureMetaProjectOnDisk();
+        console.log(`✅ Meta project ready: ${META_PROJECT_NAME}`);
+        console.log(`   ${META_PROJECT_REPO_PATH}`);
+        process.exit(0);
+    }
+    console.error(`❌ Unknown meta-project subcommand: ${args[1]}`);
+    process.exit(1);
 } else if (command === 'ui') {
     const subCommand = args[1] || 'start';
     const installPath = getInstallPath();
@@ -2479,15 +2497,21 @@ Please review this, answer any questions (some fields may contain questions rath
         }
     }
 
-    // Track 10035 REQ-12: --merge-mode / --auto-run let a track declare its
-    // merge intent at birth ("direct, auto-runnable") instead of needing a
-    // human to edit index.md by hand afterward. Same sparse-emission
-    // convention as --workspace above — absent by default so
-    // resolveMergeMode()/isTrackClaimable()'s own documented defaults
-    // ('pr', not auto-run) still apply when the flag isn't passed.
+    // Track 10035 REQ-12 (default flipped 2026-09-08 per explicit request):
+    // --merge-mode / --auto-run let a track declare its merge intent at
+    // birth ("direct, auto-runnable") instead of needing a human to edit
+    // index.md by hand afterward. New tracks now default to 'direct' /
+    // 'yes' — written explicitly here rather than left absent — so they
+    // always carry the marker regardless of what resolveMergeMode()'s own
+    // absent-marker fallback resolves to; that fallback ('pr') is
+    // deliberately left alone so it still applies to every track created
+    // before this change, and to any track's marker if hand-deleted later.
+    // The flags still override per-track when a track needs the old
+    // behavior (e.g. `lc new ... --merge-mode pr` for something that
+    // genuinely wants human review before merging).
     const VALID_MERGE_MODES = ['direct', 'pr'];
     const mergeModeIdx = args.indexOf('--merge-mode');
-    let mergeMode = null;
+    let mergeMode = 'direct';
     if (mergeModeIdx !== -1) {
         mergeMode = args[mergeModeIdx + 1];
         if (!VALID_MERGE_MODES.includes(mergeMode)) {
@@ -2498,7 +2522,7 @@ Please review this, answer any questions (some fields may contain questions rath
 
     const VALID_AUTO_RUN = ['yes', 'no'];
     const autoRunIdx = args.indexOf('--auto-run');
-    let autoRun = null;
+    let autoRun = 'yes';
     if (autoRunIdx !== -1) {
         autoRun = args[autoRunIdx + 1];
         if (!VALID_AUTO_RUN.includes(autoRun)) {

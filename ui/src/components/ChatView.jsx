@@ -9,6 +9,14 @@ import { useTrackComments } from '../lib/useTrackComments.js';
 import { parseWorkerTask, resolveWorkerChatTarget, resolveTargetRunLiveness } from '../lib/workerTaskInfo.js';
 import { isWorkerOffline } from '../lib/workerStatus.js';
 
+// Mirrors conductor/services/manager-pseudo-track.mjs's MANAGER_PSEUDO_TRACK
+// constant — that module also does Node fs/path I/O elsewhere in the file
+// (despite its header claiming "pure, no I/O"), so it can't be imported into
+// the browser bundle; resolveWorkerChatTarget already returns this same
+// literal as trackNumber for the manager, so this is consistent with what's
+// already on the wire, not a second independent definition drifting apart.
+const MANAGER_PSEUDO_TRACK = 'manager';
+
 // Track 10069 Phase 3 (REQ-1..REQ-5): one persistent Chat view with a
 // target switcher, reusing every piece WorkerChatPanel/WorkerActivityLatch
 // already built — no second renderer (D2, D6). Phase 4 (REQ-25) made
@@ -47,7 +55,7 @@ export function targetLabel(worker, tracks = []) {
 
 const DEFAULT_PAGE_SIZE = 30;
 
-export function ChatView({ projectId, workers = [], tracks = [] }) {
+export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = null, onSeedConsumed, targetProjectIdOverride = null }) {
   const { apiFetch } = useApi();
   const [gaps, setGaps] = useState([]);
   const [advisoryDismissed, setAdvisoryDismissed] = useState(false);
@@ -88,10 +96,61 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
   }, [manager?.id, nonManagerWorkers.length]);
 
   const selectedWorker = targets.find(w => w.id === selectedId) ?? null;
-  const chatTarget = selectedWorker ? resolveWorkerChatTarget(selectedWorker, projectId) : null;
+
+  // Track 1091 Phase 7: the manager's pseudo-track conversation lives inside
+  // a project's own repo, so picking "Manager" from the plain Chat tab with
+  // no project selected (or none existing) hit the exact same dead end
+  // "Create with chat" did — resolveWorkerChatTarget had no project to
+  // scope the conversation to and silently gave up ("No track to talk
+  // about"). Rather than requiring every entry point to know about the meta
+  // project, fall back to it here, once, whenever the manager is selected
+  // and nothing else supplies a project id.
+  const [metaFallbackId, setMetaFallbackId] = useState(null);
+  const needsMetaFallback = selectedWorker?.type === 'manager' && targetProjectIdOverride == null && projectId == null;
+  useEffect(() => {
+    if (!needsMetaFallback || metaFallbackId != null) return;
+    let cancelled = false;
+    apiFetch('/api/meta-project/ensure', { method: 'POST' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (!cancelled && data?.id) setMetaFallbackId(data.id); })
+      .catch(() => { /* best-effort — falls back to the existing "no track" message */ });
+    return () => { cancelled = true; };
+  }, [needsMetaFallback, metaFallbackId, apiFetch]);
+
+  // Track 1091 Phase 7: "Create with chat" pins the manager's pseudo-track
+  // conversation to the dedicated meta project (App.jsx) regardless of
+  // whatever project is actually selected (or none, "All Projects") — the
+  // override wins over the normal fallback whenever it's set.
+  const chatTarget = selectedWorker
+    ? resolveWorkerChatTarget(selectedWorker, targetProjectIdOverride ?? projectId ?? metaFallbackId)
+    : null;
 
   const { blocks, turn, rawLog } = useTrackTranscript(chatTarget?.projectId, chatTarget?.trackNumber);
   const { comments, setComments } = useTrackComments(chatTarget?.projectId, chatTarget?.trackNumber);
+
+  // Track 1091 Phase 7: "Create with chat" seeds an opening message once a
+  // target (the manager, by REQ-3's own default-selection effect above) is
+  // resolved and ready to receive it. Same endpoint TrackChatComposer posts
+  // through — this is not a new send path, just an automatic first send.
+  // The sentRef guard is required, not cosmetic: this effect's own deps
+  // include chatTarget fields that are ready as soon as the manager is
+  // selected (typically render 1-2), so without it a normal re-render
+  // would re-fire the POST.
+  const seedSentRef = useRef(false);
+  useEffect(() => {
+    if (!pendingSeed || !chatTarget?.projectId || !chatTarget?.trackNumber) return;
+    if (seedSentRef.current) return;
+    seedSentRef.current = true;
+    apiFetch(`/api/projects/${chatTarget.projectId}/tracks/${chatTarget.trackNumber}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ author: 'human', body: pendingSeed }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(comment => { if (comment) setComments(prev => [...prev, comment]); })
+      .catch(() => { /* best-effort — the composer remains available to retype it */ })
+      .finally(() => onSeedConsumed?.());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSeed, chatTarget?.projectId, chatTarget?.trackNumber]);
 
   const runLiveness = resolveTargetRunLiveness({
     target: chatTarget,
@@ -99,6 +158,32 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
     tracks,
     turn,
   });
+
+  // A regular user watching an idle-looking chat after sending a message has
+  // no way to tell "the target hasn't noticed yet" from "silently broken" —
+  // isLiveTurn only covers an in-progress turn, not the gap before one
+  // starts. Comparing comment timestamps against the transcript's turn
+  // timestamps doesn't work: the manager pseudo-track has no real per-turn
+  // clock (conversation.md carries no timestamps at all — the API fabricates
+  // one by counting backward from the file's mtime in 1-second steps, purely
+  // to keep historical turns from all reading as "just now"), so it can't be
+  // compared against the transcript's real wall-clock turn timestamps.
+  // Instead, reuse each track type's own authoritative "still needs a
+  // response" signal: the manager pseudo-track answers a human message with
+  // a new comment on this exact same list (verified live — the CLI posts its
+  // reply via `/laneconductor comment manager`), so the last comment's
+  // author says it all; a numbered track already tracks this in its own
+  // `waiting_for_reply` DB column (Track 10012), flipped by the worker's
+  // own resume/reply path.
+  const lastComment = comments[comments.length - 1];
+  const matchedTrack = chatTarget?.trackNumber !== MANAGER_PSEUDO_TRACK && Array.isArray(tracks)
+    ? tracks.find(t => String(t.track_number) === String(chatTarget?.trackNumber))
+    : null;
+  const awaitingReply = !runLiveness.isLive && (
+    chatTarget?.trackNumber === MANAGER_PSEUDO_TRACK
+      ? lastComment?.author === 'human'
+      : !!matchedTrack?.waiting_for_reply
+  );
 
   // Reset pagination and scroll to bottom when switching target
   useEffect(() => {
@@ -239,6 +324,7 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
               onSent={(comment) => setComments(prev => [...prev, comment])}
               isLiveTurn={runLiveness.isLive}
               liveAction={runLiveness.action}
+              awaitingReply={awaitingReply}
             />
           </>
         )}

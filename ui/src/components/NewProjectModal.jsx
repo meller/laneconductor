@@ -29,9 +29,13 @@ function buildScaffoldContext({ name, hasExistingCode, purpose, techStack, kpis 
   };
 }
 
-export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, onCreated }) {
+export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, onCreated, onStartChatCreate }) {
   const { apiFetch } = useApi();
-  const [mode, setMode] = useState('quick'); // 'quick' | 'wizard' (Track AM-1119)
+  // Track 1091 Phase 7: 'chat' is the default — decided live 2026-09-08,
+  // talking to the manager is the intended primary path now that it can
+  // gather the same details conversationally; 'quick'/'wizard' remain for
+  // whoever prefers a form.
+  const [mode, setMode] = useState('chat'); // 'quick' | 'wizard' | 'chat'
   const [name, setName] = useState('');
   const [repoType, setRepoType] = useState('path'); // 'path' | 'git'
   const [repoValue, setRepoValue] = useState('');
@@ -191,7 +195,11 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
         ) : (
           <div className="px-5 py-4 space-y-3">
             <div className="flex rounded-lg overflow-hidden border border-gray-700 text-xs w-fit" data-testid="create-mode-toggle">
-              {[{ value: 'quick', label: 'Quick create' }, { value: 'wizard', label: 'Guided wizard' }].map(opt => (
+              {[
+                { value: 'quick', label: 'Quick create' },
+                { value: 'wizard', label: 'Guided wizard' },
+                { value: 'chat', label: 'Create with chat' },
+              ].map(opt => (
                 <button
                   key={opt.value}
                   type="button"
@@ -213,6 +221,30 @@ export function NewProjectModal({ managerWorkers, knownHostnames = [], onClose, 
                 />
                 {error && <p className="text-xs text-red-400">{error}</p>}
               </>
+            ) : mode === 'chat' ? (
+              // Track 1091 Phase 7: no form here — hands off to the Chat
+              // view (manager, default target) with a seeded opening
+              // message; the manager gathers the same details
+              // conversationally and dispatches create-project itself.
+              <div className="space-y-3">
+                <p className="text-sm text-gray-300">
+                  Talk to the manager instead of filling out a form — it'll
+                  ask you the same questions (name, repo, what it does,
+                  tech stack, KPIs) one at a time, then create the project
+                  itself once it has what it needs.
+                </p>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={onStartChatCreate}
+                    disabled={!onStartChatCreate}
+                    data-testid="start-chat-create"
+                    className="px-3 py-1.5 text-xs rounded bg-blue-700 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors"
+                  >
+                    Start conversation →
+                  </button>
+                </div>
+              </div>
             ) : (
         <form onSubmit={handleSubmit} className="space-y-3">
             <div>

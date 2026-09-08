@@ -37,6 +37,7 @@ import { buildClaudeArgs } from './claude-cli-args.mjs';
 import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
+import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
 import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
@@ -1430,7 +1431,43 @@ async function upsertWorker() {
       // Track 1091 Phase 2: a manager worker isn't "for" this (or any)
       // project — skip /project/ensure entirely (nothing to ensure) and
       // register with project_id: null, type: 'manager'.
+      //
+      // Track 1091 Phase 7 (decided live 2026-09-08, "if we do it through
+      // the skill it should happen organically"): the manager DOES need
+      // one project to exist — its own pseudo-track conversation (Chat
+      // view, "Create with chat") lives inside a project's repo, and there
+      // was previously no project for it to live in until a human clicked
+      // through the web UI once. Ensuring the meta project here means
+      // every manager start (including one driven purely by `lc worker
+      // start --manager` or the /laneconductor skill, no UI involved) makes
+      // it exist as a natural side effect, not a separate manual step.
       let project_id = null;
+      if (isManager) {
+        try {
+          const metaRepoPath = ensureMetaProjectOnDisk();
+          // Track 1091 Phase 7: if this manager is ever restarted rooted
+          // IN the meta project (its cwd — resolveConfigRoot() never
+          // redirects a manager away from its own cwd, by design), it
+          // needs a real .laneconductor.json there to start at all. Mirror
+          // this process's own mode/collectors so it talks to the exact
+          // same DB/API — the meta project is a home for the manager's own
+          // conversation, not a separate LaneConductor instance.
+          const metaConfigPath = join(metaRepoPath, '.laneconductor.json');
+          if (!existsSync(metaConfigPath)) {
+            writeFileSync(metaConfigPath, JSON.stringify({
+              mode: config.mode,
+              project: { name: META_PROJECT_NAME, repo_path: metaRepoPath },
+              collectors: getCollectors(),
+            }, null, 2) + '\n');
+          }
+          await post(url, token, '/project/ensure', {
+            name: META_PROJECT_NAME,
+            repo_path: metaRepoPath,
+          }).catch(() => { /* best-effort — DB registration can lag; the fs side above already succeeded */ });
+        } catch (err) {
+          logger.warn({ err: err.message }, '[manager] Failed to ensure meta project');
+        }
+      }
       if (!isManager) {
         // Ensure project exists on collector and map to our user identity
         const ensureRes = await post(url, token, '/project/ensure', {
@@ -6882,7 +6919,17 @@ async function buildCliArgs(skill, command, trackNumber, customPrompt = null, la
     }
   }
 
-  const skillPath = `./.claude/skills/${skill}/SKILL.md`;
+  // Track 1091 Phase 7: mirrors dispatchCreateProject's own scaffold-prompt
+  // fallback below — a project that was never scaffolded (the manager's own
+  // meta project, created bare via ensureMetaProjectOnDisk with no
+  // .claude/skills/ of its own) has no local copy of the skill file. Found
+  // live: the manager's reply to its own pseudo-track conversation pointed
+  // at a path that didn't exist, and the CLI turn burned its first tool call
+  // discovering that instead of just being told where the real one is.
+  const localSkillPath = `./.claude/skills/${skill}/SKILL.md`;
+  const skillPath = existsSync(localSkillPath)
+    ? localSkillPath
+    : (getInstallPath() ? join(getInstallPath(), '.claude/skills', skill, 'SKILL.md') : localSkillPath);
   const contextMsg = `Use the /${skill} skill. Skill definition is at: ${skillPath}. `;
   // Map lane-based commands to Skill command internal names if different
   let skillCommand = command;
@@ -7038,6 +7085,69 @@ Do NOT change **Lane**, **Lane Status**, or **Progress** — this is a conversat
     console.log(`[local-fs] Manager pseudo-track → conversation-reply (PID: ${spawnedPid})`);
   } catch (err) {
     console.error(`[local-fs] Failed to spawn manager pseudo-track reply:`, err.message);
+  }
+}
+
+// Track 1091 Phase 7: a `create-project` dispatch triggered conversationally
+// (the human describes a project in the manager's own chat, the manager
+// fires this dispatch and tells the human "I will report back here") runs
+// as a completely separate, fire-and-forget async worker turn — nothing
+// previously closed that loop. The dispatch loop only PATCHed the generic
+// /worker-dispatch/:id record (for the "follow your build" view), which
+// nobody was watching; the human-facing promise the manager itself made
+// went unfulfilled. Found live: a real PRD-driven create-project completed
+// successfully (project registered, scaffolded, git-initialized) with zero
+// tracks and zero reply in the conversation the human was actually watching.
+//
+// This spawns a SECOND manager turn once the dispatch settles, mirroring
+// dispatchManagerPseudoTrackReply's own CLI-spawn mechanics but triggered by
+// dispatch completion rather than a new human comment — so it does NOT gate
+// on hasGenuineUnansweredHumanComment (there may be no new human message at
+// all), only on the same run-marker liveness check, to avoid colliding with
+// a reply-to-human turn that happens to be live at the same moment.
+//
+// Deliberately does the track breakdown itself via the live agent turn
+// rather than trying to synthesize a wizard-shaped payload from an arbitrary
+// PRD for the existing writeGeneratedTracks() pipeline (Track AM-1119) —
+// that pipeline is purpose-built for the structured New Project wizard's
+// own product-step answers, and forcing free-form PRD text through it would
+// need its own translation layer. The manager already read and reasoned
+// about the whole PRD in the conversation that led here; letting it derive
+// the track plan directly is less code and a better result than a second,
+// narrower summarizer.
+async function dispatchManagerCreateProjectFollowup(tracksDir, targetPath, result) {
+  const liveMarker = parseRunMarker(readIfExists(runMarkerPath(process.cwd(), MANAGER_PSEUDO_TRACK)));
+  const markerLiveness = isRunMarkerLive(liveMarker, { isPidAlive, readProcessCommand });
+  if (markerLiveness.live) {
+    console.log(`[dispatch] create-project follow-up deferred — a run is already live (pid ${liveMarker.pid}, action ${liveMarker.action}). Will retry next cycle.`);
+    return;
+  }
+
+  const customPrompt = result.ok
+    ? `Your create-project dispatch just finished: the project was scaffolded at ${targetPath}${result.generatedTracks?.length ? ` with ${result.generatedTracks.length} track(s) already generated` : ' with no tracks generated yet'}.
+Read conductor/tracks/${MANAGER_PSEUDO_TRACK}/conversation.md for the requirements you already discussed (a PRD or description the human gave you earlier in this thread).${result.generatedTracks?.length ? '' : `
+Derive an initial track breakdown from that discussion (the roadmap/phases if one was given, otherwise a sensible first-tracks split) and create those tracks directly in the new project: run \`cd ${targetPath}\`, then \`/laneconductor newTrack\` for each one.`}
+Then use /laneconductor comment ${MANAGER_PSEUDO_TRACK} to report back in your own conversation: the project location, and the list of tracks created (or that none were needed/possible, and why).
+Do NOT change **Lane**, **Lane Status**, or **Progress** on the manager's own pseudo-track — this is a conversation reply, not a lane transition.`
+    : `Your create-project dispatch just failed: ${result.error}
+Use /laneconductor comment ${MANAGER_PSEUDO_TRACK} to report this back to the human in your own conversation (conductor/tracks/${MANAGER_PSEUDO_TRACK}/conversation.md) — what failed and, if there's an obvious next step (e.g. a path collision, a missing git URL), suggest it.
+Do NOT change **Lane**, **Lane Status**, or **Progress** on the manager's own pseudo-track — this is a conversation reply, not a lane transition.`;
+
+  const cliArgs = await buildCliArgs('laneconductor', CONVERSATION_REPLY_ACTION, MANAGER_PSEUDO_TRACK, customPrompt, {});
+  if (!cliArgs) {
+    console.log(`[dispatch] create-project follow-up skipped — ${providerBlockReason(getProject()?.primary?.cli)}.`);
+    return;
+  }
+
+  const [cmd, args, cli, model, tier, session] = cliArgs;
+  try {
+    const spawnedPid = await spawnCli(
+      cmd, args, 'local-fs-answer', MANAGER_PSEUDO_TRACK, cli, model, tier,
+      null, {}, getProject()?.id, session, 'manual-dispatch', null, CONVERSATION_REPLY_ACTION
+    );
+    console.log(`[dispatch] create-project follow-up → conversation-reply (PID: ${spawnedPid})`);
+  } catch (err) {
+    console.error(`[dispatch] Failed to spawn create-project follow-up:`, err.message);
   }
 }
 
@@ -7880,7 +7990,7 @@ function writeTrackPlanToDisk({ targetPath, trackPlan, trackType }) {
       ? `**Depends On**: ${generated.map(g => g.trackNumber).join(', ')}\n`
       : '';
     const summary = `${t.problem} ${t.solution}`.slice(0, 200);
-    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
+    const indexContent = `# Track ${displayId}: ${t.title}\n\n**Lane**: plan\n**Lane Status**: queue\n**Progress**: 0%\n**Phase**: New\n**Type**: ${trackType}\n**Merge Mode**: direct\n**Auto Run**: yes\n${dependsLine}**Author**: ${author.initials}\n**Created By**: ${author.email}\n**Summary**: ${summary}\n\n## Problem\n\n${t.problem}\n\n## Solution\n\n${t.solution}\n`;
     writeFileSync(join(trackPath, 'index.md'), indexContent, 'utf8');
 
     const now = new Date().toISOString();
@@ -9124,6 +9234,11 @@ async function checkDispatchInbox() {
         status: result.ok ? 'done' : 'failed',
         result: result.ok ? `Created at ${result.targetPath}${trackListSuffix}` : result.error,
       }).catch(err => logger.warn({ dispatchId: entry.id, err: err.message }, '[dispatch] Failed to report create-project result'));
+      // Closes the loop on whatever the manager told the human in its own
+      // conversation ("I will report back here...") — see
+      // dispatchManagerCreateProjectFollowup's own header for why this is a
+      // second turn rather than folding it into the result above.
+      await dispatchManagerCreateProjectFollowup('conductor/tracks', result.targetPath, result);
       continue;
     }
 
