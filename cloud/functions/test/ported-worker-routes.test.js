@@ -770,3 +770,44 @@ describe('TC-42/TC-43: GET /api/projects/:id/claimable-tracks', () => {
     expect(workerLookups).toHaveLength(1);
   });
 });
+
+// ── PATCH /worker/heartbeat ──────────────────────────────────────────────────
+// Found live 2026-09-08: this route used to UPDATE with no rowCount check, so
+// a worker whose one-time /worker/register INSERT never reached this
+// collector (a transient failure during any restart) heartbeated into the
+// void forever — every beat returned {ok:true} while updating zero rows, and
+// app.laneconductor.com showed "No worker for this project" despite healthy
+// collector_health locally. ui/server/index.mjs's own /worker/heartbeat
+// already had this exact check (Track 1102 F10); this ports it here.
+
+describe('PATCH /worker/heartbeat', () => {
+  test('returns 200 when the worker row exists', async () => {
+    mockAuth();
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: PROJECT_ID }] }); // projCheck
+    mockQuery.mockResolvedValueOnce({ rowCount: 1 }); // UPDATE matched the row
+
+    const res = await authed(
+      request(app)
+        .patch('/worker/heartbeat')
+        .send({ project_id: PROJECT_ID, hostname: 'host-1', pid: 123, status: 'idle' })
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
+  test('returns 404 (not a silent no-op) when no matching worker row exists, so the worker re-registers', async () => {
+    mockAuth();
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: PROJECT_ID }] }); // projCheck
+    mockQuery.mockResolvedValueOnce({ rowCount: 0 }); // UPDATE matched nothing
+
+    const res = await authed(
+      request(app)
+        .patch('/worker/heartbeat')
+        .send({ project_id: PROJECT_ID, hostname: 'host-1', pid: 123, status: 'idle' })
+    );
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/not registered/i);
+  });
+});

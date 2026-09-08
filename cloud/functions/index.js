@@ -1370,11 +1370,33 @@ app.patch('/worker/heartbeat', auth, async (req, res) => {
     // see the matching comment in ui/server/index.mjs's /worker/heartbeat.
     if (collector_health !== undefined) { sets.push(`collector_health = $${i++}`); params.push(JSON.stringify(collector_health)); }
 
-    await query(
+    // Found live 2026-09-08: plain UPDATE with no rowCount/existence check —
+    // if this (project_id, hostname, pid) row was never created (the
+    // one-time /worker/register INSERT above failed to reach remote even
+    // once, e.g. a transient failure during any of the many worker
+    // restarts a long session produces), every heartbeat since silently
+    // updates zero rows while still returning {ok:true} — collector_health
+    // shows no error, but the worker never actually exists on remote.
+    // Confirmed live: app.laneconductor.com showed "No worker for this
+    // project" while 3+ workers heartbeated locally with a healthy
+    // collector_health for this exact endpoint.
+    //
+    // ui/server/index.mjs's own /worker/heartbeat already has this exact
+    // check (Track 1102 F10, "a heartbeat that matched no row must say
+    // so — the worker's error handler re-registers on 404") — this fix
+    // was never ported to this sibling implementation. The worker's own
+    // handleHeartbeatError() already branches on a 404 here and calls
+    // upsertWorker() to re-register (conductor/laneconductor.sync.mjs),
+    // so returning 404 alone is enough to make this self-heal — no other
+    // change needed.
+    const result = await query(
       `UPDATE workers SET ${sets.join(', ')}
        WHERE project_id = $1 AND hostname = $2 AND pid = $3`,
       params
     );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'worker not registered (no matching row) — re-register' });
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
