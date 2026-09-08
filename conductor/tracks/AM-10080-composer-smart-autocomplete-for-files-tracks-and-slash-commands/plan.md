@@ -190,37 +190,58 @@ manifest is far larger than the worktree summary that pattern was built for.
 **Solution**: Compute on the existing slow tick, hash, and push only on change, to a dedicated
 collector endpoint.
 
-- [ ] Migration `migrations/<ts>_add_project_file_manifest.sql` adding `file_manifest`,
+- [x] Migration `migrations/<ts>_add_project_file_manifest.sql` adding `file_manifest`,
       `file_manifest_digest`, `file_manifest_updated_at` to `projects`; hand-trimmed to only these
       additive changes, per the note in `20260905215931_add_collector_health.sql`
-- [ ] Regenerate `migrations/atlas.sum` (`atlas migrate hash`). The directory is hash-verified, so
+- [x] Regenerate `migrations/atlas.sum` (`atlas migrate hash`). The directory is hash-verified, so
       a new `.sql` file without a refreshed sum makes `atlas migrate apply` — which
       `make install-migrate` runs — reject the whole directory as tampered
-- [ ] Mirror the columns in **both** `prisma/schema.prisma` and `prisma/schema.sql`; the
+- [x] Mirror the columns in **both** `prisma/schema.prisma` and `prisma/schema.sql`; the
       `collector_health` precedent touches both, and only `schema.sql` carries the raw DDL
-- [ ] Worker changes in `conductor/laneconductor.sync.mjs` (REQ-7, REQ-9, REQ-10)
-    - [ ] `refreshFileManifestCache()` alongside `refreshWorktreeSummaryCache()`, on the same
+- [x] Worker changes in `conductor/laneconductor.sync.mjs` (REQ-7, REQ-9, REQ-10)
+    - [x] `refreshFileManifestCache()` alongside `refreshWorktreeSummaryCache()`, on the same
           60-second interval. No explicit `local-fs` guard is needed if the push goes through
           `patchCollectors`, which already early-returns in that mode — but keep the compute
           behind the same check so a `local-fs` worker does no pointless git work either
-    - [ ] Cap at 20,000 paths, set `truncated` beyond that
-    - [ ] sha256 digest; push only when it differs from the last successfully sent digest
-    - [ ] Push via `patchCollectors('/worker/file-manifest', body)` rather than a hand-rolled loop
+    - [x] Cap at 20,000 paths, set `truncated` beyond that
+    - [x] sha256 digest; push only when it differs from the last successfully sent digest
+    - [x] Push via `patchCollectors('/worker/file-manifest', body)` rather than a hand-rolled loop
           over `patch`. It already resolves per-collector tokens, records health, awaits
           collector 0 as the authoritative write, and fires the rest off. Two consequences worth
           knowing: it **throws** when collector 0 fails, so the digest must only be advanced after
           a successful await (TC-58); and a failed non-primary push is enqueued in the retry
           buffer, whose coalescing key is `(collector, method, path)` — so at most one manifest
           body per collector is ever held in memory, and it is always the newest
-- [ ] Add `PATCH /worker/file-manifest` to `ui/server/index.mjs` (REQ-8, REQ-11)
-    - [ ] `collectorAuth`-guarded, same as `/worker/heartbeat`
-    - [ ] Absent `files` key leaves the stored manifest untouched
-- [ ] Verify Phase 2's fallback branch now serves a worker-pushed manifest end to end
-- [ ] Tests: worker-side digest gating (`conductor/tests/`), endpoint behaviour
+- [x] Add `PATCH /worker/file-manifest` to `ui/server/index.mjs` (REQ-8, REQ-11)
+    - [x] `collectorAuth`-guarded, same as `/worker/heartbeat`
+    - [x] Absent `files` key leaves the stored manifest untouched
+- [x] Verify Phase 2's fallback branch now serves a worker-pushed manifest end to end
+- [x] Tests: worker-side digest gating (`conductor/tests/`), endpoint behaviour
       (`ui/server/tests/`), and the fallback branch of the files API
 
 **Impact**: `projects` gains three columns. Workers do one extra git call per minute and one HTTP
 call only when the file list actually changed.
+
+**Done (2026-09-08)**: `atlas migrate hash` + `atlas migrate validate` both clean. Worker changes
+added two test-only interval/cap overrides (`LC_FILE_MANIFEST_INTERVAL_MS`,
+`LC_FILE_MANIFEST_CAP`), the same established pattern as `LC_HEARTBEAT_INTERVAL_MS` /
+`LC_RECONCILE_INTERVAL_MS` elsewhere in this file — without the cap override, exercising REQ-9's
+20,000-path truncation would have meant committing 20,001 real files in a throwaway sandbox repo.
+6/6 new E2E tests pass in `conductor/tests/track-10080-file-manifest.test.mjs` (real worker
+process via `helpers/isolated-worker.mjs`, real mock collector — `mock-collector.mjs` gained a
+`PATCH /worker/file-manifest` handler, `state.fileManifests`, and `/_set-fail-file-manifest`).
+3/3 new endpoint-level tests in `ui/server/tests/track-10080-file-manifest-endpoint.test.mjs`
+(TC-59 — rejected without a valid collector token — is satisfied structurally: this route uses
+the exact same `collectorAuth` middleware function as `/worker/heartbeat`, whose own auth matrix
+is already unit-tested elsewhere; a fresh 401 test here would need `COLLECTOR_TOKEN_ENV` set
+before `index.mjs` loads, which no test file can do at runtime — noted in the test file itself).
+Full regression check: `cd ui && npx vitest run` — 34 failing tests across 11 files, all
+pre-existing (24 confirmed via the Phase 2 `git stash` comparison; the other 10, all in
+`WorkflowSettings.test.jsx`, confirmed unrelated by inspection — that file/component imports
+nothing this track touches). Coverage gate: `npx vitest run --coverage.reportOnFailure=true
+server/tests/` (the flag needed because vitest's default coverage report is skipped on any test
+failure, and this worktree carries the pre-existing failures above) — 66.77% lines / 72.35%
+branches / 88.67% functions, all comfortably above the configured 49/40/50 thresholds.
 
 ---
 

@@ -4441,6 +4441,37 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   }
 });
 
+// Track 10080 (REQ-8, REQ-11): the worker-pushed fallback manifest GET
+// /api/projects/:id/files serves when repo_path isn't reachable from the
+// API host. Deliberately its own endpoint rather than a heartbeat field —
+// the heartbeat fires every 10s and a file list is orders of magnitude
+// larger than the worktree summary that pattern was built for, so this is
+// pushed only when the worker's own digest check finds a change (REQ-7).
+// Guarded by collectorAuth exactly like /worker/heartbeat.
+app.patch('/worker/file-manifest', collectorAuth, async (req, res) => {
+  try {
+    const projectId = 'project_id' in req.body
+      ? (req.body.project_id ? parseInt(req.body.project_id) : null)
+      : req.worker_project_id;
+    if (!projectId) return res.status(400).json({ error: 'project_id required' });
+
+    const { files, digest } = req.body;
+    // REQ-11: an absent `files` key leaves the stored manifest untouched,
+    // mirroring the `worktrees !== undefined` guard on /worker/heartbeat —
+    // never overwrite a good manifest with null just because a caller sent
+    // a malformed or partial body.
+    if (files === undefined) return res.json({ ok: true });
+
+    await pool.query(
+      `UPDATE projects SET file_manifest = $2, file_manifest_digest = $3, file_manifest_updated_at = NOW() WHERE id = $1`,
+      [projectId, JSON.stringify(files), digest ?? null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Track 1096: Worker CLI and Model selection endpoint
 app.patch('/api/workers/:id/config', requireAuth, async (req, res) => {
   try {

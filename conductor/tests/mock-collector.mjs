@@ -25,6 +25,8 @@ const state = {
   comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
   projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
   offlineWorkerIds: [], // Track 10054: worker ids to treat as offline, set via /_set-offline-workers — stands in for the real server's last_heartbeat staleness check
+  fileManifests: [], // Track 10080: every accepted PATCH /worker/file-manifest body, in order — proves digest-gated push cadence (one push per actual change, not per tick)
+  failFileManifestCount: 0, // Track 10080: /_set-fail-file-manifest — next N PATCH /worker/file-manifest calls 500 instead of succeeding
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -263,6 +265,25 @@ const server = createServer(async (req, res) => {
   if ((params = route('DELETE', '/worker', req)) !== null)
     return reply(res, 200, { ok: true });
 
+  // Track 10080: worker-pushed file manifest, the fallback source for
+  // GET /api/projects/:id/files when a project's repo_path isn't reachable
+  // from the API host. /_set-fail-file-manifest lets a test simulate a
+  // collector-0 failure (TC-58/TC-63: the worker must not advance its
+  // last-sent digest when this happens).
+  if ((params = route('PATCH', '/worker/file-manifest', req)) !== null) {
+    if (state.failFileManifestCount > 0) {
+      state.failFileManifestCount -= 1;
+      return reply(res, 500, { error: 'simulated file-manifest outage (test-injected)' });
+    }
+    state.fileManifests.push(body);
+    return reply(res, 200, { ok: true });
+  }
+
+  if ((params = route('POST', '/_set-fail-file-manifest', req)) !== null) {
+    state.failFileManifestCount = Number(body.count) || 0;
+    return reply(res, 200, { ok: true });
+  }
+
   // ── Track upsert (called when chokidar picks up file changes) ─────────────
   if ((params = route('POST', '/track', req)) !== null) {
     const { track_number, lane_status, lane_action_status, progress_percent } = body;
@@ -448,6 +469,8 @@ const server = createServer(async (req, res) => {
     state.failTrackActionCount = 0;
     state.failAllWritesUntil = 0;
     state.offlineWorkerIds = [];
+    state.fileManifests = [];
+    state.failFileManifestCount = 0;
     return reply(res, 200, { ok: true });
   }
 

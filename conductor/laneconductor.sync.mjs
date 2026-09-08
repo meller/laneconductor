@@ -1561,6 +1561,59 @@ async function refreshWorktreeSummaryCache() {
 setTimeout(() => { refreshWorktreeSummaryCache(); }, 0);
 setInterval(() => { refreshWorktreeSummaryCache(); }, 60000);
 
+// Track 10080 Phase 4 (REQ-7, REQ-9, REQ-10): the fallback source
+// GET /api/projects/:id/files serves when a project's repo_path isn't
+// reachable from the API host (remote-api mode). Computed on the same
+// slow cadence as the worktree summary above — a file list is orders of
+// magnitude larger than that summary, so it rides its own dedicated
+// collector endpoint (`/worker/file-manifest`) rather than the 10s
+// heartbeat. Pushed only when the digest changes, via `patchCollectors()`
+// so it inherits per-collector token resolution, health recording, the
+// collector-0-authoritative rule and the retry buffer for free.
+//
+// Test-only overrides, same pattern as LC_HEARTBEAT_INTERVAL_MS /
+// LC_RECONCILE_INTERVAL_MS: a real subprocess test would otherwise need to
+// wait out a full 60s tick, or create 20,000 real files to exercise the cap.
+const FILE_MANIFEST_INTERVAL_MS = Number(process.env.LC_FILE_MANIFEST_INTERVAL_MS) || 60000;
+const FILE_MANIFEST_CAP = Number(process.env.LC_FILE_MANIFEST_CAP) || 20000;
+let lastSentFileManifestDigest = null;
+
+async function refreshFileManifestCache() {
+  if (getIsLocalFs()) return; // REQ-10: no manifest interaction at all in local-fs mode
+  if (isManager) return; // a manager isn't "for" any one project's repository
+  try {
+    const proj = getProject();
+    if (!proj?.id) return; // not registered with a collector yet — next tick retries
+    const stdout = gitExec('git ls-files -z', process.cwd()).toString('utf8');
+    let files = stdout.split('\0').filter(Boolean);
+    let truncated = false;
+    if (files.length > FILE_MANIFEST_CAP) {
+      files = files.slice(0, FILE_MANIFEST_CAP);
+      truncated = true;
+    }
+    const digest = 'sha256:' + createHash('sha256').update(files.join('\n')).digest('hex');
+    if (digest === lastSentFileManifestDigest) return; // REQ-7: push only on change
+
+    // patchCollectors() THROWS when collector 0 (the authoritative write)
+    // fails — deliberately not caught here beyond the outer try/catch, so
+    // the digest below is only ever advanced after a confirmed successful
+    // push (TC-58/TC-63). A failed non-primary collector is separately
+    // handled by patchCollectors' own retry-buffer enqueue.
+    await patchCollectors('/worker/file-manifest', {
+      project_id: proj.id,
+      hostname,
+      digest,
+      files,
+      truncated,
+    });
+    lastSentFileManifestDigest = digest;
+  } catch (err) {
+    console.error('[file-manifest error]:', err.message);
+  }
+}
+setTimeout(() => { refreshFileManifestCache(); }, 0);
+setInterval(() => { refreshFileManifestCache(); }, FILE_MANIFEST_INTERVAL_MS);
+
 async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
   if (getIsLocalFs()) return;
   const cls = getCollectors();
