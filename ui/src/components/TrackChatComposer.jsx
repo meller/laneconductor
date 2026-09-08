@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useComposerAutocomplete } from '../lib/useComposerAutocomplete.js';
+import { AutocompleteMenu } from './AutocompleteMenu.jsx';
 
 // Track 10037 Phase 3 Task 3: posts through the SAME endpoint the
 // Conversation tab uses (POST .../comments, author: 'human') — not a new
@@ -22,12 +24,21 @@ export function TrackChatComposer({
   onSent,
   isLiveTurn = false,
   liveAction = null,
+  tracks = [],
 }) {
   const { apiFetch } = useApi();
   const [value, setValue] = useState('');
+  const [caret, setCaret] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [queuedState, setQueuedState] = useState({ isQueued: false, action: null });
+  const inputRef = useRef(null);
+
+  // Track 10080: trigger detection, item sources and keyboard navigation
+  // for @file / #track / /command completion — see spec.md's trigger
+  // grammar. The input itself stays a plain <input> with its existing
+  // test ids; the menu renders above it only while a trigger is active.
+  const autocomplete = useComposerAutocomplete({ value, caret, projectId, tracks, apiFetch });
 
   // REQ-10: Clear queued state when the reply turn picks the message up,
   // driven by existing WS events rather than a new poll.
@@ -48,8 +59,7 @@ export function TrackChatComposer({
 
   const isDisabled = disabled || !projectId || !trackNumber;
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function sendMessage() {
     const body = value.trim();
     if (!body || isDisabled || sending) return;
     const wasLiveWhenSent = isLiveTurn;
@@ -64,6 +74,7 @@ export function TrackChatComposer({
       if (!res.ok) throw new Error((await res.text()) || 'Failed to send message');
       const comment = await res.json();
       setValue('');
+      setCaret(0);
       if (wasLiveWhenSent) {
         setQueuedState({ isQueued: true, action: actionWhenSent || 'turn' });
       }
@@ -72,6 +83,53 @@ export function TrackChatComposer({
       setError(err.message);
     } finally {
       setSending(false);
+    }
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    sendMessage();
+  }
+
+  function updateCaretFromEvent(e) {
+    setCaret(e.target.selectionStart ?? e.target.value.length);
+  }
+
+  function handleChange(e) {
+    setValue(e.target.value);
+    updateCaretFromEvent(e);
+  }
+
+  // Applies an accepted completion (from Enter/Tab or a menu-item click):
+  // updates the controlled value/caret state, then moves the real DOM
+  // caret once React has re-rendered the input with the new value — a
+  // plain setCaret alone only tracks OUR notion of the caret for trigger
+  // detection, it doesn't move the browser's actual cursor.
+  function acceptCompletion(index) {
+    const result = autocomplete.accept(index);
+    if (!result) return;
+    setValue(result.value);
+    setCaret(result.caret);
+    requestAnimationFrame(() => {
+      inputRef.current?.setSelectionRange(result.caret, result.caret);
+    });
+  }
+
+  // REQ-17/REQ-18: while a menu is open, arrows/Enter/Tab/Escape are
+  // handled by the menu and must not fall through to normal composer
+  // behaviour (submitting, moving focus to Send). When no menu is open,
+  // Enter still submits — made explicit here (rather than relying on the
+  // browser's implicit single-input form submission) so it behaves
+  // identically once this handler exists at all.
+  function handleKeyDown(e) {
+    const handledByMenu = autocomplete.onKeyDown(e);
+    if (handledByMenu) {
+      if (e.key === 'Enter' || e.key === 'Tab') acceptCompletion();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      sendMessage();
     }
   }
 
@@ -84,11 +142,23 @@ export function TrackChatComposer({
 
   return (
     <div className="p-3 border-t border-gray-800 bg-gray-900/50 shrink-0">
+      {!isDisabled && autocomplete.isOpen && (
+        <AutocompleteMenu
+          items={autocomplete.items}
+          activeIndex={autocomplete.activeIndex}
+          onSelect={acceptCompletion}
+          emptyReason={autocomplete.emptyReason}
+          kind={autocomplete.kind}
+        />
+      )}
       <form onSubmit={handleSubmit} className="flex gap-2 items-center">
         <input
+          ref={inputRef}
           type="text"
           value={value}
-          onChange={e => setValue(e.target.value)}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onClick={updateCaretFromEvent}
           placeholder={isDisabled ? (disabledHint || 'No track context to talk about') : (placeholder || 'Message the worker…')}
           disabled={isDisabled || sending}
           data-testid="worker-chat-input"

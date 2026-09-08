@@ -239,6 +239,7 @@ export function ChatView({ projectId, workers = [], tracks = [] }) {
               onSent={(comment) => setComments(prev => [...prev, comment])}
               isLiveTurn={runLiveness.isLive}
               liveAction={runLiveness.action}
+              tracks={tracks}
             />
           </>
         )}

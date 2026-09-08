@@ -138,33 +138,46 @@ has to be added without disturbing the queued/live/disabled behaviour other test
 into the existing composer. The element stays an `<input>` with its existing `worker-chat-input`
 test id, so no existing test has to change.
 
-- [ ] Create `ui/src/lib/useComposerAutocomplete.js`
-    - [ ] Derives the active trigger from value and caret via Phase 1's `detectTrigger`
-    - [ ] File source: debounced fetch of `/api/projects/:id/files?q=…` through `useApi` (REQ-14).
+- [x] Create `ui/src/lib/useComposerAutocomplete.js`
+    - [x] Derives the active trigger from value and caret via Phase 1's `detectTrigger`
+    - [x] File source: debounced fetch of `/api/projects/:id/files?q=…` through `useApi` (REQ-14).
           Use the house debounce pattern already tested in this repo — `useEffect` with a
           `setTimeout`, a `cancelled` flag, and a `clearTimeout` cleanup, as in
           `ConnectionsStep.jsx:178-194` (its TC-24 asserts exactly this "far fewer requests than
           keystrokes" property). The `cancelled` flag is also what discards a stale in-flight
           response, so no `AbortController` is needed — though `useApi`'s `apiFetch` does spread
           `options` straight into `fetch`, so passing a `signal` would work if wanted
-    - [ ] Track source: filters the `tracks` prop with Phase 1's matcher, no request (REQ-15)
-    - [ ] Command source: filters `SLASH_COMMANDS` (REQ-16)
-    - [ ] `onKeyDown` handling arrows with wraparound, Enter, Tab, Escape (REQ-17, REQ-18)
-    - [ ] Dismissed-state latch keyed to the trigger token so Escape sticks (REQ-20)
-- [ ] Create `ui/src/components/AutocompleteMenu.jsx` (REQ-21)
-    - [ ] Dark surface matching the surrounding view, blue accent on the active row, the
+    - [x] Track source: filters the `tracks` prop with Phase 1's matcher, no request (REQ-15)
+    - [x] Command source: filters `SLASH_COMMANDS` (REQ-16)
+    - [x] `onKeyDown` handling arrows with wraparound, Enter, Tab, Escape (REQ-17, REQ-18)
+    - [x] Dismissed-state latch keyed to the trigger token so Escape sticks (REQ-20)
+- [x] Create `ui/src/components/AutocompleteMenu.jsx` (REQ-21)
+    - [x] Dark surface matching the surrounding view, blue accent on the active row, the
           highlighted item scrolled into view
-    - [ ] Distinct empty states for "no matches" and "file list unavailable on this deployment"
-- [ ] Wire both into `ui/src/components/TrackChatComposer.jsx`
-    - [ ] Accept new `tracks` prop; pass `tracks` down from `ChatView`
-    - [ ] Attach `onKeyDown`; keep `onSubmit` behaviour identical when no menu is open
-    - [ ] Preserve the disabled hint, queued notice, live hint, error line and both test ids
+    - [x] Distinct empty states for "no matches" and "file list unavailable on this deployment"
+- [x] Wire both into `ui/src/components/TrackChatComposer.jsx`
+    - [x] Accept new `tracks` prop; pass `tracks` down from `ChatView`
+    - [x] Attach `onKeyDown`; keep `onSubmit` behaviour identical when no menu is open
+    - [x] Preserve the disabled hint, queued notice, live hint, error line and both test ids
           (REQ-22)
-- [ ] Component tests in `ui/src/components/TrackChatComposer.autocomplete.test.jsx`
-- [ ] Run the existing `ChatView.*.test.jsx` and `TrackChatComposer` suites to confirm no
+- [x] Component tests in `ui/src/components/TrackChatComposer.autocomplete.test.jsx`
+- [x] Run the existing `ChatView.*.test.jsx` and `TrackChatComposer` suites to confirm no
       regression
 
 **Impact**: The composer gains a menu. Sending behaviour is unchanged when no menu is open.
+
+**Done (2026-09-08)**: 17/17 new component tests pass; the existing `ChatView.test.jsx` (15),
+`ChatView.queued.test.jsx` (4) and `ChatView.wizard.test.jsx` (4) all still pass unchanged (66/66
+total across the 6 suites this phase touches). Two implementation notes beyond the plan: (1)
+`Enter`-submits-when-no-menu-is-open is now handled explicitly in `handleKeyDown` rather than
+relying on the browser's implicit single-input form submission — needed once an `onKeyDown`
+handler exists at all (jsdom doesn't implement implicit submission, so this also made TC-42
+testable, not just correct in real browsers). (2) The empty-state branch is shared between a
+literal `source: "none"` response and a non-ok/failed fetch (both land on `paths: [], source:
+'none'` in the hook) — spec.md's own solution text ("the menu says the file list is unavailable
+instead of failing the send") calls for this same graceful degradation on any failure, not only
+the explicit `none` tier, so TC-49 asserts "no thrown error + still sends + unavailable state"
+rather than "no menu at all".
 
 ---
 
