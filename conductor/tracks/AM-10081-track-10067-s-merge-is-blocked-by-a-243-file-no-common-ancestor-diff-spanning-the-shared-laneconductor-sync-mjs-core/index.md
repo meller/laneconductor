@@ -2,10 +2,10 @@
 
 **Lane**: review
 **Merge Mode**: direct
-**Lane Status**: queue
-**Progress**: 100%
+**Lane Status**: running
+**Progress**: 0%
 **Last Run**: mock (primary)
-**Phase**: Planned — 5 phases
+**Phase**: Phase 1: Reconcile 10067
 **Type**: dev
 **Track Kind**: bug
 **Workspace**: branch
