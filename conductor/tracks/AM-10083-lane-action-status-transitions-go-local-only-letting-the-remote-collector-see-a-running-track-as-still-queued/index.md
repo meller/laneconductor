@@ -1,10 +1,11 @@
 # Track AM-10083: Lane action status transitions go local-only, letting the remote collector see a running track as still queued
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planning complete
 **Type**: dev
+**Track Kind**: bug
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: The fast, in-process `lane_action_status: 'running'` write when a lane action starts is sent only to the primary (local) collector — the remote collector only learns about it via the slower,…
