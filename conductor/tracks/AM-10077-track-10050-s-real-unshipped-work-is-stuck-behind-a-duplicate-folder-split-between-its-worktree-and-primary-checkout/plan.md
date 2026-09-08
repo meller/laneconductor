@@ -156,18 +156,52 @@ showing up in the Worktrees panel and keep inviting a catastrophic merge.
 
 **Solution**: Retire it explicitly, and confirm the whole chain from a clean state.
 
-- [ ] Task 4.1: Move 10050 to `done:success` — now truthful, its code is on
-      `main` via Phase 2 (REQ-10)
-- [ ] Task 4.2: Record the supersession on 10050's `conversation.md`: the work
+- [x] Task 4.1 (deliberately adjusted, not done as literally written): the
+      plan's premise — "now truthful, its code is on `main` via Phase 2" —
+      does not hold at the point this phase actually runs. Track 10077 is
+      itself still `implement`, running on its own branch/worktree; `grep
+      -rn "resolveWorktreeStartPoint" conductor/*.mjs` in the PRIMARY
+      checkout returns nothing, confirming the port is not yet reachable
+      from `main`. Setting `done:success` here would be exactly the
+      false-completion state this track exists to fix. Left 10050 at
+      `done`/`queue` (its honest current state) instead, with the
+      supersession comment (Task 4.2) explicitly recording that
+      `Lane Status` should flip to `success` once track 10077's own merge
+      actually lands the port on `main` — not before.
+- [x] Task 4.2: Record the supersession on 10050's `conversation.md`: the work
       shipped via track 10077's port, the branch had no merge-base and was never
       mergeable
-- [ ] Task 4.3: Remove the `track-10050` branch and `.worktrees/10050`
-- [ ] Task 4.4: Walk every acceptance criterion in `spec.md` and record the
+- [x] Task 4.3: Remove the `track-10050` branch and `.worktrees/10050`
+- [x] Task 4.4: Walk every acceptance criterion in `spec.md` and record the
       observed result for each — the UI ones by looking at the UI, the worktree
-      ones by creating a real worktree
-- [ ] Task 4.5: Note in `conversation.md` that siblings 10049/10051/10052 show
+      ones by creating a real worktree (see spec.md's Acceptance Criteria
+      section for the full walkthrough; one criterion — literal running-UI
+      panel confirmation — is deferred to after this track reaches `main`,
+      with a substitute real-function verification recorded in its place)
+- [x] Task 4.5: Note in `conversation.md` that siblings 10049/10051/10052 show
       the same `0% / New` + `done:success` shape and are deliberately out of
-      scope (a Non-Goal), so the pattern is on record
+      scope (a Non-Goal), so the pattern is on record — re-checked live:
+      10051/10052 still show it, 10049 shows `100%/success` (not verified,
+      out of scope)
 
 **Impact**: No dead branch, no unmergeable worktree, and the reconciliation is
 verified against the real product rather than the diff.
+
+---
+
+## ✅ COMPLETE
+
+All four phases done. One deliberate deviation from the plan as literally
+written: Task 4.1 does not set track 10050 to `done:success`, because this
+track's own port has not itself reached `main` yet (still `implement`, on its
+own branch) — doing so would reintroduce the exact false-completion bug this
+track exists to fix. See spec.md's Acceptance Criteria section and this
+phase's Task 4.1 note for the full reasoning. Track 10050's `Lane Status`
+should be flipped to `success` once this track's own merge lands the port on
+`main` (verifiable via `grep -rn "resolveWorktreeStartPoint" conductor/*.mjs`
+in the primary checkout).
+
+One acceptance criterion (literal running-Worktrees-panel confirmation) is
+similarly deferred to after this track reaches `main`, with a substitute
+real-function verification (the patched `auditWorktrees()` invoked directly
+against the live primary checkout's git state) recorded in its place.
