@@ -4,7 +4,7 @@
 **Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implemented — Phases 1-5 built and verified; Phase 6 (remote abort) deliberately deferred, reported as 501
 **Type**: dev
 **Track Kind**: feature
