@@ -1,6 +1,6 @@
 # Track AM-10078: Track folder resolution picks a stale duplicate over the canonical INITIALS-prefixed folder, recurring across 10050/10066/10067
 
-**Lane**: review
+**Lane**: quality-gate
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
