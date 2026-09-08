@@ -7,7 +7,7 @@
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
-**Summary**: Add a "Redeploy this version" action on past entries in the CI/CD Release tab's deployment dispatch history, so a bad deploy can be rolled back to a known-good prior commit without hand-editing…
+**Summary**: Add a "Redeploy this version" action on past entries in the CI/CD Release tab's deployment dispatch history, so a bad deploy can be rolled back to a known-good prior commit without hand-editing anything. **Decided 2026-09-08: hosting-only — database migrations are explicitly out of scope for this track**, not a deferred phase (see asymmetry section).
 
 ## Problem
 
@@ -66,11 +66,7 @@ decide per-migration whether reverting is even safe.
    mechanism for the hosting half, rather than rebuilding from an old
    commit — likely faster, cheaper, and exactly what Hosting's own
    versioning model is for.
-3. **Explicitly scope out (or clearly gate) database rollback** per the
-   asymmetry above — v1 should make it obvious in the UI that "redeploy
-   this version" only reverts hosting, not any migration that ran as part
-   of the original deploy, unless a later phase adds a deliberate,
-   separately-reviewed down-migration path.
+3. **Database rollback is explicitly OUT of scope for this track — decided, not deferred.** "Redeploy this version" only re-runs the hosting half; it must never touch `atlas migrate apply` or attempt to undo a migration. Make this obvious in the UI itself (e.g. the action's own label/tooltip says "hosting only" and, if the target commit's deploy included a migration, a visible note that the DB is not being rolled back). If DB rollback is ever wanted, it needs its own separate track — the per-migration reversibility judgment call is a different, harder problem than this one.
 4. **Surface this for every deploy-history entry that has a recorded
    commit**, not just ones explicitly tagged as a "build artifact" — a
    plain `Workspace HEAD` deploy's dispatch history row should ideally
