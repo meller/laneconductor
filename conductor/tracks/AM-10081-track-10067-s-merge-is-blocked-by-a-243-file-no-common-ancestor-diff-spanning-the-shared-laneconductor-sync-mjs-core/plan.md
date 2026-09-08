@@ -295,3 +295,12 @@ is written down where the next occurrence will look for it.
 - **Phase 2's containment must not swallow ordinary failures.** AC-9
   exists specifically to catch an over-broad fix. A change that stops
   every failure from retrying is worse than the loop it replaces.
+
+---
+
+## ⚠️ Gaps (review, 2026-09-08)
+
+Phase 1 Tasks 1.1–1.9 done; Task 1.10 (commit) not done — 27 resolved files sit uncommitted.
+Task 1.8's suite triage (pre-existing vs introduced failures) never finished: 59/132 failing in
+a targeted re-run, untriaged against a `main` baseline. Phases 2–5 entirely unstarted. Full
+verdict in conversation.md. Sent back to `implement:queue`.
