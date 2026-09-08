@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 20%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — 6 phases (0-5), verified against codebase
 **Type**: dev
 **Track Kind**: feature
