@@ -1,13 +1,13 @@
 # Track AM-10082: Revert to a previous deployed version from the CI/CD dispatch history
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
-**Summary**: Add a "Redeploy this version" action on past entries in the CI/CD Release tab's deployment dispatch history, so a bad deploy can be rolled back to a known-good prior commit without hand-editing anything. **Decided 2026-09-08: hosting-only — database migrations are explicitly out of scope for this track**, not a deferred phase (see asymmetry section).
+**Summary**: Add a "Redeploy this version" action on past entries in the CI/CD Release tab's deployment dispatch history, so a bad deploy can be rolled back to a known-good prior commit without hand-editing…
 
 ## Problem
 
