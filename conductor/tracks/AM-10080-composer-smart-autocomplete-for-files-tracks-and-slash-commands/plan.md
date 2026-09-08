@@ -14,12 +14,15 @@ root or under `ui/`, so every test command in `test.md` fails at config-load tim
 (observed: `npx vitest` dies with `Cannot find package '@vitejs/plugin-react'`). It is a one-time
 setup step, not a code change.
 
-- [ ] `npm install` at the repository root
-- [ ] `npm install` in `ui/`
-- [ ] Confirm the baseline is green before touching anything:
+- [x] `npm install` at the repository root
+- [x] `npm install` in `ui/`
+- [x] Confirm the baseline is green before touching anything:
       `cd ui && npx vitest run src/components/ChatView.test.jsx src/components/ChatView.queued.test.jsx src/components/ChatView.wizard.test.jsx`
-- [ ] Record that baseline. "No regressions" in Phase 5 is only meaningful against a known-green
+- [x] Record that baseline. "No regressions" in Phase 5 is only meaningful against a known-green
       starting point
+
+**Baseline recorded (2026-09-07)**: `ChatView.wizard.test.jsx` (4 tests), `ChatView.queued.test.jsx`
+(4 tests), `ChatView.test.jsx` (15 tests) — 23/23 passed.
 
 ### Which runner picks up which test
 
@@ -55,29 +58,36 @@ wrong, and the hardest to debug through a DOM. There is no fuzzy matcher in the 
 `conductor/services/`, the established home for logic imported by both `ui/server/index.mjs` and
 `ui/src/**` (precedent: `conductor/providers.mjs`, `conductor/services/merge-mode.mjs`).
 
-- [ ] Create `conductor/services/fuzzy-match.mjs` (REQ-12)
-    - [ ] `fuzzyScore(candidate, query)` — case-insensitive subsequence match, returns `null` on
+- [x] Create `conductor/services/fuzzy-match.mjs` (REQ-12)
+    - [x] `fuzzyScore(candidate, query)` — case-insensitive subsequence match, returns `null` on
           no match so callers can filter on it
-    - [ ] Score bonuses: consecutive-run length, match starting a path segment (after `/`),
+    - [x] Score bonuses: consecutive-run length, match starting a path segment (after `/`),
           match inside the basename over the directory, earlier first-match position, shorter
           candidate as final tiebreak
-    - [ ] `fuzzyRank(candidates, query, { limit, key })` — sorts by score descending, then by the
+    - [x] `fuzzyRank(candidates, query, { limit, key })` — sorts by score descending, then by the
           candidate string ascending so ordering is total and stable; empty query returns the
           first `limit` in input order
-- [ ] Create `conductor/services/slash-commands.mjs` (REQ-13)
-    - [ ] `SLASH_COMMANDS` — one entry per `/laneconductor` command with `name`, `args`,
+- [x] Create `conductor/services/slash-commands.mjs` (REQ-13)
+    - [x] `SLASH_COMMANDS` — one entry per `/laneconductor` command with `name`, `args`,
           `description`, sourced from the skill's Quick Reference table
-    - [ ] `commandInsertText(cmd)` returning `/laneconductor <name> `
-- [ ] Create `ui/src/lib/composerTriggers.js`
-    - [ ] `detectTrigger(value, caret)` → `null` or `{ kind, query, start, end }` implementing the
+    - [x] `commandInsertText(cmd)` returning `/laneconductor <name> `
+- [x] Create `ui/src/lib/composerTriggers.js`
+    - [x] `detectTrigger(value, caret)` → `null` or `{ kind, query, start, end }` implementing the
           trigger grammar in spec.md: `@` files, `#` and `@track:` tracks, `/` commands at
           position 0 only, trigger character must begin a token
-    - [ ] `applyCompletion(value, trigger, insertText)` → `{ value, caret }`, replacing only the
+    - [x] `applyCompletion(value, trigger, insertText)` → `{ value, caret }`, replacing only the
           trigger token and appending one trailing space (REQ-19)
-- [ ] Unit tests for all three modules, including the ambiguity cases: `@tracker.js` opens files
+- [x] Unit tests for all three modules, including the ambiguity cases: `@tracker.js` opens files
       not tracks, `@src/lib` does not open the command menu, `a#b` and `foo@bar` open nothing.
       Split by runner per the table in Phase 0 — the two `conductor/services/` modules under
       `node --test`, `composerTriggers.js` under vitest
+
+**Done (2026-09-07)**: `conductor/services/fuzzy-match.mjs` (DP-based subsequence scorer, not a
+greedy leftmost scan — needed to actually find the best alignment, e.g. `chat` in
+`ui/src/lib/chat.js` vs the decoy `c`/`h`/`a`/`t` scattered through `ui/src/archat/x.js`),
+`conductor/services/slash-commands.mjs`, `ui/src/lib/composerTriggers.js`. Tests: 12/12 in
+`conductor/tests/track-10080-fuzzy-match.test.mjs` (`node --test`), 13/13 in
+`ui/src/lib/composerTriggers.test.js` (vitest).
 
 **Impact**: New shared modules. No existing file changes, no behaviour change yet.
 
