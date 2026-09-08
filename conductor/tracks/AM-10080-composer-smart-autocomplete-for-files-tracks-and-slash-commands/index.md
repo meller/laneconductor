@@ -1,6 +1,6 @@
 # Track AM-10080: Composer smart autocomplete for @file mentions, @track references, and /slash commands
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 100%
