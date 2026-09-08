@@ -1,0 +1,38 @@
+[Unit]
+# LaneConductor Vite dev UI (ui/node_modules/.bin/vite), supervised.
+#
+# Why this exists: same reasoning as laneconductor-api.service, found live
+# 2026-09-08 alongside it — the Express API had no supervision and went down
+# silently for ~2 hours; the Vite dev server sitting right next to it
+# (started the same manual way via `make ui-start`, port 8090) has the exact
+# same exposure. It's the only thing serving the dashboard UI a human
+# actually looks at, so its outage is the most visible of the two, not the
+# least important.
+#
+# Not templated, same as laneconductor-api.service — one Vite dev server per
+# machine, not one per project.
+Description=LaneConductor Vite dev UI (ui/node_modules/.bin/vite)
+Documentation=https://github.com/asafmeller/laneconductor
+After=network-online.target
+Wants=network-online.target
+
+# See laneconductor-worker@.service's own comment for why these belong in
+# [Unit], not [Service] — systemd 229+ silently ignores them under
+# [Service].
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=/home/meller/Code/laneconductor/ui
+ExecStart=/home/meller/Code/laneconductor/ui/node_modules/.bin/vite
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=laneconductor-ui
+
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
