@@ -45,6 +45,7 @@ conductor/.doc-sync/
 # Runtime state — machine-specific, auto-generated
 .conductor/
 conductor/tracks-metadata.json
+conductor/tracks-metadata.json.tmp-*
 conductor/tracks.md
 conductor/tracks/**/conversation.md
 conductor/tracks/**/conversation.json
