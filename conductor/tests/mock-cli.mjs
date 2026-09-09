@@ -57,6 +57,20 @@ import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const [,, command, trackNumber] = process.argv;
+
+// Track 10079: MOCK_CLI_IGNORE_SIGNALS=1 — install no-op handlers for
+// SIGINT/SIGTERM so this process survives both (Node's default disposition
+// for an unhandled SIGINT/SIGTERM is immediate termination, which is what
+// every OTHER test relies on to simulate "the child died on the first
+// signal"). Lets an abort-escalation test drive a real spawned child through
+// all three stages (SIGINT -> SIGTERM -> SIGKILL) instead of dying on stage
+// one — only SIGKILL (which cannot be caught) or the normal exit timeout
+// below actually ends it.
+if (process.env.MOCK_CLI_IGNORE_SIGNALS) {
+  process.on('SIGINT', () => {});
+  process.on('SIGTERM', () => {});
+}
+
 const sentinelPath = process.env.MOCK_CLI_RESUME_FAILURE_SENTINEL;
 const resumeFailure = !!sentinelPath && existsSync(sentinelPath);
 const exitCode = resumeFailure ? 1 : parseInt(process.env.MOCK_CLI_EXIT_CODE ?? '0');

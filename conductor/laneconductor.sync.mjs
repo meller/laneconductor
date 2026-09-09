@@ -65,6 +65,7 @@ import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkfl
 import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
 import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand, markRunFinalizing, classifyMarkerPhase } from './services/run-marker.mjs';
+import { readAbortIntent } from './services/run-abort.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
 import { resolveConfigRoot } from './services/config-root.mjs';
@@ -5963,8 +5964,8 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   // there would orphan a session row on any bail-out (no provider
   // available, CLI blocked) that never reaches spawn.
   if (session) persistTrackSession(trackNumber, session.claude_session_id);
-  proc.on('exit', async (code) => {
-    console.log(`[${label}] EXIT EVENT TRIGGERED: PID ${proc.pid}, Code: ${code}`);
+  proc.on('exit', async (code, signal) => {
+    console.log(`[${label}] EXIT EVENT TRIGGERED: PID ${proc.pid}, Code: ${code}, Signal: ${signal}`);
     clearInterval(killer);
     clearInterval(tailInterval);
     clearInterval(streamTailInterval);
@@ -5986,16 +5987,26 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // in the `finally` at the bottom of this handler, once finalization has
     // genuinely completed.
     const markerPath = runMarkerPath(process.cwd(), trackNumber);
+    // Track 10079 (REQ-11/REQ-12): captured BEFORE markRunFinalizing rewrites
+    // the marker, since this is the only copy that still carries whatever
+    // abort_requested intent the abort endpoint/CLI wrote. `abortedByUser`
+    // requires BOTH that intent AND a signal-caused exit — a run that
+    // completes on its own (code 0) inside the race window between the
+    // intent write and the signal landing is still the success it was,
+    // never misreported as a cancellation.
+    let markerAtExit = null;
     try {
       if (existsSync(markerPath)) {
         const marker = parseRunMarker(readFileSync(markerPath, 'utf8'));
         if (marker) {
+          markerAtExit = marker;
           writeFileSync(markerPath, JSON.stringify(markRunFinalizing(marker, { exitCode: code }), null, 2), 'utf8');
         }
       }
     } catch (err) {
       console.warn(`[${label}] Track ${trackNumber}: failed to mark run finalizing (non-fatal): ${err.message}`);
     }
+    const abortedByUser = !!signal && !!readAbortIntent(markerAtExit);
     // Track 10065 test-only hook (mirrors MOCK_CLI_DELAY_MS's role for the
     // child process, LC_SHUTDOWN_DEADLINE_MS's for shutdown): widens the
     // window between the finalizing-marker write above and the rest of this
@@ -6091,7 +6102,9 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
     let resumeFailureInvalidated = false;
-    if (!isSuccess && logContent) {
+    // A killed run's log is not evidence of a quota problem — skip the
+    // exhaustion scan entirely for an abort (Task 3.3).
+    if (!isSuccess && !abortedByUser && logContent) {
       isExhausted = isProviderExhausted(logContent, cli);
       if (isExhausted) {
         console.log(`[${label}] Provider ${cli} quota exhausted — re-queuing track ${trackNumber} without consuming retry`);
@@ -6201,7 +6214,9 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           failCountBefore = parseInt(readIfExists(retryPath) || '0');
         }
 
-        if (!isSuccess && !isExhausted) {
+        // REQ-13: an abort must not consume a retry — the human stopped the
+        // run, the run didn't fail on its own.
+        if (!isSuccess && !isExhausted && !abortedByUser) {
           writeFileSync(retryPath, String(failCountBefore + 1), 'utf8');
           writeFileSync(retryLanePath, laneStatus, 'utf8');
         } else if (isSuccess) {
@@ -6237,7 +6252,9 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
 
     // A failure triggers 'max_retries_reached' only if the count BEFORE this failure 
     // was already at or above maxRetries. (e.g. maxRetries=1 means 1 retry allowed).
-    const isMaxRetries = !isSuccess && !isExhausted && failCountBefore >= maxRetries;
+    // REQ-13: an abort never evaluates on_failure, regardless of where the
+    // retry count already stood before this run.
+    const isMaxRetries = !isSuccess && !isExhausted && !abortedByUser && failCountBefore >= maxRetries;
 
     // 2. Resolve target lane and status
     // Conversation/brainstorm runs (local-fs-answer) must not trigger workflow lane transitions
@@ -6252,7 +6269,9 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // the file or the DB patch, regardless of how resolveTransition below
     // resolves it.
     const writeScope = getConversationRunWriteScope({ isConversationRun });
-    const transitionValue = (isConversationRun || isBlockedTurn || isStaleAgainstNewMessage)
+    // REQ-13: an abort evaluates neither on_success nor on_failure — it's
+    // neither, it's a park.
+    const transitionValue = (isConversationRun || isBlockedTurn || isStaleAgainstNewMessage || abortedByUser)
       ? null
       : (isSuccess
         ? (currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success)
@@ -6291,30 +6310,41 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // and "success" reads as good news, so the question sat unread behind a
     // green tick.
     let isParked = false;
-    if (!endedMidWork && (agentReportedWaiting || isBlockedTurn)) {
+    if (!endedMidWork && (agentReportedWaiting || isBlockedTurn || abortedByUser)) {
       targetLane = laneStatus;
       nextActionStatus = 'waiting';
       isParked = true;
     }
 
-    // REQ-3: a park always carries a reason. The agent's own marker wins; a
-    // blocked turn's question is the next-best thing; the generic fallback is
-    // last and warns, since parking without a reason is the protocol being
-    // ignored, not a normal outcome.
+    // REQ-3 / REQ-14: a park always carries a reason. An abort's reason is
+    // fixed ("Cancelled by user") and always wins — it's not something the
+    // agent could have written itself, since the agent never got a chance to
+    // write anything after being signalled. The agent's own marker is next; a
+    // blocked turn's question after that; the generic fallback is last and
+    // warns, since parking without a reason is the protocol being ignored,
+    // not a normal outcome.
     let waitingReason = null;
     if (isParked) {
-      const resolved = resolveWaitingReason({ markerReason: agentWaitingReason, blockedQuestion });
+      const resolved = abortedByUser
+        ? { reason: 'Cancelled by user', synthesized: false }
+        : resolveWaitingReason({ markerReason: agentWaitingReason, blockedQuestion });
       waitingReason = resolved.reason;
       if (resolved.synthesized) {
         console.warn(`[${label}] Track ${trackNumber}: parked at ${targetLane}:waiting without writing a **Waiting Reason** — using "${waitingReason}".`);
       }
     }
 
-    console.log(`[${label}] Track ${trackNumber}: ${endedMidWork ? 'ENDED MID-WORK' : (isSuccess ? 'PASS' : 'FAIL')} (exit: ${code}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
+    console.log(`[${label}] Track ${trackNumber}: ${abortedByUser ? 'ABORTED' : (endedMidWork ? 'ENDED MID-WORK' : (isSuccess ? 'PASS' : 'FAIL'))} (exit: ${code}, signal: ${signal}). Next Action Status: ${nextActionStatus}${targetLane !== laneStatus ? `, Moving to: ${targetLane}` : ''}`);
 
+    // REQ-11: a signalled exit names the signal instead of reading as the
+    // uninformative `error (code null)` — true for any signal-caused exit,
+    // not just an abort (e.g. the spawn-timeout killer's own SIGTERM).
+    // REQ-14: an abort specifically is reported as its own distinct result
+    // value, `'aborted'`, not folded into the generic error string.
+    const exitDescriptor = signal ? `signal ${signal}` : `code ${code}`;
     const patchData = {
       project_id: projectId,
-      lane_action_result: endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (code ${code})`))),
+      lane_action_result: abortedByUser ? 'aborted' : (endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (${exitDescriptor})`)))),
       last_log_tail: tailLog(logPath), active_cli: cli,
     };
     // Track AM-10046 REQ-2/REQ-5: nextActionStatus is derived from `laneStatus`
@@ -6698,7 +6728,34 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     }
 
 
-    if (!isSuccess) {
+    // REQ-15: an abort suppresses the generic "Automation failed" comment
+    // (which would be a lie about what happened — nothing failed, a human
+    // stopped it) and posts its own instead. REQ-22: written via a direct
+    // appendFileSync to conversation.md, the same way the endedMidWork
+    // comment above is — not postToCollectors, which no-ops entirely in
+    // local-fs mode (see postToCollectors' own `if (getIsLocalFs()) return
+    // {}`) and would silently drop this on exactly the sandbox tests this
+    // track's own test.md TC-3.7/TC-3.14/TC-3.15 exercise. resolveTrackFolder
+    // already resolves the manager pseudo-track's folder (track 10067's fix
+    // to the same function used by the ten other `if (trackDir)`-gated
+    // blocks in this handler), so no separate manager branch is needed here.
+    if (abortedByUser) {
+      try {
+        const tracksDirForAbort = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForAbort = resolveTrackFolder(tracksDirForAbort, trackNumber);
+        if (trackDirForAbort) {
+          const convPathForAbort = join(tracksDirForAbort, trackDirForAbort, 'conversation.md');
+          appendFileSync(
+            convPathForAbort,
+            `\n> **system**: ⚠️ Turn cancelled by user — the running ${action || laneStatus} was stopped. ` +
+            `The worktree and session are preserved; use Resume to re-queue.\n`,
+            'utf8'
+          );
+        }
+      } catch (e) {
+        console.warn(`[${label}] Failed to post cancellation comment for track ${trackNumber}: ${e.message}`);
+      }
+    } else if (!isSuccess) {
       if (!isExhausted) await checkExhaustion(logPath, cli);
       const commentBody = isExhausted
         ? `⏳ Provider ${cli} quota exhausted. Track re-queued automatically — retry count not consumed.`
@@ -6709,7 +6766,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         body: commentBody,
       }).catch(() => { });
     }
-    console.log(`[${label}] Process ${proc.pid} exited with code ${code}`);
+    console.log(`[${label}] Process ${proc.pid} exited with code ${code}, signal ${signal}`);
     } finally {
       // Track 10065: the marker has now served its purpose for real —
       // finalization (everything in the try{} above) actually completed, on
