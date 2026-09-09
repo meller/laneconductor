@@ -305,3 +305,7 @@ NOT done because they require actions this session cannot take
 autonomously: Task 2.5 (deploying `cloud/functions/index.js` to production)
 and Task 6.6 (visually confirming the live dashboard against that deploy).
 Both are called out above with what a human needs to do next.
+
+## ✅ REVIEWED
+
+Review passed 2026-09-09. Code re-checked directly (SQL param alignment, claimed_by/ownMachineTokens consistency, claim-guard ordering) and 4 new test suites + Jest suite + both 10064 regression suites re-run and confirmed green; cloud-route-parity's single failure re-confirmed as the pre-existing unrelated gap. One new non-blocking finding recorded in conversation.md: conductor/deployment-stack.md claims Cloud Functions are decommissioned, contradicting this track's own live evidence of an active remote collector — flag for whoever runs the deferred Task 2.5 deploy. Moved to quality-gate.
