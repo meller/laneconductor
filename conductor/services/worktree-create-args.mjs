@@ -21,3 +21,19 @@ export function resolveWorktreeAddArgs({ branchExists, branchName, worktreePath,
   // Nothing to lose — safe to create fresh from startPoint.
   return ['worktree', 'add', '-B', branchName, worktreePath, startPoint];
 }
+
+// Track 10050: laneconductor.sync.mjs used to take resolveWorktreeAddArgs'
+// result and then re-build the shell command BY HAND, hardcoding `HEAD` back
+// into it:
+//
+//   gitExec(addArgs.includes('-B')
+//     ? `git worktree add -B "${branchName}" "${worktreePath}" HEAD`   // <-- ignored startPoint
+//     : `git worktree add "${worktreePath}" "${branchName}"`, cwd);
+//
+// Two renderings of the same decision, free to disagree — and they did: the
+// start point above was silently discarded, so changing it fixed nothing
+// while every unit test on resolveWorktreeAddArgs stayed green. One renderer,
+// here, is the fix. Callers must never hand-roll the command again.
+export function renderWorktreeAddCommand(args) {
+  return `git ${args.map(a => `"${a}"`).join(' ')}`;
+}

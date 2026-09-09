@@ -100,8 +100,19 @@ function readTrackStateFromBranch(repoRoot, branch, trackNumber) {
   const title = indexContent.match(/^#\s*Track\s+\S+:\s*(.+)$/mi)?.[1]?.trim() ?? null;
   // Track 10018: read straight off the branch tip, same as lane/laneStatus
   // above — works identically whether or not a worktree currently exists.
+  //
+  // Track 10077 (F1/F6): deliberately NOT defaulted to 'pr' here. Merge
+  // Mode can originate in the database (written to disk only by the DB->FS
+  // pull, which by design only ever writes the PRIMARY checkout's index.md
+  // — never this topic branch). A track whose merge mode came from the DB
+  // structurally can never have this marker on its own branch tip, so
+  // defaulting here would make that case indistinguishable from "nobody
+  // ever set one" and permanently misclassify it as pr-mode. Left null so
+  // the caller (auditWorktrees) can fall back to the primary checkout's own
+  // marker before applying the 'pr' default — mirroring the PR-fields
+  // fallback below for the same worktree/branch-can't-see-it class of bug.
   const mergeModeRaw = indexContent.match(/\*\*Merge Mode\*\*:\s*([a-z]+)/i)?.[1]?.trim().toLowerCase() ?? null;
-  const mergeMode = ['pr', 'direct'].includes(mergeModeRaw) ? mergeModeRaw : 'pr'; // resolveMergeMode's default, inlined to avoid a cross-module import cycle here
+  const mergeMode = ['pr', 'direct'].includes(mergeModeRaw) ? mergeModeRaw : null;
   const prNumber = indexContent.match(/\*\*PR Number\*\*:\s*(\d+)/i)?.[1] ?? null;
   const prUrl = indexContent.match(/\*\*PR URL\*\*:\s*(\S+)/i)?.[1] ?? null;
   const prStatus = indexContent.match(/\*\*PR Status\*\*:\s*(\S+)/i)?.[1]?.trim().toLowerCase() ?? null;
@@ -413,6 +424,29 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     const superseded = state?.trackDir
       ? mainHasReopenedTrackIndependently(repoRoot, primaryPath, mainBranch, branch, state.trackDir, trackNumber, state.lane, state.laneStatus)
       : false;
+    // Track 10077 (REQ-8/F6): fall back to the primary checkout's own
+    // **Merge Mode** marker when the branch's own copy has none, before
+    // falling back to the 'pr' default — same two-candidate order as the
+    // prFields loop just above, and for the identical reason: a track
+    // whose merge mode came from the database can never have it on the
+    // branch tip (readTrackStateFromBranch leaves it null in that case),
+    // but the DB->FS pull keeps it current on the primary checkout
+    // regardless of whether any worktree still exists. The branch's own
+    // marker, when present, still wins (state?.mergeMode is already
+    // resolved and non-null in that case, so this loop is skipped).
+    let mergeMode = state?.mergeMode ?? null;
+    if (!mergeMode) {
+      for (const dir of [hasWorktree ? worktreePath : null, primaryPath]) {
+        if (!dir || !state?.trackDir) continue;
+        try {
+          const indexContent = readFileSync(join(dir, state.trackDir, 'index.md'), 'utf8');
+          const raw = indexContent.match(/\*\*Merge Mode\*\*:\s*([a-z]+)/i)?.[1]?.trim().toLowerCase() ?? null;
+          if (['pr', 'direct'].includes(raw)) { mergeMode = raw; break; }
+        } catch { /* file unreadable — try the next candidate */ }
+      }
+    }
+    mergeMode = mergeMode ?? 'pr'; // resolveMergeMode's documented default, unchanged when nobody has an opinion
+
     // Track 10018: a pr-mode track must NEVER classify as 'mergeable' —
     // that's the classification that drives the plain, local-merge "Merge
     // to main" button, which would silently defeat the whole point of
@@ -425,7 +459,7 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
     let conflictPaths = [];
     if (!isDone || superseded) {
       classification = 'open';
-    } else if (state?.mergeMode === 'pr') {
+    } else if (mergeMode === 'pr') {
       classification = 'pr-open';
     } else if (!hasWorktree) {
       classification = 'stranded';
@@ -441,7 +475,7 @@ export async function auditWorktrees({ repoRoot, mainBranch = 'main' }) {
       trackNumber, branch, worktreePath, hasWorktree, ahead, behind, dirtyCount,
       lane: state?.lane ?? null, laneStatus: state?.laneStatus ?? null, title: state?.title ?? null,
       classification, conflictPaths,
-      mergeMode: state?.mergeMode ?? 'pr',
+      mergeMode,
       ...prFields,
     });
   }

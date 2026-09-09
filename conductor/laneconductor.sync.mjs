@@ -49,7 +49,9 @@ import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { parseJsonResponse } from './services/json-response.mjs';
 import { isProviderExhausted } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
-import { resolveWorktreeAddArgs } from './services/worktree-create-args.mjs';
+import { resolveWorktreeAddArgs, renderWorktreeAddCommand } from './services/worktree-create-args.mjs';
+import { probeWorktreeStartPoint, writeStaleBaseNotice } from './services/worktree-start-point.mjs';
+import { getMainBranch } from './services/main-branch.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
 import { classifyOrphanedDispatch } from './services/orphaned-dispatch.mjs';
@@ -4341,28 +4343,11 @@ function tailLog(logPath, lines = 100) {
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
 const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
 
-let cachedMainBranch = null;
-function getMainBranch() {
-  if (cachedMainBranch) return cachedMainBranch;
-  try {
-    const remotes = execSync('git remote show origin', { encoding: 'utf8', env: GIT_ENV });
-    const m = remotes.match(/HEAD branch: (.*)/);
-    if (m && m[1]) {
-      cachedMainBranch = m[1].trim();
-      return cachedMainBranch;
-    }
-  } catch (e) { }
-
-  try {
-    const branches = execSync('git branch -a', { encoding: 'utf8', env: GIT_ENV });
-    if (branches.includes('remotes/origin/main')) cachedMainBranch = 'main';
-    else if (branches.includes('remotes/origin/master')) cachedMainBranch = 'master';
-    else cachedMainBranch = 'master'; // fallback
-  } catch (e) {
-    cachedMainBranch = 'master';
-  }
-  return cachedMainBranch;
-}
+// Track 10050: moved verbatim to services/main-branch.mjs so
+// conductor/lock.mjs can share it instead of hardcoding `origin/main`, which
+// is simply wrong on a `master` repo. Same body, same GIT_ENV, same
+// process-lifetime cache — `git remote show origin` is a network call and
+// this sits on the git-lock path.
 
 async function checkAndClaimGitLock(trackNumber) {
   const lockDir = join(process.cwd(), '.conductor', 'locks');
@@ -4472,6 +4457,52 @@ function validatePathIsolation(trackNumber, proposedPath, projectRoot) {
   return sharedValidatePathIsolation(trackNumber, proposedPath, projectRoot ?? process.cwd());
 }
 
+// Track 10050: resolves what a genuinely NEW track branch should be based on.
+// All the git I/O lives here; the decision itself is the pure resolver in
+// services/worktree-start-point.mjs — read its header for the two live
+// defects this replaces (`HEAD` being both arbitrarily stale AND not
+// necessarily <main>) and, importantly, for why basing on origin/<main>
+// unconditionally is NOT the fix and would regress this repo.
+//
+// REQ-10: adds no network round-trip to the hot path. checkAndClaimGitLock()
+// runs `git fetch origin <main> --quiet` immediately before createWorktree(),
+// so the remote-tracking ref checkDivergence() reads is already fresh — it
+// re-fetches, but against an up-to-date remote that is a no-op.
+//
+// REQ-8: entirely best-effort. Any failure in here — unreachable origin,
+// missing remote, corrupt ref — degrades to the local <main> ref (or `HEAD`
+// when even that doesn't resolve) instead of throwing. A network outage must
+// never be the reason a track can't run.
+function resolveStartPointForWorktree(repoRoot) {
+  return probeWorktreeStartPoint({
+    repoRoot,
+    mainBranch: getMainBranch(),
+    autoPull: getGitConfig().auto_pull !== false,
+    log: msg => console.log(`[worktree] ${msg}`),
+  });
+}
+
+// Track 10050 (REQ-7): a knowingly-stale base used to be completely
+// invisible — the track found out at merge time, as conflicts. Announce it on
+// the track itself instead. Only ever fires for a positive `staleBy`:
+// `local-ahead` is this project's normal steady state and `offline`/
+// `probe-failed` genuinely don't know, so both stay silent rather than
+// crying wolf on every worktree creation.
+//
+// Writes the PRIMARY checkout's copy — conversation.md is deliberately
+// excluded from worktree->primary doc sync (see worktree-artifact-merge.mjs's
+// ARTIFACTS note), and only the primary's copy is watched into the DB.
+function postStaleBaseNotice(trackNumber, repoRoot, info, mainBranch) {
+  try {
+    const tracksDir = join(repoRoot, 'conductor', 'tracks');
+    const trackDir = resolveTrackFolder(tracksDir, trackNumber);
+    if (!trackDir) return;
+    writeStaleBaseNotice(join(tracksDir, trackDir, 'conversation.md'), info, mainBranch);
+  } catch (err) {
+    console.warn(`[worktree] Failed to post stale-base notice for track ${trackNumber}: ${err.message}`);
+  }
+}
+
 async function createWorktree(trackNumber) {
   // Resolve the PRIMARY checkout, not just process.cwd() — a worker's cwd
   // can itself be inside a linked worktree (e.g. running track 1112's own
@@ -4528,17 +4559,33 @@ async function createWorktree(trackNumber) {
       gitExec(`git rev-parse --verify --quiet "refs/heads/${branchName}"`, process.cwd());
       branchExists = true;
     } catch (e) { /* non-zero exit — branch doesn't exist, that's fine */ }
+    // Track 10050: the start point was the literal `HEAD` until now — see
+    // resolveStartPointForWorktree above and services/worktree-start-point.mjs.
+    // Resolved ONLY for a genuinely new branch: when the branch already
+    // exists, resolveWorktreeAddArgs ignores the start point entirely (track
+    // 1114 — a resumed branch must never be reset onto a fresher base, that
+    // was real data loss), so probing for one would be pure cost and would
+    // fast-forward local <main> as a side effect of a run that can't use it.
+    const startPointInfo = branchExists
+      ? { startPoint: 'HEAD', reason: 'existing-branch', staleBy: null }
+      : await resolveStartPointForWorktree(repoRoot);
+    if (!branchExists) {
+      console.log(`[worktree] Track ${trackNumber} branch based on ${startPointInfo.startPoint} (${startPointInfo.reason}` +
+        `${startPointInfo.staleBy > 0 ? `, ${startPointInfo.staleBy} commit(s) behind origin` : ''})`);
+    }
+
     // resolveWorktreeAddArgs owns the safety-critical decision (tested in
     // isolation — see track-1114-worktree-create-args.test.mjs); this just
     // renders its result into a quoted command matching this file's other
     // gitExec call sites.
-    const addArgs = resolveWorktreeAddArgs({ branchExists, branchName, worktreePath, startPoint: 'HEAD' });
-    gitExec(
-      addArgs.includes('-B')
-        ? `git worktree add -B "${branchName}" "${worktreePath}" HEAD`
-        : `git worktree add "${worktreePath}" "${branchName}"`,
-      process.cwd()
-    );
+    //
+    // Track 10050: render FROM addArgs. This used to re-build the command by
+    // hand and hardcode `HEAD` back into it, silently discarding whatever
+    // start point resolveWorktreeAddArgs had been given — a duplicate
+    // rendering that could (and did) disagree with the args it claimed to be
+    // rendering. Never reintroduce a second source of truth here.
+    const addArgs = resolveWorktreeAddArgs({ branchExists, branchName, worktreePath, startPoint: startPointInfo.startPoint });
+    gitExec(renderWorktreeAddCommand(addArgs), process.cwd());
 
     // Small delay to ensure OS filesystem catchup (especially on network mounts or slow disks)
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -4548,6 +4595,10 @@ async function createWorktree(trackNumber) {
     }
 
     console.log(`[worktree] Created worktree for track ${trackNumber} at ${worktreePath}`);
+
+    // Posted only after the worktree genuinely exists — warning about the
+    // base of a branch whose creation then failed would be noise.
+    postStaleBaseNotice(trackNumber, repoRoot, startPointInfo, getMainBranch());
 
     // Copy essential config files (which might be gitignored or uncommitted)
     // file_sync_queue.md is written by API/humans but never committed — copy so planning agents see it

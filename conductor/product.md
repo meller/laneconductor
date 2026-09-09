@@ -454,6 +454,30 @@ to main via `git merge --no-ff` (preserves history), then the worktree is
 removed. A `main`-mode track is already on main at `done:success` — there
 is no merge step.
 
+**Worktree base resolution (Track 10050)**
+
+When a genuinely new track branch is created (an existing branch, per
+track 1114 above, is always checked out as-is — never rebased onto a
+fresher base), its start point is resolved by
+`conductor/services/worktree-start-point.mjs`, not hardcoded to either
+`HEAD` or `origin/<main>`:
+
+| Local vs `origin/<main>` | Result | Why |
+|---|---|---|
+| behind, no local-only commits | `<main>`, fast-forwarded first | nothing lost, now fresh |
+| behind, fast-forward refused (dirty/disabled) | `origin/<main>` directly | still nothing lost |
+| ahead (this project's normal steady state) | local `<main>` | using `origin/<main>` would drop local-only commits |
+| diverged | local `<main>`, staleness reported on the track | neither side may be silently discarded |
+| offline / no local `<main>` ref | local `<main>`, or `HEAD` as a last resort | never blocks worktree creation |
+
+The intuitive fix — always base on `origin/<main>` — is wrong whenever
+local `<main>` carries commits `origin/<main>` doesn't have yet (this
+project routinely does: lane-action commits and unpushed merges
+accumulate on `main` between the periodic out-of-band sync's fetches).
+Basing on `origin/<main>` there would start a new track branch missing
+already-merged work. `conductor/lock.mjs` (the `/laneconductor lock`
+skill command) shares this same resolution.
+
 **The Worktrees Panel**
 
 A dedicated tab on the Kanban dashboard provides direct control and monitoring over active worktrees:

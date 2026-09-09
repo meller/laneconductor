@@ -19,6 +19,9 @@ import { execSync } from 'child_process';
 import { join } from 'path';
 import os from 'os';
 import { resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
+import { probeWorktreeStartPoint } from './services/worktree-start-point.mjs';
+import { resolveWorktreeAddArgs, renderWorktreeAddCommand } from './services/worktree-create-args.mjs';
+import { getMainBranch } from './services/main-branch.mjs';
 
 const trackNumber = process.argv[2];
 
@@ -35,6 +38,9 @@ const lockFile = join(lockDir, `${trackNumber}.lock`);
 // under the current one (.worktrees/1112/.worktrees/9998) instead of the
 // repo root's .worktrees/9998.
 const worktreePath = join(resolvePrimaryRepoRoot(cwd), '.worktrees', `${trackNumber}`);
+// Track 10050 (REQ-9): resolved, never hardcoded — `main` is simply wrong on
+// a `master` repo, and this file assumed it in three places.
+const mainBranch = getMainBranch(cwd);
 
 try {
   // Ensure .conductor/locks directory exists
@@ -42,7 +48,7 @@ try {
 
   // 1. Fetch latest locks from git
   try {
-    execSync('git fetch origin main --quiet', { cwd, stdio: 'pipe' });
+    execSync(`git fetch origin ${mainBranch} --quiet`, { cwd, stdio: 'pipe' });
   } catch (e) {
     console.warn(`[lock] git fetch failed: ${e.message}`);
   }
@@ -134,8 +140,38 @@ try {
     }
   }
 
+  // Track 10050 (REQ-9). This line used to be:
+  //     git worktree add "<path>" origin/main
+  // — three defects at once. It hardcoded `origin/main` (wrong on a `master`
+  // repo, and unconditionally basing on the remote ref discards local-only
+  // commits — see services/worktree-start-point.mjs's header for why that
+  // matters here); and, with no `-b`, it produced a DETACHED worktree, so
+  // anything committed during a `/laneconductor lock` session landed on no
+  // branch at all and was unreachable afterwards.
+  //
+  // Now shares the worker's own resolution: same start point, same branch
+  // naming, and the same track-1114 guarantee that an existing `track-N`
+  // branch is checked out as-is rather than reset.
+  const branchName = `track-${trackNumber}`;
+  let branchExists = false;
   try {
-    execSync(`git worktree add "${worktreePath}" origin/main`, { cwd, stdio: 'pipe' });
+    execSync(`git rev-parse --verify --quiet "refs/heads/${branchName}"`, { cwd, stdio: 'pipe' });
+    branchExists = true;
+  } catch (e) { /* non-zero exit — branch doesn't exist, that's fine */ }
+
+  const startPointInfo = branchExists
+    ? { startPoint: 'HEAD', reason: 'existing-branch', staleBy: null }
+    : await probeWorktreeStartPoint({
+      repoRoot: cwd,
+      mainBranch,
+      log: msg => console.warn(`[lock] ${msg}`),
+    });
+
+  try {
+    execSync(
+      renderWorktreeAddCommand(resolveWorktreeAddArgs({ branchExists, branchName, worktreePath, startPoint: startPointInfo.startPoint })),
+      { cwd, stdio: 'pipe' });
+    console.error(`[lock] Worktree on ${branchName}, based on ${startPointInfo.startPoint} (${startPointInfo.reason})`);
   } catch (e) {
     console.error(`[lock] Failed to create worktree: ${e.message}`);
     // Try to cleanup lock on failure
@@ -147,13 +183,6 @@ try {
       // Ignore cleanup errors
     }
     process.exit(1);
-  }
-
-  // 6. Fetch latest in worktree
-  try {
-    execSync('git fetch origin main --quiet', { cwd: worktreePath, stdio: 'pipe' });
-  } catch (e) {
-    console.warn(`[lock] git fetch in worktree failed: ${e.message}`);
   }
 
   // 7. Return result as JSON
