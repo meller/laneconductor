@@ -2,7 +2,7 @@
 
 **Lane**: quality-gate
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete — cloud deploy and live dashboard verification deferred to a human (see plan.md Tasks 2.5/6.6)
 **Type**: dev
