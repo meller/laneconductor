@@ -1,8 +1,8 @@
 # Track AM-10083: Lane action status transitions go local-only, letting the remote collector see a running track as still queued
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
 **Phase**: Implementation complete — cloud deploy and live dashboard verification deferred to a human (see plan.md Tasks 2.5/6.6)
 **Type**: dev

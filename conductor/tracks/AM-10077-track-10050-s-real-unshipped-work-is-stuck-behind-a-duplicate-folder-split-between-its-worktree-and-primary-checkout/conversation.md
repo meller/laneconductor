@@ -172,3 +172,15 @@
 > Before this merge could run, the primary checkout was found mid an unrelated, already-resolved-but-uncommitted merge for track 10079 (real conflicts in `ChatView.jsx` and its own index.md, fully resolved in the working tree already — 0 markers, `vite build` clean, 31/31 relevant tests green — but never staged/committed, presumably an interrupted prior merge run). Verified and completed that merge first (commit f37ef564) since git refuses a second merge while one is unresolved, and leaving it blocks every main-mode lane action project-wide, not just this one.
 >
 > Post-merge: all 30 tests across the four track-10050/10077 suites (`track-10050-worktree-start-point`, `track-10050-worktree-base-e2e`, `track-10050-lock-cli`, `track-10077-merge-mode-fallback`) pass against real `main`. `grep -rn "resolveWorktreeStartPoint\|probeWorktreeStartPoint" conductor/` confirms the port landed. Track 10050 closed out separately with its own supersession note and DB row corrected to `done:success`.
+
+> **system**: Session turn — local-fs-done (resumed session): PASS (exit 0).
+
+> **claude**: local-fs-done — closing response:
+> Track 10077's merge is complete and committed. Everything else in the working tree (`sync.mjs`/`workflow.json`/AM-10083's files/`ChatView.test.jsx`) belongs to other concurrently-running sessions (track 10083 actively editing shared worker files), which I've left untouched.
+> 
+> **Summary of what happened:**
+> 1. Found the primary checkout mid an unrelated, fully-resolved-but-uncommitted merge for track 10079 (interrupted before `git add`/commit) — verified the resolution (clean build, 31/31 tests) and completed it (`f37ef564`), since it was blocking every main-mode lane action, not just this one.
+> 2. Merged track 10077 (`b8a0a93b`), resolving one real bookkeeping conflict on its own `index.md`.
+> 3. Post-merge, all 30 tests across the four track-10050/10077 suites pass against real `main`, and `resolveWorktreeStartPoint`/`probeWorktreeStartPoint` are confirmed present in the primary checkout.
+> 4. Closed out track 10050: corrected its DB row and `index.md` from the false interim `done:queue` to `done:success` now that its code is genuinely on `main`, and recorded the supersession in its conversation log.
+> 5. Posted completion comments on both tracks (`fe2b1426`).
