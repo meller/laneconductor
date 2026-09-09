@@ -79,7 +79,7 @@ it does not.
       wins when supplied; a lane change with no explicit status resets to
       `queue` and clears the result; otherwise untouched) — mirrors the RULE,
       not the code shape (cloud's route doesn't carry the human/regression
-      guards the local route does; out of scope here, see F-3/AM-10084).
+      guards the local route does; out of scope here, see F-3/AM-10085).
 - [x] Task 2.3: Fixed — `laneChanging` no longer depends on whether the
       `lane_status` column itself is being written, so an explicit status
       with `lane_status: null` still applies (TC-2.4).
@@ -283,7 +283,7 @@ is now wrong.
       paragraph, covering the fan-out fix (RC-1/RC-2) and the claim-guard
       (RC-3), plus a cross-reference from "Related silent-failure tracks".
 - [x] Task 6.5: Filed as
-      [AM-10084](../AM-10084-post-track-field-parity-gap-on-cloud-collector/index.md),
+      [AM-10085](../AM-10085-post-track-field-parity-gap-on-cloud-collector/index.md),
       referenced from `spec.md`'s Non-Goals.
 - [ ] Task 6.6: **NOT DONE — requires human action**, and blocked on Task 2.5
       landing first (several acceptance criteria are specifically about what

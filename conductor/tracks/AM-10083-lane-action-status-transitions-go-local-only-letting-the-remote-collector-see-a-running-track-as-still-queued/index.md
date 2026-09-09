@@ -7,6 +7,7 @@
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — cloud deploy and live dashboard verification deferred to a human (see plan.md Tasks 2.5/6.6)
 **Type**: dev
+**Track Kind**: bug
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: The fast, in-process `lane_action_status: 'running'` write when a lane action starts is sent only to the primary (local) collector — the remote collector only learns about it via the slower,…

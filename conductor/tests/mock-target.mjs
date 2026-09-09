@@ -33,6 +33,7 @@ const DEFAULT_HEALTH_ROUTES = extractWorkerCalls(
 const state = {
   tracks: {},  // { [track_number]: { track_number, lane_status, lane_action_status, fail_count, ... } }
   workers: [], // [{ hostname, pid, worker_number, project_id, ... }] — every /worker/register call, in order
+  projectEnsureId: 1, // Track AM-10083 Phase 4: this instance's answer to POST /project/ensure — settable per mock via /_set-project-ensure-id
   claimable: null, // Track 1084 Phase 3: null = "not configured" (endpoint 500s, matching a real misconfigured server); an array = the claimable set /api/projects/:id/claimable-tracks returns
   nextWorkerId: 900, // arbitrary base so test worker ids don't collide with anything real
   dispatch: [], // Track 1085: [{ id, worker_id, track_number, action, payload, status, result }] — seeded via /_enqueue-dispatch
@@ -110,6 +111,19 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, { ok: true });
   }
 
+  // Track AM-10083 Phase 5: seed/merge arbitrary fields into a track row
+  // directly, without going through a real second worker or /tracks/claim-
+  // queue — lets a test put THIS collector into an arbitrary pre-existing
+  // state (e.g. "already running under some other claimant") before the
+  // worker under test ever talks to it.
+  if ((params = route('POST', '/_set-track', req)) !== null) {
+    const { track_number, ...fields } = body;
+    if (!track_number) return reply(res, 400, { error: 'track_number required' });
+    if (!state.tracks[track_number]) state.tracks[track_number] = { track_number, fail_count: 0 };
+    Object.assign(state.tracks[track_number], fields);
+    return reply(res, 200, { ok: true });
+  }
+
   // ── Collector handshake (Track 10061) ───────────────────────────────────────
   if ((params = route('GET', '/health', req)) !== null) {
     const cfg = state.healthConfig;
@@ -144,7 +158,16 @@ const server = createServer(async (req, res) => {
   // ── Startup ────────────────────────────────────────────────────────────────
   if ((params = route('POST', '/project/ensure', req)) !== null) {
     state.projectEnsureCalls++;
-    return reply(res, 200, { project_id: 1 });
+    return reply(res, 200, { project_id: state.projectEnsureId });
+  }
+
+  // Track AM-10083 Phase 4: lets a test give THIS mock instance its own
+  // distinct project id answer, so a two-collector test can prove a
+  // fan-out sends each collector the id it actually resolves rather than
+  // whichever collector's answer happened to be written last.
+  if ((params = route('POST', '/_set-project-ensure-id', req)) !== null) {
+    state.projectEnsureId = body.project_id;
+    return reply(res, 200, { ok: true });
   }
 
   if ((params = route('POST', '/worker/register', req)) !== null) {
@@ -352,7 +375,7 @@ const server = createServer(async (req, res) => {
 
   // ── Track upsert (called when chokidar picks up file changes) ─────────────
   if ((params = route('POST', '/track', req)) !== null) {
-    const { track_number, lane_status, lane_action_status, progress_percent } = body;
+    const { track_number, lane_status, lane_action_status, progress_percent, project_id } = body;
     if (!track_number) return reply(res, 400, { error: 'track_number required' });
     if (!state.tracks[track_number])
       state.tracks[track_number] = { track_number, lane_action_status: 'queue', fail_count: 0 };
@@ -360,6 +383,10 @@ const server = createServer(async (req, res) => {
     if (lane_status !== undefined) t.lane_status = lane_status;
     if (lane_action_status !== undefined) t.lane_action_status = lane_action_status;
     if (progress_percent !== undefined) t.progress_percent = progress_percent;
+    // Track AM-10083 Phase 4: captured so a test can prove a fan-out sent
+    // THIS collector its own resolved project id, not whichever collector's
+    // /project/ensure answer happened to be written last.
+    if (project_id !== undefined) t.project_id = project_id;
     return reply(res, 200, { ok: true });
   }
 
@@ -384,8 +411,21 @@ const server = createServer(async (req, res) => {
     for (const t of claimed) {
       t.lane_action_status = 'running';
       t.lane_action_result = 'claimed';
+      // Track AM-10083 Phase 5 (REQ-6): mirrors the real servers' own
+      // claimed_by write — auth-derived (the caller's own bearer token for
+      // THIS collector), never client body data.
+      t.claimed_by = bearerToken;
     }
     return reply(res, 200, { tracks: claimed });
+  }
+
+  // GET /track/:num — Track AM-10083 Phase 5: needed for the pre-spawn
+  // cross-collector check (REQ-6), which reads a track back from every
+  // non-primary collector before spawning.
+  if ((params = route('GET', '/track/:num', req)) !== null) {
+    const t = state.tracks[params.num];
+    if (!t) return reply(res, 404, { error: 'track not found' });
+    return reply(res, 200, { ...t, comments: [] });
   }
 
   // ── Action status update ───────────────────────────────────────────────────
@@ -399,7 +439,13 @@ const server = createServer(async (req, res) => {
       pr_number, pr_url, pr_status, merge_mode } = body;
     if (!state.tracks[num]) state.tracks[num] = { track_number: num, fail_count: 0 };
     const t = state.tracks[num];
-    if (lane_action_status !== undefined) t.lane_action_status = lane_action_status;
+    if (lane_action_status !== undefined) {
+      t.lane_action_status = lane_action_status;
+      // Track AM-10083 Phase 5 (REQ-6): mirrors the real servers' own rule
+      // — a 'running' write records the caller's own auth-derived identity;
+      // any other status releases the claim.
+      t.claimed_by = lane_action_status === 'running' ? bearerToken : null;
+    }
     if (lane_action_result !== undefined) t.lane_action_result = lane_action_result;
     if (lane_status !== undefined) t.lane_status = lane_status;
     if (progress_percent !== undefined) t.progress_percent = progress_percent;
@@ -508,6 +554,7 @@ const server = createServer(async (req, res) => {
     state.sessionsByToken = {};
     state.comments = [];
     state.projectEnsureCalls = 0;
+    state.projectEnsureId = 1;
     state.providerStatus = {};
     state.failRegister = false;
     state.failTrackActionCount = 0;

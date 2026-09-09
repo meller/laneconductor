@@ -194,6 +194,6 @@ on both collectors already.
 - Any change to the chokidar debounce or the sync concurrency gate. See F-2.
 - The wider `POST /track` field-parity gap on the cloud collector (F-3). It
   needs its own track, its own migration review, and its own tests. Filed as
-  [AM-10084](../AM-10084-post-track-field-parity-gap-on-cloud-collector/index.md).
+  [AM-10085](../AM-10085-post-track-field-parity-gap-on-cloud-collector/index.md).
 - A durable write-ahead log for collector writes. Track 10064 decided
   against this deliberately; the in-memory retry buffer is the mechanism.

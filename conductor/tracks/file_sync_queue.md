@@ -3,6 +3,15 @@
 
 ## Completed Queue
 
+### Track 10085: POST /track field-parity gap on the cloud collector
+**Status**: processed
+**Type**: track-create
+**Created**: 2026-09-08T00:00:00.000Z
+**Title**: POST /track field-parity gap on the cloud collector
+**Description**: The cloud collector's POST /track insert column list omits waiting_for_reply, auto_run, merge_mode, workspace_mode, log_content, model_override, and every KPI column the local collector persists — a wider version of the same collector-parity gap fixed for lane_action_status in track AM-10083. Filed as AM-10083's Phase 6 follow-up (spec.md Finding F-3 / Non-Goals). Originally numbered AM-10084; renumbered to AM-10085 during track-10083's merge after colliding with an independently-created AM-10084 already on main — see AM-10083's conversation.md.
+**Author**: AM
+**Metadata**: { "priority": "medium", "assignee": null }
+
 ### Track 1121: Mobile UX — focus-first board
 **Status**: processed
 **Type**: track-create

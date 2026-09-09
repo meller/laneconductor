@@ -3458,6 +3458,14 @@ app.patch('/track/:num/action', collectorAuth, async (req, res) => {
       params.push(lane_action_status);
       if (lane_action_status !== 'running') {
         sets.push(`claimed_by = NULL`);
+      } else {
+        // Track AM-10083 (REQ-6): mirrors /tracks/claim-queue's own
+        // claimed_by write, identified from auth (req.machine_token) —
+        // never from client body data — so a worker's pre-spawn
+        // cross-collector check can tell "I already claimed this here
+        // myself (via my own mirror)" apart from "a different worker has".
+        sets.push(`claimed_by = $${i++}`);
+        params.push(req.machine_token || null);
       }
       // Track 10055: leaving `waiting` for any other status retires the
       // reason, unless this same request supplies a new one below. A reason
