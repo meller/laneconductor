@@ -61,6 +61,9 @@ CREATE TABLE "projects" (
     "mode" TEXT DEFAULT 'local-fs',
     "workspace_id" UUID,
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "file_manifest" JSONB,
+    "file_manifest_digest" TEXT,
+    "file_manifest_updated_at" TIMESTAMP(6),
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
 );

@@ -71,6 +71,9 @@ model projects {
   mode                String?           @default("local-fs")
   workspace_id        String?           @db.Uuid
   created_at          DateTime?         @default(now()) @db.Timestamp(6)
+  file_manifest       Json? // Track 10080: worker-pushed tracked-file list, fallback for GET /api/projects/:id/files when repo_path isn't reachable from the API host
+  file_manifest_digest String?          // sha256 of the manifest last successfully sent — lets the worker push only on change
+  file_manifest_updated_at DateTime?    @db.Timestamp(6)
   workspaces          workspaces?       @relation(fields: [workspace_id], references: [id], onUpdate: NoAction)
   file_sync_queue     file_sync_queue[]
   project_members     project_members[]

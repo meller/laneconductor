@@ -391,6 +391,7 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
               liveAction={runLiveness.action}
               awaitingReply={awaitingReply}
               messageContextPrefix={messageContextPrefix}
+              tracks={tracks}
             />
           </>
         )}

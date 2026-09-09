@@ -4,8 +4,10 @@
 **Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planned — 6 phases (0-5), verified against codebase
 **Type**: dev
+**Track Kind**: feature
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Implement rich autocomplete in the Chat composer for @file mentions, @track references, and /laneconductor commands, backed by worker filesystem metadata sync.

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApi } from '../hooks/useApi.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { useComposerAutocomplete } from '../lib/useComposerAutocomplete.js';
+import { AutocompleteMenu } from './AutocompleteMenu.jsx';
 
 // Track 10037 Phase 3 Task 3: posts through the SAME endpoint the
 // Conversation tab uses (POST .../comments, author: 'human') — not a new
@@ -35,13 +37,24 @@ export function TrackChatComposer({
   liveAction = null,
   awaitingReply = false,
   messageContextPrefix = null,
+  tracks = [],
 }) {
   const { apiFetch } = useApi();
   const [value, setValue] = useState('');
+  const [caret, setCaret] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const [queuedState, setQueuedState] = useState({ isQueued: false, action: null });
-  const textareaRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Track 10080: trigger detection, item sources and keyboard navigation
+  // for @file / #track / /command completion — see spec.md's trigger
+  // grammar. The menu renders above the field only while a trigger is
+  // active; the field keeps its existing test ids. It is a <textarea>
+  // rather than the <input> 10080 was written against (see the auto-grow
+  // note below) — the autocomplete only ever reads `value`/`caret` and
+  // calls setSelectionRange, all of which a textarea supports identically.
+  const autocomplete = useComposerAutocomplete({ value, caret, projectId, tracks, apiFetch });
 
   // A single-line <input> made anything longer than a short sentence
   // unusable — found live pasting a multi-page PRD in, which just scrolled
@@ -49,7 +62,7 @@ export function TrackChatComposer({
   // height (then scroll internally) so short messages stay compact but long
   // pastes are actually readable before sending.
   useEffect(() => {
-    const el = textareaRef.current;
+    const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
@@ -74,8 +87,7 @@ export function TrackChatComposer({
 
   const isDisabled = disabled || !projectId || !trackNumber;
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function sendMessage() {
     const typed = value.trim();
     if (!typed || isDisabled || sending) return;
     // Only the manager's chat sets this (ChatView) — its conversation lives
@@ -97,7 +109,8 @@ export function TrackChatComposer({
       if (!res.ok) throw new Error((await res.text()) || 'Failed to send message');
       const comment = await res.json();
       setValue('');
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      setCaret(0);
+      if (inputRef.current) inputRef.current.style.height = 'auto';
       if (wasLiveWhenSent) {
         setQueuedState({ isQueued: true, action: actionWhenSent || 'turn' });
       }
@@ -106,6 +119,52 @@ export function TrackChatComposer({
       setError(err.message);
     } finally {
       setSending(false);
+    }
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    sendMessage();
+  }
+
+  function updateCaretFromEvent(e) {
+    setCaret(e.target.selectionStart ?? e.target.value.length);
+  }
+
+  function handleChange(e) {
+    setValue(e.target.value);
+    updateCaretFromEvent(e);
+  }
+
+  // Applies an accepted completion (from Enter/Tab or a menu-item click):
+  // updates the controlled value/caret state, then moves the real DOM
+  // caret once React has re-rendered the field with the new value — a
+  // plain setCaret alone only tracks OUR notion of the caret for trigger
+  // detection, it doesn't move the browser's actual cursor.
+  function acceptCompletion(index) {
+    const result = autocomplete.accept(index);
+    if (!result) return;
+    setValue(result.value);
+    setCaret(result.caret);
+    requestAnimationFrame(() => {
+      inputRef.current?.setSelectionRange(result.caret, result.caret);
+    });
+  }
+
+  // REQ-17/REQ-18: while a menu is open, arrows/Enter/Tab/Escape are
+  // handled by the menu and must not fall through to normal composer
+  // behaviour (submitting, moving focus to Send). When no menu is open,
+  // Enter sends (matches every chat app users already know) and
+  // Shift+Enter inserts a newline for anything multi-paragraph.
+  function handleKeyDown(e) {
+    const handledByMenu = autocomplete.onKeyDown(e);
+    if (handledByMenu) {
+      if (e.key === 'Enter' || e.key === 'Tab') acceptCompletion();
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
     }
   }
 
@@ -118,20 +177,23 @@ export function TrackChatComposer({
 
   return (
     <div className="p-3 border-t border-gray-800 bg-gray-900/50 shrink-0">
+      {!isDisabled && autocomplete.isOpen && (
+        <AutocompleteMenu
+          items={autocomplete.items}
+          activeIndex={autocomplete.activeIndex}
+          onSelect={acceptCompletion}
+          emptyReason={autocomplete.emptyReason}
+          kind={autocomplete.kind}
+        />
+      )}
       <form onSubmit={handleSubmit} className="flex gap-2 items-end">
         <textarea
-          ref={textareaRef}
+          ref={inputRef}
           rows={3}
           value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => {
-            // Enter sends (matches every chat app users already know);
-            // Shift+Enter inserts a newline for anything multi-paragraph.
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.form?.requestSubmit();
-            }
-          }}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onClick={updateCaretFromEvent}
           placeholder={isDisabled ? (disabledHint || 'No track context to talk about') : (placeholder || 'Message the worker… (Shift+Enter for a new line)')}
           disabled={isDisabled || sending}
           data-testid="worker-chat-input"

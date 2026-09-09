@@ -33,6 +33,7 @@ import { META_PROJECT_NAME, META_PROJECT_REPO_PATH, ensureMetaProjectOnDisk } fr
 import { parseConversationComments } from '../../conductor/sync-conversation-utils.mjs';
 import { isPidAlive, readProcessCommand } from '../../conductor/services/run-marker.mjs';
 import { abortRun } from '../../conductor/services/run-abort.mjs';
+import { fuzzyScore } from '../../conductor/services/fuzzy-match.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
 if (process.env.NODE_ENV === 'test' || process.env.PW_TEST_MODE === 'true') {
@@ -553,6 +554,136 @@ app.get('/api/projects/:id/worktrees', async (req, res) => {
   try {
     const { rows } = await fetchWorktreeRows(req.params.id);
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10080 (REQ-1..REQ-6): file path autocomplete for the Chat composer.
+// The browser has no filesystem access — especially in remote-api mode,
+// where the machine serving the UI is not the machine holding the
+// repository — so this is the only source of "what files exist" the
+// composer can query.
+//
+// Source tiering (spec.md "Data source tiering"): disk (git ls-files in
+// repo_path, when present on THIS host) → projects.file_manifest (a
+// worker-pushed manifest, Phase 4) → empty. `none` is a normal outcome,
+// not an error (REQ-6) — a directory that exists but isn't a git repo
+// falls through to the manifest tier exactly like a missing repo_path
+// would, rather than reporting a hard failure.
+const FILES_DISK_CACHE_TTL_MS = 30_000;
+const FILES_MANIFEST_CAP = 20_000;
+const filesDiskCache = new Map(); // projectId -> { files: string[], timestamp: number }
+const filesDiskInflight = new Map(); // projectId -> Promise<string[]>
+
+async function readTrackedFiles(repoPath) {
+  const { stdout } = await execFileAsync('git', ['ls-files', '-z'], {
+    cwd: repoPath,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  return stdout.split('\0').filter(Boolean);
+}
+
+// Per-project TTL cache with an in-flight promise map (REQ-2) — a cache
+// miss runs `git ls-files` once; concurrent misses share that one
+// invocation rather than each starting their own.
+async function getCachedTrackedFiles(projectId, repoPath) {
+  const cached = filesDiskCache.get(projectId);
+  if (cached && (Date.now() - cached.timestamp) < FILES_DISK_CACHE_TTL_MS) {
+    return cached.files;
+  }
+  if (filesDiskInflight.has(projectId)) {
+    return filesDiskInflight.get(projectId);
+  }
+  const promise = readTrackedFiles(repoPath)
+    .then(files => {
+      filesDiskCache.set(projectId, { files, timestamp: Date.now() });
+      return files;
+    })
+    .finally(() => {
+      filesDiskInflight.delete(projectId);
+    });
+  filesDiskInflight.set(projectId, promise);
+  return promise;
+}
+
+async function resolveProjectFileManifest(project) {
+  const now = Date.now();
+
+  if (project.repo_path && existsSync(project.repo_path)) {
+    try {
+      const files = await getCachedTrackedFiles(project.id, project.repo_path);
+      return { files, source: 'disk', updatedAtMs: now };
+    } catch {
+      // Not a git repo (or `git` itself failed) — fall through to the
+      // worker-manifest tier exactly as an absent repo_path would (REQ-6).
+    }
+  }
+
+  if (Array.isArray(project.file_manifest) && project.file_manifest.length > 0) {
+    const updatedAtMs = project.file_manifest_updated_at
+      ? new Date(project.file_manifest_updated_at).getTime()
+      : now;
+    return { files: project.file_manifest, source: 'worker', updatedAtMs };
+  }
+
+  return { files: [], source: 'none', updatedAtMs: now };
+}
+
+// Ranks `files` against `q`, mirroring fuzzyRank's own descending-score /
+// ascending-string tie-break, but attaching each match's score to the
+// result (fuzzyRank's generic candidate-sorting contract doesn't return
+// scores, since most callers don't need them).
+function rankFilePaths(files, query, limit) {
+  if (!query) {
+    return files.slice(0, limit).map(path => ({ path, score: null }));
+  }
+  const scored = [];
+  for (const path of files) {
+    const score = fuzzyScore(path, query);
+    if (score !== null) scored.push({ path, score });
+  }
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+  });
+  return scored.slice(0, limit);
+}
+
+app.get('/api/projects/:id/files', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, repo_path, file_manifest, file_manifest_updated_at FROM projects WHERE id = $1',
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    const project = rows[0];
+
+    // REQ-4: neither an oversized `q` nor an out-of-range `limit` is an
+    // error — both are silently clamped.
+    let q = typeof req.query.q === 'string' ? req.query.q : '';
+    if (q.length > 128) q = q.slice(0, 128);
+
+    let limit = parseInt(req.query.limit, 10);
+    if (!Number.isFinite(limit) || limit <= 0) limit = 20;
+    limit = Math.min(limit, 100);
+
+    let { files, source, updatedAtMs } = await resolveProjectFileManifest(project);
+    let truncated = false;
+    if (files.length > FILES_MANIFEST_CAP) {
+      files = files.slice(0, FILES_MANIFEST_CAP);
+      truncated = true;
+    }
+
+    const ranked = rankFilePaths(files, q, limit);
+
+    res.json({
+      files: ranked,
+      source,
+      total: files.length,
+      truncated,
+      age_seconds: Math.max(0, Math.round((Date.now() - updatedAtMs) / 1000)),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4328,6 +4459,37 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
       return res.status(404).json({ error: 'worker not registered (no matching row) — re-register' });
     }
     broadcast('worker:updated', { projectId });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 10080 (REQ-8, REQ-11): the worker-pushed fallback manifest GET
+// /api/projects/:id/files serves when repo_path isn't reachable from the
+// API host. Deliberately its own endpoint rather than a heartbeat field —
+// the heartbeat fires every 10s and a file list is orders of magnitude
+// larger than the worktree summary that pattern was built for, so this is
+// pushed only when the worker's own digest check finds a change (REQ-7).
+// Guarded by collectorAuth exactly like /worker/heartbeat.
+app.patch('/worker/file-manifest', collectorAuth, async (req, res) => {
+  try {
+    const projectId = 'project_id' in req.body
+      ? (req.body.project_id ? parseInt(req.body.project_id) : null)
+      : req.worker_project_id;
+    if (!projectId) return res.status(400).json({ error: 'project_id required' });
+
+    const { files, digest } = req.body;
+    // REQ-11: an absent `files` key leaves the stored manifest untouched,
+    // mirroring the `worktrees !== undefined` guard on /worker/heartbeat —
+    // never overwrite a good manifest with null just because a caller sent
+    // a malformed or partial body.
+    if (files === undefined) return res.json({ ok: true });
+
+    await pool.query(
+      `UPDATE projects SET file_manifest = $2, file_manifest_digest = $3, file_manifest_updated_at = NOW() WHERE id = $1`,
+      [projectId, JSON.stringify(files), digest ?? null]
+    );
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
