@@ -34,6 +34,7 @@ export function TrackChatComposer({
   isLiveTurn = false,
   liveAction = null,
   awaitingReply = false,
+  messageContextPrefix = null,
 }) {
   const { apiFetch } = useApi();
   const [value, setValue] = useState('');
@@ -75,8 +76,15 @@ export function TrackChatComposer({
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const body = value.trim();
-    if (!body || isDisabled || sending) return;
+    const typed = value.trim();
+    if (!typed || isDisabled || sending) return;
+    // Only the manager's chat sets this (ChatView) — its conversation lives
+    // in one fixed project regardless of what's selected in the picker, so
+    // a message like "track 1000 needs a fix" is otherwise ambiguous the
+    // moment more than one project has a track 1000. Sent as part of the
+    // actual message (not sidechannel metadata) so it's visible in the
+    // transcript, not silently added to what the manager sees.
+    const body = messageContextPrefix ? `${messageContextPrefix}\n${typed}` : typed;
     const wasLiveWhenSent = isLiveTurn;
     const actionWhenSent = liveAction;
     setSending(true);

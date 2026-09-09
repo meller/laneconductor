@@ -683,6 +683,7 @@ function AppContent({ user, logout }) {
             pendingSeed={chatSeed}
             onSeedConsumed={() => setChatSeed(null)}
             targetProjectIdOverride={chatHomeProjectId}
+            viewedProjectName={selectedProject?.name}
           />
         ) : viewMode === 'worktrees' ? (
           <WorktreesPanel projectId={selectedProjectId} onSelectTrack={handleInboxSelect} onGoToWorkers={() => setViewMode('workers')} highlightTrack={worktreeHighlightTrack} />

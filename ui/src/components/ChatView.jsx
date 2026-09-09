@@ -55,7 +55,7 @@ export function targetLabel(worker, tracks = []) {
 
 const DEFAULT_PAGE_SIZE = 30;
 
-export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = null, onSeedConsumed, targetProjectIdOverride = null }) {
+export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = null, onSeedConsumed, targetProjectIdOverride = null, viewedProjectName = null }) {
   const { apiFetch } = useApi();
   const [gaps, setGaps] = useState([]);
   const [advisoryDismissed, setAdvisoryDismissed] = useState(false);
@@ -136,6 +136,19 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
 
   const { blocks, turn, rawLog } = useTrackTranscript(chatTarget?.projectId, chatTarget?.trackNumber);
   const { comments, setComments } = useTrackComments(chatTarget?.projectId, chatTarget?.trackNumber);
+
+  // The manager's conversation always lives in the meta project now (see
+  // chatTarget above) — its dispatched reply turn only ever reads that one
+  // conversation.md plus a generic instance-wide digest, with no notion of
+  // "the human is currently looking at project X in the browser." Typing
+  // something project-relative in here (e.g. "track 1000 needs...") is
+  // otherwise ambiguous the instant more than one project has a track 1000.
+  // A regular (non-manager) worker's chat doesn't need this — its target is
+  // already that worker's own actual project, so there's nothing ambiguous
+  // to disambiguate.
+  const messageContextPrefix = selectedWorker?.type === 'manager' && viewedProjectName
+    ? `[Currently viewing project "${viewedProjectName}" in the UI]`
+    : null;
 
   // Track 1091 Phase 7: "Create with chat" seeds an opening message once a
   // target (the manager, by REQ-3's own default-selection effect above) is
@@ -334,6 +347,7 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
               isLiveTurn={runLiveness.isLive}
               liveAction={runLiveness.action}
               awaitingReply={awaitingReply}
+              messageContextPrefix={messageContextPrefix}
             />
           </>
         )}
