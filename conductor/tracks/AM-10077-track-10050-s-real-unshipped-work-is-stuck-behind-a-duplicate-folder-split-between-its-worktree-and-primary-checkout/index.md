@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — all 4 phases done
 **Type**: dev
 **Track Kind**: bug
