@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implemented — Phases 1-5 built and verified; Phase 6 (remote abort) deliberately deferred, reported as 501

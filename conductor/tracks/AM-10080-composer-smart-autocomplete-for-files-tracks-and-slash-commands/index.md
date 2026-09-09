@@ -2,7 +2,7 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planned — 6 phases (0-5), verified against codebase
