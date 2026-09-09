@@ -309,3 +309,7 @@ Both are called out above with what a human needs to do next.
 ## ✅ REVIEWED
 
 Review passed 2026-09-09. Code re-checked directly (SQL param alignment, claimed_by/ownMachineTokens consistency, claim-guard ordering) and 4 new test suites + Jest suite + both 10064 regression suites re-run and confirmed green; cloud-route-parity's single failure re-confirmed as the pre-existing unrelated gap. One new non-blocking finding recorded in conversation.md: conductor/deployment-stack.md claims Cloud Functions are decommissioned, contradicting this track's own live evidence of an active remote collector — flag for whoever runs the deferred Task 2.5 deploy. Moved to quality-gate.
+
+## ✅ QUALITY PASSED
+
+Quality gate passed 2026-09-09. Full worker suite (1083 tests) and UI/server suite (851 tests) both re-run fresh; every failure traced to a specific pre-existing cause (worktree-test-redirect hazard, or byte-for-byte identical against the pre-track baseline via a controlled file-swap) rather than assumed. Two real process leaks from this run (7 from the worker suite, 1 from vitest) were found and killed. Stub scan and acceptance-criteria review clean. Tasks 2.5/6.6 remain correctly deferred to a human (production deploy + live dashboard check) — judged as non-blocking for done-gate since the shipped fix itself is real and end-to-end tested, not stubbed. Moved to done:queue for merge.
