@@ -1,7 +1,7 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: done
-**Lane Status**: waiting
+**Lane Status**: running
 **Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
