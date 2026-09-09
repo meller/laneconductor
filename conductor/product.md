@@ -190,6 +190,33 @@ what a payload's *fields* mean (RC-2), and a fast local write not reaching
 a non-primary collector promptly (RC-1) — described in the two paragraphs
 above.
 
+**A track parked at `<lane>:waiting` only self-clears when its blocker is
+mechanically checkable, and only for the dependency case (Track AM-10086).**
+The worker already runs two periodic reconcilers on the same cadence
+(`RECONCILE_INTERVAL_MS`, default 60s) as a self-healing pattern for a
+condition that resolves *outside* the system and would otherwise sit
+unnoticed forever: `reconcileWorktrees()` catches a `done:success` track
+whose branch never actually got merged, and `reconcilePrTracks()` polls a
+pr-mode merge's open GitHub PR and closes the loop once it's merged or
+flags it once it conflicts. `reconcileParkedDependencyTracks()` is the third
+member of that family — a track parked at `<lane>:waiting` (Track 10055's
+"nothing claims this until a human resumes it" contract) whose park is
+attributable to named track dependencies (via `**Waiting On Tracks**`, or
+`**Depends On**` plus a `**Waiting Reason**` that actually names one of
+those numbers) is moved back to `queue` automatically once every one of
+those dependencies reaches `done` **and** `lane_action_status: success` —
+deliberately stricter than `done` alone, since `done:queue` only means
+"quality-gated, not yet merged" (Track 10035) and treating that as
+satisfied would resume a park whose stated blocker is still literally true.
+Every other park — an approval request, a genuine question, a `**Depends
+On**` present but not what the park is actually about — is left exactly as
+it is; this is deliberately narrower than "auto-resume anything parked,"
+not a general escape hatch from Track 10055's human-in-the-loop contract.
+See `conductor/services/dependency-resume.mjs` for the full attribution and
+eligibility rule, and its own header comment for why `autoLaunchLocalFs`'s
+existing `**Depends On**` queue-gate (Track AM-1119 Phase 3) is a
+deliberately separate, looser check this reconciler does not touch.
+
 ## Feature Availability — Skill-Only vs Worker Modes
 
 "Skill-only" means no worker process at all: an AI session (Claude Desktop, an

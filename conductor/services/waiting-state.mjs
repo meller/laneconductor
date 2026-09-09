@@ -17,7 +17,12 @@
 // it can be unit tested without importing laneconductor.sync.mjs (which runs
 // chokidar watchers and setIntervals at import time).
 
-const MARKER_RE = /\*\*Waiting Reason\*\*:[ \t]*([^\n]*)/i;
+// Track AM-10086 (REQ-10): line-anchored, matching MARKER_LINE_RE's existing
+// anchoring below — the pair used to disagree about what a marker is.
+// Unanchored, this matched `**Waiting Reason**` quoted anywhere in prose
+// (found live on Track AM-10086's own index.md, describing this exact
+// incident), not just a real marker line.
+const MARKER_RE = /^[ \t]*\*\*Waiting Reason\*\*:[ \t]*([^\n]*)$/im;
 // Matches the whole line including its newline, for removal.
 const MARKER_LINE_RE = /^[ \t]*\*\*Waiting Reason\*\*:[^\n]*\n?/im;
 

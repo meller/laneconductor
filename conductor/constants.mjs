@@ -22,6 +22,18 @@ export const LaneActionStatus = {
   // "This lane action stopped on purpose and cannot continue until a human
   // does something. No worker will claim it until a human resumes it."
   //
+  // Track AM-10086 narrows that "until a human resumes it" claim for one
+  // specific case: a park attributable to named track dependencies (via
+  // `**Waiting On Tracks**`, or `**Depends On**` plus a `**Waiting
+  // Reason**` that actually names one of them) is resumed automatically,
+  // with no human action, once every one of those dependencies reaches
+  // `done` AND `success` — see reconcileParkedDependencyTracks() in
+  // laneconductor.sync.mjs and conductor/services/dependency-resume.mjs.
+  // Every OTHER park (an approval request, a genuine question, a park not
+  // attributable to a dependency) still needs a human exactly as before —
+  // this is a narrow, mechanically-verifiable exception, not a general
+  // loosening of the contract below.
+  //
   // Track 10055 generalized this to EVERY lane. It is deliberately narrower
   // than a bare terminal status: not "nothing left to do", but "nothing left
   // for a WORKER to do" — a track sitting here is exactly the case a human

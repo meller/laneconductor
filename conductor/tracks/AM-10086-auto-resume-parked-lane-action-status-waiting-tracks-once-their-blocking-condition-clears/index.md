@@ -1,10 +1,10 @@
 # Track AM-10086: Auto-resume parked (lane_action_status: waiting) tracks once their blocking condition clears
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planned
+**Phase**: Implemented
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
