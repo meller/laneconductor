@@ -1,8 +1,8 @@
 # Track AM-10081: Track 10067's merge is blocked by a 243-file no-common-ancestor diff spanning the shared laneconductor.sync.mjs core
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Phase 1: Reconcile 10067

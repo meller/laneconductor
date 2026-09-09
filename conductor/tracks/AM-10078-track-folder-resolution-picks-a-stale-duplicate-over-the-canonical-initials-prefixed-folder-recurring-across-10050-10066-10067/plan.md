@@ -138,6 +138,14 @@ recur; the remediation has to be a reviewable script.
 
 **Impact**: The repo reaches a clean state that Phases 1-4 keep clean.
 
+## ❌ QUALITY GATE FAILED
+
+Mandatory regression test `conductor/tests/track-10078-folder-resolution.test.mjs`
+(Task 6.1) does not exist. Task 2.3 (UI endpoint) remains unconverted. Phases 3–5
+unimplemented. See `conversation.md` for the full quality-gate write-up. Routed to
+`plan:queue` per `workflow.json`'s `quality-gate.on_failure` — resume at Task 2.3,
+this is an implementation gap, not a planning defect.
+
 ## ⚠️ Gaps from Review
 
 **Blocking**: Task 2.3 — UI `/track-create` endpoint still writes bare `<n>-slug` instead of canonical INITIALS-NNN-slug. This is the primary duplicate-creation mechanism REQ-1 aims to fix. The endpoint must be updated to:
