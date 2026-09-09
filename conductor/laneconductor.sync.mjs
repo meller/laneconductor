@@ -5038,6 +5038,19 @@ function isLockLive(lockPath) {
 // mechanism's job (see checkAndPullDivergence below), not this function's.
 // Tolerates `gh` transient failures by simply leaving state untouched
 // (pollTrackPr/resolvePrStatus both return null on failure — see TC-3.5).
+//
+// Deliberately does NOT gate on the track's CURRENT **Merge Mode** marker
+// being 'pr' — merge_mode reflects how a track's NEXT merge will behave,
+// not whether it has a PAST PR that still needs reconciling. Found live: a
+// track whose PR opened while merge_mode was 'pr', then had merge_mode
+// later set to 'direct' (e.g. after the tool's own default changed), was
+// permanently invisible to this function from that point on — its
+// **PR Status** marker (and pr_status column) stayed 'open' forever even
+// after the PR was actually merged on GitHub, showing a false "PR OPEN"
+// badge on an already-finished track indefinitely. The prNumberMatch/
+// terminal-status checks below already correctly skip everything that
+// doesn't need polling; gating on merge_mode too only excluded tracks that
+// DID still need it.
 async function reconcilePrTracks() {
   const tracksDir = join(process.cwd(), 'conductor', 'tracks');
   if (!existsSync(tracksDir)) return;
@@ -5061,7 +5074,6 @@ async function reconcilePrTracks() {
 
     let content;
     try { content = readFileSync(indexPath, 'utf8'); } catch { continue; }
-    if (resolveMergeMode({ merge_mode: parseMergeModeMarker(content) }) !== 'pr') continue;
 
     const prNumberMatch = content.match(/\*\*PR Number\*\*:\s*(\d+)/i);
     if (!prNumberMatch) {
