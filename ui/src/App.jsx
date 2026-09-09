@@ -65,7 +65,21 @@ function sortTracks(tracks, sortBy, sortDir) {
     }
     return String(a.track_number).localeCompare(String(b.track_number), undefined, { numeric: true });
   });
-  return sortDir === 'desc' ? sorted.reverse() : sorted;
+  const dirSorted = sortDir === 'desc' ? sorted.reverse() : sorted;
+  // A track needing a human needs to be seen, regardless of its track
+  // number or age — found live: a low-numbered track stuck at
+  // lane_action_status 'waiting' sat buried under a long run of newer
+  // cards in its lane and went unnoticed. Two distinct, uncorrelated
+  // signals both mean "needs a human right now" (confirmed against the
+  // DB — tracks with lane_action_status='waiting' do NOT also carry
+  // waiting_for_reply=true, so checking only one would miss the other):
+  // waiting_for_reply (an unanswered chat comment) and lane_action_status
+  // === 'waiting' (the lane action itself is blocked pending input).
+  // A second stable sort (native Array#sort is stable) on top of the
+  // chosen ordering keeps that ordering intact within each group while
+  // always floating either kind to the front of its lane.
+  const needsHuman = (t) => t.waiting_for_reply || t.lane_action_status === 'waiting';
+  return [...dirSorted].sort((a, b) => (needsHuman(b) ? 1 : 0) - (needsHuman(a) ? 1 : 0));
 }
 
 export default function App() {

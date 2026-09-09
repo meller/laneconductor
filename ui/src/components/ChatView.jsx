@@ -98,15 +98,20 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
   const selectedWorker = targets.find(w => w.id === selectedId) ?? null;
 
   // Track 1091 Phase 7: the manager's pseudo-track conversation lives inside
-  // a project's own repo, so picking "Manager" from the plain Chat tab with
-  // no project selected (or none existing) hit the exact same dead end
-  // "Create with chat" did — resolveWorkerChatTarget had no project to
-  // scope the conversation to and silently gave up ("No track to talk
-  // about"). Rather than requiring every entry point to know about the meta
-  // project, fall back to it here, once, whenever the manager is selected
-  // and nothing else supplies a project id.
+  // ONE fixed repo (the meta project) — the manager itself is a single,
+  // project-independent entity (project_id: null), not "per project", so
+  // its conversation must be the same regardless of which project happens
+  // to be selected in the picker. Originally this fallback only kicked in
+  // when NO project was selected at all, which fixed the plain-Chat-tab
+  // dead end but left a worse bug: picking Manager while a REAL project was
+  // selected silently pointed resolveWorkerChatTarget at that project's own
+  // repo (which has no conductor/tracks/manager/ folder at all), showing an
+  // empty transcript with no error. Now the meta-project fallback applies
+  // whenever the manager is selected, full stop — `projectId` (whatever's
+  // selected in the picker) is never used for the manager, only for every
+  // other, genuinely per-project worker.
   const [metaFallbackId, setMetaFallbackId] = useState(null);
-  const needsMetaFallback = selectedWorker?.type === 'manager' && targetProjectIdOverride == null && projectId == null;
+  const needsMetaFallback = selectedWorker?.type === 'manager' && targetProjectIdOverride == null;
   useEffect(() => {
     if (!needsMetaFallback || metaFallbackId != null) return;
     let cancelled = false;
@@ -117,12 +122,16 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
     return () => { cancelled = true; };
   }, [needsMetaFallback, metaFallbackId, apiFetch]);
 
-  // Track 1091 Phase 7: "Create with chat" pins the manager's pseudo-track
-  // conversation to the dedicated meta project (App.jsx) regardless of
-  // whatever project is actually selected (or none, "All Projects") — the
-  // override wins over the normal fallback whenever it's set.
+  // Track 1091 Phase 7: the manager always resolves against the meta
+  // project (or an explicit override, e.g. "Create with chat" — which
+  // happens to point at the same meta project anyway) regardless of
+  // whatever real project is selected in the picker; every other worker
+  // keeps using the selected project as before.
   const chatTarget = selectedWorker
-    ? resolveWorkerChatTarget(selectedWorker, targetProjectIdOverride ?? projectId ?? metaFallbackId)
+    ? resolveWorkerChatTarget(
+        selectedWorker,
+        selectedWorker.type === 'manager' ? (targetProjectIdOverride ?? metaFallbackId) : (targetProjectIdOverride ?? projectId)
+      )
     : null;
 
   const { blocks, turn, rawLog } = useTrackTranscript(chatTarget?.projectId, chatTarget?.trackNumber);

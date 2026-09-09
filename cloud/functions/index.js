@@ -554,11 +554,20 @@ app.post('/auth/token', async (req, res) => {
 
 app.get('/api/projects', auth, async (req, res) => {
   try {
-    // pool via query() wrapper
+    // Track 1091 Phase 7: every manager registers a "LaneConductor Meta"
+    // project on every configured collector (this cloud one included) as a
+    // home for its own chat conversation — it's an internal implementation
+    // detail, not a project a user ever chose to create, so it must never
+    // show up in a project picker. The local API server's own /api/projects
+    // (ui/server/index.mjs) excludes it by importing the shared
+    // META_PROJECT_NAME constant; this cloud function is a separate,
+    // self-contained deployment with no path to that module, so the name is
+    // duplicated here as a literal — found live on app.laneconductor.com's
+    // own project dropdown, which has no other filtering mechanism at all.
     const result = await query(
       `SELECT id, name, repo_path, git_remote, git_global_id, primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, created_at
          FROM projects
-         WHERE workspace_id = $1
+         WHERE workspace_id = $1 AND name != 'LaneConductor Meta'
          ORDER BY name`,
       [req.workspace_id]
     );
@@ -1271,17 +1280,28 @@ app.post('/track/:num/comment', auth, checkProject, async (req, res) => {
   }
 });
 
-// Worker heartbeat
+// Worker heartbeat (legacy route — the real worker only calls PATCH
+// /worker/heartbeat; kept in sync anyway rather than left silently broken)
 app.post('/heartbeat', auth, checkProject, async (req, res) => {
   try {
     const { worker_id, pid, mode } = req.body;
+    // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
+    // this route still targeted the old (project_id, hostname, pid)
+    // constraint, which migration 20260808082602_add_worker_number.sql
+    // already dropped in favor of (project_id, hostname, worker_number).
+    // Every call to this route failed 42P10 ("no unique or exclusion
+    // constraint matching ON CONFLICT") from the moment that migration
+    // shipped; the sibling /worker/register below had the identical bug —
+    // ui/server/index.mjs's own /worker/register was already fixed for
+    // this (Track 1084), this cloud function just never got the same fix.
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     // pool via query() wrapper
     await query(`
-      INSERT INTO workers(project_id, hostname, pid, status, mode, last_heartbeat)
-      VALUES($1, $2, $3, 'idle', $4, NOW())
-      ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
-      status = 'idle', mode = EXCLUDED.mode, last_heartbeat = NOW()
-    `, [req.project_id, worker_id || 'unknown', pid || 0, mode || 'polling']);
+      INSERT INTO workers(project_id, hostname, pid, worker_number, status, mode, last_heartbeat)
+      VALUES($1, $2, $3, $4, 'idle', $5, NOW())
+      ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
+      status = 'idle', pid = EXCLUDED.pid, mode = EXCLUDED.mode, last_heartbeat = NOW()
+    `, [req.project_id, worker_id || 'unknown', pid || 0, worker_number, mode || 'polling']);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1319,6 +1339,22 @@ app.post('/worker/register', auth, async (req, res) => {
     );
     if (projCheck.rows.length === 0) return res.status(403).json({ error: 'forbidden: project not in workspace' });
 
+    // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
+    // pid changes on every restart, which under the old (project_id,
+    // hostname, pid) key minted a brand-new row per restart and orphaned
+    // anything FK'd to it. ui/server/index.mjs's own /worker/register was
+    // already fixed for this; this cloud function never got the same fix,
+    // and kept targeting a constraint that migration
+    // 20260808082602_add_worker_number.sql had already dropped in favor of
+    // (project_id, hostname, worker_number) — every registration against
+    // this collector failed 42P10 ("no unique or exclusion constraint
+    // matching ON CONFLICT") from the moment that migration shipped.
+    // Confirmed live: a real project worker (livingwork) had been silently
+    // failing to register here for 40+ consecutive attempts, invisible on
+    // the remote dashboard despite working perfectly against the local
+    // collector the whole time.
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
+
     const machine_token = crypto.randomUUID();
     // Track 10061 (REQ-9): same registration-only convention the local
     // server follows — computed fresh every registration, never touched by
@@ -1331,14 +1367,14 @@ app.post('/worker/register', auth, async (req, res) => {
     const collector_health = req.body.collector_health ? JSON.stringify(req.body.collector_health) : null;
 
     await query(`
-      INSERT INTO workers(project_id, hostname, pid, status, mode, machine_token, collector_api_version, collector_compat, collector_health, last_heartbeat)
-      VALUES($1, $2, $3, 'idle', $4, $5, $6, $7, $8, NOW())
-      ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
-      status = 'idle', mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token,
+      INSERT INTO workers(project_id, hostname, pid, worker_number, status, mode, machine_token, collector_api_version, collector_compat, collector_health, last_heartbeat)
+      VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, NOW())
+      ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
+      status = 'idle', pid = EXCLUDED.pid, mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token,
       collector_api_version = EXCLUDED.collector_api_version, collector_compat = EXCLUDED.collector_compat,
       collector_health = COALESCE(EXCLUDED.collector_health, workers.collector_health),
       last_heartbeat = NOW()
-    `, [projectId, hostname, pid, mode || 'polling', machine_token, collector_api_version, collector_compat, collector_health]);
+    `, [projectId, hostname, pid, worker_number, mode || 'polling', machine_token, collector_api_version, collector_compat, collector_health]);
 
     res.json({ ok: true, machine_token });
   } catch (err) {

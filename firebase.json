@@ -294,9 +294,7 @@
   "functions": {
     "source": "cloud/functions",
     "runtime": "nodejs20",
-    "predeploy": [
-      "node conductor/scripts/vendor-collector-manifest.mjs"
-    ],
+    "predeploy": [],
     "ignore": [
       "node_modules",
       ".git",

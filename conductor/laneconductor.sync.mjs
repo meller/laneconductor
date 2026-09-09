@@ -7127,7 +7127,13 @@ async function dispatchManagerCreateProjectFollowup(tracksDir, targetPath, resul
     ? `Your create-project dispatch just finished: the project was scaffolded at ${targetPath}${result.generatedTracks?.length ? ` with ${result.generatedTracks.length} track(s) already generated` : ' with no tracks generated yet'}.
 Read conductor/tracks/${MANAGER_PSEUDO_TRACK}/conversation.md for the requirements you already discussed (a PRD or description the human gave you earlier in this thread).${result.generatedTracks?.length ? '' : `
 Derive an initial track breakdown from that discussion (the roadmap/phases if one was given, otherwise a sensible first-tracks split) and create those tracks directly in the new project: run \`cd ${targetPath}\`, then \`/laneconductor newTrack\` for each one.`}
-Then use /laneconductor comment ${MANAGER_PSEUDO_TRACK} to report back in your own conversation: the project location, and the list of tracks created (or that none were needed/possible, and why).
+A newly scaffolded project has no worker of its own yet, and queued tracks
+sit untouched forever without one — this is not optional, do not skip it or
+just mention it as a suggestion. Start one now as a detached background
+process so it keeps running after this turn ends:
+\`cd ${targetPath} && nohup node ${getInstallPath() || '<path to the laneconductor install — e.g. `dirname $(dirname $(readlink -f $(which lc)))` if that comes up empty>'}/bin/lc.mjs worker start --sync-and-work > conductor/.worker-launch.log 2>&1 & disown\`
+Then confirm it actually registered (check \`ps\` for the pid, or that a workers row appears for this project) before reporting success.
+Then use /laneconductor comment ${MANAGER_PSEUDO_TRACK} to report back in your own conversation: the project location, that its worker is running, and the list of tracks created (or that none were needed/possible, and why).
 Do NOT change **Lane**, **Lane Status**, or **Progress** on the manager's own pseudo-track — this is a conversation reply, not a lane transition.`
     : `Your create-project dispatch just failed: ${result.error}
 Use /laneconductor comment ${MANAGER_PSEUDO_TRACK} to report this back to the human in your own conversation (conductor/tracks/${MANAGER_PSEUDO_TRACK}/conversation.md) — what failed and, if there's an obvious next step (e.g. a path collision, a missing git URL), suggest it.
