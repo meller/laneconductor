@@ -1,7 +1,7 @@
 # Track TU-10050: Worktree Base Freshness — Start Track Branches From origin/main
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implementation complete — all 5 phases done
@@ -9,5 +9,5 @@
 **Track Kind**: bug
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: createWorktree (laneconductor.sync.mjs:3940) bases every new track branch on the literal `HEAD`, so branches start from a possibly-stale local main (checkOutOfBandGitSync only refreshes on a 5min cadence, and never at all once local main is ahead — this repo is permanently 27 ahead of origin/main) and from whatever branch the primary checkout happens to be on. Fix resolves the freshest base that loses nothing via a new pure resolver, never `origin/main` unconditionally (that would drop the 27 local commits).
+**Summary**: createWorktree (laneconductor.sync.mjs:3940) bases every new track branch on the literal `HEAD`, so branches start from a possibly-stale local main (checkOutOfBandGitSync only refreshes on a 5min…
 **Merge Mode**: direct

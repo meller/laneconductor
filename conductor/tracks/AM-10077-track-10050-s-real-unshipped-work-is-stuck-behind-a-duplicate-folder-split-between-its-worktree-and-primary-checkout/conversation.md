@@ -165,3 +165,10 @@
 > - [x] Four clean tracking commits document implementation
 >
 > **Verdict**: PASS — Track 10077 is production-ready for merge.
+
+> **system**: ✅ Merged track-10077 to main.
+> Direct-mode merge required in-session conflict resolution: `lc worktrees merge 10077` refused on a real conflict in this track's own `index.md` (this file's `**Lane Status**`/`**Last Run**` diverged between the branch and a newer main). Resolved via `git fetch origin` + `git merge --no-ff track-10077` (commit b8a0a93b) — the only conflicting hunk was this bookkeeping field; `conductor/laneconductor.sync.mjs` and `conductor/product.md` auto-merged cleanly.
+>
+> Before this merge could run, the primary checkout was found mid an unrelated, already-resolved-but-uncommitted merge for track 10079 (real conflicts in `ChatView.jsx` and its own index.md, fully resolved in the working tree already — 0 markers, `vite build` clean, 31/31 relevant tests green — but never staged/committed, presumably an interrupted prior merge run). Verified and completed that merge first (commit f37ef564) since git refuses a second merge while one is unresolved, and leaving it blocks every main-mode lane action project-wide, not just this one.
+>
+> Post-merge: all 30 tests across the four track-10050/10077 suites (`track-10050-worktree-start-point`, `track-10050-worktree-base-e2e`, `track-10050-lock-cli`, `track-10077-merge-mode-fallback`) pass against real `main`. `grep -rn "resolveWorktreeStartPoint\|probeWorktreeStartPoint" conductor/` confirms the port landed. Track 10050 closed out separately with its own supersession note and DB row corrected to `done:success`.
