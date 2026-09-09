@@ -29,6 +29,11 @@ function busyWorker(overrides = {}) {
 beforeEach(() => {
   mockApiFetch.mockReset();
   mockApiFetch.mockImplementation((path) => {
+    // Track 1091 Phase 7: the manager target resolves its project through
+    // POST /api/meta-project/ensure, not the picker's projectId. Without a
+    // real id here chatTarget.projectId stays null and every manager-target
+    // assertion silently degrades to the "no track" branch.
+    if (path.includes('/meta-project/ensure')) return jsonResponse({ id: 99 });
     if (path.includes('/transcript')) return jsonResponse({ events: [], rawLog: null });
     return jsonResponse([]);
   });
