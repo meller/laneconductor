@@ -54,19 +54,19 @@ concurrent run was invisible to anyone looking at that panel.
 
 ## Acceptance Criteria
 
-- [ ] A real project with a lane `parallel_limit >= 2` and two tracks queued in that lane, both
+- [x] A real project with a lane `parallel_limit >= 2` and two tracks queued in that lane, both
       claimed and running concurrently by the same worker process, shows TWO rows in the
       Workers panel — each with its own correct pid and current_task naming its own track —
       not one row and one invisible task.
-- [ ] Stopping/finishing one of the two concurrent tracks removes (or idles) only that one's
+- [x] Stopping/finishing one of the two concurrent tracks removes (or idles) only that one's
       row; the other concurrent track's row is untouched and keeps reporting correctly.
-- [ ] A single-claim run (the common case: one process, one track at a time) is observably
+- [x] A single-claim run (the common case: one process, one track at a time) is observably
       unchanged — same row, same worker_number, same lock/token/pidfile paths as before this
       track.
-- [ ] Killing a concurrent claim's child process out from under the worker (simulating a crash)
+- [x] Killing a concurrent claim's child process out from under the worker (simulating a crash)
       results in that claim's row eventually being reconciled (removed or marked offline/idle),
       not left forever claiming `busy` on a dead pid.
-- [ ] No change in behavior for manager-driven subagent orchestration (Task-tool calls within
+- [x] No change in behavior for manager-driven subagent orchestration (Task-tool calls within
       one CLI turn) — confirmed by not touching any code path outside
       `autoLaunchLocalFs`'s/`spawnCli`'s concurrent-claim handling.
 
