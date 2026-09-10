@@ -1,10 +1,10 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: done
-**Lane Status**: waiting
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
+**Phase**: Complete (Phases 1-5 routing/deployment verified live). E2E + caveat removal moved to track TU-10054.
 **Type**: dev
 **Merge Mode**: direct
 **Track Kind**: feature
@@ -103,6 +103,5 @@ hit the identical wall).
 So this track's own deliverable — the port and the routing — is verified in
 production. End-to-end worker behaviour against the cloud is not, and does
 not become true by this track reaching `done`.
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Auto Run**: yes
-**Waiting Reason**: Paused for human input — the lane action did not record a reason. Check the conversation and the run log.

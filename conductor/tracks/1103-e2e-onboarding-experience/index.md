@@ -1,7 +1,7 @@
 # Track 1103: End-to-end onboarding experience (UI and skill), and the wiki walkthroughs
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Phases 1-3 complete 2026-08-13 (UI happy path, skill/CLI happy path, all 7 design decisions made and recorded) — Phase 4 (UI affordances) next

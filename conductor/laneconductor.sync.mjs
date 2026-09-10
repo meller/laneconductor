@@ -61,6 +61,7 @@ import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
 import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
 import { decideAutoResume, clearWaitingOnTracks, clearAutoResumedMarker, writeAutoResumedMarker } from './services/dependency-resume.mjs';
+import { parseVerdict } from './services/verdict.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
@@ -1839,6 +1840,152 @@ async function removeWorker() {
       console.log(`[LaneConductor] Worker de-registered from ${c.url}: ${hostname} (PID: ${pid})`);
     } catch (err) {
       console.error(`[worker error] de-registration failed for ${c.url}:`, err.message);
+    }
+  }
+}
+
+// ── Claim-scoped worker identities (Track AM-10088) ─────────────────────────
+// Keeps worker:pid:track strictly 1:1:1. `updateWorkerHeartbeat()` upserts by
+// (hostname, project_id, worker_number) — a fixed, process-level identity
+// (REQ-2, never touched here) — so every concurrent lane-action claim that
+// called it clobbered the previous claim's current_task, silently hiding
+// every claim past the first from the Workers panel (confirmed live:
+// AM-1018/AM-1019 both running under worker_number 1's single row). Only
+// ONE concurrently-live claim may own the base `workerNumber` row at a time
+// (REQ-4 — "first/only concurrent claim... zero behavior change"); every
+// additional simultaneously-live claim gets its own claim-scoped identity
+// instead, piggybacking on the runningPids/runningLaneMap/runningTrackMap
+// bookkeeping spawnCli already maintains (REQ-3) rather than inventing a
+// parallel tracking mechanism.
+//
+// Derivation (Phase 0 spike, recorded in plan.md): claim-scoped worker
+// numbers are `workerNumber * CLAIM_WORKER_NUMBER_BASE_MULTIPLIER + slot`,
+// structurally far outside any realistic manually-assigned real
+// `--worker-number` value (a human picking 1, 2, 3... for multiple worker
+// processes on one host) — colliding on the DB's
+// (project_id, hostname, worker_number) unique key would silently corrupt
+// an unrelated real worker's own row. `slot` is the lowest free positive
+// integer from `claimSlotsInUse`, allocated/released synchronously in the
+// exact same code span as the runningPids/runningLaneMap/runningTrackMap
+// triplet (spawnCli has no `await` between spawn() and that triplet — see
+// plan.md Phase 0), so this can never race against another concurrent
+// spawnCli call regardless of which code path invoked it (auto-launch's
+// claim loop, manual dispatch, auto-complete, a chat reply) — Node's
+// single-threaded event loop guarantees no two spawnCli bodies interleave
+// their synchronous sections.
+const CLAIM_WORKER_NUMBER_BASE_MULTIPLIER = 100000;
+const CLAIM_WORKER_NUMBER_BASE = workerNumber * CLAIM_WORKER_NUMBER_BASE_MULTIPLIER;
+// pid currently "owning" the base workerNumber row, or null if vacant. Once
+// vacated (its claim exited), the NEXT claim to spawn — regardless of how
+// many other claim-scoped identities are concurrently live — reclaims the
+// base identity rather than minting a fresh derived one, so a long-lived
+// worker doesn't monotonically grow its derived-row usage across its
+// lifetime; only however many claims are simultaneously live at any one
+// instant ever hold a derived identity.
+let baseIdentityOwnerPid = null;
+const claimSlotsInUse = new Set(); // small ints, lowest free one reused
+const claimIdentityByPid = new Map(); // childPid -> { workerNumber, slot, trackNumber, laneStatus, label }
+
+function allocateClaimSlot() {
+  let slot = 1;
+  while (claimSlotsInUse.has(slot)) slot++;
+  claimSlotsInUse.add(slot);
+  return slot;
+}
+
+function claimCurrentTask(label, trackNumber) {
+  return `${label.replace('auto-', '')} track ${trackNumber}`;
+}
+
+// Registers a claim-scoped worker row using the CHILD's own actual pid —
+// unlike every other registration in this file, which always sends this
+// process's own `pid` constant. Deliberately lighter than upsertWorker():
+// no /project/ensure, no collector handshake — the process's own base
+// registration already did that for this project, and a claim-scoped row
+// never needs its own machine_token/id (nothing calls back into it the way
+// dispatch/session flows call back into the base worker's myWorkerId).
+// PATCH /worker/heartbeat is UPDATE-only and 404s on a row that doesn't
+// exist yet (see heartbeatClaimWorker below), so this POST is what actually
+// creates the row.
+async function registerClaimWorker(claimWorkerNumber, claimPid, trackNumber, laneStatus, label) {
+  if (getIsLocalFs()) return;
+  const cls = getCollectors();
+  const proj = getProject();
+  for (let i = 0; i < cls.length; i++) {
+    const c = cls[i];
+    if (!c.url) continue;
+    try {
+      const token = resolveCollectorToken(i);
+      const primary = proj.primary || { cli: 'claude', model: null };
+      await post(c.url, token, '/worker/register', {
+        hostname,
+        pid: claimPid,
+        project_id: proj.id,
+        visibility: proj.worker?.visibility || config.worker?.visibility || 'private',
+        mode: workerMode,
+        worker_number: claimWorkerNumber,
+        cli: primary.cli || 'claude',
+        model: primary.model || null,
+        status: 'busy',
+        current_task: claimCurrentTask(label, trackNumber),
+      });
+    } catch (err) {
+      console.error(`[claim-worker] registration failed for ${c.url}:`, err.message);
+    }
+  }
+}
+
+// Sibling to updateWorkerHeartbeat(), scoped to one claim-scoped identity.
+// A 404 (row genuinely missing — e.g. this collector was added/restarted
+// after this claim's own registerClaimWorker call already ran) falls back
+// to re-registering, mirroring handleHeartbeatError's 401 branch for the
+// base worker.
+async function heartbeatClaimWorker(claimWorkerNumber, claimPid, trackNumber, laneStatus, label) {
+  if (getIsLocalFs()) return;
+  const cls = getCollectors();
+  const proj = getProject();
+  for (let i = 0; i < cls.length; i++) {
+    const c = cls[i];
+    if (!c.url) continue;
+    try {
+      const token = resolveCollectorToken(i);
+      await patch(c.url, token, '/worker/heartbeat', {
+        hostname,
+        pid: claimPid,
+        project_id: proj.id,
+        worker_number: claimWorkerNumber,
+        status: 'busy',
+        current_task: claimCurrentTask(label, trackNumber),
+      });
+    } catch (err) {
+      if (err.status === 404) {
+        await registerClaimWorker(claimWorkerNumber, claimPid, trackNumber, laneStatus, label).catch(() => { });
+      } else {
+        console.error(`[claim-worker heartbeat error] ${c.url}:`, err.message);
+      }
+    }
+  }
+}
+
+// Retirement (REQ-5): soft de-registers this ONE claim-scoped row — same
+// (project_id, hostname, worker_number)-scoped DELETE /worker every regular
+// worker's own shutdown already uses (see removeWorker() above), which the
+// server marks offline immediately rather than deleting the row (avoids
+// cascading away any history FK'd to it). Never touches the base row or any
+// sibling claim's own row — each is addressed by its own distinct
+// (hostname, pid, worker_number) tuple.
+async function retireClaimWorker(claimWorkerNumber, claimPid) {
+  if (getIsLocalFs()) return;
+  const cls = getCollectors();
+  const proj = getProject();
+  for (let i = 0; i < cls.length; i++) {
+    const c = cls[i];
+    if (!c.url) continue;
+    try {
+      const token = resolveCollectorToken(i);
+      await del(c.url, token, '/worker', { hostname, pid: claimPid, worker_number: claimWorkerNumber, project_id: proj.id });
+    } catch (err) {
+      console.error(`[claim-worker] de-registration failed for ${c.url}:`, err.message);
     }
   }
 }
@@ -3637,7 +3784,18 @@ setInterval(pullTracksMetadataFromDB, 5000);
 
 // ── Heartbeat intervals ───────────────────────────────────────────────────────
 
-setInterval(() => updateWorkerHeartbeat(), Number(process.env.LC_HEARTBEAT_INTERVAL_MS) || 10000);
+setInterval(() => {
+  updateWorkerHeartbeat();
+  // Track AM-10088 Phase 1: keep every currently-live claim-scoped identity
+  // warm on the same cadence as the base row — otherwise a claim running
+  // longer than the 60s online-staleness window (the normal case for a real
+  // lane action) would drop off the Workers panel while its child process
+  // is still very much alive.
+  for (const [claimPid, identity] of claimIdentityByPid) {
+    heartbeatClaimWorker(identity.workerNumber, claimPid, identity.trackNumber, identity.laneStatus, identity.label)
+      .catch(err => console.error(`[claim-worker heartbeat] pid ${claimPid}:`, err.message));
+  }
+}, Number(process.env.LC_HEARTBEAT_INTERVAL_MS) || 10000);
 
 // Track 10061 Phase 5 (D8): a server can be redeployed under a long-lived
 // worker — a registration-time-only handshake would report a verdict that
@@ -6131,7 +6289,23 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
   const out = openSync(logPath, 'a');
   const proc = spawn(command, args, { detached: true, stdio: ['ignore', out, out], cwd: worktreePath || process.cwd(), env });
 
-  updateWorkerHeartbeat('busy', `${label.replace('auto-', '')} track ${trackNumber}`);
+  // Track AM-10088: decide, synchronously and with no `await` before the
+  // runningPids/runningLaneMap/runningTrackMap triplet below, whether this
+  // claim owns the base `workerNumber` row (REQ-4 — vacant, so reused
+  // exactly as before this track) or needs its own claim-scoped identity
+  // (REQ-1/REQ-3 — base already owned by a still-live sibling claim). See
+  // the "Claim-scoped worker identities" section above for the full
+  // reasoning and race-safety argument.
+  if (baseIdentityOwnerPid === null) {
+    baseIdentityOwnerPid = proc.pid;
+    updateWorkerHeartbeat('busy', claimCurrentTask(label, trackNumber));
+  } else {
+    const slot = allocateClaimSlot();
+    const claimIdentity = { workerNumber: CLAIM_WORKER_NUMBER_BASE + slot, slot, trackNumber, laneStatus, label };
+    claimIdentityByPid.set(proc.pid, claimIdentity);
+    registerClaimWorker(claimIdentity.workerNumber, proc.pid, trackNumber, laneStatus, label)
+      .catch(err => console.error(`[${label}] Track ${trackNumber}: claim-scoped worker registration failed: ${err.message}`));
+  }
   const { url, token } = primaryCollector();
 
   const timeoutMs = Number(process.env.LC_SPAWN_TIMEOUT_MS) || config.worker?.spawn_timeout_ms || 300000;
@@ -6253,6 +6427,34 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     runningPids.delete(proc.pid);
     runningLaneMap.delete(proc.pid);
     runningTrackMap.delete(proc.pid);
+    // Track AM-10088 Phase 2: retire THIS claim's own identity, independent
+    // of any sibling claim's (REQ-5) — done up front, before the rest of
+    // this handler's (potentially long) finalization work, so the Workers
+    // panel drops the row as soon as the claim actually finishes rather than
+    // waiting on artifact copy / comment posting / dispatch finalization
+    // below. The base identity's own retirement is the existing
+    // updateWorkerHeartbeat('idle', null) call further down, now gated by
+    // `wasBaseIdentityOwner` (captured here, before baseIdentityOwnerPid is
+    // nulled) — that call is UNCONDITIONAL pre-existing code, and a
+    // claim-scoped (derived-identity) process exiting must NEVER fire it:
+    // it shares no row with the base identity, whose real owner (a
+    // different, possibly still-running pid) would otherwise get its own
+    // still-busy row incorrectly stomped to idle out from under it. Found
+    // live via this track's own TC-5 (kill -9 the derived claim, assert the
+    // base-identity sibling stays 'busy') — REQ-5 requires exactly this.
+    const wasBaseIdentityOwner = proc.pid === baseIdentityOwnerPid;
+    if (wasBaseIdentityOwner) {
+      baseIdentityOwnerPid = null;
+    } else if (claimIdentityByPid.has(proc.pid)) {
+      const identity = claimIdentityByPid.get(proc.pid);
+      claimIdentityByPid.delete(proc.pid);
+      claimSlotsInUse.delete(identity.slot);
+      try {
+        await retireClaimWorker(identity.workerNumber, proc.pid);
+      } catch (err) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to retire claim-scoped worker row (non-fatal): ${err.message}`);
+      }
+    }
     // Track 10065: this used to DELETE the marker right here, before
     // everything below it (retry counts, the action PATCH, artifact copy,
     // git-lock release, dispatch finalization — several hundred lines of
@@ -6300,7 +6502,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       await new Promise(r => setTimeout(r, Number(process.env.LC_TEST_FINALIZE_DELAY_MS)));
     }
     try {
-    updateWorkerHeartbeat('idle', null);
+    // Track AM-10088 Phase 2: only the process that actually held the base
+    // identity vacates it to idle — a claim-scoped process exiting already
+    // retired its OWN row above and must not touch this shared one (see the
+    // wasBaseIdentityOwner comment above).
+    if (wasBaseIdentityOwner) updateWorkerHeartbeat('idle', null);
 
     // Track 1110 Phase 4: release this track's local-fs claim marker, if
     // one was created (auto-launch's local-fs branch, above). Harmless
@@ -6351,6 +6557,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // to simulate exactly this by writing **Lane Status**: waiting itself.
     let agentReportedWaiting = false;
     let agentWaitingReason = null;
+    // Track AM-10087: the action's own semantic PASS/FAIL verdict, read
+    // alongside the waiting-reason markers below — same worktree read, same
+    // isSuccess guard (only the agent's own last-written index.md is
+    // authoritative, and only on a clean end_turn).
+    let agentVerdict = null;
     // Track 10055: this used to be gated on `laneStatus === 'done'`, which
     // meant an agent on plan/implement/review/quality-gate could write
     // `**Lane Status**: waiting` as its last action and have it silently
@@ -6366,6 +6577,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           const rawIndexContent = readFileSync(join(waitCheckDir, 'conductor', 'tracks', waitTrackDir, 'index.md'), 'utf8');
           agentReportedWaiting = /\*\*Lane Status\*\*:\s*waiting/i.test(rawIndexContent);
           agentWaitingReason = parseWaitingReason(rawIndexContent);
+          agentVerdict = parseVerdict(rawIndexContent);
         }
       } catch (e) { /* best-effort detection only — never block the exit handler on it */ }
     }
@@ -6590,8 +6802,39 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // end_turn, so the track landed at `<lane>:success`. Nothing polls that,
     // and "success" reads as good news, so the question sat unread behind a
     // green tick.
+    //
+    // Track AM-10087: a blocked turn whose OWN lane action already produced
+    // a definitive, workflow.json-routable PASS/FAIL verdict (the
+    // **Verdict** marker) is NOT a genuinely open question — the harness's
+    // end-of-turn 'blocked' self-assessment is a separate signal from the
+    // action's own already-computed outcome, and the latter takes priority
+    // whenever it's actually mechanically routable. Confirmed live: AM-1018's
+    // review action delivered a complete FAIL verdict (workflow.json's own
+    // review.on_failure routes straight to implement:queue, no human
+    // judgment involved) but the harness separately tagged the turn
+    // 'blocked' over an unrelated, already-answered-by-policy question —
+    // the override below discarded the review's own resolved outcome and
+    // parked the track indefinitely instead of routing it.
+    //
+    // Only actually overrides when the verdict's selected direction
+    // resolves to a real transition in workflow.json for this lane (REQ-5)
+    // — an unroutable verdict (misconfigured project, or a lane with no
+    // on_success/on_failure defined) falls through to the ordinary park
+    // below unchanged, same as no verdict at all. Gated on `!abortedByUser`
+    // so a user-cancelled run is never reinterpreted as a routable verdict.
+    const verdictDirection = agentVerdict === 'pass' ? currentLaneConfig?.on_success
+      : agentVerdict === 'fail' ? currentLaneConfig?.on_failure
+      : null;
+    const verdictOverride = !endedMidWork && !abortedByUser && isBlockedTurn && !!verdictDirection;
+    if (verdictOverride) {
+      const resolvedVerdict = resolveTransition(verdictDirection, laneStatus, agentVerdict === 'pass', isMaxRetries);
+      targetLane = resolvedVerdict.lane;
+      nextActionStatus = resolvedVerdict.status;
+      console.log(`[${label}] Track ${trackNumber}: turn ended with a 'blocked' self-assessment, but the action already resolved **Verdict**: ${agentVerdict} — routing to ${targetLane}:${nextActionStatus} per workflow.json instead of parking.`);
+    }
+
     let isParked = false;
-    if (!endedMidWork && (agentReportedWaiting || isBlockedTurn || abortedByUser)) {
+    if (!endedMidWork && !verdictOverride && (agentReportedWaiting || isBlockedTurn || abortedByUser)) {
       targetLane = laneStatus;
       nextActionStatus = 'waiting';
       isParked = true;
@@ -6787,7 +7030,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           // the existing conversation-reply resume path (autoLaunchLocalFs's
           // waitingForReply handling) both pick this up correctly, exactly
           // as they already do for a real human-asked question.
-          if (isBlockedTurn) {
+          // Track AM-10087: skipped when verdictOverride routed this run
+          // forward instead of parking — the track isn't waiting on a human
+          // reply, it already advanced to its resolved verdict's lane.
+          if (isBlockedTurn && !verdictOverride) {
             if (content.match(/\*\*Waiting for reply\*\*:\s*[^\n]+/i)) {
               content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: yes`);
             } else {
@@ -6943,7 +7189,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // the Inbox's existing bucket logic (driven entirely by track_comments)
     // correctly classifies the track as needing your input, the same way it
     // already does for any other unresolved claude/gemini comment.
-    if (isBlockedTurn) {
+    // Track AM-10087: skipped when verdictOverride fired — the track isn't
+    // waiting for input, it already routed forward; see the override-visible
+    // comment below instead.
+    if (isBlockedTurn && !verdictOverride) {
       try {
         const tracksDirForBlock = join(process.cwd(), 'conductor', 'tracks');
         const trackDirForBlock = resolveTrackFolder(tracksDirForBlock, trackNumber);
@@ -6954,6 +7203,26 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         }
       } catch (err) {
         console.warn(`[${label}] Failed to append blocked-question entry to conversation.md: ${err.message}`);
+      }
+    }
+
+    // Track AM-10087 (REQ-7): the suppressed park must be as visible as the
+    // park itself would have been — a silent bypass of a park is exactly as
+    // bad as a silent incorrect park (this track's original complaint).
+    if (verdictOverride) {
+      try {
+        const tracksDirForVerdict = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForVerdict = resolveTrackFolder(tracksDirForVerdict, trackNumber);
+        if (trackDirForVerdict) {
+          const convPath = join(tracksDirForVerdict, trackDirForVerdict, 'conversation.md');
+          appendFileSync(
+            convPath,
+            `\n> **system**: ℹ️ Turn ended with a 'blocked' self-assessment, but the action already resolved **Verdict**: ${agentVerdict} — routing to ${targetLane}:${nextActionStatus} per workflow.json instead of parking.\n`,
+            'utf8'
+          );
+        }
+      } catch (err) {
+        console.warn(`[${label}] Failed to append verdict-override entry to conversation.md: ${err.message}`);
       }
     }
 

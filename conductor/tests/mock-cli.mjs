@@ -250,6 +250,28 @@ if (writeLaneStatus && (!writeLaneStatusOn || writeLaneStatusOn === command)) {
   } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }
 }
 
+// Track AM-10087: MOCK_CLI_WRITE_VERDICT=<pass|fail> — if set, patch
+// **Verdict** in the track's own index.md right before exiting, alongside
+// MOCK_CLI_WRITE_LANE_STATUS above — simulates the review/quality-gate
+// skill's own terminal-outcome write (Lane/Lane Status + Verdict, same
+// edit) so a test can drive the real exit handler's verdict-vs-blocked-turn
+// override against a genuinely spawned process. Same track-resolution
+// caveat as MOCK_CLI_WRITE_LANE_STATUS applies (argv's trackNumber may be
+// clobbered by context injection) — reuses findRunningTrackDir().
+const writeVerdict = process.env.MOCK_CLI_WRITE_VERDICT;
+if (writeVerdict) {
+  try {
+    const running = findRunningTrackDir();
+    if (running) {
+      const content = readFileSync(running.indexPath, 'utf8');
+      const patched = /\*\*Verdict\*\*:/i.test(content)
+        ? content.replace(/\*\*Verdict\*\*:\s*[^\n]*/i, `**Verdict**: ${writeVerdict}`)
+        : `${content.trimEnd()}\n**Verdict**: ${writeVerdict}\n`;
+      writeFileSync(running.indexPath, patched, 'utf8');
+    }
+  } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }
+}
+
 // Track AM-1121: runMarketingTrackBrainstorm spawns exactly this argv shape
 // (not via spawnCli, so no context-injection clobbering — command and
 // trackNumber are reliably what the caller set). Writes a valid trackPlan

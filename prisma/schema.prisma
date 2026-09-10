@@ -184,6 +184,14 @@ model tracks {
   dismissed_at            DateTime?         @db.Timestamptz(6) // set by POST /dismiss; inbox re-shows once anything newer than this happens
   model_override          String?                           // Track 1116 REQ-7: set from index.md's **Model** marker — beats lane/project model precedence
   waiting_reason          String?                           // Track 10055: set from index.md's **Waiting Reason** marker; why a `<lane>:waiting` track is parked
+  // Track 10085: merge_mode and workspace_mode, declared here for the same
+  // reason as the prespawn-block columns below — they were only ever created
+  // by ui/server/migrations/009 and 010, a directory with no cloud runner, so
+  // they were missing from the cloud DB entirely (confirmed absent from
+  // prisma/schema.prisma, prisma/schema.sql, cloud/schema.sql, and every
+  // top-level migrations/*.sql prior to this one).
+  merge_mode              String?                           // Track 10018: 'pr' | 'direct' | NULL (resolves to 'pr')
+  workspace_mode          String?                           // Track 1115: 'main' | 'branch' | NULL (resolves to 'branch')
   // Track 10040 pre-spawn block counter, declared here by track 10053. The
   // columns were only ever created by ui/server/migrations/013, a directory
   // with no runner, so they were missing from the cloud DB entirely.

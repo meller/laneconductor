@@ -63,14 +63,14 @@ scripts/… ad-hoc curl loop; see TC-30
 - [x] TC-8: `./scripts/migrate.sh` twice in a row — expected: first applies the
       `prespawn_block_*` migration, second is a clean no-op (`ADD COLUMN IF NOT
       EXISTS`).
-- [ ] TC-9: `SELECT prespawn_block_count, prespawn_block_kind,
+- [x] TC-9: `SELECT prespawn_block_count, prespawn_block_kind,
       prespawn_block_reason, prespawn_blocked_at FROM tracks LIMIT 0` against
       the cloud DB — expected: succeeds (columns exist) after Phase 1.5.
-      **NOT SATISFIED — and confirmed so.** Live introspection shows all four
-      columns absent from the cloud DB. The migration that adds them is written
-      and verified locally, but applying it is a production write, withheld
-      pending authorization (see plan.md's Phase 5 note). Until it is applied,
-      `POST /track/:num/prespawn-block` will 500 in the cloud.
+      **SATISFIED (2026-09-03, deploy authorized).** The migration was applied
+      to the cloud DB; live introspection confirms all four columns exist with
+      the intended types (`integer NOT NULL DEFAULT 0`, `text`, `text`,
+      `timestamptz`) — independently re-confirmed in the 2026-09-10 review.
+      `POST /track/:num/prespawn-block` no longer 500s in the cloud.
 - [x] TC-10: `CLAIMABLE_LANES` parity — expected: the cloud function's literal
       list deep-equals `conductor/constants.mjs`'s export; test fails if a lane
       is added to one and not the other.
@@ -186,14 +186,18 @@ scripts/… ad-hoc curl loop; see TC-30
 
 ### Phase 5 — Live, against the deployed cloud API
 
-- [~] TC-44: Reachability sweep of all 11 ported paths against
+- [x] TC-44: Reachability sweep of all 11 ported paths against
       `https://app.laneconductor.com` — expected: every response is JSON.
-      **PRE-DEPLOY BASELINE CAPTURED** (see plan.md's Phase 5 note): all 11
-      currently return `200` with the SPA's `index.html`, i.e. 10052's rewrite
-      fix is not live yet. The post-deploy pass is blocked on authorization.
-      `401`/`403` passes (route reached); a `404` fails, and **a `200` whose
-      body starts with `<!doctype html>` fails** — that is the SPA-fallback
-      symptom, and asserting on status alone would miss it.
+      **SATISFIED (2026-09-03 deploy, re-confirmed 2026-09-10 twice more,
+      including in this session).** All 14 probed paths (11 ported families +
+      `/health` + `/worker/register` as controls) return real JSON
+      (`401 {"error":"unauthorized: missing token"}`) — none fall through to
+      the SPA. The pre-deploy baseline this entry used to describe (all 11
+      returning `200` with `index.html`) is stale; it's recorded as history in
+      plan.md's Phase 5 section instead. `401`/`403` passes (route reached); a
+      `404` fails, and **a `200` whose body starts with `<!doctype html>`
+      fails** — that is the SPA-fallback symptom, and asserting on status
+      alone would miss it.
 - [ ] TC-45: Real worker, `remote-api` mode, `lc worker start` — expected: the
       worker registers, `GET /projects/:id/workflow` returns the project's real
       workflow, and a queued track is claimed and shown `running` on the cloud
