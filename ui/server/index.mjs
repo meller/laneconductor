@@ -33,6 +33,7 @@ import { META_PROJECT_NAME, META_PROJECT_REPO_PATH, ensureMetaProjectOnDisk } fr
 import { parseConversationComments } from '../../conductor/sync-conversation-utils.mjs';
 import { isPidAlive, readProcessCommand } from '../../conductor/services/run-marker.mjs';
 import { abortRun } from '../../conductor/services/run-abort.mjs';
+import { clearWaitingOnTracks, clearAutoResumedMarker } from '../../conductor/services/dependency-resume.mjs';
 import { fuzzyScore } from '../../conductor/services/fuzzy-match.mjs';
 
 // Enable TEST_MODE to allow simulation of multiple users for E2E tests
@@ -2009,6 +2010,15 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         updates.lane_action_status !== 'waiting');
     if (clearingReason) {
       content = content.replace(/^[ \t]*\*\*Waiting Reason\*\*:[^\n]*\n?/im, '');
+      // Track AM-10086 (Phase 3): a park's dependency attribution and its
+      // auto-resume loop guard are as stale as its reason once the park
+      // ends — whether that's this human-driven /resume endpoint or any
+      // other write that moves the track off `waiting`. Clearing
+      // **Auto Resumed** here specifically is what lets a genuinely
+      // different future dependency set auto-resume again after a human
+      // has taken over; leaving it would permanently disqualify the track.
+      content = clearWaitingOnTracks(content);
+      content = clearAutoResumedMarker(content);
     } else if (updates.waiting_reason !== undefined) {
       const reasonRe = /^\*\*Waiting Reason\*\*:\s*.+$/m;
       content = reasonRe.test(content)

@@ -60,6 +60,7 @@ import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
 import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
+import { decideAutoResume, clearWaitingOnTracks, clearAutoResumedMarker, writeAutoResumedMarker } from './services/dependency-resume.mjs';
 import { parseVerdict } from './services/verdict.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
@@ -2456,8 +2457,23 @@ function parseAutoRun(content) {
 // to gate its final "Deploy to <provider>" track behind the feature tracks
 // ahead of it. Returns normalised (bare, non-zero-padded) track number
 // strings; empty array when the marker is absent — "no dependencies".
+//
+// Track AM-10086 (REQ-10): line-anchored (`^...$m`), found broken live on
+// this track's own index.md — the previous unanchored form matched
+// `**Depends On**` quoted anywhere in prose (e.g. inside a **Problem**
+// field describing this very incident), producing a phantom dependency no
+// track could ever satisfy. Audited the file's other `**Marker**:` parsers
+// for the same shape (parseSummaryMarker, parseWaitingForReply, parseAutoRun,
+// parseModelOverrideMarker, parseTrackProviderMarkerForWarning,
+// parseTrackType all share it) — deliberately left those unanchored here:
+// this track's own eligibility logic depends only on parseDependsOn and
+// parseWaitingReason (see waiting-state.mjs), and none of the others has a
+// confirmed live false-positive the way this one did. Broadly anchoring
+// every marker parser in this file is real hardening worth doing, but is a
+// separate, wider-blast-radius change than this track's own scope — filed
+// as a recommended follow-up rather than folded in here.
 function parseDependsOn(content) {
-  const match = content.match(/\*\*Depends On\*\*:\s*([^\n]+)/i);
+  const match = content.match(/^[ \t]*\*\*Depends On\*\*:[ \t]*([^\n]*)$/im);
   if (!match) return [];
   return match[1].split(',').map(s => s.trim().replace(/^0+(?=\d)/, '')).filter(Boolean);
 }
@@ -5442,10 +5458,84 @@ function writeIndexMarker(indexPath, marker, value) {
     // cleared.
     if (/^Lane Status$/i.test(marker) && String(value).trim().toLowerCase() !== 'waiting') {
       content = clearWaitingReason(content);
+      // Track AM-10086 REQ-2: **Waiting On Tracks** follows the same
+      // lifecycle as **Waiting Reason** — it only means something while the
+      // track is actually parked, so it is retired the moment the track
+      // leaves `waiting`, by any writer (the PR reconciler above, or the
+      // dependency reconciler below).
+      content = clearWaitingOnTracks(content);
     }
     writeFileSync(indexPath, content, 'utf8');
   } catch (err) {
     console.warn(`[reconcile-pr] Failed to write **${marker}** marker to ${indexPath}: ${err.message}`);
+  }
+}
+
+// Track AM-10086: nothing re-checks a track parked at `<lane>:waiting` once
+// its blocking condition resolves — autoLaunchLocalFs's own **Depends On**
+// gate (Track AM-1119 Phase 3) only evaluates tracks sitting in `queue`,
+// never ones already parked. This is the missing re-check, following the
+// exact same shape as reconcilePrTracks() above: scan conductor/tracks/ in
+// the PRIMARY checkout only (REQ-8), decide per track via the pure module
+// (conductor/services/dependency-resume.mjs — every attribution/eligibility
+// rule lives there, not here), and act on the ones that qualify.
+async function reconcileParkedDependencyTracks() {
+  const tracksDir = join(process.cwd(), 'conductor', 'tracks');
+  if (!existsSync(tracksDir)) return;
+
+  // Track 1119 (mirrors reconcilePrTracks' own fix for this): match both
+  // legacy `NNN-slug` and modern `INITIALS-NNN-slug` folder names. A
+  // legacy-only pattern here would silently skip every prefixed folder —
+  // a known, previously-live failure mode in this exact file.
+  const dirEntries = readdirSync(tracksDir, { withFileTypes: true })
+    .filter(d => d.isDirectory())
+    .map(d => d.name);
+
+  // One pass to build every track's current state, so the dependency check
+  // below costs no extra directory scan per candidate — same approach
+  // autoLaunchLocalFs's own **Depends On** gate uses.
+  const stateByTrackNumber = {};
+  const contentByDir = new Map();
+  for (const dirName of dirEntries) {
+    const trackNumberMatch = dirName.match(/^(?:[a-zA-Z0-9]+-)?(\d+)-/);
+    if (!trackNumberMatch) continue;
+    const indexPath = join(tracksDir, dirName, 'index.md');
+    if (!existsSync(indexPath)) continue;
+    let content;
+    try { content = readFileSync(indexPath, 'utf8'); } catch { continue; } // REQ-7: unreadable → skip, never throw
+    contentByDir.set(dirName, { trackNumber: trackNumberMatch[1], content, indexPath });
+    const lane = content.match(/^[ \t]*\*\*Lane\*\*:[ \t]*([^\n]*)$/im)?.[1]?.trim().toLowerCase();
+    const laneActionStatus = content.match(/^[ \t]*\*\*Lane Status\*\*:[ \t]*([^\n]*)$/im)?.[1]?.trim().toLowerCase();
+    if (lane) stateByTrackNumber[trackNumberMatch[1]] = { lane, laneActionStatus: laneActionStatus ?? 'queue' };
+  }
+
+  for (const [dirName, { trackNumber, content, indexPath }] of contentByDir) {
+    const decision = decideAutoResume({ content, stateByTrackNumber });
+    if (!decision.resume) continue; // includes the common 'not-waiting'/'no-attribution' cases — no per-cycle log noise
+
+    console.log(`[reconcile-parked] Track ${trackNumber}: dependencies [${decision.deps.join(', ')}] shipped (done:success) — resuming to queue.`);
+
+    writeIndexMarker(indexPath, 'Lane Status', 'queue');
+    try {
+      let updated = readFileSync(indexPath, 'utf8');
+      updated = writeAutoResumedMarker(updated, decision.deps);
+      writeFileSync(indexPath, updated, 'utf8');
+    } catch (err) {
+      console.warn(`[reconcile-parked] Failed to write **Auto Resumed** marker for track ${trackNumber}: ${err.message}`);
+    }
+
+    if (!getIsLocalFs()) {
+      await patchTrackAction(trackNumber, { lane_action_status: 'queue', lane_action_result: null, waiting_reason: null })
+        .catch(err => console.error(`[reconcile-parked] CRITICAL: failed to persist resume for track ${trackNumber}: ${err.message}`));
+    }
+
+    try {
+      const attribution = decision.source === 'marker' ? '**Waiting On Tracks**' : 'inferred from **Depends On** + **Waiting Reason**';
+      appendFileSync(join(tracksDir, dirName, 'conversation.md'),
+        `\n> **system**: ✅ Auto-resumed — dependenc${decision.deps.length === 1 ? 'y' : 'ies'} [${decision.deps.join(', ')}] reached done:success (${attribution}). Moved back to queue.\n`);
+    } catch (err) {
+      console.warn(`[reconcile-parked] Failed to append resume comment for track ${trackNumber}: ${err.message}`);
+    }
   }
 }
 
@@ -5498,6 +5588,16 @@ setInterval(() => {
 // (both walk conductor/tracks), so there's no reason for a different period.
 setInterval(() => {
   reconcilePrTracks().catch(err => console.error('[reconcile-pr error]:', err.message));
+}, RECONCILE_INTERVAL_MS);
+
+// Track AM-10086: same cadence as the two reconcilers above, for the same
+// reason — it walks the same conductor/tracks directory, so there is no
+// argument for polling it on a different period. Runs on every worker
+// regardless of mode, including local-fs (mirrors reconcileWorktrees —
+// the resume happens on the filesystem either way; the collector fan-out
+// inside reconcileParkedDependencyTracks is itself mode-gated).
+setInterval(() => {
+  reconcileParkedDependencyTracks().catch(err => console.error('[reconcile-parked error]:', err.message));
 }, RECONCILE_INTERVAL_MS);
 
 // Track 10019 (Phase 4/REQ-8, REQ-9, REQ-12): the board/DB/chat only ever
@@ -6898,7 +6998,18 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           // make (a stale process, or a conversation reply), for the same
           // reason those cases don't write Lane/Lane Status.
           if (writeScope.canWriteLane && !laneWriteGuard.blocked) {
-            const withReason = isParked ? writeWaitingReason(content, waitingReason) : clearWaitingReason(content);
+            // Track AM-10086 (Phase 3, Task 3): a normal (non-parking)
+            // outcome retires **Waiting On Tracks**/**Auto Resumed** the
+            // same way it retires **Waiting Reason** — all three only mean
+            // something while the track is actually parked. Left alone on
+            // `isParked` (a re-park): the agent may have written a fresh
+            // **Waiting On Tracks** for this new park as part of `content`
+            // already, and **Auto Resumed** must survive a re-park on the
+            // SAME dependency set — that persistence is the whole point of
+            // the loop guard (REQ-6); only a human resume clears it.
+            const withReason = isParked
+              ? writeWaitingReason(content, waitingReason)
+              : clearAutoResumedMarker(clearWaitingOnTracks(clearWaitingReason(content)));
             if (withReason !== content) {
               content = withReason;
               updated = true;
