@@ -172,14 +172,14 @@ track adds a 4th and introduces two new project-config fields nowhere
 documented yet.
 **Solution**: Update the doc that already owns this topic — no new doc file.
 
-- [ ] `conductor/workflow.md`: extend "Model Overrides" with the new 4th
-      (lowest) precedence tier (`conductor/meta-defaults.json`), and add a
-      short subsection covering: what `meta-defaults.json` is and where it
-      lives, `project.inherit_meta_defaults` (default `true`), and
-      `project.worker_mode` (`dedicated` default / `manager-driven`) and how
-      it changes `no-workers`/`no-provider` gap behavior. Note that both new
-      fields are set via the existing generic `lc config set <key> <value>`
-      — no new CLI subcommand exists or is needed.
+- [x] `conductor/workflow.md`: extended "Model Overrides" with the new 4th
+      (lowest) precedence tier (`conductor/meta-defaults.json`), and added a
+      "Meta-Level Config Defaults (Track 10084)" subsection covering: what
+      `meta-defaults.json` is and where it lives, `project.inherit_meta_defaults`
+      (default `true`), and `project.worker_mode` (`dedicated` default /
+      `manager-driven`) and how it changes `no-workers`/`no-provider` gap
+      behavior. Notes both new fields are set via the existing generic
+      `lc config set <key> <value>` — no new CLI subcommand was added.
 - [ ] Commit: `docs(track-10084): document meta-level config defaults`
 
 ## Phase 7: Quality gate

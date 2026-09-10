@@ -92,10 +92,15 @@ Which model an automated lane action uses is resolved in this order (highest win
    `/laneconductor workflow set <lane> primary_model <id>`).
 3. **Project default** — `.laneconductor.json`'s `project.primary.model`
    (editable via Project Configuration, or a worker's "Change Model" action).
+4. **Meta-level default** — `conductor/meta-defaults.json`'s
+   `project.primary.model` (Track 10084), only when the project sets none of
+   the above and hasn't opted out (see "Meta-Level Config Defaults" below).
 
 The **provider** (which CLI — Claude, Antigravity, etc.) is fixed
-project-wide (`.laneconductor.json`'s `project.primary.cli`) and never
-varies per lane or per track — only the model does. This is deliberate:
+project-wide — resolved from `.laneconductor.json`'s `project.primary.cli`,
+falling back to the same meta-level default tier as the model when the
+project doesn't set one — and never varies per lane or per track; only the
+model does. This is deliberate:
 switching providers mid-track would break session continuity
 (`--resume`), which is provider-specific. A stray provider override at any
 level (lane or track) is detected and stripped with a warning, never
@@ -114,6 +119,57 @@ honored.
   retry/`on_failure` handling applies — it is not blocked ahead of time at
   claim time. (Claim-time capability matching, if wanted later, belongs in
   the claim-allowlist machinery — tracks 1084/1109 — as its own effort.)
+
+## Meta-Level Config Defaults (Track 10084)
+
+Every setting used to be defined strictly per-project — a new project (or
+one like `livingwork` that's always driven by the manager's own ad-hoc
+sessions rather than having its own standing worker) had to independently
+configure and independently *verify* everything from scratch. A shared
+default source closes that gap for `project.primary.cli`/`.model` and for
+`conductor/workflow.json`-shaped settings.
+
+**`conductor/meta-defaults.json`** lives inside the meta project's own
+folder (`conductor/services/meta-project.mjs`'s `META_PROJECT_REPO_PATH`) —
+deliberately a separate, dedicated file, not the meta project's own
+`.laneconductor.json` (which describes the meta project's own identity, not
+the defaults it publishes to everyone else). Shape:
+
+```json
+{
+  "project": { "primary": { "cli": "claude", "model": null } },
+  "workflow": { "lanes": { "review": { "max_retries": 2 } }, "global": {} }
+}
+```
+
+A project's own settings always win — the meta tier only fills in what a
+project leaves unset, field-by-field. For `workflow.json` this is a real
+deep merge (a project can override just `lanes.review.max_retries` and
+still inherit every other lane from the meta defaults, falling further back
+to the install-path canonical `workflow.json` for anything neither
+mentions) — not the old all-or-nothing "return whichever whole file exists"
+behavior.
+
+- **`project.inherit_meta_defaults`** (boolean, default `true`) — set to
+  `false` to opt a project out of the meta tier entirely, for both
+  `primary.cli`/`.model` and `workflow.json`. A single on/off switch, not
+  per-field.
+- **`project.worker_mode`** (`dedicated` default, or `manager-driven`) —
+  declares that a project intentionally has no standing `lc worker start`
+  process, because the manager drives it directly instead. This changes two
+  `computeSetupGaps` (`conductor/services/setup-gaps.mjs`) gaps:
+  - `no-workers` (normally blocking) becomes an advisory
+    `manager-driven-no-worker` gap instead.
+  - `no-provider` is suppressed when this project's own primary CLI hasn't
+    been independently verified reachable, but *some other* project on the
+    instance has verified the same CLI as `available` — CLI reachability is
+    a machine+binary property, not a project property. A `dedicated`
+    project (the default) always keeps today's exact behavior: it must
+    verify its own reachability regardless of what's reachable elsewhere.
+
+Both fields are set via the existing generic `lc config set <key> <value>`
+(e.g. `lc config set project.worker_mode manager-driven`) — no dedicated
+CLI subcommand was added for this.
 
 ## PR & Merge Modes (Track 10018, superseded by Track 10035)
 
