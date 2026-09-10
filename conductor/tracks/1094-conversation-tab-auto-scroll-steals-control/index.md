@@ -1,6 +1,6 @@
 # Track 1094: Conversation Tab Auto-Scroll Steals User Control
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
