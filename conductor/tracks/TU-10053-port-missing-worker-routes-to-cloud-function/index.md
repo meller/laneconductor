@@ -1,16 +1,16 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
-**Lane**: done
-**Lane Status**: waiting
-**Progress**: 100%
+**Lane**: review
+**Lane Status**: running
+**Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
+**Phase**: New
 **Type**: dev
 **Merge Mode**: direct
 **Track Kind**: feature
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction…
+**Summary**: Seven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js, so a worker pointed at app.laneconductor.com registers successfully and…
 
 ## Problem
 
@@ -103,6 +103,5 @@ hit the identical wall).
 So this track's own deliverable — the port and the routing — is verified in
 production. End-to-end worker behaviour against the cloud is not, and does
 not become true by this track reaching `done`.
-**Waiting for reply**: yes
+**Waiting for reply**: no
 **Auto Run**: yes
-**Waiting Reason**: Paused for human input — the lane action did not record a reason. Check the conversation and the run log.
