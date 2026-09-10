@@ -1,7 +1,7 @@
 # Track AM-10084: Meta-level config defaults cascading to projects (primary CLI/model, workflow)
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: New
 **Type**: dev
