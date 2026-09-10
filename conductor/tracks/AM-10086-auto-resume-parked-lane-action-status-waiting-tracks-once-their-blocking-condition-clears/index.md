@@ -1,9 +1,9 @@
 # Track AM-10086: Auto-resume parked (lane_action_status: waiting) tracks once their blocking condition clears
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
-**Phase**: Planned
+**Phase**: Implemented
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: yes
