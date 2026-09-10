@@ -255,15 +255,26 @@ const server = createServer(async (req, res) => {
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null) {
     const w = state.workers.find(x => x.hostname === body.hostname && x.pid === body.pid);
-    if (w) {
-      if (body.available_models !== undefined) w.available_models = body.available_models;
-      if (body.status !== undefined) w.status = body.status;
-    }
+    // Track AM-10088: mirrors the real server's 404-on-no-match (PATCH is
+    // UPDATE-only, never an upsert) — a claim-scoped worker's own heartbeat
+    // re-registers itself on exactly this response (see
+    // laneconductor.sync.mjs's heartbeatClaimWorker).
+    if (!w) return reply(res, 404, { error: 'worker not registered (no matching row) — re-register' });
+    if (body.available_models !== undefined) w.available_models = body.available_models;
+    if (body.status !== undefined) w.status = body.status;
+    if (body.current_task !== undefined) w.current_task = body.current_task;
     return reply(res, 200, { ok: true });
   }
 
-  if ((params = route('DELETE', '/worker', req)) !== null)
+  // Track AM-10088: mirrors the real server's soft de-registration — marks
+  // the matching row offline rather than deleting it, so a test can still
+  // see the retired row (and that it stopped reporting 'busy') instead of
+  // it silently vanishing.
+  if ((params = route('DELETE', '/worker', req)) !== null) {
+    const w = state.workers.find(x => x.hostname === body.hostname && x.pid === body.pid && (x.worker_number ?? 1) === (body.worker_number ?? 1));
+    if (w) w.status = 'offline';
     return reply(res, 200, { ok: true });
+  }
 
   // Track 10080: worker-pushed file manifest, the fallback source for
   // GET /api/projects/:id/files when a project's repo_path isn't reachable

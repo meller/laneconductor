@@ -8,6 +8,7 @@ import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { sortWorkersForStrip } from '../lib/workerSort.js';
 import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
 import { getDefaultProviderModel } from '../lib/defaultModel.js';
+import { isClaimScopedWorker } from '../lib/workerStatus.js';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -23,6 +24,20 @@ const VISIBILITY_BADGE = {
   team: { label: 'Team', icon: '👥', className: 'text-blue-400 border-blue-900/50' },
   public: { label: 'Public', icon: '🌐', className: 'text-green-400 border-green-900/50' },
 };
+
+// Track AM-10088: a claim-scoped worker row (one per ADDITIONAL
+// concurrently-running lane-action claim under one worker process — see
+// laneconductor.sync.mjs's "Claim-scoped worker identities" section and
+// isClaimScopedWorker's own comment in lib/workerStatus.js) uses a derived
+// worker_number far outside any realistic manually-assigned real
+// `--worker-number` (CLAIM_WORKER_NUMBER_BASE_MULTIPLIER there, mirrored by
+// CLAIM_WORKER_NUMBER_THRESHOLD) and its `pid` is the spawned CLI CHILD's
+// own pid, not a laneconductor.sync.mjs process — `lc worker stop
+// --worker-number N --pid P` silently no-ops on it (isLiveLaneConductorPid
+// in bin/lc.mjs requires the pid's own cmdline to contain
+// "laneconductor.sync.mjs"). No kill mechanism for an individual claim
+// exists yet, so the Stop button is hidden here rather than left to fail
+// silently.
 
 // Neutral fallback text shown when a worker hasn't reported its `model`
 // yet AND its `cli` isn't a recognized provider (never a hardcoded
@@ -243,7 +258,18 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
 
   // A manager doesn't staff this project, so it doesn't count as "something
   // is running here" — same reasoning as hasOwnWorkers above.
-  const offlineOwnWorkers = offlineWorkers.filter(w => w.type !== 'manager');
+  // Track AM-10088: a claim-scoped row's retirement (Phase 2, a routine,
+  // frequent event — every concurrent lane-action claim finishing normally
+  // triggers it) reuses the same DELETE /worker → status='offline' path a
+  // real worker's death uses, which server-side backdates last_heartbeat by
+  // 10 minutes specifically so it lands in this "recently offline" alert
+  // window. Left unfiltered, EVERY ordinary concurrent claim completing
+  // would show up here as a red "OFFLINE — needs attention" ghost for up to
+  // 24h — this alert exists for an actually-dead worker/machine, not an
+  // ephemeral per-claim identity that is SUPPOSED to appear and disappear
+  // constantly. Excluded the same way claim-scoped rows are already
+  // distinguished above (isClaimScopedWorker).
+  const offlineOwnWorkers = offlineWorkers.filter(w => w.type !== 'manager' && !isClaimScopedWorker(w));
   const showDeadWorkerAlarm = !hasOwnWorkers && offlineOwnWorkers.length > 0;
 
   function formatOfflineFor(seconds) {
@@ -642,7 +668,7 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                         </span>
                         {/* Track 1084 Phase 6: stop THIS worker. Previously the
                             only control was the project-wide "Stop All Workers". */}
-                        {IS_LOCAL_HOST && (
+                        {IS_LOCAL_HOST && !isClaimScopedWorker(worker) && (
                           <button
                             onClick={() => handleStopWorker(worker)}
                             data-testid="worker-stop-btn"
@@ -651,6 +677,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                           >
                             Stop
                           </button>
+                        )}
+                        {IS_LOCAL_HOST && isClaimScopedWorker(worker) && (
+                          <span
+                            data-testid="worker-claim-scoped-badge"
+                            title="This row is one of several concurrent lane-action claims running under a shared worker process — stop the parent worker to end it, or stop this specific track's run from its own card."
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-gray-800 text-gray-600 font-bold uppercase tracking-wider"
+                          >
+                            Claim
+                          </span>
                         )}
                       </div>
                     </div>

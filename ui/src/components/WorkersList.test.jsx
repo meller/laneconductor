@@ -54,6 +54,33 @@ describe('WorkersList — provider-aware model/icon rendering', () => {
   });
 });
 
+describe('WorkersList — Track AM-10088: claim-scoped worker rows', () => {
+  it('a normal worker_number shows the Stop button, not the Claim badge', () => {
+    const worker = makeWorker({ worker_number: 1, status: 'busy', current_task: 'implement track 1018' });
+    render(<WorkersList projectId={1} workers={[worker]} layout="grid" />);
+    expect(screen.getByTestId('worker-stop-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('worker-claim-scoped-badge')).not.toBeInTheDocument();
+  });
+
+  it('a derived (claim-scoped) worker_number shows the Claim badge, not a Stop button — nothing on that pid polls a dispatch/stop inbox', () => {
+    const worker = makeWorker({ worker_number: 100001, pid: 54321, status: 'busy', current_task: 'implement track 1019' });
+    render(<WorkersList projectId={1} workers={[worker]} layout="grid" />);
+    expect(screen.getByTestId('worker-claim-scoped-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('worker-stop-btn')).not.toBeInTheDocument();
+  });
+
+  it('two concurrent claims under one process render as two distinct cards, each naming its own track', () => {
+    const base = makeWorker({ worker_number: 1, pid: 1111, status: 'busy', current_task: 'implement track 1018' });
+    const claimScoped = makeWorker({ id: 2, worker_number: 100001, pid: 2222, status: 'busy', current_task: 'implement track 1019' });
+    render(<WorkersList projectId={1} workers={[base, claimScoped]} layout="grid" />);
+    const stopBtns = screen.getAllByTestId('worker-stop-btn');
+    expect(stopBtns).toHaveLength(1);
+    expect(screen.getByTestId('worker-claim-scoped-badge')).toBeInTheDocument();
+    expect(screen.getByText(/track 1018/)).toBeInTheDocument();
+    expect(screen.getByText(/track 1019/)).toBeInTheDocument();
+  });
+});
+
 // Track 10062: an expired CLI login was previously indistinguishable from
 // a genuine rate limit anywhere a human could look — both fell through to
 // `isExhausted = p.status === 'exhausted'` and rendered a green
