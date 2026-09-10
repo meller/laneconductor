@@ -1,6 +1,6 @@
 # Track AM-10088: Worker identity should be 1:1:1 with pid and track, not a supervisor juggling several under one row
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
