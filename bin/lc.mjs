@@ -2438,6 +2438,12 @@ Please review this, answer any questions (some fields may contain questions rath
                 // worker ever writes (laneconductor.sync.mjs:3191/4034) —
                 // no row at all means never-checked, not "bad".
                 providers[projectId] = { primary_cli: primaryCli, primary_ok: provRows.length > 0 ? provRows[0] === 'available' : null };
+
+                // Track 10084 (REQ-6/REQ-7): "reachable anywhere on this
+                // instance" — any OTHER project's provider_status row for
+                // the same CLI reporting 'available'.
+                const reachableAnywhereRows = runPsql(`SELECT 1 FROM provider_status WHERE provider = '${primaryCli}' AND status = 'available' AND project_id != ${projectId} LIMIT 1`);
+                providers[projectId].reachable_anywhere = reachableAnywhereRows.length > 0;
             }
         } catch (err) {
             console.error(`❌ Failed to read state from DB: ${err.message}`);
@@ -2455,6 +2461,12 @@ Please review this, answer any questions (some fields may contain questions rath
     const hasManagerWorker = state.workers.some(w => w.type === 'manager');
     const hasOnlineWorker = state.workers.some(w => w.online && w.type !== 'manager');
     const primaryProviderReachable = mode === 'local-fs' ? !!primaryCli : (providers[project?.id]?.primary_ok === true);
+    // Track 10084 (REQ-5/REQ-7): worker_mode is read straight off the
+    // already-loaded .laneconductor.json — no DB column, no migration.
+    // local-fs has no DB to query "reachable anywhere" against, so it
+    // degrades to false there (same as the ui/server call site's default).
+    const workerMode = cfg.project?.worker_mode === 'manager-driven' ? 'manager-driven' : 'dedicated';
+    const primaryProviderReachableAnywhere = mode === 'local-fs' ? false : !!providers[project?.id]?.reachable_anywhere;
 
     const gaps = computeSetupGaps({
         projectCount: state.projects.length,
@@ -2462,6 +2474,8 @@ Please review this, answer any questions (some fields may contain questions rath
         hasManagerWorker,
         primaryCliConfigured: !!primaryCli,
         primaryProviderReachable,
+        workerMode,
+        primaryProviderReachableAnywhere,
         hasProductMd,
         hasTechStackMd,
         createQualityGate,

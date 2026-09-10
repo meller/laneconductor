@@ -41,7 +41,8 @@ describe('GET /api/state', () => {
       .mockResolvedValueOnce({ rows: [{ id: 1, name: 'alpha', repo_path: '/r/alpha', primary_cli: 'claude', create_quality_gate: false }] })
       .mockResolvedValueOnce({ rows: [] }) // no online workers
       .mockResolvedValueOnce({ rows: [] }) // no tracks
-      .mockResolvedValueOnce({ rows: [] }); // provider_status: no row
+      .mockResolvedValueOnce({ rows: [] }) // provider_status: no row
+      .mockResolvedValueOnce({ rows: [] }); // Track 10084: reachable-anywhere check, no row
 
     const res = await request(app).get('/api/state?project_id=1').expect(200);
     const gapIds = res.body.gaps.map(g => g.id).sort();

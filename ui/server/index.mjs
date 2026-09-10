@@ -674,6 +674,30 @@ app.get('/api/state', async (req, res) => {
           'SELECT status FROM provider_status WHERE project_id = $1 AND provider = $2',
           [projectId, project.primary_cli]
         );
+
+        // Track 10084 (REQ-5/REQ-7): worker_mode is read straight off
+        // .laneconductor.json at project.repo_path, same pattern already
+        // used above for hasProductMd/hasTechStackMd — no DB column, no
+        // migration.
+        let workerMode = 'dedicated';
+        const projectCfgPath = join(project.repo_path, '.laneconductor.json');
+        if (existsSync(projectCfgPath)) {
+          try {
+            const projectCfg = JSON.parse(readFileSync(projectCfgPath, 'utf8'));
+            if (projectCfg.project?.worker_mode === 'manager-driven') workerMode = 'manager-driven';
+          } catch { /* malformed config degrades to 'dedicated', same as every other gap input here */ }
+        }
+
+        // Track 10084 (REQ-6/REQ-7): "reachable anywhere on this instance"
+        // — any OTHER project's provider_status row for the same CLI
+        // reporting 'available'. Only consulted by computeSetupGaps when
+        // workerMode is 'manager-driven' and this project's own check
+        // failed; harmless (and cheap) to always compute.
+        const { rows: reachableAnywhereRows } = await pool.query(
+          `SELECT 1 FROM provider_status WHERE provider = $1 AND status = 'available' AND project_id != $2 LIMIT 1`,
+          [project.primary_cli, projectId]
+        );
+
         gaps = computeSetupGaps({
           projectCount: projects.length,
           hasOnlineWorker,
@@ -685,6 +709,8 @@ app.get('/api/state', async (req, res) => {
           createQualityGate: !!project.create_quality_gate,
           hasQualityGateMd,
           trackCount,
+          workerMode,
+          primaryProviderReachableAnywhere: reachableAnywhereRows.length > 0,
         });
       }
     }
