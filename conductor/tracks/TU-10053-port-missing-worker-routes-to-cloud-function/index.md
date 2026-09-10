@@ -1,7 +1,7 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Complete (Phases 1-5 routing/deployment verified live). E2E + caveat removal moved to track TU-10054.
@@ -10,7 +10,7 @@
 **Track Kind**: feature
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction…
+**Summary**: Seven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js, so a worker pointed at app.laneconductor.com registers successfully and…
 
 ## Problem
 
