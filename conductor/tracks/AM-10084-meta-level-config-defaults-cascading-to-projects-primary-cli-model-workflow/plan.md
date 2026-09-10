@@ -73,23 +73,36 @@ duplication pattern noted for `computeSetupGaps` between the two files).
 **Solution**: Import the same `conductor/services/meta-defaults.mjs` helpers
 from Phase 1 into `bin/lc.mjs` rather than reimplementing the cascade.
 
-- [ ] Wherever `bin/lc.mjs` reads `cfg.project.primary.cli`/`.model` to
+- [x] Wherever `bin/lc.mjs` reads `cfg.project.primary.cli`/`.model` to
       display or act on the *effective* value (`lc state`, `lc status`,
       the `no-provider` gap check around line 2305) — call
       `mergeEffectivePrimary` the same way sync.mjs now does, instead of
       reading `cfg.project?.primary?.cli` raw.
-- [ ] `lc workflow` display command: use `mergeWorkflowConfig` so the
+  - Added a shared `resolveEffectivePrimary(projectRoot, cfg)` helper
+    mirroring sync.mjs's own cascade (hardcoded < meta-defaults.json <
+    conductor/defaults.json < .laneconductor.json); wired into `lc state`'s
+    `primaryCli`, `runAIAgent`, `callLLMConversational`, and the `--run`
+    inline dispatch site — all four places that previously read
+    `cfg.project?.primary` raw.
+- [x] `lc workflow` display command: use `mergeWorkflowConfig` so the
       table it prints reflects the same effective values the worker would
       actually use, not just whichever single file `bin/lc.mjs` happens to
       find first.
-- [ ] `lc setup`'s primary-CLI prompt (the "Primary agent" step in
+  - Manually verified against this repo's own real `conductor/workflow.json`
+    (`node bin/lc.mjs workflow`) — prints the correct 5-lane table. Also
+    fixed two pre-existing bugs in this exact branch found while rewiring it
+    (present since the initial commit, so this display command had
+    apparently never actually run before): undefined `col()` helper and
+    undefined `d` (now `wf.defaults || {}`) — both would have thrown
+    `ReferenceError` on every invocation, meta-defaults or not.
+- [x] `lc setup`'s primary-CLI prompt (the "Primary agent" step in
       `SKILL.md`'s `/laneconductor setup collection` step 4c / this file's
       corresponding wizard code in `bin/lc.mjs`): when the prompt's default
       would otherwise just be the hardcoded `'claude'`, pre-fill/suggest the
       resolved meta default instead, when a `meta-defaults.json` exists and
       the project hasn't overridden it. A blank answer still means "use the
       shown default," unchanged UX, just a better default.
-- [ ] Commit: `feat(track-10084): Phase 3 - bin/lc.mjs uses shared meta-defaults resolution`
+- [x] Commit: `feat(track-10084): Phase 3 - bin/lc.mjs uses shared meta-defaults resolution`
 
 ## Phase 4: `setup-gaps.mjs` — `worker_mode` + cross-project reachability
 
