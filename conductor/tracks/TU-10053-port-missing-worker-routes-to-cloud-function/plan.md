@@ -380,3 +380,76 @@ before.
 - **Porting `PATCH /track/:num/heartbeat`, `/last-comment`, `/sync-status`,
   `/reset`.** Not called by the worker or CLI; the cloud UI uses `/api/*`.
   Listed in spec.md's exclusions so a future audit doesn't re-flag them.
+
+## ⚠️ Gaps (review, 2026-09-10)
+
+Review independently re-verified Phases 1-4 and the Phase 5.1/5.2 production
+deploy — all confirmed real (live reachability sweep, cloud DB column check,
+offline suites all green). FAILED on documentation/process gaps and unmet
+acceptance criteria, not on the engineering itself. Full findings in
+`conversation.md`. Before the next review:
+
+- [ ] Catch up `conversation.md` with a record of the Phase 5.1/5.2 production
+      deploy (migration + functions + hosting) — it currently has none.
+- [ ] Mark Task 5.1 and Task 5.2 above `[x]` — they ran and are independently
+      verified live.
+- [ ] Correct `test.md`'s TC-9 (cloud columns are now present, not absent) and
+      TC-44 (post-deploy sweep now passes, the pre-deploy baseline is stale).
+- [ ] Get an explicit decision on Tasks 5.3-5.8 + Phase 6: continue this track
+      through live worker E2E (real cost, fixture workspaces, real `claude`
+      spawns), or formally split that scope into a new track (as this file's
+      own Phase 5 outcome note proposes, citing `AM-1120`/track 1119) and
+      narrow `spec.md`'s Acceptance Criteria + AC-1–AC-5/AC-9 to match what's
+      actually in scope here.
+
+## Phase 7: Fix Review Gaps ⏳ IN PROGRESS
+
+**Problem**: Review gaps and conversation feedback to address.
+**Solution**: Fix each item below.
+
+- [ ] Manual retry requested (Re-run Implement)
+- [ ] Manual retry requested (Re-run Implement)
+- [ ] Manual retry requested (Re-run Implement)
+- [ ] Triggering implement...
+- [ ] Moved to implement
+- [ ] Moved to plan (via file sync)
+- [ ] Moved to plan (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to plan (via file sync)
+- [ ] Moved to plan (via file sync)
+- [ ] Moved to plan (via file sync)
+- [ ] Triggering implement...
+- [ ] Moved to implement
+- [ ] Moved to review (via file sync)
+- [ ] Moved to quality-gate (via file sync)
+- [ ] Moved to quality-gate (via file sync)
+- [ ] Moved to quality-gate (via file sync)
+- [ ] cloud jest 62/62, parity+rewrites 36/36, this track's server tests 5/5, `ui` vitest with zero regressions (10 pre-existing failing files before and after; the only file that changed state is this track's own, RED→GREEN). I mutation-tested rather than assumed: coercing session `last_context_tokens` from `null` to `0` fails 2 tests, and deleting `FOR UPDATE SKIP LOCKED` fails TC-28.
+
+## Three things you should know
+
+**1. Track 10052's rewrite fix has never been deployed.** A read-only sweep of all 11 paths against `app.laneconductor.com` returns `200` with the SPA's `index.html` for every one; only single-segment `/health` reaches the function. So the hosting deploy isn't just publishing this track — it's what finally makes 10052 take effect. (This also vindicated TC-44's design: all 14 probes returned `200`, so a status-only check would have called them all reachable.)
+
+**2. `scripts/migrat
+[truncated — full transcript in the track's log]
+- [ ] Go ahead, please continue with Phase 5 as planned and finish up the track.
+- [ ] Yes, I'm at the keyboard watching. Order is fine as you proposed: migration, then functions deploy, then hosting deploy, then the reachability sweep. No known dependents on app.laneconductor.com right now beyond normal traffic. Go ahead, narrating each step.
+- [ ] close the pr
+- [ ] Moved to review
+- [ ] Confirmed you were right to hold off earlier — no review or quality-gate ever ran on this track. Moved it back to review. Run review, then quality-gate, then merge once it actually passes. Also confirmed there is no open (or any-state) GitHub PR for track-10053 — nothing to close.
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)

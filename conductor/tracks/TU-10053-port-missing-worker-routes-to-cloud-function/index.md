@@ -2,15 +2,15 @@
 
 **Lane**: review
 **Lane Status**: running
-**Progress**: 0%
+**Progress**: 70%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: New
+**Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
 **Type**: dev
 **Merge Mode**: direct
 **Track Kind**: feature
 **Author**: TU
 **Created By**: test@example.com
-**Summary**: Seven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js, so a worker pointed at app.laneconductor.com registers successfully and…
+**Summary**: Eleven route families the sync worker depends on exist in ui/server/index.mjs but are missing from cloud/functions/index.js. Porting them also requires worker identity in cloud auth, a transaction…
 
 ## Problem
 
