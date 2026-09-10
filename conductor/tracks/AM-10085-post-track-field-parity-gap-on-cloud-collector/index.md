@@ -1,7 +1,8 @@
 # Track AM-10085: POST /track field-parity gap on the cloud collector
 
 **Lane**: plan
-**Lane Status**: queue
+**Merge Mode**: direct
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -58,3 +59,4 @@ misinterpreted one.
 ## Related
 
 [AM-10083](../AM-10083-lane-action-status-transitions-go-local-only-letting-the-remote-collector-see-a-running-track-as-still-queued/index.md) — same collector-parity failure family (F-3), narrower scope (`lane_action_status` only), fixed first.
+**Auto Run**: yes
