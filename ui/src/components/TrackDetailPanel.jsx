@@ -7,7 +7,7 @@ import { useApi } from '../hooks/useApi';
 import { useIsMobile } from '../hooks/useIsMobile.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { createTranscriptState, reduceStreamEvent } from '../lib/streamTranscript.js';
-import { isWorkerOffline, selectDefaultWorker } from '../lib/workerStatus.js';
+import { isWorkerOffline, selectDefaultWorker, isClaimScopedWorker } from '../lib/workerStatus.js';
 import { PROVIDER_IDS, PROVIDERS, providerLabel, defaultModelFor } from '../../../conductor/providers.mjs';
 import { getDefaultProviderModel } from '../lib/defaultModel.js';
 import { modelsForProvider } from '../lib/modelOptions.js';
@@ -79,7 +79,17 @@ export function TrackDetailPanel({ projectId, trackNumber, initialTab, initialTr
   const [autoRunSaving, setAutoRunSaving] = useState(false);
   const [mergeModeSaving, setMergeModeSaving] = useState(false);
   // Track 1085 Phase 4: manual dispatch — "Run on worker" control + history
-  const [projectWorkers, setProjectWorkers] = useState([]);
+  // Track AM-10088: setProjectWorkersRaw is the underlying setter for every
+  // fetch call site below; setProjectWorkers itself always strips
+  // claim-scoped rows first — see isClaimScopedWorker's own comment for why
+  // this list (dispatch targets, "new worker" detection, the provision
+  // modal) must never include one. A single filtering point here means no
+  // future fetch call site can reintroduce the leak by forgetting to filter.
+  const [projectWorkers, setProjectWorkersRaw] = useState([]);
+  const setProjectWorkers = useCallback(
+    workers => setProjectWorkersRaw(Array.isArray(workers) ? workers.filter(w => !isClaimScopedWorker(w)) : workers),
+    []
+  );
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [dispatchHistory, setDispatchHistory] = useState([]);

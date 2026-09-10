@@ -18,6 +18,23 @@ export function isWorkerOffline(worker, now = Date.now()) {
   return now - new Date(worker.last_heartbeat).getTime() > WORKER_OFFLINE_MS;
 }
 
+// Track AM-10088: a claim-scoped worker row (one per ADDITIONAL
+// concurrently-running lane-action claim under one real worker process —
+// see laneconductor.sync.mjs's "Claim-scoped worker identities" section)
+// uses a derived worker_number far outside any realistic manually-assigned
+// real `--worker-number`, and its `pid` is the spawned CLI CHILD's own pid,
+// not a laneconductor.sync.mjs process. It is not itself a dispatchable
+// destination (nothing on that pid polls a dispatch inbox) and its
+// retirement routinely reuses the same DELETE /worker → offline path a
+// real worker's death uses — so every consumer of the shared `workers`
+// list that means "a real worker/machine" (dispatch targets, the
+// recently-offline alert) must exclude it explicitly; only the Workers
+// panel itself (WorkersList.jsx) wants to render it.
+export const CLAIM_WORKER_NUMBER_THRESHOLD = 100000;
+export function isClaimScopedWorker(worker) {
+  return Number(worker?.worker_number) >= CLAIM_WORKER_NUMBER_THRESHOLD;
+}
+
 // Picks a sensible default worker to target for a manual dispatch:
 // the assignee's own worker if it's online, else any online idle worker,
 // else any online worker at all (even busy — still a truthful, actionable
@@ -36,8 +53,11 @@ export function isWorkerOffline(worker, now = Date.now()) {
 // when it's the only worker registered at all.
 export function selectDefaultWorker(workers, assigneeUid) {
   if (!workers || workers.length === 0) return null;
-  const nonManager = workers.filter(w => w.type !== 'manager');
-  const pool = nonManager.length > 0 ? nonManager : workers;
+  // Track AM-10088: never default a dispatch target to a claim-scoped row —
+  // see isClaimScopedWorker's own comment above for why it isn't one.
+  const dispatchable = workers.filter(w => !isClaimScopedWorker(w));
+  const nonManager = dispatchable.filter(w => w.type !== 'manager');
+  const pool = nonManager.length > 0 ? nonManager : dispatchable.length > 0 ? dispatchable : workers;
   const ownWorker = assigneeUid
     ? pool.find(w => w.user_uid === assigneeUid && !isWorkerOffline(w))
     : null;

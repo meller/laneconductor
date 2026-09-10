@@ -4,7 +4,7 @@
 // whenever the project's real worker was busy, because the fallback chain
 // had no offline check on its last resort (`?? workers[0]`).
 import { describe, it, expect } from 'vitest';
-import { isWorkerOffline, selectDefaultWorker } from './workerStatus.js';
+import { isWorkerOffline, selectDefaultWorker, isClaimScopedWorker, CLAIM_WORKER_NUMBER_THRESHOLD } from './workerStatus.js';
 
 const NOW = Date.now();
 const recent = new Date(NOW - 5_000).toISOString();
@@ -75,5 +75,32 @@ describe('selectDefaultWorker', () => {
   it('falls back to the manager only when it is the sole worker registered', () => {
     const manager = { id: 1110, type: 'manager', status: 'idle', last_heartbeat: recent };
     expect(selectDefaultWorker([manager], null).id).toBe(1110);
+  });
+
+  it('never defaults to a claim-scoped row — Track AM-10088: nothing polls a dispatch inbox on that pid', () => {
+    const claimScoped = { id: 1, worker_number: CLAIM_WORKER_NUMBER_THRESHOLD + 1, status: 'busy', last_heartbeat: recent };
+    const real = { id: 2, worker_number: 1, status: 'busy', last_heartbeat: recent };
+    expect(selectDefaultWorker([claimScoped, real], null).id).toBe(2);
+  });
+
+  it('falls back to a claim-scoped row only when it is the sole entry (absolute last resort)', () => {
+    const claimScoped = { id: 1, worker_number: CLAIM_WORKER_NUMBER_THRESHOLD + 1, status: 'busy', last_heartbeat: recent };
+    expect(selectDefaultWorker([claimScoped], null).id).toBe(1);
+  });
+});
+
+describe('isClaimScopedWorker', () => {
+  it('treats a normal, small worker_number as a real worker', () => {
+    expect(isClaimScopedWorker({ worker_number: 1 })).toBe(false);
+    expect(isClaimScopedWorker({ worker_number: 20017 })).toBe(false);
+  });
+
+  it('treats a worker_number at or above the derived-identity threshold as claim-scoped', () => {
+    expect(isClaimScopedWorker({ worker_number: CLAIM_WORKER_NUMBER_THRESHOLD })).toBe(true);
+    expect(isClaimScopedWorker({ worker_number: CLAIM_WORKER_NUMBER_THRESHOLD + 1 })).toBe(true);
+  });
+
+  it('treats a missing worker_number as not claim-scoped', () => {
+    expect(isClaimScopedWorker({})).toBe(false);
   });
 });
