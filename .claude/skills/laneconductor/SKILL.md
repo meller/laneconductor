@@ -1151,6 +1151,7 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Auto Run**: [yes\|no]` | `auto_run` | Whether a non-sync-only worker's auto-launch loop may claim this track from the queue. Default no — absent marker means not auto-picked (track 10017). |
 | `**Merge Mode**: [direct\|pr]` | `merge_mode` | Track 10035: how the `done`-lane merge action integrates the branch. `direct` merges straight to main in-session; `pr` pushes the branch and opens a GitHub PR, landing at `done:waiting`. Default `pr`. Settable at creation (`lc new --merge-mode`) or by hand; the file marker is authoritative over the DB's `tracks.merge_mode` column — the migration sweep corrects any DB value that disagrees with it. |
 | `**PR URL**: [url]` | `pr_url` | Track 10035: the GitHub PR link written by the merge action in pr-mode, once `gh pr create` returns. This is the completion affordance shown on both the Kanban card and the Worktrees row while the track sits at `done:waiting`. |
+| `**Verdict**: [pass\|fail]` | *(none — sync-worker-internal)* | Track AM-10087: written by `/laneconductor review` and `/laneconductor quality-gate` on every terminal PASS/FAIL outcome (not the KPI-miss early exit), in the same edit as the existing Lane/Lane Status transition write. Read by the sync worker's exit handler to distinguish a lane action's own already-resolved, workflow.json-routable outcome from a genuinely open question, when the same turn also carries the harness's `blocked` post_turn_summary self-assessment — see the `isBlockedTurn` override in `conductor/laneconductor.sync.mjs`. Cleared at claim time (step 0 of both commands) so a short-circuited run never leaves a stale value for a later run to misread. |
 
 ### Completion Comment Convention
 
@@ -1574,7 +1575,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 Structured review of a track against its plan and product guidelines. Posts the result as a comment by writing to the track's conversation file.
 
-0. **Claim the track immediately** — write `**Lane**: review` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`).
+0. **Claim the track immediately** — write `**Lane**: review` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`). In the same edit, clear any pre-existing `**Verdict**` marker (Track AM-10087) — a run that gets short-circuited before reaching step 4 must never leave a stale value behind for a later run's exit handler to misread.
 1. **Load Context** (**skip the first bullet if `FRESH_SESSION: false`** —
    see **Protocol: Session Continuity**; review often resumes the same
    session `implement` used, so this is worth checking — the second bullet
@@ -1597,8 +1598,15 @@ Structured review of a track against its plan and product guidelines. Posts the 
      (the review itself is still valid information), and note there that the lane transition
      was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
-   - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
-   - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
+   - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`. In the same edit, write `**Verdict**: pass` to `index.md`.
+   - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`. In the same edit, write `**Verdict**: fail` to `index.md`.
+   - **Why this matters (Track AM-10087)**: the Claude Code harness can separately tag this
+     same turn's `post_turn_summary` as `blocked` (e.g. it surfaced a question mid-review) even
+     though this step already resolved a definitive, workflow.json-routable outcome. The sync
+     worker's exit handler checks `**Verdict**` before ever consulting that harness-level
+     annotation — write it every time, PASS or FAIL, so a review that already reached a real
+     conclusion is never mistaken for a genuinely open question and parked indefinitely instead
+     of routed.
 
 ---
 
@@ -1606,7 +1614,7 @@ Structured review of a track against its plan and product guidelines. Posts the 
 
 Runs automated checks and updates status files based on results.
 
-0. **Claim the track immediately** — write `**Lane**: quality-gate` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`).
+0. **Claim the track immediately** — write `**Lane**: quality-gate` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`). In the same edit, clear any pre-existing `**Verdict**` marker (Track AM-10087) — a run that gets short-circuited before reaching step 5 (including the KPI-miss early-exit path in step 1) must never leave a stale value behind for a later run's exit handler to misread.
 0b. **KPI window check** (early trigger warning):
    - Read `**KPI Check After**` from index.md. If it exists and is in the future:
      > "KPI window not reached — Xh remaining. Measuring now may give unreliable results. Run anyway? (y/n)"
@@ -1719,9 +1727,15 @@ Runs automated checks and updates status files based on results.
      does **not** make a track complete — a track that shipped a stub and
      was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
      the exact incident these rules were written for.
-   - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
-   - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
+   - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`. In the same edit, write `**Verdict**: pass` to `index.md`.
+   - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`. In the same edit, write `**Verdict**: fail` to `index.md`.
    - Update `**Lane Status**` to `queue`.
+   - **Why this matters (Track AM-10087)**: same rationale as `/laneconductor review`'s step 4 —
+     the harness's own end-of-turn `blocked` self-assessment is a separate signal from this
+     step's own already-computed PASS/FAIL, and the sync worker's exit handler checks
+     `**Verdict**` first so a resolved outcome is routed instead of parked. Not written for the
+     step 1 KPI-miss early exit — that's a different terminal outcome (no code-review verdict to
+     report) and is already routed on its own via `on_failure`.
 
 ---
 
