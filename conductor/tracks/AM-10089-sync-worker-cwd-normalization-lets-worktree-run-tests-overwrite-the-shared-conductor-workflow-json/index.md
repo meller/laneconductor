@@ -1,7 +1,7 @@
 # Track AM-10089: Sync worker cwd-normalization lets worktree-run tests overwrite the shared conductor/workflow.json
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
