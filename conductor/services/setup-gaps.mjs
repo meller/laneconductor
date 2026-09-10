@@ -28,6 +28,15 @@
  *   quality gate
  * @param {boolean} input.hasQualityGateMd - `conductor/quality-gate.md` exists
  * @param {number} input.trackCount - tracks in this project
+ * @param {'dedicated'|'manager-driven'} [input.workerMode] - Track 10084
+ *   REQ-5/REQ-6: 'manager-driven' declares this project is, by design,
+ *   driven by the manager's own ad-hoc sessions rather than a standing
+ *   `lc worker start` process. Default 'dedicated' reproduces today's exact
+ *   behavior for every existing call site that doesn't pass this yet.
+ * @param {boolean} [input.primaryProviderReachableAnywhere] - Track 10084
+ *   REQ-6: true if some OTHER project on this instance has a fresh
+ *   `available` provider_status row for this same primary_cli, independent
+ *   of whether THIS project has ever reported one itself. Default false.
  * @returns {SetupGap[]}
  */
 export function computeSetupGaps({
@@ -41,6 +50,8 @@ export function computeSetupGaps({
   createQualityGate,
   hasQualityGateMd,
   trackCount,
+  workerMode = 'dedicated',
+  primaryProviderReachableAnywhere = false,
 }) {
   const gaps = [];
 
@@ -55,13 +66,23 @@ export function computeSetupGaps({
   }
 
   if (!hasOnlineWorker) {
-    gaps.push({
-      id: 'no-workers',
-      severity: 'blocking',
-      subject: 'No live worker',
-      detail: 'No worker for this project has heartbeat within the staleness window.',
-      remedy: 'Run `lc worker start` (or `lc start`) in the project directory.',
-    });
+    if (workerMode === 'manager-driven') {
+      gaps.push({
+        id: 'manager-driven-no-worker',
+        severity: 'advisory',
+        subject: 'No dedicated worker (expected)',
+        detail: 'This project is configured as manager-driven — no standing `lc worker start` process is expected for it.',
+        remedy: 'No action needed. Run `lc worker start` here if you want a dedicated worker after all.',
+      });
+    } else {
+      gaps.push({
+        id: 'no-workers',
+        severity: 'blocking',
+        subject: 'No live worker',
+        detail: 'No worker for this project has heartbeat within the staleness window.',
+        remedy: 'Run `lc worker start` (or `lc start`) in the project directory.',
+      });
+    }
   }
 
   if (!hasManagerWorker) {
@@ -74,7 +95,16 @@ export function computeSetupGaps({
     });
   }
 
-  if (!primaryCliConfigured || !primaryProviderReachable) {
+  // Track 10084 REQ-6: a manager-driven project with no reachability check
+  // of its own inherits "verified reachable" from any other project on the
+  // instance that has actually checked the same CLI — reachability is a
+  // machine+binary property, not a project property. 'dedicated' keeps
+  // today's exact behavior unconditionally: it must still verify its own
+  // reachability regardless of what's reachable elsewhere.
+  const inheritsReachabilityElsewhere =
+    workerMode === 'manager-driven' && primaryCliConfigured && !primaryProviderReachable && primaryProviderReachableAnywhere;
+
+  if ((!primaryCliConfigured || !primaryProviderReachable) && !inheritsReachabilityElsewhere) {
     gaps.push({
       id: 'no-provider',
       severity: 'blocking',

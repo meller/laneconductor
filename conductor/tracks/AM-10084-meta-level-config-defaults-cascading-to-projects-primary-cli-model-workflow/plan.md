@@ -111,19 +111,24 @@ expected" or "verified reachable elsewhere on this instance" (REQ-5, REQ-6).
 **Solution**: Extend the pure function, keeping the default path byte-for-byte
 identical to today.
 
-- [ ] `conductor/services/setup-gaps.mjs`: add `workerMode` (default
+- [x] `conductor/services/setup-gaps.mjs`: add `workerMode` (default
       `'dedicated'`) and `primaryProviderReachableAnywhere` (default `false`)
       params. Implement the `no-workers` → advisory
       `manager-driven-no-worker` downgrade and the `no-provider` suppression,
       exactly as specified in spec.md REQ-6.
-- [ ] Extend `conductor/tests/track-10069-setup-gaps.test.mjs` (or a new
-      `track-10084-setup-gaps.test.mjs` alongside it — match whichever the
-      existing file's own convention suggests once you're looking at it) per
-      spec.md's Acceptance Criteria: default-path parity, manager-driven +
-      no worker → advisory not blocking, manager-driven + reachable-anywhere
-      → no `no-provider`, manager-driven + NOT reachable-anywhere → still
-      raises `no-provider` (no free pass with zero evidence).
-- [ ] Commit: `feat(track-10084): Phase 4 - setup-gaps worker_mode + cross-project reachability`
+- [x] New sibling `conductor/tests/track-10084-setup-gaps.test.mjs` (existing
+      file's own convention is one `test-NNNN-*` file per track, so a
+      sibling rather than extending track-10069's in place). 18/18 passing
+      total (11 original track-10069 tests unmodified + 7 new): TC-4.1
+      default-path parity (both omitted and explicit `'dedicated'`), TC-4.2
+      manager-driven + no worker → advisory not blocking, TC-4.3
+      manager-driven + reachable-anywhere → no `no-provider`, TC-4.4
+      manager-driven + NOT reachable-anywhere → still blocking `no-provider`,
+      TC-4.5 dedicated (explicit) + reachable-anywhere → still blocking
+      (inheritance is manager-driven-only), plus an extra case confirming
+      the inheritance only ever covers reachability, never an unconfigured
+      CLI.
+- [x] Commit: `feat(track-10084): Phase 4 - setup-gaps worker_mode + cross-project reachability`
 
 ## Phase 5: Wire `setup-gaps.mjs`'s new inputs into both call sites
 
