@@ -31,6 +31,7 @@ import { logger } from './services/logger.mjs';
 import { runDeploy } from './deploy-runner.mjs';
 import { getBuildById, createBuildArtifact } from '../ui/server/build-manager.mjs';
 import { compareTimestamps, isConcurrentEdit } from './sync-timestamp-utils.mjs';
+import { truncateSummary, parseSummaryMarker, parseSummary } from './summary-utils.mjs';
 import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
@@ -2417,34 +2418,10 @@ function safeRevertLaneActionStatus(original) {
   return REVERTABLE_LANE_ACTION_STATUSES.has(original) ? original : LaneActionStatus.QUEUE;
 }
 
-// Truncate at a word boundary and mark truncation with an ellipsis, instead of
-// a hard mid-word `.slice(n)` cut that reads as corrupted/cut-off text.
-function truncateSummary(text, maxLen = 200) {
-  if (text.length <= maxLen) return text;
-  const cut = text.slice(0, maxLen - 1);
-  const lastSpace = cut.lastIndexOf(' ');
-  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
-}
-
-function parseSummaryMarker(content) {
-  const m = content.match(/\*\*Summary\*\*:[ \t]*([^\n]*)/i);
-  if (!m) return null;
-  const value = m[1].trim();
-  return value ? truncateSummary(value) : null; // an empty marker isn't a real value — let the caller fall back
-}
-
-function parseSummary(content) {
-  const marker = parseSummaryMarker(content);
-  if (marker !== null) return marker;
-
-  // Fallback: no explicit Summary marker — derive one from a **Problem**: line.
-  // Problem text is often a wrapped, multi-line paragraph (e.g. under a phase
-  // heading in plan.md), so capture until a blank line, the next **marker**,
-  // a heading, or end of string — not just up to the first '\n' — and collapse
-  // the captured whitespace/newlines before truncating.
-  const match = content.match(/\*\*Problem\*\*:\s*([\s\S]+?)(?=\n\s*\n|\n\*\*|\n#|$)/i);
-  return match ? truncateSummary(match[1].replace(/\s+/g, ' ').trim()) : null;
-}
+// truncateSummary/parseSummaryMarker/parseSummary moved to ./summary-utils.mjs
+// (track 1081) — Summary must survive a push+pull round trip unchanged;
+// truncateSummary is still imported above and used below by
+// parseCurrentPhaseMarker for **Phase** (track 1114's own, unrelated bound).
 
 function parseWaitingForReply(content) {
   const match = content.match(/\*\*Waiting for reply\*\*:\s*([^\n]+)/i);
