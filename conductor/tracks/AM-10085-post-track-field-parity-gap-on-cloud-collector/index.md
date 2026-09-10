@@ -1,8 +1,8 @@
 # Track AM-10085: POST /track field-parity gap on the cloud collector
 
-**Lane**: implement
+**Lane**: review
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned
