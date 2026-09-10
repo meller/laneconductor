@@ -1,6 +1,6 @@
 # Track 1094: Conversation Tab Auto-Scroll Steals User Control
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
