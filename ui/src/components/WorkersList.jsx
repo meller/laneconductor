@@ -76,6 +76,24 @@ export function getFailingCollectors(collectorHealth) {
     .map(([url, health]) => ({ url, ...health }));
 }
 
+// Found live: a project that was simply never registered on a given remote
+// collector (e.g. created locally, never added to that collector's
+// workspace) reports the exact same "⚠ SYNC DEGRADED" red, pulsing badge as
+// a project that WAS registered and is now genuinely failing to sync —
+// indistinguishable to a human glancing at the Workers panel, even though
+// "nothing to sync here, this was never set up" and "sync is actively
+// broken" call for completely different reactions. The cloud function's own
+// project-registration check (cloud/functions/index.js, ported from the
+// identical check in ui/server/index.mjs) returns this exact literal error
+// for exactly that case — a stable, first-party string, not a heuristic
+// guess at a third-party error message.
+const UNREGISTERED_ERROR_TEXT = 'forbidden: project not in workspace';
+
+export function isUnregisteredCollectorFailure(health) {
+  return health?.last_error_status === 403 && typeof health?.last_error === 'string'
+    && health.last_error.includes(UNREGISTERED_ERROR_TEXT);
+}
+
 function ProviderStatus({ providers }) {
   if (!providers || providers.length === 0) return null;
 
@@ -523,7 +541,9 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {workers.map(worker => {
                 const vis = VISIBILITY_BADGE[worker.visibility || 'private'];
-                const failingCollectors = getFailingCollectors(worker.collector_health);
+                const allFailingCollectors = getFailingCollectors(worker.collector_health);
+                const failingCollectors = allFailingCollectors.filter(c => !isUnregisteredCollectorFailure(c));
+                const unregisteredCollectors = allFailingCollectors.filter(isUnregisteredCollectorFailure);
                 return (
                   <div
                     key={worker.id}
@@ -571,6 +591,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                                 title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
                               >
                                 ⚠ SYNC DEGRADED
+                              </span>
+                            )}
+                            {unregisteredCollectors.length > 0 && (
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gray-600/20 text-gray-400 border-gray-500/50"
+                                data-testid="collector-unregistered-badge"
+                                title={unregisteredCollectors.map(c => `${c.url}: this project isn't registered there — nothing to sync until it's added to that collector's workspace.`).join('\n')}
+                              >
+                                ○ NO REMOTE SYNC
                               </span>
                             )}
                           </div>
@@ -853,17 +882,31 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
               </span>
             )}
             {(() => {
-              const failingCollectors = getFailingCollectors(worker.collector_health);
-              if (failingCollectors.length === 0) return null;
-              // Track 1103 D6: see the grid layout's identical badge above for the full note.
+              const allFailingCollectors = getFailingCollectors(worker.collector_health);
+              const failingCollectors = allFailingCollectors.filter(c => !isUnregisteredCollectorFailure(c));
+              const unregisteredCollectors = allFailingCollectors.filter(isUnregisteredCollectorFailure);
+              // Track 1103 D6: see the grid layout's identical badges above for the full note.
               return (
-                <span
-                  className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-red-900/40 text-red-400 border-red-700/60 animate-pulse"
-                  data-testid="collector-degraded-badge-strip"
-                  title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
-                >
-                  ⚠ SYNC DEGRADED
-                </span>
+                <>
+                  {failingCollectors.length > 0 && (
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-red-900/40 text-red-400 border-red-700/60 animate-pulse"
+                      data-testid="collector-degraded-badge-strip"
+                      title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
+                    >
+                      ⚠ SYNC DEGRADED
+                    </span>
+                  )}
+                  {unregisteredCollectors.length > 0 && (
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-gray-700/40 text-gray-400 border-gray-600/60"
+                      data-testid="collector-unregistered-badge-strip"
+                      title={unregisteredCollectors.map(c => `${c.url}: this project isn't registered there — nothing to sync until it's added to that collector's workspace.`).join('\n')}
+                    >
+                      ○ NO REMOTE SYNC
+                    </span>
+                  )}
+                </>
               );
             })()}
             {worker.type === 'manager' ? (
