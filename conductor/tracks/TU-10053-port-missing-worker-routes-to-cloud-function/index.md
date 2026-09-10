@@ -2,7 +2,7 @@
 
 **Lane**: review
 **Lane Status**: running
-**Progress**: 70%
+**Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Phases 1-4 done; Phase 5.1/5.2 deployed and verified live; 5.3-5.8 blocked on a scope decision (see conversation.md)
 **Type**: dev
@@ -103,5 +103,5 @@ hit the identical wall).
 So this track's own deliverable — the port and the routing — is verified in
 production. End-to-end worker behaviour against the cloud is not, and does
 not become true by this track reaching `done`.
-**Waiting for reply**: no
+**Waiting for reply**: yes (scope decision required — see conversation.md)
 **Auto Run**: yes
