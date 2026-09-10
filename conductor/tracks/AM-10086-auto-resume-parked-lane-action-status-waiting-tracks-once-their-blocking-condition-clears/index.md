@@ -1,7 +1,7 @@
 # Track AM-10086: Auto-resume parked (lane_action_status: waiting) tracks once their blocking condition clears
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implemented
