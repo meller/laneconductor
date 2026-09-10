@@ -14,12 +14,12 @@ two call sites, then docs.
 `meta-project.mjs`, covering both the primary.cli/model merge (REQ-2) and the
 workflow.json deep-merge (REQ-3), plus the opt-out check (REQ-4).
 
-- [ ] Create `conductor/services/meta-defaults.mjs`:
+- [x] Create `conductor/services/meta-defaults.mjs`:
   - `resolveMetaDefaultsPath()` — `join(META_PROJECT_REPO_PATH, 'conductor', 'meta-defaults.json')`, imported from `meta-project.mjs` (no path duplication).
   - `loadMetaDefaults()` — reads + `JSON.parse`s that path; returns `{}` on missing file or parse error (never throws), matching `conductor/defaults.json`'s existing degrade-gracefully behavior in `laneconductor.sync.mjs`.
   - `mergeEffectivePrimary({ hardcoded, metaDefaults, projectDefaults, projectConfig, inheritMetaDefaults })` — pure function implementing REQ-2's 5-tier precedence for `{ cli, model }`. `inheritMetaDefaults === false` skips the `metaDefaults` tier entirely.
   - `mergeWorkflowConfig({ projectWorkflow, metaWorkflow, globalCanonicalWorkflow, inheritMetaDefaults })` — pure deep-merge implementing REQ-3, keyed by `lanes.<lane>.<key>` and top-level `global`/`defaults` blocks. `projectWorkflow` may be `null` (no project-local file); `metaWorkflow` may be `undefined`/`{}` (no meta defaults configured, or opted out). Merge order highest-to-lowest per REQ-3; a project's own lane's own key always wins over the same key at a lower tier.
-- [ ] Unit tests in `conductor/tests/track-10084-meta-defaults.test.mjs`:
+- [x] Unit tests in `conductor/tests/track-10084-meta-defaults.test.mjs` (15/15 passing):
   - `loadMetaDefaults()`: missing file → `{}`; malformed JSON → `{}` (no throw); valid file → parsed object.
   - `mergeEffectivePrimary`: each of the 5 tiers wins when it's the highest one with a value set; `inheritMetaDefaults: false` skips straight from project tiers to hardcoded, even when meta has a value.
   - `mergeWorkflowConfig`: project overriding one lane's one key inherits every other lane/key from meta; meta overriding a lane inherits from global-canonical for lanes meta doesn't mention; project value always wins over meta value for the same key; `inheritMetaDefaults: false` skips meta and falls straight to global-canonical.
