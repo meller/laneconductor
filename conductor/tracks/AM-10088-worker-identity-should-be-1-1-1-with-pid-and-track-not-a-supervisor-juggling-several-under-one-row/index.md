@@ -1,6 +1,6 @@
 # Track AM-10088: Worker identity should be 1:1:1 with pid and track, not a supervisor juggling several under one row
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Planned — 5 phases (0-4), grounded in the real spawn/exit code and existing runningLaneMap/runningTrackMap bookkeeping
