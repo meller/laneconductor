@@ -1,6 +1,6 @@
 # Track AM-10085: POST /track field-parity gap on the cloud collector
 
-**Lane**: review
+**Lane**: done
 **Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 100%
