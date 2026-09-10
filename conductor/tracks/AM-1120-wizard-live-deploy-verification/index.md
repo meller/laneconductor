@@ -1,7 +1,7 @@
 # Track AM-1120: Wizard Real-Deploy Verification (Digger Game, Live Firebase)
 
-**Lane**: plan
-**Lane Status**: queue
+**Lane**: backlog
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New
 **Type**: dev

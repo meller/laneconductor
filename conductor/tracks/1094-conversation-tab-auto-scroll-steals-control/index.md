@@ -1,11 +1,12 @@
 # Track 1094: Conversation Tab Auto-Scroll Steals User Control
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: Reported, not yet investigated
+**Lane**: implement
+**Merge Mode**: direct
+**Lane Status**: running
+**Progress**: 100%
+**Phase**: Complete
 **Type**: dev
-**Summary**: Scrolling up in a track's Conversation tab keeps getting yanked back to the bottom, uncontrollably.
+**Summary**: Auto-scroll steal was already fixed on main (commit 4e985e9c); this run confirmed root cause, verified the fix, and added regression tests.
 
 ## Problem
 
@@ -56,3 +57,4 @@ committing to a specific fix — this is a hypothesis, not a diagnosis yet.
 - [ ] Phase 1: Investigate — confirm root cause (reproduce, correlate with poll interval, check `comments` reference-vs-content semantics)
 - [ ] Phase 2: Fix — likely "only scroll on genuinely new content" + possibly "only if already near bottom"
 - [ ] Phase 3: Tests
+**Auto Run**: yes

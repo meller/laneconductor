@@ -1,7 +1,7 @@
 # Track 1106: End-to-end walkthrough — CLI (lc)
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: running
 **Progress**: 100%
 **Phase**: Not started — opened 2026-08-12
 **Type**: dev

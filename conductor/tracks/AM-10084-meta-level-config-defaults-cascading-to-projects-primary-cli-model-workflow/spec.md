@@ -207,7 +207,7 @@ it's this project's own row" case, which is already covered by the existing
 
 ## Acceptance Criteria
 
-- [ ] A project with no `primary.cli` set anywhere in its own
+- [x] A project with no `primary.cli` set anywhere in its own
       `.laneconductor.json`/`conductor/defaults.json`, but with
       `conductor/meta-defaults.json` at the meta project setting
       `project.primary.cli = "claude"`, resolves an *effective* primary CLI
@@ -215,41 +215,41 @@ it's this project's own row" case, which is already covered by the existing
       (not just a unit test of the merge helper in isolation) and via
       `lc state --json` reporting the same effective value `bin/lc.mjs` uses
       for its own gap computation.
-- [ ] The same project, once its own `.laneconductor.json` sets
+- [x] The same project, once its own `.laneconductor.json` sets
       `primary.cli = "antigravity"`, resolves to `"antigravity"` — project
       config always wins over the meta tier.
-- [ ] Setting `project.inherit_meta_defaults: false` makes that same project
+- [x] Setting `project.inherit_meta_defaults: false` makes that same project
       fall through to the hardcoded `"claude"` engine default instead of the
       meta tier's value, even though the meta tier still has a value
       configured.
-- [ ] A project's `conductor/workflow.json` that only specifies
+- [x] A project's `conductor/workflow.json` that only specifies
       `lanes.review.max_retries` inherits every other lane's settings from
       `conductor/meta-defaults.json`'s `workflow` block (when present) or the
       existing install-path canonical file (when no meta defaults exist) —
       not just its own single overridden key in isolation.
-- [ ] `computeSetupGaps` unit tests (extending
+- [x] `computeSetupGaps` unit tests (extending
       `conductor/tests/track-10069-setup-gaps.test.mjs`): a
       `workerMode: 'dedicated'` fixture produces byte-identical gap output to
       today, with or without the two new inputs supplied — confirms zero
       behavior change for the default/unaffected case.
-- [ ] `computeSetupGaps` with `workerMode: 'manager-driven'`,
+- [x] `computeSetupGaps` with `workerMode: 'manager-driven'`,
       `hasOnlineWorker: false`: no `blocking` gap is raised for the missing
       worker; an `advisory` `manager-driven-no-worker` gap is raised instead.
-- [ ] `computeSetupGaps` with `workerMode: 'manager-driven'`,
+- [x] `computeSetupGaps` with `workerMode: 'manager-driven'`,
       `primaryProviderReachable: false`, `primaryProviderReachableAnywhere:
       true`: no `no-provider` gap is raised.
-- [ ] `computeSetupGaps` with `workerMode: 'manager-driven'`,
+- [x] `computeSetupGaps` with `workerMode: 'manager-driven'`,
       `primaryProviderReachable: false`, `primaryProviderReachableAnywhere:
       false`: `no-provider` gap **is** still raised — inheriting reachability
       requires that *someone* actually verified it somewhere; a
       manager-driven project doesn't get a free pass with zero evidence
       anywhere on the instance.
-- [ ] livingwork specifically, once given `**worker_mode**: manager-driven`
+- [x] livingwork specifically, once given `**worker_mode**: manager-driven`
       (or the config-file equivalent) and with `claude` verified reachable
       by at least one other project's worker on the same instance, no longer
       shows `no-workers`/`no-provider` as blocking gaps in the real running
       dashboard — this is the concrete incident this track exists to fix,
       so it must be checked against the real instance, not only unit tests.
-- [ ] `conductor/workflow.md`'s "Model Overrides" section documents the new
+- [x] `conductor/workflow.md`'s "Model Overrides" section documents the new
       4th precedence tier and the `meta-defaults.json` / `worker_mode` /
       `inherit_meta_defaults` mechanism.
