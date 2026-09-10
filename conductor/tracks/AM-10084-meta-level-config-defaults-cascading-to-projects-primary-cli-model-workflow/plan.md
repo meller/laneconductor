@@ -209,3 +209,26 @@ redoing it; no other session was still active by the time this session
 resumed and completed Phase 5's real-instance verification plus Phases 6-7.
 The livingwork incident described in this track's own Problem statement is
 confirmed fixed end-to-end against the real instance, not just in tests.
+
+## ✅ QUALITY PASSED
+
+**Automated checks (this run):**
+- [x] Syntax: `find conductor ui bin -name "*.mjs" -not -path "*/node_modules/*" -exec node --check {} +` — no errors.
+- [x] Config validation: `.laneconductor.json` `project.id = 1`, `mode = local-api`, valid JSON.
+- [x] Command reachability: `lc --version` → `lc v1.0.0`.
+- [x] `node --test conductor/tests/track-10084-meta-defaults.test.mjs` — 15/15 pass (TC-1.1..1.13).
+- [x] `node --test conductor/tests/track-10084-setup-gaps.test.mjs conductor/tests/track-10069-setup-gaps.test.mjs` — 18/18 pass (11 original track-10069 assertions unmodified + 7 new TC-4.x).
+- [x] `node --test conductor/tests/track-10084-sync-meta-defaults-e2e.test.mjs` — 3/3 pass (TC-2.1/2.2/2.3, real spawned worker process).
+- [x] `node --test conductor/tests/local-fs-e2e.test.mjs` — 7/7 pass, no regression.
+- [~] `node --test conductor/tests/local-api-e2e.test.mjs` — 1 timing-sensitive `poll timeout` failure reproduces intermittently (ran 3x on this branch: 5/6, 4/6, 4/6 pass, different subtest each time — a `poll timeout (20000ms)` race, not a deterministic failure). **Diff-confirmed against main tip**: checked out a disposable detached worktree at `main`'s own tip (`c7d15b8c`) and ran the identical command — produced the same class of failure (`not ok 2 - LaneConductor remote-api mode`, poll timeout) on the very first run. This track's `laneconductor.sync.mjs` diff (51 lines, the config-cascade wiring) does not introduce this flakiness — it's pre-existing environmental/timing contention from this shared dev machine's many concurrently-running production `laneconductor.sync.mjs` workers (same root cause track 1102's quality gate documented for this same suite). Worktree cleaned up after comparison.
+- [~] `cd ui && npx vitest run` — 37 failed / 853 tests (14 files), 816 passed. Matches the exact `37 pre-existing ui/vitest failures` figure already recorded in this track's own `conversation.md` from the implement phase's diff-confirmation. This track only touched `ui/server/index.mjs` (+26 lines) and `ui/server/tests/track-10069-api-state.test.mjs` (its own extended test) inside `ui/` — neither file is among the 14 failing files, and the track's own test file passed cleanly (TC-5.1/TC-5.2 both green). The 14 failing files span unrelated areas (auth, dispatch/reap, worker-claim, several UI components) with no connection to meta-defaults or setup-gaps code paths.
+- [x] `cd ui && npx vite build` — succeeded (276 modules, `dist/` removed after).
+- [ ] Security: `npm audit` — not run. `git diff main...HEAD --stat -- ui/package.json ui/package-lock.json` is empty; this track touched neither file (same precedent as track 1102).
+- [x] Stub/deferred-work scan: `grep -rniE "not yet implemented|TODO|FIXME|FFU|placeholder|stub" conductor ui bin` restricted to this track's diff — only 3 hits, all in `conductor/services/setup-gaps.mjs`, all pre-existing (`git diff main...HEAD -- conductor/services/setup-gaps.mjs | grep stub` is empty) doc-checking logic for a *different* concept (product.md template-stub detection), unrelated to this track's `worker_mode`/`primaryProviderReachableAnywhere` additions.
+
+**Done-gate checklist** (all three required before `done`):
+1. Stub scan found nothing in `[x]`-marked code paths this track added. ✅
+2. No capability named in `spec.md`'s Solution is deferred/FFU — the Non-Goals section lists what's intentionally out of scope (per-field opt-out, true machine-scoping, new CLI subcommands), none of which were promised as delivered capability. ✅
+3. Real-product check: livingwork's real `.laneconductor.json` was set to `worker_mode: manager-driven` and its real setup gaps confirmed to go from blocking `no-provider` to `[]` against the real Postgres DB (recorded in `conversation.md`, implement phase) — not just asserted by a test fixture. ✅
+
+**Verdict**: PASS. Moving to `done:queue`.
