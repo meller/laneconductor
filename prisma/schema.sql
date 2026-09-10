@@ -161,6 +161,8 @@ CREATE TABLE "tracks" (
     "dismissed_at" TIMESTAMPTZ(6),
     "model_override" TEXT,
     "waiting_reason" TEXT,
+    "merge_mode" TEXT,
+    "workspace_mode" TEXT,
     "prespawn_block_count" INTEGER NOT NULL DEFAULT 0,
     "prespawn_block_kind" TEXT,
     "prespawn_block_reason" TEXT,

@@ -1095,7 +1095,25 @@ app.post('/track', auth, checkProject, async (req, res) => {
       index_content, plan_content, spec_content, test_content,
       lane_action_status,
       // Track 10055: why a `<lane>:waiting` track is parked
-      waiting_reason
+      waiting_reason,
+      // Track 10085: field-parity gap follow-up from AM-10083 F-3 — this
+      // collector's insert/update columns previously omitted these entirely,
+      // silently dropping them for every remote-api / cloud-fire-and-forget
+      // sync. See spec.md's Planning Findings for the per-field reasoning.
+      waiting_for_reply, auto_run, merge_mode, workspace_mode,
+      // Track 10085 Planning Finding 2: local's own POST /track handler does
+      // NOT persist model_override either — it's set via a separate PATCH
+      // endpoint (track 1116) that cloud doesn't have yet. Persisted here
+      // anyway as a deliberate divergence from local, since this is
+      // currently the only path a remote-api deployment has to set it at
+      // all. Do not "fix" this back to match local by removing it.
+      model_override,
+      // KPI fields (Track 10085 REQ-3), mirroring
+      // ui/server/index.mjs:3099-3101 exactly, including the one asymmetry:
+      // kpi_check_after is never COALESCEd on update (see below).
+      track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
+      kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
+      kpi_check_after, kpi_scheduled_at, kpi_maps_to,
     } = req.body;
 
     console.log(`[POST /track] project_id=${req.project_id} (body ${req.body.project_id}) track=${track_number}`);
@@ -1170,8 +1188,13 @@ app.post('/track', auth, checkProject, async (req, res) => {
       INSERT INTO tracks
         (project_id, track_number, title, lane_status, progress_percent,
          current_phase, content_summary, phase_step, index_content, plan_content, spec_content, test_content,
-         last_heartbeat, sync_status, last_updated_by, lane_action_status, waiting_reason)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'synced', 'worker', $13, $14)
+         last_heartbeat, sync_status, last_updated_by, lane_action_status, waiting_reason,
+         waiting_for_reply, auto_run, merge_mode, workspace_mode, model_override,
+         track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
+         kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'synced', 'worker', $13, $14,
+        COALESCE($17, false), COALESCE($18, false), $19, $20, $21,
+        $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
       ON CONFLICT (project_id, track_number) DO UPDATE SET
         title            = EXCLUDED.title,
         ${laneStatusClause}
@@ -1195,11 +1218,63 @@ app.post('/track', auth, checkProject, async (req, res) => {
           WHEN $13::text IS DISTINCT FROM 'waiting' THEN NULL
           ELSE tracks.waiting_reason
         END,
+        -- Track 10085 REQ-1: raw-nullable insert (COALESCE($n, false) above),
+        -- COALESCE-on-update — an omitted payload field never clobbers an
+        -- existing true. Mirrors ui/server/index.mjs:3297,3300,3375-3376.
+        waiting_for_reply = COALESCE($17, tracks.waiting_for_reply),
+        auto_run           = COALESCE($18, tracks.auto_run),
+        -- Track 10085 REQ-2: raw-nullable insert, COALESCE(EXCLUDED, tracks)
+        -- on update. Mirrors ui/server/index.mjs:3304-3306,3377-3378.
+        merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode),
+        workspace_mode     = COALESCE(EXCLUDED.workspace_mode, tracks.workspace_mode),
+        -- Track 10085 REQ-4: deliberate divergence from local's own
+        -- POST /track (which has no model_override handling at all) — see
+        -- the destructuring comment above for why this collector persists
+        -- it anyway.
+        model_override     = COALESCE(EXCLUDED.model_override, tracks.model_override),
+        -- Track 10085 REQ-3: KPI column parity, mirroring
+        -- ui/server/index.mjs:3362-3374 field-for-field, including the one
+        -- deliberate asymmetry: kpi_check_after is NEVER COALESCEd — it
+        -- always overwrites, even when the payload omits it.
+        track_type         = COALESCE(EXCLUDED.track_type, tracks.track_type, 'dev'),
+        kpi_target         = COALESCE(EXCLUDED.kpi_target, tracks.kpi_target),
+        kpi_actual         = COALESCE(EXCLUDED.kpi_actual, tracks.kpi_actual),
+        kpi_metric         = COALESCE(EXCLUDED.kpi_metric, tracks.kpi_metric),
+        kpi_source         = COALESCE(EXCLUDED.kpi_source, tracks.kpi_source),
+        kpi_source_config  = COALESCE(EXCLUDED.kpi_source_config, tracks.kpi_source_config),
+        kpi_threshold      = COALESCE(EXCLUDED.kpi_threshold, tracks.kpi_threshold),
+        kpi_window         = COALESCE(EXCLUDED.kpi_window, tracks.kpi_window),
+        kpi_snapshot       = COALESCE(EXCLUDED.kpi_snapshot, tracks.kpi_snapshot),
+        kpi_measured_at    = COALESCE(EXCLUDED.kpi_measured_at, tracks.kpi_measured_at),
+        kpi_check_after    = EXCLUDED.kpi_check_after,
+        kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
+        kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
         last_updated_by  = 'worker'
     `, [req.project_id, track_number, title, insertLaneStatus, progress_percent,
       current_phase, content_summary, phase_step,
       index_content, plan_content, spec_content, test_content, insertActionStatus,
-      waiting_reason ?? null, updateActionStatus, resetActionResult]);
+      waiting_reason ?? null, updateActionStatus, resetActionResult,
+      // $17-$21
+      waiting_for_reply === undefined ? null : waiting_for_reply,
+      auto_run === undefined ? null : auto_run,
+      merge_mode ?? null,
+      workspace_mode ?? null,
+      model_override ?? null,
+      // $22-$34: KPI columns
+      track_type ?? 'dev',
+      kpi_target ?? null,
+      kpi_actual ?? null,
+      kpi_metric ?? null,
+      kpi_source ?? null,
+      kpi_source_config ?? null,
+      kpi_threshold ?? null,
+      kpi_window ?? null,
+      kpi_snapshot ? JSON.stringify(kpi_snapshot) : null,
+      kpi_measured_at ?? null,
+      kpi_check_after ?? null,
+      kpi_scheduled_at ?? null,
+      kpi_maps_to ?? null,
+    ]);
 
     res.json({ ok: true });
   } catch (err) {
