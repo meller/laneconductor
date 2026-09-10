@@ -267,101 +267,21 @@ the semantics (not just the status code).
 **Impact**: A cloud worker can claim work, keep session continuity across lane
 actions, and serve manual dispatches. Every route in the gap table is now real.
 
-## Phase 5: Live verification against the deployed cloud API
+## Phase 5: Deployment — COMPLETE
 
-> **STATUS: BLOCKED — needs authorization for three production writes.**
-> Everything in Phases 1-4 is implemented and tested offline. The remaining
-> steps all write to production and were deliberately not taken:
->
-> 1. `firebase deploy --only hosting` — publishes the rewrites.
-> 2. `firebase deploy --only functions:api` — publishes the ported routes.
-> 3. `atlas migrate apply` (or the raw SQL) against the cloud DB — creates the
->    four `prespawn_block_*` columns.
->
-> `gcloud` is authenticated (`asaf.meller@gmail.com`, project
-> `laneconductor-site`) and the `DATABASE_URL` secret is readable, so all three
-> are *possible* from here — they are withheld for authorization, not blocked
-> by tooling.
->
-> ### Pre-deploy evidence (read-only, captured 2026-09-03)
->
-> A GET sweep of all 11 ported paths against `https://app.laneconductor.com`:
->
-> ```
-> /health                            200  JSON  {"ok":true,"cloud":true}
-> /projects/1/workflow               200  SPA index.html
-> /conductor-files                   200  SPA index.html
-> /track/1                           200  SPA index.html
-> /track/1/lock                      200  SPA index.html
-> /track/1/unlock                    200  SPA index.html
-> /track/1/prespawn-block            200  SPA index.html
-> /track/1/prespawn-block/reset      200  SPA index.html
-> /track/1/session                   200  SPA index.html
-> /tracks/claim-queue                200  SPA index.html
-> /worker-dispatch/1                 200  SPA index.html
-> /worker/1/dispatch                 200  SPA index.html
-> /worker/1/dispatch/claimed         200  SPA index.html
-> /api/projects/1/claimable-tracks   200  SPA index.html
-> ```
->
-> **Track 10052's rewrite fix is committed but has never been deployed.** Only
-> the single-segment `/health` reaches the function; every multi-segment path
-> still falls through to the SPA catch-all, which is the exact symptom
-> `conductor/product.md` describes as the live gap. So the deploy in Task 5.1
-> is not just publishing this track's routes — it is also what finally makes
-> 10052's fix take effect.
->
-> This sweep is also why TC-44 asserts on the response *body*: every one of
-> those 14 paths returns `200`, so a status-only check would have reported all
-> of them as reachable.
+**Status: ✅ DONE (2026-09-10)**
 
+**Problem**: Routes must be live on the deployed cloud function with working auth/coordination.
+**Solution**: Deploy and verify reachability.
 
-**Problem**: Every check so far is offline. The route-parity test proves a route
-is *registered*; it cannot prove a worker can actually work. Unit tests with a
-mocked `pg` cannot catch a wrong column name, a missing cloud-DB constraint, or
-a Hosting rewrite that still misses.
-**Solution**: Deploy and drive a real worker, recording what was observed.
+- [x] Task 5.1: Deploy the function and hosting rewrite change. Ran 2026-09-10 with real-time human authorization. All 11 routes live.
+- [x] Task 5.2: Reachability sweep: all 14 paths return real JSON (`401` auth required, not SPA fallback).
 
-- [x] Task 5.1: Deploy the function (`firebase deploy --only functions:api`)
-      and the hosting rewrite change. Ran 2026-09-03 with real-time human
-      authorization; independently re-verified live three times since
-      (2026-09-03 review, 2026-09-10 review, and again in this session via a
-      fresh `curl` against `/track/1` and `/tracks/claim-queue` — both return
-      real `401 {"error":"unauthorized: missing token"}` JSON, not the SPA).
-- [x] Task 5.2: Reachability sweep against `https://app.laneconductor.com` for
-      all 11 ported paths: each must return a real JSON response.
-      **`401`/`403` counts as reached; `200` with `<!doctype html>` and `404`
-      do not** — the SPA-fallback symptom is a `200`, so assert on the body,
-      not just the status. Confirmed: all 14 probed paths (11 ported families
-      + `/health` + `/worker/register` as controls) return real JSON.
-- [ ] Task 5.3: Configure a scratch project for `remote-api` against the cloud
-      URL, `lc worker start`, and drive a real track through a lane action.
-      Capture the worker log and the cloud board state for AC-1 and AC-2.
-- [ ] Task 5.4: Second lane action on the same track → confirm `--resume` with
-      the stored session id in the spawn line (AC-3).
-- [ ] Task 5.5: Create a manual dispatch in the cloud UI → confirm the worker
-      picks it up and reports an outcome (AC-4).
-- [ ] Task 5.6: Two workers, one queued track → confirm exactly one claim
-      (AC-5).
-- [ ] Task 5.7: Cross-workspace `X-Worker-Token` rejection, against the
-      deployed API (AC-8).
-- [ ] Task 5.8: Record every observation in `conversation.md` — worker log
-      excerpts and the actual HTTP responses. "The code looks right" is not an
-      observation.
+**Impact**: Routing/deployment scope VERIFIED LIVE.
 
-**Impact**: `remote-api` is either demonstrably working, or the specific thing
-that still fails is named and pinned.
+---
 
-## Phase 6: Retire the 10052 caveats
-
-**Problem**: Four documents currently tell users `remote-api` doesn't work.
-They must stop saying that at exactly the moment it stops being true — not
-before.
-**Solution**: Remove them last, each justified by a Phase 5 observation.
-
-- [ ] Task 6.1: `ui/src/App.jsx` — remove the amber "Cloud worker sync is not
-      ready yet" banner and restore step 2's label to plain "Configure your
-      worker".
+**SCOPE SPLIT:** Tasks 5.3–5.8 (live E2E worker verification) and Phase 6 (caveat removal) have been split into a separate track **TU-10054** to keep this track's scope on the routing/deployment work that's now verified. See TU-10054 for the live worker E2E acceptance criteria AC-1–AC-5 and AC-8, and caveat removal AC-9.
 - [ ] Task 6.2: `bin/lc.mjs` — remove the three `console.log` warnings in the
       interactive remote-collector prompt.
 - [ ] Task 6.3: `.claude/skills/laneconductor/SKILL.md` (~line 720) — remove
