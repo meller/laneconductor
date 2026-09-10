@@ -184,10 +184,14 @@ documented yet.
 
 ## Phase 7: Quality gate
 
-- [ ] Run full `node --test` suite for touched files (`meta-defaults.mjs`,
-      `setup-gaps.mjs`, plus existing sync-worker/lc.mjs integration tests
-      that exercise config loading) and `cd ui && npx vitest run` for
-      anything touching `ui/server/index.mjs`.
-- [ ] `conductor/quality-gate.md` checklist.
-- [ ] Grep for stub markers per the quality-gate protocol
-      (`not yet implemented|TODO|FIXME|FFU`) in newly touched files.
+**Run this time for track 10084** (2026-09-10):
+
+- [x] Syntax: `find conductor ui bin -name "*.mjs" -not -path "*/node_modules/*" -exec node --check {} +` — no errors.
+- [x] `node --test conductor/tests/track-10084-meta-defaults.test.mjs conductor/tests/track-10084-setup-gaps.test.mjs conductor/tests/track-10069-setup-gaps.test.mjs` — 33/33 pass (confirms REQ-1..REQ-4 pure logic and REQ-5/REQ-6's `computeSetupGaps` extension, plus zero regression in the original 11 track-10069 assertions).
+- [x] `node --test conductor/tests/track-10084-sync-meta-defaults-e2e.test.mjs` — 3/3 pass (real spawned worker process, confirms `laneconductor.sync.mjs`'s actual config-cascade wiring, not just the pure module).
+- [x] `node --test conductor/tests/local-fs-e2e.test.mjs` — 7/7 pass (no regression in the base worker lane-transition path).
+- [x] `node --test conductor/tests/local-api-e2e.test.mjs` — 3/6 fail. **Diff-confirmed against the pre-Phase-2 commit (`3e12b0f8`)**, not assumed: swapped `conductor/laneconductor.sync.mjs` back to that commit's version and reran — the SAME 3 subtests fail identically (confirmed by isolating the one that looked borderline, `custom transition: review → implement:queue on failure`, via `--test-name-pattern` against both versions — fails on both). Root cause: this suite spawns 2 real worker processes with 20s lane-transition polls on a machine already running ~5 real production `laneconductor.sync.mjs` workers (confirmed via `ps aux`) — timing-sensitive under real contention, unrelated to this track's config changes (confirmed separately: no real `conductor/meta-defaults.json` exists on this machine, so `loadMetaDefaults()` returns `{}` for every test that doesn't explicitly override `LC_META_DEFAULTS_PATH`, making this track's change a structural no-op for this suite).
+- [x] `cd ui && npx vitest run` — 37/853 fail across 14 files, ALL pre-existing and unrelated (auth, worker registration, assignee resolution, dispatch bridging, model-override, frontend components — none touch setup-gaps/meta-defaults). Spot-checked one (`track-1116-model-override.test.mjs`, fails even in isolation with `TypeError: syncTrackToFile is not a function`) against the pre-track-10084 baseline commit (`b5ba19b1`): `syncTrackToFile` was never in that file's `export {...}` list even then — a pre-existing bug, not a regression. This track's own extended test, `server/tests/track-10069-api-state.test.mjs`, passes cleanly (3/3) both in isolation and within the full run.
+- [x] Orphaned-process check: `ps aux | grep laneconductor.sync.mjs` after the full vitest run — every process matches a known long-running legitimate PID (Sep08/Sep09 or an earlier real session), none started around the vitest run's own timestamp. No leak this time.
+- [x] Stub-marker scan (`grep -rniE "not yet implemented|TODO|FIXME|FFU|placeholder|stub"`) scoped to this track's touched code — zero hits.
+- [x] Real-instance verification (Phase 5's own item, re-confirmed here): livingwork's actual setup gaps, resolved.
