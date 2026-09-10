@@ -53,4 +53,4 @@ cycle and a mocked `Element.prototype.scrollIntoView`.
       full related suite (`TrackDetailPanel.test.jsx`,
       `TrackDetailPanel.mobile.test.jsx`, and the new file — 15/15 pass).
 
-## ✅ COMPLETE
+## ✅ REVIEWED

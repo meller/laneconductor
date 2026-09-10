@@ -1,6 +1,6 @@
 # Track 1094: Conversation Tab Auto-Scroll Steals User Control
 
-**Lane**: review
+**Lane**: quality-gate
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
