@@ -33,28 +33,6 @@ fixture shape, confirmed via `git diff` before being restored. Both
 incidents match this exact mechanism: some worker-spawning test's sandbox
 resolved into a git worktree instead of staying isolated.
 
-**The corruption doesn't stay a one-time disk overwrite — it can become
-durable and self-perpetuating.** Confirmed live, after this track was filed:
-once an escaped/leaked worker (any of the 25 files below, run from inside a
-worktree) writes the corrupted `conductor/workflow.json` to disk, its own
-normal sync cycle can push that content into the DB via
-`POST /api/projects/:id/workflow`, landing in
-`projects.conductor_files.workflow_json` (JSONB, `ui/server/index.mjs`). From
-that point on, **every** live worker for the project — not just the one that
-caused the corruption — polls `GET /projects/:id/workflow` /
-`GET /api/projects/:id/workflow` every `LC_AUTO_LAUNCH_INTERVAL_MS` (default
-5s) via `pullWorkflow()` (`conductor/laneconductor.sync.mjs:2469`, called from
-the `setInterval` at line ~10240), and both of those endpoints prefer the DB's
-cached `conductor_files.workflow_json` over the file on disk
-(`ui/server/index.mjs:1541` and `:3057`). A plain `git checkout --` on the
-disk file does **not** fix this: the very next 5-second poll from any of the
-project's other live workers stamps the stale DB value right back over the
-restored file, indefinitely, until the DB row itself is cleared. This was
-observed directly in this repo's own primary project (id=1, 8 concurrently
-running workers) — repeated `git checkout` restores kept reverting within
-~3-8 seconds until `UPDATE projects SET conductor_files = conductor_files -
-'workflow_json' WHERE id=1` was run, after which the file stayed clean.
-
 The established, working precedent is `conductor/tests/helpers/isolated-worker.mjs`
 (`makeSandbox()`/`startIsolatedWorker()`, from track 10045): the sandbox is
 created via `mkdtempSync` under `os.tmpdir()` — structurally outside any
@@ -120,17 +98,6 @@ an edge case.
   whose needs reveal a genuine gap in the helper — in that case extending
   the helper is in scope, but only as needed by a concrete file in the
   list below, not speculatively.
-- REQ-8: Given the DB-cache amplification above, verifying "is
-  `conductor/workflow.json` clean on disk" is not sufficient proof a fix
-  worked or that a repro is inert — `SELECT conductor_files->>'workflow_json'
-  FROM projects WHERE id = <project>` must also be checked (and is expected
-  to be absent/null) whenever validating this fix against the real primary
-  project's own DB row, not just its own worktree copy. This track does not
-  need to change the pull/cache mechanism itself (that's a separate, larger
-  question — namely, "should collector-mode workflow.json even have a DB
-  cache that outranks disk at all", which is out of scope here) — REQ-8 is
-  about verification hygiene for THIS track's fix, not a new requirement on
-  the sync architecture.
 
 ## Files In Scope (from the repo-wide audit)
 
@@ -204,11 +171,3 @@ live corruption vector the Acceptance Criteria below are checking for.
 - [ ] `conductor/workflow.json` in both the primary checkout and this
       track's worktree is the real 5-lane config, unmodified by running
       the fixed test suite.
-- [ ] `SELECT conductor_files->>'workflow_json' FROM projects WHERE id = 1`
-      (the primary project) is null/absent both before and after running the
-      fixed test suite from inside this track's worktree — not just the disk
-      file. If it is ever found non-null with test-fixture-shaped content
-      during this track's own work, clear it the same way this track's spec
-      documents (`UPDATE projects SET conductor_files = conductor_files -
-      'workflow_json' WHERE id = 1`) — restoring disk alone is not enough,
-      per REQ-8.

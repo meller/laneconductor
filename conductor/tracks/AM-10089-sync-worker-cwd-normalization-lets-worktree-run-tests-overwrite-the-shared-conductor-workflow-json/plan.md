@@ -203,15 +203,6 @@ completes the "all 25" scope the track was filed against.
       worktree and (spot-check only, don't touch it) the primary checkout, after
       running the full fixed suite back-to-back from inside THIS worktree — the
       exact repro condition described in `spec.md`.
-- [ ] Per REQ-8: also check `SELECT conductor_files->>'workflow_json' FROM
-      projects WHERE id = 1` directly — a clean disk file is not sufficient
-      proof by itself, since a prior escape can have pushed the corrupted
-      content into that DB column, which then re-clobbers disk on every
-      worker's next `pullWorkflow()` poll (every `LC_AUTO_LAUNCH_INTERVAL_MS`,
-      default 5s) regardless of how many times disk is restored. If found
-      non-null with test-fixture content, clear it (`UPDATE projects SET
-      conductor_files = conductor_files - 'workflow_json' WHERE id = 1`)
-      before concluding this phase's suite run left no lasting damage.
 - [ ] `grep -rn "join(ROOT, '\.test-tmp" conductor/tests/` — confirm none of the 24
       fixed files still reference an in-repo sandbox path (files intentionally out
       of scope, like `track-1084-worker-identity.test.mjs` or
