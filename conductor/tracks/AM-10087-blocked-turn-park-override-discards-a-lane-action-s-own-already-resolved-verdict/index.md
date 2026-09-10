@@ -1,7 +1,7 @@
 # Track AM-10087: Blocked-turn park override discards a lane action's own already-resolved verdict
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New

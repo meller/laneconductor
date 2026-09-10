@@ -60,6 +60,7 @@ import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
 import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
+import { parseVerdict } from './services/verdict.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-model-resolver.mjs';
@@ -6251,6 +6252,11 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // to simulate exactly this by writing **Lane Status**: waiting itself.
     let agentReportedWaiting = false;
     let agentWaitingReason = null;
+    // Track AM-10087: the action's own semantic PASS/FAIL verdict, read
+    // alongside the waiting-reason markers below — same worktree read, same
+    // isSuccess guard (only the agent's own last-written index.md is
+    // authoritative, and only on a clean end_turn).
+    let agentVerdict = null;
     // Track 10055: this used to be gated on `laneStatus === 'done'`, which
     // meant an agent on plan/implement/review/quality-gate could write
     // `**Lane Status**: waiting` as its last action and have it silently
@@ -6266,6 +6272,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           const rawIndexContent = readFileSync(join(waitCheckDir, 'conductor', 'tracks', waitTrackDir, 'index.md'), 'utf8');
           agentReportedWaiting = /\*\*Lane Status\*\*:\s*waiting/i.test(rawIndexContent);
           agentWaitingReason = parseWaitingReason(rawIndexContent);
+          agentVerdict = parseVerdict(rawIndexContent);
         }
       } catch (e) { /* best-effort detection only — never block the exit handler on it */ }
     }
@@ -6490,8 +6497,39 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // end_turn, so the track landed at `<lane>:success`. Nothing polls that,
     // and "success" reads as good news, so the question sat unread behind a
     // green tick.
+    //
+    // Track AM-10087: a blocked turn whose OWN lane action already produced
+    // a definitive, workflow.json-routable PASS/FAIL verdict (the
+    // **Verdict** marker) is NOT a genuinely open question — the harness's
+    // end-of-turn 'blocked' self-assessment is a separate signal from the
+    // action's own already-computed outcome, and the latter takes priority
+    // whenever it's actually mechanically routable. Confirmed live: AM-1018's
+    // review action delivered a complete FAIL verdict (workflow.json's own
+    // review.on_failure routes straight to implement:queue, no human
+    // judgment involved) but the harness separately tagged the turn
+    // 'blocked' over an unrelated, already-answered-by-policy question —
+    // the override below discarded the review's own resolved outcome and
+    // parked the track indefinitely instead of routing it.
+    //
+    // Only actually overrides when the verdict's selected direction
+    // resolves to a real transition in workflow.json for this lane (REQ-5)
+    // — an unroutable verdict (misconfigured project, or a lane with no
+    // on_success/on_failure defined) falls through to the ordinary park
+    // below unchanged, same as no verdict at all. Gated on `!abortedByUser`
+    // so a user-cancelled run is never reinterpreted as a routable verdict.
+    const verdictDirection = agentVerdict === 'pass' ? currentLaneConfig?.on_success
+      : agentVerdict === 'fail' ? currentLaneConfig?.on_failure
+      : null;
+    const verdictOverride = !endedMidWork && !abortedByUser && isBlockedTurn && !!verdictDirection;
+    if (verdictOverride) {
+      const resolvedVerdict = resolveTransition(verdictDirection, laneStatus, agentVerdict === 'pass', isMaxRetries);
+      targetLane = resolvedVerdict.lane;
+      nextActionStatus = resolvedVerdict.status;
+      console.log(`[${label}] Track ${trackNumber}: turn ended with a 'blocked' self-assessment, but the action already resolved **Verdict**: ${agentVerdict} — routing to ${targetLane}:${nextActionStatus} per workflow.json instead of parking.`);
+    }
+
     let isParked = false;
-    if (!endedMidWork && (agentReportedWaiting || isBlockedTurn || abortedByUser)) {
+    if (!endedMidWork && !verdictOverride && (agentReportedWaiting || isBlockedTurn || abortedByUser)) {
       targetLane = laneStatus;
       nextActionStatus = 'waiting';
       isParked = true;
@@ -6676,7 +6714,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
           // the existing conversation-reply resume path (autoLaunchLocalFs's
           // waitingForReply handling) both pick this up correctly, exactly
           // as they already do for a real human-asked question.
-          if (isBlockedTurn) {
+          // Track AM-10087: skipped when verdictOverride routed this run
+          // forward instead of parking — the track isn't waiting on a human
+          // reply, it already advanced to its resolved verdict's lane.
+          if (isBlockedTurn && !verdictOverride) {
             if (content.match(/\*\*Waiting for reply\*\*:\s*[^\n]+/i)) {
               content = content.replace(/\*\*Waiting for reply\*\*:\s*[^\n]+/i, `**Waiting for reply**: yes`);
             } else {
@@ -6832,7 +6873,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // the Inbox's existing bucket logic (driven entirely by track_comments)
     // correctly classifies the track as needing your input, the same way it
     // already does for any other unresolved claude/gemini comment.
-    if (isBlockedTurn) {
+    // Track AM-10087: skipped when verdictOverride fired — the track isn't
+    // waiting for input, it already routed forward; see the override-visible
+    // comment below instead.
+    if (isBlockedTurn && !verdictOverride) {
       try {
         const tracksDirForBlock = join(process.cwd(), 'conductor', 'tracks');
         const trackDirForBlock = resolveTrackFolder(tracksDirForBlock, trackNumber);
@@ -6843,6 +6887,26 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         }
       } catch (err) {
         console.warn(`[${label}] Failed to append blocked-question entry to conversation.md: ${err.message}`);
+      }
+    }
+
+    // Track AM-10087 (REQ-7): the suppressed park must be as visible as the
+    // park itself would have been — a silent bypass of a park is exactly as
+    // bad as a silent incorrect park (this track's original complaint).
+    if (verdictOverride) {
+      try {
+        const tracksDirForVerdict = join(process.cwd(), 'conductor', 'tracks');
+        const trackDirForVerdict = resolveTrackFolder(tracksDirForVerdict, trackNumber);
+        if (trackDirForVerdict) {
+          const convPath = join(tracksDirForVerdict, trackDirForVerdict, 'conversation.md');
+          appendFileSync(
+            convPath,
+            `\n> **system**: ℹ️ Turn ended with a 'blocked' self-assessment, but the action already resolved **Verdict**: ${agentVerdict} — routing to ${targetLane}:${nextActionStatus} per workflow.json instead of parking.\n`,
+            'utf8'
+          );
+        }
+      } catch (err) {
+        console.warn(`[${label}] Failed to append verdict-override entry to conversation.md: ${err.message}`);
       }
     }
 
