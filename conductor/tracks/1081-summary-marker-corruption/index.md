@@ -1,6 +1,6 @@
 # Track 1081: Bug — `**Summary**` marker gets silently overwritten with wrong content
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
 **Lane Status**: queue
 **Progress**: 100%
