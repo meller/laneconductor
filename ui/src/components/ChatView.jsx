@@ -55,7 +55,7 @@ export function targetLabel(worker, tracks = []) {
 
 const DEFAULT_PAGE_SIZE = 30;
 
-export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = null, onSeedConsumed, targetProjectIdOverride = null }) {
+export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = null, onSeedConsumed, targetProjectIdOverride = null, viewedProjectName = null }) {
   const { apiFetch } = useApi();
   const [gaps, setGaps] = useState([]);
   const [advisoryDismissed, setAdvisoryDismissed] = useState(false);
@@ -98,15 +98,20 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
   const selectedWorker = targets.find(w => w.id === selectedId) ?? null;
 
   // Track 1091 Phase 7: the manager's pseudo-track conversation lives inside
-  // a project's own repo, so picking "Manager" from the plain Chat tab with
-  // no project selected (or none existing) hit the exact same dead end
-  // "Create with chat" did — resolveWorkerChatTarget had no project to
-  // scope the conversation to and silently gave up ("No track to talk
-  // about"). Rather than requiring every entry point to know about the meta
-  // project, fall back to it here, once, whenever the manager is selected
-  // and nothing else supplies a project id.
+  // ONE fixed repo (the meta project) — the manager itself is a single,
+  // project-independent entity (project_id: null), not "per project", so
+  // its conversation must be the same regardless of which project happens
+  // to be selected in the picker. Originally this fallback only kicked in
+  // when NO project was selected at all, which fixed the plain-Chat-tab
+  // dead end but left a worse bug: picking Manager while a REAL project was
+  // selected silently pointed resolveWorkerChatTarget at that project's own
+  // repo (which has no conductor/tracks/manager/ folder at all), showing an
+  // empty transcript with no error. Now the meta-project fallback applies
+  // whenever the manager is selected, full stop — `projectId` (whatever's
+  // selected in the picker) is never used for the manager, only for every
+  // other, genuinely per-project worker.
   const [metaFallbackId, setMetaFallbackId] = useState(null);
-  const needsMetaFallback = selectedWorker?.type === 'manager' && targetProjectIdOverride == null && projectId == null;
+  const needsMetaFallback = selectedWorker?.type === 'manager' && targetProjectIdOverride == null;
   useEffect(() => {
     if (!needsMetaFallback || metaFallbackId != null) return;
     let cancelled = false;
@@ -117,16 +122,33 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
     return () => { cancelled = true; };
   }, [needsMetaFallback, metaFallbackId, apiFetch]);
 
-  // Track 1091 Phase 7: "Create with chat" pins the manager's pseudo-track
-  // conversation to the dedicated meta project (App.jsx) regardless of
-  // whatever project is actually selected (or none, "All Projects") — the
-  // override wins over the normal fallback whenever it's set.
+  // Track 1091 Phase 7: the manager always resolves against the meta
+  // project (or an explicit override, e.g. "Create with chat" — which
+  // happens to point at the same meta project anyway) regardless of
+  // whatever real project is selected in the picker; every other worker
+  // keeps using the selected project as before.
   const chatTarget = selectedWorker
-    ? resolveWorkerChatTarget(selectedWorker, targetProjectIdOverride ?? projectId ?? metaFallbackId)
+    ? resolveWorkerChatTarget(
+        selectedWorker,
+        selectedWorker.type === 'manager' ? (targetProjectIdOverride ?? metaFallbackId) : (targetProjectIdOverride ?? projectId)
+      )
     : null;
 
   const { blocks, turn, rawLog } = useTrackTranscript(chatTarget?.projectId, chatTarget?.trackNumber);
   const { comments, setComments } = useTrackComments(chatTarget?.projectId, chatTarget?.trackNumber);
+
+  // The manager's conversation always lives in the meta project now (see
+  // chatTarget above) — its dispatched reply turn only ever reads that one
+  // conversation.md plus a generic instance-wide digest, with no notion of
+  // "the human is currently looking at project X in the browser." Typing
+  // something project-relative in here (e.g. "track 1000 needs...") is
+  // otherwise ambiguous the instant more than one project has a track 1000.
+  // A regular (non-manager) worker's chat doesn't need this — its target is
+  // already that worker's own actual project, so there's nothing ambiguous
+  // to disambiguate.
+  const messageContextPrefix = selectedWorker?.type === 'manager' && viewedProjectName
+    ? `[Currently viewing project "${viewedProjectName}" in the UI]`
+    : null;
 
   // Track 1091 Phase 7: "Create with chat" seeds an opening message once a
   // target (the manager, by REQ-3's own default-selection effect above) is
@@ -185,6 +207,43 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
       : !!matchedTrack?.waiting_for_reply
   );
 
+  // Track 10079 (REQ-19): the Stop control's liveness comes SOLELY from
+  // resolveTargetRunLiveness — the same computation the rest of this view
+  // already relies on — never a second liveness check of its own.
+  const [aborting, setAborting] = useState(false);
+  const [abortError, setAbortError] = useState(null);
+
+  useEffect(() => {
+    setAborting(false);
+    setAbortError(null);
+  }, [selectedId]);
+
+  const handleAbort = async () => {
+    if (!chatTarget?.projectId || !chatTarget?.trackNumber) return;
+    setAborting(true);
+    setAbortError(null);
+    try {
+      const res = await apiFetch(`/api/projects/${chatTarget.projectId}/tracks/${chatTarget.trackNumber}/abort`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (res.status === 409) {
+        // REQ-20/AC-9: a 409 means nothing is running — informational, not
+        // an error the click itself caused.
+        setAbortError('Nothing is running');
+      } else if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setAbortError(data?.error || `Failed to stop (${res.status})`);
+      }
+      // 202: no error to surface — the board reflects the park once the
+      // worker's own exit handler and the next poll/broadcast land.
+    } catch (err) {
+      setAbortError(err.message || 'Failed to stop');
+    } finally {
+      setAborting(false);
+    }
+  };
+
   // Reset pagination and scroll to bottom when switching target
   useEffect(() => {
     setVisibleBlocksCount(DEFAULT_PAGE_SIZE);
@@ -237,7 +296,13 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
                 {targetLabel(selectedWorker, tracks)}
               </span>
             </div>
-            <TurnStatusBar turn={turn} />
+            <TurnStatusBar
+              turn={turn}
+              canAbort={runLiveness.isLive}
+              onAbort={handleAbort}
+              aborting={aborting}
+              abortError={abortError}
+            />
             {advisoryGaps.length > 0 && !advisoryDismissed && (
               <div className="bg-blue-950/40 border-b border-blue-900/60 px-4 py-2 flex items-center justify-between text-xs text-blue-200 shrink-0" data-testid="advisory-gaps-note">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -325,6 +390,8 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
               isLiveTurn={runLiveness.isLive}
               liveAction={runLiveness.action}
               awaitingReply={awaitingReply}
+              messageContextPrefix={messageContextPrefix}
+              tracks={tracks}
             />
           </>
         )}

@@ -1,11 +1,13 @@
 # Track AM-10079: Live turn cancellation and abort control in Chat surface
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Implemented — Phases 1-5 built and verified; Phase 6 (remote abort) deliberately deferred, reported as 501
 **Type**: dev
+**Track Kind**: feature
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: Implemented. `conductor/services/run-abort.mjs` records abort intent on the run marker and signals the detached process group SIGINT→SIGTERM→SIGKILL behind a pid-reuse guard; the abort endpoint…

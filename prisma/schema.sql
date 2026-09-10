@@ -61,6 +61,9 @@ CREATE TABLE "projects" (
     "mode" TEXT DEFAULT 'local-fs',
     "workspace_id" UUID,
     "created_at" TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP,
+    "file_manifest" JSONB,
+    "file_manifest_digest" TEXT,
+    "file_manifest_updated_at" TIMESTAMP(6),
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
 );
@@ -158,6 +161,8 @@ CREATE TABLE "tracks" (
     "dismissed_at" TIMESTAMPTZ(6),
     "model_override" TEXT,
     "waiting_reason" TEXT,
+    "merge_mode" TEXT,
+    "workspace_mode" TEXT,
     "prespawn_block_count" INTEGER NOT NULL DEFAULT 0,
     "prespawn_block_kind" TEXT,
     "prespawn_block_reason" TEXT,

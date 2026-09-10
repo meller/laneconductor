@@ -25,6 +25,8 @@ const state = {
   comments: [], // Track 1086 Phase 4: [{ track_number, author, body }] — every /track/:num/comment POST, in order (proves conversation.md entries actually reach the sync pipeline, not just the file)
   projectEnsureCalls: 0, // Track 1091 Phase 2: proves a manager worker skips /project/ensure entirely (it isn't "for" any project)
   offlineWorkerIds: [], // Track 10054: worker ids to treat as offline, set via /_set-offline-workers — stands in for the real server's last_heartbeat staleness check
+  fileManifests: [], // Track 10080: every accepted PATCH /worker/file-manifest body, in order — proves digest-gated push cadence (one push per actual change, not per tick)
+  failFileManifestCount: 0, // Track 10080: /_set-fail-file-manifest — next N PATCH /worker/file-manifest calls 500 instead of succeeding
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -253,15 +255,45 @@ const server = createServer(async (req, res) => {
 
   if ((params = route('PATCH', '/worker/heartbeat', req)) !== null) {
     const w = state.workers.find(x => x.hostname === body.hostname && x.pid === body.pid);
-    if (w) {
-      if (body.available_models !== undefined) w.available_models = body.available_models;
-      if (body.status !== undefined) w.status = body.status;
-    }
+    // Track AM-10088: mirrors the real server's 404-on-no-match (PATCH is
+    // UPDATE-only, never an upsert) — a claim-scoped worker's own heartbeat
+    // re-registers itself on exactly this response (see
+    // laneconductor.sync.mjs's heartbeatClaimWorker).
+    if (!w) return reply(res, 404, { error: 'worker not registered (no matching row) — re-register' });
+    if (body.available_models !== undefined) w.available_models = body.available_models;
+    if (body.status !== undefined) w.status = body.status;
+    if (body.current_task !== undefined) w.current_task = body.current_task;
     return reply(res, 200, { ok: true });
   }
 
-  if ((params = route('DELETE', '/worker', req)) !== null)
+  // Track AM-10088: mirrors the real server's soft de-registration — marks
+  // the matching row offline rather than deleting it, so a test can still
+  // see the retired row (and that it stopped reporting 'busy') instead of
+  // it silently vanishing.
+  if ((params = route('DELETE', '/worker', req)) !== null) {
+    const w = state.workers.find(x => x.hostname === body.hostname && x.pid === body.pid && (x.worker_number ?? 1) === (body.worker_number ?? 1));
+    if (w) w.status = 'offline';
     return reply(res, 200, { ok: true });
+  }
+
+  // Track 10080: worker-pushed file manifest, the fallback source for
+  // GET /api/projects/:id/files when a project's repo_path isn't reachable
+  // from the API host. /_set-fail-file-manifest lets a test simulate a
+  // collector-0 failure (TC-58/TC-63: the worker must not advance its
+  // last-sent digest when this happens).
+  if ((params = route('PATCH', '/worker/file-manifest', req)) !== null) {
+    if (state.failFileManifestCount > 0) {
+      state.failFileManifestCount -= 1;
+      return reply(res, 500, { error: 'simulated file-manifest outage (test-injected)' });
+    }
+    state.fileManifests.push(body);
+    return reply(res, 200, { ok: true });
+  }
+
+  if ((params = route('POST', '/_set-fail-file-manifest', req)) !== null) {
+    state.failFileManifestCount = Number(body.count) || 0;
+    return reply(res, 200, { ok: true });
+  }
 
   // ── Track upsert (called when chokidar picks up file changes) ─────────────
   if ((params = route('POST', '/track', req)) !== null) {
@@ -448,6 +480,8 @@ const server = createServer(async (req, res) => {
     state.failTrackActionCount = 0;
     state.failAllWritesUntil = 0;
     state.offlineWorkerIds = [];
+    state.fileManifests = [];
+    state.failFileManifestCount = 0;
     return reply(res, 200, { ok: true });
   }
 

@@ -20,6 +20,33 @@
 - **Real-time**: Polling every 2s
 - **Build tool**: Vite
 
+## Chat Composer Autocomplete (Track 10080)
+
+The Chat composer (`ui/src/components/TrackChatComposer.jsx`) completes `@file` mentions,
+`#track`/`@track:` references, and `/laneconductor` slash commands. Trigger detection requires
+the trigger character to begin a token — position 0, or preceded by whitespace:
+
+| Typed | Menu | Source |
+|---|---|---|
+| `@src/comp` | files | `GET /api/projects/:id/files?q=…` (debounced) |
+| `#100` / `@track:100` | tracks | the track list already held in memory — no request |
+| `/mo` (position 0 only) | commands | `conductor/services/slash-commands.mjs` — static data |
+
+**`GET /api/projects/:id/files?q=&limit=`** returns `{ files: [{ path, score }], source, total,
+truncated, age_seconds }`, ranked by `conductor/services/fuzzy-match.mjs`'s subsequence scorer
+(shared between the API server and the browser). `source` tiers: `disk` (`git ls-files` in the
+project's `repo_path`, cached with a TTL + in-flight-promise dedupe) → `worker` (a manifest the
+worker pushed, for `remote-api` deployments where the API host can't reach the repo) → `none`
+(always `200`, never an error — the composer degrades to "file list unavailable" instead of
+failing).
+
+**`PATCH /worker/file-manifest`** (`collectorAuth`-guarded, like `/worker/heartbeat`) is how a
+worker keeps that `worker` tier fresh: on the same 60s cadence as its worktree-summary tick, it
+hashes its tracked-file list and pushes only when the digest changed, via the shared
+`patchCollectors()` fan-out (token resolution, health, the collector-0-authoritative rule and the
+retry buffer, all for free). Capped at 20,000 paths (`truncated: true` beyond that). Stored in
+`projects.file_manifest` / `file_manifest_digest` / `file_manifest_updated_at`.
+
 ## Database
 - **Engine**: PostgreSQL (local, default port 5432)
 - **DB name**: `laneconductor` (default)

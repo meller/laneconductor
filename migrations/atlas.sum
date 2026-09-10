@@ -1,4 +1,4 @@
-h1:sw5zEz2IibXewDpdEdTJP9lMnUIVZcK5GE4+cGy6lRM=
+h1:Pk4McpiKlQFPa0tgOIv3GOUkGQZpElbY71SN4+wwirw=
 20260227074203_initial.sql h1:wXIpAxVr+EZUQ3lfP0PB2z3gOw/42gGaDiw4SekgYnE=
 20260227092504_lane_status_enum.sql h1:5jNuIA00cHg0RXgYAJ44sSdDIihdUKUmpO9Tt0MuhLU=
 20260227101500_add_running_status.sql h1:LPEYAICfmX9TNrwBmfuAScSQ+5wyZ3Ptm/NiO4Bc834=
@@ -40,3 +40,5 @@ h1:sw5zEz2IibXewDpdEdTJP9lMnUIVZcK5GE4+cGy6lRM=
 20260905215931_add_collector_health.sql h1:is1y7PJ9Pl852pAOoo3xFzm7WzAqGF5M4Up0jH8x+E0=
 20260906120000_hash_legacy_api_tokens.sql h1:Zk91m9jps4eodIqAMhwrSyQ5zTdWsPCMxJ059GaArl0=
 20260907120000_unique_api_token_per_user.sql h1:SKZApCjjSVc+vvGVX1dHTBa+dou8+qE7sYIJ0z7b+Lo=
+20260908120000_add_project_file_manifest.sql h1:mpgiamI6Y6u+45sNDHIZqU604JvjM+UWFVYIEO02Klk=
+20260910090000_add_track_merge_workspace_mode.sql h1:fOyKzSl15MIFslZLa/ATX2Cn/wH2CPQrZluON08U2uQ=

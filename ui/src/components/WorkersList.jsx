@@ -8,6 +8,7 @@ import { parseWorkerTask } from '../lib/workerTaskInfo.js';
 import { sortWorkersForStrip } from '../lib/workerSort.js';
 import { providerIcon, defaultModelFor } from '../../../conductor/providers.mjs';
 import { getDefaultProviderModel } from '../lib/defaultModel.js';
+import { isClaimScopedWorker } from '../lib/workerStatus.js';
 
 // Start/stop actions shell out to `make lc-start`/`lc-stop` on whatever
 // machine the API server is running on (see ui/server/index.mjs's
@@ -23,6 +24,20 @@ const VISIBILITY_BADGE = {
   team: { label: 'Team', icon: '👥', className: 'text-blue-400 border-blue-900/50' },
   public: { label: 'Public', icon: '🌐', className: 'text-green-400 border-green-900/50' },
 };
+
+// Track AM-10088: a claim-scoped worker row (one per ADDITIONAL
+// concurrently-running lane-action claim under one worker process — see
+// laneconductor.sync.mjs's "Claim-scoped worker identities" section and
+// isClaimScopedWorker's own comment in lib/workerStatus.js) uses a derived
+// worker_number far outside any realistic manually-assigned real
+// `--worker-number` (CLAIM_WORKER_NUMBER_BASE_MULTIPLIER there, mirrored by
+// CLAIM_WORKER_NUMBER_THRESHOLD) and its `pid` is the spawned CLI CHILD's
+// own pid, not a laneconductor.sync.mjs process — `lc worker stop
+// --worker-number N --pid P` silently no-ops on it (isLiveLaneConductorPid
+// in bin/lc.mjs requires the pid's own cmdline to contain
+// "laneconductor.sync.mjs"). No kill mechanism for an individual claim
+// exists yet, so the Stop button is hidden here rather than left to fail
+// silently.
 
 // Neutral fallback text shown when a worker hasn't reported its `model`
 // yet AND its `cli` isn't a recognized provider (never a hardcoded
@@ -74,6 +89,24 @@ export function getFailingCollectors(collectorHealth) {
   return Object.entries(collectorHealth)
     .filter(([, health]) => health?.consecutive_failures > 0)
     .map(([url, health]) => ({ url, ...health }));
+}
+
+// Found live: a project that was simply never registered on a given remote
+// collector (e.g. created locally, never added to that collector's
+// workspace) reports the exact same "⚠ SYNC DEGRADED" red, pulsing badge as
+// a project that WAS registered and is now genuinely failing to sync —
+// indistinguishable to a human glancing at the Workers panel, even though
+// "nothing to sync here, this was never set up" and "sync is actively
+// broken" call for completely different reactions. The cloud function's own
+// project-registration check (cloud/functions/index.js, ported from the
+// identical check in ui/server/index.mjs) returns this exact literal error
+// for exactly that case — a stable, first-party string, not a heuristic
+// guess at a third-party error message.
+const UNREGISTERED_ERROR_TEXT = 'forbidden: project not in workspace';
+
+export function isUnregisteredCollectorFailure(health) {
+  return health?.last_error_status === 403 && typeof health?.last_error === 'string'
+    && health.last_error.includes(UNREGISTERED_ERROR_TEXT);
 }
 
 function ProviderStatus({ providers }) {
@@ -225,7 +258,18 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
 
   // A manager doesn't staff this project, so it doesn't count as "something
   // is running here" — same reasoning as hasOwnWorkers above.
-  const offlineOwnWorkers = offlineWorkers.filter(w => w.type !== 'manager');
+  // Track AM-10088: a claim-scoped row's retirement (Phase 2, a routine,
+  // frequent event — every concurrent lane-action claim finishing normally
+  // triggers it) reuses the same DELETE /worker → status='offline' path a
+  // real worker's death uses, which server-side backdates last_heartbeat by
+  // 10 minutes specifically so it lands in this "recently offline" alert
+  // window. Left unfiltered, EVERY ordinary concurrent claim completing
+  // would show up here as a red "OFFLINE — needs attention" ghost for up to
+  // 24h — this alert exists for an actually-dead worker/machine, not an
+  // ephemeral per-claim identity that is SUPPOSED to appear and disappear
+  // constantly. Excluded the same way claim-scoped rows are already
+  // distinguished above (isClaimScopedWorker).
+  const offlineOwnWorkers = offlineWorkers.filter(w => w.type !== 'manager' && !isClaimScopedWorker(w));
   const showDeadWorkerAlarm = !hasOwnWorkers && offlineOwnWorkers.length > 0;
 
   function formatOfflineFor(seconds) {
@@ -523,7 +567,9 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {workers.map(worker => {
                 const vis = VISIBILITY_BADGE[worker.visibility || 'private'];
-                const failingCollectors = getFailingCollectors(worker.collector_health);
+                const allFailingCollectors = getFailingCollectors(worker.collector_health);
+                const failingCollectors = allFailingCollectors.filter(c => !isUnregisteredCollectorFailure(c));
+                const unregisteredCollectors = allFailingCollectors.filter(isUnregisteredCollectorFailure);
                 return (
                   <div
                     key={worker.id}
@@ -573,6 +619,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                                 ⚠ SYNC DEGRADED
                               </span>
                             )}
+                            {unregisteredCollectors.length > 0 && (
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-gray-600/20 text-gray-400 border-gray-500/50"
+                                data-testid="collector-unregistered-badge"
+                                title={unregisteredCollectors.map(c => `${c.url}: this project isn't registered there — nothing to sync until it's added to that collector's workspace.`).join('\n')}
+                              >
+                                ○ NO REMOTE SYNC
+                              </span>
+                            )}
                           </div>
                           {worker.type === 'manager' ? (
                             <span className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-tight">
@@ -613,7 +668,7 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                         </span>
                         {/* Track 1084 Phase 6: stop THIS worker. Previously the
                             only control was the project-wide "Stop All Workers". */}
-                        {IS_LOCAL_HOST && (
+                        {IS_LOCAL_HOST && !isClaimScopedWorker(worker) && (
                           <button
                             onClick={() => handleStopWorker(worker)}
                             data-testid="worker-stop-btn"
@@ -622,6 +677,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                           >
                             Stop
                           </button>
+                        )}
+                        {IS_LOCAL_HOST && isClaimScopedWorker(worker) && (
+                          <span
+                            data-testid="worker-claim-scoped-badge"
+                            title="This row is one of several concurrent lane-action claims running under a shared worker process — stop the parent worker to end it, or stop this specific track's run from its own card."
+                            className="text-[10px] px-1.5 py-0.5 rounded border border-gray-800 text-gray-600 font-bold uppercase tracking-wider"
+                          >
+                            Claim
+                          </span>
                         )}
                       </div>
                     </div>
@@ -853,17 +917,31 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
               </span>
             )}
             {(() => {
-              const failingCollectors = getFailingCollectors(worker.collector_health);
-              if (failingCollectors.length === 0) return null;
-              // Track 1103 D6: see the grid layout's identical badge above for the full note.
+              const allFailingCollectors = getFailingCollectors(worker.collector_health);
+              const failingCollectors = allFailingCollectors.filter(c => !isUnregisteredCollectorFailure(c));
+              const unregisteredCollectors = allFailingCollectors.filter(isUnregisteredCollectorFailure);
+              // Track 1103 D6: see the grid layout's identical badges above for the full note.
               return (
-                <span
-                  className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-red-900/40 text-red-400 border-red-700/60 animate-pulse"
-                  data-testid="collector-degraded-badge-strip"
-                  title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
-                >
-                  ⚠ SYNC DEGRADED
-                </span>
+                <>
+                  {failingCollectors.length > 0 && (
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-red-900/40 text-red-400 border-red-700/60 animate-pulse"
+                      data-testid="collector-degraded-badge-strip"
+                      title={failingCollectors.map(c => `${c.url}: ${c.consecutive_failures} consecutive failures (${c.last_error || 'unknown error'})`).join('\n')}
+                    >
+                      ⚠ SYNC DEGRADED
+                    </span>
+                  )}
+                  {unregisteredCollectors.length > 0 && (
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-gray-700/40 text-gray-400 border-gray-600/60"
+                      data-testid="collector-unregistered-badge-strip"
+                      title={unregisteredCollectors.map(c => `${c.url}: this project isn't registered there — nothing to sync until it's added to that collector's workspace.`).join('\n')}
+                    >
+                      ○ NO REMOTE SYNC
+                    </span>
+                  )}
+                </>
               );
             })()}
             {worker.type === 'manager' ? (

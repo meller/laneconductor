@@ -29,6 +29,11 @@ function busyWorker(overrides = {}) {
 beforeEach(() => {
   mockApiFetch.mockReset();
   mockApiFetch.mockImplementation((path) => {
+    // Track 1091 Phase 7: the manager target resolves its project through
+    // POST /api/meta-project/ensure, not the picker's projectId. Without a
+    // real id here chatTarget.projectId stays null and every manager-target
+    // assertion silently degrades to the "no track" branch.
+    if (path.includes('/meta-project/ensure')) return jsonResponse({ id: 99 });
     if (path.includes('/transcript')) return jsonResponse({ events: [], rawLog: null });
     return jsonResponse([]);
   });
@@ -72,6 +77,56 @@ describe('ChatView', () => {
   it('renders "no workers" when the list is empty', () => {
     render(<ChatView projectId={1} workers={[]} />);
     expect(screen.getByText(/No workers registered yet/)).toBeInTheDocument();
+  });
+});
+
+// Track 10079 — TC-4.7..TC-4.9
+describe('ChatView — Stop control (Track 10079)', () => {
+  it('TC-4.7: a live worker target renders Stop, and clicking it POSTs to the abort endpoint', async () => {
+    render(<ChatView projectId={1} workers={[manager(), busyWorker()]} />);
+    fireEvent.click(screen.getByTestId('chat-target-2'));
+    await waitFor(() => screen.getByTestId('abort-turn-button'));
+
+    mockApiFetch.mockImplementationOnce(() => Promise.resolve({ ok: true, status: 202, json: () => Promise.resolve({ ok: true }) }));
+    fireEvent.click(screen.getByTestId('abort-turn-button'));
+
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/projects/1/tracks/42/abort',
+      expect.objectContaining({ method: 'POST' })
+    ));
+  });
+
+  it('TC-4.8: the manager target reaches the same Stop control and POSTs to .../tracks/manager/abort', async () => {
+    const busyManager = manager({ status: 'busy', current_task: 'reply track manager' });
+    render(<ChatView projectId={1} workers={[busyManager]} />);
+    await waitFor(() => screen.getByTestId('abort-turn-button'));
+
+    mockApiFetch.mockImplementationOnce(() => Promise.resolve({ ok: true, status: 202, json: () => Promise.resolve({ ok: true }) }));
+    fireEvent.click(screen.getByTestId('abort-turn-button'));
+
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/tracks/manager/abort'),
+      expect.objectContaining({ method: 'POST' })
+    ));
+  });
+
+  it('an idle worker target (not live) renders no Stop control', async () => {
+    const idle = busyWorker({ status: 'idle', current_task: null, last_track_number: null });
+    render(<ChatView projectId={1} workers={[manager(), idle]} />);
+    fireEvent.click(screen.getByTestId('chat-target-2'));
+    await waitFor(() => screen.getByText(/nothing to talk about/i));
+    expect(screen.queryByTestId('abort-turn-button')).not.toBeInTheDocument();
+  });
+
+  it('a 409 from the abort endpoint is surfaced as "nothing is running", not a thrown error', async () => {
+    render(<ChatView projectId={1} workers={[manager(), busyWorker()]} />);
+    fireEvent.click(screen.getByTestId('chat-target-2'));
+    await waitFor(() => screen.getByTestId('abort-turn-button'));
+
+    mockApiFetch.mockImplementationOnce(() => Promise.resolve({ ok: false, status: 409, json: () => Promise.resolve({ error: 'no live run' }) }));
+    fireEvent.click(screen.getByTestId('abort-turn-button'));
+
+    await waitFor(() => expect(screen.getByTestId('abort-error')).toHaveTextContent('Nothing is running'));
   });
 });
 

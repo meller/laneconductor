@@ -554,11 +554,20 @@ app.post('/auth/token', async (req, res) => {
 
 app.get('/api/projects', auth, async (req, res) => {
   try {
-    // pool via query() wrapper
+    // Track 1091 Phase 7: every manager registers a "LaneConductor Meta"
+    // project on every configured collector (this cloud one included) as a
+    // home for its own chat conversation — it's an internal implementation
+    // detail, not a project a user ever chose to create, so it must never
+    // show up in a project picker. The local API server's own /api/projects
+    // (ui/server/index.mjs) excludes it by importing the shared
+    // META_PROJECT_NAME constant; this cloud function is a separate,
+    // self-contained deployment with no path to that module, so the name is
+    // duplicated here as a literal — found live on app.laneconductor.com's
+    // own project dropdown, which has no other filtering mechanism at all.
     const result = await query(
       `SELECT id, name, repo_path, git_remote, git_global_id, primary_cli, primary_model, secondary_cli, secondary_model, create_quality_gate, created_at
          FROM projects
-         WHERE workspace_id = $1
+         WHERE workspace_id = $1 AND name != 'LaneConductor Meta'
          ORDER BY name`,
       [req.workspace_id]
     );
@@ -1086,7 +1095,25 @@ app.post('/track', auth, checkProject, async (req, res) => {
       index_content, plan_content, spec_content, test_content,
       lane_action_status,
       // Track 10055: why a `<lane>:waiting` track is parked
-      waiting_reason
+      waiting_reason,
+      // Track 10085: field-parity gap follow-up from AM-10083 F-3 — this
+      // collector's insert/update columns previously omitted these entirely,
+      // silently dropping them for every remote-api / cloud-fire-and-forget
+      // sync. See spec.md's Planning Findings for the per-field reasoning.
+      waiting_for_reply, auto_run, merge_mode, workspace_mode,
+      // Track 10085 Planning Finding 2: local's own POST /track handler does
+      // NOT persist model_override either — it's set via a separate PATCH
+      // endpoint (track 1116) that cloud doesn't have yet. Persisted here
+      // anyway as a deliberate divergence from local, since this is
+      // currently the only path a remote-api deployment has to set it at
+      // all. Do not "fix" this back to match local by removing it.
+      model_override,
+      // KPI fields (Track 10085 REQ-3), mirroring
+      // ui/server/index.mjs:3099-3101 exactly, including the one asymmetry:
+      // kpi_check_after is never COALESCEd on update (see below).
+      track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
+      kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at,
+      kpi_check_after, kpi_scheduled_at, kpi_maps_to,
     } = req.body;
 
     console.log(`[POST /track] project_id=${req.project_id} (body ${req.body.project_id}) track=${track_number}`);
@@ -1112,17 +1139,48 @@ app.post('/track', auth, checkProject, async (req, res) => {
     // vocabulary and is deliberately untouched.
     const insertActionStatus = lane_action_status ?? 'queue';
 
+    // Track 10083 (RC-2): the old ON CONFLICT clause derived
+    // lane_action_status purely from the row already in the database —
+    // `WHEN tracks.lane_action_status = 'running' THEN 'running'` pinned a
+    // running row forever, and the fallback derived from a lane_status
+    // comparison never consulted the payload at all. So a payload saying
+    // 'running' could never arrive, and a stale 'running' could never
+    // clear (spec.md RC-2 — this is the root cause behind both live
+    // symptoms track AM-10083 was filed for).
+    //
+    // Fixed by mirroring ui/server/index.mjs's rule instead of re-deriving
+    // it in SQL: fetch the existing row, then in JS — the payload's own
+    // lane_action_status wins whenever it supplies one; with no explicit
+    // status, a lane change resets to 'queue' and clears
+    // lane_action_result; otherwise neither column is touched. This also
+    // fixes REQ-3: since laneChanging is computed independently of whether
+    // lane_status is null, an explicit status still writes even when the
+    // payload carries no lane_status at all (the old clause dropped the
+    // entire block, status included, whenever lane_status was null).
+    const { rows: existingRows } = await query(
+      'SELECT lane_status FROM tracks WHERE project_id = $1 AND track_number = $2',
+      [req.project_id, track_number]
+    );
+    const existingTrack = existingRows[0] || null;
+    const laneChanging = !!existingTrack && lane_status !== null && existingTrack.lane_status !== lane_status;
+    const hasExplicitActionStatus = lane_action_status !== undefined && lane_action_status !== null;
+
+    // NULL means "leave the existing column alone" — COALESCE below falls
+    // through to tracks.lane_action_status in that case. This can only ever
+    // relax the update path; it has no effect on the INSERT VALUES list,
+    // which still uses insertActionStatus (TC-2.6 stays exactly as today).
+    let updateActionStatus = null;
+    let resetActionResult = false;
+    if (hasExplicitActionStatus) {
+      updateActionStatus = lane_action_status;
+      resetActionResult = laneChanging;
+    } else if (laneChanging) {
+      updateActionStatus = 'queue';
+      resetActionResult = true;
+    }
+
     const laneStatusClause = lane_status !== null
-      ? `lane_status = EXCLUDED.lane_status,
-         lane_action_status = CASE
-           WHEN tracks.lane_action_status = 'running' THEN 'running'
-           WHEN tracks.lane_status != EXCLUDED.lane_status THEN 'queue'
-           ELSE tracks.lane_action_status
-         END,
-         lane_action_result = CASE
-           WHEN tracks.lane_status != EXCLUDED.lane_status THEN NULL
-           ELSE tracks.lane_action_result
-         END,`
+      ? `lane_status = EXCLUDED.lane_status,`
       : '';
 
     // pool via query() wrapper
@@ -1130,11 +1188,18 @@ app.post('/track', auth, checkProject, async (req, res) => {
       INSERT INTO tracks
         (project_id, track_number, title, lane_status, progress_percent,
          current_phase, content_summary, phase_step, index_content, plan_content, spec_content, test_content,
-         last_heartbeat, sync_status, last_updated_by, lane_action_status, waiting_reason)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'synced', 'worker', $13, $14)
+         last_heartbeat, sync_status, last_updated_by, lane_action_status, waiting_reason,
+         waiting_for_reply, auto_run, merge_mode, workspace_mode, model_override,
+         track_type, kpi_target, kpi_actual, kpi_metric, kpi_source, kpi_source_config,
+         kpi_threshold, kpi_window, kpi_snapshot, kpi_measured_at, kpi_check_after, kpi_scheduled_at, kpi_maps_to)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'synced', 'worker', $13, $14,
+        COALESCE($17, false), COALESCE($18, false), $19, $20, $21,
+        $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
       ON CONFLICT (project_id, track_number) DO UPDATE SET
         title            = EXCLUDED.title,
         ${laneStatusClause}
+        lane_action_status = COALESCE($15, tracks.lane_action_status),
+        lane_action_result = CASE WHEN $16 THEN NULL ELSE tracks.lane_action_result END,
         progress_percent = EXCLUDED.progress_percent,
         current_phase    = EXCLUDED.current_phase,
         content_summary  = EXCLUDED.content_summary,
@@ -1153,11 +1218,63 @@ app.post('/track', auth, checkProject, async (req, res) => {
           WHEN $13::text IS DISTINCT FROM 'waiting' THEN NULL
           ELSE tracks.waiting_reason
         END,
+        -- Track 10085 REQ-1: raw-nullable insert (COALESCE($n, false) above),
+        -- COALESCE-on-update — an omitted payload field never clobbers an
+        -- existing true. Mirrors ui/server/index.mjs:3297,3300,3375-3376.
+        waiting_for_reply = COALESCE($17, tracks.waiting_for_reply),
+        auto_run           = COALESCE($18, tracks.auto_run),
+        -- Track 10085 REQ-2: raw-nullable insert, COALESCE(EXCLUDED, tracks)
+        -- on update. Mirrors ui/server/index.mjs:3304-3306,3377-3378.
+        merge_mode         = COALESCE(EXCLUDED.merge_mode, tracks.merge_mode),
+        workspace_mode     = COALESCE(EXCLUDED.workspace_mode, tracks.workspace_mode),
+        -- Track 10085 REQ-4: deliberate divergence from local's own
+        -- POST /track (which has no model_override handling at all) — see
+        -- the destructuring comment above for why this collector persists
+        -- it anyway.
+        model_override     = COALESCE(EXCLUDED.model_override, tracks.model_override),
+        -- Track 10085 REQ-3: KPI column parity, mirroring
+        -- ui/server/index.mjs:3362-3374 field-for-field, including the one
+        -- deliberate asymmetry: kpi_check_after is NEVER COALESCEd — it
+        -- always overwrites, even when the payload omits it.
+        track_type         = COALESCE(EXCLUDED.track_type, tracks.track_type, 'dev'),
+        kpi_target         = COALESCE(EXCLUDED.kpi_target, tracks.kpi_target),
+        kpi_actual         = COALESCE(EXCLUDED.kpi_actual, tracks.kpi_actual),
+        kpi_metric         = COALESCE(EXCLUDED.kpi_metric, tracks.kpi_metric),
+        kpi_source         = COALESCE(EXCLUDED.kpi_source, tracks.kpi_source),
+        kpi_source_config  = COALESCE(EXCLUDED.kpi_source_config, tracks.kpi_source_config),
+        kpi_threshold      = COALESCE(EXCLUDED.kpi_threshold, tracks.kpi_threshold),
+        kpi_window         = COALESCE(EXCLUDED.kpi_window, tracks.kpi_window),
+        kpi_snapshot       = COALESCE(EXCLUDED.kpi_snapshot, tracks.kpi_snapshot),
+        kpi_measured_at    = COALESCE(EXCLUDED.kpi_measured_at, tracks.kpi_measured_at),
+        kpi_check_after    = EXCLUDED.kpi_check_after,
+        kpi_scheduled_at   = COALESCE(EXCLUDED.kpi_scheduled_at, tracks.kpi_scheduled_at),
+        kpi_maps_to        = COALESCE(EXCLUDED.kpi_maps_to, tracks.kpi_maps_to),
         last_updated_by  = 'worker'
     `, [req.project_id, track_number, title, insertLaneStatus, progress_percent,
       current_phase, content_summary, phase_step,
       index_content, plan_content, spec_content, test_content, insertActionStatus,
-      waiting_reason ?? null]);
+      waiting_reason ?? null, updateActionStatus, resetActionResult,
+      // $17-$21
+      waiting_for_reply === undefined ? null : waiting_for_reply,
+      auto_run === undefined ? null : auto_run,
+      merge_mode ?? null,
+      workspace_mode ?? null,
+      model_override ?? null,
+      // $22-$34: KPI columns
+      track_type ?? 'dev',
+      kpi_target ?? null,
+      kpi_actual ?? null,
+      kpi_metric ?? null,
+      kpi_source ?? null,
+      kpi_source_config ?? null,
+      kpi_threshold ?? null,
+      kpi_window ?? null,
+      kpi_snapshot ? JSON.stringify(kpi_snapshot) : null,
+      kpi_measured_at ?? null,
+      kpi_check_after ?? null,
+      kpi_scheduled_at ?? null,
+      kpi_maps_to ?? null,
+    ]);
 
     res.json({ ok: true });
   } catch (err) {
@@ -1179,6 +1296,19 @@ app.patch('/track/:num/action', auth, checkProject, async (req, res) => {
       // Track 10055: leaving `waiting` retires the reason that explained it,
       // unless this same request supplies a new one below.
       if (lane_action_status !== 'waiting' && waiting_reason === undefined) sets.push('waiting_reason = NULL');
+      // Track AM-10083 (REQ-6): mirrors /tracks/claim-queue's own
+      // claimed_by write — a 'running' write records WHICH worker made it,
+      // identified from auth (req.machine_token), never from client body
+      // data, so a worker's pre-spawn cross-collector check can tell "I
+      // already claimed this here myself (via my own mirror)" apart from
+      // "a different worker has". Any other status releases the claim,
+      // matching /tracks/reset-stuck-actions' own clear-on-reset behaviour.
+      if (lane_action_status === 'running') {
+        sets.push(`claimed_by = $${i++}`);
+        params.push(req.machine_token || null);
+      } else {
+        sets.push('claimed_by = NULL');
+      }
     }
     if (waiting_reason !== undefined) { sets.push(`waiting_reason = $${i++}`); params.push(waiting_reason); }
     if (lane_action_result !== undefined) { sets.push(`lane_action_result = $${i++}`); params.push(lane_action_result); }
@@ -1271,17 +1401,28 @@ app.post('/track/:num/comment', auth, checkProject, async (req, res) => {
   }
 });
 
-// Worker heartbeat
+// Worker heartbeat (legacy route — the real worker only calls PATCH
+// /worker/heartbeat; kept in sync anyway rather than left silently broken)
 app.post('/heartbeat', auth, checkProject, async (req, res) => {
   try {
     const { worker_id, pid, mode } = req.body;
+    // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
+    // this route still targeted the old (project_id, hostname, pid)
+    // constraint, which migration 20260808082602_add_worker_number.sql
+    // already dropped in favor of (project_id, hostname, worker_number).
+    // Every call to this route failed 42P10 ("no unique or exclusion
+    // constraint matching ON CONFLICT") from the moment that migration
+    // shipped; the sibling /worker/register below had the identical bug —
+    // ui/server/index.mjs's own /worker/register was already fixed for
+    // this (Track 1084), this cloud function just never got the same fix.
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
     // pool via query() wrapper
     await query(`
-      INSERT INTO workers(project_id, hostname, pid, status, mode, last_heartbeat)
-      VALUES($1, $2, $3, 'idle', $4, NOW())
-      ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
-      status = 'idle', mode = EXCLUDED.mode, last_heartbeat = NOW()
-    `, [req.project_id, worker_id || 'unknown', pid || 0, mode || 'polling']);
+      INSERT INTO workers(project_id, hostname, pid, worker_number, status, mode, last_heartbeat)
+      VALUES($1, $2, $3, $4, 'idle', $5, NOW())
+      ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
+      status = 'idle', pid = EXCLUDED.pid, mode = EXCLUDED.mode, last_heartbeat = NOW()
+    `, [req.project_id, worker_id || 'unknown', pid || 0, worker_number, mode || 'polling']);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1319,6 +1460,22 @@ app.post('/worker/register', auth, async (req, res) => {
     );
     if (projCheck.rows.length === 0) return res.status(403).json({ error: 'forbidden: project not in workspace' });
 
+    // Track 1084 Phase 0: worker_number (not pid) is the stable identity —
+    // pid changes on every restart, which under the old (project_id,
+    // hostname, pid) key minted a brand-new row per restart and orphaned
+    // anything FK'd to it. ui/server/index.mjs's own /worker/register was
+    // already fixed for this; this cloud function never got the same fix,
+    // and kept targeting a constraint that migration
+    // 20260808082602_add_worker_number.sql had already dropped in favor of
+    // (project_id, hostname, worker_number) — every registration against
+    // this collector failed 42P10 ("no unique or exclusion constraint
+    // matching ON CONFLICT") from the moment that migration shipped.
+    // Confirmed live: a real project worker (livingwork) had been silently
+    // failing to register here for 40+ consecutive attempts, invisible on
+    // the remote dashboard despite working perfectly against the local
+    // collector the whole time.
+    const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
+
     const machine_token = crypto.randomUUID();
     // Track 10061 (REQ-9): same registration-only convention the local
     // server follows — computed fresh every registration, never touched by
@@ -1331,14 +1488,14 @@ app.post('/worker/register', auth, async (req, res) => {
     const collector_health = req.body.collector_health ? JSON.stringify(req.body.collector_health) : null;
 
     await query(`
-      INSERT INTO workers(project_id, hostname, pid, status, mode, machine_token, collector_api_version, collector_compat, collector_health, last_heartbeat)
-      VALUES($1, $2, $3, 'idle', $4, $5, $6, $7, $8, NOW())
-      ON CONFLICT(project_id, hostname, pid) DO UPDATE SET
-      status = 'idle', mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token,
+      INSERT INTO workers(project_id, hostname, pid, worker_number, status, mode, machine_token, collector_api_version, collector_compat, collector_health, last_heartbeat)
+      VALUES($1, $2, $3, $4, 'idle', $5, $6, $7, $8, $9, NOW())
+      ON CONFLICT(project_id, hostname, worker_number) DO UPDATE SET
+      status = 'idle', pid = EXCLUDED.pid, mode = EXCLUDED.mode, machine_token = EXCLUDED.machine_token,
       collector_api_version = EXCLUDED.collector_api_version, collector_compat = EXCLUDED.collector_compat,
       collector_health = COALESCE(EXCLUDED.collector_health, workers.collector_health),
       last_heartbeat = NOW()
-    `, [projectId, hostname, pid, mode || 'polling', machine_token, collector_api_version, collector_compat, collector_health]);
+    `, [projectId, hostname, pid, worker_number, mode || 'polling', machine_token, collector_api_version, collector_compat, collector_health]);
 
     res.json({ ok: true, machine_token });
   } catch (err) {

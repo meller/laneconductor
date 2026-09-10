@@ -129,6 +129,54 @@ by design (see the track's spec.md Non-Goals) — track state re-syncs from
 the filesystem on the worker's own next cycle regardless, so a durable
 write-ahead log wasn't judged worth the complexity.
 
+**A track-state transition fans out promptly, not just on the next file-watch
+tick (Track AM-10083).** The fast, in-process writes that flip
+`lane_action_status` — the running claim, the completion/failure report, a
+timeout kill, PR fields, an orphan-reconciliation write, a discard-to-backlog
+move — used to be addressed to primary only via a bare `patch(url, token,
+...)` call, so a non-primary collector learned about them (if at all) only
+once the slower, file-watch-triggered `syncTrack()` got around to pushing the
+whole file through `postToCollectors`. A `patchTrackAction(trackNumber,
+fields)` helper now wraps `patchCollectors` for every one of those sites, so
+they get the same primary-awaited, non-primary-fire-and-forget-with-retry-
+buffer treatment as everything else in this section — this is a *fan-out*
+fix, not a new tier: collector-0 is still the only one anything downstream
+waits on. Two call families stay deliberately primary-only and are commented
+as such at each site: every endpoint that addresses a row that only exists on
+the primary (`/worker-dispatch/:id`, `/tracks/claim-queue`, `/file-sync/:id`,
+`/track/:num/lock`/`unlock`), and the 5-second `last_log_tail` telemetry
+PATCH (per-running-track high-frequency traffic, not a state transition a
+claim decision could ever read).
+
+That fan-out alone doesn't help if the *receiving* collector can't record
+the field — the cloud function's `POST /track` upsert used to derive
+`lane_action_status` from the row already in the database and never
+referenced the payload's own value on the `ON CONFLICT` path, so a pushed
+`running` could never arrive there and a stale `running` could never be
+cleared by it either. Fixed by having that route fetch the existing row and
+apply the payload's value in JS (mirroring `ui/server/index.mjs`'s own rule)
+instead of deriving it in SQL.
+
+**Claiming is still atomic per collector only, one collector at a time
+(Track AM-10083).** `/tracks/claim-queue` is only ever called against
+primary — fanning out the *result* of a claim faster doesn't make the claim
+itself cross-collector-atomic. Two additions narrow, but don't close, the
+residual double-dispatch window: after winning a claim, the worker now
+re-reads the track from every other configured collector (a short-timeout
+`GET /track/:num`) and refuses to spawn if one reports the track already
+running under a **different** claimant (identified via the `claimed_by`
+column, itself now set by a `running` `PATCH /track/:num/action` the same
+way `/tracks/claim-queue` already sets it — auth-derived, never client body
+data, so a collector reflecting this worker's *own* prior claim there is
+never mistaken for a conflict). The check runs *before* the mirror write, not
+after — mirroring first would silently overwrite a genuine foreign claimant
+with this worker's own token before ever having looked for one. Every
+failure mode of the check (unreachable, timeout, 403, unparseable, no
+claimant reported) is non-blocking, per the same standing rule as everywhere
+else in this section: a remote collector being down must never stop local
+work. See `conductor/tracks/AM-10083-*/spec.md`'s Non-Goals — this is
+explicitly a defense-in-depth narrowing, not a distributed transaction.
+
 **Related silent-failure tracks:** 10052 covers the Hosting-rewrite/missing-route
 gap described above — a *routing* problem, distinct from this section's
 *auth* problem, though both currently point at the same underlying "the
@@ -136,7 +184,38 @@ cloud collector doesn't reliably receive what the worker sends" symptom.
 10061 covers the absence of any version/capability handshake between
 worker and collector — the same category of silent-drift failure, but
 about the two sides silently disagreeing on what a payload should look
-like rather than one side never getting the payload at all.
+like rather than one side never getting the payload at all. AM-10083 covers
+a third variant of the same family — the two collectors disagreeing about
+what a payload's *fields* mean (RC-2), and a fast local write not reaching
+a non-primary collector promptly (RC-1) — described in the two paragraphs
+above.
+
+**A track parked at `<lane>:waiting` only self-clears when its blocker is
+mechanically checkable, and only for the dependency case (Track AM-10086).**
+The worker already runs two periodic reconcilers on the same cadence
+(`RECONCILE_INTERVAL_MS`, default 60s) as a self-healing pattern for a
+condition that resolves *outside* the system and would otherwise sit
+unnoticed forever: `reconcileWorktrees()` catches a `done:success` track
+whose branch never actually got merged, and `reconcilePrTracks()` polls a
+pr-mode merge's open GitHub PR and closes the loop once it's merged or
+flags it once it conflicts. `reconcileParkedDependencyTracks()` is the third
+member of that family — a track parked at `<lane>:waiting` (Track 10055's
+"nothing claims this until a human resumes it" contract) whose park is
+attributable to named track dependencies (via `**Waiting On Tracks**`, or
+`**Depends On**` plus a `**Waiting Reason**` that actually names one of
+those numbers) is moved back to `queue` automatically once every one of
+those dependencies reaches `done` **and** `lane_action_status: success` —
+deliberately stricter than `done` alone, since `done:queue` only means
+"quality-gated, not yet merged" (Track 10035) and treating that as
+satisfied would resume a park whose stated blocker is still literally true.
+Every other park — an approval request, a genuine question, a `**Depends
+On**` present but not what the park is actually about — is left exactly as
+it is; this is deliberately narrower than "auto-resume anything parked,"
+not a general escape hatch from Track 10055's human-in-the-loop contract.
+See `conductor/services/dependency-resume.mjs` for the full attribution and
+eligibility rule, and its own header comment for why `autoLaunchLocalFs`'s
+existing `**Depends On**` queue-gate (Track AM-1119 Phase 3) is a
+deliberately separate, looser check this reconciler does not touch.
 
 ## Feature Availability — Skill-Only vs Worker Modes
 
@@ -453,6 +532,30 @@ from main branch). Commits go to the track's feature branch
 to main via `git merge --no-ff` (preserves history), then the worktree is
 removed. A `main`-mode track is already on main at `done:success` — there
 is no merge step.
+
+**Worktree base resolution (Track 10050)**
+
+When a genuinely new track branch is created (an existing branch, per
+track 1114 above, is always checked out as-is — never rebased onto a
+fresher base), its start point is resolved by
+`conductor/services/worktree-start-point.mjs`, not hardcoded to either
+`HEAD` or `origin/<main>`:
+
+| Local vs `origin/<main>` | Result | Why |
+|---|---|---|
+| behind, no local-only commits | `<main>`, fast-forwarded first | nothing lost, now fresh |
+| behind, fast-forward refused (dirty/disabled) | `origin/<main>` directly | still nothing lost |
+| ahead (this project's normal steady state) | local `<main>` | using `origin/<main>` would drop local-only commits |
+| diverged | local `<main>`, staleness reported on the track | neither side may be silently discarded |
+| offline / no local `<main>` ref | local `<main>`, or `HEAD` as a last resort | never blocks worktree creation |
+
+The intuitive fix — always base on `origin/<main>` — is wrong whenever
+local `<main>` carries commits `origin/<main>` doesn't have yet (this
+project routinely does: lane-action commits and unpushed merges
+accumulate on `main` between the periodic out-of-band sync's fetches).
+Basing on `origin/<main>` there would start a new track branch missing
+already-merged work. `conductor/lock.mjs` (the `/laneconductor lock`
+skill command) shares this same resolution.
 
 **The Worktrees Panel**
 

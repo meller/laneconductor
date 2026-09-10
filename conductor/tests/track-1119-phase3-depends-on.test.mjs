@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -48,6 +48,16 @@ async function poll(fn, { timeout = 15000, interval = 300, label = '' } = {}) {
 function setupProject() {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
+  // Track AM-10086 (found live running this suite from inside a track
+  // worktree): without its own git repo, resolvePrimaryRepoRoot(cwd) walks
+  // up past this TMP dir and resolves the REAL enclosing checkout as the
+  // "primary" — which made the spawned worker below register real "Test
+  // Track 70x" rows against the actual project in the real collector/DB,
+  // and separately collide with a real live worker's identity lock (both
+  // confirmed live). Giving TMP its own git repo — the same fix
+  // track-10055-waiting-resume.test.mjs already uses — makes it resolve as
+  // its own primary checkout instead.
+  execSync('git init -q', { cwd: TMP });
 
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
     mode: 'local-fs',

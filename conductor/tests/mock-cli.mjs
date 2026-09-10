@@ -57,6 +57,20 @@ import { execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const [,, command, trackNumber] = process.argv;
+
+// Track 10079: MOCK_CLI_IGNORE_SIGNALS=1 — install no-op handlers for
+// SIGINT/SIGTERM so this process survives both (Node's default disposition
+// for an unhandled SIGINT/SIGTERM is immediate termination, which is what
+// every OTHER test relies on to simulate "the child died on the first
+// signal"). Lets an abort-escalation test drive a real spawned child through
+// all three stages (SIGINT -> SIGTERM -> SIGKILL) instead of dying on stage
+// one — only SIGKILL (which cannot be caught) or the normal exit timeout
+// below actually ends it.
+if (process.env.MOCK_CLI_IGNORE_SIGNALS) {
+  process.on('SIGINT', () => {});
+  process.on('SIGTERM', () => {});
+}
+
 const sentinelPath = process.env.MOCK_CLI_RESUME_FAILURE_SENTINEL;
 const resumeFailure = !!sentinelPath && existsSync(sentinelPath);
 const exitCode = resumeFailure ? 1 : parseInt(process.env.MOCK_CLI_EXIT_CODE ?? '0');
@@ -231,6 +245,28 @@ if (writeLaneStatus && (!writeLaneStatusOn || writeLaneStatusOn === command)) {
     if (running) {
       const content = readFileSync(running.indexPath, 'utf8');
       const patched = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${writeLaneStatus}`);
+      writeFileSync(running.indexPath, patched, 'utf8');
+    }
+  } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }
+}
+
+// Track AM-10087: MOCK_CLI_WRITE_VERDICT=<pass|fail> — if set, patch
+// **Verdict** in the track's own index.md right before exiting, alongside
+// MOCK_CLI_WRITE_LANE_STATUS above — simulates the review/quality-gate
+// skill's own terminal-outcome write (Lane/Lane Status + Verdict, same
+// edit) so a test can drive the real exit handler's verdict-vs-blocked-turn
+// override against a genuinely spawned process. Same track-resolution
+// caveat as MOCK_CLI_WRITE_LANE_STATUS applies (argv's trackNumber may be
+// clobbered by context injection) — reuses findRunningTrackDir().
+const writeVerdict = process.env.MOCK_CLI_WRITE_VERDICT;
+if (writeVerdict) {
+  try {
+    const running = findRunningTrackDir();
+    if (running) {
+      const content = readFileSync(running.indexPath, 'utf8');
+      const patched = /\*\*Verdict\*\*:/i.test(content)
+        ? content.replace(/\*\*Verdict\*\*:\s*[^\n]*/i, `**Verdict**: ${writeVerdict}`)
+        : `${content.trimEnd()}\n**Verdict**: ${writeVerdict}\n`;
       writeFileSync(running.indexPath, patched, 'utf8');
     }
   } catch (e) { /* best-effort — a missing track dir shouldn't crash the mock */ }

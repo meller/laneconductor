@@ -14,13 +14,29 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const TMP = join(ROOT, '.test-tmp-track-1084');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Track 10089: every sandbox spawning the real worker/CLI must be its own
+// independent git repo, not a plain ungitted subdirectory of ROOT. Without
+// this, git subcommands the worker runs (worktree listing, rev-parse, etc.)
+// resolve against whatever REAL repo encloses the sandbox — the primary
+// checkout, or a track's own worktree if this suite happens to run from
+// inside one — leaking real worktree data and, worse, letting the worker's
+// own cwd-normalization redirect it into reading/writing the REAL
+// conductor/workflow.json instead of the sandbox's copy. Confirmed live:
+// this exact gap let one of this file's own worker spawns overwrite the
+// primary checkout's real workflow.json with this suite's mock fixture.
+function gitInitSandbox(dir) {
+  execSync('git init -q', { cwd: dir });
+  execSync('git config user.email "test@example.com"', { cwd: dir });
+  execSync('git config user.name "Test"', { cwd: dir });
+}
 
 async function poll(fn, { timeout = 8000, interval = 200, label = '' } = {}) {
   const deadline = Date.now() + timeout;
@@ -57,6 +73,7 @@ async function getState(port) {
 function setupProject(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
+  gitInitSandbox(TMP);
   const collectorUrl = `http://127.0.0.1:${collectorPort}`;
 
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
@@ -75,9 +92,19 @@ function setupProject(collectorPort) {
 }
 
 function startWorker(extraArgs = []) {
+  // LC_SKIP_CWD_NORMALIZATION: TMP is a plain, ungitted subdirectory of
+  // ROOT, not its own repo. When this suite runs from inside a track's own
+  // worktree (ROOT = that worktree, a linked worktree with its own
+  // git-dir), the worker's REQ-1 cwd normalization (laneconductor.sync.mjs)
+  // sees TMP as "not the primary checkout" and resolves resolvePrimaryRepoRoot
+  // to the real PRIMARY checkout — a different directory entirely — then
+  // chdir()s there before reading/writing conductor/workflow.json, silently
+  // running this test's worker against the real shared checkout instead of
+  // TMP. Confirmed live: this clobbered the primary repo's real
+  // conductor/workflow.json with this file's mock single-lane fixture.
   const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', ...extraArgs], {
     cwd: TMP,
-    env: { ...process.env, LC_SKIP_GIT_LOCK: '1' },
+    env: { ...process.env, LC_SKIP_GIT_LOCK: '1', LC_SKIP_CWD_NORMALIZATION: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   worker.stdout.on('data', d => process.stdout.write(`[worker] ${d}`));
@@ -137,7 +164,16 @@ const TMP_CLI = join(ROOT, '.test-tmp-track-1084-cli');
 
 function sh(cmd, args, opts = {}) {
   return new Promise((resolve) => {
-    const proc = spawn(cmd, args, { cwd: TMP_CLI, stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+    // Same worktree cwd-normalization escape as startWorker() above — TMP_CLI
+    // is an ungitted subdirectory of ROOT, and `lc worker start` ultimately
+    // spawns the real laneconductor.sync.mjs, which is subject to the same
+    // REQ-1 chdir-to-primary logic.
+    const proc = spawn(cmd, args, {
+      cwd: TMP_CLI,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, LC_SKIP_CWD_NORMALIZATION: '1' },
+      ...opts,
+    });
     let out = '';
     proc.stdout.on('data', d => { out += d; });
     proc.stderr.on('data', d => { out += d; });
@@ -148,6 +184,7 @@ function sh(cmd, args, opts = {}) {
 function setupCliProject() {
   rmSync(TMP_CLI, { recursive: true, force: true });
   mkdirSync(join(TMP_CLI, 'conductor/tracks'), { recursive: true });
+  gitInitSandbox(TMP_CLI);
   writeFileSync(join(TMP_CLI, '.laneconductor.json'), JSON.stringify({
     mode: 'local-fs',
     project: { name: 'test-cli', repo_path: TMP_CLI, primary: { cli: 'mock', model: 'mock' } },
@@ -224,6 +261,7 @@ const TMP_P3 = join(ROOT, '.test-tmp-track-1084-phase3');
 function setupPhase3Project(collectorPort) {
   rmSync(TMP_P3, { recursive: true, force: true });
   mkdirSync(TMP_P3, { recursive: true });
+  gitInitSandbox(TMP_P3);
   const collectorUrl = `http://127.0.0.1:${collectorPort}`;
 
   writeFileSync(join(TMP_P3, '.laneconductor.json'), JSON.stringify({
@@ -257,6 +295,10 @@ function setupPhase3Project(collectorPort) {
 }
 
 function startPhase3Worker() {
+  // Same worktree cwd-normalization escape as startWorker() above — see
+  // that comment. This is the exact spawn confirmed to have clobbered the
+  // real conductor/workflow.json with this fixture's single-`implement`-lane,
+  // parallel_limit:3 content when run from inside a linked worktree.
   const worker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs')], {
     cwd: TMP_P3,
     env: {
@@ -264,6 +306,7 @@ function startPhase3Worker() {
       LC_MOCK_CLI: `node ${MOCK_CLI}`,
       MOCK_CLI_DELAY_MS: '200',
       LC_SKIP_GIT_LOCK: '1',
+      LC_SKIP_CWD_NORMALIZATION: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -1,8 +1,8 @@
 # Track AM-10082: Revert to a previous deployed version from the CI/CD dispatch history
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Planned (5 phases)
