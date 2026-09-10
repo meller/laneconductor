@@ -137,25 +137,33 @@ yet (REQ-7).
 **Solution**: Both call sites already read other per-project markers straight
 off `project.repo_path`/`cfg` — extend the same way, no DB migration.
 
-- [ ] `ui/server/index.mjs`'s `/api/state` gap block (~line 660-690): read
-      `.laneconductor.json` off `project.repo_path` (same pattern already
-      used for `hasProductMd`/`hasTechStackMd`) to get
-      `project.worker_mode` and `project.inherit_meta_defaults`; add a query
+- [x] `ui/server/index.mjs`'s `/api/state` gap block: reads
+      `.laneconductor.json` off `project.repo_path` for `project.worker_mode`
+      (same pattern as `hasProductMd`/`hasTechStackMd`), and a parameterized
       `SELECT 1 FROM provider_status WHERE provider = $1 AND status =
-      'available' LIMIT 1` (parameterized on `project.primary_cli`) for
-      `primaryProviderReachableAnywhere`; pass both into `computeSetupGaps`.
-- [ ] `bin/lc.mjs`'s equivalent gap computation (~line 2408): same wiring —
-      it already has `cfg` in scope locally for `worker_mode`; add the
-      equivalent `provider_status` query (via whatever DB access `lc state`
-      already uses for `providers[project?.id]`) for
-      `primaryProviderReachableAnywhere`.
-- [ ] Manual verification against the real running instance (per spec.md's
-      livingwork-specific acceptance criterion): set livingwork's
-      `.laneconductor.json` to `worker_mode: manager-driven`, confirm the
-      dashboard's setup gaps for livingwork no longer show `no-workers`/
-      `no-provider` as blocking once `claude` has been verified reachable by
-      at least one other project on this instance.
-- [ ] Commit: `feat(track-10084): Phase 5 - wire worker_mode + reachability-anywhere into gap call sites`
+      'available' AND project_id != $2 LIMIT 1` for
+      `primaryProviderReachableAnywhere`; both passed into `computeSetupGaps`.
+- [x] `bin/lc.mjs`'s equivalent gap computation: same wiring via its existing
+      `runPsql`-backed provider lookup; `workerMode` read straight off the
+      already-loaded `cfg`, `primaryProviderReachableAnywhere` degrades to
+      `false` for `local-fs` (no DB to query there), matching the API
+      call site's default.
+- [x] Manual verification against the real running instance: livingwork
+      (project_id 4560) reproduced the exact incident live — `GET
+      /api/state?project_id=4560` returned a blocking `no-provider` gap
+      (its own `provider_status` row was `exhausted`, not `available`,
+      confirmed via direct psql query) even though `claude` shows
+      `available` for several other projects on this same instance. Set
+      `**worker_mode**: manager-driven` in livingwork's real
+      `.laneconductor.json` (the actual, permanent fix — not a throwaway
+      test edit). Verified against the real Postgres DB via a second,
+      temporary API server instance on port 8199 (the live production
+      server on 8091 doesn't hot-reload uncommitted code, so it was left
+      untouched and a throwaway instance was used instead, then killed
+      immediately after): gaps went from `[{id: 'no-provider', severity:
+      'blocking', ...}]` to `[]`. This is the concrete incident this track
+      exists to fix, confirmed resolved end-to-end.
+- [x] Commit: `feat(track-10084): Phase 5 - wire worker_mode + reachability-anywhere into gap call sites`
 
 ## Phase 6: Docs
 
