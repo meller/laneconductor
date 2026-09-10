@@ -3,6 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Complete
 **Type**: dev
 **Summary**: Auto-scroll steal was already fixed on main (commit 4e985e9c); this run confirmed root cause, verified the fix, and added regression tests.
