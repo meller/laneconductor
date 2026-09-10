@@ -1,8 +1,8 @@
 # Track AM-10084: Meta-level config defaults cascading to projects (primary CLI/model, workflow)
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: queue
+**Progress**: 0%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New
 **Type**: dev
