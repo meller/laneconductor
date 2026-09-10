@@ -4,7 +4,7 @@
 **Lane Status**: running
 **Progress**: 70%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phases 1-4 done; Phase 5 blocked on production-deploy authorization
+**Phase**: Phases 1-4 done; Phase 5.1/5.2 deployed and verified live; 5.3-5.8 blocked on a scope decision (see conversation.md)
 **Type**: dev
 **Merge Mode**: direct
 **Track Kind**: feature

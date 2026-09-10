@@ -322,13 +322,18 @@ mocked `pg` cannot catch a wrong column name, a missing cloud-DB constraint, or
 a Hosting rewrite that still misses.
 **Solution**: Deploy and drive a real worker, recording what was observed.
 
-- [ ] Task 5.1: Deploy the function (`firebase deploy --only functions:api`)
-      and the hosting rewrite change.
-- [ ] Task 5.2: Reachability sweep against `https://app.laneconductor.com` for
+- [x] Task 5.1: Deploy the function (`firebase deploy --only functions:api`)
+      and the hosting rewrite change. Ran 2026-09-03 with real-time human
+      authorization; independently re-verified live three times since
+      (2026-09-03 review, 2026-09-10 review, and again in this session via a
+      fresh `curl` against `/track/1` and `/tracks/claim-queue` — both return
+      real `401 {"error":"unauthorized: missing token"}` JSON, not the SPA).
+- [x] Task 5.2: Reachability sweep against `https://app.laneconductor.com` for
       all 11 ported paths: each must return a real JSON response.
       **`401`/`403` counts as reached; `200` with `<!doctype html>` and `404`
       do not** — the SPA-fallback symptom is a `200`, so assert on the body,
-      not just the status.
+      not just the status. Confirmed: all 14 probed paths (11 ported families
+      + `/health` + `/worker/register` as controls) return real JSON.
 - [ ] Task 5.3: Configure a scratch project for `remote-api` against the cloud
       URL, `lc worker start`, and drive a real track through a lane action.
       Capture the worker log and the cloud board state for AC-1 and AC-2.
@@ -389,18 +394,41 @@ offline suites all green). FAILED on documentation/process gaps and unmet
 acceptance criteria, not on the engineering itself. Full findings in
 `conversation.md`. Before the next review:
 
-- [ ] Catch up `conversation.md` with a record of the Phase 5.1/5.2 production
+- [x] Catch up `conversation.md` with a record of the Phase 5.1/5.2 production
       deploy (migration + functions + hosting) — it currently has none.
-- [ ] Mark Task 5.1 and Task 5.2 above `[x]` — they ran and are independently
+- [x] Mark Task 5.1 and Task 5.2 above `[x]` — they ran and are independently
       verified live.
-- [ ] Correct `test.md`'s TC-9 (cloud columns are now present, not absent) and
+- [x] Correct `test.md`'s TC-9 (cloud columns are now present, not absent) and
       TC-44 (post-deploy sweep now passes, the pre-deploy baseline is stale).
 - [ ] Get an explicit decision on Tasks 5.3-5.8 + Phase 6: continue this track
       through live worker E2E (real cost, fixture workspaces, real `claude`
       spawns), or formally split that scope into a new track (as this file's
       own Phase 5 outcome note proposes, citing `AM-1120`/track 1119) and
       narrow `spec.md`'s Acceptance Criteria + AC-1–AC-5/AC-9 to match what's
-      actually in scope here.
+      actually in scope here. **Still open** — this is a scope/cost decision,
+      not a documentation fix, and this session did not make it unilaterally.
+      See `conversation.md` for the explicit question posed to the human.
+
+### 2026-09-10 (implement session) — doc fixes only, scope decision still pending
+
+A second review round after a human reply re-ran the exact same review and
+FAILED again for the same reason: the human's reply ("run review, then
+quality-gate, then merge") answered the *process* question (yes, keep
+going) but not the *scope* question this Gaps section's last bullet asks —
+so the review had nothing new to pass on. Fixed the three objective
+documentation gaps above. Did **not** touch the fourth: deciding whether to
+do the real live-worker E2E work (production cost, fixture workspaces, real
+`claude` spawns) or split it into a new track is a scope/cost call, not
+something this session should decide on the human's behalf, especially
+right after the human's message was itself silent on it. Re-verified the
+live deploy fresh (`curl` against two ported paths, both real `401` JSON) as
+part of fixing the docs — not just trusting the prior notes. Attempted to
+re-verify the cloud DB columns the same way and hit a new, different error
+(`FATAL: tenant/user not found` from the Supabase pooler, on both 5432 and
+6543) — distinct from the two prior successful checks. Not investigated
+further here since it's orthogonal to this track's scope; noted in
+`conversation.md` in case it affects `scripts/migrate-prod.sh` reliability
+going forward.
 
 ## Phase 7: Fix Review Gaps ⏳ IN PROGRESS
 
@@ -437,6 +465,25 @@ acceptance criteria, not on the engineering itself. Full findings in
 - [ ] close the pr
 - [ ] Moved to review
 - [ ] Confirmed you were right to hold off earlier — no review or quality-gate ever ran on this track. Moved it back to review. Run review, then quality-gate, then merge once it actually passes. Also confirmed there is no open (or any-state) GitHub PR for track-10053 — nothing to close.
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Moved to implement (via file sync)
+- [ ] Requested fix for identified gaps:
+- [ ] Moved to review (via file sync)
+- [ ] Moved to implement (via file sync)
 - [ ] Moved to implement (via file sync)
 - [ ] Moved to implement (via file sync)
 - [ ] Moved to implement (via file sync)
