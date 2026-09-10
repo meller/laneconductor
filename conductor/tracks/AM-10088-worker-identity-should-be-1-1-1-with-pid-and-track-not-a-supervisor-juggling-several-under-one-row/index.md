@@ -1,8 +1,8 @@
 # Track AM-10088: Worker identity should be 1:1:1 with pid and track, not a supervisor juggling several under one row
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
-**Progress**: 0%
+**Progress**: 100%
 **Phase**: Planned — 5 phases (0-4), grounded in the real spawn/exit code and existing runningLaneMap/runningTrackMap bookkeeping
 **Type**: dev
 **Track Kind**: feature
