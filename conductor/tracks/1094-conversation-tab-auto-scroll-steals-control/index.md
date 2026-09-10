@@ -3,7 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Complete
 **Type**: dev
 **Summary**: Auto-scroll steal was already fixed on main (commit 4e985e9c); this run confirmed root cause, verified the fix, and added regression tests.
