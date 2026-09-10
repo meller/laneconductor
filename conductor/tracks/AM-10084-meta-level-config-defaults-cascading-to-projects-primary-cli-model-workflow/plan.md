@@ -195,3 +195,17 @@ documented yet.
 - [x] Orphaned-process check: `ps aux | grep laneconductor.sync.mjs` after the full vitest run — every process matches a known long-running legitimate PID (Sep08/Sep09 or an earlier real session), none started around the vitest run's own timestamp. No leak this time.
 - [x] Stub-marker scan (`grep -rniE "not yet implemented|TODO|FIXME|FFU|placeholder|stub"`) scoped to this track's touched code — zero hits.
 - [x] Real-instance verification (Phase 5's own item, re-confirmed here): livingwork's actual setup gaps, resolved.
+
+## ✅ COMPLETE
+
+All 7 phases implemented, tested, and verified against the real running
+instance. Note: Phases 3-4 (bin/lc.mjs wiring, setup-gaps extension) and
+the first two Phase 5 call-site edits were completed by a concurrent
+session that claimed this same track mid-run — `index.md` briefly carried
+`**Waiting Reason**: concurrent session running same track` while that was
+sorted out. Reviewed and verified that work directly (read every diff,
+re-ran/extended its tests, diff-confirmed no regressions) rather than
+redoing it; no other session was still active by the time this session
+resumed and completed Phase 5's real-instance verification plus Phases 6-7.
+The livingwork incident described in this track's own Problem statement is
+confirmed fixed end-to-end against the real instance, not just in tests.

@@ -49,6 +49,40 @@ describe('GET /api/state', () => {
     expect(gapIds).toEqual(['no-conductor-context', 'no-manager', 'no-provider', 'no-tracks', 'no-workers'].sort());
   });
 
+  it('TC-5.1 (Track 10084): manager-driven project with no worker + reachable elsewhere -> no blocking gaps', async () => {
+    vi.mocked(existsSync).mockImplementation((p) => String(p).endsWith('.laneconductor.json'));
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ project: { worker_mode: 'manager-driven' } }));
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [{ id: 1, name: 'livingwork', repo_path: '/r/livingwork', primary_cli: 'claude', create_quality_gate: false }] })
+      .mockResolvedValueOnce({ rows: [] }) // no online workers for this project
+      .mockResolvedValueOnce({ rows: [{ project_id: 1, track_number: '1', lane: 'done' }] }) // has tracks
+      .mockResolvedValueOnce({ rows: [] }) // this project's own provider_status: never checked
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] }); // Track 10084: reachable-anywhere — another project verified 'claude'
+
+    const res = await request(app).get('/api/state?project_id=1').expect(200);
+    const gapIds = res.body.gaps.map(g => g.id).sort();
+    expect(gapIds).not.toContain('no-workers');
+    expect(gapIds).not.toContain('no-provider');
+    expect(gapIds).toContain('manager-driven-no-worker');
+    expect(res.body.gaps.every(g => g.severity !== 'blocking')).toBe(true);
+  });
+
+  it('TC-5.2 (Track 10084): manager-driven project, zero provider_status rows anywhere -> still blocking no-provider', async () => {
+    vi.mocked(existsSync).mockImplementation((p) => String(p).endsWith('.laneconductor.json'));
+    vi.mocked(readFileSync).mockReturnValue(JSON.stringify({ project: { worker_mode: 'manager-driven' } }));
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rows: [{ id: 1, name: 'livingwork', repo_path: '/r/livingwork', primary_cli: 'claude', create_quality_gate: false }] })
+      .mockResolvedValueOnce({ rows: [] }) // no online workers
+      .mockResolvedValueOnce({ rows: [{ project_id: 1, track_number: '1', lane: 'done' }] })
+      .mockResolvedValueOnce({ rows: [] }) // this project's own provider_status: never checked
+      .mockResolvedValueOnce({ rows: [] }); // reachable-anywhere: zero rows anywhere in the DB
+
+    const res = await request(app).get('/api/state?project_id=1').expect(200);
+    const gapIds = res.body.gaps.map(g => g.id);
+    expect(gapIds).toContain('no-provider');
+    expect(res.body.gaps.find(g => g.id === 'no-provider').severity).toBe('blocking');
+  });
+
   it("TC-1.9: with AUTH_ENABLED and a second user's private worker, that worker is omitted", async () => {
     vi.resetModules();
     vi.doMock('../auth.mjs', () => ({
