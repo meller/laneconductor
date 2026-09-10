@@ -113,21 +113,24 @@ the six field names originally listed there turned out not to be simple copy-ove
 
 ## Acceptance Criteria
 
-- [ ] A track synced to the cloud collector with `**Waiting for reply**`, `**Auto Run**`,
+- [x] A track synced to the cloud collector with `**Waiting for reply**`, `**Auto Run**`,
       `**Merge Mode**`, `**Workspace**`, and a `## KPI` block set in `index.md`/`spec.md` has
       every one of those values actually present in the row `cloud`'s `POST /track` upserts —
       verified via the mocked-`pg` SQL/param assertions in REQ-6's test file (no real-Postgres
       harness exists for `cloud/functions/index.js`; see that file's own header comment for
       why).
-- [ ] `model_override` sent by the worker is persisted by cloud's `POST /track`, with the
+- [x] `model_override` sent by the worker is persisted by cloud's `POST /track`, with the
       divergence-from-local reasoning recorded as a code comment (REQ-4).
-- [ ] `log_content` remains unimplemented on both collectors, with the reasoning captured in
+- [x] `log_content` remains unimplemented on both collectors, with the reasoning captured in
       this file (REQ-5) so a future reader doesn't reopen it as "still missing" without
       re-deriving why.
-- [ ] `conductor/tests/cloud-route-parity.test.mjs` still passes.
-- [ ] All new/changed tests pass; existing `cloud/functions/test/track-10083-post-track-lane-action-status.test.js`
+- [x] `conductor/tests/cloud-route-parity.test.mjs` still passes.
+      (12/13 — 1 pre-existing, unrelated failure confirmed present at baseline; see plan.md
+      Phase 5.)
+- [x] All new/changed tests pass; existing `cloud/functions/test/track-10083-post-track-lane-action-status.test.js`
       tests still pass unmodified (unless REQ-6 extends that same file, in which case its
       existing cases must still pass alongside the new ones).
+      (New sibling file, 15/15 pass; 10083 file's 6/6 pass unmodified.)
 
 ## Related
 
@@ -140,3 +143,16 @@ the six field names originally listed there turned out not to be simple copy-ove
 - **Follow-up (not this track)**: `PATCH /api/projects/:id/tracks/:num/model-override`
   (track 1116) does not exist on cloud (Planning Finding 2) — same missing-route family as
   track 10052's Phase 6 callout.
+- **Implementation-time finding**: `merge_mode`/`workspace_mode` were not actually covered by
+  "pre-existing migrations" as planning assumed — they only ever had migration files under
+  `ui/server/migrations/` (`009_merge_mode.sql`, `010_workspace_mode.sql`), a directory with a
+  *local-only* runner, so they were genuinely absent from the cloud schema. Same gap class
+  track 10053 already fixed once for the pre-spawn-block columns. Fixed as part of this track
+  (`migrations/20260910090000_add_track_merge_workspace_mode.sql` +
+  `prisma/schema.prisma`/`prisma/schema.sql` + regenerated `migrations/atlas.sum`) — see plan.md
+  Phase 0's correction for the full reasoning.
+- **Follow-up (not this track)**: `pr_number`, `pr_url`, `pr_status` (also added by
+  `ui/server/migrations/009_merge_mode.sql`) are likewise absent from the cloud schema and were
+  deliberately left out of this track's migration — cloud's `POST /track` doesn't read or write
+  them, so porting them is a separate gap in the same "`ui/server/migrations/` has no cloud
+  runner" family as the finding above.
