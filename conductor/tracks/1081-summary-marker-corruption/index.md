@@ -2,8 +2,9 @@
 
 **Lane**: implement
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 0%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: New — root cause traced for mechanism 1, mechanism 2 still open
 **Type**: dev
 **Summary**: `index.md`'s `**Summary**` marker gets clobbered with wrong/generic content by at least two distinct mechanisms — one traced to an exact line of code, one only reproduced live and not yet…
