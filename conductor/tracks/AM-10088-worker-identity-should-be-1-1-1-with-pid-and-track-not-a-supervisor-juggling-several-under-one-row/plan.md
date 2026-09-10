@@ -192,3 +192,28 @@ distinctly, with correct current_task per row.
       needed claim-scoped rows filtered out). The base Workers panel rendering itself needed no
       change beyond the Claim badge/hidden-Stop-button (added in the uncommitted work this
       session resumed from) — it already rendered one card per row unconditionally.
+
+## ✅ COMPLETE
+
+All 5 phases (0-4) done. Summary of what shipped, beyond the phase-by-phase notes above:
+
+- `conductor/laneconductor.sync.mjs`: claim-scoped worker identity allocation, registration,
+  heartbeat, and retirement (spawnCli), plus the base-identity idle-heartbeat gating fix found
+  while verifying Phase 2/3.
+- `conductor/tests/mock-collector.mjs`: PATCH `/worker/heartbeat` now 404s on no match (mirrors
+  the real server's UPDATE-only semantics) and DELETE `/worker` marks the matching row offline
+  by `(hostname, pid, worker_number)` rather than by `(hostname, pid)` alone.
+- `conductor/tests/track-am-10088-claim-scoped-workers.test.mjs`: new E2E suite (TC-2/TC-3/TC-4
+  folded together, TC-5), using `LC_TEST_REPO_ROOT` correctly (a real gap found live in this
+  track's own uncommitted test file — it was silently exercising the PRIMARY checkout's
+  unmodified worker script until fixed).
+- `ui/src/lib/workerStatus.js` (+ test): `isClaimScopedWorker`/`CLAIM_WORKER_NUMBER_THRESHOLD`
+  extracted as the shared source of truth; `selectDefaultWorker` never defaults to one.
+- `ui/src/components/WorkersList.jsx` (+ test): Claim badge instead of Stop button; claim-scoped
+  rows excluded from the "recently offline" alert strip.
+- `ui/src/components/TrackDetailPanel.jsx`: `projectWorkers` filtered at the setter, so the
+  manual dispatch dropdown and every other consumer in this file never sees a claim-scoped row.
+
+Not done, and explicitly flagged rather than silently skipped: a real-browser screenshot against
+two live `claude` CLI sessions on this project's own shared board (see Phase 4's note for why).
+Everything else in spec.md's Acceptance Criteria is verified against real spawned processes.
