@@ -1,10 +1,10 @@
 # Track AM-10085: POST /track field-parity gap on the cloud collector
 
-**Lane**: plan
+**Lane**: implement
 **Merge Mode**: direct
 **Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Progress**: 100%
+**Phase**: Planned
 **Type**: dev
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
