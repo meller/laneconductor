@@ -1,7 +1,8 @@
 # Track 1081: Bug — `**Summary**` marker gets silently overwritten with wrong content
 
-**Lane**: plan
-**Lane Status**: queue
+**Lane**: implement
+**Merge Mode**: direct
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: New — root cause traced for mechanism 1, mechanism 2 still open
 **Type**: dev
@@ -64,3 +65,4 @@ like normal system behavior and actively misleads whoever reads it next.
 
 Two mechanisms, likely two separate fixes. Investigate whether to split into two tracks once
 mechanism 2 is root-caused, or keep as one track with two phases if they turn out related.
+**Auto Run**: yes
