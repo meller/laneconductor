@@ -1,6 +1,6 @@
 # Track AM-10084: Meta-level config defaults cascading to projects (primary CLI/model, workflow)
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
