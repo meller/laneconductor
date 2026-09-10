@@ -1,8 +1,8 @@
 # Track AM-10087: Blocked-turn park override discards a lane action's own already-resolved verdict
 
-**Lane**: plan
+**Lane**: implement
 **Lane Status**: running
-**Progress**: 0%
+**Progress**: 100%
 **Phase**: New
 **Type**: dev
 **Merge Mode**: direct
