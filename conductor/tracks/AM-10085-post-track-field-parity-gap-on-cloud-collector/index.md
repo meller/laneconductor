@@ -1,14 +1,11 @@
 # Track AM-10085: POST /track field-parity gap on the cloud collector
 
-**Lane**: done
+**Lane**: quality-gate
 **Merge Mode**: direct
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned
 **Type**: dev
-**Track Kind**: bug
-**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Summary**: The cloud collector's POST /track insert column list omits `waiting_for_reply`, `auto_run`, `merge_mode`, `workspace_mode`, `log_content`, `model_override`, and every KPI column the local collector…
@@ -62,3 +59,4 @@ misinterpreted one.
 ## Related
 
 [AM-10083](../AM-10083-lane-action-status-transitions-go-local-only-letting-the-remote-collector-see-a-running-track-as-still-queued/index.md) — same collector-parity failure family (F-3), narrower scope (`lane_action_status` only), fixed first.
+**Auto Run**: yes
