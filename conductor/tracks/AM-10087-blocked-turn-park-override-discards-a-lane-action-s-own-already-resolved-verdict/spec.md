@@ -77,17 +77,17 @@ inside the override's own logic.
 
 ## Acceptance Criteria
 
-- [ ] A review/quality-gate action that produces a complete PASS/FAIL verdict AND whose turn
+- [x] A review/quality-gate action that produces a complete PASS/FAIL verdict AND whose turn
       separately triggers the harness's `blocked` `post_turn_summary` annotation lands the track
       at the `workflow.json`-defined `on_success`/`on_failure` lane (e.g. `implement:queue` on a
       FAIL), not parked at `<lane>:waiting`. Reproduces the AM-1018 shape exactly.
-- [ ] A blocked turn with no `**Verdict**` marker still parks at `<lane>:waiting` with a
+- [x] A blocked turn with no `**Verdict**` marker still parks at `<lane>:waiting` with a
       `**Waiting Reason**` — unchanged from current behavior.
-- [ ] A `**Verdict**` marker whose selected direction has no `on_success`/`on_failure` lane
+- [x] A `**Verdict**` marker whose selected direction has no `on_success`/`on_failure` lane
       defined in `workflow.json` falls back to parking — never guesses.
-- [ ] The override firing is visible: a comment documenting it is appended to
+- [x] The override firing is visible: a comment documenting it is appended to
       `conversation.md`, not silent.
-- [ ] `parseVerdict` unit tests pass; the new spawn test reproducing AM-1018 passes; existing
+- [x] `parseVerdict` unit tests pass; the new spawn test reproducing AM-1018 passes; existing
       blocked-turn/park tests (`track-10055-waiting-any-lane.test.mjs` and any other tests that
       cover `isBlockedTurn`/park behavior) continue to pass unmodified.
 

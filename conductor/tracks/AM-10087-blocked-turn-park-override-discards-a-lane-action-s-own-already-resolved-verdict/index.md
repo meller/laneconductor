@@ -1,6 +1,6 @@
 # Track AM-10087: Blocked-turn park override discards a lane action's own already-resolved verdict
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: New
