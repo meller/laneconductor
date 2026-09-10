@@ -1,7 +1,7 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: done
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Complete (Phases 1-5 routing/deployment verified live). E2E + caveat removal moved to track TU-10054.
