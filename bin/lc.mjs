@@ -23,6 +23,7 @@ import { resolveTrackFolderFs } from '../conductor/services/track-folder-fs.mjs'
 import { buildInstanceState } from '../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../conductor/services/setup-gaps.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../conductor/services/jira-auth.mjs';
+import { loadMetaDefaults, mergeEffectivePrimary, mergeWorkflowConfig } from '../conductor/services/meta-defaults.mjs';
 import { isPidAlive, readProcessCommand, runMarkerPath } from '../conductor/services/run-marker.mjs';
 import { abortRun } from '../conductor/services/run-abort.mjs';
 
@@ -59,6 +60,40 @@ function getCollectorToken(cfg, idx, projectRoot) {
         if (m) return m[1].trim();
     }
     return c.token || c.machine_token || null;
+}
+
+// Pads a value to a fixed-width column for `lc workflow`'s table output.
+// Pre-existing call sites referenced this undefined (present since the
+// initial commit — the display branch had never actually been exercised);
+// defining it here rather than leaving it broken since Track 10084
+// substantially rewrites that same display code.
+function col(value, width) {
+    return String(value).padEnd(width);
+}
+
+// Track 10084 (REQ-2/REQ-7): mirrors laneconductor.sync.mjs's own
+// HARDCODED_DEFAULTS < meta-defaults.json < conductor/defaults.json <
+// .laneconductor.json cascade, so `lc state`/`lc workflow`/dispatch never
+// disagree with the worker about the *effective* primary.cli/.model — this
+// was the exact drift (bin/lc.mjs reading cfg.project.primary.cli raw,
+// duplicating instead of reusing the worker's own resolution) that made
+// livingwork's genuinely-configured 'claude' read as unconfigured.
+function resolveEffectivePrimary(projectRoot, cfg) {
+    const hardcoded = { project: { primary: { cli: 'claude', model: null } } };
+    let projectDefaults = {};
+    const defaultsPath = join(projectRoot, 'conductor', 'defaults.json');
+    if (existsSync(defaultsPath)) {
+        try { projectDefaults = JSON.parse(readFileSync(defaultsPath, 'utf8')); }
+        catch { /* degrade to {} — same as laneconductor.sync.mjs */ }
+    }
+    const inheritMetaDefaults = cfg?.project?.inherit_meta_defaults ?? true;
+    return mergeEffectivePrimary({
+        hardcoded,
+        metaDefaults: loadMetaDefaults(),
+        projectDefaults,
+        projectConfig: cfg || {},
+        inheritMetaDefaults,
+    });
 }
 
 function getInstallPath() {
@@ -310,7 +345,7 @@ function resolveSyncScript(projectRoot) {
  * @returns {Promise<string>} - Full LLM response text
  */
 async function callLLMConversational(cfg, prompt) {
-    const agent = cfg.project?.primary;
+    const agent = resolveEffectivePrimary(cfg.project?.repo_path || process.cwd(), cfg);
     const cli = agent?.cli || 'claude';
     const model = agent?.model;
 
@@ -350,10 +385,11 @@ async function callLLMConversational(cfg, prompt) {
  */
 async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
     const projectRoot = cfg.project.repo_path || process.cwd();
-    
+
     // Identify available agents (primary and optional secondary)
     const agents = [];
-    if (cfg.project?.primary?.cli) agents.push({ ...cfg.project.primary, type: 'primary' });
+    const effectivePrimary = resolveEffectivePrimary(projectRoot, cfg);
+    if (effectivePrimary?.cli) agents.push({ ...effectivePrimary, type: 'primary' });
     if (cfg.project?.secondary?.cli) agents.push({ ...cfg.project.secondary, type: 'secondary' });
 
     if (agents.length === 0) {
@@ -922,16 +958,31 @@ Choice [1]: `) || '1';
         agentMenuLines.push(`  [${otherNum}] other`);
         const agentMenu = agentMenuLines.join('\n');
 
+        // Track 10084 (REQ-2/Phase 3): suggest the meta-level default
+        // instead of a hardcoded '1'/'default' when a meta-defaults.json
+        // exists — a blank answer still means "use the shown default", just
+        // a better-informed one. Falls back to today's '1'/'default' exactly
+        // when there is no meta default (or it names an unrecognized cli).
+        const metaDefaultsForSetup = loadMetaDefaults();
+        const suggestedCli = metaDefaultsForSetup?.project?.primary?.cli
+            ? normalizeProviderId(metaDefaultsForSetup.project.primary.cli)
+            : null;
+        const suggestedAgentNum = suggestedCli
+            ? Object.keys(agentMap).find(num => agentMap[num] === suggestedCli)
+            : null;
+        const defaultAgentNum = suggestedAgentNum || '1';
+
         const agentChoice = await question(`
 Primary AI agent:
 ${agentMenu}
-Choice [1]: `) || '1';
-        const primaryCli = normalizeProviderId(agentMap[agentChoice] || 'claude');
+Choice [${defaultAgentNum}]: `) || defaultAgentNum;
+        const primaryCli = normalizeProviderId(agentMap[agentChoice] || agentMap[defaultAgentNum] || 'claude');
         if (PROVIDERS[primaryCli]?.retired) {
             console.warn(`⚠️  ${PROVIDERS[primaryCli].retiredMessage}`);
             console.warn(`   Continuing with ${primaryCli}; switch later with: lc config project.primary.cli antigravity`);
         }
-        const primaryModel = await question(`Primary model [default]: `) || null;
+        const suggestedModel = suggestedCli === primaryCli ? metaDefaultsForSetup?.project?.primary?.model : null;
+        const primaryModel = await question(`Primary model [${suggestedModel || 'default'}]: `) || suggestedModel || null;
 
         const secondaryYN = await question(`Add a secondary (fallback) agent? (y/n) [y]: `);
         let secondary = null;
@@ -2311,7 +2362,7 @@ Please review this, answer any questions (some fields may contain questions rath
     const cfg = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf8')) : {};
     const mode = cfg.mode || 'local-fs';
     const projectName = cfg.project?.name || basename(projectRoot);
-    const primaryCli = cfg.project?.primary?.cli || null;
+    const primaryCli = resolveEffectivePrimary(projectRoot, cfg).cli || null;
 
     let projects = [];
     let tracks = [];
@@ -2396,6 +2447,12 @@ Please review this, answer any questions (some fields may contain questions rath
                 // worker ever writes (laneconductor.sync.mjs:3191/4034) —
                 // no row at all means never-checked, not "bad".
                 providers[projectId] = { primary_cli: primaryCli, primary_ok: provRows.length > 0 ? provRows[0] === 'available' : null };
+
+                // Track 10084 (REQ-6/REQ-7): "reachable anywhere on this
+                // instance" — any OTHER project's provider_status row for
+                // the same CLI reporting 'available'.
+                const reachableAnywhereRows = runPsql(`SELECT 1 FROM provider_status WHERE provider = '${primaryCli}' AND status = 'available' AND project_id != ${projectId} LIMIT 1`);
+                providers[projectId].reachable_anywhere = reachableAnywhereRows.length > 0;
             }
         } catch (err) {
             console.error(`❌ Failed to read state from DB: ${err.message}`);
@@ -2413,6 +2470,12 @@ Please review this, answer any questions (some fields may contain questions rath
     const hasManagerWorker = state.workers.some(w => w.type === 'manager');
     const hasOnlineWorker = state.workers.some(w => w.online && w.type !== 'manager');
     const primaryProviderReachable = mode === 'local-fs' ? !!primaryCli : (providers[project?.id]?.primary_ok === true);
+    // Track 10084 (REQ-5/REQ-7): worker_mode is read straight off the
+    // already-loaded .laneconductor.json — no DB column, no migration.
+    // local-fs has no DB to query "reachable anywhere" against, so it
+    // degrades to false there (same as the ui/server call site's default).
+    const workerMode = cfg.project?.worker_mode === 'manager-driven' ? 'manager-driven' : 'dedicated';
+    const primaryProviderReachableAnywhere = mode === 'local-fs' ? false : !!providers[project?.id]?.reachable_anywhere;
 
     const gaps = computeSetupGaps({
         projectCount: state.projects.length,
@@ -2420,6 +2483,8 @@ Please review this, answer any questions (some fields may contain questions rath
         hasManagerWorker,
         primaryCliConfigured: !!primaryCli,
         primaryProviderReachable,
+        workerMode,
+        primaryProviderReachableAnywhere,
         hasProductMd,
         hasTechStackMd,
         createQualityGate,
@@ -2949,7 +3014,8 @@ Please review this, answer any questions (some fields may contain questions rath
 
         // Identify available agents (primary and optional secondary)
         const agents = [];
-        if (cfg.project?.primary?.cli) agents.push({ ...cfg.project.primary, type: 'primary' });
+        const effectivePrimary = resolveEffectivePrimary(projectRoot, cfg);
+        if (effectivePrimary?.cli) agents.push({ ...effectivePrimary, type: 'primary' });
         if (cfg.project?.secondary?.cli) agents.push({ ...cfg.project.secondary, type: 'secondary' });
 
         if (agents.length === 0) {
@@ -2985,38 +3051,55 @@ Please review this, answer any questions (some fields may contain questions rath
     process.exit(0);
 } else if (command === 'workflow') {
     if (!projectRoot) { process.exit(1); }
-    let wfPath = join(projectRoot, 'conductor', 'workflow.json');
-    if (!existsSync(wfPath)) {
-        const installPath = getInstallPath();
-        const canonical = join(installPath, 'conductor', 'workflow.json');
-        if (existsSync(canonical)) {
-            wfPath = canonical;
-            console.log(`ℹ️  Using global workflow from ${wfPath}`);
-        } else {
-            console.error(`❌ Error: Workflow configuration not found at ${wfPath} or ${canonical}`);
-            process.exit(1);
-        }
-    }
-    const wf = JSON.parse(readFileSync(wfPath, 'utf8'));
+    const projectWfPath = join(projectRoot, 'conductor', 'workflow.json');
+    const projectWorkflowRaw = existsSync(projectWfPath) ? JSON.parse(readFileSync(projectWfPath, 'utf8')) : null;
+
     if (args[1] === 'set') {
-        if (!wfPath.includes(projectRoot)) {
+        if (!projectWorkflowRaw) {
             console.error('❌ Error: Cannot modify global workflow. Create a local conductor/workflow.json first.');
             process.exit(1);
         }
+        const wf = projectWorkflowRaw;
         const [lane, key, val] = [args[2], args[3], args[4]];
         if (lane === 'global') wf.global[key] = val;
         else if (wf.lanes[lane]) wf.lanes[lane][key] = val;
         else if (lane === 'defaults') wf.defaults[key] = val;
-        writeFileSync(wfPath, JSON.stringify(wf, null, 2) + '\n');
+        writeFileSync(projectWfPath, JSON.stringify(wf, null, 2) + '\n');
         console.log(`✅ Workflow updated: ${lane}.${key} = ${val}`);
         process.exit(0);
-    } else {
-        console.log('-'.repeat(77));
-        for (const [lane, cfg] of Object.entries(wf.lanes || {})) {
-            console.log(col(lane, 15) + col(cfg.parallel_limit ?? d.parallel_limit ?? 1, 9) + col(cfg.max_retries ?? d.max_retries ?? 1, 9) + col(cfg.on_success ?? '(stay)', 22) + col(cfg.on_failure ?? '(stay)', 22));
-        }
-        console.log('');
     }
+
+    // Track 10084 (REQ-3/REQ-7): display the *effective* (cascaded) view —
+    // project's own conductor/workflow.json < meta-defaults.json's
+    // `workflow` block < install-path canonical workflow.json — the same
+    // precedence loadWorkflowConfig() in laneconductor.sync.mjs applies, so
+    // this table always matches what the worker would actually use rather
+    // than whichever single file happens to exist locally.
+    const installPath = getInstallPath();
+    const canonicalWfPath = join(installPath, 'conductor', 'workflow.json');
+    const globalCanonicalWorkflow = existsSync(canonicalWfPath) ? JSON.parse(readFileSync(canonicalWfPath, 'utf8')) : null;
+    const cfgPathForWorkflow = join(projectRoot, '.laneconductor.json');
+    const cfgForWorkflow = existsSync(cfgPathForWorkflow) ? JSON.parse(readFileSync(cfgPathForWorkflow, 'utf8')) : {};
+    const inheritMetaDefaultsForWorkflow = cfgForWorkflow.project?.inherit_meta_defaults ?? true;
+    const metaWorkflow = loadMetaDefaults().workflow;
+
+    const wf = mergeWorkflowConfig({
+        projectWorkflow: projectWorkflowRaw,
+        metaWorkflow,
+        globalCanonicalWorkflow,
+        inheritMetaDefaults: inheritMetaDefaultsForWorkflow,
+    });
+    if (!wf) {
+        console.error(`❌ Error: Workflow configuration not found at ${projectWfPath} or ${canonicalWfPath}`);
+        process.exit(1);
+    }
+    if (!projectWorkflowRaw) console.log(`ℹ️  No local conductor/workflow.json — showing effective (meta-defaults + global canonical) workflow`);
+    const d = wf.defaults || {};
+    console.log('-'.repeat(77));
+    for (const [lane, cfg] of Object.entries(wf.lanes || {})) {
+        console.log(col(lane, 15) + col(cfg.parallel_limit ?? d.parallel_limit ?? 1, 9) + col(cfg.max_retries ?? d.max_retries ?? 1, 9) + col(cfg.on_success ?? '(stay)', 22) + col(cfg.on_failure ?? '(stay)', 22));
+    }
+    console.log('');
     process.exit(0);
 } else if (command === 'config' || command === 'project') {
     if (!projectRoot) { process.exit(1); }
