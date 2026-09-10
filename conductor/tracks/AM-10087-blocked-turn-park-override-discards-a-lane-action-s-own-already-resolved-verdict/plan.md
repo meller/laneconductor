@@ -128,3 +128,29 @@ All 4 phases implemented and verified:
   plus 22/22 + 9/9 + 19/19 existing regression tests
   (`track-10055-waiting-any-lane.test.mjs`, `track-10055-waiting-resume.test.mjs`,
   `stream-json-tail.test.mjs`) unmodified and still green.
+
+## ✅ QUALITY PASSED
+
+Independently re-ran every check rather than trusting the implement phase's own marks:
+- Syntax (`node --check`) on all 5 changed `.mjs` files — clean.
+- `track-10087-verdict-marker.test.mjs` — 11/11 pass.
+- `track-10087-blocked-verdict-override.test.mjs` — 5/5 pass (TC-2a AM-1018 reproduction,
+  TC-2b pass-direction routing, TC-2c no-verdict-still-parks regression guard, TC-2d
+  misconfigured-fallback-still-parks, TC-2e override-visible-in-conversation.md).
+- Regression: `track-10055-waiting-any-lane.test.mjs` 22/22,
+  `track-10055-waiting-resume.test.mjs` 9/9, `stream-json-tail.test.mjs` 19/19 — all green,
+  unmodified.
+- Stub scan (`grep -rniE "not yet implemented|TODO|FIXME|FFU|placeholder|stub"`) against every
+  file this track's diff actually touches — zero hits; the only matches in
+  `laneconductor.sync.mjs` fall well outside this track's diff hunks (confirmed via `git diff
+  main...HEAD` hunk ranges vs. grep line numbers).
+- SKILL.md diff reviewed directly — review/quality-gate steps write `**Verdict**` on every
+  terminal PASS/FAIL outcome (not the KPI-miss early exit), clear it at claim time, and the
+  marker table documents it, matching spec.md REQ-1/REQ-2.
+- `isBlockedTurn`/`verdictOverride` wiring in `conductor/laneconductor.sync.mjs` read directly —
+  matches REQ-3 through REQ-7 exactly (verdict read alongside `agentWaitingReason`, override
+  gated on a real `workflow.json` target, falls back to parking when unroutable or absent,
+  `conversation.md` comment posted when it fires).
+- All 5 acceptance criteria in spec.md confirmed against actual command output, not assumed.
+
+**Verdict: PASS** — Status: PASS, Reviewer: Claude (quality-gate phase, track AM-10087), Date: 2026-09-10.
