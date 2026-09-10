@@ -38,6 +38,7 @@ import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
 import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
+import { loadMetaDefaults, mergeEffectivePrimary, mergeWorkflowConfig } from './services/meta-defaults.mjs';
 import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
@@ -381,10 +382,11 @@ const HARDCODED_DEFAULTS = {
 };
 
 let config = HARDCODED_DEFAULTS;
+let fileDefaults = null;
 const defaultsPath = join(configRoot, 'conductor/defaults.json');
 if (existsSync(defaultsPath)) {
   try {
-    const fileDefaults = JSON.parse(readFileSync(defaultsPath, 'utf8'));
+    fileDefaults = JSON.parse(readFileSync(defaultsPath, 'utf8'));
     config = { ...HARDCODED_DEFAULTS, ...fileDefaults };
     if (fileDefaults.project) config.project = { ...HARDCODED_DEFAULTS.project, ...fileDefaults.project };
     if (fileDefaults.ui) config.ui = { ...HARDCODED_DEFAULTS.ui, ...fileDefaults.ui };
@@ -393,10 +395,11 @@ if (existsSync(defaultsPath)) {
   }
 }
 
+let userConfig = null;
 const laneConductorJsonPath = join(configRoot, '.laneconductor.json');
 if (existsSync(laneConductorJsonPath)) {
   try {
-    const userConfig = JSON.parse(readFileSync(laneConductorJsonPath, 'utf8'));
+    userConfig = JSON.parse(readFileSync(laneConductorJsonPath, 'utf8'));
     config = {
       ...config,
       ...userConfig,
@@ -408,8 +411,25 @@ if (existsSync(laneConductorJsonPath)) {
     console.warn('[config] Failed to parse .laneconductor.json, using defaults:', err.message);
   }
 } else {
+  console.log(`[config] .laneconductor.json not found, using mode "${config.mode}"`);
+}
+
+// Track 10084 (REQ-2): conductor/meta-defaults.json (the meta project's
+// shared config source) fills in project.primary.cli/.model only where
+// every project-level tier above (conductor/defaults.json,
+// .laneconductor.json) left it unset — never overrides an explicit project
+// value. project.inherit_meta_defaults: false skips this tier entirely.
+const inheritMetaDefaults = userConfig?.project?.inherit_meta_defaults ?? true;
+config.project.primary = mergeEffectivePrimary({
+  hardcoded: HARDCODED_DEFAULTS,
+  metaDefaults: loadMetaDefaults(),
+  projectDefaults: fileDefaults || {},
+  projectConfig: userConfig || {},
+  inheritMetaDefaults,
+});
+{
   const p = config.project.primary;
-  console.log(`[config] .laneconductor.json not found, using mode "${config.mode}" with ${p.cli}${p.model ? '/' + p.model : ' (default model)'}`);
+  console.log(`[config] mode "${config.mode}" with primary ${p.cli}${p.model ? '/' + p.model : ' (default model)'}`);
 }
 
 // Track 10011: --cli/--model let a single `lc start` invocation run a
@@ -1801,24 +1821,39 @@ export function normalizeAuthorForComment(cli) {
   return PROVIDER_IDS.includes(normalized) ? normalized : 'claude';
 }
 
+// Track 10084 (REQ-3): field-level deep merge across project-local
+// conductor/workflow.json, conductor/meta-defaults.json's `workflow` block,
+// and the install-path canonical workflow.json — replaces the old "return
+// whichever whole file is found first" fallback, so a project can override
+// a single lane's single key while inheriting everything else. The legacy
+// workflow.md embedded block remains the last-resort fallback, used only
+// when none of the three structured sources produced anything at all.
 function loadWorkflowConfig() {
-  // 1. Try project-local workflow.json (canonical per-project source)
+  let projectWorkflow = null;
   if (existsSync('conductor/workflow.json')) {
-    try { return stripLanePrimaryCli(JSON.parse(readFileSync('conductor/workflow.json', 'utf8'))); }
+    try { projectWorkflow = stripLanePrimaryCli(JSON.parse(readFileSync('conductor/workflow.json', 'utf8'))); }
     catch (err) { console.error('[config] Failed to parse conductor/workflow.json:', err.message); }
   }
 
-  // 2. Try canonical global workflow.json from LaneConductor repo
+  let globalCanonicalWorkflow = null;
   const installPath = getInstallPath();
   if (installPath) {
     const globalWf = join(installPath, 'conductor', 'workflow.json');
     if (existsSync(globalWf)) {
-      try { return stripLanePrimaryCli(JSON.parse(readFileSync(globalWf, 'utf8'))); }
+      try { globalCanonicalWorkflow = stripLanePrimaryCli(JSON.parse(readFileSync(globalWf, 'utf8'))); }
       catch (err) { console.error('[config] Failed to parse global workflow.json:', err.message); }
     }
   }
 
-  // 3. Fall back to embedded JSON block in workflow.md (legacy)
+  const metaWorkflowRaw = loadMetaDefaults().workflow;
+  const metaWorkflow = metaWorkflowRaw ? stripLanePrimaryCli(metaWorkflowRaw) : undefined;
+
+  const inheritMetaDefaultsNow = getProject()?.inherit_meta_defaults ?? true;
+  const merged = mergeWorkflowConfig({ projectWorkflow, metaWorkflow, globalCanonicalWorkflow, inheritMetaDefaults: inheritMetaDefaultsNow });
+  if (merged) return merged;
+
+  // Fall back to embedded JSON block in workflow.md (legacy) — only reached
+  // when project/meta/global-canonical were all absent or all failed to parse.
   const content = readIfExists('conductor/workflow.md');
   if (!content) return null;
   const match = content.match(/## Workflow Configuration\n```json\n([\s\S]*?)\n```/);

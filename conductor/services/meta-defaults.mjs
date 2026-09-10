@@ -23,7 +23,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { META_PROJECT_REPO_PATH } from './meta-project.mjs';
 
+// LC_META_DEFAULTS_PATH lets tests (and an operator with an unusual
+// filesystem layout) redirect this without touching the real meta project
+// on disk — same override-seam pattern as LC_SKIP_GIT_LOCK elsewhere in
+// this codebase.
 export function resolveMetaDefaultsPath() {
+  if (process.env.LC_META_DEFAULTS_PATH) return process.env.LC_META_DEFAULTS_PATH;
   return join(META_PROJECT_REPO_PATH, 'conductor', 'meta-defaults.json');
 }
 

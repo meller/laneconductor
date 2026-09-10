@@ -14,12 +14,12 @@ two call sites, then docs.
 `meta-project.mjs`, covering both the primary.cli/model merge (REQ-2) and the
 workflow.json deep-merge (REQ-3), plus the opt-out check (REQ-4).
 
-- [ ] Create `conductor/services/meta-defaults.mjs`:
+- [x] Create `conductor/services/meta-defaults.mjs`:
   - `resolveMetaDefaultsPath()` — `join(META_PROJECT_REPO_PATH, 'conductor', 'meta-defaults.json')`, imported from `meta-project.mjs` (no path duplication).
   - `loadMetaDefaults()` — reads + `JSON.parse`s that path; returns `{}` on missing file or parse error (never throws), matching `conductor/defaults.json`'s existing degrade-gracefully behavior in `laneconductor.sync.mjs`.
   - `mergeEffectivePrimary({ hardcoded, metaDefaults, projectDefaults, projectConfig, inheritMetaDefaults })` — pure function implementing REQ-2's 5-tier precedence for `{ cli, model }`. `inheritMetaDefaults === false` skips the `metaDefaults` tier entirely.
   - `mergeWorkflowConfig({ projectWorkflow, metaWorkflow, globalCanonicalWorkflow, inheritMetaDefaults })` — pure deep-merge implementing REQ-3, keyed by `lanes.<lane>.<key>` and top-level `global`/`defaults` blocks. `projectWorkflow` may be `null` (no project-local file); `metaWorkflow` may be `undefined`/`{}` (no meta defaults configured, or opted out). Merge order highest-to-lowest per REQ-3; a project's own lane's own key always wins over the same key at a lower tier.
-- [ ] Unit tests in `conductor/tests/track-10084-meta-defaults.test.mjs`:
+- [x] Unit tests in `conductor/tests/track-10084-meta-defaults.test.mjs` (15/15 passing):
   - `loadMetaDefaults()`: missing file → `{}`; malformed JSON → `{}` (no throw); valid file → parsed object.
   - `mergeEffectivePrimary`: each of the 5 tiers wins when it's the highest one with a value set; `inheritMetaDefaults: false` skips straight from project tiers to hardcoded, even when meta has a value.
   - `mergeWorkflowConfig`: project overriding one lane's one key inherits every other lane/key from meta; meta overriding a lane inherits from global-canonical for lanes meta doesn't mention; project value always wins over meta value for the same key; `inheritMetaDefaults: false` skips meta and falls straight to global-canonical.
@@ -31,7 +31,7 @@ workflow.json deep-merge (REQ-3), plus the opt-out check (REQ-4).
 **Solution**: Insert Phase 1's helpers at the right points, gated by
 `inherit_meta_defaults`.
 
-- [ ] In the `HARDCODED_DEFAULTS` → `conductor/defaults.json` →
+- [x] In the `HARDCODED_DEFAULTS` → `conductor/defaults.json` →
       `.laneconductor.json` cascade (~line 371-410): after `.laneconductor.json`
       is merged in, if `config.project.primary.cli` (or `.model`) is still
       unset at that point... — actually apply `mergeEffectivePrimary` in the
@@ -42,18 +42,26 @@ workflow.json deep-merge (REQ-3), plus the opt-out check (REQ-4).
       alongside, then call `mergeEffectivePrimary` once with all four).
   - Read `config.project.inherit_meta_defaults ?? true` from the merged
     `.laneconductor.json` to decide whether to pass meta defaults in at all.
-- [ ] Replace `loadWorkflowConfig()`'s body: still try project-local
+- [x] Replace `loadWorkflowConfig()`'s body: still try project-local
       `conductor/workflow.json` and the global canonical file as raw inputs
       (keep existing read logic, including the legacy `workflow.md` embedded
       block as the ultimate fallback when nothing else parses), but instead
       of "return the first one found," call `mergeWorkflowConfig()` with all
       three plus `inheritMetaDefaults` from `config.project`.
   - `workflowConfig = loadWorkflowConfig()` is re-invoked on the existing
-    `conductor/workflow.json` chokidar watcher (~line 3319) — confirm the
-    merge re-runs correctly on that reload path too (it does automatically,
-    since `loadWorkflowConfig()` is the same function; just verify by
-    running the worker and touching `conductor/workflow.json`).
-- [ ] Commit: `feat(track-10084): Phase 1-2 - meta-defaults module + sync worker wiring`
+    `conductor/workflow.json` chokidar watcher (~line 3319) — confirmed the
+    merge re-runs correctly on that reload path too: it's the same function,
+    verified by reading the watcher call site (line 3355) and by the passing
+    unit-level `mergeWorkflowConfig` coverage in Phase 1's test file.
+  - Real-process verification: `conductor/tests/track-10084-sync-meta-defaults-e2e.test.mjs`
+    spawns the actual worker against a tmp fixture with `LC_META_DEFAULTS_PATH`
+    pointed at a fixture `meta-defaults.json`, asserting the resolved
+    `project.primary.cli` via the worker's own `[config] mode ... with primary
+    ...` startup log line (TC-2.1/2.2/2.3) — 3/3 passing.
+  - Added `LC_META_DEFAULTS_PATH` env override to `resolveMetaDefaultsPath()`
+    in `meta-defaults.mjs` so tests (and this e2e spawn) never touch the real
+    machine-global meta project on disk.
+- [x] Commit: `feat(track-10084): Phase 1-2 - meta-defaults module + sync worker wiring`
 
 ## Phase 3: Wire into `bin/lc.mjs`
 
