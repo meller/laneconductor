@@ -2,8 +2,9 @@
 
 **Lane**: done
 **Merge Mode**: direct
-**Lane Status**: running
+**Lane Status**: queue
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete — both mechanisms resolved (1: already fixed by AM-10046; 2: fixed by removing Summary truncation)
 **Type**: dev
 **Summary**: Both corruption mechanisms resolved. Mechanism 1 (hardcoded "Answered user question" placeholder) was already fixed by track AM-10046 Phase 2, verified by source/git inspection. Mechanism 2 (Summary…
