@@ -1,12 +1,13 @@
 # Track AM-10090: Resumed session ignores new human input, re-clobbering respecced track files
 
 **Lane**: plan
-**Lane Status**: success
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planned
 **Type**: dev
 **Track Kind**: bug
+**Verdict**: fail
 **Merge Mode**: direct
 **Auto Run**: yes
 **Author**: AM
