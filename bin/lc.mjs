@@ -2979,9 +2979,42 @@ Please review this, answer any questions (some fields may contain questions rath
 
     const indexPath = join(tracksDir, dir, 'index.md');
     let content = readFileSync(indexPath, 'utf8');
+    const priorLane = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i)?.[1]?.trim();
     if (lane && command !== 'pulse') content = content.replace(/\*\*Lane\*\*:\s*[^\n]+/i, `**Lane**: ${lane}`);
     if (status) content = content.replace(/\*\*Lane Status\*\*:\s*[^\n]+/i, `**Lane Status**: ${status}`);
     if (prog) content = content.replace(/\*\*Progress\*\*:\s*\d+%/i, `**Progress**: ${prog}%`);
+
+    // A track's persisted Claude session (track_sessions, resolveTrackSession
+    // in laneconductor.sync.mjs) is keyed ONLY by track number, with no
+    // awareness of which lane/action it came from. Moving a track to a
+    // DIFFERENT lane — e.g. re-queuing an already-done track back to `plan`
+    // for real rework — must not let the worker `--resume` a session whose
+    // entire conversational memory is "I already finished this," or the
+    // resumed turn just re-asserts that old conclusion and round-trips back
+    // to its prior lane without ever reading the new instruction. Confirmed
+    // live: multiple livingwork tracks (1003, 1011-1023) re-queued to plan
+    // cycled QUEUE→RUN→done in seconds with zero file changes. Invalidating
+    // here — the one place a human-driven lane change actually happens —
+    // guarantees the next dispatch cold-starts instead of resuming stale
+    // context from a different action entirely.
+    if (lane && lane !== priorLane && command !== 'pulse') {
+        try {
+            const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
+            if (cfg.mode !== 'local-fs') {
+                const collectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+                await Promise.allSettled(collectors.map((collector) => {
+                    const idx = cfg.collectors.indexOf(collector);
+                    const url = new URL(`${collector.url}/track/${trackNum}/session`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    const token = getCollectorToken(cfg, idx, projectRoot);
+                    return fetch(url.toString(), {
+                        method: 'DELETE',
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+                    }).catch(() => {});
+                }));
+            }
+        } catch { /* best effort — a session-invalidation failure should never block the lane move itself */ }
+    }
 
     if (command === 'rerun') {
         const retryPath = join(tracksDir, dir, '.retry-count');
