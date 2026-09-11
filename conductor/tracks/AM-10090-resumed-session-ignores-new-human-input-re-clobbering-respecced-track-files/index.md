@@ -4,7 +4,7 @@
 **Lane Status**: queue
 **Verdict**: pass
 **Progress**: 100%
-**Last Run**: claude/claude-sonnet-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Planned — ready for implement
 **Type**: dev
 **Track Kind**: bug
