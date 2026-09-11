@@ -502,7 +502,14 @@ app.get('/api/projects/:id/workers/offline', async (req, res) => {
         ORDER BY w.last_heartbeat DESC`,
       [req.params.id]
     );
-    res.json(result.rows);
+    // This endpoint's whole purpose is "workers detected offline by stale
+    // heartbeat" — a row here is offline by definition, regardless of what
+    // current_task held when it last checked in. Surfacing that stale
+    // string made a crashed worker (never gracefully deregistered, so the
+    // DELETE /worker fix above never touched its row) look like it was
+    // still actively running whatever it was doing when it died.
+    const rows = result.rows.map(w => ({ ...w, current_task: null }));
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -4603,8 +4610,13 @@ app.delete('/worker', collectorAuth, async (req, res) => {
     // identity (track 1084) that a routine stop can destroy isn't stable.
     // Marking offline preserves the row, its id, and everything attached;
     // re-registration reuses it via the existing ON CONFLICT upsert.
+    // current_task is cleared here too — found live: a dead worker's last
+    // task string (e.g. "local-fs-implement track 1026") survived this
+    // transition indefinitely, so the Workers panel kept showing an
+    // offline worker as if it were still doing that work, long after the
+    // track itself had actually finished.
     await pool.query(
-      `UPDATE workers SET status = 'offline', last_heartbeat = NOW() - INTERVAL '10 minutes'
+      `UPDATE workers SET status = 'offline', current_task = NULL, last_heartbeat = NOW() - INTERVAL '10 minutes'
         WHERE project_id IS NOT DISTINCT FROM $1 AND hostname = $2 AND worker_number = $3`,
       [projectId, hostname, worker_number]
     );
