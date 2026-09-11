@@ -223,6 +223,9 @@ const server = createServer(async (req, res) => {
       claude_session_id: entry?.claude_session_id ?? null,
       last_context_tokens: entry?.last_context_tokens ?? null,
       resume_count: entry?.resume_count ?? 0,
+      // Track AM-10090 (REQ-8): same "never coerced" rule as the other
+      // fields — null means "never recorded".
+      doc_digest: entry?.doc_digest ?? null,
     });
   }
 
@@ -241,6 +244,11 @@ const server = createServer(async (req, res) => {
         last_context_tokens: (body.context_tokens ?? null) !== null
           ? body.context_tokens
           : (existing?.last_context_tokens ?? null),
+        // Track AM-10090 (REQ-8): same COALESCE rule for doc_digest — a
+        // POST omitting it (best-effort, REQ-14) must not erase a stored value.
+        doc_digest: (body.doc_digest ?? null) !== null
+          ? body.doc_digest
+          : (existing?.doc_digest ?? null),
       };
     }
     state.sessions[params.num] = body.claude_session_id;

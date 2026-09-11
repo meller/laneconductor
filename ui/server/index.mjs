@@ -3947,7 +3947,7 @@ app.get('/track/:num/session', collectorAuth, async (req, res) => {
   try {
     if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
     const { rows } = await pool.query(
-      'SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
+      'SELECT claude_session_id, last_context_tokens, resume_count, doc_digest FROM track_sessions WHERE track_number = $1 AND worker_id = $2',
       [req.params.num, req.worker_id]
     );
     res.json({
@@ -3958,6 +3958,9 @@ app.get('/track/:num/session', collectorAuth, async (req, res) => {
       // number) distinction stays intact for the caller.
       last_context_tokens: rows[0]?.last_context_tokens ?? null,
       resume_count: rows[0]?.resume_count ?? 0,
+      // Track AM-10090 (REQ-7): same "never coerced" rule — null means
+      // "never recorded", which hasTrackDocDrift() treats as no drift.
+      doc_digest: rows[0]?.doc_digest ?? null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3967,7 +3970,7 @@ app.get('/track/:num/session', collectorAuth, async (req, res) => {
 app.post('/track/:num/session', collectorAuth, async (req, res) => {
   try {
     if (!req.worker_id) return res.status(400).json({ error: 'worker identity required' });
-    const { claude_session_id, context_tokens } = req.body;
+    const { claude_session_id, context_tokens, doc_digest } = req.body;
     if (!claude_session_id) return res.status(400).json({ error: 'claude_session_id is required' });
     // Track 10047 (REQ-6): resume_count increments only when this POST's
     // claude_session_id matches what was already stored (a genuine resume
@@ -3976,9 +3979,12 @@ app.post('/track/:num/session', collectorAuth, async (req, res) => {
     // then write. last_context_tokens is overwritten ONLY when
     // context_tokens is supplied (COALESCE) — a POST that doesn't measure
     // it (e.g. a non-claude CLI run) must not erase a prior measurement.
+    // Track AM-10090 (REQ-7): doc_digest follows the exact same COALESCE
+    // rule — a POST that doesn't supply it (e.g. the digest read failed,
+    // best-effort per REQ-14) must not erase a previously stored value.
     await pool.query(
-      `INSERT INTO track_sessions(track_number, worker_id, claude_session_id, last_used_at, last_context_tokens, resume_count)
-       VALUES($1, $2, $3, NOW(), $4, 0)
+      `INSERT INTO track_sessions(track_number, worker_id, claude_session_id, last_used_at, last_context_tokens, resume_count, doc_digest)
+       VALUES($1, $2, $3, NOW(), $4, 0, $5)
        ON CONFLICT (track_number, worker_id) DO UPDATE SET
        claude_session_id = EXCLUDED.claude_session_id,
        last_used_at = NOW(),
@@ -3986,8 +3992,9 @@ app.post('/track/:num/session', collectorAuth, async (req, res) => {
          WHEN track_sessions.claude_session_id = EXCLUDED.claude_session_id THEN track_sessions.resume_count + 1
          ELSE 0
        END,
-       last_context_tokens = COALESCE($4, track_sessions.last_context_tokens)`,
-      [req.params.num, req.worker_id, claude_session_id, context_tokens ?? null]
+       last_context_tokens = COALESCE($4, track_sessions.last_context_tokens),
+       doc_digest = COALESCE($5, track_sessions.doc_digest)`,
+      [req.params.num, req.worker_id, claude_session_id, context_tokens ?? null, doc_digest ?? null]
     );
     res.json({ ok: true });
   } catch (err) {

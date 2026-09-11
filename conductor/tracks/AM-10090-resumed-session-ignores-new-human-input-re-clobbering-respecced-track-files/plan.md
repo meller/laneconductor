@@ -35,23 +35,23 @@ the volatile markers excluded by construction rather than by convention.
 **Problem**: There is nowhere to store what a session left behind.
 **Solution**: One nullable column and a round-trip through both collectors.
 
-- [ ] Task 2.1: `migrations/<ts>_add_session_doc_digest.sql` (Atlas) —
+- [x] Task 2.1: `migrations/<ts>_add_session_doc_digest.sql` (Atlas) —
       `ALTER TABLE "public"."track_sessions" ADD COLUMN "doc_digest" text NULL;`
-- [ ] Task 2.2: `ui/server/migrations/0NN_session_doc_digest.sql` (runtime,
+- [x] Task 2.2: `ui/server/migrations/0NN_session_doc_digest.sql` (runtime,
       next free number) with `ADD COLUMN IF NOT EXISTS`, plus a header comment
       matching `014_session_context_bounds.sql`'s style
-- [ ] Task 2.3: `ui/server/index.mjs` — `GET /track/:num/session` selects and
+- [x] Task 2.3: `ui/server/index.mjs` — `GET /track/:num/session` selects and
       returns `doc_digest` (`?? null`, never coerced — same rule the file's
       existing comment states for `last_context_tokens`)
-- [ ] Task 2.4: `ui/server/index.mjs` — `POST /track/:num/session` accepts
+- [x] Task 2.4: `ui/server/index.mjs` — `POST /track/:num/session` accepts
       `doc_digest` from the body and writes
       `doc_digest = COALESCE($5, track_sessions.doc_digest)` (REQ-7)
-- [ ] Task 2.5: Mirror Tasks 2.3 and 2.4 into `cloud/functions/index.js`'s
+- [x] Task 2.5: Mirror Tasks 2.3 and 2.4 into `cloud/functions/index.js`'s
       copies of the same two handlers (REQ-8)
-- [ ] Task 2.6: `conductor/tests/mock-collector.mjs` — store and return
+- [x] Task 2.6: `conductor/tests/mock-collector.mjs` — store and return
       `doc_digest` on its in-memory session state, so worker E2E tests can
       assert the full round trip
-- [ ] Task 2.7: Check `conductor/services/collector-route-parity.mjs` — if it
+- [x] Task 2.7: Check `conductor/services/collector-route-parity.mjs` — if it
       enumerates session-endpoint fields, keep it in step
 
 **Impact**: `doc_digest` is storable and readable everywhere. Still nothing
