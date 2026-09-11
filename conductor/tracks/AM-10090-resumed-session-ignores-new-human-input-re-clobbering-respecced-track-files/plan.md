@@ -135,17 +135,17 @@ files it has not re-read.
 **Problem**: Every acceptance criterion needs a real, executed check.
 **Solution**: Three layers, matching this project's documented testing rules.
 
-- [ ] Task 6.1: `conductor/tests/track-doc-digest.test.mjs` (`node --test`) —
+- [x] Task 6.1: `conductor/tests/track-doc-digest.test.mjs` (`node --test`) —
       pure-module unit tests, per `test.md` TC-1 … TC-9
-- [ ] Task 6.2: `conductor/tests/track-10090-session-doc-drift.test.mjs`
+- [x] Task 6.2: `conductor/tests/track-10090-session-doc-drift.test.mjs`
       (`node --test`, mock collector + mock CLI) — the worker-level round trip
       and the AM-1020 replay, per TC-10 … TC-14
-- [ ] Task 6.3: `ui/server/tests/track-10090-session-doc-digest.test.mjs`
+- [x] Task 6.3: `ui/server/tests/track-10090-session-doc-digest.test.mjs`
       (Vitest) — endpoint round-trip and COALESCE preservation, per TC-15 … TC-17
-- [ ] Task 6.4: Run the pre-existing session suites and confirm no regressions:
+- [x] Task 6.4: Run the pre-existing session suites and confirm no regressions:
       `track-1086-session-worker.test.mjs`, `track-10047-bounded-resume.test.mjs`,
       `conversation-tail.test.mjs`, `ui/server/tests/track-1086-sessions.test.mjs`
-- [ ] Task 6.5: Check `ps aux | grep laneconductor.sync.mjs` after every full
+- [x] Task 6.5: Check `ps aux | grep laneconductor.sync.mjs` after every full
       suite run and kill any leaked worker before trusting results — this repo
       has a documented history of `node --test` and `vitest` leaking real
       workers against the primary checkout

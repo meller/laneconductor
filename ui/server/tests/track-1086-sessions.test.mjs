@@ -49,7 +49,7 @@ describe('GET /track/:num/session', () => {
 
         expect(res.body.claude_session_id).toBe('abc-123');
         expect(pool.query).toHaveBeenLastCalledWith(
-            expect.stringContaining('SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions'),
+            expect.stringContaining('SELECT claude_session_id, last_context_tokens, resume_count, doc_digest FROM track_sessions'),
             ['001', 7]
         );
     });
@@ -84,7 +84,7 @@ describe('GET /track/:num/session', () => {
 
         expect(res.body.claude_session_id).toBeNull();
         expect(pool.query).toHaveBeenLastCalledWith(
-            expect.stringContaining('SELECT claude_session_id, last_context_tokens, resume_count FROM track_sessions'),
+            expect.stringContaining('SELECT claude_session_id, last_context_tokens, resume_count, doc_digest FROM track_sessions'),
             ['001', 8]
         );
     });
@@ -106,7 +106,7 @@ describe('GET /track/:num/session', () => {
             .set('Authorization', 'Bearer mtoken-abc')
             .expect(200);
 
-        expect(res.body).toEqual({ claude_session_id: 'legacy-uuid', last_context_tokens: null, resume_count: 0 });
+        expect(res.body).toEqual({ claude_session_id: 'legacy-uuid', last_context_tokens: null, resume_count: 0, doc_digest: null });
     });
 });
 
@@ -126,7 +126,7 @@ describe('POST /track/:num/session', () => {
         expect(res.body.ok).toBe(true);
         expect(pool.query).toHaveBeenLastCalledWith(
             expect.stringContaining('ON CONFLICT'),
-            ['001', 7, 'new-uuid-here', null]
+            ['001', 7, 'new-uuid-here', null, null]
         );
     });
 
@@ -147,7 +147,28 @@ describe('POST /track/:num/session', () => {
 
         expect(pool.query).toHaveBeenLastCalledWith(
             expect.stringContaining('ON CONFLICT'),
-            ['001', 7, 'new-uuid-here', 148922]
+            ['001', 7, 'new-uuid-here', 148922, null]
+        );
+    });
+
+    // Track AM-10090 (REQ-7): doc_digest is the fifth positional param,
+    // following the exact same "only present when supplied" shape
+    // context_tokens already has above — the COALESCE-preservation behavior
+    // itself lives in SQL and is verified against a real Postgres in
+    // track-10090-session-doc-digest.test.mjs, not here.
+    it('forwards doc_digest as the fifth positional param when supplied', async () => {
+        mockMachineTokenAuth(7);
+        vi.mocked(pool.query).mockResolvedValueOnce({ rowCount: 1 });
+
+        await request(app)
+            .post('/track/001/session')
+            .set('Authorization', 'Bearer mtoken-abc')
+            .send({ claude_session_id: 'new-uuid-here', doc_digest: 'a'.repeat(64) })
+            .expect(200);
+
+        expect(pool.query).toHaveBeenLastCalledWith(
+            expect.stringContaining('ON CONFLICT'),
+            ['001', 7, 'new-uuid-here', null, 'a'.repeat(64)]
         );
     });
 
