@@ -1,42 +1,96 @@
 # Plan: Track 1065 — lc deploy AI Error Recovery
 
-## Phase 1: Output capture with live streaming
+> **Reset 2026-09-11.** Every task below was previously marked `[x]` under a
+> `## ✅ COMPLETE` banner, with `**Progress**: 100%`. None of it existed:
+> `conductor/deploy-runner.mjs` has no recovery path, no per-step output tail,
+> and `bin/lc.mjs` has no `--no-recovery` flag (verified by grep across
+> `bin/`, `conductor/`, `ui/server/`). The boxes are unchecked and the work is
+> re-planned against the code as it actually stands after track 1085 Phase 5
+> extracted `runDeploy` into a shared module.
 
-- [x] Replace `stdio: inherit` with a tee approach in the deploy step runner
-    - [x] Pipe stdout/stderr through a PassThrough stream that both writes to terminal and buffers last 100 lines
-    - [x] Keep `runCommand()` signature compatible — returns `{ code, outputTail }` instead of just `code`
-    - [x] Test that live streaming still works (output appears as it comes)
+## Phase 1: Per-step output tail in runDeploy
 
-## Phase 2: Recovery brainstorm loop
+**Problem**: Recovery needs the tail of the one failing step. `runDeploy` only
+accumulates the whole run's output, for URL resolution.
+**Solution**: A bounded per-step ring buffer; `runCommand` returns a shape.
 
-- [x] On non-zero exit from a step, enter `deployRecoveryLoop(cfg, step, outputTail, history)`
-    - [x] Print captured error tail: `\n❌ Step failed: [label]\n\n[last 50 lines]\n`
-    - [x] Build `callLLMConversational` prompt with: error output + deployment-stack.md + step context
-    - [x] Stream LLM response to terminal
-    - [x] Prompt: `[Enter] Verify fix   [r] Discuss more   [q] Abort`
-    - [x] Loop: collect user input, add to history, call LLM again if refining
-    - [x] On Enter: return `'verify'`; on `q`: return `'abort'`
+- [ ] In `conductor/deploy-runner.mjs`, give `runCommand()` a per-step line
+      buffer capped at 100 lines (shift on overflow — never unbounded)
+- [ ] Change `runCommand()` to resolve `{ code, outputTail }` instead of a bare
+      exit code; update its single call site in the step loop
+- [ ] Add `outputTail` to the failure return value of `runDeploy`
+- [ ] Confirm `echo: true` still streams live (output appears as it arrives, not
+      buffered until step end) by running a deploy step that sleeps between lines
+- [ ] Run `node --test conductor/tests/deploy-runner.test.mjs` — the existing
+      track-1085 suite must stay green, since the worker calls this same function
 
-## Phase 3: Verification gate
+## Phase 2: The recovery module (prompt + loop)
 
-- [x] After brainstorm loop returns `'verify'`, re-run the exact failed command
-    - [x] Show: `\n🔄 Verifying fix — re-running: [command]\n`
-    - [x] If passes: print `✅ Verification passed. Continuing deploy...` and resume next steps
-    - [x] If fails: capture new `outputTail`, re-enter brainstorm loop with updated history
-    - [x] Track attempt count — after 3 failures print manual instructions and `process.exit(1)`
+**Problem**: The loop needs `readline` and an LLM call, both of which live in
+`bin/lc.mjs` — which already imports `deploy-runner.mjs`, so importing back
+would be circular.
+**Solution**: A standalone module with its IO injected, which also makes it
+testable with no CLI spawn and no TTY.
 
-## Phase 4: LLM system prompt
+- [ ] Create `conductor/deploy-recovery.mjs`
+- [ ] Export `buildDeployRecoveryPrompt({ step, command, outputTail, deployStackMd, deployEnvConfig, history })`
+    - [ ] Include the failed label, exact command, and output tail
+    - [ ] Include `deployment-stack.md` content only when non-empty; omit the
+          whole section otherwise (no placeholder, no throw)
+    - [ ] Include the `deploy.json` entry for the target environment
+    - [ ] Append prior turns from `history` for refinement rounds
+    - [ ] Rules block: diagnose only this error, give copy-pasteable shell
+          commands, end with exactly
+          `✅ Ready to verify. Press Enter to re-run the failed step.` and stop
+- [ ] Export `async deployRecoveryLoop(ctx, { callLLM, ask, write })`
+    - [ ] Print the failure header and the captured tail
+    - [ ] First LLM call; push both sides onto `history`
+    - [ ] Prompt `[Enter] Verify fix   [r] Discuss more   [q] Abort`
+    - [ ] Empty input → return `'verify'`; `q` → return `'abort'`; anything else
+          → treat as a refinement, call the LLM again, re-prompt
+    - [ ] Show the attempt counter (`attempt`/`maxAttempts`) in the prompt
 
-- [x] Write `buildDeployRecoveryPrompt(step, outputTail, deployStackMd, history)`
-    - [x] System context: failed step, command, error output, deployment-stack.md, deploy.json env config
-    - [x] Rules: diagnose the specific error, give concrete shell commands, stop after "Ready to verify"
-    - [x] Multi-turn: include full conversation history for refinement rounds
+## Phase 3: Verification gate wired into the step loop
 
-## Phase 5: Integration + edge cases
+**Problem**: Retrying after `runDeploy` returns would re-run the steps that
+already succeeded.
+**Solution**: An `onStepFailure` hook consulted inside the loop, absent by default.
 
-- [x] Works for both `command` string and `commands` array in deploy.json
-- [x] Skips recovery if `--no-recovery` flag passed (for CI use)
-- [x] `lc deploy --no-recovery` exits immediately on failure with non-zero code
-- [x] Graceful handling if deployment-stack.md doesn't exist (omit from LLM context)
+- [ ] Add the `onStepFailure` option to `runDeploy`; when absent, behavior is
+      byte-identical to today (protects the worker's two dispatch call sites)
+- [ ] On non-zero exit with the hook present, call it with
+      `{ label, command, outputTail, attempt, maxAttempts }`
+- [ ] On `'verify'`: print `🔄 Verifying fix — re-running: <command>`, re-run the
+      exact same command, and on success continue to the **remaining** steps
+- [ ] On `'verify'` that fails again: increment `attempt`, call the hook again
+      with the new `outputTail`
+- [ ] On `'abort'`: return the failure shape with `aborted: true`
+- [ ] After `maxAttempts` (default 3) failed verifications: return failure with
+      `attemptsExhausted: true`
 
-## ✅ COMPLETE
+## Phase 4: CLI integration
+
+- [ ] In `bin/lc.mjs`'s `deploy` branch, parse `--no-recovery`
+- [ ] Build the hook from `deployRecoveryLoop`, injecting the existing
+      `callLLMConversational`, a `readline` `ask`, and `process.stdout.write`
+- [ ] Read `conductor/deployment-stack.md` once, tolerating its absence
+- [ ] Pass `onStepFailure` only when recovery is enabled **and**
+      `process.stdin.isTTY` is truthy
+- [ ] When skipped for non-TTY, print a one-line reason before exiting non-zero
+- [ ] Exit non-zero on `aborted` / `attemptsExhausted`, printing manual next
+      steps and the log file path
+- [ ] Document `--no-recovery` in the `deploy` line of `lc --help`
+
+## Phase 5: Tests and edge cases
+
+- [ ] Create `conductor/tests/deploy-recovery.test.mjs` covering every case in
+      `test.md` (fake `callLLM`/`ask`, real child processes for the steps)
+- [ ] Verify a mid-array failure in a `commands` array recovers and then runs the
+      steps *after* it, and that the steps before it ran exactly once
+- [ ] Verify single-`command` shape recovers identically
+- [ ] Verify the no-hook path (worker dispatch) never prompts and keeps its
+      existing return shape
+- [ ] Run the full worker suite for regressions:
+      `env -u NODE_TEST_CONTEXT node --test conductor/tests/deploy-runner.test.mjs conductor/tests/deploy-recovery.test.mjs`
+- [ ] Drive `lc deploy` by hand against a deliberately failing step, fix it in
+      another terminal, press Enter, and record the observed continuation

@@ -1,6 +1,6 @@
 # Lc Deploy Error Recovery
 
-**Lane**: plan
+**Lane**: implement
 **Merge Mode**: direct
 **Lane Status**: running
 
@@ -20,6 +20,6 @@
 **Lane Status**: queue
 **Waiting for reply**: no
 **Progress**: 100%
-**Phase**: Planning
-**Summary**: When lc deploy fails, enter an interactive AI brainstorm loop to diagnose and fix the error, then re-run the failed step as a verification gate before continuing
+**Phase**: Planning complete
+**Summary**: When lc deploy fails, enter an interactive AI brainstorm loop to diagnose and fix the error, then re-run the failed step as a verification gate before continuing the remaining steps
 **Auto Run**: yes
