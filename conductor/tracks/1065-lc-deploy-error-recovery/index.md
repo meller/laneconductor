@@ -1,25 +1,5 @@
-# Lc Deploy Error Recovery
-
-**Lane**: review
-**Merge Mode**: direct
+**Lane**: quality-gate
 **Lane Status**: running
-
-# Lc Deploy Error Recovery
-
-**Lane**: plan
-**Lane Status**: plan
-
-# Lc Deploy Error Recovery
-
-**Lane**: plan
-**Lane Status**: plan
-
-# Track 1065: lc deploy — AI Error Recovery
-
-**Lane**: plan
-**Lane Status**: queue
-**Waiting for reply**: no
 **Progress**: 100%
-**Phase**: Implementation complete
-**Summary**: When lc deploy fails, enter an interactive AI brainstorm loop to diagnose and fix the error, then re-run the failed step as a verification gate before continuing the remaining steps
-**Auto Run**: yes
+**Summary**: Recovery needs the tail of the one failing step. `runDeploy` only accumulates the whole run's output, for URL resolution.
+**Merge Mode**: direct
