@@ -1,12 +1,12 @@
 # Track 1081: Bug — `**Summary**` marker gets silently overwritten with wrong content
 
-**Lane**: quality-gate
+**Lane**: done
 **Merge Mode**: direct
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete — both mechanisms resolved (1: already fixed by AM-10046; 2: fixed by removing Summary truncation)
 **Type**: dev
-**Summary**: Both corruption mechanisms resolved. Mechanism 1 (hardcoded "Answered user question" placeholder) was already fixed by track AM-10046 Phase 2, verified by source/git inspection. Mechanism 2 (Summary truncated to 200 chars on push, then the truncated DB copy written back to the file on the next pull) was root-caused and fixed by extracting the parsing helpers into conductor/summary-utils.mjs and removing the truncation call — content_summary is an unbounded TEXT column and the UI already clips display with CSS, so nothing was lost by storing the full text.
+**Summary**: Both corruption mechanisms resolved. Mechanism 1 (hardcoded "Answered user question" placeholder) was already fixed by track AM-10046 Phase 2, verified by source/git inspection. Mechanism 2 (Summary…
 
 ## Mechanism 1 (root cause found): hardcoded placeholder text in the auto-answer prompt
 
