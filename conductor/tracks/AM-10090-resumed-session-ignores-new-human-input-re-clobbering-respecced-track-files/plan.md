@@ -8,22 +8,22 @@ worker's own routine marker patches.
 **Solution**: A pure, no-I/O module that hashes exactly the right subset, with
 the volatile markers excluded by construction rather than by convention.
 
-- [ ] Task 1.1: Create `conductor/services/track-doc-digest.mjs`
-    - [ ] `STABLE_INDEX_MARKERS` — the REQ-2 allowlist (`Summary`, `Type`,
+- [x] Task 1.1: Create `conductor/services/track-doc-digest.mjs`
+    - [x] `STABLE_INDEX_MARKERS` — the REQ-2 allowlist (`Summary`, `Type`,
           `Auto Run`, `Merge Mode`, `Workspace`, `Track Kind`, `Model`)
-    - [ ] `extractStableIndexMarkers(indexMd)` — returns the allowlisted marker
+    - [x] `extractStableIndexMarkers(indexMd)` — returns the allowlisted marker
           lines only, in a deterministic (sorted-by-marker-name) order so
           reordering `index.md` by hand is not a false positive
-    - [ ] `normaliseForDigest(content)` — CRLF → LF, strip per-line trailing
+    - [x] `normaliseForDigest(content)` — CRLF → LF, strip per-line trailing
           whitespace, strip trailing blank lines (REQ-5)
-    - [ ] `computeTrackDocDigest({ indexMd, specMd, planMd, testMd })` — SHA-256
+    - [x] `computeTrackDocDigest({ indexMd, specMd, planMd, testMd })` — SHA-256
           hex over a labelled, order-fixed concatenation; a missing file
           (`null`/`undefined`) contributes a distinct `\0absent` sentinel so it
           never collides with an empty file (REQ-5)
-    - [ ] `hasTrackDocDrift({ storedDigest, currentDigest })` →
+    - [x] `hasTrackDocDrift({ storedDigest, currentDigest })` →
           `{ drift: boolean, reason: 'doc-drift'|null }`, returning
           `{ drift: false }` whenever `storedDigest` is null/absent (REQ-10)
-- [ ] Task 1.2: Header comment in the file explaining the AM-1020 incident, the
+- [x] Task 1.2: Header comment in the file explaining the AM-1020 incident, the
       three-mechanism gap, and above all **why REQ-3's exclusions exist** — a
       future maintainer "helpfully" adding `**Lane**` to the digest would
       silently disable track 1086 entirely

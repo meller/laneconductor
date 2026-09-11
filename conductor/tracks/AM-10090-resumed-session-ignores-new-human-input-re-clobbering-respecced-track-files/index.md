@@ -1,7 +1,7 @@
 # Track AM-10090: Resumed session ignores new human input, re-clobbering respecced track files
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
 **Phase**: Planned — ready for implement
