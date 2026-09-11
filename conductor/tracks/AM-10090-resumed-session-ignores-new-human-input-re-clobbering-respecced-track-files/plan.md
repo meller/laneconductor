@@ -118,13 +118,13 @@ context injection, so it reads the rewritten documents.
 files it has not re-read.
 **Solution**: Make the reconcile-don't-overwrite rule explicit in the skill.
 
-- [ ] Task 5.1: In `.claude/skills/laneconductor/SKILL.md`, extend **Protocol:
+- [x] Task 5.1: In `.claude/skills/laneconductor/SKILL.md`, extend **Protocol:
       Session Continuity** with the REQ-16 rule: on `FRESH_SESSION: false`,
       re-read `spec.md`/`plan.md`/`test.md` before rewriting any of them
       wholesale; on-disk content wins over remembered content
-- [ ] Task 5.2: Cross-reference this track and the AM-1020 incident in that
+- [x] Task 5.2: Cross-reference this track and the AM-1020 incident in that
       section, so the reasoning survives the next edit
-- [ ] Task 5.3: State plainly that this is defence in depth behind the worker's
+- [x] Task 5.3: State plainly that this is defence in depth behind the worker's
       own digest check — the incident proved a model instruction alone is not
       sufficient, which is exactly why Phase 4 exists
 
