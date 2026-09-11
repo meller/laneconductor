@@ -49,7 +49,7 @@ import { deriveTrackPlan } from './services/wizard-track-plan.mjs';
 import { getAuthorInfo } from './services/author.mjs';
 import { acquireWorkerLock } from './services/worker-lock.mjs';
 import { parseJsonResponse } from './services/json-response.mjs';
-import { isProviderExhausted } from './services/exhaustion-detector.mjs';
+import { isProviderExhausted, isModelMisconfigured } from './services/exhaustion-detector.mjs';
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs, renderWorktreeAddCommand } from './services/worktree-create-args.mjs';
 import { probeWorktreeStartPoint, writeStaleBaseNotice } from './services/worktree-start-point.mjs';
@@ -6533,8 +6533,21 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       if (trackDirForClaim) releaseTrackClaim(tracksDirForClaim, trackDirForClaim);
     }
 
-    const isSuccess = code === 0;
+    let isSuccess = code === 0;
     const logContent = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
+
+    // A model-misconfiguration failure (bad --model value) reliably exits 0
+    // — confirmed against the real claude CLI — which would otherwise sail
+    // through as a false success and advance the lane action having done
+    // zero real work. Checked before isExhausted/isResumeFailure below,
+    // both of which are gated on `!isSuccess` and would never even run
+    // against this failure class otherwise. See isModelMisconfigured's own
+    // comment for the two independently-observed error shapes this covers.
+    const isModelMisconfig = isSuccess && logContent && isModelMisconfigured(logContent);
+    if (isModelMisconfig) {
+      console.log(`[${label}] Track ${trackNumber}: CLI exited 0 but the log shows a model-misconfiguration error — treating as a failure, not a false success.`);
+      isSuccess = false;
+    }
 
     // Track 1102 F21 (original variant, distinct from the escalated
     // mid-run-doc-sync-clobber one already fixed): an agent that

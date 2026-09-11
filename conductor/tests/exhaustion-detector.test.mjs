@@ -12,7 +12,7 @@
 // essentially every time, not as an edge case.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isProviderExhausted } from '../services/exhaustion-detector.mjs';
+import { isProviderExhausted, isModelMisconfigured } from '../services/exhaustion-detector.mjs';
 
 describe('isProviderExhausted', () => {
   it('does not flag a claude log where "429" only appears inside a UUID', () => {
@@ -56,5 +56,31 @@ describe('isProviderExhausted', () => {
   it('returns false for empty content or unknown cli', () => {
     assert.equal(isProviderExhausted('', 'claude'), false);
     assert.equal(isProviderExhausted('anything', 'unknown-cli'), false);
+  });
+});
+
+describe('isModelMisconfigured', () => {
+  // Real error text captured live from the actual claude CLI (exit code 0
+  // despite this error — confirmed by running it directly with a bogus
+  // --model value).
+  it('flags the real claude CLI\'s own unrecognized-model error', () => {
+    const content = '"totally-bogus-model-xyz" isn\'t described by this version\'s model catalog; update Claude Code...\n[claude-code:unrecognized_model] {"model":"totally-bogus-model-xyz"}';
+    assert.equal(isModelMisconfigured(content), true);
+  });
+
+  // A differently-worded variant observed from a separate IDE integration —
+  // matched on phrasing, not either tool's exact wording, so this and the
+  // real claude CLI's own message are both caught by the same function.
+  it('flags a differently-worded "invalid model selection" error from another tool', () => {
+    const content = 'error: invalid model selection (--model "claude-sonnet-5" --effort ""): model claude-sonnet-5 is not recognized\nAvailable models: Gemini 3.8 Flash, Claude Sonnet 4.6 (Thinking)';
+    assert.equal(isModelMisconfigured(content), true);
+  });
+
+  it('does not flag an unrelated non-error log', () => {
+    assert.equal(isModelMisconfigured('Implemented the feature, all tests pass, committing now.'), false);
+  });
+
+  it('returns false for empty content', () => {
+    assert.equal(isModelMisconfigured(''), false);
   });
 });

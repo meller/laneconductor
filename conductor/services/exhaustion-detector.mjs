@@ -25,3 +25,26 @@ export function isProviderExhausted(content, cli) {
 
   return false;
 }
+
+// A CLI given an unrecognized/unsupported --model value does not reliably
+// exit non-zero — confirmed live against the real `claude` binary: it
+// prints an error to its own output and still exits 0. isSuccess (a bare
+// `code === 0` check in laneconductor.sync.mjs) is fooled by this, and
+// none of the failure-only detectors below it (isProviderExhausted,
+// isResumeFailure) ever run, because they're all gated on `!isSuccess` —
+// so a run that did zero real work due to a bad model string gets counted
+// as a pass and the lane action advances anyway. Confirmed against two
+// independently-observed error shapes: this CLI's own
+// "[claude-code:unrecognized_model]" / "isn't described by this version's
+// model catalog", and a differently-worded one from whatever the IDE
+// integration in question actually invokes ("invalid model selection...
+// model X is not recognized"). Matched on phrasing rather than either
+// tool's exact wording, so a third tool's own variant is still caught.
+export function isModelMisconfigured(content) {
+  if (!content) return false;
+  return content.includes('claude-code:unrecognized_model')
+    || /model catalog/i.test(content)
+    || /invalid model selection/i.test(content)
+    || /model\s+["'“]?[\w.-]+["'”]?\s+is not recognized/i.test(content)
+    || /issue with the selected model/i.test(content);
+}
