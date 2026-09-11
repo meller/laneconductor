@@ -11,13 +11,14 @@ accepts `onChange`, so its select handler would throw on every change.
 **Solution**: Rename the prop at the call site. Do not add an alias in the
 component (spec REQ-2).
 
-- [ ] Task 1: In `ui/src/App.jsx` at the `CloudAppInner` call site
-      (currently line 898), change `onSelect={setSelectedProjectId}` to
+- [x] Task 1: In `ui/src/App.jsx` at the `CloudAppInner` call site
+      (line 898), changed `onSelect={setSelectedProjectId}` to
       `onChange={setSelectedProjectId}`.
-- [ ] Task 2: Confirm no other mismatched call site exists:
-      `grep -n "<ProjectSelector" -A3 ui/src/App.jsx` and check every hit
-      passes `onChange`. Expected hits: two, both `onChange` after Task 1.
-- [ ] Task 3: Leave `ProjectSelector.jsx` unchanged. No `onSelect` alias,
+- [x] Task 2: Confirmed no other mismatched call site exists — ran
+      `grep -n "<ProjectSelector" -A3 ui/src/App.jsx`: two hits, both
+      `onChange` (lines 440 and 898). `grep -n "onSelect" ui/src/App.jsx`
+      shows only unrelated `onSelectTrack` props on other components.
+- [x] Task 3: `ProjectSelector.jsx` left unchanged. No `onSelect` alias,
       no normalising wrapper.
 
 **Impact**: One line in `App.jsx`. Correct whether `CloudAppInner` is later
@@ -33,22 +34,22 @@ call site's props match the component's signature.
 already dev dependencies; ~30 sibling component tests exist to copy the
 setup from).
 
-- [ ] Task 1: Write `ProjectSelector.test.jsx` (behaviour, spec REQ-4).
-      Render with a two-project list, fire a change to a project id,
-      assert `onChange` received the **number** id; fire a change to the
-      "All Projects" empty option, assert `onChange` received `null`.
-      Write it first and watch it pass against current
-      `ProjectSelector.jsx` — this test covers the component, not the bug.
-- [ ] Task 2: Write the call-site contract test (spec REQ-3) — the one
-      that actually catches this class of bug. Read `ui/src/App.jsx` as
-      text, extract every `<ProjectSelector ... />` usage, and assert each
-      passes `onChange` and none passes `onSelect`.
-      **TDD order matters here**: write this test and run it BEFORE
-      Phase 1's edit is in place, confirm it FAILS on the real `onSelect`
-      at line 898, then apply Phase 1 and confirm it passes. A guard that
-      was never seen red proves nothing.
-- [ ] Task 3: Run the full `cd ui && npx vitest run` and confirm no
-      pre-existing test regressed.
+- [x] Task 1: Wrote `ui/src/components/ProjectSelector.test.jsx` (TC-4
+      through TC-7). Ran green against unmodified `ProjectSelector.jsx`
+      first — this test covers the component's own behaviour, not the bug.
+- [x] Task 2: Wrote `ui/src/components/ProjectSelector.callsites.test.jsx`
+      (TC-8/TC-9) — parses `<ProjectSelector>` usages out of `App.jsx` as
+      source and asserts each passes `onChange`, none passes `onSelect`.
+      Confirmed red first: run before Phase 1's edit failed with
+      "expected [ Array(1) ] to have a length of +0 but got 1" against the
+      live `onSelect` at line 898 (TC-10). Applied Phase 1, re-ran: green.
+- [x] Task 3: Ran full `cd ui && npx vitest run`: 10 failed files / 33
+      failed tests both before and after this change (Firebase-admin-init
+      and DB-backed dispatch/model-override tests, unrelated to
+      ProjectSelector — confirmed by diffing against the pre-fix state).
+      New tests added 2 files / 6 tests, all passing. No regression.
+      `ps aux | grep laneconductor.sync.mjs` showed no new worker PIDs
+      after the run.
 
 **Impact**: Two new test files. Catches recurrence at any call site,
 including unreachable ones.
@@ -85,3 +86,8 @@ choose unilaterally.
 **Impact**: Either a deletion, or real cloud-mode wiring. Out of scope for
 the Phase 1–2 fix, which is why this phase stays unchecked rather than
 being quietly dropped.
+
+## ✅ COMPLETE (Phases 1–2 only)
+
+Phase 3 remains open by design — see Scope note at top of this file and
+spec.md's Acceptance Criteria. This is not a full-track completion.

@@ -1,4 +1,4 @@
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
 **Progress**: 100%
-**Summary**: `CloudAppInner` passes `onSelect` to a component that only accepts `onChange`, so its select handler would throw on every change.
+**Summary**: CloudAppInner passes `onSelect` to ProjectSelector, which only accepts `onChange` — so in cloud/remote mode changing the project dropdown does nothing at all. Local mode is unaffected.
