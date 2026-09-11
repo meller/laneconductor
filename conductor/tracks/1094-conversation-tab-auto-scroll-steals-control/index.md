@@ -13,8 +13,12 @@
 
 Reported live: scrolling up to read conversation history in the track
 detail panel's Conversation tab keeps getting pulled back down to the
-bottom, fighting the user's own scroll — not investigated/root-caused yet
-(deliberately deferred, per user request, to get back to track 1086).
+bottom, fighting the user's own scroll.
+
+**Resolved.** Investigation found the fix was already present on `main`
+(see `plan.md` Phase 1) — this run verified it, confirmed it actually
+guards against the bug (by reverting it locally and watching new tests
+fail), and added the missing regression test coverage.
 
 ## Likely cause (not yet confirmed — needs Phase 1 investigation before fixing)
 
@@ -55,7 +59,7 @@ confirm the poll-interval correlation, check the exact condition) before
 committing to a specific fix — this is a hypothesis, not a diagnosis yet.
 
 ## Phases
-- [ ] Phase 1: Investigate — confirm root cause (reproduce, correlate with poll interval, check `comments` reference-vs-content semantics)
-- [ ] Phase 2: Fix — likely "only scroll on genuinely new content" + possibly "only if already near bottom"
-- [ ] Phase 3: Tests
+- [x] Phase 1: Investigate — confirm root cause (reproduce, correlate with poll interval, check `comments` reference-vs-content semantics)
+- [x] Phase 2: Fix — already present on `main`; verified, not re-implemented
+- [x] Phase 3: Tests — added `ui/src/components/TrackDetailPanel.conversation-scroll.test.jsx` (4 cases)
 **Auto Run**: yes
