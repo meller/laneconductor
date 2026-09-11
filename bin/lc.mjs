@@ -2966,7 +2966,12 @@ Please review this, answer any questions (some fields may contain questions rath
     const runFlag = args.includes('--run') || args.includes('-r');
     const filteredArgs = args.filter(a => a !== '--run' && a !== '-r');
 
-    const trackNum = filteredArgs[1];
+    // Accept either the bare number ("1003") or a prefixed identifier
+    // ("AM-1003") — normalize to bare here so every downstream use (folder
+    // resolution, the session-invalidation call below, the dispatched
+    // `/laneconductor <action> <trackNum>` slash command) agrees with the
+    // DB's own track_number values, which are never prefix-qualified.
+    const trackNum = filteredArgs[1]?.replace(/^[A-Za-z]+-/, '') ?? filteredArgs[1];
     let lane = command === 'move' || command === 'pulse' ? filteredArgs[2] : (command === 'rerun' ? null : command);
     let status = command === 'pulse' ? filteredArgs[2] : (filteredArgs[2] || 'queue');
     let prog = command === 'pulse' ? filteredArgs[3] : null;
@@ -2974,7 +2979,17 @@ Please review this, answer any questions (some fields may contain questions rath
     if (lane && lane.includes(':')) { [lane, status] = lane.split(':'); }
 
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-    const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    // Track 10040/10063: the canonical, side-effect-free resolver — same one
+    // `lc track-dir` and the worker's own resolveTrackFolder are backed by —
+    // instead of a naive `startsWith` scan, which only ever matched bare
+    // "NNN-slug" folders and silently missed every "PREFIX-NNN-slug" one
+    // (exactly the shape every track in this session's affected projects
+    // actually uses), making `lc plan`/`lc move`/etc. either error out with
+    // "Track not found" or, worse, matching some UNRELATED folder that
+    // happened to also contain trackNum as a substring.
+    const metadataPath = join(projectRoot, 'conductor', 'tracks-metadata.json');
+    const decision = resolveTrackFolderFs({ tracksDir, trackNumber: trackNum, metadataPath });
+    const dir = decision.folder;
     if (!dir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
 
     const indexPath = join(tracksDir, dir, 'index.md');
