@@ -1119,12 +1119,19 @@ Choice [${defaultSecNum}]: `) || defaultSecNum;
         }
         if (envContent.trim()) writeFileSync('.env', envContent.trim() + '\n');
 
+        // conversation.md/.json are excluded because comments sync via the
+        // DB/API layer, not git — left untracked, they show up as permanent
+        // "uncommitted changes" that trip the main-mode lane actions' clean-
+        // checkout gate (git-lock.mjs) and block every merge project-wide,
+        // not just the track whose worktree happens to be dirty.
         if (!existsSync('.gitignore')) {
-            writeFileSync('.gitignore', '.env\n.laneconductor.json\n');
+            writeFileSync('.gitignore', '.env\n.laneconductor.json\nconductor/tracks/**/conversation.md\nconductor/tracks/**/conversation.json\n');
         } else {
             const gitignore = readFileSync('.gitignore', 'utf8');
             if (!gitignore.includes('.env')) appendFileSync('.gitignore', '\n.env\n');
             if (!gitignore.includes('.laneconductor.json')) appendFileSync('.gitignore', '.laneconductor.json\n');
+            if (!gitignore.includes('conductor/tracks/**/conversation.md')) appendFileSync('.gitignore', 'conductor/tracks/**/conversation.md\n');
+            if (!gitignore.includes('conductor/tracks/**/conversation.json')) appendFileSync('.gitignore', 'conductor/tracks/**/conversation.json\n');
         }
 
         // Register project in DB for local-api mode
