@@ -151,3 +151,22 @@ files it has not re-read.
       workers against the primary checkout
 
 **Impact**: The behaviour is verified rather than asserted.
+
+## ✅ COMPLETE
+
+All 6 phases implemented and verified:
+- Phase 1: `conductor/services/track-doc-digest.mjs` — 10/10 unit tests pass
+- Phase 2: `doc_digest` column + endpoints on both collectors + mock — 3/3 real-DB tests pass
+- Phase 3+4: worker capture + resume-drift decision — 4/4 real-worker E2E tests pass,
+  including the literal AM-1020 replay
+- Phase 5: SKILL.md's Session Continuity protocol hardened with an explicit
+  on-disk-wins rule and a direct reference to the AM-1020 incident
+- Phase 6: fixed 5 pre-existing test expectations broken by the new SQL
+  param; documented one unrelated pre-existing failure (track 10037) found
+  along the way; honestly recorded that TC-21 (cloud function) was hand-
+  verified, not automated, and that two pre-existing session suites hit
+  the known track-10082 worktree-redirect hazard rather than actually
+  running from this worktree
+
+Total: 20/20 node:test + 19/19 vitest pass across all new and touched files.
+No stubs in any completed code path. No leaked worker processes.
