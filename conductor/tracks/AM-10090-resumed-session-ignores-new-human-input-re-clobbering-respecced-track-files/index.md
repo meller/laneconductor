@@ -1,7 +1,8 @@
 # Track AM-10090: Resumed session ignores new human input, re-clobbering respecced track files
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
+**Verdict**: pass
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — ready for implement
