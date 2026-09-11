@@ -6536,19 +6536,6 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     let isSuccess = code === 0;
     const logContent = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
 
-    // A model-misconfiguration failure (bad --model value) reliably exits 0
-    // — confirmed against the real claude CLI — which would otherwise sail
-    // through as a false success and advance the lane action having done
-    // zero real work. Checked before isExhausted/isResumeFailure below,
-    // both of which are gated on `!isSuccess` and would never even run
-    // against this failure class otherwise. See isModelMisconfigured's own
-    // comment for the two independently-observed error shapes this covers.
-    const isModelMisconfig = isSuccess && logContent && isModelMisconfigured(logContent);
-    if (isModelMisconfig) {
-      console.log(`[${label}] Track ${trackNumber}: CLI exited 0 but the log shows a model-misconfiguration error — treating as a failure, not a false success.`);
-      isSuccess = false;
-    }
-
     // Track 1102 F21 (original variant, distinct from the escalated
     // mid-run-doc-sync-clobber one already fixed): an agent that
     // backgrounds a long command and lets its own final turn end exits 0
@@ -6620,6 +6607,35 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // Detect provider quota exhaustion — re-queue without consuming a retry
     let isExhausted = false;
     let resumeFailureInvalidated = false;
+
+    // A model-misconfiguration failure (bad --model value) reliably exits 0
+    // — confirmed against the real claude CLI — which would otherwise sail
+    // through as a false success and advance the lane action having done
+    // zero real work. Checked (and isSuccess corrected) before the
+    // isExhausted/isResumeFailure block below, since both are gated on
+    // `!isSuccess` and would never even run against this failure class
+    // otherwise. See isModelMisconfigured's own comment for the two
+    // independently-observed error shapes this covers.
+    const isModelMisconfig = isSuccess && logContent && isModelMisconfigured(logContent);
+    if (isModelMisconfig) {
+      console.log(`[${label}] Track ${trackNumber}: CLI exited 0 but the log shows a model-misconfiguration error — treating as a failure, not a false success.`);
+      isSuccess = false;
+      // This is an infra/environment problem, not the agent's or the
+      // track's fault — same reasoning as isProviderExhausted (folded into
+      // that same isExhausted-style treatment below: no retry consumed, no
+      // permanent failure lane over something no amount of retrying the
+      // SAME model would ever fix). Also invalidate the session: if this
+      // run was a --resume, whatever model got negotiated (or failed to)
+      // is baked into that session already — the next attempt needs to
+      // cold-start and re-resolve the model fresh, not resume a session
+      // still carrying the broken choice forward.
+      if (session && !session.isFresh) {
+        console.log(`[${label}] Invalidating session for track ${trackNumber} so the next attempt re-resolves its model fresh instead of resuming this one.`);
+        await invalidateTrackSession(trackNumber);
+        resumeFailureInvalidated = true;
+      }
+    }
+
     // A killed run's log is not evidence of a quota problem — skip the
     // exhaustion scan entirely for an abort (Task 3.3).
     if (!isSuccess && !abortedByUser && logContent) {
@@ -6733,8 +6749,10 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
         }
 
         // REQ-13: an abort must not consume a retry — the human stopped the
-        // run, the run didn't fail on its own.
-        if (!isSuccess && !isExhausted && !abortedByUser) {
+        // run, the run didn't fail on its own. isModelMisconfig gets the
+        // same treatment as isExhausted here — an infra/config problem,
+        // not a real attempt at the work.
+        if (!isSuccess && !isExhausted && !isModelMisconfig && !abortedByUser) {
           writeFileSync(retryPath, String(failCountBefore + 1), 'utf8');
           writeFileSync(retryLanePath, laneStatus, 'utf8');
         } else if (isSuccess) {
@@ -6772,7 +6790,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     // was already at or above maxRetries. (e.g. maxRetries=1 means 1 retry allowed).
     // REQ-13: an abort never evaluates on_failure, regardless of where the
     // retry count already stood before this run.
-    const isMaxRetries = !isSuccess && !isExhausted && !abortedByUser && failCountBefore >= maxRetries;
+    const isMaxRetries = !isSuccess && !isExhausted && !isModelMisconfig && !abortedByUser && failCountBefore >= maxRetries;
 
     // 2. Resolve target lane and status
     // Conversation/brainstorm runs (local-fs-answer) must not trigger workflow lane transitions
@@ -6893,7 +6911,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
     const exitDescriptor = signal ? `signal ${signal}` : `code ${code}`;
     const patchData = {
       project_id: projectId,
-      lane_action_result: abortedByUser ? 'aborted' : (endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isMaxRetries ? 'max_retries_reached' : `error (${exitDescriptor})`)))),
+      lane_action_result: abortedByUser ? 'aborted' : (endedMidWork ? 'ended_mid_work' : (isSuccess ? 'success' : (isExhausted ? 'provider_exhausted' : (isModelMisconfig ? 'model_misconfigured' : (isMaxRetries ? 'max_retries_reached' : `error (${exitDescriptor})`))))),
       last_log_tail: tailLog(logPath), active_cli: cli,
     };
     // Track AM-10046 REQ-2/REQ-5: nextActionStatus is derived from `laneStatus`
@@ -7350,6 +7368,8 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       if (!isExhausted) await checkExhaustion(logPath, cli);
       const commentBody = isExhausted
         ? `⏳ Provider ${cli} quota exhausted. Track re-queued automatically — retry count not consumed.`
+        : isModelMisconfig
+        ? `⚠️ The configured model wasn't recognized by whatever executed this run (CLI exited 0, but the log shows a model-catalog error). Track re-queued automatically — retry count not consumed, session invalidated so the next attempt re-resolves its model fresh.`
         : `⚠️ Automation failed (PID: ${proc.pid}, Exit Code: ${code}).\nResult: ${patchData.lane_action_result}\nCheck logs for details.`;
       await postToCollectors(`/track/${trackNumber}/comment`, {
         project_id: projectId,
