@@ -1,6 +1,6 @@
 # Track AM-10090: Resumed session ignores new human input, re-clobbering respecced track files
 
-**Lane**: implement
+**Lane**: quality-gate
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Planned
