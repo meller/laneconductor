@@ -40,6 +40,7 @@ import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTra
 import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
 import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
+import { computeTrackDocDigest, hasTrackDocDrift } from './services/track-doc-digest.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
 import { writeWizardConnectionsArtifacts } from './services/wizard-connections.mjs';
@@ -6305,21 +6306,37 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       }
     }
 
-    // Track 10047 (REQ-9): measure this run's final context size from the
-    // same logContent already read above, so the NEXT resolveTrackSession
-    // call for this track has a fresh figure to cap on. Best-effort
-    // throughout — a failed extraction or POST must never affect the run's
-    // outcome. Skipped when this exact session was just invalidated above
-    // (resume failure) — reporting a measurement for a session that no
-    // longer exists would just as silently resurrect a stale row.
+    // Track 10047 (REQ-9) / Track AM-10090 (REQ-11, REQ-12): measure this
+    // run's final context size AND its documents' digest, so the NEXT
+    // resolveTrackSession call for this track has fresh figures for both
+    // the context cap and drift detection. Captured here — after the CLI
+    // process has already exited — specifically so a digest reflects what
+    // THIS session's own run wrote, not what existed at spawn time;
+    // capturing at spawn time would make every session's own output look
+    // like an external change on its very next dispatch. Best-effort
+    // throughout — a failed extraction/computation or POST must never
+    // affect the run's outcome. Skipped when this exact session was just
+    // invalidated above (resume failure) — persisting either figure for a
+    // session that no longer exists would just as silently resurrect a
+    // stale row. Fires when EITHER figure is available, not only when both
+    // are — a run whose context size couldn't be measured (e.g. a
+    // non-claude CLI) must still get its digest recorded, or drift
+    // detection would never arm for it.
     if (session && !resumeFailureInvalidated) {
+      let contextTokens = null;
       try {
-        const contextTokens = extractSessionContextTokens(logContent);
-        if (contextTokens !== null) {
-          await persistTrackSession(trackNumber, session.claude_session_id, contextTokens);
-        }
+        contextTokens = extractSessionContextTokens(logContent);
       } catch (measureErr) {
-        console.warn(`[${label}] Track ${trackNumber}: failed to measure/report session context size (${measureErr.message}) — next cap decision falls back to resume count.`);
+        console.warn(`[${label}] Track ${trackNumber}: failed to measure session context size (${measureErr.message}) — next cap decision falls back to resume count.`);
+      }
+      let docDigest = null;
+      try {
+        docDigest = readTrackDocDigest(trackNumber);
+      } catch (digestErr) {
+        console.warn(`[${label}] Track ${trackNumber}: failed to compute doc digest (${digestErr.message}) — next resume decision proceeds without drift detection.`);
+      }
+      if (contextTokens !== null || docDigest !== null) {
+        await persistTrackSession(trackNumber, session.claude_session_id, contextTokens, docDigest);
       }
     }
 
@@ -6996,12 +7013,44 @@ function getSessionCapConfig() {
 // --session-id (not --resume) and re-enables spawnCli's full file-based
 // context injection — the cold start is not starting blind, it's
 // switching continuity mechanisms.
+// Track AM-10090 (REQ-13): the thin I/O wrapper around
+// computeTrackDocDigest() — reads a track's authored documents from the
+// PRIMARY checkout, never process.cwd() directly, so the digest captured at
+// the end of one run and the digest computed at the start of the next
+// resume decision are always comparable. A worker's cwd can itself be
+// inside a linked worktree (same reasoning createWorktree() already
+// documents for .worktrees path construction); using cwd here would make
+// every branch-mode track's digest silently incomparable between the two
+// call sites, producing either permanent false drift or none at all
+// depending on which side happened to run from the primary.
+// Best-effort (REQ-14): any failure returns null, never throws — a digest
+// that can't be computed just means the next comparison treats it as
+// unknown (see hasTrackDocDrift's null handling), not as a mismatch.
+function readTrackDocDigest(trackNumber) {
+  try {
+    const repoRoot = resolvePrimaryRepoRoot(process.cwd());
+    const tracksDir = join(repoRoot, 'conductor', 'tracks');
+    const trackDirName = resolveTrackFolder(tracksDir, trackNumber);
+    if (!trackDirName) return null;
+    const trackPath = join(tracksDir, trackDirName);
+    return computeTrackDocDigest({
+      indexMd: readIfExists(join(trackPath, 'index.md')),
+      specMd: readIfExists(join(trackPath, 'spec.md')),
+      planMd: readIfExists(join(trackPath, 'plan.md')),
+      testMd: readIfExists(join(trackPath, 'test.md')),
+    });
+  } catch (err) {
+    console.warn(`[session] Track ${trackNumber}: failed to compute doc digest (${err.message}) — resume decision proceeds without drift detection this cycle.`);
+    return null;
+  }
+}
+
 async function resolveTrackSession(trackNumber) {
   if (getIsLocalFs() || !myWorkerId) return null;
   const { url, token } = primaryCollector();
   if (!url) return null;
   try {
-    const { claude_session_id, last_context_tokens, resume_count } = await get(url, token, `/track/${trackNumber}/session`);
+    const { claude_session_id, last_context_tokens, resume_count, doc_digest } = await get(url, token, `/track/${trackNumber}/session`);
     if (claude_session_id) {
       const { maxContextTokens, maxResumes } = getSessionCapConfig();
       const { cap, reason } = shouldCapSession({
@@ -7026,6 +7075,25 @@ async function resolveTrackSession(trackNumber) {
         } catch { /* best effort */ }
         return { claude_session_id: randomUUID(), isFresh: true };
       }
+      // Track AM-10090 (REQ-9): checked AFTER the context cap so a session
+      // that is both over-budget and drifted reports the cap reason — the
+      // more actionable diagnostic of the two (see plan.md Task 4.4).
+      const { drift } = hasTrackDocDrift({ storedDigest: doc_digest ?? null, currentDigest: readTrackDocDigest(trackNumber) });
+      if (drift) {
+        console.log(`[session] Track ${trackNumber}: track documents changed since session ${claude_session_id}'s last turn — cold-starting instead of resuming.`);
+        await invalidateTrackSession(trackNumber);
+        try {
+          const tracksDirForDrift = join(process.cwd(), 'conductor', 'tracks');
+          const trackDirForDrift = resolveTrackFolder(tracksDirForDrift, trackNumber);
+          if (trackDirForDrift) {
+            const convPathForDrift = join(tracksDirForDrift, trackDirForDrift, 'conversation.md');
+            if (existsSync(convPathForDrift)) {
+              appendFileSync(convPathForDrift, `\n> **system**: ℹ️ Track documents changed since this session's last turn — starting a fresh session instead of resuming.\n`, 'utf8');
+            }
+          }
+        } catch { /* best effort */ }
+        return { claude_session_id: randomUUID(), isFresh: true };
+      }
       return { claude_session_id, isFresh: false };
     }
   } catch (err) {
@@ -7041,12 +7109,17 @@ async function resolveTrackSession(trackNumber) {
 // Track 10047 (REQ-9): contextTokens, when known, is forwarded so the
 // NEXT resolveTrackSession call can consult it — best-effort, a missing
 // measurement just means the next cap decision falls back to resume count.
-async function persistTrackSession(trackNumber, claudeSessionId, contextTokens = null) {
+// Track AM-10090 (REQ-12): docDigest is likewise forwarded when known —
+// this must be reachable even when contextTokens is null (a non-claude CLI
+// run, or extraction failed), so the caller's guard around this call
+// cannot require contextTokens to be non-null (see exit handler below).
+async function persistTrackSession(trackNumber, claudeSessionId, contextTokens = null, docDigest = null) {
   if (getIsLocalFs() || !myWorkerId) return;
   const { url, token } = primaryCollector();
   if (!url) return;
   const payload = { claude_session_id: claudeSessionId };
   if (contextTokens !== null && contextTokens !== undefined) payload.context_tokens = contextTokens;
+  if (docDigest !== null && docDigest !== undefined) payload.doc_digest = docDigest;
   await post(url, token, `/track/${trackNumber}/session`, payload)
     .catch(err => console.warn(`[session] Failed to persist session for track ${trackNumber}: ${err.message}`));
 }

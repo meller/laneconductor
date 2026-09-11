@@ -63,23 +63,23 @@ reads it for a decision.
 moment, from the right root.
 **Solution**: Capture in the exit handler, from the primary checkout.
 
-- [ ] Task 3.1: Add `readTrackDocDigest(trackNumber)` to
+- [x] Task 3.1: Add `readTrackDocDigest(trackNumber)` to
       `conductor/laneconductor.sync.mjs` — the thin I/O wrapper around Phase 1's
       pure function. Resolves the tracks directory against the **primary
       checkout** via `conductor/services/config-root.mjs` (REQ-13), reuses
       `resolveTrackFolder` and `readIfExists`, and returns `null` on any failure
-- [ ] Task 3.2: Extend `persistTrackSession(trackNumber, claudeSessionId,
+- [x] Task 3.2: Extend `persistTrackSession(trackNumber, claudeSessionId,
       contextTokens = null, docDigest = null)` to include `doc_digest` in the
       POST body when non-null. Keep every existing call site working unchanged
-- [ ] Task 3.3: In the exit handler's session block
+- [x] Task 3.3: In the exit handler's session block
       (`conductor/laneconductor.sync.mjs` ~line 6313), compute the digest and
       **restructure the guard** so `persistTrackSession` is called when *either*
       the token count or the digest is available — today it is skipped entirely
       when `extractSessionContextTokens()` returns null (REQ-12)
-- [ ] Task 3.4: Confirm the existing `resumeFailureInvalidated` guard still
+- [x] Task 3.4: Confirm the existing `resumeFailureInvalidated` guard still
       short-circuits the whole block — a session that was just invalidated must
       not be resurrected by a digest POST
-- [ ] Task 3.5: Wrap everything added here in the block's existing try/catch and
+- [x] Task 3.5: Wrap everything added here in the block's existing try/catch and
       keep the same warn-and-continue posture (REQ-14)
 
 **Impact**: Every completed run records its documents' fingerprint. Still no
@@ -92,21 +92,21 @@ verifiable.
 **Solution**: One comparison in `resolveTrackSession()`, reusing the existing
 cap escape hatch verbatim.
 
-- [ ] Task 4.1: `resolveTrackSession()` destructures `doc_digest` from the
+- [x] Task 4.1: `resolveTrackSession()` destructures `doc_digest` from the
       `GET /track/:num/session` response
-- [ ] Task 4.2: After the existing `shouldCapSession()` branch, compute the
+- [x] Task 4.2: After the existing `shouldCapSession()` branch, compute the
       current digest via `readTrackDocDigest()` and call `hasTrackDocDrift()`
-- [ ] Task 4.3: On drift — log a line naming the track, the session id, and both
+- [x] Task 4.3: On drift — log a line naming the track, the session id, and both
       digests (truncated); append
       `> **system**: ℹ️ Track documents changed since this session's last turn — starting a fresh session instead of resuming.`
       to `conversation.md`; `await invalidateTrackSession(trackNumber)`; return
       `{ claude_session_id: randomUUID(), isFresh: true }` (REQ-9)
-    - [ ] Factor the conversation.md append shared with the context-cap branch
+    - [x] Factor the conversation.md append shared with the context-cap branch
           into one small local helper rather than copy-pasting the try/catch
-- [ ] Task 4.4: Confirm ordering — cap first, then drift. A session that is both
+- [x] Task 4.4: Confirm ordering — cap first, then drift. A session that is both
       over its context cap and drifted should report the cap reason, since that
       is the more actionable diagnostic
-- [ ] Task 4.5: Verify `getIsLocalFs()` still returns early before any of this
+- [x] Task 4.5: Verify `getIsLocalFs()` still returns early before any of this
       (REQ-15)
 
 **Impact**: The clobber is prevented. A drifted session cold-starts with full
