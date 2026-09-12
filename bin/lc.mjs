@@ -3061,6 +3061,44 @@ Please review this, answer any questions (some fields may contain questions rath
 
     writeFileSync(indexPath, content);
 
+    // Track AM-10095 (RC-2): this handler used to write index.md and stop —
+    // the DB (and therefore the Kanban board, which reads only from the DB)
+    // learned about the change purely by the separate, already-running sync
+    // worker noticing the file via chokidar and pushing it through, seconds
+    // later at best, or never if no worker happens to be running at all.
+    // Push the same values immediately, best-effort: a failure here must
+    // never block or fail the CLI command itself — the file write above
+    // already is the source of truth, and the worker's own file-watch sync
+    // still runs as a backstop. Only send fields this invocation actually
+    // changed; PATCH /track/:num/action treats a present field as intent to
+    // write, so an absent one must stay absent, not null/undefined.
+    if (lane && command !== 'pulse' && command !== 'rerun') {
+        try {
+            const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
+            if (cfg.mode !== 'local-fs') {
+                const collectors = (cfg.collectors || []).filter(c => c.enabled !== false);
+                const body = {};
+                if (lane) body.lane_status = lane;
+                if (status) body.lane_action_status = status;
+                if (prog) body.progress_percent = parseInt(prog, 10);
+                await Promise.allSettled(collectors.map((collector) => {
+                    const idx = cfg.collectors.indexOf(collector);
+                    const url = new URL(`${collector.url}/track/${trackNum}/action`);
+                    if (cfg.project?.id) url.searchParams.set('project_id', cfg.project.id);
+                    const token = getCollectorToken(cfg, idx, projectRoot);
+                    return fetch(url.toString(), {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                        },
+                        body: JSON.stringify(body),
+                    }).catch(() => {});
+                }));
+            }
+        } catch { /* best effort — a push failure must never block the lane move itself */ }
+    }
+
     if (runFlag && lane && !['backlog', 'done', 'pulse'].includes(command)) {
         // --run: spawn the AI agent in the foreground immediately
         const cfgPath = join(projectRoot, '.laneconductor.json');

@@ -3849,6 +3849,20 @@ async function claimQueuedTracks(req, res) {
     }
 
     await client.query('COMMIT');
+
+    // Track AM-10095 (RC-1): this UPDATE flips lane_action_status to
+    // 'running' but, unlike the other 32 call sites in this file, never
+    // told a connected browser. With the websocket healthy, the board's
+    // poll interval backs off to POLL_INTERVAL_CONNECTED (30s) — so the
+    // common case (a worker claiming its next queued track) silently
+    // waited out the full 30s instead of moving in one round trip. Emitted
+    // after COMMIT, never inside the transaction — a broadcast for a claim
+    // that then rolled back would push a state that never existed. Skipped
+    // entirely when nothing was claimed, so the idle poll loop stays silent.
+    for (const row of r.rows) {
+      broadcast('track:updated', { projectId, trackNumber: row.track_number });
+    }
+
     res.json({ tracks: r.rows, reason });
   } catch (err) {
     await client.query('ROLLBACK');
