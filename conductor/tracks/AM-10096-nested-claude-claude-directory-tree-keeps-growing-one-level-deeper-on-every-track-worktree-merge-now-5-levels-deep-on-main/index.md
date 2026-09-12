@@ -1,10 +1,11 @@
 # Track AM-10096: Nested .claude/.claude/... directory tree keeps growing one level deeper on every track worktree merge, now 5 levels deep on main
 
 **Lane**: plan
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned — 7 phases, root cause confirmed
 **Type**: dev
+**Track Kind**: bug
 **Merge Mode**: direct
 **Auto Run**: yes
 **Author**: AM
