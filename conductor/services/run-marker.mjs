@@ -21,7 +21,18 @@ export function runMarkerPath(primaryRoot, trackNumber) {
   return join(primaryRoot, 'conductor', '.runs', `${trackNumber}.json`);
 }
 
-export function buildRunMarker({ pid, pgid, workerPid, trackNumber, dispatchId = null, action = null, command, now = new Date() }) {
+// dispatchLane (Track AM-10093, REQ-4): the **Lane** value this run was
+// actually dispatched for — i.e. the on-disk lane at the moment autoLaunch
+// (or manual dispatch) decided to spawn this CLI child. The exit handler
+// anchors its `producedByThisRun` check to THIS value rather than to
+// whatever happens to be on disk when the run finishes, because a run's
+// own pre-spawn claim write can itself have put a value on disk that only
+// looks legitimate — see lane-regression-guard.mjs's call site in the exit
+// handler for the full incident this closes. Optional and defaults to
+// `null` so a marker written by pre-AM-10093 code (no `dispatchLane` sent)
+// still parses and the exit handler can detect "anchor unavailable" and
+// fall back to its pre-existing comparison.
+export function buildRunMarker({ pid, pgid, workerPid, trackNumber, dispatchId = null, action = null, command, dispatchLane = null, now = new Date() }) {
   return {
     pid,
     pgid,
@@ -30,6 +41,7 @@ export function buildRunMarker({ pid, pgid, workerPid, trackNumber, dispatchId =
     dispatch_id: dispatchId,
     action,
     command,
+    dispatch_lane: dispatchLane,
     started_at: now.toISOString(),
   };
 }
@@ -91,6 +103,26 @@ export function classifyMarkerPhase(marker, { isPidAlive } = {}) {
   if (!marker) return 'running';
   if (!marker.finalizing) return 'running';
   return isPidAlive(marker.worker_pid) ? 'finalizing-live' : 'finalizing-dead';
+}
+
+// Track AM-10093 (REQ-4): the exit handler's `producedByThisRun` check used
+// to compare on-disk **Lane** against the in-memory `laneStatus` closure
+// variable — the SAME dispatch-time value the pre-spawn claim write itself
+// could (before this track's Phase 2 fix) have reverted onto disk, which
+// is what let a stale run's own artifact re-legitimize its own write (see
+// spec.md's R3). Anchoring to the run marker's `dispatch_lane` — recorded
+// once, at spawn time, to a location independent of index.md — means the
+// exit handler (or a replacement worker process finalizing an orphaned
+// dispatch, which has no access to the original in-memory closure at all)
+// reads the SAME durable record regardless of what happened to index.md in
+// between. Falls back to `fallbackLaneStatus` when the marker is missing
+// or was written by code that predates this field (`dispatch_lane` absent
+// or null) — zero behavior change for those cases.
+export function resolveDispatchLaneAnchor(marker, fallbackLaneStatus) {
+  if (marker && typeof marker.dispatch_lane === 'string' && marker.dispatch_lane) {
+    return marker.dispatch_lane;
+  }
+  return fallbackLaneStatus;
 }
 
 // ESRCH means no such process — genuinely gone. Any other error (notably

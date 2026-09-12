@@ -1,10 +1,10 @@
 # Track AM-10093: A written lane change can be silently reverted by a stale concurrent auto-launch dispatch or DB pull
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
+**Progress**: 90%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Planning complete
+**Phase**: Implementation complete (Phases 1-5 + 6.1/6.2); Task 6.3 UI badge deferred; live-worker E2E verification pending
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct
