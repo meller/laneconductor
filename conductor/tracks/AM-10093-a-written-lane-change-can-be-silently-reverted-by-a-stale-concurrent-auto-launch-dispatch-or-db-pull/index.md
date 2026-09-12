@@ -1,6 +1,6 @@
 # Track AM-10093: A written lane change can be silently reverted by a stale concurrent auto-launch dispatch or DB pull
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Implementation complete (Phases 1-5 + 6.1/6.2); Task 6.3 UI badge deferred; live-worker E2E verification pending
