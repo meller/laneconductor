@@ -1,7 +1,7 @@
 # Track AM-10090: Resumed session ignores new human input, re-clobbering respecced track files
 
 **Lane**: done
-**Lane Status**: queue
+**Lane Status**: success
 **Verdict**: pass
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
