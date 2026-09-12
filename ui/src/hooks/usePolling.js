@@ -21,6 +21,7 @@ export function usePolling(projectId, options = {}) {
   const [workers, setWorkers] = useState([]);
   const [providers, setProviders] = useState([]);
   const [waitingTracks, setWaitingTracks] = useState([]);
+  const [projectSummaries, setProjectSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -41,8 +42,9 @@ export function usePolling(projectId, options = {}) {
   const inFlightRef = useRef(false);
   const pendingRerunRef = useRef(false);
 
-  // Options: { readerUrl }
+  // Options: { readerUrl, summaryOnly }
   const effectiveApiUrl = options.readerUrl || getApiBaseUrl();
+  const summaryOnlyOption = !!options.summaryOnly;
 
   const fetchData = useCallback(async () => {
     if (document.hidden) return;
@@ -64,38 +66,60 @@ export function usePolling(projectId, options = {}) {
     if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
     const fetchOptions = { signal, headers };
 
+    // Track AM-10094: the All Projects overview only needs per-project
+    // aggregates, not one row per track across the whole install — skip the
+    // unscoped, expensive /tracks and /tracks/waiting fetches in that mode
+    // and fetch the set-based summary endpoint instead. Every other
+    // combination (a project selected, or no project but a non-summary
+    // view) keeps the exact fetch shape it had before.
+    const summaryOnly = !projectId && summaryOnlyOption;
+
     try {
       const fetchers = [
         fetch(`${effectiveApiUrl}/projects`, fetchOptions),
-        projectId
-          ? fetch(`${effectiveApiUrl}/projects/${projectId}/tracks`, fetchOptions)
-          : fetch(`${effectiveApiUrl}/tracks`, fetchOptions),
-        projectId
-          ? fetch(`${effectiveApiUrl}/tracks/waiting?project_id=${projectId}`, fetchOptions)
-          : fetch(`${effectiveApiUrl}/tracks/waiting`, fetchOptions),
+        summaryOnly
+          ? Promise.resolve(null)
+          : projectId
+            ? fetch(`${effectiveApiUrl}/projects/${projectId}/tracks`, fetchOptions)
+            : fetch(`${effectiveApiUrl}/tracks`, fetchOptions),
+        summaryOnly
+          ? Promise.resolve(null)
+          : projectId
+            ? fetch(`${effectiveApiUrl}/tracks/waiting?project_id=${projectId}`, fetchOptions)
+            : fetch(`${effectiveApiUrl}/tracks/waiting`, fetchOptions),
       ];
 
+      const workersIdx = fetchers.length;
       if (projectId) {
         fetchers.push(fetch(`${effectiveApiUrl}/projects/${projectId}/workers`, fetchOptions));
         fetchers.push(fetch(`${effectiveApiUrl}/projects/${projectId}/providers`, fetchOptions));
       } else {
         fetchers.push(fetch(`${effectiveApiUrl}/workers`, fetchOptions));
       }
+      const summaryIdx = fetchers.length;
+      if (summaryOnly) {
+        fetchers.push(fetch(`${effectiveApiUrl}/projects/summary`, fetchOptions));
+      }
 
       const results = await Promise.all(fetchers);
-      if (results.some(r => !r.ok)) throw new Error('API error');
+      if (results.some(r => r && !r.ok)) throw new Error('API error');
 
-      const data = await Promise.all(results.map(r => r.json()));
+      const data = await Promise.all(results.map(r => (r ? r.json() : null)));
 
       setProjects(data[0]);
-      setTracks(data[1]);
-      setWaitingTracks(data[2]);
+      if (!summaryOnly) {
+        setTracks(data[1]);
+        setWaitingTracks(data[2]);
+      }
       if (projectId) {
-        setWorkers(data[3]);
-        setProviders(data[4]);
+        setWorkers(data[workersIdx]);
+        setProviders(data[workersIdx + 1]);
       } else {
-        setWorkers(data[3] || []);
+        setWorkers(data[workersIdx] || []);
         setProviders([]);
+      }
+      if (summaryOnly) {
+        setProjectSummaries(data[summaryIdx] || []);
       }
 
       setLastUpdated(new Date());
@@ -111,7 +135,7 @@ export function usePolling(projectId, options = {}) {
         fetchData();
       }
     }
-  }, [projectId, effectiveApiUrl, idToken]);
+  }, [projectId, effectiveApiUrl, idToken, summaryOnlyOption]);
 
   const wsDebounceRef = useRef(null);
 
@@ -154,5 +178,5 @@ export function usePolling(projectId, options = {}) {
     };
   }, [fetchData, wsConnected]);
 
-  return { projects, tracks, workers, providers, waitingTracks, loading, error, lastUpdated, refetch: fetchData, wsConnected };
+  return { projects, tracks, workers, providers, waitingTracks, projectSummaries, loading, error, lastUpdated, refetch: fetchData, wsConnected };
 }

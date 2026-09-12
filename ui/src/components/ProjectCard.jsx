@@ -30,19 +30,21 @@ function computeStatus({ isOnline, unrepliedCount, laneCounts }) {
   return inFlight > 0 ? 'active' : 'idle';
 }
 
-export function ProjectCard({ project, tracks, workers, onOpen, onManageContext, onRename, onDelete, onFollowBuild }) {
-  const projectTracks = tracks.filter(t => t.project_id === project.id);
+export function ProjectCard({ project, summary, workers, onOpen, onManageContext, onRename, onDelete, onFollowBuild }) {
   const projectWorkers = workers.filter(w => w.project_id === project.id);
 
-  const laneCounts = {};
-  for (const t of projectTracks) {
-    laneCounts[t.lane_status] = (laneCounts[t.lane_status] || 0) + 1;
-  }
+  // Track AM-10094: laneCounts/unrepliedCount now come from the project's
+  // row in GET /api/projects/summary (one set-based query server-side)
+  // instead of filtering a full unscoped tracks array client-side. A
+  // project with zero tracks, or one whose summary hasn't loaded yet, gets
+  // a zeroed summary rather than crashing on undefined fields.
+  const laneCounts = summary || {};
+  const totalTracks = summary?.total ?? 0;
 
   const isOnline = projectWorkers.some(
     w => w.last_heartbeat && Date.now() - new Date(w.last_heartbeat).getTime() < ONLINE_THRESHOLD_MS
   );
-  const unrepliedCount = projectTracks.reduce((sum, t) => sum + (t.unreplied_count ?? 0), 0);
+  const unrepliedCount = summary?.unreplied_total ?? 0;
   const status = computeStatus({ isOnline, unrepliedCount, laneCounts });
   const badge = STATUS_BADGE[status];
   const { cli: defaultCli, model: defaultModel } = getDefaultProviderModel(project, projectWorkers);
@@ -87,7 +89,7 @@ export function ProjectCard({ project, tracks, workers, onOpen, onManageContext,
             {lane}: {laneCounts[lane]}
           </span>
         ))}
-        {projectTracks.length === 0 && (
+        {totalTracks === 0 && (
           <span className="text-[10px] text-gray-600">No tracks yet</span>
         )}
       </div>

@@ -1,0 +1,11 @@
+-- Track AM-10094: track_comments carried only a primary-key index on id.
+-- Every correlated LATERAL in the /api/tracks and /api/projects/:id/tracks
+-- handlers (last comment, unreplied_count) filters on track_id, so each one
+-- sequentially scanned all comment rows once per track row (Seq Scan on
+-- track_comments, loops=738 on the unscoped query). Measured in a rolled-back
+-- transaction on the real database: unscoped query 1630ms -> 46ms with this
+-- index in place.
+--
+-- Hand-trimmed to just this additive index, following the same convention as
+-- 20260908120000_add_project_file_manifest.sql.
+CREATE INDEX "idx_track_comments_track_id" ON "public"."track_comments" ("track_id");

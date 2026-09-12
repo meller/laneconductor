@@ -300,6 +300,64 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
+// Track AM-10094: the All Projects overview needs only per-project
+// aggregates (lane counts, unreplied total) to render its cards, but the
+// only endpoint that could produce them was the unscoped GET /api/tracks —
+// one full row per track across every project, with two correlated LATERAL
+// subqueries per row. Set-based equivalent: two CTEs joined once instead of
+// re-scanning track_comments per track, plus one FILTER-based aggregate for
+// lane counts. Measured locally at ~7ms vs. ~1.6s for the row-per-track
+// query on the same data (46ms after the idx_track_comments_track_id index
+// added alongside this endpoint).
+app.get('/api/projects/summary', async (req, res) => {
+  try {
+    const { AUTH_ENABLED } = await import('./auth.mjs');
+
+    const membershipJoin = (AUTH_ENABLED && req.user?.uid)
+      ? 'JOIN project_members pm ON pm.project_id = p.id AND pm.user_uid = $2'
+      : '';
+    const params = [META_PROJECT_REPO_PATH];
+    if (AUTH_ENABLED && req.user?.uid) params.push(req.user.uid);
+
+    const result = await pool.query(
+      `WITH last_human AS (
+         SELECT track_id, MAX(created_at) AS last_human_at
+         FROM track_comments
+         WHERE author = 'human'
+         GROUP BY track_id
+       ),
+       unreplied AS (
+         SELECT tc.track_id, COUNT(*)::int AS unreplied_count
+         FROM track_comments tc
+         LEFT JOIN last_human lh ON lh.track_id = tc.track_id
+         WHERE tc.author IN ('claude', 'gemini', 'system')
+           AND tc.created_at > COALESCE(lh.last_human_at, '1970-01-01')
+         GROUP BY tc.track_id
+       )
+       SELECT p.id, p.name,
+              COUNT(t.id)::int AS total,
+              COUNT(t.id) FILTER (WHERE t.lane_status = 'backlog')::int AS backlog,
+              COUNT(t.id) FILTER (WHERE t.lane_status = 'plan')::int AS plan,
+              COUNT(t.id) FILTER (WHERE t.lane_status = 'implement')::int AS implement,
+              COUNT(t.id) FILTER (WHERE t.lane_status = 'review')::int AS review,
+              COUNT(t.id) FILTER (WHERE t.lane_status = 'quality-gate')::int AS "quality-gate",
+              COUNT(t.id) FILTER (WHERE t.lane_status = 'done')::int AS done,
+              COALESCE(SUM(u.unreplied_count), 0)::int AS unreplied_total
+       FROM projects p
+       ${membershipJoin}
+       LEFT JOIN tracks t ON t.project_id = p.id
+       LEFT JOIN unreplied u ON u.track_id = t.id
+       WHERE p.repo_path != $1
+       GROUP BY p.id, p.name
+       ORDER BY p.name`,
+      params
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Track 10014: rename a project. Just the identity — .laneconductor.json's
 // project.name is managed separately via /api/projects/:id/config.
 app.patch('/api/projects/:id', async (req, res) => {
@@ -1364,14 +1422,23 @@ app.post('/api/projects/:id/tracks', async (req, res) => {
 
 app.get('/api/tracks', async (req, res) => {
   try {
+    // Track AM-10094: this is the unscoped, all-projects fetch — every
+    // consumer (KanbanBoard/TrackCard) clamps content_summary and
+    // last_comment_body visually (line-clamp-3, .slice(0, 120)), but some
+    // rows carry up to ~15KB of comment text. Truncated to 500 chars here
+    // (well above what's ever shown) to cut a measured 850KB payload down
+    // without touching the fields anything actually reads in full — the
+    // project-scoped GET /api/projects/:id/tracks and GET /api/inbox
+    // (which classifies on the full comment body) are untouched.
     const result = await pool.query(
       `SELECT t.id, t.track_number, t.title, t.lane_status, t.progress_percent,
-              t.current_phase, t.phase_step, t.content_summary, t.last_heartbeat, t.created_at,
+              t.current_phase, t.phase_step, LEFT(t.content_summary, 500) AS content_summary,
+              t.last_heartbeat, t.created_at,
               t.auto_implement_launched, t.auto_review_launched,
               t.lane_action_status, t.lane_action_result,
               p.id AS project_id, p.name AS project_name, p.repo_path,
               p.primary_cli, p.primary_model, p.secondary_cli, p.secondary_model, p.create_quality_gate,
-              lc.body AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
+              LEFT(lc.body, 500) AS last_comment_body, lc.author AS last_comment_author, lc.created_at AS last_comment_at,
               uc.unreplied_count, hr.human_needs_reply
        FROM tracks t
        JOIN projects p ON p.id = t.project_id

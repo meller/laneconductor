@@ -161,7 +161,9 @@ function AppContent({ user, logout }) {
   const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
   const [searchText, setSearchText] = useState('');
 
-  const { projects, tracks, workers, providers, waitingTracks, loading, error, lastUpdated, refetch, wsConnected } = usePolling(selectedProjectId);
+  const { projects, tracks, workers, providers, waitingTracks, projectSummaries, loading, error, lastUpdated, refetch, wsConnected } = usePolling(selectedProjectId, {
+    summaryOnly: viewMode === 'projects' && !selectedProjectId,
+  });
 
   const displayTracks = useMemo(
     () => sortTracks(filterTracksByText(tracks, searchText), sortBy, sortDir),
@@ -184,7 +186,12 @@ function AppContent({ user, logout }) {
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
 
-  const inboxBadgeCount = tracks.reduce((sum, t) => sum + (t.unreplied_count ?? 0), 0);
+  // Track AM-10094: in the All Projects overview, `tracks` is empty (the
+  // unscoped fetch is skipped in favor of /api/projects/summary) — fall
+  // back to the summary totals so the inbox badge doesn't read 0 in that view.
+  const inboxBadgeCount = (viewMode === 'projects' && !selectedProjectId)
+    ? projectSummaries.reduce((sum, p) => sum + (p.unreplied_total ?? 0), 0)
+    : tracks.reduce((sum, t) => sum + (t.unreplied_count ?? 0), 0);
 
   // Track 1091 Phase 4: manager workers aren't scoped to any project, so
   // they're fetched independently of usePolling's (project-scoped when a
@@ -662,7 +669,7 @@ function AppContent({ user, logout }) {
         ) : viewMode === 'projects' ? (
           <ProjectsPage
             projects={projects}
-            tracks={tracks}
+            projectSummaries={projectSummaries}
             workers={workers}
             onOpen={p => { setSelectedProjectId(p.id); setViewMode(isMobile ? 'focus' : 'lanes'); }}
             onManageContext={p => { setSelectedProjectId(p.id); setConductorOpen(true); setViewMode(isMobile ? 'focus' : 'lanes'); }}
