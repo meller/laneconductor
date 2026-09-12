@@ -8036,6 +8036,27 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     let waitingForReply = parseWaitingForReply(content);
     const autoRun = parseAutoRun(content);
 
+    // Track AM-10093: verify the flag corresponds to a real unanswered human
+    // comment BEFORE it feeds any downstream gate — not just the reply-vs-
+    // lane-action branch far below. Every gate in this loop (Depends On,
+    // lane_action_status !== 'queue', the Auto Run check inside
+    // isTrackClaimable, the backlog passive-lane skip, max-retries) treats
+    // waitingForReply as "this track is mid-conversation, bypass normal
+    // gating" — including **Auto Run: no**. A stale `**Waiting for
+    // reply**: yes` left over from an already-answered comment (or ever
+    // written without a genuine question) therefore let a worker auto-pick
+    // a track the operator explicitly opted out of, with the staleness only
+    // ever discovered afterward, once cmd_type/label had already been
+    // decided. Confirmed live: an Auto Run: no track was picked up and run
+    // by the auto-launch loop with no explicit request. Moved here so a
+    // stale flag is cleared before it can bypass anything, not after.
+    if (waitingForReply && !hasGenuineUnansweredHumanComment(join(tracksDir, dir, 'conversation.md'))) {
+      console.log(`[local-fs] Track ${track_number}: **Waiting for reply** was set but no genuine unanswered human comment found — clearing stale flag before gating.`);
+      const cleared = content.replace(/\*\*Waiting for reply\*\*:\s*yes/i, '**Waiting for reply**: no');
+      writeFileSync(indexPath, cleared, 'utf8');
+      waitingForReply = false;
+    }
+
     // Track AM-1119 Phase 3 (Task 2): a track naming dependencies via
     // **Depends On** may not be auto-launched until every one of them has
     // reached lane `done` — used to gate the wizard-generated deploy track
@@ -8213,20 +8234,11 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     let label = `local-fs-${lane_status}`;
     let customPrompt = null;
 
-    // Track AM-10046 Finding 2: verify the flag corresponds to a real
-    // unanswered human comment before treating this as a conversation-reply.
-    // A stale flag with no genuine question is cleared here and falls
-    // through to the normal lane-action path below (correct cmd_type and
-    // label already set above), rather than silently re-running the lane
-    // action mislabeled as "answering a question".
-    const convPathForReplyCheck = join(tracksDir, dir, 'conversation.md');
-    if (waitingForReply && !hasGenuineUnansweredHumanComment(convPathForReplyCheck)) {
-      console.log(`[local-fs] Track ${track_number}: **Waiting for reply** was set but no genuine unanswered human comment found — clearing stale flag, treating as a normal ${lane_status} retry.`);
-      const cleared = content.replace(/\*\*Waiting for reply\*\*:\s*yes/i, '**Waiting for reply**: no');
-      writeFileSync(indexPath, cleared, 'utf8');
-      waitingForReply = false;
-    }
-
+    // Track AM-10046 Finding 2 / AM-10093: the genuine-unanswered-comment
+    // check now runs immediately after waitingForReply is parsed, above —
+    // before any gate (Auto Run, queue-status, backlog, retries) can be
+    // bypassed by a stale flag. By this point waitingForReply is already
+    // verified genuine whenever it's true.
     if (waitingForReply) {
       // Track AM-10046 Phase 3 (REQ-3, REQ-4): serialize a conversation-reply
       // dispatch against a concurrently-live run for the SAME track, via the
