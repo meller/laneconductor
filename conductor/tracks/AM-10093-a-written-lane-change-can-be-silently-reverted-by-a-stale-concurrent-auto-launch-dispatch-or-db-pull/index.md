@@ -1,6 +1,6 @@
 # Track AM-10093: A written lane change can be silently reverted by a stale concurrent auto-launch dispatch or DB pull
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)

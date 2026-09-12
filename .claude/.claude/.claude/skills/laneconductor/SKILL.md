@@ -131,6 +131,7 @@ make install-cli
 - `lc worker logs`: Stream the worker's activity logs.
 - `lc worker sync`: Manually trigger an immediate fan-out synchronization across all targets.
 - `lc status`: Show a Kanban board of tracks in the terminal (with worker health check).
+- `lc state [--json]`: Output live instance state snapshot and setup diagnostics (tracks per lane, workers, providers, gaps).
 - `lc ui [start|stop]`: Manage the Vite dashboard.
 - `lc new "Title" "Description"`: Create a new track.
 - `lc setup`: Initialize a new project with LaneConductor.
@@ -1198,6 +1199,13 @@ Move a track to a different lane and optionally set its status (defaults to `que
 - `/laneconductor move NNN implement:queue` (Moves to implement, triggers auto-action)
 - `/laneconductor move NNN plan:success` (Moves to plan, marks as done)
 
+**Logic**:
+1. Run `lc move [track-number] [lane:status]` via Bash/command tool if `lc` is available.
+2. Otherwise, edit `conductor/tracks/NNN-*/index.md` directly:
+   - Update `**Lane**: [lane]`
+   - Update `**Lane Status**: [status]`
+3. The sync worker will detect the change and queue the track for autonomous execution.
+
 ---
 
 ### `/laneconductor pulse [track-number] [status] [progress%] [summary?]`
@@ -2237,6 +2245,7 @@ sites have been migrated so far (proof of concept, not a full migration) — new
 | `lc start` | Start heartbeat worker |
 | `lc stop` | Stop heartbeat worker |
 | `lc status` | Quick track list |
+| `lc state [--json]` | Output live instance state snapshot and setup gaps |
 | `lc ui start` | Start Vite dashboard |
 | `lc ui stop` | Stop Vite dashboard |
 
