@@ -1,70 +1,114 @@
 # Track AM-10092: Automated test coverage for `lc` move-family lane-change behavior
 
-## Phase 1: Mock collector — record session deletes (REQ-15)
+## Phase 1: Mock collector — record session deletes
 
-**Problem**: `conductor/tests/mock-collector.mjs` already implements
-`DELETE /track/:num/session` (clears `state.sessions[num]` and
-`state.sessionsByToken[token][num]`), but records no history of the call — a test can only
-assert "the session is now empty," which can't distinguish "no delete happened" from "a delete
-happened against the wrong track number."
+**Problem**: `mock-collector.mjs`'s `DELETE /track/:num/session` handler deletes state but
+leaves no trace. A test can then only assert "the session is gone", which cannot
+distinguish *no call fired* (the correct outcome for a same-lane move) from *a call fired
+against the wrong key* (e.g. an unnormalized `AM-10092`). The negative cases (REQ-8, REQ-9)
+need the stronger assertion.
 
-**Solution**: add a `state.sessionDeletes` array, push `{ track_number, bearerToken }` on every
-`DELETE /track/:num/session`, reset it in `POST /_reset`, and expose it (it already is, since
-`GET /_state` returns the whole `state` object). Purely additive — no existing response shape or
-behavior changes.
+**Solution**: Append every accepted delete to a new `state.sessionDeletes` array
+(`{ track_number, url, bearerToken }`), exposed by the existing `GET /_state`. Purely
+additive — the handler's own deletion and `200 { ok: true }` response are unchanged.
 
-- [ ] Add `sessionDeletes: []` to the mock's initial state object.
-- [ ] Push an entry in the existing `DELETE /track/:num/session` handler, before or after the
-      existing clear logic.
-- [ ] Reset `state.sessionDeletes = []` in the `POST /_reset` handler alongside the other resets.
-- [ ] Run `node --test conductor/tests/local-api-e2e.test.mjs` and
-      `node --test conductor/tests/track-1086-session-worker.test.mjs` unmodified — TC-0b —
-      confirm both still pass (proves the addition is non-breaking).
+- [ ] Task 1: Add `sessionDeletes: []` to the mock's `state` object, with a comment naming
+      this track and why the log exists (distinguishing "no call" from "wrong key").
+- [ ] Task 2: Push a record in the `DELETE /track/:num/session` handler before replying.
+- [ ] Task 3: Clear `sessionDeletes` wherever the existing state-reset endpoint clears
+      `state.sessions` (around mock-collector.mjs:483), so a reset is complete.
+- [ ] Task 4: Run `node --test conductor/tests/local-api-e2e.test.mjs` and at least one
+      other session-touching suite (`track-1086-session-worker.test.mjs`) to prove no
+      existing consumer regressed.
 
-## Phase 2: New suite — folder resolution (REQ-1 through REQ-4)
+**Impact**: One shared test fixture gains an exact call log. No production code touched.
 
-**Problem/Solution**: see `spec.md`'s Folder resolution requirements — TC-1 through TC-4b in
-`test.md`. One shared fixture-builder helper (project dir under `os.tmpdir()`, `.laneconductor.json`
-in `local-api` mode pointed at a mock collector, a `conductor/tracks/AM-10092-sample/index.md`
-starting at `**Lane**: done`), reused across phases 2-4.
+## Phase 2: Test fixture + folder-resolution cases (REQ-1..REQ-4, REQ-16)
 
-- [ ] TC-1, TC-2: bare-number and prefixed-identifier resolution against the same
-      `AM-10092-sample` folder.
-- [ ] TC-3: legacy bare `10092-sample` folder still resolves.
-- [ ] TC-4: a sibling folder containing the number as a substring (`AM-110092-other`) is left
-      untouched, byte-identical, after moving `AM-10092-sample`.
-- [ ] TC-4b: only the substring-colliding folder exists — `lc plan 10092` must fail loudly
-      (`Track 10092 not found`, non-zero exit), never silently write to the wrong folder.
+**Problem**: Nothing exercises `lc plan`/`lc move`'s folder resolution, so the
+`startsWith`-scan regression could return unnoticed.
 
-## Phase 3: New suite — session invalidation (REQ-5 through REQ-9)
+**Solution**: A `node --test` suite that builds a throwaway project under `os.tmpdir()` and
+spawns the real `bin/lc.mjs` via `execFileSync`, following
+`conductor/tests/track-10063-track-dir-cli.test.mjs`'s shape.
 
-- [ ] TC-5, TC-6: a real lane change (`done` → `plan`) deletes the seeded session, addressed by
-      the bare track number regardless of which identifier form was typed.
-- [ ] TC-7: an unrelated track's seeded session survives.
-- [ ] TC-8: a same-lane status-only move issues zero deletes.
-- [ ] TC-9: `lc pulse` issues zero deletes and never touches `**Lane**`.
+- [ ] Task 1: Create `conductor/tests/track-10092-move-family-cli.test.mjs` with a header
+      comment stating the two live bugs, their fix commits (`ac5dd70a`, `47fa2c59`), and
+      why the suite exists.
+- [ ] Task 2: Write `makeProject({ collectors, mode, tracks })` — `mkdtempSync` under
+      `tmpdir()`, `conductor/tracks/`, a `.laneconductor.json`, and one `index.md` per
+      requested track. Explicitly under `tmpdir()`, never inside the repo (REQ-16).
+- [ ] Task 3: Write `runLc(projectRoot, args)` returning `{ stdout, status }`, and
+      `readMarkers(indexPath)` parsing `**Lane**` / `**Lane Status**` / `**Progress**`.
+- [ ] Task 4: TC-1 — prefixed folder + bare-number invocation (REQ-1).
+- [ ] Task 5: TC-2 — prefixed folder + prefixed-identifier invocation; assert stdout says
+      the bare number (REQ-2).
+- [ ] Task 6: TC-3 — legacy bare `NNN-slug` folder still resolves (REQ-3).
+- [ ] Task 7: TC-4 — a `AM-110092-other` sibling is left untouched when moving `10092`
+      (REQ-4).
+- [ ] Task 8: Confirm each case fails against the pre-`ac5dd70a` `startsWith` scan — do
+      this by temporarily patching the branch locally, running, then reverting. Record the
+      observed failure output in `conversation.md`. Do **not** commit the revert.
 
-## Phase 4: New suite — invocation-form coverage + degraded paths (REQ-10 through REQ-14)
+**Impact**: The resolver swap is pinned; a future refactor that reintroduces a
+legacy-only scan fails loudly.
 
-- [ ] TC-10: generic `lc move <id> <lane>:<status>` form — both markers written, delete fires.
-- [ ] TC-11: `lc implement <id>` alias — identical behavior to `plan`, proving the shared branch.
-- [ ] TC-12: `mode: "local-fs"` — no HTTP call at all, move still succeeds.
-- [ ] TC-13: a disabled sibling collector receives no delete; the enabled one does.
-- [ ] TC-14: an unreachable collector (closed port) never blocks the move — best-effort,
-      completes well under 10s.
+## Phase 3: Session-invalidation cases (REQ-5..REQ-11)
 
-## Phase 5: Regression-pinning verification (TC-R1, TC-R2 — run once, not committed)
+**Problem**: The invalidation fix and every non-`plan` invocation form are untested.
 
-- [ ] TC-R1: temporarily restore the pre-`ac5dd70a` `readdirSync(...).find(d =>
-      d.startsWith(trackNum + '-'))` scan — confirm TC-1/TC-2/TC-4 fail. Revert immediately.
-- [ ] TC-R2: temporarily delete the `47fa2c59` invalidation block — confirm TC-5/TC-6/TC-7/TC-10/TC-11
-      fail. Revert immediately.
-- [ ] Record both runs' actual failure output in `conversation.md` — this is what proves the
-      suite pins the two real fixes rather than trivially passing regardless.
+**Solution**: Extend the suite with a mock collector started per-describe-block, seeding
+sessions via `POST /track/:num/session` and asserting against `GET /_state`'s `sessions`
+and Phase 1's `sessionDeletes`.
 
-## Phase 6: Full verification
+- [ ] Task 1: Add `startMockCollector()` / `getState(port)` helpers (copy the established
+      shape from `chat-reply-conversation-md.test.mjs`), with an `after` hook that kills
+      the process — no orphans.
+- [ ] Task 2: TC-5 — `lc plan NNN` on a `done` track fires exactly one DELETE for `NNN`;
+      that session is gone (REQ-5).
+- [ ] Task 3: TC-6 — `lc plan AM-NNN` records a delete whose `track_number` is the bare
+      `NNN`, never `AM-NNN` (REQ-6).
+- [ ] Task 4: TC-7 — seed sessions for two tracks; moving one leaves the other's session
+      intact and produces exactly one delete record (REQ-7).
+- [ ] Task 5: TC-8 — `lc plan NNN` on a track already in `plan` records **zero** deletes;
+      `**Lane Status**` still updates (REQ-8).
+- [ ] Task 6: TC-9 — `lc pulse NNN running 50` records zero deletes, leaves `**Lane**`
+      unchanged, sets `**Lane Status**: running` and `**Progress**: 50%` (REQ-9).
+- [ ] Task 7: TC-10 — generic `lc move NNN implement:queue` writes both markers and fires
+      the DELETE on a real lane change (REQ-10).
+- [ ] Task 8: TC-11 — `lc implement NNN` behaves identically to the `plan` alias (REQ-11).
+- [ ] Task 9: Confirm TC-5/TC-10/TC-11 fail with `47fa2c59`'s invalidation block
+      temporarily removed; record the output in `conversation.md`; revert.
 
-- [ ] `node --test conductor/tests/track-10092-move-family-cli.test.mjs` — all cases green.
-- [ ] Full Test Commands list from `test.md` (existing session/CLI-resolver suites) still pass.
-- [ ] `ps aux | grep -E 'mock-collector|laneconductor.sync.mjs'` clean after every run.
-- [ ] `git status --porcelain` shows only files under `conductor/tests/` changed by this track.
+**Impact**: Both live bugs and every previously-unexercised invocation form are covered.
+
+## Phase 4: Degraded-path cases (REQ-12..REQ-14)
+
+**Problem**: The invalidation is deliberately best-effort. Nothing proves it stays
+best-effort — a future change could make an unreachable collector abort the lane move.
+
+**Solution**: Three cases over the same fixture helper.
+
+- [ ] Task 1: TC-12 — `mode: "local-fs"` with a reachable collector configured: zero
+      deletes recorded, index.md still written, exit 0 (REQ-12).
+- [ ] Task 2: TC-13 — two mock collectors, the first `"enabled": false`: only the enabled
+      one records a delete (REQ-13).
+- [ ] Task 3: TC-14 — a single collector pointed at a closed port: exit 0, markers written,
+      and the command returns promptly (assert a wall-clock bound generous enough not to
+      be flaky, e.g. under 10s) (REQ-14).
+
+**Impact**: The "a session-invalidation failure must never block the lane move itself"
+guarantee written in the source comment becomes an executable assertion.
+
+## Phase 5: Suite integration and verification
+
+- [ ] Task 1: Run the full new suite: `node --test conductor/tests/track-10092-move-family-cli.test.mjs`.
+- [ ] Task 2: Run the neighbouring CLI and session suites to check for interference:
+      `node --test conductor/tests/track-10063-track-dir-cli.test.mjs conductor/tests/track-10040-track-dir-cli.test.mjs conductor/tests/local-api-e2e.test.mjs`.
+- [ ] Task 3: Check for orphaned processes after the run —
+      `ps aux | grep -E 'mock-collector|laneconductor.sync.mjs'` — and kill any leak found
+      before reporting success. (See `.claude/MEMORY.md`: `node --test` has leaked real
+      workers in this repo before.)
+- [ ] Task 4: Confirm `/tmp` is clean — every `mkdtempSync` fixture removed in a `finally`
+      or `after` hook.
+- [ ] Task 5: Commit: `test(track-10092): cover lc move-family folder resolution and session invalidation`.
