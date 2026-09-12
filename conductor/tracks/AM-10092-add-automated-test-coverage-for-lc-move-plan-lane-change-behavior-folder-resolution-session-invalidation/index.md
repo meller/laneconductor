@@ -1,6 +1,6 @@
 # Track AM-10092: Add automated test coverage for lc move/plan lane-change behavior (folder resolution + session invalidation)
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: running
 **Progress**: 100%
 **Phase**: Plan complete
