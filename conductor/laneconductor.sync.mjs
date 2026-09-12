@@ -71,7 +71,7 @@ import { resolveLaneCliAndModel, stripLanePrimaryCli } from './services/lane-mod
 import { findStaleLaneModels, formatStaleLaneModelWarning, maybeAutoUpdateWorkflowModels } from './services/model-staleness.mjs';
 import { auditWorktrees, listTrackWorktrees } from './services/worktree-audit.mjs';
 import { mergeWorktreeBranch, resolvePrimaryRepoRoot } from './services/worktree-merge.mjs';
-import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand, markRunFinalizing, classifyMarkerPhase } from './services/run-marker.mjs';
+import { runMarkerPath, buildRunMarker, parseRunMarker, isRunMarkerLive, isPidAlive, readProcessCommand, markRunFinalizing, classifyMarkerPhase, resolveDispatchLaneAnchor } from './services/run-marker.mjs';
 import { readAbortIntent } from './services/run-abort.mjs';
 import { checkDivergence, safePull } from './services/git-divergence.mjs';
 import { resolvePrimaryCwdDecision } from './services/primary-cwd.mjs';
@@ -81,6 +81,9 @@ import { createCollectorRetryBuffer } from './services/collector-retry-buffer.mj
 import { checkServingRoot } from './services/assert-serving-root.mjs';
 import { parseWorkspaceMarker, resolveWorkspaceMode, parseTrackKind, findDisqualifyingDirtyPaths } from './services/workspace-mode.mjs';
 import { applyGuardedLaneWrite } from './services/lane-regression-guard.mjs';
+import { revalidateDispatchSnapshot, parseDispatchSnapshot } from './services/dispatch-revalidation.mjs';
+import { shouldSkipLaneOnPull } from './services/db-pull-guard.mjs';
+import { createSuppressionLogThrottle } from './services/suppression-log-throttle.mjs';
 import { planDoneLaneMigration } from './services/done-lane-migration.mjs';
 import { getConversationRunWriteScope, CONVERSATION_REPLY_ACTION } from './services/conversation-run-write-scope.mjs';
 import { classifyWorkerStaleness } from './services/worker-code-staleness.mjs';
@@ -88,12 +91,19 @@ import { resolveTrackFolderFs } from './services/track-folder-fs.mjs';
 import { decidePreSpawnBlockOutcome, formatBlockComment } from './services/prespawn-block.mjs';
 import { classifyHealableDirtyPath } from './services/dirty-path-heal.mjs';
 import { resolveBlockCountBefore, resetBlockCount, formatCounterBackendWarning } from './services/prespawn-block-counter.mjs';
-import { parsePsWorkerRows, findOrphanedWorkerProcesses } from './services/orphan-worker-detection.mjs';
+import { parsePsWorkerRows, findOrphanedWorkerProcesses, findLiveBaseIdentities, decideWorkerIdentityCap } from './services/orphan-worker-detection.mjs';
 import { decideCapacityProbe, DEFAULT_CAPACITY_CHECK_TTL_MS } from './services/capacity-probe-throttle.mjs';
 import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS, formatProviderBlockReason } from './services/provider-probe-classify.mjs';
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 import { COLLECTOR_API_VERSION, compareManifest } from './services/collector-manifest.mjs';
 import { extractWorkerCalls } from './services/collector-route-parity.mjs';
+
+// Track AM-10093 Phase 6 (REQ-7): one shared throttle for every
+// stale-dispatch/stale-pull suppression log line — a persistently-
+// contended track re-evaluates every ~5s cycle, so without this a single
+// stuck track can flood the log exactly like the pre-track-10064
+// collector-401 incident did.
+const suppressionLogThrottle = createSuppressionLogThrottle();
 
 const RC_FILE = join(os.homedir(), '.laneconductorrc');
 
@@ -2744,7 +2754,8 @@ function shouldPullFromDB(track, trackFolder) {
  * @param {string} trackFolder - Path to track folder
  * @param {object} dbTrack - Track object from DB
  */
-function updateIndexMDFromDB(trackFolder, dbTrack) {
+function updateIndexMDFromDB(trackFolder, dbTrack, pullContext = {}) {
+  const { decisionMtime = null, timestampComparison = null } = pullContext;
   const indexPath = join(trackFolder, 'index.md');
   const fileExists = existsSync(indexPath);
 
@@ -2791,14 +2802,35 @@ function updateIndexMDFromDB(trackFolder, dbTrack) {
     // producer of a backwards move. Guard it the same way as the worker's
     // own exit-handler write.
     if (dbTrack.lane_status) {
-      const pullGuard = applyGuardedLaneWrite(content, {
-        intendedLane: dbTrack.lane_status,
-        producedByThisRun: false,
-      });
-      if (pullGuard.blocked) {
-        console.warn(`[sync] Track ${dbTrack.track_number}: lane-regression guard blocked DB->disk pull (${pullGuard.reason}). Leaving Lane untouched.`);
+      // Track AM-10093 (REQ-5/REQ-6): the mtime and timestamp comparison
+      // that justified pulling AT ALL were computed back in
+      // pullTracksMetadataFromDB, before pullTrackContentFromDB and
+      // syncConversationFromDB's own awaits ran for this same track (and
+      // before this function's own earlier I/O above). Re-stat immediately
+      // before the lane write specifically and re-check via the shared
+      // pure guard — see db-pull-guard.mjs for the full mechanism. Only
+      // the LANE portion is skipped when the guard fires — Progress/Phase/
+      // Summary/Merge Mode below are not the transition hazard, and
+      // suppressing them too would stall legitimate UI sync for no reason.
+      const currentMtime = decisionMtime != null ? getFileModTime(indexPath) : null;
+      const pullGuardDecision = shouldSkipLaneOnPull({ decisionMtime, currentMtime, timestampComparison });
+      if (pullGuardDecision.skip) {
+        // Track AM-10093 Phase 6 (REQ-7): throttled — this pull runs every
+        // 5s, so a persistently-contended track would otherwise flood the
+        // log with an identical line every cycle.
+        if (suppressionLogThrottle.shouldLog(`${dbTrack.track_number}:db-pull:${pullGuardDecision.reason}`)) {
+          console.warn(`[sync] Track ${dbTrack.track_number}: DB->disk Lane pull skipped this cycle (${pullGuardDecision.reason}) — other fields still applied.`);
+        }
       } else {
-        content = pullGuard.content;
+        const pullGuard = applyGuardedLaneWrite(content, {
+          intendedLane: dbTrack.lane_status,
+          producedByThisRun: false,
+        });
+        if (pullGuard.blocked) {
+          console.warn(`[sync] Track ${dbTrack.track_number}: lane-regression guard blocked DB->disk pull (${pullGuard.reason}). Leaving Lane untouched.`);
+        } else {
+          content = pullGuard.content;
+        }
       }
     }
     if (dbTrack.progress_percent !== undefined && dbTrack.progress_percent !== null) {
@@ -2885,7 +2917,7 @@ async function pullTracksMetadataFromDB() {
       // Pull metadata if DB is newer or equal
       if (comparison === 'newer' || comparison === 'equal') {
         try {
-          const success = updateIndexMDFromDB(fullTrackFolder, track);
+          const success = updateIndexMDFromDB(fullTrackFolder, track, { decisionMtime: indexMtime, timestampComparison: comparison });
           if (success) {
             logSyncDecision(track.track_number, 'index.md', 'pulled', 'db_newer', track.last_updated, indexMtime);
             stats.pulled++;
@@ -3700,6 +3732,64 @@ watch(laneConductorJsonPath)
   });
 
 // ── Startup ───────────────────────────────────────────────────────────────────
+
+// Track AM-10093 (REQ-8/REQ-9): every base identity independently runs its
+// own 5s pullTracksMetadataFromDB and its own auto-launch claim loop —
+// confirmed live (this track's spec.md) as a major multiplier of the
+// single-worker staleness races Phases 2-4 close: N concurrently-alive
+// base identities give N independent chances per cycle for a stale
+// dispatch or pull to land. Nothing previously bounded how many DIFFERENT
+// identities could register for one project; the per-identity worker lock
+// only ever prevented two processes from sharing the SAME identity. Check
+// BEFORE this process registers itself (so it doesn't count its own
+// about-to-exist row), and before entering the poll loop below.
+//
+// Exempted: local-fs (no collector to ask), and the machine-level manager
+// (a singleton by its own partial unique index, not a per-project base
+// identity at all).
+if (!getIsLocalFs() && !isManager) {
+  try {
+    const { url, token } = primaryCollector();
+    const projectId = getProject()?.id;
+    if (url && projectId) {
+      const workers = await get(url, token, '/api/workers');
+      const liveBaseIdentities = findLiveBaseIdentities(Array.isArray(workers) ? workers : [], { projectId, hostname });
+      const maxBaseWorkersPerProject = Number.isFinite(Number(process.env.LC_MAX_BASE_WORKERS_PER_PROJECT))
+        ? Number(process.env.LC_MAX_BASE_WORKERS_PER_PROJECT)
+        : 1;
+      const allowDuplicate = !!process.env.LC_ALLOW_DUPLICATE_WORKER;
+      const decision = decideWorkerIdentityCap({ liveCount: liveBaseIdentities.length, maxBaseWorkersPerProject, allowDuplicate });
+      // Track AM-10093 (Task 5.3): name the identity, pid, and — best-effort,
+      // same technique orphan-reap's cwdExists probe already uses — cwd, so
+      // the message is actionable ("which process do I stop?") rather than
+      // a bare count. cwd is a local /proc read: only ever attempted for a
+      // pid this check already knows is on THIS hostname.
+      const describeIdentity = (w) => {
+        let cwd = 'unknown';
+        if (w.pid) {
+          try { cwd = readlinkSync(`/proc/${w.pid}/cwd`); } catch { /* pid gone, /proc unreadable, or non-Linux — leave 'unknown' */ }
+        }
+        return `worker_number=${w.worker_number} pid=${w.pid ?? 'unknown'} cwd=${cwd}`;
+      };
+      if (decision.warn) {
+        const existingDesc = liveBaseIdentities.map(describeIdentity).join(', ');
+        console.warn(`[LaneConductor] Another live base worker identity already exists for this project on ${hostname}: ${existingDesc || '(unknown)'}. Restarting workers without stopping the previous one accumulates independent poll loops and is a known cause of stale-dispatch races (track AM-10093).`);
+      }
+      if (!decision.allow) {
+        const existingDesc = liveBaseIdentities.map(describeIdentity).join(', ');
+        console.error(`[LaneConductor] Refusing to start — ${liveBaseIdentities.length} live base worker identit${liveBaseIdentities.length === 1 ? 'y' : 'ies'} already registered for this project on ${hostname} (cap: ${maxBaseWorkersPerProject}): ${existingDesc || '(unknown)'}. Stop the existing worker first (\`lc worker stop\`), or set LC_ALLOW_DUPLICATE_WORKER=1 to override.`);
+        process.exit(1);
+      }
+    }
+  } catch (err) {
+    // Fail OPEN — an unreachable collector or a transient /api/workers
+    // error must never block a worker from starting at all; the identity
+    // it's guarding against is itself only reachable via that same
+    // collector, so "can't check" and "nothing to worry about" are
+    // indistinguishable from here.
+    logger.warn({ err: err.message }, '[LaneConductor] Worker identity cap check failed (proceeding to start anyway)');
+  }
+}
 
 // Track 1099: discover available models after registering, not before.
 // discoverAvailableModels now uses async exec (not execSync — see its own
@@ -6422,6 +6512,7 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
       dispatchId,
       action,
       command,
+      dispatchLane: laneStatus,
     });
     writeFileSync(markerPath, JSON.stringify(marker, null, 2), 'utf8');
   } catch (err) {
@@ -6995,10 +7086,20 @@ async function spawnCli(command, args, label, trackNumber, cli, model, tier, lan
             const effectiveLane = targetLane || laneStatus || Lanes.PLAN;
             const preWriteOnDiskLaneMatch = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
             const preWriteOnDiskLane = preWriteOnDiskLaneMatch ? preWriteOnDiskLaneMatch[1].trim() : effectiveLane;
+            // Track AM-10093 (REQ-4): anchor to the run marker's own
+            // dispatch_lane rather than the in-memory `laneStatus` closure
+            // — see resolveDispatchLaneAnchor's doc comment for why this is
+            // more than a rename: it ties the check to a durable, disk-
+            // persisted record independent of index.md's own history,
+            // rather than to a value this same run's pre-spawn write could
+            // (pre-Phase-2) have been the one to put on disk in the first
+            // place.
+            const dispatchMarker = parseRunMarker(readIfExists(runMarkerPath(process.cwd(), trackNumber)));
+            const dispatchLaneAnchor = resolveDispatchLaneAnchor(dispatchMarker, laneStatus);
             laneWriteGuard = applyGuardedLaneWrite(content, {
               intendedLane: effectiveLane,
               intendedStatus: nextActionStatus,
-              producedByThisRun: preWriteOnDiskLane === laneStatus,
+              producedByThisRun: preWriteOnDiskLane === dispatchLaneAnchor,
               // Track AM-10046 Phase 5 (REQ-9): this call site's
               // producedByThisRun genuinely means "did THIS run execute in
               // the on-disk lane" (freshly recomputed above, not cached) —
@@ -8489,6 +8590,50 @@ If the user is asking for changes, bug fixes, new features, or refinements:
       }
     }
 
+    // Track AM-10093 (REQ-1/REQ-2/REQ-3/REQ-7): everything above this
+    // point is a decision made from `content`, read once at the top of
+    // this iteration. buildCliArgs's session resolution, the claim-queue
+    // POST, and the cross-collector conflict check above it can each take
+    // real time (see dispatch-revalidation.mjs's doc comment) — long
+    // enough for a human's lc plan/move, or a different worker's own
+    // completion, to write a genuinely different Lane/Lane Status/Auto
+    // Run/Waiting for reply into index.md while this dispatch was being
+    // decided. Re-read RIGHT NOW, immediately before spawning, and abandon
+    // this dispatch if the decision it was based on no longer holds —
+    // confirmed live on track AM-10089, where a stale snapshot dispatched
+    // `/laneconductor merge` for a track a human had just moved to `plan`.
+    const revalidation = revalidateDispatchSnapshot({
+      snapshot: { lane: lane_status, laneActionStatus: lane_action_status, autoRun, waitingForReply },
+      fresh: parseDispatchSnapshot(readIfExists(indexPath) ?? content, { parseAutoRun, parseWaitingForReply }),
+    });
+    if (revalidation.stale) {
+      // Track AM-10093 Phase 6 (REQ-7): throttled — auto-launch scans every
+      // cycle, so a persistently-contended track (e.g. genuinely flapping
+      // between two lanes) would otherwise flood the log with an identical
+      // line every time.
+      if (suppressionLogThrottle.shouldLog(`${track_number}:dispatch:${revalidation.changed.join(',')}`)) {
+        logger.warn(
+          { trackNumber: track_number, changed: revalidation.changed, snapshotLane: lane_status, snapshotLaneActionStatus: lane_action_status },
+          `[local-fs] Track ${track_number}: dispatch abandoned — ${revalidation.changed.join(', ')} changed since this cycle's snapshot was taken. Releasing any claim; will re-evaluate fresh next cycle.`
+        );
+      }
+      // REQ-2: release whatever claim this cycle already took, so the
+      // track is re-evaluated from fresh state next cycle instead of
+      // being stranded at 'running' with nothing to ever retry it.
+      if (!waitingForReply) {
+        if (getIsLocalFs()) {
+          releaseTrackClaim(tracksDir, dir);
+        } else {
+          const { url: primaryUrl, token: primaryToken } = primaryCollector();
+          await patch(primaryUrl, primaryToken, `/track/${track_number}/action`, {
+            lane_action_status: 'queue', lane_action_result: 'stale_dispatch_snapshot',
+          }).catch(err => logger.warn({ trackNumber: track_number, err: err.message },
+            '[local-fs] Failed to release stale dispatch claim on primary'));
+        }
+      }
+      continue;
+    }
+
     try {
       const [cmd, args, cli, model, tier, session] = cliArgs;
 
@@ -8506,7 +8651,15 @@ If the user is asking for changes, bug fixes, new features, or refinements:
         return content.trim() + `\n**${header}**: ${value}\n`;
       };
       if (!waitingForReply) {
-        const runningContent = updateHeader(content, 'Lane Status', 'running');
+        // Track AM-10093 (REQ-3): patch a FRESH read, not the top-of-loop
+        // `content` snapshot — the revalidation gate above only proves
+        // Lane/Lane Status/Auto Run/Waiting for reply hadn't changed at
+        // the instant it checked; it does not make it safe to write the
+        // stale buffer wholesale a moment later. Reading fresh again here
+        // means only **Lane Status** ever changes as a result of this
+        // write, never a revert of anything else touched in between.
+        const freshForClaim = readIfExists(indexPath) ?? content;
+        const runningContent = updateHeader(freshForClaim, 'Lane Status', 'running');
         writeFileSync(indexPath, runningContent, 'utf8');
       }
 

@@ -104,3 +104,61 @@ export function findOrphanedWorkerProcesses(rows, {
     return false;
   });
 }
+
+// Track AM-10093 (REQ-9): distinguishes a real `--worker-number` identity
+// (its own OS process, its own poll loop) from a claim-scoped row spawnCli
+// mints for a concurrently-live lane action
+// (`workerNumber * CLAIM_WORKER_NUMBER_BASE_MULTIPLIER + slot`, laneconductor.
+// sync.mjs). Confirmed via `git log -S CLAIM_WORKER_NUMBER_BASE_MULTIPLIER`
+// during this track's own implementation: the constant was introduced once,
+// at 100000, and has never changed — so a claim-scoped row's worker_number
+// is always >= 100001, and a value below the multiplier can only be a real
+// base identity. This is a THRESHOLD, not a guess: it holds for every
+// worker_number this codebase has ever produced.
+export const CLAIM_WORKER_NUMBER_BASE_MULTIPLIER = 100000;
+
+export function classifyWorkerIdentity(workerNumber) {
+  const n = Number(workerNumber);
+  if (!Number.isFinite(n) || n < 0) return 'base'; // fail toward counting it, not silently dropping it
+  return n >= CLAIM_WORKER_NUMBER_BASE_MULTIPLIER ? 'claim-scoped' : 'base';
+}
+
+/**
+ * Counts live BASE worker identities for one (project_id, hostname) pair,
+ * excluding claim-scoped rows, manager rows, and this process's own
+ * about-to-register identity.
+ *
+ * @param {Array<{worker_number: number|string, project_id: number|null, hostname: string, type?: string}>} workers
+ *   - rows from GET /api/workers (already heartbeat-freshness-filtered server-side)
+ * @param {object} opts
+ * @param {number} opts.projectId
+ * @param {string} opts.hostname
+ * @returns {Array<object>} the live base-identity rows matching this project+host (never includes 'manager' type rows)
+ */
+export function findLiveBaseIdentities(workers, { projectId, hostname }) {
+  if (!Array.isArray(workers)) return [];
+  return workers.filter(w =>
+    w.type !== 'manager' &&
+    w.project_id === projectId &&
+    w.hostname === hostname &&
+    classifyWorkerIdentity(w.worker_number) === 'base'
+  );
+}
+
+/**
+ * Decides whether a NEW base-identity worker may start, given how many
+ * other live base identities already exist for this (project, host).
+ *
+ * @param {object} opts
+ * @param {number} opts.liveCount - result of findLiveBaseIdentities(...).length
+ * @param {number} opts.maxBaseWorkersPerProject - LC_MAX_BASE_WORKERS_PER_PROJECT (default 1); `0` disables the check entirely
+ * @param {boolean} [opts.allowDuplicate] - LC_ALLOW_DUPLICATE_WORKER escape hatch
+ * @returns {{allow: boolean, warn: boolean}} `warn` is true whenever another
+ *   live identity exists, even when `allow` is true (REQ-8: "warn always")
+ */
+export function decideWorkerIdentityCap({ liveCount, maxBaseWorkersPerProject, allowDuplicate = false }) {
+  if (maxBaseWorkersPerProject === 0) return { allow: true, warn: liveCount > 0 };
+  const overCap = liveCount >= maxBaseWorkersPerProject;
+  if (!overCap) return { allow: true, warn: false };
+  return { allow: !!allowDuplicate, warn: true };
+}

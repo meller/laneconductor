@@ -260,7 +260,28 @@ prompt is pointing you at something you genuinely haven't seen yet in this
 session (a new human comment appended to `conversation.md` since your last
 turn, a file that didn't exist before, output from a command you just
 ran), still read it — "resumed" means "don't redo work you already did,"
-not "ignore new information." Every "Load context" / "Read existing
+not "ignore new information."
+
+**On-disk content always wins over remembered content (Track AM-10090).**
+Before rewriting `spec.md`, `plan.md`, or `test.md` wholesale on a resumed
+turn, re-read them first. If what's on disk differs from what you remember
+writing, someone else — a human, or a different session entirely — acted
+on this track since your last turn, and the on-disk version is
+authoritative. Reconcile against it; do not silently overwrite it with
+your own cached conclusion. This is not a hypothetical: it is exactly what
+went wrong on track AM-1020 (see track AM-10090's own `spec.md` for the
+full incident) — a resumed session re-asserted a stale "blocked, no
+requirements" conclusion over a fresh, correct respec that a different
+session had already written and a human had already replied to, three
+times in ten minutes, with no error anywhere. The worker's own
+`resolveTrackSession()` now detects this class of drift and forces a cold
+start when a session's stored document digest no longer matches disk
+(`conductor/services/track-doc-digest.mjs`) — but that is defence in depth
+behind this instruction, not a replacement for it. The digest only covers
+`spec.md`/`plan.md`/`test.md` and a handful of stable `index.md` markers;
+it cannot substitute for actually reading what changed, and a
+skill-only/no-worker session (no `FRESH_SESSION` marker at all) has no
+digest check behind it whatsoever. Every "Load context" / "Read existing
 context" step in the commands below is annotated with which files this
 applies to.
 
@@ -1151,6 +1172,9 @@ The Skill Worker communicates state to the dashboard by writing specific bold ma
 | `**Auto Run**: [yes\|no]` | `auto_run` | Whether a non-sync-only worker's auto-launch loop may claim this track from the queue. Default no — absent marker means not auto-picked (track 10017). |
 | `**Merge Mode**: [direct\|pr]` | `merge_mode` | Track 10035: how the `done`-lane merge action integrates the branch. `direct` merges straight to main in-session; `pr` pushes the branch and opens a GitHub PR, landing at `done:waiting`. Default `pr`. Settable at creation (`lc new --merge-mode`) or by hand; the file marker is authoritative over the DB's `tracks.merge_mode` column — the migration sweep corrects any DB value that disagrees with it. |
 | `**PR URL**: [url]` | `pr_url` | Track 10035: the GitHub PR link written by the merge action in pr-mode, once `gh pr create` returns. This is the completion affordance shown on both the Kanban card and the Worktrees row while the track sits at `done:waiting`. |
+| `**Verdict**: [pass\|fail]` | *(none — sync-worker-internal)* | Track AM-10087: written by `/laneconductor review` and `/laneconductor quality-gate` on every terminal PASS/FAIL outcome (not the KPI-miss early exit), in the same edit as the existing Lane/Lane Status transition write. Read by the sync worker's exit handler to distinguish a lane action's own already-resolved, workflow.json-routable outcome from a genuinely open question, when the same turn also carries the harness's `blocked` post_turn_summary self-assessment — see the `isBlockedTurn` override in `conductor/laneconductor.sync.mjs`. Cleared at claim time (step 0 of both commands) so a short-circuited run never leaves a stale value for a later run to misread. |
+| `**Depends On**: [NNN, NNN]` | *(none — worker-internal)* | Track AM-1119 Phase 3: comma-separated track numbers that must all reach lane `done` before this track's own queued lane action may be auto-launched. Used by the wizard's generated track set to gate a final "Deploy" track behind the feature tracks ahead of it. Only gates a track sitting in `queue` — see `**Waiting On Tracks**` below for the equivalent on a track already parked at `waiting`. |
+| `**Waiting On Tracks**: [NNN, NNN]` | *(none — worker-internal)* | Track AM-10086: written by an agent parking a track (`**Lane Status**: waiting`) specifically because those track numbers have not yet shipped — the authoritative form of dependency attribution for a park. A periodic reconciler (`reconcileParkedDependencyTracks()`, same cadence as the PR/worktree reconcilers) resumes the park back to `queue` automatically once every named track reaches `done` **and** `lane_action_status: success` (not `done` alone — a `done:queue` track is quality-gated but not yet merged, so treating it as satisfied would resume a park whose blocker is still literally true). A bare `**Depends On**` is NOT itself attribution — a track parked for an unrelated, human-judgment reason (an approval request, a genuine question) is never auto-resumed just because something it happens to depend on shipped; for the common case of an EXISTING `**Depends On**` marker, the reconciler infers attribution only when `**Waiting Reason**` actually names one of those dependency numbers. Cleared, along with a loop-guard `**Auto Resumed**: <ISO> deps=<n,n>` marker (blocks a repeat auto-resume of the SAME dependency set — a genuine human resume clears it so a future different set can auto-resume again), whenever the track leaves `waiting` by any means. See `conductor/services/dependency-resume.mjs` for the full rule and `conductor/product.md` for the mechanism write-up. |
 
 ### Completion Comment Convention
 
@@ -1242,21 +1266,25 @@ Registers a new track in the **file sync queue**. The sync worker processes it o
    **Progress**: 0%
    **Phase**: New
    **Type**: [dev|marketing|sales|support|other]
-   **Merge Mode**: [direct|pr]        ← only if specified at creation (track 10035 REQ-12)
-   **Auto Run**: [yes|no]             ← only if specified at creation (track 10035 REQ-12)
+   **Merge Mode**: direct              ← default; write `pr` only if the user asked for review-gated merging on this track
+   **Auto Run**: yes                   ← default; write `no` only if the user asked for this track to sit until claimed by hand
    **Author**: INITIALS
    **Created By**: user@email.com
    **Summary**: [description]
    ```
    Default `**Type**` to `dev` unless the user specified a type. `**Merge
-   Mode**` and `**Auto Run**` are sparse-emission, same convention as
-   `**Workspace**` — omit the line entirely unless the user explicitly
-   asked for one at creation (e.g. "make this direct-mode and
-   auto-runnable"); an absent marker falls through to each field's own
-   documented default (`pr` for merge mode, not-auto-run for Auto Run) via
-   the normal resolution the worker already applies everywhere else. The
-   CLI equivalent is `lc new "Title" "Description" --merge-mode
-   direct|pr --auto-run yes|no`.
+   Mode**` and `**Auto Run**` default to `direct` and `yes` respectively
+   (changed 2026-09-08 — previously sparse-emission, omitted unless asked,
+   falling through to each field's own conservative absent-marker default
+   of `pr`/not-auto-run) — always write both lines unless the user
+   explicitly asks for the old, more conservative behavior for this
+   specific track (e.g. "this one needs a PR, don't auto-run it"), in
+   which case write `pr`/`no` instead. This only changes what NEW tracks
+   are created with; it does not touch `resolveMergeMode()`/`parseAutoRun`'s
+   own absent-marker fallback, so a track that already exists without
+   either marker is unaffected. The CLI equivalent (`lc new "Title"
+   "Description"`) applies the same new default automatically; pass
+   `--merge-mode pr` / `--auto-run no` to opt a specific track out.
 3. Append a typed entry to `conductor/tracks/file_sync_queue.md` (under `## Track Creation Requests`):
    ```markdown
    ### Track NNN: [name]
@@ -1570,7 +1598,7 @@ Execute implementation tasks. The Skill Worker communicates purely through files
 
 Structured review of a track against its plan and product guidelines. Posts the result as a comment by writing to the track's conversation file.
 
-0. **Claim the track immediately** — write `**Lane**: review` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`).
+0. **Claim the track immediately** — write `**Lane**: review` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`). In the same edit, clear any pre-existing `**Verdict**` marker (Track AM-10087) — a run that gets short-circuited before reaching step 4 must never leave a stale value behind for a later run's exit handler to misread.
 1. **Load Context** (**skip the first bullet if `FRESH_SESSION: false`** —
    see **Protocol: Session Continuity**; review often resumes the same
    session `implement` used, so this is worth checking — the second bullet
@@ -1593,8 +1621,15 @@ Structured review of a track against its plan and product guidelines. Posts the 
      (the review itself is still valid information), and note there that the lane transition
      was skipped because the track had already moved. Otherwise, continue below.
    - Read `conductor/workflow.json`.
-   - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`.
-   - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`.
+   - If **PASS**: Set `**Lane**` to the value of `lanes.review.on_success` and `**Lane Status**` to `queue`. Append `## ✅ REVIEWED` to `plan.md`. In the same edit, write `**Verdict**: pass` to `index.md`.
+   - If **FAIL**: Set `**Lane**` to the value of `lanes.review.on_failure` and `**Lane Status**` to `queue`. Add `⚠️ Gaps` to `plan.md`. In the same edit, write `**Verdict**: fail` to `index.md`.
+   - **Why this matters (Track AM-10087)**: the Claude Code harness can separately tag this
+     same turn's `post_turn_summary` as `blocked` (e.g. it surfaced a question mid-review) even
+     though this step already resolved a definitive, workflow.json-routable outcome. The sync
+     worker's exit handler checks `**Verdict**` before ever consulting that harness-level
+     annotation — write it every time, PASS or FAIL, so a review that already reached a real
+     conclusion is never mistaken for a genuinely open question and parked indefinitely instead
+     of routed.
 
 ---
 
@@ -1602,7 +1637,7 @@ Structured review of a track against its plan and product guidelines. Posts the 
 
 Runs automated checks and updates status files based on results.
 
-0. **Claim the track immediately** — write `**Lane**: quality-gate` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`).
+0. **Claim the track immediately** — write `**Lane**: quality-gate` and `**Lane Status**: running` to `conductor/tracks/NNN-*/index.md` before doing anything else (see `/laneconductor implement`'s step 0 for why `**Lane**` needs setting explicitly, not just `**Lane Status**`). In the same edit, clear any pre-existing `**Verdict**` marker (Track AM-10087) — a run that gets short-circuited before reaching step 5 (including the KPI-miss early-exit path in step 1) must never leave a stale value behind for a later run's exit handler to misread.
 0b. **KPI window check** (early trigger warning):
    - Read `**KPI Check After**` from index.md. If it exists and is in the future:
      > "KPI window not reached — Xh remaining. Measuring now may give unreliable results. Run anyway? (y/n)"
@@ -1715,9 +1750,15 @@ Runs automated checks and updates status files based on results.
      does **not** make a track complete — a track that shipped a stub and
      was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
      the exact incident these rules were written for.
-   - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`.
-   - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`.
+   - If **PASS**: Set `**Lane**` to the value of `lanes.quality-gate.on_success` and append `## ✅ QUALITY PASSED` to `plan.md`. In the same edit, write `**Verdict**: pass` to `index.md`.
+   - If **FAIL**: Set `**Lane**` to the value of `lanes.quality-gate.on_failure` and explain the failure in `conversation.md`. In the same edit, write `**Verdict**: fail` to `index.md`.
    - Update `**Lane Status**` to `queue`.
+   - **Why this matters (Track AM-10087)**: same rationale as `/laneconductor review`'s step 4 —
+     the harness's own end-of-turn `blocked` self-assessment is a separate signal from this
+     step's own already-computed PASS/FAIL, and the sync worker's exit handler checks
+     `**Verdict**` first so a resolved outcome is routed instead of parked. Not written for the
+     step 1 KPI-miss early exit — that's a different terminal outcome (no code-review verdict to
+     report) and is already routed on its own via `on_failure`.
 
 ---
 
