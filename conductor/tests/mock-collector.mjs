@@ -27,6 +27,7 @@ const state = {
   offlineWorkerIds: [], // Track 10054: worker ids to treat as offline, set via /_set-offline-workers — stands in for the real server's last_heartbeat staleness check
   fileManifests: [], // Track 10080: every accepted PATCH /worker/file-manifest body, in order — proves digest-gated push cadence (one push per actual change, not per tick)
   failFileManifestCount: 0, // Track 10080: /_set-fail-file-manifest — next N PATCH /worker/file-manifest calls 500 instead of succeeding
+  sessionDeletes: [], // Track AM-10092: [{ track_number, bearerToken }] — every DELETE /track/:num/session, in order. The clear alone can't distinguish "no delete happened" from "a delete happened against the wrong track number"; this lets a test assert on the call itself, not just its side effect.
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -256,6 +257,7 @@ const server = createServer(async (req, res) => {
   }
 
   if ((params = route('DELETE', '/track/:num/session', req)) !== null) {
+    state.sessionDeletes.push({ track_number: params.num, bearerToken: bearerToken ?? null });
     if (bearerToken && state.sessionsByToken[bearerToken]) delete state.sessionsByToken[bearerToken][params.num];
     delete state.sessions[params.num];
     return reply(res, 200, { ok: true });
@@ -490,6 +492,7 @@ const server = createServer(async (req, res) => {
     state.offlineWorkerIds = [];
     state.fileManifests = [];
     state.failFileManifestCount = 0;
+    state.sessionDeletes = [];
     return reply(res, 200, { ok: true });
   }
 
