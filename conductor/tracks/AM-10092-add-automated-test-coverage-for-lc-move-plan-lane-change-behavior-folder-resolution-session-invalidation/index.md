@@ -1,9 +1,9 @@
 # Track AM-10092: Add automated test coverage for lc move/plan lane-change behavior (folder resolution + session invalidation)
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: quality-gate
+**Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
 **Phase**: Plan complete
 **Type**: dev
 **Track Kind**: feature
