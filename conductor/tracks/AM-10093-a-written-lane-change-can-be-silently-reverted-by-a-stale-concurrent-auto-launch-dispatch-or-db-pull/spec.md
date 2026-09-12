@@ -112,14 +112,19 @@ N. `reapOrphanedWorkerProcesses` does not help: it is `isManager`-gated and only
 heartbeating duplicate is invisible to it. `POST /worker/register` upserts on
 `(project_id, hostname, worker_number)` and imposes no cap.
 
-**Open question, to be answered by evidence in Phase 1, not assumed.** Some of the observed
-identities are very likely **claim-scoped rows**, not duplicate processes.
-`CLAIM_WORKER_NUMBER_BASE_MULTIPLIER` mints a derived `workers` row per concurrently-live child
-(`workerNumber * MULTIPLIER + slot`); older code used smaller multipliers, which is consistent
-with the observed `105`, `106`, `20007`, `20008`, `20012`… values. Claim-scoped rows have no OS
-process of their own and never poll, so they contribute **nothing** to this race. Phase 1 must
-classify the census before Phase 5 builds any mitigation, or the mitigation will target the wrong
-population.
+**Census performed during implementation (corrects the plan-phase's own open question)**: the
+plan phase hypothesized that some observed identities (`105`, `106`, `20007`, `20008`, `20012`…)
+might be **claim-scoped rows** rather than duplicate processes, on the theory that older code
+used a smaller `CLAIM_WORKER_NUMBER_BASE_MULTIPLIER`. Checking `git log -S
+CLAIM_WORKER_NUMBER_BASE_MULTIPLIER` against this repo's actual history disproves that: the
+constant was introduced once, at `100000`, and has never changed. A claim-scoped row's
+`worker_number` is therefore always `workerNumber * 100000 + slot` — at minimum `100001` for the
+smallest possible base identity — so every one of `105`, `106`, `20007`, `20008`, `20012`,
+`20014`, `20015`, `20018` is **structurally impossible** as a claim-scoped derivation. They are
+exactly what the original problem statement said they were: genuine, independently-launched
+`--worker-number` values, each a real base identity with its own OS process, its own 5 s
+`pullTracksMetadataFromDB`, and its own auto-launch claim loop. The multi-identity theory is
+therefore **confirmed, not disproven** — Phase 5 below targets the real population.
 
 ## Requirements
 
