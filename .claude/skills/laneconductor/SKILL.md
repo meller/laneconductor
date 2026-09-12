@@ -260,7 +260,28 @@ prompt is pointing you at something you genuinely haven't seen yet in this
 session (a new human comment appended to `conversation.md` since your last
 turn, a file that didn't exist before, output from a command you just
 ran), still read it — "resumed" means "don't redo work you already did,"
-not "ignore new information." Every "Load context" / "Read existing
+not "ignore new information."
+
+**On-disk content always wins over remembered content (Track AM-10090).**
+Before rewriting `spec.md`, `plan.md`, or `test.md` wholesale on a resumed
+turn, re-read them first. If what's on disk differs from what you remember
+writing, someone else — a human, or a different session entirely — acted
+on this track since your last turn, and the on-disk version is
+authoritative. Reconcile against it; do not silently overwrite it with
+your own cached conclusion. This is not a hypothetical: it is exactly what
+went wrong on track AM-1020 (see track AM-10090's own `spec.md` for the
+full incident) — a resumed session re-asserted a stale "blocked, no
+requirements" conclusion over a fresh, correct respec that a different
+session had already written and a human had already replied to, three
+times in ten minutes, with no error anywhere. The worker's own
+`resolveTrackSession()` now detects this class of drift and forces a cold
+start when a session's stored document digest no longer matches disk
+(`conductor/services/track-doc-digest.mjs`) — but that is defence in depth
+behind this instruction, not a replacement for it. The digest only covers
+`spec.md`/`plan.md`/`test.md` and a handful of stable `index.md` markers;
+it cannot substitute for actually reading what changed, and a
+skill-only/no-worker session (no `FRESH_SESSION` marker at all) has no
+digest check behind it whatsoever. Every "Load context" / "Read existing
 context" step in the commands below is annotated with which files this
 applies to.
 
