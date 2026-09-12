@@ -3,7 +3,7 @@
 **Lane**: done
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation complete (Phases 1-5 + 6.1/6.2); Task 6.3 UI badge deferred; live-worker E2E verification pending
 **Type**: dev
 **Track Kind**: bug
