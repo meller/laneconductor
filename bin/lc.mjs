@@ -1124,14 +1124,23 @@ Choice [${defaultSecNum}]: `) || defaultSecNum;
         // "uncommitted changes" that trip the main-mode lane actions' clean-
         // checkout gate (git-lock.mjs) and block every merge project-wide,
         // not just the track whose worktree happens to be dirty.
+        // .conv-cursor (per-track sync cursor position, written by
+        // laneconductor.sync.mjs) is the same class of runtime state, not
+        // content — already gitignored ad-hoc in this repo's own
+        // .gitignore, but missing from this shared template, so every OTHER
+        // project scaffolded via `lc setup` never got it and accumulates the
+        // same permanent-dirty noise. No path prefix: a bare filename
+        // pattern matches at any depth, so this covers every track's own
+        // conductor/tracks/NNN-slug/.conv-cursor.
         if (!existsSync('.gitignore')) {
-            writeFileSync('.gitignore', '.env\n.laneconductor.json\nconductor/tracks/**/conversation.md\nconductor/tracks/**/conversation.json\n');
+            writeFileSync('.gitignore', '.env\n.laneconductor.json\nconductor/tracks/**/conversation.md\nconductor/tracks/**/conversation.json\n.conv-cursor\n');
         } else {
             const gitignore = readFileSync('.gitignore', 'utf8');
             if (!gitignore.includes('.env')) appendFileSync('.gitignore', '\n.env\n');
             if (!gitignore.includes('.laneconductor.json')) appendFileSync('.gitignore', '.laneconductor.json\n');
             if (!gitignore.includes('conductor/tracks/**/conversation.md')) appendFileSync('.gitignore', 'conductor/tracks/**/conversation.md\n');
             if (!gitignore.includes('conductor/tracks/**/conversation.json')) appendFileSync('.gitignore', 'conductor/tracks/**/conversation.json\n');
+            if (!gitignore.includes('.conv-cursor')) appendFileSync('.gitignore', '.conv-cursor\n');
         }
 
         // Register project in DB for local-api mode

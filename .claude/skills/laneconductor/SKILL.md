@@ -580,6 +580,28 @@ conductor/
 ```
 Also:
 - Create `.claude/MEMORY.md` if not present
+- **Ensure `.gitignore` covers the sync-only runtime files that are never
+  meaningful to review, only ever DB/API-synced state** — append whichever
+  of these lines are missing (create the file if it doesn't exist):
+  ```
+  conductor/tracks/**/conversation.md
+  conductor/tracks/**/conversation.json
+  .conv-cursor
+  ```
+  `conversation.md`/`.json` hold comment threads that sync via the DB/API
+  layer, not git; `.conv-cursor` (written by `laneconductor.sync.mjs`) is a
+  per-track, per-machine sync cursor position. Left tracked, all three show
+  up as permanent "uncommitted changes" that trip the main-mode lane
+  actions' clean-checkout gate and block every merge project-wide — not
+  just the one track whose file happens to be dirty. This mirrors the exact
+  patterns `lc setup` (CLI mode) already writes into `.gitignore` — do it
+  here too, since skill-only mode (no `lc` CLI) never runs that code path
+  and would otherwise accumulate the same problem with nothing preventing
+  it. Do **not** add `conductor/tracks/**/index.md` here — unlike the three
+  above, `index.md` carries real authored content (the track's Problem/
+  Solution write-up) that IS worth tracking; a project that finds its own
+  `index.md` diffs are pure marker-churn noise should decide that for
+  itself, not inherit it silently from scaffolding.
 - **Symlink the skill into this project** so AI agents can invoke it locally:
   ```bash
   SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
