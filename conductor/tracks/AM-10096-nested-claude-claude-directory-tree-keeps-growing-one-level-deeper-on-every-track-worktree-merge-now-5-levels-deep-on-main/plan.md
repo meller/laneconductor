@@ -87,18 +87,18 @@ specific risk the track's problem statement calls out.
 **Solution**: A script that audits first and only deletes what it has proven to
 be duplicate.
 
-- [ ] Create `conductor/scripts/clean-nested-claude.mjs`
-    - [ ] Given a repository root, find every `.claude` nested under `.claude`.
-    - [ ] For each nested level, diff it against level 1, ignoring the nested
+- [x] Create `conductor/scripts/clean-nested-claude.mjs`
+    - [x] Given a repository root, find every `.claude` nested under `.claude`.
+    - [x] For each nested level, diff it against level 1, ignoring the nested
           `.claude` entry. Collect files unique to the deeper level and files
           whose deeper copy is newer than level 1's.
-    - [ ] Default to report-only. Print depth, file count, byte size, and any
+    - [x] Default to report-only. Print depth, file count, byte size, and any
           unique or newer file found.
-    - [ ] With `--fix`, delete `.claude/.claude` only when the audit found
+    - [x] With `--fix`, delete `.claude/.claude` only when the audit found
           nothing unique. With unique content present, refuse and exit non-zero
           naming the files (REQ-7).
-    - [ ] With `--worktrees`, apply the same audit to each `.worktrees/*` entry.
-    - [ ] Accept a repository path argument so it can be pointed at other
+    - [x] With `--worktrees`, apply the same audit to each `.worktrees/*` entry.
+    - [x] Accept a repository path argument so it can be pointed at other
           projects.
 
 **Impact**: Cleanup becomes repeatable and safe to run against unfamiliar

@@ -15,6 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { shouldCopyClaudeEntry, copyClaudeDir } from '../services/claude-dir-copy.mjs';
+import { auditNestedClaude, cleanNestedClaude } from '../services/claude-nest-audit.mjs';
+import { utimesSync } from 'node:fs';
 
 function mkTmp(prefix) {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -214,5 +216,79 @@ describe('copyClaudeDir end-to-end with a real git worktree', () => {
       assert.deepEqual(findNestedClaudeDirs(worktreePath), ['.claude'], `cycle ${i}`);
       execFileSync('git', ['worktree', 'remove', '--force', worktreePath], { cwd: repoRoot });
     }
+  });
+});
+
+describe('claude-nest-audit (guarded cleanup, Phase 4)', () => {
+  function makeChain(depth, { withUnique = false, withNewer = false } = {}) {
+    const claudeRoot = join(mkTmp('lc-audit-'), '.claude');
+    mkdirSync(claudeRoot, { recursive: true });
+    writeFileSync(join(claudeRoot, 'MEMORY.md'), 'v1');
+    let current = claudeRoot;
+    for (let d = 2; d <= depth; d++) {
+      current = join(current, '.claude');
+      mkdirSync(current, { recursive: true });
+      writeFileSync(join(current, 'MEMORY.md'), 'v1'); // pure duplicate by default
+    }
+    if (withUnique) {
+      const deepest = depth === 1 ? claudeRoot : Array.from({ length: depth - 1 }, () => '.claude').reduce((p) => join(p, '.claude'), claudeRoot);
+      writeFileSync(join(deepest, 'unique-note.md'), 'only here');
+    }
+    if (withNewer) {
+      const level1File = join(claudeRoot, 'MEMORY.md');
+      const deepest = Array.from({ length: depth - 1 }, () => '.claude').reduce((p) => join(p, '.claude'), claudeRoot);
+      const deeperFile = join(deepest, 'MEMORY.md');
+      const past = new Date(Date.now() - 60_000);
+      const future = new Date(Date.now() + 60_000);
+      utimesSync(level1File, past, past);
+      utimesSync(deeperFile, future, future);
+    }
+    return claudeRoot;
+  }
+
+  it('TC-20: pure-duplicate nest, report mode — reports depth/count, finds nothing unique, deletes nothing', () => {
+    const claudeRoot = makeChain(3);
+    const result = cleanNestedClaude(claudeRoot, { fix: false });
+    assert.equal(result.ok, true);
+    assert.equal(result.removed, false);
+    assert.equal(result.audit.depth, 3);
+    assert.equal(result.audit.uniqueFiles.length, 0);
+    assert.ok(existsSync(join(claudeRoot, '.claude')), 'report mode must not delete');
+  });
+
+  it('TC-21: pure-duplicate nest with --fix — deletes the nest, level 1 untouched', () => {
+    const claudeRoot = makeChain(3);
+    const result = cleanNestedClaude(claudeRoot, { fix: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.removed, true);
+    assert.ok(existsSync(join(claudeRoot, 'MEMORY.md')), 'level 1 must survive');
+    assert.ok(!existsSync(join(claudeRoot, '.claude')));
+  });
+
+  it('TC-22: unique file at a deeper level — refuses to delete, names the file (REQ-7)', () => {
+    const claudeRoot = makeChain(3, { withUnique: true });
+    const result = cleanNestedClaude(claudeRoot, { fix: true });
+    assert.equal(result.ok, false);
+    assert.equal(result.removed, false);
+    assert.match(result.reason, /unique-note\.md/);
+    assert.ok(existsSync(join(claudeRoot, '.claude')), 'must not delete when unique content exists');
+  });
+
+  it('TC-23: nested copy newer than level 1 is flagged in the audit', () => {
+    const claudeRoot = makeChain(2, { withNewer: true });
+    const audit = auditNestedClaude(claudeRoot);
+    assert.equal(audit.newerFiles.length, 1);
+    assert.equal(audit.newerFiles[0].path, 'MEMORY.md');
+  });
+
+  it('TC-24: no nest at all — no-op, exits clean', () => {
+    const claudeRoot = join(mkTmp('lc-audit-none-'), '.claude');
+    mkdirSync(claudeRoot, { recursive: true });
+    writeFileSync(join(claudeRoot, 'MEMORY.md'), 'v1');
+
+    const result = cleanNestedClaude(claudeRoot, { fix: true });
+    assert.equal(result.ok, true);
+    assert.equal(result.removed, false);
+    assert.equal(result.audit.depth, 1);
   });
 });
