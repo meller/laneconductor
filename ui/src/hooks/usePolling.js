@@ -3,7 +3,17 @@ import { useWebSocket } from './useWebSocket';
 import { useAuth } from '../contexts/AuthContext';
 
 const POLL_INTERVAL_DEFAULT = 2000;
-const POLL_INTERVAL_CONNECTED = 30000;
+// Track AM-10095 (REQ-6): this used to be 30000 — a board with a healthy
+// websocket trusts pushes and rarely polls, so a missed/dropped broadcast
+// (or, before this track's Phase 1/2 fixes, a DB write that never
+// broadcast at all) could leave the board silently stale for the full 30s.
+// Lowered so that worst case is bounded well below the old figure.
+const POLL_INTERVAL_CONNECTED = 10000;
+// Track AM-10095 (REQ-7): how long since the last successful fetch before
+// the board admits it might be stale. Comfortably above
+// POLL_INTERVAL_CONNECTED so a healthy, on-cadence board never flickers
+// into the stale state between two ordinary polls.
+const STALE_THRESHOLD_MS = 20000;
 
 // Determine API base URL: use Cloud Run for remote, relative path for local
 function getApiBaseUrl() {
@@ -25,6 +35,11 @@ export function usePolling(projectId, options = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  // Track AM-10095 (REQ-7): re-evaluated on its own timer below, not only
+  // when a fetch completes — a board that has STOPPED fetching (a missed
+  // broadcast, a dead connection) never triggers a fetch-driven re-render
+  // on its own, which is exactly when this signal needs to change.
+  const [stale, setStale] = useState(false);
   const intervalRef = useRef(null);
   const abortRef = useRef(null);
   // Track 10013: a fetch already in flight used to get aborted by every
@@ -159,6 +174,18 @@ export function usePolling(projectId, options = {}) {
 
   const wsConnected = useWebSocket(onWSMessage);
 
+  // Track AM-10095 (REQ-7): a plain timer, independent of fetchData/WS —
+  // must keep ticking even when nothing else is happening, since "nothing
+  // else is happening" is the failure mode this is meant to surface.
+  useEffect(() => {
+    const check = () => {
+      setStale(lastUpdated ? Date.now() - lastUpdated.getTime() > STALE_THRESHOLD_MS : false);
+    };
+    check();
+    const staleTimer = setInterval(check, 1000);
+    return () => clearInterval(staleTimer);
+  }, [lastUpdated]);
+
   useEffect(() => {
     fetchData();
     const interval = wsConnected ? POLL_INTERVAL_CONNECTED : POLL_INTERVAL_DEFAULT;
@@ -178,5 +205,5 @@ export function usePolling(projectId, options = {}) {
     };
   }, [fetchData, wsConnected]);
 
-  return { projects, tracks, workers, providers, waitingTracks, projectSummaries, loading, error, lastUpdated, refetch: fetchData, wsConnected };
+  return { projects, tracks, workers, providers, waitingTracks, projectSummaries, loading, error, lastUpdated, stale, refetch: fetchData, wsConnected };
 }

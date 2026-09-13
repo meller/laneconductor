@@ -28,6 +28,7 @@ const state = {
   fileManifests: [], // Track 10080: every accepted PATCH /worker/file-manifest body, in order — proves digest-gated push cadence (one push per actual change, not per tick)
   failFileManifestCount: 0, // Track 10080: /_set-fail-file-manifest — next N PATCH /worker/file-manifest calls 500 instead of succeeding
   sessionDeletes: [], // Track AM-10092: [{ track_number, bearerToken }] — every DELETE /track/:num/session, in order. The clear alone can't distinguish "no delete happened" from "a delete happened against the wrong track number"; this lets a test assert on the call itself, not just its side effect.
+  actionCalls: [], // Track AM-10095: [{ track_number, bearerToken, body }] — every PATCH /track/:num/action, in order. state.tracks[num] only shows the merged END result; this lets a test assert on an individual CLI-driven push (which collector got it, with which token, with exactly which fields) without a later call's merge masking an earlier one's shape.
 };
 
 // ── Tiny router helper ────────────────────────────────────────────────────────
@@ -352,6 +353,7 @@ const server = createServer(async (req, res) => {
     const { num } = params;
     const { lane_action_status, lane_action_result, lane_status, progress_percent, last_log_tail, active_cli,
       pr_number, pr_url, pr_status, merge_mode } = body;
+    state.actionCalls.push({ track_number: num, bearerToken: bearerToken ?? null, body });
     if (!state.tracks[num]) state.tracks[num] = { track_number: num, fail_count: 0 };
     const t = state.tracks[num];
     if (lane_action_status !== undefined) t.lane_action_status = lane_action_status;
@@ -493,6 +495,7 @@ const server = createServer(async (req, res) => {
     state.fileManifests = [];
     state.failFileManifestCount = 0;
     state.sessionDeletes = [];
+    state.actionCalls = [];
     return reply(res, 200, { ok: true });
   }
 
