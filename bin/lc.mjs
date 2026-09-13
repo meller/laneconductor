@@ -3068,26 +3068,28 @@ Please review this, answer any questions (some fields may contain questions rath
 
     writeFileSync(indexPath, content);
 
-    // Track AM-10095 (RC-2): this handler used to write index.md and stop —
-    // the DB (and therefore the Kanban board, which reads only from the DB)
-    // learned about the change purely by the separate, already-running sync
-    // worker noticing the file via chokidar and pushing it through, seconds
-    // later at best, or never if no worker happens to be running at all.
-    // Push the same values immediately, best-effort: a failure here must
-    // never block or fail the CLI command itself — the file write above
-    // already is the source of truth, and the worker's own file-watch sync
-    // still runs as a backstop. Only send fields this invocation actually
-    // changed; PATCH /track/:num/action treats a present field as intent to
-    // write, so an absent one must stay absent, not null/undefined.
-    if (lane && command !== 'pulse' && command !== 'rerun') {
-        try {
-            const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
-            if (cfg.mode !== 'local-fs') {
+    // Track AM-10095 (REQ-3/4/5): the write above changes only the local
+    // file — nothing here previously told any collector. In local-api /
+    // remote-api mode, the DB (and therefore the browser board) used to
+    // learn about a CLI-driven lane transition only once a SEPARATE,
+    // already-running sync worker noticed the file change via chokidar,
+    // debounced, and pushed it — and with no worker running at all, the DB
+    // never learned. Push the same fields this invocation just wrote,
+    // best-effort: wrapped exactly like the session-invalidation push above
+    // so an unreachable/erroring collector can never fail, block, or change
+    // this command's exit status.
+    try {
+        const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
+        if (cfg.mode !== 'local-fs') {
+            const actionBody = {};
+            // `pulse` never rewrites **Lane** (guarded the same way the
+            // file write above is, line 2998) — mirror that here so a
+            // pulse never sends a lane_status the file itself didn't set.
+            if (lane && command !== 'pulse') actionBody.lane_status = lane;
+            if (status) actionBody.lane_action_status = status;
+            if (prog) actionBody.progress_percent = Number(prog);
+            if (Object.keys(actionBody).length > 0) {
                 const collectors = (cfg.collectors || []).filter(c => c.enabled !== false);
-                const body = {};
-                if (lane) body.lane_status = lane;
-                if (status) body.lane_action_status = status;
-                if (prog) body.progress_percent = parseInt(prog, 10);
                 await Promise.allSettled(collectors.map((collector) => {
                     const idx = cfg.collectors.indexOf(collector);
                     const url = new URL(`${collector.url}/track/${trackNum}/action`);
@@ -3097,14 +3099,14 @@ Please review this, answer any questions (some fields may contain questions rath
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json',
-                            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                         },
-                        body: JSON.stringify(body),
+                        body: JSON.stringify(actionBody),
                     }).catch(() => {});
                 }));
             }
-        } catch { /* best effort — a push failure must never block the lane move itself */ }
-    }
+        }
+    } catch { /* best effort — a collector-push failure must never block the lane move itself */ }
 
     if (runFlag && lane && !['backlog', 'done', 'pulse'].includes(command)) {
         // --run: spawn the AI agent in the foreground immediately
