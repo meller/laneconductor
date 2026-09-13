@@ -3,6 +3,7 @@
 **Lane**: done
 **Lane Status**: success
 **Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Merged to main (39a45341) — Phases 1,2,3,4,5,7 done (fix, gitignore, cleanup tool, main cleaned, tests); Phase 6 (other live worktrees + livingwork/otralingo) deliberately deferred — see plan.md
 **Type**: dev
 **Merge Mode**: direct
