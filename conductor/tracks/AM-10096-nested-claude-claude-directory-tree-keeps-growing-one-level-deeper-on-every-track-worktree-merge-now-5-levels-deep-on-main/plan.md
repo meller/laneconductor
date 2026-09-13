@@ -51,11 +51,11 @@ put it there. Covered by TC-15.
 
 **Solution**: Replace the block with a call to the Phase 1 helper.
 
-- [ ] Import `copyClaudeDir` in `conductor/laneconductor.sync.mjs`.
-- [ ] Replace the `claudeSrc`/`claudeDest`/`execSync` block with the call,
+- [x] Import `copyClaudeDir` in `conductor/laneconductor.sync.mjs`.
+- [x] Replace the `claudeSrc`/`claudeDest`/`execSync` block with the call,
       keeping the existing warn-and-continue error handling — a failed `.claude`
       copy must never fail worktree creation.
-- [ ] Confirm by grep that `cp -r` has no remaining call site in `bin/`,
+- [x] Confirm by grep that `cp -r` has no remaining call site in `bin/`,
       `conductor/`, or `ui/server/`. It is currently the only one.
 
 **Impact**: Growth stops at the source, for this repository and for every other

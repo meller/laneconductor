@@ -54,6 +54,7 @@ import { isProviderExhausted, isModelMisconfigured } from './services/exhaustion
 import { classifyAutoCompleteOutcome } from './services/auto-complete.mjs';
 import { resolveWorktreeAddArgs, renderWorktreeAddCommand } from './services/worktree-create-args.mjs';
 import { probeWorktreeStartPoint, writeStaleBaseNotice } from './services/worktree-start-point.mjs';
+import { copyClaudeDir } from './services/claude-dir-copy.mjs';
 import { getMainBranch } from './services/main-branch.mjs';
 import { belongsInWorktreesPanel } from './services/worktree-panel-scope.mjs';
 import { mergeIndexMarkers, copyWorktreeArtifactsToPrimary } from './services/worktree-artifact-merge.mjs';
@@ -5002,15 +5003,19 @@ async function createWorktree(trackNumber) {
       }
     }
 
-    // Copy .claude directory for skills
-    const claudeSrc = join(repoRoot, '.claude');
-    const claudeDest = join(worktreePath, '.claude');
-    if (existsSync(claudeSrc)) {
-      try {
-        execSync(`cp -r "${claudeSrc}" "${claudeDest}"`, { stdio: 'pipe' });
-      } catch (e) {
-        console.warn(`[worktree] Failed to copy .claude to worktree: ${e.message}`);
-      }
+    // Copy .claude directory for skills.
+    //
+    // Track AM-10096: this used to be `execSync('cp -r "<src>" "<dest>"')`,
+    // which hits cp's destination-exists trap on every call — git worktree
+    // add already checks out any tracked .claude/ files before this runs,
+    // so cp -r copies the source directory INTO the existing destination
+    // rather than copying its contents, nesting one more .claude level per
+    // worktree creation. Do not reintroduce a shell `cp -r` here; see
+    // services/claude-dir-copy.mjs's header for the full history.
+    try {
+      copyClaudeDir(repoRoot, worktreePath);
+    } catch (e) {
+      console.warn(`[worktree] Failed to copy .claude to worktree: ${e.message}`);
     }
 
     return worktreePath;
