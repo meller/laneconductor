@@ -1,8 +1,9 @@
 # Track AM-10095: Kanban board can display a stale lane_action_status for seconds (up to 30s) after a CLI/worker write, with no staleness indicator
 
-**Lane**: review
+**Lane**: quality-gate
 **Lane Status**: queue
 **Progress**: 100%
+**Verdict**: pass
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — 4 phases defined
 **Type**: dev
