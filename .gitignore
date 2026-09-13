@@ -90,6 +90,16 @@ playwright-report/
 .claude/skills/*/
 !.claude/skills/laneconductor/
 
+# Track AM-10096: a nested .claude/.claude must never be committable, at any
+# depth. The rules above are root-anchored and do not reach a nested path,
+# which is exactly how a worktree-creation bug (see
+# conductor/services/claude-dir-copy.mjs) let 480 otherwise-ignored files
+# ride onto main across five nesting levels — an agent's ordinary `git add`
+# inside a worktree swept each new level in. This is defense in depth behind
+# that fix, not a substitute for it, and does not untrack what commit
+# fix(track-10096) already removed.
+**/.claude/.claude/
+
 # Antigravity local skills
 .agents/skills/
 
