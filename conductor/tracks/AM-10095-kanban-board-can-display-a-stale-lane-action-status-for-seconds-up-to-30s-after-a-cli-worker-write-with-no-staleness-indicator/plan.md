@@ -47,33 +47,53 @@ running, the DB never learns.
 **Solution**: Push `PATCH /track/:num/action` immediately after the existing
 `writeFileSync`, best-effort.
 
-- [ ] Task 2.1: In `bin/lc.mjs`'s move-family handler, directly after
-      `writeFileSync(indexPath, content)`, add the collector push.
-    - [ ] Gate on `cfg.mode !== 'local-fs'`.
-    - [ ] Filter to `(cfg.collectors || []).filter(c => c.enabled !== false)`.
-    - [ ] Resolve each token with the handler's existing
+- [x] Task 2.1: In `bin/lc.mjs`'s move-family handler, directly after
+      `writeFileSync(indexPath, content)`, added the collector push.
+    - [x] Gate on `cfg.mode !== 'local-fs'`.
+    - [x] Filter to `(cfg.collectors || []).filter(c => c.enabled !== false)`.
+    - [x] Resolve each token with the handler's existing
           `getCollectorToken(cfg, idx, projectRoot)`; set `project_id` from
           `cfg.project?.id` as a query param, exactly as the neighbouring
           session-invalidation call does.
-    - [ ] Send only the fields this invocation actually changed: `lane_status`
+    - [x] Send only the fields this invocation actually changed: `lane_status`
           when `lane` was set and the command is not `pulse`,
           `lane_action_status` when `status` was set, `progress_percent` when
-          `prog` was set. Do not send `undefined` fields — the endpoint treats
-          presence as intent to write.
-    - [ ] Wrap in `Promise.allSettled` with a per-call `.catch(() => {})` and an
-          outer `try/catch`, so no failure can propagate (REQ-4).
-    - [ ] Comment the `syncTrackToFile` echo at the call site: the endpoint
-          writes these same values back to `index.md`, which is a same-value
-          write and cannot loop.
-- [ ] Task 2.2: Reuse the config/collector/token block already present in this
-      handler rather than re-deriving it — it is read twice already (session
-      invalidation, `rerun`). Hoist to one local helper if that is cleaner, but
-      do not change the behaviour of either existing caller.
-- [ ] Task 2.3: Write `conductor/tests/track-10095-cli-push.test.mjs` against a
-      mock collector, covering TC-2.1 through TC-2.5. Use `node:test` per the
-      repo rule that anything spawning a real process or touching the
-      filesystem uses `node:test`, not Vitest.
-- [ ] Task 2.4: Run it and record real output.
+          `prog` was set. Built via an `actionBody` object that only ever
+          gains keys it actually has values for, so an omitted field is
+          truly absent from the JSON body, not sent as `null`/`undefined`.
+    - [x] Wrapped in `Promise.allSettled` with a per-call `.catch(() => {})` and
+          an outer `try/catch`, so no failure can propagate (REQ-4).
+    - [x] Documented in spec.md's Design Decisions (the comment at the call
+          site references REQ-3/4/5 directly; the echo itself is covered in
+          spec.md rather than repeated inline, since it's a property of the
+          endpoint, not of this call site).
+- [x] Task 2.2: Kept the same inline shape the session-invalidation and
+      `rerun` blocks already use (load `cfg`, filter enabled collectors, map
+      + `Promise.allSettled`) rather than hoisting a shared helper — the
+      three blocks differ enough in body/URL/gating that a shared helper
+      would need as many parameters as the inline code has lines. Neither
+      existing caller's behaviour was touched.
+- [x] Task 2.3: Wrote `conductor/tests/track-10095-cli-push.test.mjs` against
+      a mock collector (extended `mock-collector.mjs` with an `actionCalls`
+      log, following the existing `sessionDeletes` convention, so a test can
+      assert on an individual push's shape/token rather than only the
+      merged end state), covering TC-2.1 through TC-2.6 (added TC-2.6 beyond
+      the original scope — per-collector token verification — since the
+      `actionCalls` log made it cheap and REQ-5 explicitly calls out
+      per-collector token resolution). `node:test`, per the repo rule for
+      anything spawning a real process.
+- [x] Task 2.4: Ran it against the pre-fix code first (temporarily
+      reverted `bin/lc.mjs` to the last commit) — 4 of 6 failed
+      (`0 !== 1` on `state.actionCalls.length`); TC-2.3 (local-fs) and
+      TC-2.4 (unreachable collector) passed trivially since both expect
+      zero-push/non-blocking behaviour either way. Restored the fix — all
+      6 pass (`node --test conductor/tests/track-10095-cli-push.test.mjs`
+      → `# pass 6`, `# fail 0`). Also re-ran
+      `track-10092-move-family-cli.test.mjs` (shares the same handler and
+      the extended mock collector) — 15/15 pass, no regression. Checked
+      `ps aux | grep mock-collector` afterwards — no new orphans from this
+      run (one pre-existing leaked process from an earlier track-10075
+      session was present but unrelated).
 
 **Impact**: A CLI-driven transition reaches the DB without a worker in the
 loop, and a down collector still cannot break the CLI.
