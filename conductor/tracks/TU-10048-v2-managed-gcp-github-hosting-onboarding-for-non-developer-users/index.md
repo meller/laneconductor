@@ -1,4 +1,4 @@
-# Track TU-10048: V2: Managed GCP/GitHub Hosting — Onboarding for Non-Developer Users
+# Track TU-10048: V3 (later): Vendor-hosted managed GCP/GitHub Hosting — Onboarding for Non-Developer Users
 
 **Lane**: backlog
 **Lane Status**: queue
@@ -10,7 +10,7 @@
 **Created By**: test@example.com
 **Summary**: Currently LaneConductor targets developers who bring their own GCP + GitHub credentials and self-host. V2 direction: offer a managed/hosted option where LaneConductor holds the GCP + GitHub…
 
-This is a deliberate v2 -- not something to build now. BYO-credentials is the right starting point (smaller build, matches the current developer-focused audience, no multi-tenant infra/billing/liability burden). This track exists to capture the requirements/shape of the managed option for when there is real demand signal that self-setup is a blocker for a meaningful audience.
+Relabeled from V2 to V3/later (2026-09-13): the roadmap now defines v2 as the customer-owned hub profile (worker-less org-management node; see the hub track), which meets most of the need this track captured -- team coordination, shared visibility, non-developer onboarding -- with none of the held-credential, multi-tenant-isolation or billing liability. This track stays as the capture of the fully vendor-hosted option for if and when demand for it outlives the customer-owned model. This is a deliberate later-phase item -- not something to build now. BYO-credentials is the right starting point (smaller build, matches the current developer-focused audience, no multi-tenant infra/billing/liability burden). This track exists to capture the requirements/shape of the managed option for when there is real demand signal that self-setup is a blocker for a meaningful audience.
 
 Open questions to resolve during planning, not now:
 - Credential model: LaneConductor's own GCP org managing per-user projects vs. a lighter delegation/impersonation model where users grant scoped access without LaneConductor ever holding raw keys.
