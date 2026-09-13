@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 85%
-**Last Run**: claude/claude-sonnet-5 (implement)
+**Progress**: 100%
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implemented — Phases 1,2,3,4,5,7 done (fix, gitignore, cleanup tool, main cleaned, tests); Phase 6 (other live worktrees + livingwork/otralingo) deliberately deferred — see plan.md
 **Type**: dev
 **Track Kind**: bug
