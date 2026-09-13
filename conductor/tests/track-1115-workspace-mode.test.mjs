@@ -234,6 +234,16 @@ describe('findDisqualifyingDirtyPaths (dogfooding 2026-08-25 regression)', () =>
     assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/10020-bug-fixes-round-2/'), []);
   });
 
+  it('exempts another track\'s .prespawn-block-count and .prespawn-block-kind (track AM-10097 — same shape as .conv-cursor above, a .gitignore entry alone does not help an already-committed file)', () => {
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/1052-show-hn/.prespawn-block-count'), true);
+    assert.equal(isWorkerBookkeepingPath('conductor/tracks/1052-show-hn/.prespawn-block-kind'), true);
+    const dirty = [
+      'conductor/tracks/1052-show-hn/.prespawn-block-count',
+      'conductor/tracks/999-canary/.prespawn-block-kind',
+    ];
+    assert.deepEqual(findDisqualifyingDirtyPaths(dirty, 'conductor/tracks/10020-bug-fixes-round-2/'), []);
+  });
+
   it('an entirely-new untracked track folder is NOT exempted by the pure function alone — git collapses it to one line first (dogfooding 2026-08-31, track AM-10045)', () => {
     // This is the false-negative the bug actually lived in: the regex logic
     // below was always correct, but a brand-new track folder never reaches

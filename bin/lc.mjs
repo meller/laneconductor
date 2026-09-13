@@ -22,6 +22,7 @@ import { META_PROJECT_NAME, META_PROJECT_REPO_PATH, ensureMetaProjectOnDisk } fr
 import { resolveTrackFolderFs } from '../conductor/services/track-folder-fs.mjs';
 import { buildInstanceState } from '../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../conductor/services/setup-gaps.mjs';
+import { ensureScaffoldGitignore } from '../conductor/services/scaffold-gitignore.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../conductor/services/jira-auth.mjs';
 import { loadMetaDefaults, mergeEffectivePrimary, mergeWorkflowConfig } from '../conductor/services/meta-defaults.mjs';
 import { isPidAlive, readProcessCommand, runMarkerPath } from '../conductor/services/run-marker.mjs';
@@ -1119,47 +1120,25 @@ Choice [${defaultSecNum}]: `) || defaultSecNum;
         }
         if (envContent.trim()) writeFileSync('.env', envContent.trim() + '\n');
 
-        // conversation.md/.json are excluded because comments sync via the
-        // DB/API layer, not git — left untracked, they show up as permanent
-        // "uncommitted changes" that trip the main-mode lane actions' clean-
-        // checkout gate (git-lock.mjs) and block every merge project-wide,
-        // not just the track whose worktree happens to be dirty.
-        // .conv-cursor (per-track sync cursor position, laneconductor.sync.mjs),
-        // .worktrees/ (git worktree checkouts — this repo's own .gitignore has
-        // had it from the start), conductor/.runs/ (per-run dispatch markers),
-        // and conductor/tracks/**/.prespawn-block-count + .prespawn-block-kind
-        // (per-track counters, conductor/services/prespawn-block-counter.mjs)
-        // are all the same class of runtime state, not content — already
-        // gitignored in THIS repo (some ad-hoc, some not even here — see
-        // track AM-10097), but missing from this shared template, so every
-        // OTHER project scaffolded via `lc setup` never got them and
-        // accumulates the same permanent-dirty noise. Confirmed live on a
-        // sibling project: 6 track worktrees ended up accidentally tracked
-        // as git submodule-style gitlinks with no .worktrees/ rule to have
-        // stopped it. No path prefix on the bare filenames — they match at
-        // any depth, covering every track's own conductor/tracks/NNN-slug/.
-        const GITIGNORE_LINES = [
-            '.env',
-            '.laneconductor.json',
-            'conductor/tracks/**/conversation.md',
-            'conductor/tracks/**/conversation.json',
-            '.conv-cursor',
-            '.worktrees/',
-            'conductor/.runs/',
-            'conductor/tracks/**/.prespawn-block-count',
-            'conductor/tracks/**/.prespawn-block-kind',
-        ];
-        if (!existsSync('.gitignore')) {
-            writeFileSync('.gitignore', GITIGNORE_LINES.join('\n') + '\n');
-        } else {
-            const gitignore = readFileSync('.gitignore', 'utf8');
-            const missing = GITIGNORE_LINES.filter(line => !gitignore.includes(line));
-            if (missing.length > 0) {
-                // A leading newline guards against gluing onto a final line
-                // that has no trailing newline of its own.
-                const needsLeadingNewline = gitignore.length > 0 && !gitignore.endsWith('\n');
-                appendFileSync('.gitignore', (needsLeadingNewline ? '\n' : '') + missing.join('\n') + '\n');
-            }
+        // Track AM-10097: this used to be a hardcoded list, one of three
+        // unlinked copies (this repo's own .gitignore, this list, SKILL.md's
+        // prose fence) that drifted for months — .conv-cursor and
+        // .worktrees/ were added to this repo's .gitignore by hand but never
+        // reached this template, so every OTHER project scaffolded via
+        // `lc setup` accumulated the exact permanent-"uncommitted changes"
+        // noise (conversation.md/.json sync via the DB/API layer, not git;
+        // .conv-cursor is a per-track sync cursor; .worktrees/ holds git
+        // worktree checkouts that must never be tracked in the main tree —
+        // confirmed live: a sibling project ended up with 6 accidentally-
+        // tracked worktree gitlinks with nothing to have stopped it;
+        // conductor/.runs/ and .prespawn-block-count/-kind are per-track
+        // runtime bookkeeping) that trips the main-mode lane actions' clean-
+        // checkout gate and blocks every merge project-wide. Now the single
+        // source of truth — see conductor/services/scaffold-gitignore.mjs
+        // for the full pattern list and reasoning.
+        const { added } = ensureScaffoldGitignore(process.cwd(), { existsSync, readFileSync, writeFileSync, appendFileSync });
+        if (added.length > 0) {
+            console.log(`🔒 .gitignore updated (${added.length} pattern${added.length === 1 ? '' : 's'} added)`);
         }
 
         // Register project in DB for local-api mode

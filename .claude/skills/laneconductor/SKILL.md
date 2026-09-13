@@ -589,9 +589,15 @@ Also:
   .conv-cursor
   .worktrees/
   conductor/.runs/
-  conductor/tracks/**/.prespawn-block-count
-  conductor/tracks/**/.prespawn-block-kind
+  .prespawn-block-count
+  .prespawn-block-kind
   ```
+  (Bare filenames — `.conv-cursor`, `.prespawn-block-count`,
+  `.prespawn-block-kind` — match at any depth, the same way a
+  path-prefixed `conductor/tracks/**/` spelling would; keep the bare form
+  so a future reader can tell these are the same canonical pattern list
+  `conductor/services/scaffold-gitignore.mjs` defines, not a hand-drifted
+  copy.)
   `conversation.md`/`.json` hold comment threads that sync via the DB/API
   layer, not git; `.conv-cursor` (written by `laneconductor.sync.mjs`) is a
   per-track, per-machine sync cursor position; `.worktrees/` holds git

@@ -155,6 +155,14 @@ export function resolveWorkspaceMode({
 // still reports them as dirty on every advance. Exempted here alongside
 // the file itself being untracked (git rm --cached) so this doesn't
 // recur even where a stray .conv-cursor slips back into the index.
+//
+// Track AM-10097: .prespawn-block-count/.prespawn-block-kind
+// (conductor/services/prespawn-block-counter.mjs) are the exact same
+// per-track, routinely-rewritten bookkeeping shape as .conv-cursor above —
+// a .gitignore entry alone does not help a file that was already committed
+// before the entry existed, which is precisely the 27-committed-.conv-cursor
+// precedent this comment already documents. Exempted here as defence in
+// depth alongside the .gitignore fix, not instead of it.
 // Dogfooding 2026-08-30: found live running a fresh wizard-generated
 // project with multiple Auto Run tracks — .laneconductor.json is rewritten
 // by this exact worker's own normal registration/config-sync (same
@@ -170,6 +178,7 @@ export function isWorkerBookkeepingPath(p) {
     || p === 'conductor/tracks/file_sync_queue.md'
     || /^conductor\/tracks\/[^/]+\/(index|plan|spec|test)\.md$/.test(p)
     || /^conductor\/tracks\/[^/]+\/\.conv-cursor(\.lock)?$/.test(p)
+    || /^conductor\/tracks\/[^/]+\/\.prespawn-block-(count|kind)$/.test(p)
     || /^conductor\/tracks\/_duplicate-[^/]+\/?/.test(p);
 }
 

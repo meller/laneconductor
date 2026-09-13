@@ -1,9 +1,9 @@
 # Track AM-10097: Canonical project scaffold gitignore template is missing several disposable runtime-state patterns this repo already carries
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 50%
-**Phase**: New
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Planned
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
