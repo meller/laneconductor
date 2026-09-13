@@ -1124,23 +1124,42 @@ Choice [${defaultSecNum}]: `) || defaultSecNum;
         // "uncommitted changes" that trip the main-mode lane actions' clean-
         // checkout gate (git-lock.mjs) and block every merge project-wide,
         // not just the track whose worktree happens to be dirty.
-        // .conv-cursor (per-track sync cursor position, written by
-        // laneconductor.sync.mjs) is the same class of runtime state, not
-        // content — already gitignored ad-hoc in this repo's own
-        // .gitignore, but missing from this shared template, so every OTHER
-        // project scaffolded via `lc setup` never got it and accumulates the
-        // same permanent-dirty noise. No path prefix: a bare filename
-        // pattern matches at any depth, so this covers every track's own
-        // conductor/tracks/NNN-slug/.conv-cursor.
+        // .conv-cursor (per-track sync cursor position, laneconductor.sync.mjs),
+        // .worktrees/ (git worktree checkouts — this repo's own .gitignore has
+        // had it from the start), conductor/.runs/ (per-run dispatch markers),
+        // and conductor/tracks/**/.prespawn-block-count + .prespawn-block-kind
+        // (per-track counters, conductor/services/prespawn-block-counter.mjs)
+        // are all the same class of runtime state, not content — already
+        // gitignored in THIS repo (some ad-hoc, some not even here — see
+        // track AM-10097), but missing from this shared template, so every
+        // OTHER project scaffolded via `lc setup` never got them and
+        // accumulates the same permanent-dirty noise. Confirmed live on a
+        // sibling project: 6 track worktrees ended up accidentally tracked
+        // as git submodule-style gitlinks with no .worktrees/ rule to have
+        // stopped it. No path prefix on the bare filenames — they match at
+        // any depth, covering every track's own conductor/tracks/NNN-slug/.
+        const GITIGNORE_LINES = [
+            '.env',
+            '.laneconductor.json',
+            'conductor/tracks/**/conversation.md',
+            'conductor/tracks/**/conversation.json',
+            '.conv-cursor',
+            '.worktrees/',
+            'conductor/.runs/',
+            'conductor/tracks/**/.prespawn-block-count',
+            'conductor/tracks/**/.prespawn-block-kind',
+        ];
         if (!existsSync('.gitignore')) {
-            writeFileSync('.gitignore', '.env\n.laneconductor.json\nconductor/tracks/**/conversation.md\nconductor/tracks/**/conversation.json\n.conv-cursor\n');
+            writeFileSync('.gitignore', GITIGNORE_LINES.join('\n') + '\n');
         } else {
             const gitignore = readFileSync('.gitignore', 'utf8');
-            if (!gitignore.includes('.env')) appendFileSync('.gitignore', '\n.env\n');
-            if (!gitignore.includes('.laneconductor.json')) appendFileSync('.gitignore', '.laneconductor.json\n');
-            if (!gitignore.includes('conductor/tracks/**/conversation.md')) appendFileSync('.gitignore', 'conductor/tracks/**/conversation.md\n');
-            if (!gitignore.includes('conductor/tracks/**/conversation.json')) appendFileSync('.gitignore', 'conductor/tracks/**/conversation.json\n');
-            if (!gitignore.includes('.conv-cursor')) appendFileSync('.gitignore', '.conv-cursor\n');
+            const missing = GITIGNORE_LINES.filter(line => !gitignore.includes(line));
+            if (missing.length > 0) {
+                // A leading newline guards against gluing onto a final line
+                // that has no trailing newline of its own.
+                const needsLeadingNewline = gitignore.length > 0 && !gitignore.endsWith('\n');
+                appendFileSync('.gitignore', (needsLeadingNewline ? '\n' : '') + missing.join('\n') + '\n');
+            }
         }
 
         // Register project in DB for local-api mode

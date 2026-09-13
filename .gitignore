@@ -34,6 +34,14 @@ conductor/.locks/
 # reconciliation) — machine-local runtime state, not versioned
 conductor/.runs/
 
+# Track AM-10097: per-track pre-spawn-block counters
+# (conductor/services/prespawn-block-counter.mjs's COUNT_FILE/KIND_FILE) —
+# same disposable-bookkeeping category as .conv-cursor above, but was never
+# actually added anywhere, including here, until a sibling project's own
+# dirty checkout surfaced the gap.
+conductor/tracks/**/.prespawn-block-count
+conductor/tracks/**/.prespawn-block-kind
+
 # Found live 2026-09-07 (track 10076): per-track doc-sync merge-base cache
 # (track 10073's design) — machine-local runtime state, not versioned. Left
 # untracked and unignored, it shows up as "dirty" in every main-mode spawn's

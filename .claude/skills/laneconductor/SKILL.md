@@ -587,21 +587,32 @@ Also:
   conductor/tracks/**/conversation.md
   conductor/tracks/**/conversation.json
   .conv-cursor
+  .worktrees/
+  conductor/.runs/
+  conductor/tracks/**/.prespawn-block-count
+  conductor/tracks/**/.prespawn-block-kind
   ```
   `conversation.md`/`.json` hold comment threads that sync via the DB/API
   layer, not git; `.conv-cursor` (written by `laneconductor.sync.mjs`) is a
-  per-track, per-machine sync cursor position. Left tracked, all three show
-  up as permanent "uncommitted changes" that trip the main-mode lane
-  actions' clean-checkout gate and block every merge project-wide — not
-  just the one track whose file happens to be dirty. This mirrors the exact
-  patterns `lc setup` (CLI mode) already writes into `.gitignore` — do it
-  here too, since skill-only mode (no `lc` CLI) never runs that code path
-  and would otherwise accumulate the same problem with nothing preventing
-  it. Do **not** add `conductor/tracks/**/index.md` here — unlike the three
-  above, `index.md` carries real authored content (the track's Problem/
-  Solution write-up) that IS worth tracking; a project that finds its own
-  `index.md` diffs are pure marker-churn noise should decide that for
-  itself, not inherit it silently from scaffolding.
+  per-track, per-machine sync cursor position; `.worktrees/` holds git
+  worktree checkouts, which must never be tracked in the main tree at all —
+  confirmed live on a sibling project: without this rule, 6 track worktrees
+  ended up accidentally committed as git submodule-style gitlinks;
+  `conductor/.runs/` holds per-run dispatch/pid-liveness markers;
+  `.prespawn-block-count`/`.prespawn-block-kind` (written by
+  `conductor/services/prespawn-block-counter.mjs`) are per-track counters.
+  Left tracked, all of these show up as permanent "uncommitted changes"
+  that trip the main-mode lane actions' clean-checkout gate and block every
+  merge project-wide — not just the one track whose file happens to be
+  dirty. This mirrors the exact patterns `lc setup` (CLI mode) already
+  writes into `.gitignore` — do it here too, since skill-only mode (no `lc`
+  CLI) never runs that code path and would otherwise accumulate the same
+  problem with nothing preventing it. Do **not** add
+  `conductor/tracks/**/index.md` here — unlike everything above, `index.md`
+  carries real authored content (the track's Problem/Solution write-up)
+  that IS worth tracking; a project that finds its own `index.md` diffs are
+  pure marker-churn noise should decide that for itself, not inherit it
+  silently from scaffolding.
 - **Symlink the skill into this project** so AI agents can invoke it locally:
   ```bash
   SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
