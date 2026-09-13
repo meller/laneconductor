@@ -13,17 +13,17 @@ so its destination-exists trap was invisible.
 **Solution**: A small module under `conductor/services/`, matching the pattern
 `worktree-start-point.mjs` already set for safety-critical worktree decisions.
 
-- [ ] Create `conductor/services/claude-dir-copy.mjs`
-    - [ ] Export `shouldCopyClaudeEntry(relPath)` — a pure predicate over a path
+- [x] Create `conductor/services/claude-dir-copy.mjs`
+    - [x] Export `shouldCopyClaudeEntry(relPath)` — a pure predicate over a path
           relative to the source `.claude` root. Returns false for any entry
           whose first segment is `.claude` (REQ-3, blocks propagating an
           existing nest), and false for `settings.local.json`,
           `scheduled_tasks.lock`, and `worktrees` (REQ-4, machine-local state).
-    - [ ] Export `copyClaudeDir(repoRoot, worktreePath)` — resolves source and
+    - [x] Export `copyClaudeDir(repoRoot, worktreePath)` — resolves source and
           destination, returns early when the source is absent, and copies with
           `fs.cpSync(src, dest, { recursive: true, filter })` where the filter
           delegates to the predicate.
-    - [ ] Comment the `cpSync`-over-`cp -r` choice at the call site, naming this
+    - [x] Comment the `cpSync`-over-`cp -r` choice at the call site, naming this
           track, so the shell form is not reintroduced.
 
 **Impact**: The nesting rule becomes unit-testable in isolation, with no git and
@@ -34,6 +34,15 @@ no worktree required.
 leave depth at 1, whereas a single `cp -r` into the same destination produces
 `dest/.claude`. `cpSync` also avoids the shell entirely, so paths containing
 spaces or quotes stop being a latent hazard.
+
+**Found during TDD, not in the original plan**: TC-15 caught a self-healing
+gap the filter alone cannot close. When a repository's `.claude/.claude` is
+itself **tracked in git** (main's current state, pending Phase 5), `git
+worktree add` checks that nested content out into the destination directly,
+before `copyClaudeDir` ever runs — the copy's filter only controls what our
+own copy adds, it cannot un-write what git already materialized. `copyClaudeDir`
+now also removes `<dest>/.claude/.claude` after copying, whichever mechanism
+put it there. Covered by TC-15.
 
 ## Phase 2: Use the service in `createWorktree`
 
