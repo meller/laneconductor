@@ -104,24 +104,36 @@ loop, and a down collector still cannot break the CLI.
 header reads "updated 1s ago" throughout it.
 **Solution**: Lower the ceiling, and give the indicator a stale state.
 
-- [ ] Task 3.1: In `ui/src/hooks/usePolling.js`, change
-      `POLL_INTERVAL_CONNECTED` from `30000` to `10000` (REQ-6). Leave
+- [x] Task 3.1: In `ui/src/hooks/usePolling.js`, changed
+      `POLL_INTERVAL_CONNECTED` from `30000` to `10000` (REQ-6). Left
       `POLL_INTERVAL_DEFAULT` at 2000.
-- [ ] Task 3.2: Derive and return a `stale` boolean from `lastUpdated` — true
-      once the gap since the last successful fetch exceeds a threshold set
-      comfortably above the connected interval, so a healthy board never
-      flickers into the stale state.
-    - [ ] Re-evaluate it on a timer, not only on fetch — a board that has
-          stopped fetching will never re-render on its own, which is exactly
-          when the signal matters.
-    - [ ] Do not touch `fetchData`, `inFlightRef`, or `pendingRerunRef`
-          (REQ-8).
-- [ ] Task 3.3: In `ui/src/App.jsx:562-575`, render the stale state in the
-      existing indicator — change the dot and the label together so the header
-      no longer reads as normal. Keep the existing `connecting…` and DB-error
-      branches untouched.
-- [ ] Task 3.4: Write `ui/src/hooks/usePolling.test.jsx` for TC-3.1 through
-      TC-3.3, with fake timers.
+- [x] Task 3.2: Derived and returned a `stale` boolean from `lastUpdated` —
+      true once the gap since the last successful fetch exceeds
+      `STALE_THRESHOLD_MS` (20000ms — 2x `POLL_INTERVAL_CONNECTED`), so a
+      healthy board never flickers into the stale state between two
+      ordinary polls.
+    - [x] Re-evaluated on its own 1s `setInterval`, not only on fetch — a
+          board that has stopped fetching will never re-render on its own,
+          which is exactly when the signal matters. Proven by TC-3.3, which
+          advances time with every fetch deliberately failing and still
+          observes `stale` flip to true.
+    - [x] `fetchData`, `inFlightRef`, and `pendingRerunRef` untouched — the
+          stale-tracking effect is a fully separate `useEffect`/`useState`
+          pair (REQ-8).
+- [x] Task 3.3: In `ui/src/App.jsx`'s header indicator, added a `stale`
+      branch between the existing `error` and normal branches — amber dot +
+      "stale — last update Xs ago" text, same dot+text DOM shape as the
+      normal branch so only color/copy changes. `connecting…` and DB-error
+      branches untouched. Verified with `npx vite build` (clean build, no
+      new warnings).
+- [x] Task 3.4: Wrote `ui/src/hooks/usePolling.test.jsx` — TC-3.1 through
+      TC-3.5 (added TC-3.4/3.5 beyond the original scope: "a successful
+      fetch clears staleness" and "a failed fetch does not refresh the
+      clock" are the natural complements to TC-3.3 and cost nothing extra
+      once the harness existed), using `vi.useFakeTimers()` +
+      `renderHook`/`act` from `@testing-library/react`, with `useWebSocket`
+      and `AuthContext` mocked so the hook can be driven deterministically
+      without a real socket or auth flow.
 
 **Impact**: Worst case drops from 30s to 10s, and past that the board says so.
 
@@ -132,14 +144,22 @@ header reads "updated 1s ago" throughout it.
 storm, and more broadcasts is the exact pressure that guard exists to absorb.
 **Solution**: Prove it still holds under the new broadcast rate.
 
-- [ ] Task 4.1: Add TC-4.1 to `ui/src/hooks/usePolling.test.jsx` — fire a burst
-      of `track:updated` messages inside one debounce window and assert the
-      resulting fetch count is collapsed, not one per message.
-- [ ] Task 4.2: Add TC-4.2 — a message arriving while a fetch is in flight sets
-      the pending rerun and produces exactly one follow-up fetch, not one per
-      message.
-- [ ] Task 4.3: Confirm by reading the final diff that every fetch still enters
-      through `fetchData` and that no new call site bypasses the guard.
+- [x] Task 4.1: Added TC-4.1 to `ui/src/hooks/usePolling.test.jsx` (written
+      alongside Task 3.4, same file/session) — fires 10 `track:updated`
+      messages inside one debounce window; asserts the resulting fetch
+      count increases by exactly one cycle's worth (4 parallel `fetch()`
+      calls for a `projectId: null` board), not ten.
+- [x] Task 4.2: Added TC-4.2 — two WS bursts land in separate debounce
+      windows while the first round's `fetch()` calls are deliberately left
+      unresolved (simulating a slow network round trip, the exact track
+      10013 scenario); several more messages arrive during the same
+      in-flight window. Asserts no new `fetch()` calls are issued until the
+      in-flight round resolves, at which point exactly one follow-up round
+      fires — not one per message.
+- [x] Task 4.3: Read the final diff (`git diff ui/src/`) — the only browser-
+      side changes are inside `usePolling.js` (constants + the new,
+      independent stale-tracking effect) and `App.jsx` (render-only, no new
+      `fetch(` calls). No new call site bypasses `fetchData`/`inFlightRef`.
 
 **Impact**: The coalescing fix is pinned by tests instead of by convention.
 

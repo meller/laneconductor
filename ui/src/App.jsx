@@ -161,7 +161,7 @@ function AppContent({ user, logout }) {
   const [sortDir, setSortDir] = useState('desc'); // 'asc' | 'desc'
   const [searchText, setSearchText] = useState('');
 
-  const { projects, tracks, workers, providers, waitingTracks, projectSummaries, loading, error, lastUpdated, refetch, wsConnected } = usePolling(selectedProjectId, {
+  const { projects, tracks, workers, providers, waitingTracks, projectSummaries, loading, error, lastUpdated, stale, refetch, wsConnected } = usePolling(selectedProjectId, {
     summaryOnly: viewMode === 'projects' && !selectedProjectId,
   });
 
@@ -571,6 +571,19 @@ function AppContent({ user, logout }) {
               'connecting…'
             ) : error ? (
               <span className="text-red-400">DB error: {error}</span>
+            ) : stale ? (
+              // Track AM-10095 (REQ-7): a confirmed-fresh render and a
+              // genuinely stale one used to look identical — this dot/text
+              // reads "updated Xs ago" in both, even during the window
+              // this whole track exists to bound. Distinguish them so a
+              // stale board never reads as normal.
+              <>
+                <div
+                  className="w-1.5 h-1.5 rounded-full bg-amber-400"
+                  title="No confirmed update recently — this view may be out of date"
+                />
+                <span className="text-amber-400">stale — last update {timeAgo(lastUpdated)}</span>
+              </>
             ) : (
               <>
                 <div
