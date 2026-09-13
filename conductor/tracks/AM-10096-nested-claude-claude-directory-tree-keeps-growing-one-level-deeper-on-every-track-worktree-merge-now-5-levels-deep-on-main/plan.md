@@ -70,9 +70,9 @@ has. That is what turned a local mess into 480 files on `main`.
 **Solution**: Ignore the nest itself at any depth. This is defense in depth
 behind Phase 2, not a substitute for it.
 
-- [ ] Add `**/.claude/.claude/` to `.gitignore` with a comment naming this track.
-- [ ] Verify with `git check-ignore -v .claude/.claude/settings.json`.
-- [ ] Note in the commit message that this does not untrack what is already
+- [x] Add `**/.claude/.claude/` to `.gitignore` with a comment naming this track.
+- [x] Verify with `git check-ignore -v .claude/.claude/settings.json`.
+- [x] Note in the commit message that this does not untrack what is already
       tracked — Phase 5 does that.
 
 **Impact**: Even if some future code path recreates a nest, no agent's
