@@ -13,17 +13,17 @@ so its destination-exists trap was invisible.
 **Solution**: A small module under `conductor/services/`, matching the pattern
 `worktree-start-point.mjs` already set for safety-critical worktree decisions.
 
-- [ ] Create `conductor/services/claude-dir-copy.mjs`
-    - [ ] Export `shouldCopyClaudeEntry(relPath)` — a pure predicate over a path
+- [x] Create `conductor/services/claude-dir-copy.mjs`
+    - [x] Export `shouldCopyClaudeEntry(relPath)` — a pure predicate over a path
           relative to the source `.claude` root. Returns false for any entry
           whose first segment is `.claude` (REQ-3, blocks propagating an
           existing nest), and false for `settings.local.json`,
           `scheduled_tasks.lock`, and `worktrees` (REQ-4, machine-local state).
-    - [ ] Export `copyClaudeDir(repoRoot, worktreePath)` — resolves source and
+    - [x] Export `copyClaudeDir(repoRoot, worktreePath)` — resolves source and
           destination, returns early when the source is absent, and copies with
           `fs.cpSync(src, dest, { recursive: true, filter })` where the filter
           delegates to the predicate.
-    - [ ] Comment the `cpSync`-over-`cp -r` choice at the call site, naming this
+    - [x] Comment the `cpSync`-over-`cp -r` choice at the call site, naming this
           track, so the shell form is not reintroduced.
 
 **Impact**: The nesting rule becomes unit-testable in isolation, with no git and
@@ -35,6 +35,15 @@ leave depth at 1, whereas a single `cp -r` into the same destination produces
 `dest/.claude`. `cpSync` also avoids the shell entirely, so paths containing
 spaces or quotes stop being a latent hazard.
 
+**Found during TDD, not in the original plan**: TC-15 caught a self-healing
+gap the filter alone cannot close. When a repository's `.claude/.claude` is
+itself **tracked in git** (main's current state, pending Phase 5), `git
+worktree add` checks that nested content out into the destination directly,
+before `copyClaudeDir` ever runs — the copy's filter only controls what our
+own copy adds, it cannot un-write what git already materialized. `copyClaudeDir`
+now also removes `<dest>/.claude/.claude` after copying, whichever mechanism
+put it there. Covered by TC-15.
+
 ## Phase 2: Use the service in `createWorktree`
 
 **Problem**: `conductor/laneconductor.sync.mjs:5005-5013` runs the defective
@@ -42,11 +51,11 @@ spaces or quotes stop being a latent hazard.
 
 **Solution**: Replace the block with a call to the Phase 1 helper.
 
-- [ ] Import `copyClaudeDir` in `conductor/laneconductor.sync.mjs`.
-- [ ] Replace the `claudeSrc`/`claudeDest`/`execSync` block with the call,
+- [x] Import `copyClaudeDir` in `conductor/laneconductor.sync.mjs`.
+- [x] Replace the `claudeSrc`/`claudeDest`/`execSync` block with the call,
       keeping the existing warn-and-continue error handling — a failed `.claude`
       copy must never fail worktree creation.
-- [ ] Confirm by grep that `cp -r` has no remaining call site in `bin/`,
+- [x] Confirm by grep that `cp -r` has no remaining call site in `bin/`,
       `conductor/`, or `ui/server/`. It is currently the only one.
 
 **Impact**: Growth stops at the source, for this repository and for every other
@@ -61,9 +70,9 @@ has. That is what turned a local mess into 480 files on `main`.
 **Solution**: Ignore the nest itself at any depth. This is defense in depth
 behind Phase 2, not a substitute for it.
 
-- [ ] Add `**/.claude/.claude/` to `.gitignore` with a comment naming this track.
-- [ ] Verify with `git check-ignore -v .claude/.claude/settings.json`.
-- [ ] Note in the commit message that this does not untrack what is already
+- [x] Add `**/.claude/.claude/` to `.gitignore` with a comment naming this track.
+- [x] Verify with `git check-ignore -v .claude/.claude/settings.json`.
+- [x] Note in the commit message that this does not untrack what is already
       tracked — Phase 5 does that.
 
 **Impact**: Even if some future code path recreates a nest, no agent's
@@ -78,22 +87,44 @@ specific risk the track's problem statement calls out.
 **Solution**: A script that audits first and only deletes what it has proven to
 be duplicate.
 
-- [ ] Create `conductor/scripts/clean-nested-claude.mjs`
-    - [ ] Given a repository root, find every `.claude` nested under `.claude`.
-    - [ ] For each nested level, diff it against level 1, ignoring the nested
+- [x] Create `conductor/scripts/clean-nested-claude.mjs`
+    - [x] Given a repository root, find every `.claude` nested under `.claude`.
+    - [x] For each nested level, diff it against level 1, ignoring the nested
           `.claude` entry. Collect files unique to the deeper level and files
           whose deeper copy is newer than level 1's.
-    - [ ] Default to report-only. Print depth, file count, byte size, and any
+    - [x] Default to report-only. Print depth, file count, byte size, and any
           unique or newer file found.
-    - [ ] With `--fix`, delete `.claude/.claude` only when the audit found
+    - [x] With `--fix`, delete `.claude/.claude` only when the audit found
           nothing unique. With unique content present, refuse and exit non-zero
           naming the files (REQ-7).
-    - [ ] With `--worktrees`, apply the same audit to each `.worktrees/*` entry.
-    - [ ] Accept a repository path argument so it can be pointed at other
+    - [x] With `--worktrees`, apply the same audit to each `.worktrees/*` entry.
+    - [x] Accept a repository path argument so it can be pointed at other
           projects.
 
 **Impact**: Cleanup becomes repeatable and safe to run against unfamiliar
 repositories, rather than a one-off `rm -rf` nobody can audit afterwards.
+
+**Found running the tool for real, not in the original plan**: two bugs, both
+now covered by tests.
+
+1. Auditing a nested `.claude` against its OWN top level is only correct in
+   the environment the tool was designed for — a real primary checkout,
+   where every skill is genuinely installed on disk (`.gitignore` only keeps
+   most of them out of git, never off disk). A plain **git worktree** never
+   has those third-party skills checked out at its own top level at all
+   (`.gitignore` means `git worktree add` skips them), so comparing against
+   the worktree's own level 1 makes every one of them look "unique" and
+   wrongly refuses — this would have defeated Phase 6's `--worktrees`
+   cleanup on every one of the 40-plus real worktrees. Fixed by adding an
+   explicit `baselineDir` to `auditNestedClaude`/`cleanNestedClaude`, always
+   set to the primary checkout's own `.claude` when auditing a worktree
+   (TC-25).
+2. The CLI's own `--baseline <path>` flag, added to let a worktree-context
+   run point at the real primary checkout for reading, initially used that
+   same path as BOTH the baseline AND the thing being audited — so
+   `--baseline` on a worktree silently audited the primary checkout against
+   itself (always clean) instead of the worktree actually asked for. Fixed;
+   covered by a CLI-level subprocess test (TC-26).
 
 ## Phase 5: Clean this repository's `main`
 
@@ -102,17 +133,32 @@ from disk alone leaves them tracked; untracking alone leaves them on disk.
 
 **Solution**: One commit that does both, after the audit passes.
 
-- [ ] Run `clean-nested-claude.mjs` in report mode against the primary checkout
+- [x] Run `clean-nested-claude.mjs` in report mode against the primary checkout
       and confirm it reports no unique content — matching this planning session's
       own finding that the only divergence is a strictly older `SKILL.md` at each
       depth.
-- [ ] `git rm -r --cached .claude/.claude` and `rm -rf .claude/.claude`.
-- [ ] Commit as `fix(track-10096): remove nested .claude tree from main`.
-- [ ] Verify `git ls-files .claude` lists exactly `.claude/MEMORY.md`,
+- [x] `git rm -r --cached .claude/.claude` and `rm -rf .claude/.claude`.
+- [x] Commit as `fix(track-10096): remove nested .claude tree from main`.
+- [x] Verify `git ls-files .claude` lists exactly `.claude/MEMORY.md`,
       `.claude/settings.json`, `.claude/skills/laneconductor/SKILL.md`.
 
 **Impact**: `main` stops carrying the bloat, and subsequent track merges produce
 readable diffs again.
+
+**Workspace-mode adaptation, not in the original plan**: this track has no
+`**Workspace**: main` marker, so `implement` runs in this track's own
+worktree/branch, not the primary checkout — only the `done`-lane merge
+action (which holds the project's main-mode lock) is meant to write to the
+primary checkout directly. Doing `git rm -r --cached`/`rm -rf` against the
+LIVE primary checkout from an unrelated worktree session, without that
+lock, risks colliding with another lane action running there concurrently.
+So this phase's removal is a commit on `track-10096` itself (inherited from
+main at branch-creation time) — Merge Mode is `direct`, so the eventual
+merge carries this removal to `main` the normal way. The one read-only
+exception: the uniqueness audit (`clean-nested-claude.mjs --baseline`)
+reads the primary checkout's `.claude` as a baseline, since that's the only
+place all skills are genuinely installed on disk — reading is safe;
+nothing was written there.
 
 ## Phase 6: Clean the worktrees and the other affected projects
 
@@ -133,6 +179,32 @@ until each is cleaned or rebased.
 **Impact**: The existing damage is gone everywhere it was found, not just on
 `main`.
 
+**DEFERRED — not executed this run.** Unlike Phase 5, this phase reaches
+outside this track's own branch: 40-plus OTHER worktrees, at least 14 of
+which had active git locks at the time of this implement run (real,
+concurrent lane-action work), plus two entirely separate repositories
+(`livingwork`, `otralingo`) with no authorization granted to this track.
+Bulk-deleting inside another track's live worktree while its own lane
+action may be running, or writing into an unrelated project's repository,
+is exactly the outward-facing, hard-to-reverse territory this session's
+own standing rules say to confirm before doing, not infer authorization
+for. The tool built in Phase 4 is complete, tested (23/23,
+including the worktree-baseline fix found running it for real — see
+Phase 4's notes), and safe to run by hand once verified quiescent:
+
+```bash
+# This repository's worktrees (after confirming no active locks in .conductor/locks/):
+node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/laneconductor --worktrees --fix
+
+# Each other affected project (run from within, or point --baseline at its own primary .claude):
+node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/livingwork --fix
+node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/otralingo --fix
+```
+
+This is a genuine scope deferral, not a stub: nothing in `spec.md`'s
+Solution is claimed complete by skipping this, and the track's progress
+below reflects it (6/7 phases, not 100%).
+
 ## Phase 7: Regression tests
 
 **Problem**: This defect survived for the entire life of the repository — the
@@ -141,12 +213,12 @@ exercised the copy.
 
 **Solution**: Cover the predicate in isolation and the real behaviour end to end.
 
-- [ ] Create `conductor/tests/track-10096-claude-dir-nesting.test.mjs` per the
+- [x] Create `conductor/tests/track-10096-claude-dir-nesting.test.mjs` per the
       cases enumerated in `test.md`.
-- [ ] Include the end-to-end case that builds a temporary repository with its
+- [x] Include the end-to-end case that builds a temporary repository with its
       **own** `git init` and tracked `.claude/` files, then runs a real
       `git worktree add` plus the copy, and asserts depth 1.
-- [ ] Run the existing worktree test files to confirm no regression:
+- [x] Run the existing worktree test files to confirm no regression:
       `track-1114-worktree-create-args`, `track-10050-worktree-start-point`,
       `worktree-create-path-resolution`, `track-1110-copy-worktree-artifacts`.
 
