@@ -3,7 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-opus-5 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Planned — 4 phases defined
 **Type**: dev
 **Track Kind**: bug
