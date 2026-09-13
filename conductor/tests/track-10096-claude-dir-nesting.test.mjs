@@ -12,7 +12,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { shouldCopyClaudeEntry, copyClaudeDir } from '../services/claude-dir-copy.mjs';
 import { auditNestedClaude, cleanNestedClaude } from '../services/claude-nest-audit.mjs';
@@ -290,5 +291,58 @@ describe('claude-nest-audit (guarded cleanup, Phase 4)', () => {
     assert.equal(result.ok, true);
     assert.equal(result.removed, false);
     assert.equal(result.audit.depth, 1);
+  });
+
+  it('TC-25: a worktree baseline must be the PRIMARY repo .claude, not the worktree\'s own (found live)', () => {
+    // Reproduces the exact false-positive found running this tool for real:
+    // a gitignored third-party skill never gets checked out at a plain
+    // worktree's own top level, so comparing against the worktree's own
+    // level 1 makes pure duplication look "unique" and wrongly refuses.
+    const repoClaudeRoot = join(mkTmp('lc-repo-'), '.claude');
+    mkdirSync(join(repoClaudeRoot, 'skills', 'third-party-skill'), { recursive: true });
+    writeFileSync(join(repoClaudeRoot, 'skills', 'third-party-skill', 'SKILL.md'), 'installed for real');
+
+    // The worktree's OWN .claude never has third-party-skill (gitignored,
+    // never checked out) — only the nested (tracked-by-accident) copy does.
+    const worktreeClaudeRoot = join(mkTmp('lc-worktree-'), '.claude');
+    mkdirSync(join(worktreeClaudeRoot, '.claude', 'skills', 'third-party-skill'), { recursive: true });
+    writeFileSync(join(worktreeClaudeRoot, '.claude', 'skills', 'third-party-skill', 'SKILL.md'), 'installed for real');
+
+    // Without the fix: auditing against the worktree's own (incomplete) level 1.
+    const wrongBaseline = cleanNestedClaude(worktreeClaudeRoot, { fix: true });
+    assert.equal(wrongBaseline.ok, false, 'without the repo baseline this incorrectly refuses');
+
+    // With the fix: pass the primary repo's .claude as the baseline.
+    const correctBaseline = cleanNestedClaude(worktreeClaudeRoot, { fix: true, baselineDir: repoClaudeRoot });
+    assert.equal(correctBaseline.ok, true);
+    assert.equal(correctBaseline.removed, true);
+  });
+});
+
+describe('clean-nested-claude.mjs CLI', () => {
+  const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'clean-nested-claude.mjs');
+
+  it('TC-26: --baseline audits the GIVEN repo-path against the baseline, not the baseline against itself (found live)', () => {
+    // Reproduces a real bug caught running this CLI by hand: an early
+    // version resolved `--baseline <path>` and then used THAT SAME path as
+    // both the baseline AND the thing being audited, so `--baseline` on a
+    // worktree silently audited the primary checkout against itself
+    // (always clean) instead of the worktree that was actually asked for.
+    const primaryRoot = mkTmp('lc-cli-primary-');
+    mkdirSync(join(primaryRoot, '.claude', 'skills', 'third-party'), { recursive: true });
+    writeFileSync(join(primaryRoot, '.claude', 'skills', 'third-party', 'SKILL.md'), 'installed');
+
+    const worktreeRoot = mkTmp('lc-cli-worktree-');
+    mkdirSync(join(worktreeRoot, '.claude', '.claude', 'skills', 'third-party'), { recursive: true });
+    writeFileSync(join(worktreeRoot, '.claude', '.claude', 'skills', 'third-party', 'SKILL.md'), 'installed');
+
+    const result = execFileSync(
+      process.execPath,
+      [CLI, worktreeRoot, '--baseline', join(primaryRoot, '.claude')],
+      { encoding: 'utf8' }
+    );
+
+    assert.match(result, /nested 2 levels deep/, 'must report on the WORKTREE, not the baseline');
+    assert.doesNotMatch(result, /unique to a nested depth/);
   });
 });

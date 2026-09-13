@@ -104,6 +104,28 @@ be duplicate.
 **Impact**: Cleanup becomes repeatable and safe to run against unfamiliar
 repositories, rather than a one-off `rm -rf` nobody can audit afterwards.
 
+**Found running the tool for real, not in the original plan**: two bugs, both
+now covered by tests.
+
+1. Auditing a nested `.claude` against its OWN top level is only correct in
+   the environment the tool was designed for — a real primary checkout,
+   where every skill is genuinely installed on disk (`.gitignore` only keeps
+   most of them out of git, never off disk). A plain **git worktree** never
+   has those third-party skills checked out at its own top level at all
+   (`.gitignore` means `git worktree add` skips them), so comparing against
+   the worktree's own level 1 makes every one of them look "unique" and
+   wrongly refuses — this would have defeated Phase 6's `--worktrees`
+   cleanup on every one of the 40-plus real worktrees. Fixed by adding an
+   explicit `baselineDir` to `auditNestedClaude`/`cleanNestedClaude`, always
+   set to the primary checkout's own `.claude` when auditing a worktree
+   (TC-25).
+2. The CLI's own `--baseline <path>` flag, added to let a worktree-context
+   run point at the real primary checkout for reading, initially used that
+   same path as BOTH the baseline AND the thing being audited — so
+   `--baseline` on a worktree silently audited the primary checkout against
+   itself (always clean) instead of the worktree actually asked for. Fixed;
+   covered by a CLI-level subprocess test (TC-26).
+
 ## Phase 5: Clean this repository's `main`
 
 **Problem**: 480 tracked files, 6.4 MB, five levels deep on `main`. Deleting

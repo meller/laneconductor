@@ -73,17 +73,30 @@ function listFiles(dir) {
 
 /**
  * @param {string} claudeRoot - path to a `.claude` directory (level 1)
+ * @param {{ baselineDir?: string }} [opts] - what to compare nested levels
+ *   against. Defaults to `claudeRoot` itself, correct for the primary
+ *   checkout (where all skills are genuinely installed on disk, gitignore
+ *   only keeps them out of git — see conductor/product.md). A plain git
+ *   WORKTREE is a degenerate case: the third-party-skills .gitignore rule
+ *   means `git worktree add` never checks those directories out at the worktree's
+ *   own top level at all, so comparing against the worktree's own level 1
+ *   makes every third-party skill look "unique" (false positive) even
+ *   though it is pure duplication. Callers auditing a worktree MUST pass
+ *   the primary checkout's own `.claude` as `baselineDir` (see the CLI's
+ *   `--worktrees` handling) — found live running this exact tool against a
+ *   real worktree during this track's own implementation.
  * @returns {{
  *   depth: number,
  *   levels: Array<{ path: string, depth: number, fileCount: number, byteSize: number }>,
  *   uniqueFiles: Array<{ depth: number, path: string }>,
- *   newerFiles: Array<{ depth: number, path: string, level1MtimeMs: number, deeperMtimeMs: number }>
+ *   newerFiles: Array<{ depth: number, path: string, baselineMtimeMs: number, deeperMtimeMs: number }>
  * }}
  */
-export function auditNestedClaude(claudeRoot) {
+export function auditNestedClaude(claudeRoot, opts = {}) {
   const chain = findNestingChain(claudeRoot);
   const depth = chain.length;
-  const level1Files = chain.length > 0 ? listFiles(chain[0]) : new Map();
+  const baselineDir = opts.baselineDir || (chain.length > 0 ? chain[0] : null);
+  const baselineFiles = baselineDir ? listFiles(baselineDir) : new Map();
 
   const levels = [];
   const uniqueFiles = [];
@@ -96,11 +109,11 @@ export function auditNestedClaude(claudeRoot) {
     let byteSize = 0;
     for (const [relPath, meta] of files) {
       byteSize += meta.size;
-      const atLevel1 = level1Files.get(relPath);
-      if (!atLevel1) {
+      const atBaseline = baselineFiles.get(relPath);
+      if (!atBaseline) {
         uniqueFiles.push({ depth: levelDepth, path: relPath });
-      } else if (meta.mtimeMs > atLevel1.mtimeMs) {
-        newerFiles.push({ depth: levelDepth, path: relPath, level1MtimeMs: atLevel1.mtimeMs, deeperMtimeMs: meta.mtimeMs });
+      } else if (meta.mtimeMs > atBaseline.mtimeMs) {
+        newerFiles.push({ depth: levelDepth, path: relPath, baselineMtimeMs: atBaseline.mtimeMs, deeperMtimeMs: meta.mtimeMs });
       }
     }
     levels.push({ path: levelPath, depth: levelDepth, fileCount: files.size, byteSize });
@@ -111,11 +124,11 @@ export function auditNestedClaude(claudeRoot) {
 
 /**
  * @param {string} claudeRoot - path to a `.claude` directory (level 1)
- * @param {{ fix?: boolean }} [opts]
+ * @param {{ fix?: boolean, baselineDir?: string }} [opts] - see auditNestedClaude
  * @returns {{ ok: boolean, removed: boolean, audit: ReturnType<typeof auditNestedClaude>, reason?: string }}
  */
 export function cleanNestedClaude(claudeRoot, opts = {}) {
-  const audit = auditNestedClaude(claudeRoot);
+  const audit = auditNestedClaude(claudeRoot, { baselineDir: opts.baselineDir });
 
   if (audit.depth <= 1) {
     return { ok: true, removed: false, audit, reason: 'no nesting found' };
