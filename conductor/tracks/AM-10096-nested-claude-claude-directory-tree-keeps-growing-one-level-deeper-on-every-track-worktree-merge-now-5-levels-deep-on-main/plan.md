@@ -133,17 +133,32 @@ from disk alone leaves them tracked; untracking alone leaves them on disk.
 
 **Solution**: One commit that does both, after the audit passes.
 
-- [ ] Run `clean-nested-claude.mjs` in report mode against the primary checkout
+- [x] Run `clean-nested-claude.mjs` in report mode against the primary checkout
       and confirm it reports no unique content — matching this planning session's
       own finding that the only divergence is a strictly older `SKILL.md` at each
       depth.
-- [ ] `git rm -r --cached .claude/.claude` and `rm -rf .claude/.claude`.
-- [ ] Commit as `fix(track-10096): remove nested .claude tree from main`.
-- [ ] Verify `git ls-files .claude` lists exactly `.claude/MEMORY.md`,
+- [x] `git rm -r --cached .claude/.claude` and `rm -rf .claude/.claude`.
+- [x] Commit as `fix(track-10096): remove nested .claude tree from main`.
+- [x] Verify `git ls-files .claude` lists exactly `.claude/MEMORY.md`,
       `.claude/settings.json`, `.claude/skills/laneconductor/SKILL.md`.
 
 **Impact**: `main` stops carrying the bloat, and subsequent track merges produce
 readable diffs again.
+
+**Workspace-mode adaptation, not in the original plan**: this track has no
+`**Workspace**: main` marker, so `implement` runs in this track's own
+worktree/branch, not the primary checkout — only the `done`-lane merge
+action (which holds the project's main-mode lock) is meant to write to the
+primary checkout directly. Doing `git rm -r --cached`/`rm -rf` against the
+LIVE primary checkout from an unrelated worktree session, without that
+lock, risks colliding with another lane action running there concurrently.
+So this phase's removal is a commit on `track-10096` itself (inherited from
+main at branch-creation time) — Merge Mode is `direct`, so the eventual
+merge carries this removal to `main` the normal way. The one read-only
+exception: the uniqueness audit (`clean-nested-claude.mjs --baseline`)
+reads the primary checkout's `.claude` as a baseline, since that's the only
+place all skills are genuinely installed on disk — reading is safe;
+nothing was written there.
 
 ## Phase 6: Clean the worktrees and the other affected projects
 
