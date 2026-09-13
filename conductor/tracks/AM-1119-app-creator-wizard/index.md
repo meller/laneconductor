@@ -29,5 +29,5 @@ A five-step wizard (Basics → Product & KPIs → Design & Stack → Deployment 
 - [x] Phase 6: E2E validation — the digger game scenario (Task 3 spun out to track 1120)
 **PR Number**: 17
 **PR URL**: https://github.com/meller/laneconductor/pull/17
-**PR Status**: open
+**PR Status**: merged
 **Merge Mode**: direct

@@ -1,9 +1,9 @@
 # Track TU-10053: Port missing worker routes to the cloud function
 
 **Lane**: done
-**Lane Status**: success
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Complete (Phases 1-5 routing/deployment verified live). E2E + caveat removal moved to track TU-10054.
 **Type**: dev
 **Track Kind**: feature
 **Author**: TU

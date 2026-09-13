@@ -1,6 +1,6 @@
 # Track AM-10069: Manager chat surface — persistent, target-switchable conversation with live state and the /laneconductor skill
 
-**Lane**: plan
+**Lane**: done
 **Lane Status**: success
 **Progress**: 0%
 **Phase**: New

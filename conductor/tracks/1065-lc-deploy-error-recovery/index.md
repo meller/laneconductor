@@ -1,5 +1,6 @@
-**Lane**: quality-gate
-**Lane Status**: running
+**Lane**: done
+**Lane Status**: queue
 **Progress**: 100%
-**Summary**: Recovery needs the tail of the one failing step. `runDeploy` only accumulates the whole run's output, for URL resolution.
+**Summary**: When lc deploy fails, enter an interactive AI brainstorm loop to diagnose and fix the error, then re-run the failed step as a verification gate before continuing the remaining steps
 **Merge Mode**: direct
+**Waiting for reply**: no

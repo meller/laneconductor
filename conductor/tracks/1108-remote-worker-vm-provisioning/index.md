@@ -1,4 +1,4 @@
 **Lane**: backlog
-**Lane Status**: running
-**Progress**: 16%
-**Summary**: Four questions had no owning track and no answer, and every later phase depends on all four.
+**Lane Status**: success
+**Progress**: 100%
+**Summary**: In remote app/api mode, a user who logs in with zero registered hosts currently hits a dead end — nothing can run anywhere. Detect that state and offer creating a worker VM on the major hosting…

@@ -1,7 +1,7 @@
 # Track AM-1120: Wizard Real-Deploy Verification (Digger Game, Live Firebase)
 
 **Lane**: backlog
-**Lane Status**: running
+**Lane Status**: waiting
 **Progress**: 0%
 **Phase**: New
 **Type**: dev
@@ -36,3 +36,5 @@ generated track reach `done`, and does `curl $app_url` return HTTP 200 — in th
 - [ ] Phase 1: Confirm/provision a disposable Firebase or GCP project safe to deploy to (not laneconductor-site/makrodash/ocumentor-prod/otralingo)
 - [ ] Phase 2: Run the wizard end-to-end with a "digger game" description against that project; observe generated tracks run to done
 - [ ] Phase 3: Verify the recorded app_url is reachable (HTTP 200) and record findings
+**Waiting for reply**: no
+**Waiting Reason**: AM-1120 needs disposable Firebase/GCP project in plan.md Phase 1

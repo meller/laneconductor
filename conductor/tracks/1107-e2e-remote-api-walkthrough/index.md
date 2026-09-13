@@ -1,7 +1,7 @@
 # Track 1107: End-to-end walkthrough — remote app + API
 
 **Lane**: backlog
-**Lane Status**: running
+**Lane Status**: success
 **Progress**: 100%
 **Last Run**: mock (primary)
 **Phase**: Not started — opened 2026-08-12
