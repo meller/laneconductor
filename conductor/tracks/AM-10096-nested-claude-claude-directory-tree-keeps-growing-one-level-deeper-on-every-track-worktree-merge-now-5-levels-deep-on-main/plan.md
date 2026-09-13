@@ -179,6 +179,32 @@ until each is cleaned or rebased.
 **Impact**: The existing damage is gone everywhere it was found, not just on
 `main`.
 
+**DEFERRED — not executed this run.** Unlike Phase 5, this phase reaches
+outside this track's own branch: 40-plus OTHER worktrees, at least 14 of
+which had active git locks at the time of this implement run (real,
+concurrent lane-action work), plus two entirely separate repositories
+(`livingwork`, `otralingo`) with no authorization granted to this track.
+Bulk-deleting inside another track's live worktree while its own lane
+action may be running, or writing into an unrelated project's repository,
+is exactly the outward-facing, hard-to-reverse territory this session's
+own standing rules say to confirm before doing, not infer authorization
+for. The tool built in Phase 4 is complete, tested (23/23,
+including the worktree-baseline fix found running it for real — see
+Phase 4's notes), and safe to run by hand once verified quiescent:
+
+```bash
+# This repository's worktrees (after confirming no active locks in .conductor/locks/):
+node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/laneconductor --worktrees --fix
+
+# Each other affected project (run from within, or point --baseline at its own primary .claude):
+node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/livingwork --fix
+node conductor/scripts/clean-nested-claude.mjs /home/meller/Code/otralingo --fix
+```
+
+This is a genuine scope deferral, not a stub: nothing in `spec.md`'s
+Solution is claimed complete by skipping this, and the track's progress
+below reflects it (6/7 phases, not 100%).
+
 ## Phase 7: Regression tests
 
 **Problem**: This defect survived for the entire life of the repository — the
@@ -187,12 +213,12 @@ exercised the copy.
 
 **Solution**: Cover the predicate in isolation and the real behaviour end to end.
 
-- [ ] Create `conductor/tests/track-10096-claude-dir-nesting.test.mjs` per the
+- [x] Create `conductor/tests/track-10096-claude-dir-nesting.test.mjs` per the
       cases enumerated in `test.md`.
-- [ ] Include the end-to-end case that builds a temporary repository with its
+- [x] Include the end-to-end case that builds a temporary repository with its
       **own** `git init` and tracked `.claude/` files, then runs a real
       `git worktree add` plus the copy, and asserts depth 1.
-- [ ] Run the existing worktree test files to confirm no regression:
+- [x] Run the existing worktree test files to confirm no regression:
       `track-1114-worktree-create-args`, `track-10050-worktree-start-point`,
       `worktree-create-path-resolution`, `track-1110-copy-worktree-artifacts`.
 
