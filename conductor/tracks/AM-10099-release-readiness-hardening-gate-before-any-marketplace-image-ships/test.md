@@ -275,3 +275,58 @@ Cite these; they are the "fails today" reference for every TC below.
 - [ ] Primary checkout's `workflow.json` intact; no orphaned workers
 - [ ] No pre-existing assertion deleted or weakened to reach green
 - [ ] No regressions in related features
+
+---
+
+## Phase 11 — Gate's own gaps (planning pass 2026-09-18)
+
+Evidence for every case below is in spec.md's **Addendum — planning pass
+2026-09-18**. These are written-but-not-run: Phase 11 is planned, not
+implemented.
+
+- [ ] TC-11.1 (item k, blocking): Reproduce the whole-file overwrite.
+      Given a 13-line `index.md` with every author-owned marker, drive the
+      identified writer from Phase 11 Task 1 and assert the file still has
+      its `# H1`, `Problem`, `Type`, `Track Kind`, `Merge Mode`,
+      `Auto Run`, `Author`, `Created By`. Expected today: the reproduction
+      exists and fails — that is the point. If no writer can be made to
+      reproduce it, say so explicitly rather than closing the item.
+- [ ] TC-11.2 (item k): `grep -rn "marker-ownership" conductor/laneconductor.sync.mjs`
+      returns at least one hit. Expected today: **zero hits** — this is
+      TC-7.4's missing half.
+- [ ] TC-11.3 (item k): `updateIndexMDFromDB` given `dbTrack.merge_mode = 'pr'`
+      and no provenance assertion leaves a file's `**Merge Mode**: direct`
+      unchanged. Expected today: it is overwritten to `pr`.
+- [ ] TC-11.4 (item l): Table-driven — for every marker either DB→FS
+      writer can write, `isAuthorOwnedMarker(m) || isMachineOwnedMarker(m)`
+      is true. Expected today: fails on `Summary`, `Track Kind`, `Model`,
+      `Last Run`, `Waiting for reply`.
+- [ ] TC-11.5 (item l): A DB row whose `content_summary` is stale does not
+      overwrite a human-edited `**Summary**` — the track-1081 case, now
+      asserted through the shared table rather than 1081's own ad-hoc guard.
+- [ ] TC-11.6 (item n): Start a real worker and assert its log contains
+      **neither** `Cannot access 'gitExec' before initialization` **nor**
+      `Cannot access 'activeDispatch' before initialization`. Expected
+      today: both appear, every start. (Observed live in this run's log.)
+- [ ] TC-11.7 (item n): After a fresh start, `projects.file_manifest_digest`
+      is populated without waiting a full 60 s tick — i.e. the first
+      `refreshFileManifestCache()` actually completed rather than throwing.
+- [ ] TC-11.8 (item m): **Not a test — an author decision.** Do not write
+      an assertion that picks a winner between `explicitlyRequested` and
+      `--force-run`. Blocked on Phase 11 Task 4.
+
+### Phase 7 status correction
+
+TC-7.1…TC-7.7 remain `[ ]` and that is **accurate, not stale
+bookkeeping**: the API-server writer is guarded, the worker's writer is
+not, and TC-7.4 ("both writers enforce it") is the case that fails. Do
+not tick these from the implement summary alone.
+
+## Acceptance Criteria — additions
+
+- [ ] The writer behind the 2026-09-18 truncation is named, or its
+      non-existence is demonstrated
+- [ ] Both DB→FS writers consume one ownership table
+- [ ] Every writable marker is classified, enforced by a test
+- [ ] A worker start produces no TDZ error in its log
+- [ ] Item (d)'s two implementations are reconciled by an author decision
