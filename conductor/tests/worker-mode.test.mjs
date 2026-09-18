@@ -15,8 +15,9 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -26,9 +27,12 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 describe('Worker Mode Configuration', () => {
   describe('Config Parsing', () => {
     it('should default to sync+poll mode when worker.mode is not specified', async () => {
-      const testDir = join(ROOT, '.test-worker-mode-1');
+      const testDir = join(tmpdir(), 'lc-worker-mode-1');
       rmSync(testDir, { recursive: true, force: true });
       mkdirSync(join(testDir, 'conductor/tracks'), { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: testDir });
 
       // Config without worker.mode
       writeFileSync(join(testDir, '.laneconductor.json'), JSON.stringify({
@@ -64,9 +68,12 @@ describe('Worker Mode Configuration', () => {
     });
 
     it('should use sync-only mode when worker.mode is configured', async () => {
-      const testDir = join(ROOT, '.test-worker-mode-2');
+      const testDir = join(tmpdir(), 'lc-worker-mode-2');
       rmSync(testDir, { recursive: true, force: true });
       mkdirSync(join(testDir, 'conductor/tracks'), { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: testDir });
 
       // Config with worker.mode='sync-only'
       writeFileSync(join(testDir, '.laneconductor.json'), JSON.stringify({
@@ -103,9 +110,12 @@ describe('Worker Mode Configuration', () => {
     });
 
     it('should let CLI flag override config setting', async () => {
-      const testDir = join(ROOT, '.test-worker-mode-3');
+      const testDir = join(tmpdir(), 'lc-worker-mode-3');
       rmSync(testDir, { recursive: true, force: true });
       mkdirSync(join(testDir, 'conductor/tracks'), { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: testDir });
 
       // Config with worker.mode='sync+poll' but CLI will override with --sync-only
       writeFileSync(join(testDir, '.laneconductor.json'), JSON.stringify({
@@ -144,9 +154,12 @@ describe('Worker Mode Configuration', () => {
 
   describe('CLI Mode Resolution', () => {
     it('lc start command should pass --sync-only flag to worker', async () => {
-      const testDir = join(ROOT, '.test-worker-mode-4');
+      const testDir = join(tmpdir(), 'lc-worker-mode-4');
       rmSync(testDir, { recursive: true, force: true });
       mkdirSync(join(testDir, 'conductor/tracks'), { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: testDir });
+      execFileSync('git', ['config', 'user.name', 'Test'], { cwd: testDir });
 
       writeFileSync(join(testDir, '.laneconductor.json'), JSON.stringify({
         mode: 'local-fs',
@@ -179,7 +192,11 @@ describe('Worker Mode Configuration', () => {
       const content = readFileSync(syncWorkerPath, 'utf8');
 
       // Check that the code references syncOnly and skips auto-launch
-      assert.match(content, /if \(syncOnly\) return;/, 'should skip auto-launch in sync-only mode');
+      // Track AM-10099 item (b): the guard now also exempts the manager
+      // (`&& !isManager` — a manager worker always polls regardless of
+      // sync-only), a deliberate widening of the original check this
+      // regex was written against.
+      assert.match(content, /if \(syncOnly && !isManager\) return;/, 'should skip auto-launch in sync-only mode');
       assert.match(content, /SKIP auto-launch in sync-only mode/, 'should have comment explaining skip');
     });
 

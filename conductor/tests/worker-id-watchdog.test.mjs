@@ -20,12 +20,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
-const TMP = join(ROOT, '.test-tmp-worker-id-watchdog');
+const TMP = join(tmpdir(), 'lc-worker-id-watchdog');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -67,6 +69,10 @@ async function setFailRegister(port, fail) {
 
 function setupProject(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
+  mkdirSync(TMP, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
   mkdirSync(join(TMP, 'conductor/tracks'), { recursive: true });
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
     mode: 'local-api',

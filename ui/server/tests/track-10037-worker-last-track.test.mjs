@@ -54,7 +54,9 @@ describe('GET /api/projects/:id/workers — last-context track (REQ-4)', () => {
         const [sql] = vi.mocked(pool.query).mock.calls[0];
         expect(sql).toMatch(/LEFT JOIN LATERAL/);
         expect(sql).toMatch(/track_sessions/);
-        expect(sql).toMatch(/ORDER BY last_used_at DESC/);
+        // Track AM-10099 item (b): the column is now table-qualified
+        // (ts.last_used_at) — same ORDER BY, unchanged behavior.
+        expect(sql).toMatch(/ORDER BY ts\.last_used_at DESC/);
     });
 });
 

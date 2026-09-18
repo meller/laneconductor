@@ -11,9 +11,12 @@
 // permanently stuck, identical to F5's original symptom via a different
 // entry point.
 //
-// The fix: after the lane_status write, if the project's live workers are
-// ALL sync-only, also create a worker_dispatch entry addressed to one of
-// them — reusing the same dispatchIfSyncOnly() helper F5's fix uses.
+// The original fix: after the lane_status write, if the project's live
+// workers are ALL sync-only, also create a worker_dispatch entry addressed
+// to one of them — reusing the same helper F5's fix uses (since renamed
+// dispatchIfSyncOnly() -> dispatchExplicitAction() by commit 02fedf74,
+// which also changed WHEN it dispatches — see the "DOES dispatch even when
+// a sync+poll worker exists" tests below).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -57,7 +60,16 @@ describe('PATCH /track/:num/lane — F15 dispatch bridging', () => {
         expect(insert[1][2]).toBe('implement'); // action = the track's new lane
     });
 
-    it('does NOT dispatch when a sync+poll worker exists', async () => {
+    // Track AM-10099 item (b): see track-1102-f5-ui-dispatch.test.mjs's
+    // sibling test for the full history — commit 02fedf74 deliberately
+    // removed the `!hasPoller` gate this test's original "does NOT
+    // dispatch when a sync+poll worker exists" name asserted, because a
+    // track without **Auto Run**: yes is never auto-picked by that
+    // worker's own polling, silently stranding every explicit "Run"/drag
+    // action forever. Updated to match the current, intentional,
+    // already-regression-tested (track-10047-dispatch-explicit-action.test.mjs)
+    // behavior instead of reverting that fix.
+    it('DOES dispatch even when a sync+poll worker exists (see commit 02fedf74)', async () => {
         mockDispatchQueries({
             workers: [
                 { id: 42, mode: 'sync-only', type: 'project' },
@@ -71,7 +83,7 @@ describe('PATCH /track/:num/lane — F15 dispatch bridging', () => {
             .expect(200);
 
         const insert = vi.mocked(pool.query).mock.calls.find(([sql]) => /INSERT INTO worker_dispatch/.test(sql));
-        expect(insert).toBeUndefined();
+        expect(insert).toBeTruthy();
     });
 
     it('does NOT dispatch when moving to done (lane_action_status becomes success, not queue)', async () => {
@@ -103,7 +115,9 @@ describe('PATCH /track/:num/reset — F15 dispatch bridging', () => {
         expect(insert[1][2]).toBe('plan');
     });
 
-    it('does NOT dispatch when a sync+poll worker exists', async () => {
+    // Track AM-10099 item (b): same supersession as the /lane describe
+    // block above — commit 02fedf74.
+    it('DOES dispatch even when a sync+poll worker exists (see commit 02fedf74)', async () => {
         mockDispatchQueries({
             workers: [
                 { id: 42, mode: 'sync-only', type: 'project' },
@@ -117,6 +131,6 @@ describe('PATCH /track/:num/reset — F15 dispatch bridging', () => {
             .expect(200);
 
         const insert = vi.mocked(pool.query).mock.calls.find(([sql]) => /INSERT INTO worker_dispatch/.test(sql));
-        expect(insert).toBeUndefined();
+        expect(insert).toBeTruthy();
     });
 });

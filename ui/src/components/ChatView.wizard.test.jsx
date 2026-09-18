@@ -106,7 +106,13 @@ describe('ChatView conditional wizard (Phase 7, REQ-17..REQ-19)', () => {
     expect(screen.queryByTestId('advisory-gaps-note')).toBeNull();
 
     // REQ-18 / AC-10: Assert no POST requests made (no dispatch row, no comment written)
-    const postCalls = mockApiFetch.mock.calls.filter(([_, opts]) => opts?.method === 'POST');
+    // Track AM-10099 item (b): a manager-worker chat target unconditionally
+    // bootstraps its own meta-project record (/api/meta-project/ensure) on
+    // mount, unrelated to gap-driven wizard/dispatch logic (REQ-18 is
+    // specifically "no dispatch row, no comment written" as a result of
+    // gaps) - exclude it rather than asserting zero POSTs of any kind.
+    const postCalls = mockApiFetch.mock.calls.filter(([url, opts]) =>
+      opts?.method === 'POST' && !url.includes('/api/meta-project/ensure'));
     expect(postCalls.length).toBe(0);
   });
 
@@ -131,7 +137,13 @@ describe('ChatView conditional wizard (Phase 7, REQ-17..REQ-19)', () => {
     });
 
     // No POST/dispatch was sent to any model endpoint or worker_dispatch
-    const postCalls = mockApiFetch.mock.calls.filter(([_, opts]) => opts?.method === 'POST');
+    // Track AM-10099 item (b): a manager-worker chat target unconditionally
+    // bootstraps its own meta-project record (/api/meta-project/ensure) on
+    // mount, unrelated to gap-driven wizard/dispatch logic (REQ-18 is
+    // specifically "no dispatch row, no comment written" as a result of
+    // gaps) - exclude it rather than asserting zero POSTs of any kind.
+    const postCalls = mockApiFetch.mock.calls.filter(([url, opts]) =>
+      opts?.method === 'POST' && !url.includes('/api/meta-project/ensure'));
     expect(postCalls.length).toBe(0);
   });
 });

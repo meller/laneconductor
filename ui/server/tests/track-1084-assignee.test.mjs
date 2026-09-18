@@ -120,7 +120,11 @@ describe('GET /api/projects/:id/tracks — assignee_worker_status', () => {
             })
             .mockResolvedValueOnce({
                 rows: [{ id: 9, user_uid: 'dev-a', status: 'busy', last_heartbeat: new Date().toISOString() }],
-            });
+            })
+            // Track 10018's worktree cross-reference (fetchWorktreeRows) runs
+            // unconditionally, after the assignee-workers lookup — track
+            // AM-10099 item (b).
+            .mockResolvedValueOnce({ rows: [] });
 
         const res = await request(app).get('/api/projects/1/tracks').expect(200);
 
@@ -129,15 +133,22 @@ describe('GET /api/projects/:id/tracks — assignee_worker_status', () => {
     });
 
     it('is null for every track when no track resolves an assignee (no-auth deployments)', async () => {
-        vi.mocked(pool.query).mockResolvedValueOnce({
-            rows: [{ id: 1, track_number: '001', assignee_uid: null, created_by_uid: null, owner_uid: null }],
-        });
+        vi.mocked(pool.query)
+            .mockResolvedValueOnce({
+                rows: [{ id: 1, track_number: '001', assignee_uid: null, created_by_uid: null, owner_uid: null }],
+            })
+            // Track 10018's worktree cross-reference still runs even with no
+            // assignees to resolve — it's unconditional, unlike the
+            // assignee-workers lookup (item (b)).
+            .mockResolvedValueOnce({ rows: [] });
 
         const res = await request(app).get('/api/projects/1/tracks').expect(200);
 
         expect(res.body[0].assignee_worker_status).toBeNull();
-        // No second query needed when there's nobody to look workers up for
-        expect(pool.query).toHaveBeenCalledTimes(1);
+        // One query for tracks, one for the (always-run) worktree
+        // cross-reference — no third call, since there's nobody to look
+        // workers up for.
+        expect(pool.query).toHaveBeenCalledTimes(2);
     });
 });
 

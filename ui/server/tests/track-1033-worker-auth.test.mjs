@@ -239,8 +239,14 @@ describe('POST /worker/register (Track 1033)', () => {
   beforeEach(() => vi.resetAllMocks());
 
   it('registers a worker and returns a machine_token', async () => {
-    mockQuery({ rows: [] }); // no existing worker (project lookup)
-    mockQuery({ rows: [] }); // SELECT project for git_remote
+    // Track AM-10099 item (b): the real handler makes exactly 2 queries for
+    // a project-type worker — SELECT existing machine_token, then INSERT —
+    // no separate git_remote lookup. The stale 3rd mock here shifted the
+    // INSERT's `{ rows: [{ id: 1 }] }` response one call too late, so the
+    // real INSERT got back `{ rows: [] }` and its
+    // `const { rows: [{ id }] } = ...` destructure threw on `rows[0]`
+    // being undefined.
+    mockQuery({ rows: [] }); // no existing worker (machine_token lookup)
     mockQuery({ rows: [{ id: 1 }] }); // INSERT worker
     const res = await request(app)
       .post('/worker/register')

@@ -125,7 +125,41 @@ test('TC-5.5/TC-5.6: the startup cap check is skipped for local-fs and for the m
     SYNC_SRC.indexOf('Track AM-10093 (REQ-8/REQ-9)'),
     SYNC_SRC.indexOf('await upsertWorker();')
   );
-  assert.ok(checkSection.includes('if (!getIsLocalFs() && !isManager)'), 'must gate on both local-fs and manager exemptions');
+  // Track AM-10099 item (c2): a third exemption (claim-scoped --once runs)
+  // joined these two — same gate, one more `&&` term.
+  assert.ok(
+    checkSection.includes('if (!getIsLocalFs() && !isManager && !isClaimScopedOnceRun)'),
+    'must gate on local-fs, manager, AND claim-scoped-once-run exemptions'
+  );
+});
+
+// Track AM-10099 item (c2): `lc worker run <track>` (--only-tracks ...
+// --once under the hood) must be exempt from the base-worker cap — the cap
+// exists to stop an unbounded accumulation of independent poll loops, and
+// a bounded, self-terminating --once run cannot accumulate.
+test('item (c2): a claim-scoped --once run is exempt from the base-worker cap', () => {
+  const checkSection = SYNC_SRC.slice(
+    SYNC_SRC.indexOf('Track AM-10093 (REQ-8/REQ-9)'),
+    SYNC_SRC.indexOf('await upsertWorker();')
+  );
+  assert.ok(
+    checkSection.includes('const isClaimScopedOnceRun = !!(onlyTracks && exitWhenDone);'),
+    'the exemption must require BOTH onlyTracks (scoped) and exitWhenDone (--once) — an unbounded --only-tracks worker without --once is still a standing poll loop and must stay capped'
+  );
+});
+
+test('item (c2) regression: exitWhenDone alone, without onlyTracks, does not widen the exemption', () => {
+  // An ordinary `lc worker start --once` with no --only-tracks would be
+  // just as unbounded a standing risk as one without --once at all (it
+  // never has a "done" condition to exit on) — the exemption must require
+  // BOTH terms, not either alone. Covered by the exact-string match above
+  // (`onlyTracks && exitWhenDone`, not `||`); this test pins the boolean
+  // operator itself so a future edit changing `&&` to `||` fails loudly.
+  const checkSection = SYNC_SRC.slice(
+    SYNC_SRC.indexOf('Track AM-10093 (REQ-8/REQ-9)'),
+    SYNC_SRC.indexOf('await upsertWorker();')
+  );
+  assert.ok(!checkSection.includes('onlyTracks || exitWhenDone'), 'must never become an OR — an unscoped --once run is still an unbounded risk');
 });
 
 test('the startup check runs before this process registers itself (before upsertWorker)', () => {

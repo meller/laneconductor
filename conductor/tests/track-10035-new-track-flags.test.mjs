@@ -41,10 +41,17 @@ function setupProject() {
   mkdirSync(join(REPO, 'conductor/tracks'), { recursive: true });
 }
 
-function readCreatedIndex(titleSlugFragment) {
+// Track AM-10099 item (g)/Phase 5 Task 12 (REQ-14, TC-5.15): was
+// `.find(d => d.includes(titleSlugFragment))` — a substring match, which
+// is exactly why this suite never caught D2 (a flag leaking into the
+// title still produces A folder whose name CONTAINS the expected
+// fragment, just with extra garbage before/after it). Asserts the exact
+// slug suffix instead: `AM-NNN-<exact-slug>`, nothing more.
+function readCreatedIndex(exactSlug) {
   const tracksDir = join(REPO, 'conductor/tracks');
-  const dir = readdirSync(tracksDir).find(d => d.includes(titleSlugFragment));
-  assert.ok(dir, `expected a track folder containing "${titleSlugFragment}"`);
+  const dirs = readdirSync(tracksDir);
+  const dir = dirs.find(d => new RegExp(`^[A-Za-z]+-\\d+-${exactSlug}$`).test(d));
+  assert.ok(dir, `expected exactly one track folder matching /^[A-Za-z]+-\\d+-${exactSlug}$/, got: ${dirs.join(', ') || '(none)'}`);
   return readFileSync(join(tracksDir, dir, 'index.md'), 'utf8');
 }
 
@@ -67,12 +74,12 @@ describe('lc new --merge-mode / --auto-run (Track 10035 REQ-12)', () => {
     assert.match(content, /\*\*Auto Run\*\*:\s*yes/);
   });
 
-  it('omits both markers when neither flag is passed (sparse-emission, same convention as --workspace)', () => {
+  it('writes the default direct/yes markers when neither flag is passed (default flipped 2026-09-08 — see SKILL.md newTrack)', () => {
     setupProject();
     lc(['new', 'Plain Track', 'desc']);
     const content = readCreatedIndex('plain-track');
-    assert.doesNotMatch(content, /\*\*Merge Mode\*\*/);
-    assert.doesNotMatch(content, /\*\*Auto Run\*\*/);
+    assert.match(content, /\*\*Merge Mode\*\*:\s*direct/);
+    assert.match(content, /\*\*Auto Run\*\*:\s*yes/);
   });
 
   it('rejects an invalid --merge-mode value with a usage error, no track created', () => {

@@ -22,13 +22,15 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-track-1113-chat');
+const TMP = join(tmpdir(), 'lc-track-1113-chat');
 const ARGV_LOG = join(TMP, 'argv.log');
 
 // The worker below runs with LC_DISPATCH_POLL_MS=1000 and a 5s mock CLI, so a
@@ -88,6 +90,10 @@ function readArgvLog() {
 
 function setupProject(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
+  mkdirSync(TMP, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
   mkdirSync(join(TMP, 'conductor/tracks/042-chat-target'), { recursive: true });
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
     mode: 'local-api',

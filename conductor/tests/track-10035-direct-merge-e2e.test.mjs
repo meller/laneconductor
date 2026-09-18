@@ -18,13 +18,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execSync, spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const BASE = join(ROOT, '.test-tmp-track-10035-direct-merge-e2e');
+const BASE = join(tmpdir(), 'lc-track-10035-direct-merge-e2e');
 const LOCAL = join(BASE, 'local'); // stands in for the primary checkout the worker runs from
 const TRACK_NUM = '19981'; // fake, distinct from every other test file's fixture range
 const TRACK_DIR_NAME = `${TRACK_NUM}-direct-merge-e2e`;

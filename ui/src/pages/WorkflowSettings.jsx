@@ -1,11 +1,163 @@
 import { useState, useEffect } from 'react';
 import { WorkflowGraph } from '../components/WorkflowGraph.jsx';
 import { useApi } from '../hooks/useApi';
-import { PROVIDERS } from '../../../conductor/providers.mjs';
+import { PROVIDERS, PROVIDER_IDS, providerLabel, normalizeProviderId } from '../../../conductor/providers.mjs';
+import { getDefaultProviderModel } from '../lib/defaultModel.js';
 
-const MODEL_SUGGESTIONS = PROVIDERS.claude.models.map(m => m.id);
+// Track 1116 REQ-7: finds which registry provider a given model id belongs
+// to (e.g. 'claude-opus-5' -> 'claude'), so a lane's already-saved
+// `primary_model` string alone is enough to pre-select the right Provider
+// dropdown — `workflow.json` has no separate provider field to read (Phase 1
+// finding: provider stays a UI-only filter, never a new schema field).
+function providerForModelId(modelId) {
+  if (!modelId) return null;
+  for (const id of PROVIDER_IDS) {
+    if (PROVIDERS[id].models.some(m => m.id === modelId)) return id;
+  }
+  return null;
+}
 
-export function WorkflowSettings({ projectId, onClose }) {
+// Same live-models-first, presets-as-fallback merge WorkerModelModal.jsx
+// uses — `workers` here are the PROJECT's workers (track 1116 Phase 2:
+// already fetched by App.jsx's usePolling, passed down as a prop, no new
+// network call), merged across every worker reporting the selected
+// provider (not just the first — a project can run workers on different
+// CLIs at once).
+function modelsForCli(cli, workers) {
+  const live = [];
+  const seen = new Set();
+  for (const w of workers || []) {
+    const raw = w?.available_models;
+    if (!raw) continue;
+    const ids = Array.isArray(raw)
+      ? (normalizeProviderId(w.cli) === cli ? raw : [])
+      : (raw[cli] || []);
+    for (const entry of ids) {
+      const id = typeof entry === 'string' ? entry : entry?.id;
+      const label = typeof entry === 'string' ? entry : (entry?.label || entry?.id);
+      if (id && !seen.has(id)) { seen.add(id); live.push({ id, label }); }
+    }
+  }
+  const presets = (PROVIDERS[cli]?.models || []).filter(m => !seen.has(m.id));
+  return { options: [...live, ...presets], isLive: live.length > 0 };
+}
+
+// The per-lane side panel is keyed by lane id in the parent (below) so this
+// remounts — with fresh local state — every time a different lane is
+// selected, instead of hand-syncing selectedCli via useEffect.
+function LanePanel({ selectedLane, config, project, workers, updateLaneProp, onClose }) {
+  const existingModel = config.lanes[selectedLane]?.primary_model || '';
+  const defaultPick = getDefaultProviderModel(project, workers);
+  const [selectedCli, setSelectedCli] = useState(
+    providerForModelId(existingModel) || defaultPick.cli
+  );
+  const { options: modelOptions, isLive } = modelsForCli(selectedCli, workers);
+
+  return (
+    <div className="w-64 bg-gray-950 border border-gray-800 rounded p-4 flex flex-col gap-3 overflow-y-auto">
+      <div className="flex items-center justify-between pb-2 border-b border-gray-800">
+        <h3 className="text-white text-sm font-bold uppercase tracking-wider">{selectedLane}</h3>
+        <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">✕</button>
+      </div>
+
+      <div>
+        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Parallel Limit</label>
+        <input
+          type="number"
+          min="1"
+          value={config.lanes[selectedLane]?.parallel_limit || ''}
+          onChange={e => updateLaneProp('parallel_limit', e.target.value)}
+          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+          placeholder="e.g. 1"
+        />
+      </div>
+
+      <div>
+        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Max Retries</label>
+        <input
+          type="number"
+          min="0"
+          value={config.lanes[selectedLane]?.max_retries ?? ''}
+          onChange={e => updateLaneProp('max_retries', e.target.value)}
+          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+          placeholder="e.g. 0"
+        />
+      </div>
+
+      <div>
+        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Provider</label>
+        <select
+          data-testid="lane-provider-select"
+          value={selectedCli}
+          onChange={e => {
+            const cli = e.target.value;
+            setSelectedCli(cli);
+            // Switching provider invalidates any model id from the old
+            // provider — clear back to "use project default" rather than
+            // silently keeping a model that belongs to the wrong provider.
+            updateLaneProp('primary_model', '');
+          }}
+          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+        >
+          {PROVIDER_IDS.map(id => (
+            <option key={id} value={id}>{providerLabel(id)}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-[10px] text-gray-500 font-bold uppercase">Model</label>
+          <span className="text-[9px] text-gray-600">{isLive ? 'live from worker' : 'presets'}</span>
+        </div>
+        <select
+          data-testid="lane-model-select"
+          value={existingModel}
+          onChange={e => updateLaneProp('primary_model', e.target.value)}
+          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+        >
+          <option value="">use project default</option>
+          {modelOptions.map(m => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">On Success</label>
+        <input
+          list="lane-suggestions"
+          value={config.lanes[selectedLane]?.on_success || ''}
+          onChange={e => updateLaneProp('on_success', e.target.value)}
+          placeholder="e.g. implement or plan:success"
+          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+        />
+      </div>
+
+      <div>
+        <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">On Failure</label>
+        <input
+          list="lane-suggestions"
+          value={config.lanes[selectedLane]?.on_failure || ''}
+          onChange={e => updateLaneProp('on_failure', e.target.value)}
+          placeholder="e.g. backlog or plan:failure"
+          className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
+        />
+      </div>
+
+      <datalist id="lane-suggestions">
+        <option value="plan" />
+        <option value="backlog" />
+        <option value="implement" />
+        <option value="review" />
+        <option value="quality-gate" />
+        <option value="done" />
+      </datalist>
+    </div>
+  );
+}
+
+export function WorkflowSettings({ projectId, project, workers, onClose }) {
   const { apiFetch } = useApi();
   const [activeTab, setActiveTab] = useState('visual');
   const [selectedLane, setSelectedLane] = useState(null);
@@ -135,82 +287,15 @@ export function WorkflowSettings({ projectId, onClose }) {
               <WorkflowGraph config={config} onNodeClick={handleNodeClick} />
             </div>
             {selectedLane && config?.lanes && (
-              <div className="w-64 bg-gray-950 border border-gray-800 rounded p-4 flex flex-col gap-3 overflow-y-auto">
-                <div className="flex items-center justify-between pb-2 border-b border-gray-800">
-                  <h3 className="text-white text-sm font-bold uppercase tracking-wider">{selectedLane}</h3>
-                  <button onClick={() => setSelectedLane(null)} className="text-gray-500 hover:text-white transition-colors">✕</button>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Parallel Limit</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={config.lanes[selectedLane]?.parallel_limit || ''}
-                    onChange={e => updateLaneProp('parallel_limit', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                    placeholder="e.g. 1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Max Retries</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={config.lanes[selectedLane]?.max_retries ?? ''}
-                    onChange={e => updateLaneProp('max_retries', e.target.value)}
-                    className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                    placeholder="e.g. 0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">Primary Model</label>
-                  <input
-                    list="model-suggestions"
-                    value={config.lanes[selectedLane]?.primary_model || ''}
-                    onChange={e => updateLaneProp('primary_model', e.target.value)}
-                    placeholder="e.g. claude-sonnet-5 (defaults to project model)"
-                    className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">On Success</label>
-                  <input
-                    list="lane-suggestions"
-                    value={config.lanes[selectedLane]?.on_success || ''}
-                    onChange={e => updateLaneProp('on_success', e.target.value)}
-                    placeholder="e.g. implement or plan:success"
-                    className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-gray-500 font-bold uppercase mb-1">On Failure</label>
-                  <input
-                    list="lane-suggestions"
-                    value={config.lanes[selectedLane]?.on_failure || ''}
-                    onChange={e => updateLaneProp('on_failure', e.target.value)}
-                    placeholder="e.g. backlog or plan:failure"
-                    className="w-full bg-gray-900 border border-gray-700 text-xs text-white p-1.5 rounded focus:outline-none focus:border-blue-700"
-                  />
-                </div>
-
-                <datalist id="lane-suggestions">
-                  <option value="plan" />
-                  <option value="backlog" />
-                  <option value="implement" />
-                  <option value="review" />
-                  <option value="quality-gate" />
-                  <option value="done" />
-                </datalist>
-
-                <datalist id="model-suggestions">
-                  {MODEL_SUGGESTIONS.map(id => <option key={id} value={id} />)}
-                </datalist>
-              </div>
+              <LanePanel
+                key={selectedLane}
+                selectedLane={selectedLane}
+                config={config}
+                project={project}
+                workers={workers}
+                updateLaneProp={updateLaneProp}
+                onClose={() => setSelectedLane(null)}
+              />
             )}
           </div>
         ) : (
@@ -231,7 +316,7 @@ export function WorkflowSettings({ projectId, onClose }) {
             <li><code>on_success</code>: Lane after success — plain lane (<code>"implement"</code>) or <code>"lane:status"</code> (e.g. <code>"plan:success"</code> to stay in plan and mark done)</li>
             <li><code>on_failure</code>: Lane after max retries — same format (e.g. <code>"backlog"</code> or <code>"plan:queue"</code>)</li>
             <li><code>parallel_limit</code>: Max concurrent tracks in this lane</li>
-            <li><code>primary_model</code>: Model used when this lane runs a track (provider/CLI stays the project default — only the model varies per lane). Leave blank to fall back to the project's default model.</li>
+            <li><code>Provider / Model</code>: which model this lane runs a track with — the CLI provider is a UI-only filter for picking a model, never stored separately; the model id alone is written to <code>primary_model</code> (leave the Model dropdown at "use project default" to inherit the project's default model). Two caveats: this only applies in worker mode — a skill-only session (no standing worker) has nothing to apply it to, since there's no spawn to pass <code>--model</code> to; and matching is best-effort — the model id is passed to the CLI unvalidated against what's actually installed on the executing machine, so an unavailable model fails the run at CLI level rather than being blocked ahead of time.</li>
           </ul>
         </div>
       </div>

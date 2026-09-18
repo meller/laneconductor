@@ -9,6 +9,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { app, pool, syncTrackToFile } from '../index.mjs';
+import { AUTHORED_MARKER_PROVENANCE } from '../../../conductor/services/marker-ownership.mjs';
 
 vi.mock('../auth.mjs');
 
@@ -98,7 +99,7 @@ describe('syncTrackToFile — **Model** marker (TC-14)', () => {
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: tmpRoot }] });
     expect(readFileSync(indexPath, 'utf8')).not.toMatch(/\*\*Model\*\*/);
 
-    await syncTrackToFile(1, '1116', { model_override: 'claude-opus-4-5' });
+    await syncTrackToFile(1, '1116', { model_override: 'claude-opus-4-5', provenance: AUTHORED_MARKER_PROVENANCE });
 
     expect(readFileSync(indexPath, 'utf8')).toMatch(/\*\*Model\*\*:\s*claude-opus-4-5/);
   });
@@ -107,7 +108,7 @@ describe('syncTrackToFile — **Model** marker (TC-14)', () => {
     writeFileSync(indexPath, '# Track 1116: Test Track\n\n**Lane**: implement\n**Model**: claude-sonnet-5\n');
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: tmpRoot }] });
 
-    await syncTrackToFile(1, '1116', { model_override: 'claude-opus-4-5' });
+    await syncTrackToFile(1, '1116', { model_override: 'claude-opus-4-5', provenance: AUTHORED_MARKER_PROVENANCE });
 
     const content = readFileSync(indexPath, 'utf8');
     expect(content).toMatch(/\*\*Model\*\*:\s*claude-opus-4-5/);
@@ -118,7 +119,7 @@ describe('syncTrackToFile — **Model** marker (TC-14)', () => {
     writeFileSync(indexPath, '# Track 1116: Test Track\n\n**Lane**: implement\n**Model**: claude-opus-4-5\n**Progress**: 0%\n');
     vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: tmpRoot }] });
 
-    await syncTrackToFile(1, '1116', { model_override: null });
+    await syncTrackToFile(1, '1116', { model_override: null, provenance: AUTHORED_MARKER_PROVENANCE });
 
     const content = readFileSync(indexPath, 'utf8');
     expect(content).not.toMatch(/\*\*Model\*\*/);

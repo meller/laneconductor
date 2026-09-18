@@ -274,7 +274,23 @@ describe('LaneConductor local-api E2E', () => {
     }
   });
 
-  it('custom transition: review → implement:queue on failure', async () => {
+  // Track AM-10099 Phase 3 (item b, REQ-4/REQ-5, AC-7): quarantined —
+  // confirmed genuinely non-deterministic over 7 measured runs (this
+  // session: 3 pass ~17s, 4 fail at full timeout with NO partial progress,
+  // even after raising the poll timeout from 20000ms to 45000ms made no
+  // difference — ruling out simple timeout tuning as the fix). Diagnosis
+  // so far: unlike its passing sibling above
+  // ('on_failure: quality-gate exhausts retries...', which uses an
+  // IN-LANE on_failure and reaches lane_action_status: 'failure'), this
+  // test's on_failure MOVES lanes (review -> implement), landing at
+  // lane_action_status: 'queue' — a state the SAME still-running worker's
+  // own auto-launch loop can immediately re-claim. Suspect a race between
+  // that immediate re-claim and this test's poll (against the mock
+  // collector's HTTP state, not the worker's internal state) observing
+  // the transient queued state, but did not pin down the exact mechanism
+  // within this track's budget — see spec.md's Non-Goals, which
+  // explicitly anticipates this outcome rather than a structural fix.
+  it.skip('custom transition: review → implement:queue on failure', async () => {
     await setupProject(TMP, collectorPort);
     const tracksDir = join(TMP, 'conductor/tracks');
     // Override workflow specifically for this test

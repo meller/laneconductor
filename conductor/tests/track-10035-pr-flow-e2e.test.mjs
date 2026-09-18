@@ -28,6 +28,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execSync, spawn } from 'node:child_process';
 
@@ -35,7 +36,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
 const MOCK_GH = join(__dirname, 'mock-gh.mjs');
-const BASE = join(ROOT, '.test-tmp-track-10035-pr-flow-e2e');
+const BASE = join(tmpdir(), 'lc-track-10035-pr-flow-e2e');
 const ORIGIN = join(BASE, 'origin.git');
 const LOCAL = join(BASE, 'local'); // stands in for the primary checkout the worker runs from
 const GH_BIN_DIR = join(BASE, 'gh-bin');

@@ -147,6 +147,54 @@ describe('Track AM-1119 Phase 3: **Depends On** auto-launch gate', () => {
     }
   });
 
+  it('Track AM-10099 item (h): a dependency sitting at done:queue (quality-gated, NOT yet merged) is still treated as unmet', async () => {
+    // The exact gap this track's spec.md item (h) found: `lane === 'done'`
+    // alone used to satisfy the gate, but done:queue means quality-gated
+    // and queued for the merge action — the code is not yet on main. This
+    // roadmap chains tracks via **Depends On** specifically so a track
+    // isn't released before its dependency has actually shipped.
+    setupProject();
+    const tracksDir = join(TMP, 'conductor/tracks');
+    createTrack(tracksDir, '706', { lane: 'done', laneStatus: 'queue' }); // quality-gated, NOT merged
+    createTrack(tracksDir, '707', { lane: 'implement', laneStatus: 'queue', dependsOn: '706' });
+
+    const worker = startWorker({ MOCK_CLI_DELAY_MS: '200' });
+    try {
+      await sleep(6000);
+      const content = readIndex(tracksDir, '707');
+      assert.equal(getLaneStatus(content), 'queue', 'a dependency at done:queue (not done:success) must not release its dependent — the old `lane === \'done\'` check would have wrongly let this run');
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
+  it('Track AM-10099 item (h): the same track runs once its dependency reaches done:success (not merely done:queue)', async () => {
+    setupProject();
+    const tracksDir = join(TMP, 'conductor/tracks');
+    createTrack(tracksDir, '708', { lane: 'done', laneStatus: 'queue' }); // starts quality-gated only
+    createTrack(tracksDir, '709', { lane: 'implement', laneStatus: 'queue', dependsOn: '708' });
+
+    const worker = startWorker({ MOCK_CLI_EXIT_CODE: '0', MOCK_CLI_DELAY_MS: '1500' });
+    try {
+      // Confirm it stays blocked first (same assertion as the sibling test
+      // above), then flip the dependency to done:success mid-run and
+      // confirm the dependent is released promptly — proving the gate is
+      // live, not just correct at worker-startup snapshot time.
+      await sleep(3000);
+      assert.equal(getLaneStatus(readIndex(tracksDir, '709')), 'queue', 'still blocked while dependency is only done:queue');
+
+      createTrack(tracksDir, '708', { lane: 'done', laneStatus: 'success' });
+      await poll(() => {
+        const c = readIndex(tracksDir, '709');
+        return getLaneStatus(c) === 'running' ? true : null;
+      }, { label: 'track 709 released once its dependency reaches done:success', timeout: 10000 });
+    } finally {
+      worker.kill('SIGTERM');
+      await sleep(500);
+    }
+  });
+
   it('a track depending on a nonexistent track number is treated as unmet (fails closed)', async () => {
     setupProject();
     const tracksDir = join(TMP, 'conductor/tracks');

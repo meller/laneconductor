@@ -12,13 +12,16 @@ import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const LC = join(ROOT, 'bin/lc.mjs');
-const TMP = join(ROOT, '.test-tmp-lc-start-lock');
+// Track AM-10099 Phase 1 (REQ-1): sandbox lives under os.tmpdir(), never
+// inside the repo — bin/lc.mjs spawns the real worker with cwd: TMP.
+const TMP = join(tmpdir(), 'lc-start-lock');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -29,6 +32,9 @@ function isAlive(pid) {
 function setupProject() {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(join(TMP, 'conductor/tracks'), { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
     mode: 'local-fs',
     project: { name: 'lc-start-lock-test', id: 1, repo_path: TMP, primary: { cli: 'mock' } },

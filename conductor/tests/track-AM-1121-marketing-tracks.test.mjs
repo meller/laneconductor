@@ -13,13 +13,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-track-am1121-marketing');
+const TMP = join(tmpdir(), 'lc-track-am1121-marketing');
 const MANAGER_DIR = join(TMP, 'manager');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -234,7 +235,7 @@ describe('Track AM-1121: marketing-kind create-project routes tracks through the
 });
 
 describe('Track AM-1121: marketing brainstorm failure is reported clearly, not silently swallowed', () => {
-  const TMP2 = join(ROOT, '.test-tmp-track-am1121-marketing-failure');
+  const TMP2 = join(tmpdir(), 'lc-track-am1121-marketing-failure');
   const MANAGER_DIR2 = join(TMP2, 'manager');
   let collectorProc, collectorPort, managerWorker;
 

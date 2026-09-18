@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync, readlinkSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync, readlinkSync, symlinkSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync, exec } from 'child_process';
@@ -35,7 +35,7 @@ import { truncateSummary, parseSummaryMarker, parseSummary } from './summary-uti
 import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
-import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
+import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished, resolveFreshContentForClaim } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
 import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
@@ -43,6 +43,7 @@ import { loadMetaDefaults, mergeEffectivePrimary, mergeWorkflowConfig } from './
 import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { computeTrackDocDigest, hasTrackDocDrift } from './services/track-doc-digest.mjs';
+import { isAuthorOwnedMarker } from './services/marker-ownership.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
 import { writeWizardConnectionsArtifacts } from './services/wizard-connections.mjs';
@@ -64,7 +65,7 @@ import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
 import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
-import { decideAutoResume, clearWaitingOnTracks, clearAutoResumedMarker, writeAutoResumedMarker } from './services/dependency-resume.mjs';
+import { decideAutoResume, clearWaitingOnTracks, clearAutoResumedMarker, writeAutoResumedMarker, isDependencyShipped } from './services/dependency-resume.mjs';
 import { parseVerdict } from './services/verdict.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
@@ -98,6 +99,42 @@ import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS, formatP
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 import { COLLECTOR_API_VERSION, compareManifest } from './services/collector-manifest.mjs';
 import { extractWorkerCalls } from './services/collector-route-parity.mjs';
+
+// Track AM-10099 Phase 11 Task 5 (item n): `gitExec`/`GIT_ENV` and
+// `activeDispatch` moved up here from their original positions further
+// down this file (~line 4763 and ~line 8786) — same TDZ class track 1114
+// already fixed once for `cachedMainBranch`, but that fix
+// (`setTimeout(fn, 0)`) doesn't cover this case. This module has a
+// top-level `await upsertWorker();` partway through the file; two things
+// scheduled BEFORE that line — the `setTimeout(refreshFileManifestCache, 0)`
+// tick, and, inside upsertWorker's own body, a fire-and-forgotten
+// `reconcileOrphanedDispatches()` call issued right after upsertWorker's
+// own internal `await post(...)` resolves — both can run while the
+// top-level await is still suspended, i.e. BEFORE the module's
+// synchronous evaluation has reached a `const` declared later in the
+// file. `setTimeout(fn, 0)` only protects against a plain macrotask
+// boundary; it does nothing when a top-level `await` sits between the
+// schedule point and the declaration, since the awaited call's own
+// internal continuation is exactly the kind of "later work" the
+// declaration was still waiting to run before. Moving the declarations
+// themselves above every reachable-before-`await upsertWorker()` call
+// site is the actual fix — confirmed live in this track's own worker log
+// ("Cannot access 'gitExec' before initialization",
+// "Cannot access 'activeDispatch' before initialization", every start).
+// Both are self-contained (no dependency on anything declared between
+// their old position and here), so hoisting is behavior-preserving.
+
+// Never let git prompt for credentials in any interactive terminal
+const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
+const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
+
+// track_number -> dispatch id, for lane-action entries that have been
+// claimed and spawned but haven't finished yet. spawnCli itself is
+// fire-and-forget (see autoLaunchLocalFs), so completion is detected by
+// polling the same Lane Status field spawnCli's own exit handler
+// already writes to index.md, rather than adding a second completion path
+// into spawnCli's already-complex internals.
+const activeDispatch = new Map();
 
 // Track AM-10093 Phase 6 (REQ-7): one shared throttle for every
 // stale-dispatch/stale-pull suppression log line — a persistently-
@@ -1647,6 +1684,10 @@ const TASK_UNCHANGED = Symbol('TASK_UNCHANGED');
 // heartbeat itself (git-shelling-out on every 10s beat would be wasteful);
 // cached and attached to whichever heartbeat fires next.
 let cachedWorktreeSummary = null;
+// Track AM-10099 Phase 8 (item f): latest result of the periodic
+// checkWorkerCodeStaleness() sweep (see its own definition below), read
+// by the heartbeat body above. Empty until the first sweep runs.
+let latestWorkerStaleness = [];
 async function refreshWorktreeSummaryCache() {
   if (getIsLocalFs()) return; // nothing to report — no heartbeat is sent in this mode anyway
   try {
@@ -1784,6 +1825,15 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
         // scratch — no reason a restart should ever blank it.
         worktrees: (isManager || cachedWorktreeSummary === null) ? undefined : cachedWorktreeSummary,
         collector_health: serializeCollectorHealth(),
+        // Track AM-10099 Phase 8 (item f): ships on every heartbeat (an
+        // explicit `[]`, not `undefined`, when current) so a stale worker
+        // becomes visible somewhere a human actually looks (the Kanban
+        // UI), not only in a log line nobody reads — and, unlike
+        // collector_health's own "never blank on absence" rule, this
+        // MUST self-clear once the worker is current again (e.g. after a
+        // restart), or a resolved staleness verdict would wrongly persist
+        // forever.
+        code_staleness: latestWorkerStaleness,
       };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
@@ -2846,7 +2896,17 @@ function updateIndexMDFromDB(trackFolder, dbTrack, pullContext = {}) {
     // Track 10018: only write the marker when the DB explicitly has a value —
     // an absent/NULL merge_mode means "unspecified", which resolveMergeMode()
     // treats as 'pr' without ever needing the marker to say so in the file.
-    if (dbTrack.merge_mode) {
+    //
+    // Track AM-10099 Phase 11 Task 2 (item k): `Merge Mode` is author-owned
+    // (marker-ownership.mjs), and this function's single call site
+    // (pullTracksMetadataFromDB's per-track loop) is exactly the
+    // "generic/coarse sync" case that module's own header says must never
+    // carry an author-owned marker onto the file — there is no human/UI
+    // action asserting AUTHORED_MARKER_PROVENANCE here, only "the DB
+    // happens to hold a value". This mirrors syncTrackToFile's own guard
+    // (Phase 7) on the API-server side; before this fix, this was the
+    // still-open half of TC-7.4 ("both writers enforce it").
+    if (dbTrack.merge_mode && !isAuthorOwnedMarker('Merge Mode')) {
       content = updateMarker(content, 'Merge Mode', dbTrack.merge_mode);
     }
 
@@ -3745,10 +3805,19 @@ watch(laneConductorJsonPath)
 // BEFORE this process registers itself (so it doesn't count its own
 // about-to-exist row), and before entering the poll loop below.
 //
-// Exempted: local-fs (no collector to ask), and the machine-level manager
+// Exempted: local-fs (no collector to ask), the machine-level manager
 // (a singleton by its own partial unique index, not a per-project base
-// identity at all).
-if (!getIsLocalFs() && !isManager) {
+// identity at all), and — track AM-10099 item (c2) — a claim-scoped
+// `--only-tracks ... --once` run (what `lc worker run <track>` actually
+// is under the hood). The cap exists to stop an UNBOUNDED accumulation of
+// independent poll loops (AM-10093's own framing); a `--once` run that
+// exits the moment its named tracks finish is not that — it is a single,
+// bounded, self-terminating unit of work, structurally incapable of
+// accumulating. Without this exemption `lc worker run` — documented as
+// "normally what you want" — could never actually run alongside the
+// ordinary standing worker, which is the normal case.
+const isClaimScopedOnceRun = !!(onlyTracks && exitWhenDone);
+if (!getIsLocalFs() && !isManager && !isClaimScopedOnceRun) {
   try {
     const { url, token } = primaryCollector();
     const projectId = getProject()?.id;
@@ -4725,10 +4794,8 @@ function tailLog(logPath, lines = 100) {
 }
 
 // ── Git Lock + Worktree Helpers (Track 1010) ──────────────────────────────────
-
-// Never let git prompt for credentials in any interactive terminal
-const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
-const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
+// (GIT_ENV / gitExec moved up near the top of this file — Track AM-10099
+// Phase 11 Task 5 / item n — see that comment for why.)
 
 // Track 10050: moved verbatim to services/main-branch.mjs so
 // conductor/lock.mjs can share it instead of hardcoding `origin/main`, which
@@ -5001,6 +5068,32 @@ async function createWorktree(trackNumber) {
           console.warn(`[worktree] Failed to copy ${cfg} to worktree: ${e.message}`);
         }
       }
+    }
+
+    // Track AM-10099 Phase 2 (AC-6): a fresh worktree has no `ui/node_modules`
+    // — `npx vitest run` (and any other UI tooling) can't even start there,
+    // so `implement`/`quality-gate` lane actions were structurally unable to
+    // run the project's own test suite from inside a worktree at all.
+    // Symlinked (not copied/installed) from the primary checkout: an
+    // `npm install` here would add real time to every single worktree
+    // creation regardless of whether the track touches the UI at all, and a
+    // full copy would double the disk cost per worktree for no benefit in
+    // the common case. Trade-off, accepted deliberately: a track that
+    // actually changes `ui/package.json`/`package-lock.json` sees the
+    // PRIMARY checkout's installed deps here, not its own — such a track's
+    // own quality-gate must run `npm install` for real before trusting
+    // `vitest run` (same as any other lane action that changes dependencies
+    // would need to). Every other track — the overwhelming majority — gets
+    // a working `ui/node_modules` for free with zero extra cost.
+    try {
+      const primaryUiNodeModules = join(repoRoot, 'ui', 'node_modules');
+      const worktreeUiNodeModules = join(worktreePath, 'ui', 'node_modules');
+      const worktreeUiDirExists = existsSync(join(worktreePath, 'ui'));
+      if (worktreeUiDirExists && existsSync(primaryUiNodeModules) && !existsSync(worktreeUiNodeModules)) {
+        symlinkSync(primaryUiNodeModules, worktreeUiNodeModules, 'dir');
+      }
+    } catch (e) {
+      console.warn(`[worktree] Failed to symlink ui/node_modules into worktree: ${e.message}`);
     }
 
     // Copy .claude directory for skills.
@@ -8044,15 +8137,28 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
   // Track AM-1119 Phase 3 (Task 2): one pass to know every track's current
   // lane up front, so the dependency gate below (**Depends On**) can check
   // "is track X done?" without a second directory scan per candidate.
+  //
+  // Track AM-10099 item (h): stores `{ lane, laneActionStatus }`, not just
+  // the bare lane name — `lane === 'done'` alone means "quality-gated and
+  // queued for the merge action," NOT "shipped" (the merge action is what
+  // later sets lane_action_status to 'success' once the code is actually
+  // on main). The gate below now reuses isDependencyShipped
+  // (dependency-resume.mjs), the same `lane === 'done' && laneActionStatus
+  // === 'success'` predicate that module's own header already explains,
+  // instead of a second, weaker copy of the same idea.
   const laneStatusByTrackNumber = {};
   for (const dir of dirs) {
     const indexPath = join(tracksDir, dir, 'index.md');
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
     const laneMatchForMap = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+    const laneStatusMatchForMap = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     const trackNumMatchForMap = dir.match(/(\d+)/);
     if (laneMatchForMap && trackNumMatchForMap) {
-      laneStatusByTrackNumber[trackNumMatchForMap[1]] = laneMatchForMap[1].trim();
+      laneStatusByTrackNumber[trackNumMatchForMap[1]] = {
+        lane: laneMatchForMap[1].trim(),
+        laneActionStatus: laneStatusMatchForMap ? laneStatusMatchForMap[1].trim() : null,
+      };
     }
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*running/i);
     if (statusMatch) {
@@ -8174,7 +8280,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (!waitingForReply) {
       const dependsOn = parseDependsOn(content);
       if (dependsOn.length > 0) {
-        const unmet = dependsOn.filter(dep => laneStatusByTrackNumber[dep] !== 'done');
+        const unmet = dependsOn.filter(dep => !isDependencyShipped(dep, laneStatusByTrackNumber));
         if (unmet.length > 0) {
           console.log(`[local-fs] Track ${track_number}: waiting on dependencies [${unmet.join(', ')}] to reach done — skipping`);
           continue;
@@ -8272,7 +8378,15 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // Track 10017: a track's own `**Auto Run**` marker (default false) is a
     // second, independent gate in the same predicate — a queued track is not
     // auto-picked unless it opts in, bypassed only for waitingForReply.
-    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
+    //
+    // Track AM-10099 item (d)/REQ-6: ...or unless this run is
+    // `isClaimScopedOnceRun` — `lc worker run <track>`'s
+    // `--only-tracks ... --once` shape, a direct human instruction, not
+    // passive queue auto-picking. Same predicate as the AM-10093
+    // base-worker-cap exemption above, for the same reason: a bounded,
+    // self-terminating run is a different KIND of thing than an ordinary
+    // `--only-tracks`-scoped standing worker, which stays gated (REQ-7).
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun, explicitlyRequested: isClaimScopedOnceRun })) continue;
 
     // Passive lanes should not trigger auto-automation actions.
     // Track 10035: 'done' is no longer passive — a done:queue track is
@@ -8663,7 +8777,7 @@ If the user is asking for changes, bug fixes, new features, or refinements:
         // stale buffer wholesale a moment later. Reading fresh again here
         // means only **Lane Status** ever changes as a result of this
         // write, never a revert of anything else touched in between.
-        const freshForClaim = readIfExists(indexPath) ?? content;
+        const freshForClaim = resolveFreshContentForClaim(readIfExists(indexPath), content);
         const runningContent = updateHeader(freshForClaim, 'Lane Status', 'running');
         writeFileSync(indexPath, runningContent, 'utf8');
       }
@@ -8697,13 +8811,8 @@ If the user is asking for changes, bug fixes, new features, or refinements:
 // mode), so this is a no-op there — dispatch inherently needs a place to
 // store "which worker" outside the filesystem.
 //
-// track_number -> dispatch id, for lane-action entries that have been
-// claimed and spawned but haven't finished yet. spawnCli itself is
-// fire-and-forget (see autoLaunchLocalFs), so completion is detected by
-// polling the same Lane Status field spawnCli's own exit handler
-// already writes to index.md, rather than adding a second completion path
-// into spawnCli's already-complex internals.
-const activeDispatch = new Map();
+// (activeDispatch moved up near the top of this file — Track AM-10099
+// Phase 11 Task 5 / item n — see that comment for why.)
 
 // Track 1114: "Complete & Merge" autopilot. Same poll-based completion
 // detection as activeDispatch (reads Lane/Lane Status from index.md) but
@@ -9429,51 +9538,68 @@ async function reapOrphanedWorkerProcesses() {
     }
   }
 
-  // Track 10040 REQ-11 (Finding 4): report — never silently restart —
-  // any registered worker ON THIS HOST whose loaded code has fallen behind
-  // this install dir's own HEAD. Cross-host workers are out of scope: a
-  // different host has its own independent git checkout, and comparing it
-  // against this machine's HEAD would be meaningless. Restarting a
-  // detected-stale worker automatically is explicitly NOT implemented here
-  // — report-only, gated the same way Phase 7's auto-heal is, but the
-  // restart mechanism itself (which needs correct pidfile/lc-worker-restart
-  // wiring) is out of scope for this pass; a human acts on the warn log.
-  if (workerCodeSha) {
-    try {
-      const installDir = dirname(fileURLToPath(import.meta.url));
-      const headSha = execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
-      const localWorkers = workers.filter(w => w.hostname === hostname && w.code_sha);
-      for (const w of localWorkers) {
-        if (w.code_sha === headSha) continue;
-        let commitsBehind = 0;
-        let touchedFiles = [];
-        try {
-          commitsBehind = parseInt(execSync(`git rev-list --count ${w.code_sha}..${headSha}`, { cwd: installDir, encoding: 'utf8' }).trim(), 10) || 0;
-          touchedFiles = execSync(`git diff --name-only ${w.code_sha} ${headSha}`, { cwd: installDir, encoding: 'utf8' })
-            .split('\n').map(l => l.trim()).filter(Boolean);
-        } catch (err) {
-          // w.code_sha may no longer exist locally (rebased history, etc.)
-          // — skip classification for this worker rather than guessing.
-          logger.warn({ pid: w.pid, err: err.message }, '[worker-staleness] Could not diff worker code_sha against HEAD (skipping)');
-          continue;
-        }
-        const classification = classifyWorkerStaleness({ workerSha: w.code_sha, headSha, commitsBehind, touchedFiles });
-        if (classification.severity === 'critical') {
-          logger.warn(
-            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
-            `[worker-staleness] Worker pid ${w.pid} is running CRITICALLY stale code: ${classification.reason}`
-          );
-        } else if (classification.severity === 'stale') {
-          logger.warn(
-            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
-            `[worker-staleness] Worker pid ${w.pid} is stale: ${classification.reason}`
-          );
-        }
+}
+
+// Track AM-10099 Phase 8 (item f): this used to be inlined inside
+// reapOrphanedWorkerProcesses(), which returns immediately with
+// `if (!isManager) return;` — meaning the staleness check was
+// UNREACHABLE for every ordinary project-type worker, which is the
+// overwhelming majority of workers and exactly the kind that suffered
+// the live incident (item (e)) this diagnosis was asked to explain. This
+// is the root cause Phase 8 Task 1 asked to find: not a bug in
+// classifyWorkerStaleness itself (which works correctly, see its own
+// unit tests), but a call site gated on the wrong condition. Extracted
+// so it can be called unconditionally, for every worker type.
+//
+// Track 10040 REQ-11 (Finding 4): report — never silently restart — any
+// registered worker ON THIS HOST whose loaded code has fallen behind
+// this install dir's own HEAD. Cross-host workers are out of scope: a
+// different host has its own independent git checkout, and comparing it
+// against this machine's HEAD would be meaningless. Restarting a
+// detected-stale worker automatically is explicitly NOT implemented here
+// — report-only; a human (or the done-lane merge action, via the
+// collector_health-style `code_staleness` heartbeat field this now
+// populates — see the /worker/heartbeat call site) acts on it.
+async function checkWorkerCodeStaleness(workers) {
+  if (!workerCodeSha) return [];
+  const results = [];
+  try {
+    const installDir = dirname(fileURLToPath(import.meta.url));
+    const headSha = execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
+    const localWorkers = workers.filter(w => w.hostname === hostname && w.code_sha);
+    for (const w of localWorkers) {
+      if (w.code_sha === headSha) continue;
+      let commitsBehind = 0;
+      let touchedFiles = [];
+      try {
+        commitsBehind = parseInt(execSync(`git rev-list --count ${w.code_sha}..${headSha}`, { cwd: installDir, encoding: 'utf8' }).trim(), 10) || 0;
+        touchedFiles = execSync(`git diff --name-only ${w.code_sha} ${headSha}`, { cwd: installDir, encoding: 'utf8' })
+          .split('\n').map(l => l.trim()).filter(Boolean);
+      } catch (err) {
+        // w.code_sha may no longer exist locally (rebased history, etc.)
+        // — skip classification for this worker rather than guessing.
+        logger.warn({ pid: w.pid, err: err.message }, '[worker-staleness] Could not diff worker code_sha against HEAD (skipping)');
+        continue;
       }
-    } catch (err) {
-      logger.warn({ err: err.message }, '[worker-staleness] Failed to check worker code staleness (skipping this cycle)');
+      const classification = classifyWorkerStaleness({ workerSha: w.code_sha, headSha, commitsBehind, touchedFiles });
+      if (classification.severity === 'critical') {
+        logger.warn(
+          { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+          `[worker-staleness] Worker pid ${w.pid} is running CRITICALLY stale code: ${classification.reason}`
+        );
+        results.push({ pid: w.pid, hostname: w.hostname, ...classification, commitsBehind });
+      } else if (classification.severity === 'stale') {
+        logger.warn(
+          { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+          `[worker-staleness] Worker pid ${w.pid} is stale: ${classification.reason}`
+        );
+        results.push({ pid: w.pid, hostname: w.hostname, ...classification, commitsBehind });
+      }
     }
+  } catch (err) {
+    logger.warn({ err: err.message }, '[worker-staleness] Failed to check worker code staleness (skipping this cycle)');
   }
+  return results;
 }
 
 // Track 1110 Phase 6, extended by Track 10020 Phase 2: reconciles
@@ -10851,6 +10977,27 @@ setInterval(() => {
 setInterval(() => {
   reapOrphanedWorkerProcesses().catch(err => logger.warn({ err: err.message }, '[orphan-reap error]'));
 }, Number(process.env.LC_ORPHAN_REAP_POLL_MS) || 5 * 60 * 1000);
+
+// Track AM-10099 Phase 8 (item f): unconditional — every worker type,
+// not just the manager reapOrphanedWorkerProcesses() above is gated to
+// (see checkWorkerCodeStaleness's own header for the full root-cause
+// writeup). Reuses the same interval and the same local-fs skip
+// (nothing to compare a code_sha against without a collector), doesn't
+// need its own env override.
+if (!getIsLocalFs()) {
+  setInterval(() => {
+    (async () => {
+      try {
+        const { url, token } = primaryCollector();
+        if (!url) return;
+        const workers = await get(url, token, '/api/workers');
+        latestWorkerStaleness = await checkWorkerCodeStaleness(Array.isArray(workers) ? workers : []);
+      } catch (err) {
+        logger.warn({ err: err.message }, '[worker-staleness] periodic check failed (skipping this cycle)');
+      }
+    })();
+  }, Number(process.env.LC_ORPHAN_REAP_POLL_MS) || 5 * 60 * 1000);
+}
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;

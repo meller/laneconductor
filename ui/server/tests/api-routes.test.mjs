@@ -22,8 +22,19 @@ vi.mock('fs', () => ({
 // Mock pg
 vi.mock('pg', () => {
     const query = vi.fn();
+    // Track AM-10099 item (b): POST /api/projects/:id/tracks (and other
+    // routes needing an atomic multi-statement transaction) use
+    // `pool.connect()` to get a dedicated client, not `pool.query()`
+    // directly — the original mock had no `connect()` at all, so every
+    // such route 500'd on `pool.connect is not a function` before this,
+    // invisibly (this whole file failed to collect until the execFile fix
+    // below). The client shares the same `query` vi.fn() as `pool.query`
+    // so existing `vi.mocked(pool.query).mockResolvedValueOnce(...)`
+    // call-sequencing in tests below still queues correctly.
+    const connect = vi.fn(async () => ({ query, release: vi.fn() }));
     const Pool = vi.fn(() => ({
         query,
+        connect,
         on: vi.fn(),
     }));
     return {
@@ -35,11 +46,20 @@ vi.mock('pg', () => {
 // Mock child_process
 vi.mock('child_process', () => ({
     exec: vi.fn(),
+    // server/index.mjs:3 imports execFile (track-10080's `git ls-files`
+    // manifest work) and wraps it with util.promisify at module load time —
+    // without this the whole file fails to COLLECT, not just individual
+    // assertions (track AM-10099 item (b)).
+    execFile: vi.fn((file, args, options, callback) => {
+        const cb = typeof options === 'function' ? options : callback;
+        cb?.(null, '', '');
+    }),
     spawn: vi.fn(() => ({
         pid: 1234,
         unref: vi.fn(),
         on: vi.fn()
-    }))
+    })),
+    spawnSync: vi.fn(() => ({ status: 0, stdout: '', stderr: '' }))
 }));
 
 describe('API Routes', () => {
@@ -61,6 +81,9 @@ describe('API Routes', () => {
 
     it('GET /api/projects/:id/tracks', async () => {
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 1, track_number: '001' }] });
+        // Track 10018's worktree cross-reference (fetchWorktreeRows) runs a
+        // second, independent pool.query — track AM-10099 item (b).
+        vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] });
         await request(app).get('/api/projects/1/tracks').expect(200);
     });
 
@@ -75,7 +98,13 @@ describe('API Routes', () => {
 
     it('POST /api/projects/:id/tracks', async () => {
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 1, repo_path: '/r' }] }); // proj
+        // Transactional client.query sequence (pool.connect(), track
+        // AM-10099 item (b) fix — shares the same `query` mock as above):
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // BEGIN
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // SELECT ... FOR UPDATE
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ next_num: 1 }] }); // num
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // INSERT INTO tracks
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // COMMIT
         vi.mocked(fetch).mockResolvedValueOnce({ ok: true, text: async () => '{"ok":true}' }); // collector
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] }); // queueFileSync INSERT
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 1, track_number: '001' }] }); // result
@@ -84,7 +113,11 @@ describe('API Routes', () => {
 
     it('POST /api/projects/:id/tracks with existing file_sync_queue.md', async () => {
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 1, repo_path: '/r' }] }); // proj
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // BEGIN
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // SELECT ... FOR UPDATE
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ next_num: 2 }] }); // num
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // INSERT INTO tracks
+        vi.mocked(pool.query).mockResolvedValueOnce({}); // COMMIT
         vi.mocked(fetch).mockResolvedValueOnce({ ok: true, text: async () => '{"ok":true}' }); // collector
         vi.mocked(fs.existsSync).mockReturnValue(true);
         vi.mocked(fs.readFileSync).mockReturnValue('# File Sync Queue\n\nLast processed: —\n\n## Track Creation Requests\n\n## Config Sync Requests\n\n*No pending config sync requests.*\n\n## Completed Queue\n');
@@ -193,7 +226,15 @@ describe('API Routes', () => {
         vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: '/r' }] }) // project
             .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // getTrackId
             .mockResolvedValueOnce({ rows: [{ author: 'human', body: 'New H' }] }); // comments
-        vi.mocked(fs.readdirSync).mockReturnValue(['001-s']);
+        // Track AM-10099 item (b): resolveTrackFolderFs short-circuits to no
+        // folders found unless existsSync(tracksDir) is true, and its own
+        // withFileTypes: true readdirSync call needs Dirent-shaped entries
+        // (.isDirectory()), not the bare name strings this mock previously
+        // returned — both were silently masked while this whole file failed
+        // to collect (see the execFile fix above).
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.readdirSync).mockImplementation((_dir, opts) =>
+            opts?.withFileTypes ? [{ name: '001-s', isDirectory: () => true }] : ['001-s']);
         vi.mocked(fs.readFileSync).mockReturnValue('## Phase 2: Fix Review Gaps ⏳ IN PROGRESS');
         vi.mocked(fetch).mockResolvedValueOnce({ ok: true, text: async () => '{"ok":true}' }); // reset
         await request(app).post('/api/projects/1/tracks/001/fix-review').expect(200);
@@ -206,7 +247,15 @@ describe('API Routes', () => {
                 { author: 'claude', body: '### ⚠️ Gaps\n- [ ] Gap 1' },
                 { author: 'human', body: 'Feedback' }
             ] }); // comments
-        vi.mocked(fs.readdirSync).mockReturnValue(['001-s']);
+        // Track AM-10099 item (b): resolveTrackFolderFs short-circuits to no
+        // folders found unless existsSync(tracksDir) is true, and its own
+        // withFileTypes: true readdirSync call needs Dirent-shaped entries
+        // (.isDirectory()), not the bare name strings this mock previously
+        // returned — both were silently masked while this whole file failed
+        // to collect (see the execFile fix above).
+        vi.mocked(fs.existsSync).mockReturnValue(true);
+        vi.mocked(fs.readdirSync).mockImplementation((_dir, opts) =>
+            opts?.withFileTypes ? [{ name: '001-s', isDirectory: () => true }] : ['001-s']);
         vi.mocked(fs.readFileSync).mockReturnValue('# Plan\n## Phase 1: Test');
         vi.mocked(fetch).mockResolvedValueOnce({ ok: true, text: async () => '{"ok":true}' }) // reset
             .mockResolvedValueOnce({ ok: true, text: async () => '{"ok":true}' }) // comment

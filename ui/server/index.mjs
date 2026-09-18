@@ -25,6 +25,7 @@ import { shouldBlockLaneWrite } from '../../conductor/services/lane-regression-g
 import { checkGhAuth } from '../../conductor/services/pr-flow.mjs';
 import { jiraProjectExists, resolveJiraToken } from '../../conductor/services/jira-auth.mjs';
 import { resolveTrackFolderFs } from '../../conductor/services/track-folder-fs.mjs';
+import { AUTHORED_MARKER_PROVENANCE } from '../../conductor/services/marker-ownership.mjs';
 import { COLLECTOR_API_VERSION, buildRouteManifest, formatManifestRoutes } from '../../conductor/services/collector-manifest.mjs';
 import { buildInstanceState } from '../../conductor/services/instance-state.mjs';
 import { computeSetupGaps } from '../../conductor/services/setup-gaps.mjs';
@@ -488,7 +489,7 @@ app.get('/api/projects/:id/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name,
-              w.collector_api_version, w.collector_compat, w.collector_health,
+              w.collector_api_version, w.collector_compat, w.collector_health, w.code_staleness,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at,
               ts.last_track_title
        FROM workers w
@@ -765,7 +766,7 @@ app.get('/api/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
-              w.code_sha, w.code_sha_captured_at, w.collector_api_version, w.collector_compat, w.collector_health,
+              w.code_sha, w.code_sha_captured_at, w.collector_api_version, w.collector_compat, w.collector_health, w.code_staleness,
               p.id AS project_id, p.name AS project_name, p.repo_path,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at,
               ts.last_track_title
@@ -1857,7 +1858,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
               active_cli, assignee_uid, created_by_uid, auto_run, merge_mode, workspace_mode,
-              waiting_reason
+              waiting_reason, model_override
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1893,6 +1894,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       merge_mode: t.merge_mode,
       workspace_mode: t.workspace_mode,
       waiting_reason: t.waiting_reason, // Track 10055
+      model_override: t.model_override, // Track 1116 REQ-7
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2006,6 +2008,18 @@ async function getTrackId(projectId, trackNum) {
 // ── DB → Files Sync (Phase 3 of Track 1010) ───────────────────────────────
 
 async function syncTrackToFile(projectId, trackNum, updates) {
+  // Track AM-10099 Phase 7 (item e, REQ-8): author-owned markers (see
+  // conductor/services/marker-ownership.mjs) may only be written when the
+  // caller explicitly asserts `updates.provenance ===
+  // AUTHORED_MARKER_PROVENANCE` — i.e. this call IS itself the deliberate
+  // human/UI action changing that field (the /auto-run, /merge-mode-style,
+  // /workspace-mode-style routes all set it), never a generic/coarse
+  // sync mirroring whatever the DB row currently holds. Confirmed live on
+  // this very track: an unguarded call overwrote a deliberately-committed
+  // **Auto Run**: no with the DB's (corrupted-by-an-unrelated-bug) yes —
+  // see spec.md item (e). Machine-owned markers (Lane/Lane Status/
+  // Progress/Phase) are unaffected by this flag and always sync.
+  const isAuthoredWrite = updates.provenance === AUTHORED_MARKER_PROVENANCE;
   try {
     // Get project repo_path to access track files
     const projectRes = await pool.query('SELECT repo_path FROM projects WHERE id = $1', [projectId]);
@@ -2133,18 +2147,20 @@ async function syncTrackToFile(projectId, trackNum, updates) {
     // pattern above (that pattern never appends: String.replace() returns the
     // unchanged, still-truthy string on a no-match, so the `||` branch never
     // fires — harmless for markers guaranteed present, wrong for one that isn't).
-    if (updates.auto_run !== undefined) {
+    if (updates.auto_run !== undefined && isAuthoredWrite) {
       const autoRunStr = updates.auto_run ? 'yes' : 'no';
       const autoRunRe = /^\*\*Auto Run\*\*:\s*.+$/m;
       content = autoRunRe.test(content)
         ? content.replace(autoRunRe, `**Auto Run**: ${autoRunStr}`)
         : content.trim() + `\n**Auto Run**: ${autoRunStr}\n`;
+    } else if (updates.auto_run !== undefined) {
+      console.warn(`[sync-to-file] Track ${trackNum}: ignoring un-authored auto_run update (provenance not asserted) — an author-owned marker never syncs from a generic DB value.`);
     }
 
     // Track 10018: only write a marker when a value was actually set — a
     // null merge_mode (explicitly clearing back to "unspecified") removes
     // the marker rather than writing "**Merge Mode**: null".
-    if (updates.merge_mode !== undefined) {
+    if (updates.merge_mode !== undefined && isAuthoredWrite) {
       if (updates.merge_mode === null) {
         content = content.replace(/^\*\*Merge Mode\*\*:\s*.+\n?/m, '');
       } else if (/^\*\*Merge Mode\*\*:\s*.+$/m.test(content)) {
@@ -2152,10 +2168,12 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       } else {
         content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Merge Mode**: ${updates.merge_mode}`) || content;
       }
+    } else if (updates.merge_mode !== undefined) {
+      console.warn(`[sync-to-file] Track ${trackNum}: ignoring un-authored merge_mode update (provenance not asserted).`);
     }
 
     // Track 1115: same only-write-when-set / remove-when-null pattern as merge_mode above.
-    if (updates.workspace_mode !== undefined) {
+    if (updates.workspace_mode !== undefined && isAuthoredWrite) {
       if (updates.workspace_mode === null) {
         content = content.replace(/^\*\*Workspace\*\*:\s*.+\n?/m, '');
       } else if (/^\*\*Workspace\*\*:\s*.+$/m.test(content)) {
@@ -2163,6 +2181,34 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       } else {
         content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Workspace**: ${updates.workspace_mode}`) || content;
       }
+    } else if (updates.workspace_mode !== undefined) {
+      console.warn(`[sync-to-file] Track ${trackNum}: ignoring un-authored workspace_mode update (provenance not asserted).`);
+    }
+
+    // Track 1116 REQ-7: same only-write-when-set / remove-when-null pattern
+    // as merge_mode/workspace_mode above. The worker already reads this
+    // marker (conductor/laneconductor.sync.mjs's model resolution, tier 1)
+    // — this is the write side.
+    //
+    // Track AM-10099 Phase 11 Task 3 (item l): `Model` is author-owned
+    // (marker-ownership.mjs) — the same as merge_mode/workspace_mode above
+    // — but this branch had no isAuthoredWrite guard at all until this fix,
+    // unlike its three siblings. Its only current caller is the dedicated
+    // track-detail-panel "Model override" route, so this was not
+    // reachable via a generic/coarse sync in practice — but the guard
+    // belongs here structurally regardless, so a future caller can't
+    // silently reintroduce the same class of bug this whole module exists
+    // to prevent.
+    if (updates.model_override !== undefined && isAuthoredWrite) {
+      if (updates.model_override === null) {
+        content = content.replace(/^\*\*Model\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Model\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Model\*\*:\s*.+$/m, `**Model**: ${updates.model_override}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Model**: ${updates.model_override}`) || content;
+      }
+    } else if (updates.model_override !== undefined) {
+      console.warn(`[sync-to-file] Track ${trackNum}: ignoring un-authored model_override update (provenance not asserted).`);
     }
 
     // Write back to file
@@ -2974,7 +3020,7 @@ function gitGlobalId(gitRemote) {
 
 // ── Exports (for testing) ───────────────────────────────────────────────────
 
-export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus, reapStaleDispatches };
+export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus, reapStaleDispatches, syncTrackToFile };
 
 // Load Firebase Admin config (verifies tokens in remote mode)
 import { TEST_MODE as AUTH_TEST_MODE } from './auth.mjs';
@@ -4540,7 +4586,7 @@ app.post('/worker/register', async (req, res, next) => {
 app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
-    const { hostname, pid, status, current_task, mode, model, available_models, worktrees, collector_health } = req.body;
+    const { hostname, pid, status, current_task, mode, model, available_models, worktrees, collector_health, code_staleness } = req.body;
     // Same forward-migration normalization as /worker/register — see its comment.
     const cli = normalizeProviderId(req.body.cli);
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
@@ -4578,6 +4624,13 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     // an older worker's heartbeat (no such field) must never wipe out a
     // health snapshot a newer register call already stored.
     if (collector_health !== undefined) { sets.push(`collector_health = $${i++}`); params.push(JSON.stringify(collector_health)); }
+    // Track AM-10099 Phase 8 (item f): same only-written-when-sent
+    // convention as collector_health directly above — an older worker's
+    // heartbeat (no such field) must never wipe a staleness verdict a
+    // newer one already stored. Explicitly cleared (empty array, not
+    // omitted) once the worker itself reports current — see
+    // checkWorkerCodeStaleness's `code_staleness: latestWorkerStaleness.length > 0 ? ... : undefined`.
+    if (code_staleness !== undefined) { sets.push(`code_staleness = $${i++}`); params.push(JSON.stringify(code_staleness)); }
     // Track 1091: IS NOT DISTINCT FROM, not `=` — a manager worker's
     // project_id is always NULL, and SQL's `NULL = NULL` is never true, so
     // a plain `=` silently matched zero rows for every manager heartbeat
@@ -5719,7 +5772,40 @@ app.patch('/api/projects/:id/tracks/:num/auto-run', async (req, res) => {
     // syncTrackToFile catches its own errors and never rejects — awaited here
     // (unlike the fire-and-forget usage elsewhere) so the response only
     // returns once the **Auto Run** marker write has actually settled.
-    await syncTrackToFile(req.params.id, req.params.num, { auto_run });
+    // Track AM-10099 Phase 7: this route IS the deliberate human/UI action
+    // that owns **Auto Run** — asserts provenance so syncTrackToFile
+    // actually applies it (an un-asserted call is ignored, see item (e)).
+    await syncTrackToFile(req.params.id, req.params.num, { auto_run, provenance: AUTHORED_MARKER_PROVENANCE });
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1116 REQ-7: per-track model override — top of the model resolution
+// order documented in conductor/workflow.md ("Model Overrides"), beating
+// lane/project/meta-level defaults for this track alone. The worker already
+// reads the **Model** marker this writes back via syncTrackToFile; null
+// clears the override back to the normal resolution chain.
+app.patch('/api/projects/:id/tracks/:num/model-override', async (req, res) => {
+  try {
+    const { model_override } = req.body;
+    if (model_override !== null && typeof model_override !== 'string') {
+      return res.status(400).json({ error: 'model_override must be a string or null' });
+    }
+    const { rowCount } = await pool.query(
+      'UPDATE tracks SET model_override = $1 WHERE project_id = $2 AND track_number = $3',
+      [model_override, req.params.id, req.params.num]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    // Track AM-10099 Phase 11 Task 3 (item l): this route IS the dedicated
+    // human/UI action for **Model** (marker-ownership.mjs classifies it
+    // author-owned) — the same reason the /auto-run route above asserts
+    // AUTHORED_MARKER_PROVENANCE. Added alongside syncTrackToFile's own new
+    // guard on this field; without this the route would now silently no-op
+    // (a warning-only skip) instead of writing the override.
+    await syncTrackToFile(req.params.id, req.params.num, { model_override, provenance: AUTHORED_MARKER_PROVENANCE });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
   } catch (err) {

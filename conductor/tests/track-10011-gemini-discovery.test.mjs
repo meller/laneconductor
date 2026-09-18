@@ -8,12 +8,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
-const TMP = join(ROOT, '.test-tmp-track-10011-discovery');
+const TMP = join(tmpdir(), 'lc-track-10011-discovery');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -50,6 +52,10 @@ async function getState(port) {
 function setupProject(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
+mkdirSync(TMP, { recursive: true });
   mkdirSync(join(TMP, 'bin'), { recursive: true });
 
   // Write a mock 'agy' binary that lists models
