@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 10%
+**Progress**: 20%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Phase 1 of 10 complete — 25/25 AM-10089 files structurally protected against the worktree-cwd-normalization escape; new regression test added; workflow.json integrity and orphan-process checks confirmed clean
+**Phase**: Phase 2 of 10 complete — vitest suite fully green (135/135 files, 996/996 cases); fixed 2 real production bugs found via triage (remote-api auth silently disabled; per-track model override never shipped despite being marked done); worktrees now get a working ui/node_modules
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct
