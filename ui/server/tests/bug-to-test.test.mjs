@@ -26,7 +26,15 @@ vi.mock('pg', () => {
 
 vi.mock('child_process', () => ({
   exec: vi.fn(),
+  // server/index.mjs:3 imports execFile and wraps it with util.promisify at
+  // module load time — without this the whole file fails to COLLECT, not
+  // just individual assertions (track AM-10099 item (b)).
+  execFile: vi.fn((file, args, options, callback) => {
+    const cb = typeof options === 'function' ? options : callback;
+    cb?.(null, '', '');
+  }),
   spawn: vi.fn(() => ({ pid: 1234, unref: vi.fn(), on: vi.fn() })),
+  spawnSync: vi.fn(() => ({ status: 0, stdout: '', stderr: '' })),
 }));
 
 // ── Unit tests: appendRegressionTest (pure function) ─────────────────────────
@@ -89,7 +97,12 @@ describe('POST /api/projects/:id/tracks/:num/open-bug', () => {
       .mockResolvedValueOnce({ rows: [] }); // queueFileSync
 
     // fs: readdirSync returns track folder, existsSync for test.md
-    vi.mocked(fs.readdirSync).mockReturnValue([trackDir]);
+    // Track AM-10099 item (b): resolveTrackFolderFs's own `withFileTypes:
+    // true` readdirSync call needs Dirent-shaped entries (.isDirectory()),
+    // not bare name strings — only reachable once existsSync(tracksDir) is
+    // true (TC-4), which is why this only broke that one case.
+    vi.mocked(fs.readdirSync).mockImplementation((_dir, opts) =>
+      opts?.withFileTypes ? [{ name: trackDir, isDirectory: () => true }] : [trackDir]);
     vi.mocked(fs.existsSync).mockReturnValue(testMdExists);
     vi.mocked(fs.readFileSync).mockReturnValue(testMdContent);
     vi.mocked(fs.statSync).mockReturnValue({ size: 100 });
