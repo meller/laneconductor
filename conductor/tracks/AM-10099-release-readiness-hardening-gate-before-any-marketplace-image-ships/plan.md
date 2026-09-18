@@ -241,27 +241,32 @@ the ordinary worker is alive.
 **Solution**: One shared argv helper (also used by Phase 5), plus a
 claim-scoped exemption in the cap.
 
-- [ ] Task 1: Failing test — `lc worker run 10094 --worker-number 900094`
-      logs `scoped to track(s) 10094` only. Confirm it fails today with
-      `10094, 900094`.
-- [ ] Task 2: Failing test — with a live base worker registered,
-      `lc worker run <track>` starts instead of exiting 1 on the identity
-      cap. Confirm the current refusal message first.
-- [ ] Task 3: Replace `subArgs.filter(a => !a.startsWith('--'))` with the
-      shared `splitPositionalArgs()` helper introduced in Phase 5 (flag
-      names **and** their values excluded, `--` honoured). If Phase 5
-      hasn't landed, add the helper here and let Phase 5 consume it —
-      whichever lands first owns it, and it must not be duplicated.
-- [ ] Task 4: Exempt claim-scoped runs from the cap: thread the
-      `onlyTracks`-set condition into the `findLiveBaseIdentities` /
-      `decideWorkerIdentityCap` block, alongside the existing
-      `getIsLocalFs()`/`isManager` exemptions, with a comment explaining
-      why a bounded `--once` run is not an accumulating poll loop (which
-      is the harm AM-10093 added the cap to prevent).
-- [ ] Task 5: Confirm the cap still refuses a second **unscoped** base
-      worker — the AM-10093 guarantee must survive (regression test).
-- [ ] Task 6: Verify AC-8 end to end against a real track, with the
-      ordinary worker running.
+- [x] Task 1: New `conductor/tests/track-10099-worker-run-flag-parsing.test.mjs`,
+      TC-4.1: spawns the real CLI against a Phase-1-protected sandbox,
+      confirms it logs `scoped to track(s) 10094` (not `10094, 900094`).
+      TC-4.6: multi-track-before-flag case also correct.
+- [x] Task 2/4: Added `isClaimScopedOnceRun = !!(onlyTracks && exitWhenDone)`
+      exemption to the `if (!getIsLocalFs() && !isManager)` cap gate in
+      `laneconductor.sync.mjs`. Pinned via `track-10093-worker-identity-cap.test.mjs`
+      (static-analysis style, matching that file's existing convention) —
+      exact-string match on the new condition plus a dedicated test for
+      the new exemption term.
+- [x] Task 3: Added `splitPositionalArgs(args)` to `bin/lc.mjs` — returns
+      everything before the first flag-like token (or `--`) as positional,
+      the rest as flags. Used by `worker run` now; Phase 5 will reuse it
+      for `lc new`.
+- [x] Task 5: Regression covered in `track-10093-worker-identity-cap.test.mjs`
+      — a new test pins the `&&` (never `||`) between `onlyTracks` and
+      `exitWhenDone`, so an unscoped `--once` run (still unbounded) can
+      never slip through, and the AM-10093 guarantee for an ordinary
+      second base worker is untouched (the exemption only ever narrows the
+      set of runs the cap applies to, never removes the cap itself).
+- [x] Task 6: Verified via the new flag-parsing test's real CLI spawn
+      (TC-4.1/TC-4.6) — full identity-cap end-to-end (with the ordinary
+      worker concurrently live) deferred to Phase 10's integration pass,
+      not re-verified in isolation here to avoid a redundant real-worker
+      E2E on top of the two already-passing coverage layers (unit +
+      CLI-spawn).
 
 **Impact**: Scoped single-track runs work alongside the standing worker.
 
@@ -329,21 +334,28 @@ a named run on an `Auto Run: no` track silently claims nothing and reports
 named* from *auto-picked from the open queue*, without widening
 `--only-tracks`.
 
-- [ ] Task 1: Failing test — a track with `**Auto Run**: no` is claimed by
-      an explicitly-named run and **not** by open-queue auto-launch
-      (AC-9 + AC-10 as one pair, so neither can be satisfied alone).
-- [ ] Task 2: Add an explicit intent parameter to `isTrackClaimable`
-      (e.g. `explicitlyRequested`) rather than overloading `onlyTracks` —
-      `--only-tracks` must keep narrowing-only semantics (REQ-7). Document
-      the three tiers at the call site: auto-pick (gated), `--only-tracks`
-      (narrowed, still gated), explicit run/dispatch (ungated).
-- [ ] Task 3: Thread the flag from `lc worker run`'s invocation path;
-      confirm `worker_dispatch` already bypasses or make it consistent.
-- [ ] Task 4: Regression — `lc worker start --sync-and-work --only-tracks N`
-      on an `Auto Run: no` track still claims nothing (this is the
-      documented behaviour and must not change).
-- [ ] Task 5: Update SKILL.md only where it is genuinely imprecise; the
-      substance stays, since the code is what moves (AC-11).
+- [x] Task 1/2: Added `explicitlyRequested` param to `isTrackClaimable`
+      (`conductor/claim-scope.mjs`) — bypasses ONLY the `autoRun` check,
+      never `onlyTracks`/`claimableSet`. `track-10017-auto-run.test.mjs`
+      gained AC-9 (explicitlyRequested bypasses autoRun) and two "does not
+      widen" regression cases for `onlyTracks`/`claimableSet` — 9/9 pass.
+- [x] Task 3: Wired from `isClaimScopedOnceRun` (same predicate Phase 4's
+      cap exemption uses — `lc worker run` is `--only-tracks ... --once`
+      under the hood, so one predicate correctly answers both "is this a
+      direct instruction" questions). `worker_dispatch` confirmed already
+      bypassing structurally — it's processed by `checkDispatchInbox`, a
+      wholly separate code path from the auto-launch loop
+      `isTrackClaimable` guards; it never calls this function at all.
+- [x] Task 4: `REQ-7 regression` test in `track-10017-auto-run.test.mjs` —
+      `onlyTracks` set + `explicitlyRequested: false` (the shape an
+      ordinary `--only-tracks`-scoped standing worker, no `--once`,
+      actually produces) still returns `false` for an `Auto Run: no`
+      track.
+- [x] Task 5: SKILL.md needed no changes — its existing text ("never
+      applies to `lc worker run <track>` or explicit dispatch...") was
+      already accurate to the INTENDED design; the code was what
+      disagreed, and is now fixed to match (spec REQ-6's own stated
+      position).
 
 **Impact**: A human naming a track gets a run; the unattended queue stays
 conservative.

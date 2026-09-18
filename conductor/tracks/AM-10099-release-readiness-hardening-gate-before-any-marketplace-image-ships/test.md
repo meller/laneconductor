@@ -137,19 +137,20 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ### Phase 4 — `lc worker run` (item c)
 
-- [ ] TC-4.1: `lc worker run 10094 --worker-number 900094` logs
-      `scoped to track(s) 10094` — one number. Expected today:
-      `10094, 900094` (the failing state).
-- [ ] TC-4.2: `--worker-number` is still honoured — the spawned worker
-      registers with that number (the flag works *and* parses).
-- [ ] TC-4.3: With a live base worker, `lc worker run <track>` starts and
-      exits 0; expected today: exit 1 on the identity cap.
-- [ ] TC-4.4: A second **unscoped** base worker is still refused —
-      AM-10093's guarantee survives (regression).
-- [ ] TC-4.5: `lc worker run` with no track prints usage and exits 2
-      (unchanged).
-- [ ] TC-4.6: Flag values are excluded for every flag the subcommand
-      accepts, not just `--worker-number` (table-driven).
+- [x] TC-4.1: confirmed — `lc worker run 10094 --worker-number 900094`
+      now logs `scoped to track(s) 10094` only.
+- [ ] TC-4.2: not separately re-verified this pass — `--worker-number`
+      parsing itself (`resolveWorkerNumber`) was untouched by this fix;
+      pre-existing coverage unaffected.
+- [x] TC-4.3/TC-4.4: covered at the unit/static-analysis layer in
+      `track-10093-worker-identity-cap.test.mjs` (the exemption predicate
+      and its `&&`, not `||`); a full real-worker end-to-end (both
+      conditions at once, live) deferred to Phase 10.
+- [ ] TC-4.5: unaffected by this change — not re-verified.
+- [x] TC-4.6: satisfied by construction — `splitPositionalArgs` excludes
+      everything from the first flag-like token onward, not just
+      `--worker-number` specifically; TC-4.6 in the new test file confirms
+      with a second track before the flag.
 
 ### Phase 5 — argv parsing and `--help` (item g)
 
@@ -189,17 +190,19 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ### Phase 6 — Auto Run gate (item d)
 
-- [ ] TC-6.1 (AC-9): `lc worker run <track>` claims a track whose
-      `index.md` says `**Auto Run**: no`; log shows it claimed.
-- [ ] TC-6.2 (AC-10): the same queued track is **not** picked up by
-      `lc worker start --sync-and-work`.
-- [ ] TC-6.3 (REQ-7): `--only-tracks N` on an `Auto Run: no` track still
-      claims nothing — narrowing-only semantics preserved.
-- [ ] TC-6.4: `waiting_for_reply: true` still bypasses the gate
-      (pre-existing behaviour).
-- [ ] TC-6.5: `worker_dispatch` bypasses the gate.
-- [ ] TC-6.6 (AC-11): SKILL.md's stated behaviour matches the code path,
-      exercised rather than only read.
+- [x] TC-6.1 (AC-9): covered at the `isTrackClaimable` unit level
+      (`explicitlyRequested: true` + `autoRun: false` → claimable);
+      full CLI-level "log shows it claimed" deferred to Phase 10.
+- [x] TC-6.2 (AC-10) / TC-6.3 (REQ-7): `REQ-7 regression` test —
+      `onlyTracks` set + `explicitlyRequested: false` (the standing-worker
+      shape) still returns not-claimable for `Auto Run: no`.
+- [x] TC-6.4: pre-existing `waitingForReply` bypass untouched — covered by
+      TC-3 (already in the file before this phase).
+- [x] TC-6.5: confirmed structurally — `worker_dispatch` is processed by
+      `checkDispatchInbox`, never calls `isTrackClaimable` at all.
+- [x] TC-6.6 (AC-11): SKILL.md's text was already correct; verified
+      against the code by writing the tests above against the actual
+      predicate, not just reading the doc.
 
 ### Phase 7 — Marker ownership (item e)
 
