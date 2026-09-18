@@ -35,7 +35,7 @@ import { truncateSummary, parseSummaryMarker, parseSummary } from './summary-uti
 import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
-import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
+import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished, resolveFreshContentForClaim } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
 import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
@@ -43,6 +43,7 @@ import { loadMetaDefaults, mergeEffectivePrimary, mergeWorkflowConfig } from './
 import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { computeTrackDocDigest, hasTrackDocDrift } from './services/track-doc-digest.mjs';
+import { isAuthorOwnedMarker } from './services/marker-ownership.mjs';
 import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
 import { writeWizardConnectionsArtifacts } from './services/wizard-connections.mjs';
@@ -98,6 +99,42 @@ import { classifyClaudeProbe, isBlockingProviderStatus, PROVIDER_STATUS, formatP
 import { shouldCapSession, DEFAULT_MAX_CONTEXT_TOKENS, DEFAULT_MAX_RESUMES } from './services/session-cap.mjs';
 import { COLLECTOR_API_VERSION, compareManifest } from './services/collector-manifest.mjs';
 import { extractWorkerCalls } from './services/collector-route-parity.mjs';
+
+// Track AM-10099 Phase 11 Task 5 (item n): `gitExec`/`GIT_ENV` and
+// `activeDispatch` moved up here from their original positions further
+// down this file (~line 4763 and ~line 8786) — same TDZ class track 1114
+// already fixed once for `cachedMainBranch`, but that fix
+// (`setTimeout(fn, 0)`) doesn't cover this case. This module has a
+// top-level `await upsertWorker();` partway through the file; two things
+// scheduled BEFORE that line — the `setTimeout(refreshFileManifestCache, 0)`
+// tick, and, inside upsertWorker's own body, a fire-and-forgotten
+// `reconcileOrphanedDispatches()` call issued right after upsertWorker's
+// own internal `await post(...)` resolves — both can run while the
+// top-level await is still suspended, i.e. BEFORE the module's
+// synchronous evaluation has reached a `const` declared later in the
+// file. `setTimeout(fn, 0)` only protects against a plain macrotask
+// boundary; it does nothing when a top-level `await` sits between the
+// schedule point and the declaration, since the awaited call's own
+// internal continuation is exactly the kind of "later work" the
+// declaration was still waiting to run before. Moving the declarations
+// themselves above every reachable-before-`await upsertWorker()` call
+// site is the actual fix — confirmed live in this track's own worker log
+// ("Cannot access 'gitExec' before initialization",
+// "Cannot access 'activeDispatch' before initialization", every start).
+// Both are self-contained (no dependency on anything declared between
+// their old position and here), so hoisting is behavior-preserving.
+
+// Never let git prompt for credentials in any interactive terminal
+const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
+const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
+
+// track_number -> dispatch id, for lane-action entries that have been
+// claimed and spawned but haven't finished yet. spawnCli itself is
+// fire-and-forget (see autoLaunchLocalFs), so completion is detected by
+// polling the same Lane Status field spawnCli's own exit handler
+// already writes to index.md, rather than adding a second completion path
+// into spawnCli's already-complex internals.
+const activeDispatch = new Map();
 
 // Track AM-10093 Phase 6 (REQ-7): one shared throttle for every
 // stale-dispatch/stale-pull suppression log line — a persistently-
@@ -2859,7 +2896,17 @@ function updateIndexMDFromDB(trackFolder, dbTrack, pullContext = {}) {
     // Track 10018: only write the marker when the DB explicitly has a value —
     // an absent/NULL merge_mode means "unspecified", which resolveMergeMode()
     // treats as 'pr' without ever needing the marker to say so in the file.
-    if (dbTrack.merge_mode) {
+    //
+    // Track AM-10099 Phase 11 Task 2 (item k): `Merge Mode` is author-owned
+    // (marker-ownership.mjs), and this function's single call site
+    // (pullTracksMetadataFromDB's per-track loop) is exactly the
+    // "generic/coarse sync" case that module's own header says must never
+    // carry an author-owned marker onto the file — there is no human/UI
+    // action asserting AUTHORED_MARKER_PROVENANCE here, only "the DB
+    // happens to hold a value". This mirrors syncTrackToFile's own guard
+    // (Phase 7) on the API-server side; before this fix, this was the
+    // still-open half of TC-7.4 ("both writers enforce it").
+    if (dbTrack.merge_mode && !isAuthorOwnedMarker('Merge Mode')) {
       content = updateMarker(content, 'Merge Mode', dbTrack.merge_mode);
     }
 
@@ -4747,10 +4794,8 @@ function tailLog(logPath, lines = 100) {
 }
 
 // ── Git Lock + Worktree Helpers (Track 1010) ──────────────────────────────────
-
-// Never let git prompt for credentials in any interactive terminal
-const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' };
-const gitExec = (cmd, cwd) => execSync(cmd, { cwd, stdio: 'pipe', env: GIT_ENV });
+// (GIT_ENV / gitExec moved up near the top of this file — Track AM-10099
+// Phase 11 Task 5 / item n — see that comment for why.)
 
 // Track 10050: moved verbatim to services/main-branch.mjs so
 // conductor/lock.mjs can share it instead of hardcoding `origin/main`, which
@@ -8732,7 +8777,7 @@ If the user is asking for changes, bug fixes, new features, or refinements:
         // stale buffer wholesale a moment later. Reading fresh again here
         // means only **Lane Status** ever changes as a result of this
         // write, never a revert of anything else touched in between.
-        const freshForClaim = readIfExists(indexPath) ?? content;
+        const freshForClaim = resolveFreshContentForClaim(readIfExists(indexPath), content);
         const runningContent = updateHeader(freshForClaim, 'Lane Status', 'running');
         writeFileSync(indexPath, runningContent, 'utf8');
       }
@@ -8766,13 +8811,8 @@ If the user is asking for changes, bug fixes, new features, or refinements:
 // mode), so this is a no-op there — dispatch inherently needs a place to
 // store "which worker" outside the filesystem.
 //
-// track_number -> dispatch id, for lane-action entries that have been
-// claimed and spawned but haven't finished yet. spawnCli itself is
-// fire-and-forget (see autoLaunchLocalFs), so completion is detected by
-// polling the same Lane Status field spawnCli's own exit handler
-// already writes to index.md, rather than adding a second completion path
-// into spawnCli's already-complex internals.
-const activeDispatch = new Map();
+// (activeDispatch moved up near the top of this file — Track AM-10099
+// Phase 11 Task 5 / item n — see that comment for why.)
 
 // Track 1114: "Complete & Merge" autopilot. Same poll-based completion
 // detection as activeDispatch (reads Lane/Lane Status from index.md) but
