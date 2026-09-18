@@ -1,10 +1,10 @@
 # Track AM-10099: Release readiness: hardening gate before any marketplace image ships
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 85%
+**Progress**: 90%
 **Last Run**: claude/claude-sonnet-5 (primary)
-**Phase**: Phases 1, 2, 4, 6, 7 complete; Phase 3 substantially done (baseline measured — 1344/1392 passing after fixing a real import-time crash; the 3 originally-named flakies resolved or quarantined; broader ~20-suite triage explicitly left as an honest gap, not claimed complete). Real production bugs found and fixed this session: remote-api auth silently never enabled; per-track model override never shipped despite being marked done; a deliberately-committed Auto Run marker overwritable by a stale DB value. Caught and corrected a mid-session mistake: an accidental edit landed on the primary checkout instead of this worktree, momentarily clobbering another session's in-progress uncommitted work — restored in full before proceeding.
+**Phase**: Implementation substantially complete (9/10 phases; see plan.md's Phase 10 AC-1...AC-25 table for the full verdict). Items (a)-(h) addressed; item (i) deliberately not attempted (gated behind author confirmation). 4 real production bugs found and fixed beyond original scope (remote-api auth silently never enabled; per-track model override never shipped despite being marked done; 8/9 track-number CLI commands couldn't find prefixed folders; worker-staleness alarm wired unreachable). Honest gaps: broader node:test triage beyond the 3 named flakies, and AC-21's live-merge verification, both flagged not hidden.
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct
