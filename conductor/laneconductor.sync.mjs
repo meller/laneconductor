@@ -1647,6 +1647,10 @@ const TASK_UNCHANGED = Symbol('TASK_UNCHANGED');
 // heartbeat itself (git-shelling-out on every 10s beat would be wasteful);
 // cached and attached to whichever heartbeat fires next.
 let cachedWorktreeSummary = null;
+// Track AM-10099 Phase 8 (item f): latest result of the periodic
+// checkWorkerCodeStaleness() sweep (see its own definition below), read
+// by the heartbeat body above. Empty until the first sweep runs.
+let latestWorkerStaleness = [];
 async function refreshWorktreeSummaryCache() {
   if (getIsLocalFs()) return; // nothing to report — no heartbeat is sent in this mode anyway
   try {
@@ -1784,6 +1788,15 @@ async function updateWorkerHeartbeat(status = null, task = TASK_UNCHANGED) {
         // scratch — no reason a restart should ever blank it.
         worktrees: (isManager || cachedWorktreeSummary === null) ? undefined : cachedWorktreeSummary,
         collector_health: serializeCollectorHealth(),
+        // Track AM-10099 Phase 8 (item f): ships on every heartbeat (an
+        // explicit `[]`, not `undefined`, when current) so a stale worker
+        // becomes visible somewhere a human actually looks (the Kanban
+        // UI), not only in a log line nobody reads — and, unlike
+        // collector_health's own "never blank on absence" rule, this
+        // MUST self-clear once the worker is current again (e.g. after a
+        // restart), or a resolved staleness verdict would wrongly persist
+        // forever.
+        code_staleness: latestWorkerStaleness,
       };
       if (status) body.status = status;
       if (task !== TASK_UNCHANGED) body.current_task = task;
@@ -9472,51 +9485,68 @@ async function reapOrphanedWorkerProcesses() {
     }
   }
 
-  // Track 10040 REQ-11 (Finding 4): report — never silently restart —
-  // any registered worker ON THIS HOST whose loaded code has fallen behind
-  // this install dir's own HEAD. Cross-host workers are out of scope: a
-  // different host has its own independent git checkout, and comparing it
-  // against this machine's HEAD would be meaningless. Restarting a
-  // detected-stale worker automatically is explicitly NOT implemented here
-  // — report-only, gated the same way Phase 7's auto-heal is, but the
-  // restart mechanism itself (which needs correct pidfile/lc-worker-restart
-  // wiring) is out of scope for this pass; a human acts on the warn log.
-  if (workerCodeSha) {
-    try {
-      const installDir = dirname(fileURLToPath(import.meta.url));
-      const headSha = execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
-      const localWorkers = workers.filter(w => w.hostname === hostname && w.code_sha);
-      for (const w of localWorkers) {
-        if (w.code_sha === headSha) continue;
-        let commitsBehind = 0;
-        let touchedFiles = [];
-        try {
-          commitsBehind = parseInt(execSync(`git rev-list --count ${w.code_sha}..${headSha}`, { cwd: installDir, encoding: 'utf8' }).trim(), 10) || 0;
-          touchedFiles = execSync(`git diff --name-only ${w.code_sha} ${headSha}`, { cwd: installDir, encoding: 'utf8' })
-            .split('\n').map(l => l.trim()).filter(Boolean);
-        } catch (err) {
-          // w.code_sha may no longer exist locally (rebased history, etc.)
-          // — skip classification for this worker rather than guessing.
-          logger.warn({ pid: w.pid, err: err.message }, '[worker-staleness] Could not diff worker code_sha against HEAD (skipping)');
-          continue;
-        }
-        const classification = classifyWorkerStaleness({ workerSha: w.code_sha, headSha, commitsBehind, touchedFiles });
-        if (classification.severity === 'critical') {
-          logger.warn(
-            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
-            `[worker-staleness] Worker pid ${w.pid} is running CRITICALLY stale code: ${classification.reason}`
-          );
-        } else if (classification.severity === 'stale') {
-          logger.warn(
-            { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
-            `[worker-staleness] Worker pid ${w.pid} is stale: ${classification.reason}`
-          );
-        }
+}
+
+// Track AM-10099 Phase 8 (item f): this used to be inlined inside
+// reapOrphanedWorkerProcesses(), which returns immediately with
+// `if (!isManager) return;` — meaning the staleness check was
+// UNREACHABLE for every ordinary project-type worker, which is the
+// overwhelming majority of workers and exactly the kind that suffered
+// the live incident (item (e)) this diagnosis was asked to explain. This
+// is the root cause Phase 8 Task 1 asked to find: not a bug in
+// classifyWorkerStaleness itself (which works correctly, see its own
+// unit tests), but a call site gated on the wrong condition. Extracted
+// so it can be called unconditionally, for every worker type.
+//
+// Track 10040 REQ-11 (Finding 4): report — never silently restart — any
+// registered worker ON THIS HOST whose loaded code has fallen behind
+// this install dir's own HEAD. Cross-host workers are out of scope: a
+// different host has its own independent git checkout, and comparing it
+// against this machine's HEAD would be meaningless. Restarting a
+// detected-stale worker automatically is explicitly NOT implemented here
+// — report-only; a human (or the done-lane merge action, via the
+// collector_health-style `code_staleness` heartbeat field this now
+// populates — see the /worker/heartbeat call site) acts on it.
+async function checkWorkerCodeStaleness(workers) {
+  if (!workerCodeSha) return [];
+  const results = [];
+  try {
+    const installDir = dirname(fileURLToPath(import.meta.url));
+    const headSha = execSync('git rev-parse HEAD', { cwd: installDir, encoding: 'utf8' }).trim();
+    const localWorkers = workers.filter(w => w.hostname === hostname && w.code_sha);
+    for (const w of localWorkers) {
+      if (w.code_sha === headSha) continue;
+      let commitsBehind = 0;
+      let touchedFiles = [];
+      try {
+        commitsBehind = parseInt(execSync(`git rev-list --count ${w.code_sha}..${headSha}`, { cwd: installDir, encoding: 'utf8' }).trim(), 10) || 0;
+        touchedFiles = execSync(`git diff --name-only ${w.code_sha} ${headSha}`, { cwd: installDir, encoding: 'utf8' })
+          .split('\n').map(l => l.trim()).filter(Boolean);
+      } catch (err) {
+        // w.code_sha may no longer exist locally (rebased history, etc.)
+        // — skip classification for this worker rather than guessing.
+        logger.warn({ pid: w.pid, err: err.message }, '[worker-staleness] Could not diff worker code_sha against HEAD (skipping)');
+        continue;
       }
-    } catch (err) {
-      logger.warn({ err: err.message }, '[worker-staleness] Failed to check worker code staleness (skipping this cycle)');
+      const classification = classifyWorkerStaleness({ workerSha: w.code_sha, headSha, commitsBehind, touchedFiles });
+      if (classification.severity === 'critical') {
+        logger.warn(
+          { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+          `[worker-staleness] Worker pid ${w.pid} is running CRITICALLY stale code: ${classification.reason}`
+        );
+        results.push({ pid: w.pid, hostname: w.hostname, ...classification, commitsBehind });
+      } else if (classification.severity === 'stale') {
+        logger.warn(
+          { pid: w.pid, hostname: w.hostname, workerSha: w.code_sha, headSha, commitsBehind },
+          `[worker-staleness] Worker pid ${w.pid} is stale: ${classification.reason}`
+        );
+        results.push({ pid: w.pid, hostname: w.hostname, ...classification, commitsBehind });
+      }
     }
+  } catch (err) {
+    logger.warn({ err: err.message }, '[worker-staleness] Failed to check worker code staleness (skipping this cycle)');
   }
+  return results;
 }
 
 // Track 1110 Phase 6, extended by Track 10020 Phase 2: reconciles
@@ -10894,6 +10924,27 @@ setInterval(() => {
 setInterval(() => {
   reapOrphanedWorkerProcesses().catch(err => logger.warn({ err: err.message }, '[orphan-reap error]'));
 }, Number(process.env.LC_ORPHAN_REAP_POLL_MS) || 5 * 60 * 1000);
+
+// Track AM-10099 Phase 8 (item f): unconditional — every worker type,
+// not just the manager reapOrphanedWorkerProcesses() above is gated to
+// (see checkWorkerCodeStaleness's own header for the full root-cause
+// writeup). Reuses the same interval and the same local-fs skip
+// (nothing to compare a code_sha against without a collector), doesn't
+// need its own env override.
+if (!getIsLocalFs()) {
+  setInterval(() => {
+    (async () => {
+      try {
+        const { url, token } = primaryCollector();
+        if (!url) return;
+        const workers = await get(url, token, '/api/workers');
+        latestWorkerStaleness = await checkWorkerCodeStaleness(Array.isArray(workers) ? workers : []);
+      } catch (err) {
+        logger.warn({ err: err.message }, '[worker-staleness] periodic check failed (skipping this cycle)');
+      }
+    })();
+  }, Number(process.env.LC_ORPHAN_REAP_POLL_MS) || 5 * 60 * 1000);
+}
 
 // ── Auto-launch: concurrent guard ────────────────────────────────────────────
 let autoLaunchRunning = false;

@@ -489,7 +489,7 @@ app.get('/api/projects/:id/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models, p.name AS project_name,
-              w.collector_api_version, w.collector_compat, w.collector_health,
+              w.collector_api_version, w.collector_compat, w.collector_health, w.code_staleness,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at,
               ts.last_track_title
        FROM workers w
@@ -766,7 +766,7 @@ app.get('/api/workers', async (req, res) => {
     let queryStr = `
       SELECT w.id, w.hostname, w.pid, w.worker_number, w.status, w.current_task, w.last_heartbeat, w.created_at,
               w.visibility, w.user_uid, w.mode, w.type, w.cli, w.model, w.available_models,
-              w.code_sha, w.code_sha_captured_at, w.collector_api_version, w.collector_compat, w.collector_health,
+              w.code_sha, w.code_sha_captured_at, w.collector_api_version, w.collector_compat, w.collector_health, w.code_staleness,
               p.id AS project_id, p.name AS project_name, p.repo_path,
               w.project_id AS last_track_project_id, ts.track_number AS last_track_number, ts.last_used_at AS last_track_used_at,
               ts.last_track_title
@@ -4574,7 +4574,7 @@ app.post('/worker/register', async (req, res, next) => {
 app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
   try {
     console.log('[API] /worker/heartbeat body:', req.body);
-    const { hostname, pid, status, current_task, mode, model, available_models, worktrees, collector_health } = req.body;
+    const { hostname, pid, status, current_task, mode, model, available_models, worktrees, collector_health, code_staleness } = req.body;
     // Same forward-migration normalization as /worker/register — see its comment.
     const cli = normalizeProviderId(req.body.cli);
     const worker_number = req.body.worker_number ? parseInt(req.body.worker_number) : 1;
@@ -4612,6 +4612,13 @@ app.patch('/worker/heartbeat', collectorAuth, async (req, res) => {
     // an older worker's heartbeat (no such field) must never wipe out a
     // health snapshot a newer register call already stored.
     if (collector_health !== undefined) { sets.push(`collector_health = $${i++}`); params.push(JSON.stringify(collector_health)); }
+    // Track AM-10099 Phase 8 (item f): same only-written-when-sent
+    // convention as collector_health directly above — an older worker's
+    // heartbeat (no such field) must never wipe a staleness verdict a
+    // newer one already stored. Explicitly cleared (empty array, not
+    // omitted) once the worker itself reports current — see
+    // checkWorkerCodeStaleness's `code_staleness: latestWorkerStaleness.length > 0 ? ... : undefined`.
+    if (code_staleness !== undefined) { sets.push(`code_staleness = $${i++}`); params.push(JSON.stringify(code_staleness)); }
     // Track 1091: IS NOT DISTINCT FROM, not `=` — a manager worker's
     // project_id is always NULL, and SQL's `NULL = NULL` is never true, so
     // a plain `=` silently matched zero rows for every manager heartbeat

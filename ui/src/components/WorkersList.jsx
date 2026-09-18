@@ -628,6 +628,20 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                                 ○ NO REMOTE SYNC
                               </span>
                             )}
+                            {/* Track AM-10099 Phase 8 (item f): worker.code_staleness is
+                                populated by the worker's own periodic
+                                checkWorkerCodeStaleness() sweep — a merge that never got
+                                followed by a restart previously showed nothing anywhere
+                                except a log line in conductor/.sync.log nobody reads. */}
+                            {Array.isArray(worker.code_staleness) && worker.code_staleness.some(s => s.severity === 'critical') && (
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shadow-sm bg-amber-600/20 text-amber-400 border-amber-500/50 animate-pulse"
+                                data-testid="code-staleness-badge"
+                                title={worker.code_staleness.map(s => s.reason).join('\n') + '\n\nRestart this worker (lc worker restart) to run current code.'}
+                              >
+                                ⚠ STALE CODE — RESTART NEEDED
+                              </span>
+                            )}
                           </div>
                           {worker.type === 'manager' ? (
                             <span className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-tight">
@@ -939,6 +953,15 @@ export function WorkersList({ projectId, project, workers, providers = [], waiti
                       title={unregisteredCollectors.map(c => `${c.url}: this project isn't registered there — nothing to sync until it's added to that collector's workspace.`).join('\n')}
                     >
                       ○ NO REMOTE SYNC
+                    </span>
+                  )}
+                  {Array.isArray(worker.code_staleness) && worker.code_staleness.some(s => s.severity === 'critical') && (
+                    <span
+                      className="text-[8px] font-bold uppercase tracking-wider px-1 rounded border bg-amber-900/40 text-amber-400 border-amber-700/60 animate-pulse"
+                      data-testid="code-staleness-badge-strip"
+                      title={worker.code_staleness.map(s => s.reason).join('\n') + '\n\nRestart this worker (lc worker restart) to run current code.'}
+                    >
+                      ⚠ STALE CODE
                     </span>
                   )}
                 </>
