@@ -1857,7 +1857,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
               current_phase, content_summary, last_heartbeat, created_at,
               index_content, plan_content, spec_content, test_content, last_log_tail,
               active_cli, assignee_uid, created_by_uid, auto_run, merge_mode, workspace_mode,
-              waiting_reason
+              waiting_reason, model_override
        FROM tracks
        WHERE project_id = $1 AND track_number = $2`,
       [req.params.id, req.params.num]
@@ -1893,6 +1893,7 @@ app.get('/api/projects/:id/tracks/:num', async (req, res) => {
       merge_mode: t.merge_mode,
       workspace_mode: t.workspace_mode,
       waiting_reason: t.waiting_reason, // Track 10055
+      model_override: t.model_override, // Track 1116 REQ-7
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2162,6 +2163,20 @@ async function syncTrackToFile(projectId, trackNum, updates) {
         content = content.replace(/^\*\*Workspace\*\*:\s*.+$/m, `**Workspace**: ${updates.workspace_mode}`);
       } else {
         content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Workspace**: ${updates.workspace_mode}`) || content;
+      }
+    }
+
+    // Track 1116 REQ-7: same only-write-when-set / remove-when-null pattern
+    // as merge_mode/workspace_mode above. The worker already reads this
+    // marker (conductor/laneconductor.sync.mjs's model resolution, tier 1)
+    // — this is the write side.
+    if (updates.model_override !== undefined) {
+      if (updates.model_override === null) {
+        content = content.replace(/^\*\*Model\*\*:\s*.+\n?/m, '');
+      } else if (/^\*\*Model\*\*:\s*.+$/m.test(content)) {
+        content = content.replace(/^\*\*Model\*\*:\s*.+$/m, `**Model**: ${updates.model_override}`);
+      } else {
+        content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Model**: ${updates.model_override}`) || content;
       }
     }
 
@@ -2974,7 +2989,7 @@ function gitGlobalId(gitRemote) {
 
 // ── Exports (for testing) ───────────────────────────────────────────────────
 
-export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus, reapStaleDispatches };
+export { app, pool, runMigration, uuidV5, gitGlobalId, resolveAssignee, resolvePinnedWorkers, resolveAssigneeWorkerStatus, reapStaleDispatches, syncTrackToFile };
 
 // Load Firebase Admin config (verifies tokens in remote mode)
 import { TEST_MODE as AUTH_TEST_MODE } from './auth.mjs';
@@ -5720,6 +5735,30 @@ app.patch('/api/projects/:id/tracks/:num/auto-run', async (req, res) => {
     // (unlike the fire-and-forget usage elsewhere) so the response only
     // returns once the **Auto Run** marker write has actually settled.
     await syncTrackToFile(req.params.id, req.params.num, { auto_run });
+    broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Track 1116 REQ-7: per-track model override — top of the model resolution
+// order documented in conductor/workflow.md ("Model Overrides"), beating
+// lane/project/meta-level defaults for this track alone. The worker already
+// reads the **Model** marker this writes back via syncTrackToFile; null
+// clears the override back to the normal resolution chain.
+app.patch('/api/projects/:id/tracks/:num/model-override', async (req, res) => {
+  try {
+    const { model_override } = req.body;
+    if (model_override !== null && typeof model_override !== 'string') {
+      return res.status(400).json({ error: 'model_override must be a string or null' });
+    }
+    const { rowCount } = await pool.query(
+      'UPDATE tracks SET model_override = $1 WHERE project_id = $2 AND track_number = $3',
+      [model_override, req.params.id, req.params.num]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
+    await syncTrackToFile(req.params.id, req.params.num, { model_override });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
   } catch (err) {
