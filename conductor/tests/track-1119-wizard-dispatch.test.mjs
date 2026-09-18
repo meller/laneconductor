@@ -17,6 +17,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { stopWorker } from './helpers/isolated-worker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -95,7 +96,12 @@ describe('Track AM-1119 Phase 2: wizard.deployment → deploy artifacts on creat
 
     managerWorker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', '--manager'], {
       cwd: MANAGER_DIR,
-      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1' },
+      // LC_SKIP_AUTO_WORKER_START: create-project's own auto-spawned
+      // `lc worker start` for the new project is detached+unref'd (correct
+      // for real use) so this test's stopWorker(managerWorker) below can
+      // never reach it — see laneconductor.sync.mjs's runCreateProject
+      // comment (track 10099, recurring leaked-worker incident).
+      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1', LC_SKIP_AUTO_WORKER_START: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     managerWorker.stdout.on('data', d => process.stdout.write(`[manager] ${d}`));
@@ -107,9 +113,14 @@ describe('Track AM-1119 Phase 2: wizard.deployment → deploy artifacts on creat
     }, { label: 'manager worker registered' });
   });
 
-  after(() => {
-    managerWorker?.kill();
-    collectorProc?.kill();
+  after(async () => {
+    // Track 10099 (recurring leaked-worker incident): a bare, unawaited
+    // `.kill()` immediately followed by `rmSync` races the worker's own
+    // graceful shutdown — if it's not dead yet, `rmSync` deletes its cwd out
+    // from under it, and the orphan keeps running indefinitely. stopWorker
+    // confirms death (SIGTERM, then SIGKILL if needed) before returning.
+    await stopWorker(managerWorker);
+    await stopWorker(collectorProc);
     rmSync(TMP, { recursive: true, force: true });
   });
 

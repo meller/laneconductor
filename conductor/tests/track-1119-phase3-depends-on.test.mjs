@@ -16,6 +16,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
+import { stopWorker } from './helpers/isolated-worker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -124,8 +125,12 @@ describe('Track AM-1119 Phase 3: **Depends On** auto-launch gate', () => {
       const content = readIndex(tracksDir, '702');
       assert.equal(getLaneStatus(content), 'queue', 'dependent track must stay queued — no CLI process should have spawned for it');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      // Track 10099 (recurring leaked-worker incident): a blind
+      // kill+fixed-sleep never confirms death or escalates to SIGKILL — if
+      // the worker doesn't exit within 500ms, it's left running (and the
+      // NEXT test's setupProject() rmSync's this same TMP path out from
+      // under it). stopWorker polls for confirmed death and escalates.
+      await stopWorker(worker);
     }
   });
 
@@ -142,8 +147,12 @@ describe('Track AM-1119 Phase 3: **Depends On** auto-launch gate', () => {
         return getLaneStatus(c) === 'running' ? true : null;
       }, { label: 'track 704 picked up and running once its dependency is done', timeout: 10000 });
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      // Track 10099 (recurring leaked-worker incident): a blind
+      // kill+fixed-sleep never confirms death or escalates to SIGKILL — if
+      // the worker doesn't exit within 500ms, it's left running (and the
+      // NEXT test's setupProject() rmSync's this same TMP path out from
+      // under it). stopWorker polls for confirmed death and escalates.
+      await stopWorker(worker);
     }
   });
 
@@ -164,8 +173,12 @@ describe('Track AM-1119 Phase 3: **Depends On** auto-launch gate', () => {
       const content = readIndex(tracksDir, '707');
       assert.equal(getLaneStatus(content), 'queue', 'a dependency at done:queue (not done:success) must not release its dependent — the old `lane === \'done\'` check would have wrongly let this run');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      // Track 10099 (recurring leaked-worker incident): a blind
+      // kill+fixed-sleep never confirms death or escalates to SIGKILL — if
+      // the worker doesn't exit within 500ms, it's left running (and the
+      // NEXT test's setupProject() rmSync's this same TMP path out from
+      // under it). stopWorker polls for confirmed death and escalates.
+      await stopWorker(worker);
     }
   });
 
@@ -190,8 +203,12 @@ describe('Track AM-1119 Phase 3: **Depends On** auto-launch gate', () => {
         return getLaneStatus(c) === 'running' ? true : null;
       }, { label: 'track 709 released once its dependency reaches done:success', timeout: 10000 });
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      // Track 10099 (recurring leaked-worker incident): a blind
+      // kill+fixed-sleep never confirms death or escalates to SIGKILL — if
+      // the worker doesn't exit within 500ms, it's left running (and the
+      // NEXT test's setupProject() rmSync's this same TMP path out from
+      // under it). stopWorker polls for confirmed death and escalates.
+      await stopWorker(worker);
     }
   });
 
@@ -206,8 +223,12 @@ describe('Track AM-1119 Phase 3: **Depends On** auto-launch gate', () => {
       const content = readIndex(tracksDir, '705');
       assert.equal(getLaneStatus(content), 'queue', 'a dependency on a nonexistent track must never be treated as satisfied');
     } finally {
-      worker.kill('SIGTERM');
-      await sleep(500);
+      // Track 10099 (recurring leaked-worker incident): a blind
+      // kill+fixed-sleep never confirms death or escalates to SIGKILL — if
+      // the worker doesn't exit within 500ms, it's left running (and the
+      // NEXT test's setupProject() rmSync's this same TMP path out from
+      // under it). stopWorker polls for confirmed death and escalates.
+      await stopWorker(worker);
     }
   });
 });

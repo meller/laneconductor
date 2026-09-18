@@ -9420,7 +9420,19 @@ async function runCreateProject(entry) {
   // logging, resolveSyncScript's canonical-vs-local fallback) rather than
   // re-implementing any of that inline; it self-registers on startup via
   // its own normal upsertWorker() call, same as every other project.
-  spawn('lc', ['worker', 'start'], { cwd: targetPath, detached: true, stdio: 'ignore' }).unref();
+  //
+  // Track 10099 (recurring leaked-worker incident): `detached: true` +
+  // `.unref()` is deliberate for real use (this worker must outlive the
+  // manager dispatch that spawned it) but means a test's own manager
+  // worker can never reach this grandchild via signal — killing the
+  // parent leaves it running indefinitely against a since-deleted test
+  // fixture dir (confirmed live: `ps` showed exactly this pattern, real
+  // `--sync-only` processes at 100%+ CPU with a "(deleted)" cwd). Tests
+  // that exercise create-project opt out with this env var; real
+  // production calls never set it.
+  if (!process.env.LC_SKIP_AUTO_WORKER_START) {
+    spawn('lc', ['worker', 'start'], { cwd: targetPath, detached: true, stdio: 'ignore' }).unref();
+  }
 
   return { ok: true, targetPath, generatedTracks };
 }

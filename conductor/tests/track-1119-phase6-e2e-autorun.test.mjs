@@ -25,6 +25,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { stopWorker } from './helpers/isolated-worker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -111,7 +112,13 @@ describe('Track AM-1119 Phase 6: full auto-run chain — generated tracks actual
 
     managerWorker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', '--manager'], {
       cwd: MANAGER_DIR,
-      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1' },
+      // LC_SKIP_AUTO_WORKER_START: this test deliberately starts its own
+      // `projectWorker` below (per this suite's own header comment) rather
+      // than using create-project's auto-spawned one — that auto-spawned
+      // worker is detached+unref'd (correct for real use) so it can never
+      // be reached by this test's own cleanup, and would otherwise leak
+      // (track 10099, recurring leaked-worker incident).
+      env: { ...process.env, LC_MOCK_CLI: `node ${MOCK_CLI}`, MOCK_CLI_DELAY_MS: '150', LC_SKIP_GIT_LOCK: '1', LC_SKIP_WORKER_LOCK: '1', LC_SKIP_AUTO_WORKER_START: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     managerWorker.stdout.on('data', d => process.stdout.write(`[manager] ${d}`));
@@ -160,10 +167,17 @@ describe('Track AM-1119 Phase 6: full auto-run chain — generated tracks actual
     }, null, 2));
   });
 
-  after(() => {
-    managerWorker?.kill();
-    projectWorker?.kill();
-    collectorProc?.kill();
+  after(async () => {
+    // Track 10099 (recurring leaked-worker incident): a bare, unawaited
+    // `.kill()` immediately followed by `rmSync` races the worker's own
+    // graceful shutdown — if it's not dead yet, `rmSync` deletes its cwd out
+    // from under it, and the orphan keeps running indefinitely. This is
+    // especially dangerous for projectWorker, which runs `--sync-and-work`
+    // (actively claims and dispatches). stopWorker confirms death (SIGTERM,
+    // then SIGKILL if needed) before returning.
+    await stopWorker(managerWorker);
+    await stopWorker(projectWorker);
+    await stopWorker(collectorProc);
     rmSync(TMP, { recursive: true, force: true });
   });
 

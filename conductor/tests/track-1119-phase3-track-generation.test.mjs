@@ -19,6 +19,7 @@ import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, readdirSync
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { stopWorker } from './helpers/isolated-worker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -107,9 +108,33 @@ describe('Track AM-1119 Phase 3: create-project generates the initial track brea
     }, { label: 'manager worker registered' });
   });
 
-  after(() => {
-    managerWorker?.kill();
-    collectorProc?.kill();
+  after(async () => {
+    // Track 10099 (recurring leaked-worker incident): this test's own
+    // create-project dispatch makes runCreateProject auto-spawn a SECOND,
+    // detached+unref'd `lc worker start` for TARGET_DIR (correct for real
+    // use — see its comment in laneconductor.sync.mjs) — and this test
+    // (unlike its siblings) genuinely needs that worker to run, since TC-9
+    // above asserts on the tracks IT registers. Being detached+unref'd, it
+    // has no parent-child link `managerWorker.kill()` can ever reach, so it
+    // must be found and killed by PID via the mock collector's own worker
+    // registry instead of skipped via LC_SKIP_AUTO_WORKER_START.
+    const finalState = await getState(collectorPort).catch(() => null);
+    const extraWorkerPids = (finalState?.workers ?? [])
+      .map(w => w.pid)
+      .filter(pid => pid && pid !== managerWorker?.pid);
+    for (const pid of extraWorkerPids) {
+      // stopWorker only reads .pid/.exitCode/.signalCode and calls .kill(sig)
+      // — this plain object duck-types a ChildProcess well enough for a
+      // PID we don't hold an actual ChildProcess handle for.
+      await stopWorker({ pid, exitCode: null, signalCode: null, kill: (sig) => process.kill(pid, sig) });
+    }
+    // Track 10099 (recurring leaked-worker incident): a bare, unawaited
+    // `.kill()` immediately followed by `rmSync` races the worker's own
+    // graceful shutdown — if it's not dead yet, `rmSync` deletes its cwd out
+    // from under it, and the orphan keeps running indefinitely. stopWorker
+    // confirms death (SIGTERM, then SIGKILL if needed) before returning.
+    await stopWorker(managerWorker);
+    await stopWorker(collectorProc);
     rmSync(TMP, { recursive: true, force: true });
   });
 
