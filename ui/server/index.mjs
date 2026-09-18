@@ -2189,7 +2189,17 @@ async function syncTrackToFile(projectId, trackNum, updates) {
     // as merge_mode/workspace_mode above. The worker already reads this
     // marker (conductor/laneconductor.sync.mjs's model resolution, tier 1)
     // — this is the write side.
-    if (updates.model_override !== undefined) {
+    //
+    // Track AM-10099 Phase 11 Task 3 (item l): `Model` is author-owned
+    // (marker-ownership.mjs) — the same as merge_mode/workspace_mode above
+    // — but this branch had no isAuthoredWrite guard at all until this fix,
+    // unlike its three siblings. Its only current caller is the dedicated
+    // track-detail-panel "Model override" route, so this was not
+    // reachable via a generic/coarse sync in practice — but the guard
+    // belongs here structurally regardless, so a future caller can't
+    // silently reintroduce the same class of bug this whole module exists
+    // to prevent.
+    if (updates.model_override !== undefined && isAuthoredWrite) {
       if (updates.model_override === null) {
         content = content.replace(/^\*\*Model\*\*:\s*.+\n?/m, '');
       } else if (/^\*\*Model\*\*:\s*.+$/m.test(content)) {
@@ -2197,6 +2207,8 @@ async function syncTrackToFile(projectId, trackNum, updates) {
       } else {
         content = content.replace(/^(\*\*Lane\*\*:\s*.+)$/m, `$1\n**Model**: ${updates.model_override}`) || content;
       }
+    } else if (updates.model_override !== undefined) {
+      console.warn(`[sync-to-file] Track ${trackNum}: ignoring un-authored model_override update (provenance not asserted).`);
     }
 
     // Write back to file
@@ -5787,7 +5799,13 @@ app.patch('/api/projects/:id/tracks/:num/model-override', async (req, res) => {
       [model_override, req.params.id, req.params.num]
     );
     if (rowCount === 0) return res.status(404).json({ error: 'track not found' });
-    await syncTrackToFile(req.params.id, req.params.num, { model_override });
+    // Track AM-10099 Phase 11 Task 3 (item l): this route IS the dedicated
+    // human/UI action for **Model** (marker-ownership.mjs classifies it
+    // author-owned) — the same reason the /auto-run route above asserts
+    // AUTHORED_MARKER_PROVENANCE. Added alongside syncTrackToFile's own new
+    // guard on this field; without this the route would now silently no-op
+    // (a warning-only skip) instead of writing the override.
+    await syncTrackToFile(req.params.id, req.params.num, { model_override, provenance: AUTHORED_MARKER_PROVENANCE });
     broadcast('track:updated', { projectId: req.params.id, trackNumber: req.params.num });
     res.json({ ok: true });
   } catch (err) {

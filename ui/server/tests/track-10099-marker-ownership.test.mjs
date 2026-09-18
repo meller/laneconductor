@@ -103,4 +103,43 @@ describe('syncTrackToFile — author-owned marker provenance (Phase 7)', () => {
     // The real route DOES assert provenance, so this one legitimately applies.
     expect(content).toMatch(/\*\*Auto Run\*\*:\s*yes/);
   });
+
+  // Track AM-10099 Phase 11 Task 3 (item l): `Model` had no provenance
+  // guard at all until this pass — unlike its Auto Run/Merge Mode/
+  // Workspace siblings above, an un-asserted `model_override` update used
+  // to apply unconditionally. Same shape as AC-12 above, for the marker
+  // this phase newly classified and guarded.
+  it('(item l) an un-asserted model_override update from a DB row leaves the file\'s Model unchanged', async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: tmpRoot }] });
+    await syncTrackToFile(1, '10099', { model_override: 'claude-opus-5' }); // no provenance asserted
+
+    const content = readFileSync(indexPath, 'utf8');
+    expect(content).not.toMatch(/\*\*Model\*\*/);
+    // Untouched siblings.
+    expect(content).toMatch(/\*\*Auto Run\*\*:\s*no/);
+    expect(content).toMatch(/\*\*Merge Mode\*\*:\s*direct/);
+  });
+
+  it('(item l) an authored model_override update DOES apply, same as its siblings', async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ repo_path: tmpRoot }] });
+    await syncTrackToFile(1, '10099', { model_override: 'claude-opus-5', provenance: AUTHORED_MARKER_PROVENANCE });
+
+    const content = readFileSync(indexPath, 'utf8');
+    expect(content).toMatch(/\*\*Model\*\*:\s*claude-opus-5/);
+  });
+
+  it('(item l) the real /model-override route asserts provenance end to end', async () => {
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({ rowCount: 1 }) // UPDATE tracks SET model_override
+      .mockResolvedValueOnce({ rows: [{ repo_path: tmpRoot }] }); // syncTrackToFile's project lookup
+
+    const request = (await import('supertest')).default;
+    const res = await request(app)
+      .patch('/api/projects/1/tracks/10099/model-override')
+      .send({ model_override: 'claude-opus-5' });
+    expect(res.status).toBe(200);
+
+    const content = readFileSync(indexPath, 'utf8');
+    expect(content).toMatch(/\*\*Model\*\*:\s*claude-opus-5/);
+  });
 });
