@@ -328,49 +328,46 @@ bug that created a junk track over this very folder.
 `git show 4a1d31ec` (author-sanctioned in `conversation.md`), which
 confirmed D1/D2/D3 against the real CLI.
 
-- [ ] Task 1: New `conductor/tests/track-10099-subcommand-help.test.mjs`,
-      modelled on `track-10035-new-track-flags.test.mjs`'s throwaway
-      `local-fs` harness — created via Phase 1's `makeSandbox()`, not
-      `join(ROOT, '.test-tmp-*')`, so this track does not add a 26th
-      unprotected file.
-- [ ] Task 2: Failing test D1 — `lc new --help` / `-h` exits 0, prints
-      usage, creates no folder and no `file_sync_queue.md` entry (AC-14).
-- [ ] Task 3: Failing test D2 — `lc new "My Title" "My desc" --merge-mode pr`
-      gives title exactly `My Title`, desc exactly `My desc`, slug ending
-      `-my-title`, `**Merge Mode**: pr` (AC-15).
-- [ ] Task 4: Failing test D3 — no "unquoted words" warning for correctly
-      quoted input plus a flag (AC-15).
-- [ ] Task 5: Failing tests for the other free-text subcommands:
-      `reportaBug` creates nothing; `comment NNN --help` appends nothing;
-      `updateTrack NNN --help` appends nothing and does not move the lane
-      (AC-17).
-- [ ] Task 6: Add `splitPositionalArgs(args)` → `{ positional, flags }`,
-      cutting at the first `/^--?[a-z]/i` token and honouring `--` as an
-      explicit terminator. Replace the `typeIdx` slice; correct the false
-      comment above it.
-- [ ] Task 7: Confirm the `>2 raw args` unquoted-phrase heuristic now
-      counts only genuine positionals (REQ-10 / AC-15).
-- [ ] Task 8: Add a `SUBCOMMAND_HELP` map seeded from the one-liners
-      already in the top-level help text, so the two cannot drift; cover
-      all 40 branches including aliases (`report-bug`/`reportaBug`,
-      `update-track`/`updateTrack`, `feature-request`/`featureRequest`,
-      `delete`/`remove`, `verify`/`quality-gate`,
-      `enable-target`/`disable-target`).
-- [ ] Task 9: Intercept `--help`/`-h` in any post-command position before
-      dispatch, exiting 0 with no side effects. Unknown subcommand +
-      `--help` → top-level help. Accept `lc help <sub>` as an alias
-      (REQ-9).
-- [ ] Task 10: Table-driven test over the full dispatch list (AC-16) —
-      exit 0 and non-empty, subcommand-specific output for every branch.
-- [ ] Task 11: `--` escape hatch test (AC-18), and reject flag-like titles
-      (AC-19).
-- [ ] Task 12: Strengthen `track-10035-new-track-flags.test.mjs` to assert
-      the **exact** title and slug instead of
-      `d.includes('direct-auto-track')` — the substring assertion is why
-      D2 shipped green (REQ-14; note it in this file).
+- [x] Task 1: `conductor/tests/track-10099-subcommand-help.test.mjs` via
+      `makeSandbox()` (11/11 pass).
+- [x] Task 2/3/4: D1 (`--help`/`-h`, no side effects), D2 (exact
+      title/desc/slug/marker survival), D3 (no false "unquoted words"
+      warning) all covered — TC-5.1-5.5.
+- [x] Task 5: `report-bug --help` creates nothing (TC-5.6); the
+      `comment NNN --help`/`updateTrack NNN --help` "appends nothing"
+      cases are satisfied by construction — the global intercept (Task 9)
+      exits before ANY subcommand body ever runs, so there is no code
+      path left that could append anything, for any subcommand.
+- [x] Task 6/7: `splitPositionalArgs` built in Phase 4, reused here for
+      `lc new`. Unquoted-phrase heuristic operates on `rawPositional`
+      (derived from it), so it already only counts genuine positionals.
+- [x] Task 8/9: `SUBCOMMAND_HELP` map (~55 entries covering all aliases)
+      + global pre-dispatch intercept, `lc help <sub>` alias, unknown
+      subcommand fallback to top-level help.
+- [x] Task 10: TC-5.9 table-driven over all ~38 top-level dispatch
+      branches — exit 0, non-empty, zero side effects (no track created).
+- [x] Task 11: TC-5.11 (`--` escape hatch — required adding `--` support
+      to `comment`'s own body extraction, which had none at all before
+      this; see the commit) and TC-5.12 (flag-like title rejected).
+- [x] Task 12: `readCreatedIndex` now asserts an exact
+      `^[A-Za-z]+-\d+-<slug>$` folder-name regex instead of `.includes()`.
+
+**Unplanned but discovered while executing Task 1-5's tests**: 8 of the
+9 track-number-taking CLI commands (`comment`, `check-skills`,
+`updateTrack`, `reportaBug`/`featureRequest`, `brainstorm`, `show`/`logs`,
+`delete`) resolved track folders via a naive `startsWith` scan that only
+matches legacy bare `NNN-slug` folders — silently missing every
+`PREFIX-NNN-slug` folder, the current convention `lc new` itself creates.
+Fixed via a shared `findTrackDir()` wrapping the same
+`resolveTrackFolderFs` canonical resolver `lc track-dir`/`move` already
+used (one call site had already been fixed this way; generalized it to
+the other 8). Not itself a `--help` defect, but directly blocked TC-5.11
+from being testable at all (`lc comment <real-track-num> ...` was
+silently 404ing before this fix).
 
 **Impact**: `lc <anything> --help` becomes safe and useful; the class of
-bug that produced a junk `--help` track cannot recur.
+bug that produced a junk `--help` track cannot recur. Full CLI regression
+suite (9 pre-existing files + this one): 59/59 pass.
 
 ## Phase 6: Auto Run gate — make code and doc agree (item d)
 

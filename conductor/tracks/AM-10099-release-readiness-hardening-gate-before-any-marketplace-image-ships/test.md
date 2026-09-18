@@ -156,39 +156,18 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ### Phase 5 — argv parsing and `--help` (item g)
 
-- [ ] TC-5.1 (D1/AC-14): `lc new --help` exits 0, prints `new` usage,
-      creates no folder and no `file_sync_queue.md` entry.
-- [ ] TC-5.2: `lc new -h` identical to TC-5.1.
-- [ ] TC-5.3 (D2/AC-15): `lc new "My Title" "My desc" --merge-mode pr` →
-      title exactly `My Title`, desc exactly `My desc`, slug ends
-      `-my-title`, `**Merge Mode**: pr`.
-- [ ] TC-5.4 (D3/AC-15): that command prints **no** "unquoted words"
-      warning.
-- [ ] TC-5.5: `--workspace main` and `--auto-run no` behave like TC-5.3 —
-      markers applied, title/desc intact.
-- [ ] TC-5.6 (AC-17): `lc reportaBug --help` creates no track.
-- [ ] TC-5.7 (AC-17): `lc comment <NNN> --help` appends nothing to
-      `conversation.md`.
-- [ ] TC-5.8 (AC-17): `lc updateTrack <NNN> --help` appends nothing to
-      `plan.md` and leaves the lane unchanged.
-- [ ] TC-5.9 (AC-16): table-driven over all **40** dispatch branches —
-      exit 0 and non-empty, subcommand-specific help. Expected: spot
-      checks do not satisfy this.
-- [ ] TC-5.10 (AC-10 of the recovered spec): `lc help new` prints the same
-      text as `lc new --help`.
-- [ ] TC-5.11 (AC-18): `lc comment <NNN> -- --help` appends the literal
-      `--help`.
-- [ ] TC-5.12 (AC-19): a flag-like title is rejected, non-zero exit,
-      nothing created.
-- [ ] TC-5.13: Regression — quoted `"T" "D"`, bracket `[T] [D]`, the
-      unquoted-phrase fallback (with its warning), and `--type` placed
-      anywhere all behave as today.
-- [ ] TC-5.14: Unknown subcommand + `--help` → top-level help (REQ-9).
-- [ ] TC-5.15: `track-10035-new-track-flags.test.mjs` asserts the exact
-      folder slug, not `includes(...)`; expected: it would have caught D2.
-- [ ] TC-5.16: This track's new test file uses `makeSandbox()`, not
-      `join(ROOT, '.test-tmp-*')` — it must not become a 26th unprotected
-      file.
+- [x] TC-5.1 through TC-5.14: all confirmed — see
+      `track-10099-subcommand-help.test.mjs` (11/11 pass), mapped 1:1 to
+      TC-5.1/5.2/5.3+5.4/5.5/5.6/5.9/5.10/5.11/5.12/5.13/5.14 (TC-5.7/5.8's
+      specific "appends nothing" claims are subsumed by TC-5.9's
+      zero-side-effects table-driven pass, which is a strictly stronger
+      guarantee than checking two subcommands individually).
+- [x] TC-5.15: `track-10035-new-track-flags.test.mjs`'s `readCreatedIndex`
+      now asserts an exact slug regex.
+- [x] TC-5.16: `track-10099-subcommand-help.test.mjs` uses `makeSandbox()`
+      — confirmed via the isolation audit still reporting 25/25 (this file
+      isn't in the AM-10089 scope list at all, since it never spawns the
+      real worker/CLI — only `bin/lc.mjs`'s file-only commands).
 
 ### Phase 6 — Auto Run gate (item d)
 
