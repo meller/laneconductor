@@ -3,7 +3,7 @@
 **Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
-**Last Run**: claude/claude-haiku-4-5-20251001 (primary)
+**Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation substantially complete (9/10 phases; see plan.md's Phase 10 AC-1...AC-25 table for the full verdict). Items (a)-(h) addressed; item (i) deliberately not attempted (gated behind author confirmation). 4 real production bugs found and fixed beyond original scope (remote-api auth silently never enabled; per-track model override never shipped despite being marked done; 8/9 track-number CLI commands couldn't find prefixed folders; worker-staleness alarm wired unreachable). Honest gaps: broader node:test triage beyond the 3 named flakies, and AC-21's live-merge verification, both flagged not hidden. || 2026-09-18 plan pass: Phase 11 added -- 2 BLOCKERS for done: (1) Phase 7's marker-ownership guard covers only the API-server writer, not the worker's updateIndexMDFromDB, and the writer that truncated this track's own index.md today is still unidentified; (2) item (d) is implemented twice -- `explicitlyRequested` on this branch vs an uncommitted `--force-run` on main -- which collide on merge and need an author decision. See spec.md's Addendum and plan.md Phase 11.
 **Verdict**: fail
 **Type**: dev
