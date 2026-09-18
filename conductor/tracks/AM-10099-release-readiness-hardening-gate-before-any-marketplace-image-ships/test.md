@@ -278,42 +278,84 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ---
 
-## Phase 11 — Gate's own gaps (planning pass 2026-09-18)
+## Phase 11 — Gate's own gaps (planning pass 2026-09-18, implemented this pass)
 
 Evidence for every case below is in spec.md's **Addendum — planning pass
-2026-09-18**. These are written-but-not-run: Phase 11 is planned, not
-implemented.
+2026-09-18**. Status per case, honestly — not everything closed the way
+originally planned; see notes.
 
-- [ ] TC-11.1 (item k, blocking): Reproduce the whole-file overwrite.
-      Given a 13-line `index.md` with every author-owned marker, drive the
-      identified writer from Phase 11 Task 1 and assert the file still has
-      its `# H1`, `Problem`, `Type`, `Track Kind`, `Merge Mode`,
-      `Auto Run`, `Author`, `Created By`. Expected today: the reproduction
-      exists and fails — that is the point. If no writer can be made to
-      reproduce it, say so explicitly rather than closing the item.
-- [ ] TC-11.2 (item k): `grep -rn "marker-ownership" conductor/laneconductor.sync.mjs`
-      returns at least one hit. Expected today: **zero hits** — this is
-      TC-7.4's missing half.
-- [ ] TC-11.3 (item k): `updateIndexMDFromDB` given `dbTrack.merge_mode = 'pr'`
-      and no provenance assertion leaves a file's `**Merge Mode**: direct`
-      unchanged. Expected today: it is overwritten to `pr`.
-- [ ] TC-11.4 (item l): Table-driven — for every marker either DB→FS
-      writer can write, `isAuthorOwnedMarker(m) || isMachineOwnedMarker(m)`
-      is true. Expected today: fails on `Summary`, `Track Kind`, `Model`,
-      `Last Run`, `Waiting for reply`.
-- [ ] TC-11.5 (item l): A DB row whose `content_summary` is stale does not
-      overwrite a human-edited `**Summary**` — the track-1081 case, now
-      asserted through the shared table rather than 1081's own ad-hoc guard.
-- [ ] TC-11.6 (item n): Start a real worker and assert its log contains
-      **neither** `Cannot access 'gitExec' before initialization` **nor**
-      `Cannot access 'activeDispatch' before initialization`. Expected
-      today: both appear, every start. (Observed live in this run's log.)
-- [ ] TC-11.7 (item n): After a fresh start, `projects.file_manifest_digest`
-      is populated without waiting a full 60 s tick — i.e. the first
-      `refreshFileManifestCache()` actually completed rather than throwing.
-- [ ] TC-11.8 (item m): **Not a test — an author decision.** Do not write
-      an assertion that picks a winner between `explicitlyRequested` and
-      `--force-run`. Blocked on Phase 11 Task 4.
+- [x] TC-11.1 (item k, blocking): **Revised, not literally satisfied as
+      written.** No whole-file writer could be made to reproduce the
+      exact 13→2 line truncation (`createWorktree`'s "sync files before
+      worktree" commit only commits what's already on disk — it doesn't
+      write index.md itself; every other whole-file writer only fires on
+      a genuinely missing folder). Said so explicitly per the original
+      task's own instruction, rather than closing the item on a false
+      positive. The strongest reproducible mechanism found instead — an
+      empty-read race in the claim-write path — is covered by TC-11.1b.
+- [x] TC-11.1b (new, item k): `resolveFreshContentForClaim('', fullContent)`
+      returns `fullContent`, not `''` — regression for the empty-string
+      gap in the old `readIfExists(indexPath) ?? content` claim write.
+      `conductor/tests/track-10099-claim-empty-read-race.test.mjs`, 5/5
+      pass; test 5 demonstrates the pre-fix failure shape inline
+      (`'' ?? content` evaluates to `''`) since the guarded helper itself
+      is new code with no separate "before" state to run against.
+- [x] TC-11.2 (item k): `grep -rn "marker-ownership" conductor/laneconductor.sync.mjs`
+      now returns hits (the import line plus the `isAuthorOwnedMarker`
+      call site). Confirmed **zero hits pre-fix** via a source-level pin
+      in `track-10099-worker-marker-ownership-wiring.test.mjs` (failed
+      before the fix, passes after).
+- [x] TC-11.3 (item k): `updateIndexMDFromDB` given `dbTrack.merge_mode`
+      set and no provenance assertion now leaves the file's `**Merge
+      Mode**` unchanged — confirmed via a source-level pin on the guarded
+      conditional block (fails pre-fix, passes post-fix; same test file).
+- [x] TC-11.4 (item l): Table-driven completeness check —
+      `isAuthorOwnedMarker(m) || isMachineOwnedMarker(m)` for every marker
+      `updateIndexMDFromDB` writes. **Confirmed failing pre-fix on
+      `Summary`** (as predicted). `Track Kind`/`Last Run` turned out not
+      to be written by either DB→FS writer at all (written by other,
+      out-of-scope call sites) — left unclassified deliberately, not
+      missed; see plan.md Task 3's note. `Model` and `Waiting Reason`
+      classified and covered by their own new tests in
+      `ui/server/tests/track-10099-marker-ownership.test.mjs`.
+- [ ] TC-11.5 (item l): **Not separately written.** Track 1081's own
+      `truncateSummary` fix already covers the "stale truncated Summary
+      overwrites a real one" mechanism (summary-utils.mjs); classifying
+      `Summary` as machine-owned in this pass doesn't add a NEW guard
+      against DB staleness — that was never the actual defect (see plan.md
+      Task 3's reasoning for why `Summary` belongs in the machine table,
+      not the author table). No regression test added because there is no
+      new behavior to regress-test here.
+- [x] TC-11.6 (item n): **Revised measurement approach.** A live-spawn
+      reproduction against a real mock collector (not the default refusing
+      port, which never reaches the buggy call sites at all — confirmed
+      empirically) is included as a best-effort check, but is honestly not
+      a guaranteed-deterministic repro of a genuine macrotask/network
+      timing race. The reliable regression guard is a **deterministic
+      source-level pin**: both `gitExec` and `activeDispatch` declaration
+      lines must precede the top-level `await upsertWorker();` line — the
+      actual structural property the fix establishes.
+      `conductor/tests/track-10099-startup-tdz-crashes.test.mjs`, 4/4 pass.
+- [ ] TC-11.7 (item n): **Not written.** Out of this pass's scope —
+      `file_manifest_digest` population timing is a separate, pre-existing
+      concern from the TDZ crash itself (the crash prevented the FIRST
+      attempt from succeeding, but didn't affect whether a LATER 60s-tick
+      attempt eventually populates it). Worth a follow-up test, not
+      claimed done here.
+- [ ] TC-11.8 (item m): **Not a test — an author decision, as originally
+      noted.** Confirmed during this implement pass that the primary
+      checkout's uncommitted `--force-run` implementation is still present
+      and unresolved (`git status` on `/home/meller/Code/laneconductor`
+      still shows `bin/lc.mjs`, `conductor/claim-scope.mjs`,
+      `conductor/laneconductor.sync.mjs` modified). Deliberately untouched.
+
+**New, not originally planned (found while running the full node:test
+suite this pass):** `conductor/tests/track-10062-auth-required.test.mjs`
+is unprotected (not one of AM-10089's 25 scoped files) and reproduced the
+same worktree-redirect shape Phase 1 closed for those 25 — `workflow.json`
+checked unchanged (`d7b144ec…9e4`) before and after, so no actual
+corruption occurred, but this is flagged, not fixed (out of this track's
+enumerated scope; a scope decision for the author).
 
 ### Phase 7 status correction
 

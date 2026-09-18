@@ -1,6 +1,6 @@
 # Track AM-10099: Release readiness: hardening gate before any marketplace image ships
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: queue
 **Progress**: 100%
 **Last Run**: claude/claude-haiku-4-5-20251001 (primary)
