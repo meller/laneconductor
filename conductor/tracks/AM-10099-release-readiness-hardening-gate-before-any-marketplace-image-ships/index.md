@@ -1,6 +1,6 @@
 # Track AM-10099: Release readiness: hardening gate before any marketplace image ships
 
-**Lane**: quality-gate
+**Lane**: done
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
@@ -8,7 +8,7 @@
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct
-**Auto Run**: no
+**Auto Run**: yes
 **Author**: AM
 **Created By**: 2565050+meller@users.noreply.github.com
 **Problem**: Execution order 1 of 5. North star: one codebase, three deployment profiles -- standalone (worker + hub-capable), hub (org management, worker-less), federated hubs (private-tracker worker sharing). Sovereign, vendor-agnostic, customer-owned. Vendor-hosted multi-tenant (TU-10048) is v3/later. -- Gate: nothing goes on a marketplace with a test suite that cannot be trusted or with known lane-state corruption paths still live. Scope, all confirmed in-session: (a) AM-10089 was marked done:success with zero of its 25 files fixed (its merge touched only its own index.md) -- redo it for real: migrate the 25 worker-spawning test files to helpers/isolated-worker.mjs makeSandbox or at minimum git-init their sandboxes. (b) Baseline is red: ~39 failing vitest cases (auth.test.mjs, WorkflowSettings.test.jsx, api-routes, track-1116-model-override, track-1084-assignee, track-1102 f5/f15 dispatch bridging, NewProjectModal, ChatView) plus node:test flakies (local-api-e2e 3/6, track-1086-session-worker 1/3, worker-mode 1/7) -- triage each into real bug vs environment, fix or quarantine with a reason, get to green. (c) lc worker run <track> --worker-number N parses N as a second track ID (log: scoped to track(s) 10094, 900094), and the AM-10093 Phase 5 base-worker cap then refuses the scoped run as a duplicate base identity -- claim-scoped runs must be exempt from the cap and the flag must parse. (d) SKILL.md states lc worker run bypasses the Auto Run gate; isTrackClaimable does not -- make code and doc agree. (e) Recurrence of the AM-10093 R4 path observed 2026-09-13 18:07:47 on AM-10098: [DB->FS] PULLED db_newer regenerated index.md from DB fields, dropping the H1, Problem, Type, Author, Created By and Auto Run markers, and reverted plan:success to plan:queue/17%. The running worker predated the AM-10093 merge (started Sep 12 13:21, merge landed 15:32, never restarted) -- verify the fix holds after restart, and separately make the DB->FS writer preserve markers it does not own (track 1081 summary-marker-corruption is adjacent). (f) Operational gap behind (e): merges to main never restart the long-running worker/API, so fixes ship dead -- add a post-merge restart step or a stale-process warning in the done lane. (g) lc new arg parsing: only --type truncates the positional args, so --auto-run/--merge-mode/--workspace get folded into the title (ENAMETOOLONG on mkdir, or a junk track); lc new --help created a track titled help that was then auto-planned -- fix parsing, add --help, reject flag-like titles. (h) AM-10091 Depends On gate should require done:success, since this roadmap chains tracks via Depends On. Cross-reference, owned by the standalone track: its REQ-2 (API binds all interfaces with auth disabled) is also a today-risk for any LAN-reachable install.
