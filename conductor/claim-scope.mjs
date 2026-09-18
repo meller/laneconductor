@@ -125,3 +125,35 @@ export function isScopedWorkFinished({ onlyTracks = null, runningCount = 0, rema
   if (remainingClaimable && remainingClaimable.size > 0) return false;
   return true;
 }
+
+/**
+ * Track AM-10099 Phase 11 Task 1 (item k): autoLaunchLocalFs's pre-spawn
+ * claim write (in laneconductor.sync.mjs) used
+ * `readIfExists(indexPath) ?? content` to prefer a fresh disk read over its
+ * stale top-of-loop `content` snapshot. `??` only falls back on
+ * `null`/`undefined` — NOT on an empty string. `readIfExists` returns `''`
+ * (not null) whenever the file exists but reads back empty, which is a
+ * real, reachable race: `fs.writeFileSync`'s default flag truncates the
+ * file (O_TRUNC) before writing new bytes, so a concurrent reader can
+ * observe a genuinely 0-byte file mid-write from any of that module's many
+ * other index.md writers. When that race hit, the old `?? content` line
+ * silently kept the empty string, and — through the claim write's
+ * append-only `updateHeader` fallback — the file ended up holding ONLY
+ * `**Lane Status**: running`, every other marker gone. This is the same
+ * class of race `updateIndexMDFromDB` already guards against explicitly
+ * (its own `fileExists && !content.trim()` check, added for the identical
+ * reason) — this call site never had the equivalent guard.
+ *
+ * Extracted here (not left inline in laneconductor.sync.mjs, and not
+ * exported from there) for the same reason every other helper in this
+ * file is: that module is a script with side effects on import (timers,
+ * worker registration, a live-lock check that refuses to start a second
+ * instance) — importing it directly to unit-test one pure line collides
+ * with a standing worker instead of testing anything (confirmed live:
+ * see conductor/tests/track-10082-worktree-test-redirect-hazard's own
+ * incident writeup for the general shape of this hazard).
+ */
+export function resolveFreshContentForClaim(freshRead, fallback) {
+  if (freshRead != null && freshRead.trim() !== '') return freshRead;
+  return fallback;
+}
