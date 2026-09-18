@@ -496,3 +496,134 @@ asserts a placeholder.
 None. No schema change and no migration. One **data** correction, already
 applied and recorded as item (j): `tracks.auto_run` set back to `false`
 for track 10099 to match the author's committed intent.
+
+---
+
+# Addendum — planning pass 2026-09-18 (post-implement)
+
+This section was written by a `/laneconductor plan 10099` run dispatched
+**after** the implement phase had already landed the track at
+`review:queue`. It re-planned nothing: the plan above is intact and
+correct. Its job was to explain why a completed track got a `plan`
+dispatch at all, and it found that the answer is itself evidence about
+item (e). Four new findings, (k)–(n), and a correction to Phase 7's
+completion claim.
+
+## Why this run happened (item (e), third confirmed recurrence)
+
+The dispatch was not a human asking for a replan. The track's `index.md`
+**in the primary checkout** had been reduced from 13 lines to 2:
+
+```
+$ git show 3ec3132d:…/AM-10099-…/index.md | wc -l    →  13   (**Lane**: implement)
+$ git show 26dcfa88:…/AM-10099-…/index.md | wc -l    →   2   (**Lane**: plan)
+                                                            (**Lane Status**: running)
+```
+
+`26dcfa88` is a worker-authored `chore(track-10099): sync files before
+worktree` commit at **2026-09-18 15:20:42**; the file was already 2 lines
+when the worker committed it. Everything author-owned was gone — the `#`
+H1, `Problem`, `Type`, `Track Kind`, `Merge Mode`, `Auto Run`, `Author`,
+`Created By`, `Progress`, `Summary`, `Phase`. The lane had also reverted
+`implement` → `plan`, which is what made the track look plan-queued and
+produced this dispatch.
+
+**The DB row agreed with the damage, not with the file's real state** —
+`lane_status=plan`, `progress_percent=85`, and (the AM-10093 R4 hazard,
+still loaded exactly as this spec's item (e) predicted)
+`author=''`/`created_by_email=''` while the file carried `**Author**: AM`
+and a real `**Created By**`.
+
+**It then self-healed.** When the scoped worker exited at ~15:26 the
+branch's own full `index.md` synced back over the primary's, and the DB
+followed: `review | queue | 100`. The corruption window was ~15:12–15:26.
+That self-heal is why no repair was applied here — but it is luck, not a
+guarantee: it only worked because an intact copy happened to exist on a
+live worktree branch. A track without one loses the content permanently.
+
+### (k) Phase 7's fix does not cover the writer that did this
+
+`conductor/services/marker-ownership.mjs`'s own header states it is
+*"used by every DB→FS writer (the worker's `updateIndexMDFromDB` and the
+Collector API's `syncTrackToFile`)"*. That is **not true today**:
+
+| Writer | imports `marker-ownership.mjs` |
+|---|---|
+| `ui/server/index.mjs` → `syncTrackToFile` | yes |
+| `conductor/laneconductor.sync.mjs` → `updateIndexMDFromDB` | **no** |
+
+`grep -rn "marker-ownership" conductor/laneconductor.sync.mjs` returns
+nothing. Concretely, `updateIndexMDFromDB` writes `**Merge Mode**` from
+`dbTrack.merge_mode` with no provenance check at all — and `Merge Mode`
+is on the `AUTHOR_OWNED_MARKERS` list. Phase 7 Task 3 ("one shared
+ownership table … consumed by both") and TC-7.4 are therefore **not
+met**, and plan.md/test.md leaving those boxes unchecked is correct, not
+lag. This is the same false-done shape the track was created to stop, so
+it must not be waved through at review.
+
+Note also that neither in-place writer can *truncate* a file — both
+regex-replace markers within existing content, and `updateIndexMDFromDB`
+even has an explicit guard against rebuilding a stub from an empty read.
+So the writer that produced the 2-line file is **still unidentified**.
+Finding it is Phase 11's first task; an ownership table cannot protect
+markers against a writer that replaces the whole file.
+
+### (l) The ownership table is incomplete
+
+`Summary` is in **neither** `AUTHOR_OWNED_MARKERS` nor
+`MACHINE_OWNED_MARKERS`, yet both writers write it — and track 1081, cited
+by this spec's own item (e) as the adjacent precedent, was *specifically*
+a summary-marker corruption incident. Unclassified means unguarded.
+`Track Kind`, `Model`, `Last Run` and `Waiting for reply` are likewise
+absent from both lists. A classification that silently omits markers is
+weaker than it reads.
+
+### (m) Item (d) has two divergent, incompatible implementations
+
+The branch and the primary checkout each solve item (d) a different way,
+and the primary's version is **uncommitted on `main`**:
+
+| | branch `track-10099` | `main` working tree (uncommitted) |
+|---|---|---|
+| mechanism | `explicitlyRequested` | `--force-run <csv>` + `parseForceRun()` |
+| derived from | the run shape (`--only-tracks … --once`) | an explicit new CLI flag |
+| `lc worker run` | unchanged | passes the track list to both flags |
+
+`git status` in the primary shows `bin/lc.mjs`, `conductor/claim-scope.mjs`
+and `conductor/laneconductor.sync.mjs` modified and uncommitted — that is
+the `--force-run` implementation, and it is the code that actually ran
+this dispatch. Merging the branch will not remove it; the two will
+collide. **This is an author decision, not something a plan lane may
+resolve**, and it blocks review/merge.
+
+### (n) Two live TDZ crashes at every worker startup
+
+Observed in this run's own log, before any track work began:
+
+```
+[file-manifest error]: Cannot access 'gitExec' before initialization
+[orphan-reconcile error]: Cannot access 'activeDispatch' before initialization
+```
+
+Both are the exact defect track 1114 already fixed once for
+`cachedMainBranch`: a `const` declared late in a single top-to-bottom
+module, reached by a callback that runs early. Track 1114's remedy was
+`setTimeout(…, 0)` — and `refreshFileManifestCache` **already uses it**
+(line 1757) yet still throws, because the module contains top-level
+`await`s that yield the event loop mid-evaluation and let the 0 ms timer
+fire before the declarations are reached. So the documented fix is
+insufficient in this module, and the class is not closed.
+
+Impact: on every worker start the track-10080 file-manifest push fails
+(the composer's `worker` tier stays stale until the next 60 s tick) and
+the startup orphan-dispatch reconciliation silently no-ops. Present on
+committed `main`, not introduced by this track — but squarely inside this
+gate's remit, since the whole premise is that nothing ships while the
+baseline cannot be trusted.
+
+### (i) restated, now measured
+
+Still not attempted (its author-confirmation gate stands). Current sizes:
+`conductor/.sync.log` **4.1 GB**, `ui/.api.log` **1.1 GB**, and a single
+14-minute scoped run wrote a **25 MB** log of its own. Unchanged
+recommendation: do not ship an image that grows an unbounded log.

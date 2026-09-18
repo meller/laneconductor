@@ -618,3 +618,83 @@ Landing at `review` — see the AC-1...AC-25 table above for exactly what
 is and isn't independently verified; review/quality-gate are the right
 place to weigh the two honest gaps (broader node:test triage, AC-21's
 live-merge verification) before this reaches `done`.
+
+---
+
+## Phase 11: Close the gate's own gaps (planning pass 2026-09-18)
+
+Added by a `plan` dispatch that arrived *after* the track reached
+`review:queue`. See spec.md's **Addendum — planning pass 2026-09-18** for
+the full evidence behind every task here. Nothing in Phases 1–10 was
+rewritten.
+
+**Problem**: Item (e) recurred a third time on this very track today
+(13-line `index.md` → 2 lines, primary checkout, commit `26dcfa88` at
+15:20:42), and the Phase 7 fix that was supposed to close it does not
+cover the writer that did it. Separately, item (d) exists in two
+incompatible implementations, one of them uncommitted on `main`.
+**Solution**: Identify the real writer, finish Phase 7 for both writers,
+and get an author decision on (d) before anything merges.
+
+- [ ] Task 1 **(blocking, item k)**: Identify the writer that produced the
+      2-line `index.md`. Neither known in-place writer can do it —
+      `updateIndexMDFromDB` and `syncTrackToFile` both regex-replace
+      markers inside existing content, and the former explicitly refuses
+      to rebuild a stub from an empty read. Search the whole-file writers
+      instead (`laneconductor.sync.mjs` lines ~3607/4046/4485/6433,
+      `ui/server/index.mjs` ~1378/2077/2301/2350, `bin/lc.mjs`'s
+      `writeFileSync(indexPath, …)` family) for any path that can emit
+      `**Lane**` + `**Lane Status**` and nothing else. **An ownership
+      table cannot protect markers from a writer that replaces the entire
+      file** — until this is named, item (e) is not closed regardless of
+      Phase 7.
+- [ ] Task 2 **(item k)**: Wire `conductor/laneconductor.sync.mjs`'s
+      `updateIndexMDFromDB` to `marker-ownership.mjs`. It currently
+      imports nothing from it and writes `**Merge Mode**` — an
+      `AUTHOR_OWNED_MARKERS` entry — with no provenance check. This is
+      Phase 7 Task 3's "both writers" requirement, still open; leave
+      TC-7.4 unchecked until it passes.
+      Fix the module header too: it claims both writers already use it.
+- [ ] Task 3 **(item l)**: Classify every marker both writers can write.
+      `Summary` (the track-1081 incident's own marker), `Track Kind`,
+      `Model`, `Last Run` and `Waiting for reply` appear in neither list.
+      Add a test that fails when a writable marker is in neither table, so
+      the lists cannot silently fall behind again.
+- [ ] Task 4 **(blocking, item m — author decision, not ours)**: Item (d)
+      is implemented twice. The branch uses `explicitlyRequested` (derived
+      from the `--only-tracks … --once` run shape); the primary checkout
+      has an uncommitted `--force-run <csv>` flag + `parseForceRun()`
+      across `bin/lc.mjs`, `conductor/claim-scope.mjs` and
+      `conductor/laneconductor.sync.mjs`. They collide on merge. Do not
+      pick one autonomously — the primary's uncommitted work is another
+      session's in-flight code and is what is actually running today.
+- [ ] Task 5 **(item n)**: Fix both startup TDZ crashes
+      (`gitExec` in `refreshFileManifestCache`, `activeDispatch` in the
+      startup `reconcileOrphanedDispatches`). Note that track 1114's
+      `setTimeout(…, 0)` remedy is **already applied** to the first and
+      still fails — top-level `await`s yield the loop before the `const`s
+      are reached — so the fix is to move the declarations above their
+      first reachable use (or defer past the awaits), and 1114's own
+      documented pattern should be corrected to say so.
+- [ ] Task 6 **(item i, still gated)**: Log rotation. Now measured:
+      `conductor/.sync.log` 4.1 GB, `ui/.api.log` 1.1 GB, 25 MB for one
+      14-minute scoped run. Still awaiting the author's go-ahead; AC-23
+      stays ⬜ until then.
+
+**Impact**: Item (e) actually closes (today it does not), the ownership
+table stops having holes, the `--force-run`/`explicitlyRequested` collision
+is resolved deliberately rather than by whoever merges last, and the
+worker stops throwing on every start.
+
+## ⚠️ Gate status after this pass
+
+The Phase 10 verdict above stands with two corrections:
+
+- **AC-12/AC-13 (item e) must not be read as closed.** Phase 7 shipped a
+  real guard on the API-server writer, but the worker's writer was never
+  wired in, and the writer that caused today's recurrence is unidentified.
+- **Item (d) is not shippable as-is** — two implementations, one
+  uncommitted on `main`.
+
+Both are blockers for `done`, not for `review`. The track stays at
+`review:queue`; review and quality-gate are the right lanes to weigh them.
