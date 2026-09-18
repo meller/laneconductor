@@ -145,7 +145,10 @@ describe('API Key Management (Track 1033)', () => {
     describe('collectorAuth — SHA-256 API key lookup', () => {
         it('POST /worker/register with visibility field stores it in DB', async () => {
             vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] }); // SELECT existing machine_token
-            vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] }); // INSERT
+            // Track AM-10099 item (b): the real INSERT destructures
+            // `rows: [{ id }]` — an empty rows array here throws before this
+            // test's own INSERT-call assertions below are ever reached.
+            vi.mocked(pool.query).mockResolvedValueOnce({ rows: [{ id: 1 }] }); // INSERT
             const res = await request(app)
                 .post('/worker/register')
                 .send({ hostname: 'test-host', pid: 1234, project_id: 1, visibility: 'team' });

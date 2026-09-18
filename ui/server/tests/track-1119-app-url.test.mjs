@@ -66,6 +66,9 @@ describe('GET /api/projects includes app_url', () => {
     });
     const res = await request(app).get('/api/projects').expect(200);
     expect(res.body[0].app_url).toBe('https://digger-game-prod.web.app');
-    expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('app_url'));
+    // Track AM-10099 item (b): the query now also takes a params array
+    // (a WHERE repo_path != $1 meta-project exclusion, unrelated to
+    // app_url) — match the SQL string itself, not the full call args.
+    expect(vi.mocked(pool.query).mock.calls[0][0]).toEqual(expect.stringContaining('app_url'));
   });
 });
