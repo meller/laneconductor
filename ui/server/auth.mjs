@@ -14,6 +14,15 @@ import { Router } from 'express';
 
 export let AUTH_ENABLED = false;
 export let TEST_MODE = process.env.PW_TEST_MODE === 'true';
+// Track AM-10099 item (b): this was referenced (getAuth() assigned to it in
+// loadAuthConfig, read by requireAuth/authRouter) but never DECLARED
+// anywhere — an undeclared-variable assignment throws in ES module strict
+// mode. Every real remote-api deployment with a working
+// VITE_FIREBASE_PROJECT_ID hit this at startup: loadAuthConfig's own
+// try/catch caught the ReferenceError and silently set AUTH_ENABLED back to
+// false, so Firebase auth could never actually turn on — every request
+// fell through to the no-auth local path regardless of configuration.
+let _adminAuth;
 
 /**
  * Called once at server startup. Reads Firebase config from env vars or GCP env.
