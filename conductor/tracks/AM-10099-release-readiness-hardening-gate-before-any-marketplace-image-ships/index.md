@@ -1,10 +1,10 @@
 # Track AM-10099: Release readiness: hardening gate before any marketplace image ships
 
-**Lane**: plan
-**Lane Status**: success
-**Progress**: 100%
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 10%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Planning complete — 10 phases specified; items (a)-(h) re-verified with file/line evidence, (i) log rotation and (j) Auto Run correction discovered
+**Phase**: Phase 1 of 10 complete — 25/25 AM-10089 files structurally protected against the worktree-cwd-normalization escape; new regression test added; workflow.json integrity and orphan-process checks confirmed clean
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct

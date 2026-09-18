@@ -17,12 +17,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
-const TMP = join(ROOT, '.test-tmp-track-1089-provision');
+const TMP = join(tmpdir(), 'lc-track-1089-provision');
 const PROJECTS_DIR = join(TMP, 'projects');
 const FAKE_HOME = join(TMP, 'home');
 
@@ -67,6 +69,10 @@ async function enqueueDispatch(port, entry) {
 
 function setupManager(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
+  mkdirSync(TMP, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
   mkdirSync(PROJECTS_DIR, { recursive: true });
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
     mode: 'local-api',

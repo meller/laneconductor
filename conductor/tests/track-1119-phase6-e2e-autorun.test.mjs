@@ -22,13 +22,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-track-1119-phase6-autorun');
+const TMP = join(tmpdir(), 'lc-track-1119-phase6-autorun');
 const MANAGER_DIR = join(TMP, 'manager');
 const TARGET_DIR = join(TMP, 'digger-game');
 
@@ -96,6 +97,16 @@ describe('Track AM-1119 Phase 6: full auto-run chain — generated tracks actual
 
     rmSync(TMP, { recursive: true, force: true });
     setupProject(MANAGER_DIR, collectorPort);
+    // Track AM-10099 Phase 1 (REQ-1): TMP/TARGET_DIR already live under
+    // os.tmpdir() (never inside the repo), so nothing here needs its own
+    // fixture-level `git init`. TARGET_DIR is deliberately left ungitted —
+    // the `create-project` dispatch below (awaited synchronously) is what
+    // production code git-inits it as part of its own scaffold step
+    // (laneconductor.sync.mjs's `isRepo` branch), and that is what this
+    // test exercises; pre-initializing it here would make that branch a
+    // no-op and silently stop covering it. `projectWorker` below only gets
+    // a `cwd: TARGET_DIR` spawn AFTER that dispatch resolves, by which
+    // point TARGET_DIR is a real git repo.
     mkdirSync(TARGET_DIR, { recursive: true });
 
     managerWorker = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only', '--manager'], {

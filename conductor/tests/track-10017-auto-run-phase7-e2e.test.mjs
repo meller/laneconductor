@@ -33,6 +33,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execSync, spawn } from 'node:child_process';
 import pg from 'pg';
@@ -40,7 +41,7 @@ import pg from 'pg';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const BASE = join(ROOT, '.test-tmp-track-10017-phase7-e2e');
+const BASE = join(tmpdir(), 'lc-track-10017-phase7-e2e');
 const ORIGIN = join(BASE, 'origin.git');
 const LOCAL = join(BASE, 'local');
 const TRACK_NUM = '19978'; // fake, distinct from every other fixture's track-number range

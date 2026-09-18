@@ -14,13 +14,14 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-track-1119-wizard-dispatch');
+const TMP = join(tmpdir(), 'lc-track-1119-wizard-dispatch');
 const MANAGER_DIR = join(TMP, 'manager');
 const TARGET_DIR_FIREBASE = join(TMP, 'digger-game');
 const TARGET_DIR_SKIP = join(TMP, 'skip-deploy-project');

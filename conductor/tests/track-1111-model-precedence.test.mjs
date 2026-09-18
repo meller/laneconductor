@@ -20,14 +20,16 @@ import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, chmodSync } from 'fs';
 import { join, dirname } from 'path';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 import { spawn } from 'child_process';
 import { resolveLaneCliAndModel, stripLanePrimaryCli } from '../services/lane-model-resolver.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const FAKE_CLAUDE = join(__dirname, 'fake-claude-recorder.mjs');
-const TMP = join(ROOT, '.test-tmp-1111-model-precedence');
+const TMP = join(tmpdir(), 'lc-1111-model-precedence');
 const BIN = join(TMP, 'bin');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -143,6 +145,10 @@ describe('stripLanePrimaryCli (unit, TC-2b)', () => {
 function setupProject({ manualModelOverride = null } = {}) {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
+mkdirSync(TMP, { recursive: true });
   mkdirSync(BIN, { recursive: true });
 
   // Substitute `claude` binary on PATH — a shell wrapper so it matches

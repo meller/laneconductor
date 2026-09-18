@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parsePsWorkerRows, findOrphanedWorkerProcesses } from '../services/orphan-worker-detection.mjs';
 
@@ -95,8 +96,12 @@ describe('Track 1091 Phase 7: real orphaned process gets killed', () => {
     // .laneconductor.json / no collector reachable — it never registers,
     // exactly mirroring an orphaned test-harness process that outlived
     // its own mock collector.
-    const TMP = join(ROOT, '.test-tmp-track-1091-orphan-reap');
-    execSync(`rm -rf "${TMP}" && mkdir -p "${TMP}/conductor/tracks"`);
+    // Track AM-10099 Phase 1 (REQ-1): sandbox lives under os.tmpdir(), git-
+    // initialized before any real worker spawn — never an ungitted in-repo
+    // path, which lets resolvePrimaryRepoRoot's upward .git walk escape into
+    // the primary checkout when this file runs from a linked worktree.
+    const TMP = join(tmpdir(), 'lc-track-1091-orphan-reap');
+    execSync(`rm -rf "${TMP}" && mkdir -p "${TMP}/conductor/tracks" && git init -q "${TMP}" && git -C "${TMP}" config user.email test@example.com && git -C "${TMP}" config user.name Test`);
 
     const child = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only'], {
       cwd: TMP,
@@ -139,8 +144,8 @@ describe('Track 1091 Phase 7: real orphaned process gets killed', () => {
   });
 
   it('a process still within its grace period is never flagged, even with zero registered workers', async () => {
-    const TMP = join(ROOT, '.test-tmp-track-1091-orphan-reap-2');
-    execSync(`rm -rf "${TMP}" && mkdir -p "${TMP}/conductor/tracks"`);
+    const TMP = join(tmpdir(), 'lc-track-1091-orphan-reap-2');
+    execSync(`rm -rf "${TMP}" && mkdir -p "${TMP}/conductor/tracks" && git init -q "${TMP}" && git -C "${TMP}" config user.email test@example.com && git -C "${TMP}" config user.name Test`);
 
     const child = spawn('node', [join(ROOT, 'conductor/laneconductor.sync.mjs'), '--sync-only'], {
       cwd: TMP,

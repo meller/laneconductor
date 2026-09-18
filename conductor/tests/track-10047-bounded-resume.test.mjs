@@ -10,8 +10,9 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
@@ -99,6 +100,9 @@ function writeTrack(tmp, num, lane, laneStatus) {
 function setupProject(tmp, collectorPort) {
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: tmp });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: tmp });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: tmp });
   writeFileSync(join(tmp, '.laneconductor.json'), JSON.stringify({
     mode: 'local-api',
     project: { name: 'test-project', id: 1, repo_path: tmp, primary: { cli: 'mock', model: 'mock' } },
@@ -147,7 +151,7 @@ describe('Track 10047 Phase 4: bounded session resume, end to end', () => {
   after(() => collectorProc?.kill());
 
   it('TC-14/TC-15 (AC-1, AC-2): an over-threshold session is retired — next dispatch cold-starts with a NEW id and full context injection', async () => {
-    const TMP = join(ROOT, '.test-tmp-track-10047-tc14');
+    const TMP = join(tmpdir(), 'lc-track-10047-tc14');
     await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
     setupProject(TMP, collectorPort);
     writeTrack(TMP, '4101', 'implement', 'idle');
@@ -196,7 +200,7 @@ describe('Track 10047 Phase 4: bounded session resume, end to end', () => {
   });
 
   it('TC-16 (AC-3): an under-threshold session still resumes the same uuid, unchanged from today', async () => {
-    const TMP = join(ROOT, '.test-tmp-track-10047-tc16');
+    const TMP = join(tmpdir(), 'lc-track-10047-tc16');
     await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
     setupProject(TMP, collectorPort);
     writeTrack(TMP, '4102', 'implement', 'idle');
@@ -235,7 +239,7 @@ describe('Track 10047 Phase 4: bounded session resume, end to end', () => {
   });
 
   it('TC-17 (AC-6): a collector omitting both new fields behaves identically to today — no cap, session resumed', async () => {
-    const TMP = join(ROOT, '.test-tmp-track-10047-tc17');
+    const TMP = join(tmpdir(), 'lc-track-10047-tc17');
     await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
     setupProject(TMP, collectorPort);
     writeTrack(TMP, '4103', 'implement', 'idle');
@@ -279,9 +283,12 @@ describe('Track 10047 Phase 4: bounded session resume, end to end', () => {
   });
 
   it('TC-18 (AC-7): local-fs mode reaches no session traffic at all and caps nothing', async () => {
-    const TMP = join(ROOT, '.test-tmp-track-10047-tc18');
+    const TMP = join(tmpdir(), 'lc-track-10047-tc18');
     rmSync(TMP, { recursive: true, force: true });
     mkdirSync(TMP, { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: TMP });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
     writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
       mode: 'local-fs',
       project: { name: 'test-project', id: 1, repo_path: TMP, primary: { cli: 'mock', model: 'mock' } },
@@ -310,7 +317,7 @@ describe('Track 10047 Phase 4: bounded session resume, end to end', () => {
   });
 
   it('TC-19 (REQ-4): LC_SESSION_MAX_CONTEXT_TOKENS=0 disables the check even with a huge stored session', async () => {
-    const TMP = join(ROOT, '.test-tmp-track-10047-tc19');
+    const TMP = join(tmpdir(), 'lc-track-10047-tc19');
     await fetch(`http://127.0.0.1:${collectorPort}/_reset`, { method: 'POST' });
     setupProject(TMP, collectorPort);
     writeTrack(TMP, '4105', 'implement', 'idle');

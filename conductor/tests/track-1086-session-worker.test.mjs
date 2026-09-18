@@ -16,13 +16,18 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../..');
 const MOCK_CLI = join(__dirname, 'mock-cli.mjs');
-const TMP = join(ROOT, '.test-tmp-track-1086-session');
+// Track AM-10099 Phase 1 (REQ-1): sandbox lives under os.tmpdir(), never
+// inside the repo — an in-repo, ungitted sandbox lets resolvePrimaryRepoRoot's
+// upward .git walk escape into the primary checkout when this file runs from
+// a linked worktree (see AM-10099/spec.md item (a)).
+const TMP = join(tmpdir(), 'lc-track-1086-session');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -66,6 +71,9 @@ async function enqueueDispatch(port, entry) {
 function setupProject(collectorPort) {
   rmSync(TMP, { recursive: true, force: true });
   mkdirSync(TMP, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: TMP });
+  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: TMP });
   const collectorUrl = `http://127.0.0.1:${collectorPort}`;
 
   writeFileSync(join(TMP, '.laneconductor.json'), JSON.stringify({
