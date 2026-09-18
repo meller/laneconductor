@@ -192,7 +192,11 @@ describe('Worker Mode Configuration', () => {
       const content = readFileSync(syncWorkerPath, 'utf8');
 
       // Check that the code references syncOnly and skips auto-launch
-      assert.match(content, /if \(syncOnly\) return;/, 'should skip auto-launch in sync-only mode');
+      // Track AM-10099 item (b): the guard now also exempts the manager
+      // (`&& !isManager` — a manager worker always polls regardless of
+      // sync-only), a deliberate widening of the original check this
+      // regex was written against.
+      assert.match(content, /if \(syncOnly && !isManager\) return;/, 'should skip auto-launch in sync-only mode');
       assert.match(content, /SKIP auto-launch in sync-only mode/, 'should have comment explaining skip');
     });
 
