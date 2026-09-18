@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 100%
-**Phase**: Planning complete — 10 phases specified; items (a)-(h) re-verified with file/line evidence, (i) log rotation and (j) Auto Run correction discovered
+**Progress**: 75%
+**Phase**: Phases 1, 2, 4, 6, 7 complete; Phase 3 substantially done (baseline measured — 1344/1392 passing after fixing a real import-time crash; the 3 originally-named flakies resolved or quarantined;…
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
