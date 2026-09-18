@@ -35,7 +35,7 @@ import { truncateSummary, parseSummaryMarker, parseSummary } from './summary-uti
 import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
-import { parseOnlyTracks, parseForceRun, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
+import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
 import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
@@ -128,18 +128,6 @@ let workerMode = cliSyncOnly ? 'sync-only' : null; // Will be resolved after con
 let onlyTracks = null;
 try {
   onlyTracks = parseOnlyTracks(process.argv);
-} catch (err) {
-  console.error(`[LaneConductor] ${err.message}`);
-  process.exit(2);
-}
-
-// Track AM-10099 (item (d)): direct-dispatch counterpart to --only-tracks —
-// the one thing that actually bypasses a track's `autoRun: false` gate, for
-// exactly the tracks named here. See claim-scope.mjs's parseForceRun for why
-// --only-tracks alone was never enough despite SKILL.md's prior claim.
-let forceRunTracks = null;
-try {
-  forceRunTracks = parseForceRun(process.argv);
 } catch (err) {
   console.error(`[LaneConductor] ${err.message}`);
   process.exit(2);
@@ -3757,10 +3745,19 @@ watch(laneConductorJsonPath)
 // BEFORE this process registers itself (so it doesn't count its own
 // about-to-exist row), and before entering the poll loop below.
 //
-// Exempted: local-fs (no collector to ask), and the machine-level manager
+// Exempted: local-fs (no collector to ask), the machine-level manager
 // (a singleton by its own partial unique index, not a per-project base
-// identity at all).
-if (!getIsLocalFs() && !isManager) {
+// identity at all), and — track AM-10099 item (c2) — a claim-scoped
+// `--only-tracks ... --once` run (what `lc worker run <track>` actually
+// is under the hood). The cap exists to stop an UNBOUNDED accumulation of
+// independent poll loops (AM-10093's own framing); a `--once` run that
+// exits the moment its named tracks finish is not that — it is a single,
+// bounded, self-terminating unit of work, structurally incapable of
+// accumulating. Without this exemption `lc worker run` — documented as
+// "normally what you want" — could never actually run alongside the
+// ordinary standing worker, which is the normal case.
+const isClaimScopedOnceRun = !!(onlyTracks && exitWhenDone);
+if (!getIsLocalFs() && !isManager && !isClaimScopedOnceRun) {
   try {
     const { url, token } = primaryCollector();
     const projectId = getProject()?.id;
@@ -3828,7 +3825,6 @@ console.log(
     ? `[LaneConductor] Claim scope: ONLY tracks [${[...onlyTracks].join(', ')}]${exitWhenDone ? ' (will exit when done)' : ''}`
     : '[LaneConductor] Claim scope: unscoped — may claim any queued track'
 );
-if (forceRunTracks) console.log(`[LaneConductor] Force-run (bypasses Auto Run): [${[...forceRunTracks].join(', ')}]`);
 if (!getIsLocalFs()) console.log(`[LaneConductor] Collectors: ${getCollectors().map(c => c.url).join(', ')}`);
 if (!getIsLocalFs()) console.log(`[LaneConductor] Dashboard: http://localhost:${getUi()?.port ?? 8090}`);
 
@@ -8311,10 +8307,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // Track 10017: a track's own `**Auto Run**` marker (default false) is a
     // second, independent gate in the same predicate — a queued track is not
     // auto-picked unless it opts in, bypassed only for waitingForReply.
-    //
-    // Track AM-10099: ...or unless it's named in --force-run — a direct
-    // human dispatch (`lc worker run <track>`), not passive queue-narrowing.
-    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun, forceRunTracks })) continue;
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
 
     // Passive lanes should not trigger auto-automation actions.
     // Track 10035: 'done' is no longer passive — a done:queue track is
