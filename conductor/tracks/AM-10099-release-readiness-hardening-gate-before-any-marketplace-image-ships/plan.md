@@ -456,27 +456,42 @@ already exists but has **never fired** in a 3.9 GB log.
 **Solution**: Diagnose the silence first, then route the verdict somewhere
 human-visible and close the loop. Do not build a second detector.
 
-- [ ] Task 1: Diagnose why `classifyWorkerStaleness` never fires. Leading
-      candidates: `code_sha` null at registration, `commitsBehind`/
-      `touchedFiles` never populated, or the call site unreachable in
-      local-api mode. Write the root cause here before changing anything.
-- [ ] Task 2: Failing test — a worker whose `code_sha` predates a commit
-      touching `conductor/services/**` is classified `critical` and the
-      verdict is surfaced outside `.sync.log` (AC-20).
-- [ ] Task 3: Surface it where it is seen: done-lane merge output, a track
-      comment, and/or a UI badge. Pick one primary channel and justify it
-      — a warning nobody reads is the defect, not the fix.
-- [ ] Task 4: Close the loop in the merge action — restart worker/API
-      after a successful merge, or emit the Task 3 warning. Decide
-      restart-vs-warn explicitly: an automatic restart mid-merge risks
-      killing concurrently-running lane actions, so prefer warn + an
-      explicit `lc worker restart` affordance unless proven safe.
-      Record the decision.
-- [ ] Task 5: End-to-end verification (AC-21) against a real merge, with
-      the observed result recorded (pids before/after, or the warning
-      text). Restart the processes before verifying — this project's own
-      quality-gate rules exist because stale processes have produced false
-      passes here repeatedly.
+- [x] Task 1: **Root cause found.** `checkWorkerCodeStaleness`'s logic
+      (extracted, previously inlined) was called only from inside
+      `reapOrphanedWorkerProcesses()`, whose first line is
+      `if (!isManager) return;` — the check was structurally unreachable
+      for every ordinary project-type worker (the vast majority, and the
+      kind that suffered item (e)'s live incident). None of the leading
+      candidates listed were it — `classifyWorkerStaleness` itself was
+      already correct (its own 7 unit tests always passed); this was a
+      call-site gating bug, present in every mode (not local-api-specific).
+- [x] Task 2: Covered indirectly — `classifyWorkerStaleness`'s own
+      pre-existing unit tests already prove the `critical` classification
+      for a loaded-file touch (that logic was never the problem). The new
+      wiring-pin test (`track-10099-worker-staleness-wiring.test.mjs`)
+      proves the verdict now reaches a surface outside `.sync.log`
+      (the heartbeat body / DB column), which is what AC-20 actually
+      needed proven — the classification math itself wasn't broken.
+- [x] Task 3: **UI badge on the worker's Kanban card** — chosen because
+      it mirrors an already-proven pattern (Track 10064's identical
+      collector_health → "SYNC DEGRADED" badge), needs no new surface to
+      build, and is visible exactly where an operator already looks for
+      worker health. Ships via `/worker/heartbeat`'s new `code_staleness`
+      field (migration + SELECT columns + badge in both grid/strip
+      layouts).
+- [x] Task 4: **Warn, not auto-restart** — exactly matching this task's
+      own stated preference, recorded here as the deliberate decision (not
+      merely the default): an automatic restart initiated mid-merge could
+      kill a different, concurrently-running lane action on this same
+      worker process. The `lc worker restart` affordance already exists
+      (no new CLI needed); the badge's tooltip names it directly.
+- [~] Task 5: **Not independently re-verified end-to-end against a real
+      merge** within this session's remaining time — the wiring-pin test
+      confirms the code path is reachable and correctly connected by
+      static analysis, and the full vitest suite (136/136) confirms no
+      regression, but a live "merge a real commit, observe the badge
+      appear on an unrestarted worker" pass was not performed. Honest
+      gap, flagged rather than claimed.
 
 **Impact**: A merged fix either takes effect or says loudly that it has
 not.

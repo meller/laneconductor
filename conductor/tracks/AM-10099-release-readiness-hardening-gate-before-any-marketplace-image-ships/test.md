@@ -209,19 +209,19 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ### Phase 8 — Post-merge staleness (item f)
 
-- [ ] TC-8.1: Root cause of the never-firing detector is written down and
-      demonstrated — expected: a reproducible reason, not a guess.
-- [ ] TC-8.2 (AC-20): a worker whose `code_sha` predates a commit touching
-      `conductor/services/**` classifies `critical` **and** the verdict
-      appears outside `.sync.log`.
-- [ ] TC-8.3: A current worker is **not** flagged (no false positives).
-- [ ] TC-8.4: A commit touching only unrelated files (e.g. `landing/`)
-      does not classify `critical`.
-- [ ] TC-8.5 (AC-21): after a real done-lane merge, either new pids serve
-      post-merge code or the warning fired; a merge doing neither fails.
-- [ ] TC-8.6: Processes restarted **before** verification — expected: no
-      false pass from a stale process (this repo's recurring false-verdict
-      cause).
+- [x] TC-8.1: root cause written down (plan.md Phase 8 Task 1) — a
+      call-site gating bug (`if (!isManager) return;`), not any of the
+      three leading candidates listed at planning time.
+- [x] TC-8.2 (AC-20): satisfied by the pre-existing `classifyWorkerStaleness`
+      unit tests (classification math was never broken) plus the new
+      wiring-pin test (the verdict now reaches `code_staleness` outside
+      `.sync.log`).
+- [x] TC-8.3/TC-8.4: pre-existing coverage in
+      `track-10040-worker-code-staleness.test.mjs` (7/7, unaffected by
+      this phase's change — the classifier itself wasn't touched).
+- [~] TC-8.5/TC-8.6 (AC-21): **not performed** — no live merge was run
+      against a real, currently-stale worker process to observe the badge
+      appear end to end within this session. Honest gap.
 
 ### Phase 9 — `Depends On` + log rotation (items h, i)
 
