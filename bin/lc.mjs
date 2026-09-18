@@ -124,6 +124,22 @@ function getInstallPath() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Track AM-10099 item (g) — discovered while testing Phase 5's --help
+// coverage, not itself a --help defect: 8 of 9 track-number-taking CLI
+// commands used a naive `d.startsWith(\`${trackNum}-\`)` scan, which only
+// ever matches bare "NNN-slug" folders and silently misses every
+// "PREFIX-NNN-slug" one — the documented, current convention every track
+// created by `lc new` (or the skill) actually uses. One call site (the
+// move/plan/pulse/etc. family) was already fixed this same way; this
+// helper generalizes that fix for every other site instead of leaving 8
+// of 9 commands broken for prefixed tracks.
+function findTrackDir(projectRoot, trackNum) {
+    const tracksDir = join(projectRoot, 'conductor', 'tracks');
+    const metadataPath = join(projectRoot, 'conductor', 'tracks-metadata.json');
+    const decision = resolveTrackFolderFs({ tracksDir, trackNumber: String(trackNum), metadataPath });
+    return decision.folder;
+}
+
 /**
  * Track 1110 Phase 2: waits for `pid` to actually exit (process.kill(pid, 0)
  * throwing ESRCH), polling every `intervalMs` up to `timeoutMs`. Returns
@@ -538,7 +554,7 @@ async function runAIAgent(cfg, slashCmd, trackNum = null, lane = null) {
             if (trackNum) {
                 try {
                     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-                    const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+                    const trackDir = findTrackDir(projectRoot, trackNum);
                     if (trackDir) {
                         const indexPath = join(tracksDir, trackDir, 'index.md');
                         if (existsSync(indexPath)) {
@@ -672,7 +688,10 @@ async function validateJiraStatusesInCli(domain, email, token, projectKey) {
 const args = process.argv.slice(2);
 const command = args[0];
 
-if (!command || command === '--help' || command === '-h' || command === 'help') {
+// Track AM-10099 item (g), REQ-5: `lc help <subcommand>` is an alias for
+// `lc <subcommand> --help` — must NOT fall into the bare top-level-help
+// branch below just because command === 'help'.
+if (!command || command === '--help' || command === '-h' || (command === 'help' && !args[1])) {
     console.log(`
 LaneConductor CLI (lc) v${VERSION}
 
@@ -787,6 +806,103 @@ Installation path: ${getInstallPath()}
 
 if (command === 'version' || command === '--version' || command === '-v') {
     console.log(`lc v${VERSION}`);
+    process.exit(0);
+}
+
+// Track AM-10099 item (g), REQ-9: `lc <subcommand> --help` used to be
+// handled in exactly ONE place (the block above, reachable only when
+// `--help` is literally `args[0]`) — none of the other ~38 dispatch
+// branches recognized it at all, so a free-text subcommand (new, comment,
+// updateTrack, reportaBug, ...) wrote `--help` as DATA. That is precisely
+// how a track titled "help" was created and auto-planned over this very
+// folder (see spec.md item (g)). This map's one-liners are copied from the
+// top-level help text above so the two descriptions can't drift apart.
+const SUBCOMMAND_HELP = {
+    setup: 'lc setup — Initialize LaneConductor in the current project (interactive)',
+    'setup-deploy': 'lc setup-deploy — Guided deployment setup (writes deployment-stack.md + deploy.json)',
+    deploy: 'lc deploy [env]  — Execute deployment for a specific environment (prod/staging/preview)',
+    build: 'lc build  — Generate a new release build artifact with AI change summary',
+    builds: 'lc builds  — List generated build artifacts in conductor/builds/',
+    start: 'lc start [--manager] [--projects-dir <path>] [--sync-and-work] [--worker-number <N>] [--only-tracks <n,n>] [--once] [--cli <id>] [--model <id>]  — Start the heartbeat sync worker',
+    stop: 'lc stop [--manager] [--worker-number <N>]  — Stop the heartbeat sync worker',
+    restart: 'lc restart [--manager] [--sync-and-work] [--worker-number <N>]  — Restart the heartbeat sync worker',
+    worker: 'lc worker [run <track>|start|stop|restart|status|logs|sync]  — Manage the sync worker. "run <track>" is normally what you want: runs in the foreground, scoped to that track, exits when done.',
+    api: 'lc api [start|stop]  — Manage the shared Collector API at :8091',
+    'meta-project': 'lc meta-project  — Manage the meta project used for manager chat',
+    ui: 'lc ui [start|stop]  — Manage the shared Vite dashboard at :8090',
+    logs: 'lc logs [id|worker|worker-run [id]]  — Show logs for a track or the worker',
+    status: 'lc status [--manager] [--worker-number <N>]  — Show track status for the current project',
+    state: 'lc state [--json]  — Output live instance state snapshot and setup diagnostics',
+    new: 'lc new "Title" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch] [--merge-mode direct|pr] [--auto-run yes|no]  — Create a new track',
+    measure: 'lc measure --track <NNN>  — Run KPI measurement for a track',
+    'check-skills': 'lc check-skills  — Verify recommended skills are installed for this project',
+    comment: 'lc comment [id] [msg]  — Post a comment to a track. Use "--" before a literal message that itself starts with a flag, e.g. lc comment 42 -- --help',
+    updateTrack: 'lc update-track [id] [msg]  — Add work/bug/feature to a track and return it to backlog',
+    'update-track': 'lc update-track [id] [msg]  — Add work/bug/feature to a track and return it to backlog',
+    reportaBug: 'lc report-bug [desc]  — Smart bug intake (creates or updates a bug track)',
+    'report-bug': 'lc report-bug [desc]  — Smart bug intake (creates or updates a bug track)',
+    featureRequest: 'lc feature-request [desc]  — Smart feature intake (creates or updates a feature track)',
+    'feature-request': 'lc feature-request [desc]  — Smart feature intake (creates or updates a feature track)',
+    brainstorm: 'lc brainstorm [id]  — Start a brainstorm dialogue for a track via conversation.md',
+    move: 'lc move [id] [lane:status]  — Move track to lane:status',
+    plan: 'lc plan [id] [--run]  — Move to plan lane (--run: execute immediately in foreground)',
+    implement: 'lc implement [id] [--run]  — Move to implement lane (--run: execute immediately in foreground)',
+    review: 'lc review [id] [--run]  — Move to review lane (--run: execute immediately in foreground)',
+    'quality-gate': 'lc quality-gate [id] [--run]  — Move to quality-gate lane (--run: execute immediately in foreground), or (with a project, no id) run project verification checks',
+    backlog: 'lc backlog [id]  — Move track to backlog',
+    done: 'lc done [id]  — Move track to done',
+    rerun: 'lc rerun [id]  — Re-run the current lane action for a track',
+    pulse: 'lc pulse [id] [status] [%]  — Pulse track status and progress',
+    workflow: 'lc workflow [set ...]  — Manage workflow configuration (or show if no args)',
+    config: 'lc config [set ...] | lc config mode [mode] [...] | lc config visibility [private|team|public]  — Manage project configuration (or show if no args)',
+    project: 'lc project [show|set]  — Manage project settings (or show summary if no args)',
+    'add-target-mapping': 'lc add-target-mapping [--type jira] [--project-key <key>] --lane <lc_lane> --target "<status>"  — Add a 1:1 status mapping for a collector',
+    'add-target': 'lc add-target --url <url> [--key <key>] [--store-type <type>] [--secret-name <name>] [--type local|remote]  — Add a new collector target',
+    'remove-target': 'lc remove-target <url>  — Remove a configured collector target',
+    'enable-target': 'lc enable-target <url>  — Enable sync for a specific target',
+    'disable-target': 'lc disable-target <url>  — Disable sync for a specific target',
+    'list-targets': 'lc list-targets  — List all configured collector targets and their sync status',
+    'track-dir': 'lc track-dir <number> [--json]  — Print the resolved folder path for a track number',
+    abort: 'lc abort [id]  — Cancel a live lane action or conversation turn for a track ("manager" is a valid id)',
+    'verify-isolation': 'lc verify-isolation  — Check if worker environment is correctly sandboxed',
+    worktrees: 'lc worktrees [list|merge|create-pr|refresh]  — Manage track git worktrees',
+    doc: 'lc doc set SECTION VAL  — Update conductor/product.md, tech-stack.md, etc.',
+    show: 'lc show [id]  — Show track details (plan, spec, logs)',
+    verify: 'lc verify  — Run project verification checks',
+    'remote-sync': 'lc remote-sync  — Bidirectional sync between API and local files (newer wins)',
+    'init-summary': 'lc init-summary  — Regenerate conductor/tracks.md',
+    delete: 'lc delete [id]  — Permanently delete a track',
+    remove: 'lc delete [id]  — Permanently delete a track',
+};
+
+// Any argv token after the command that is exactly `--help`/`-h`, as long
+// as no `--` terminator appears before it (REQ-7's escape hatch: `lc
+// comment 42 -- --help` must post the literal text `--help`, never be
+// read as a help request).
+function wantsHelp(subArgs) {
+    for (const tok of subArgs) {
+        if (tok === '--') return false;
+        if (tok === '--help' || tok === '-h') return true;
+    }
+    return false;
+}
+
+if (command && wantsHelp(args.slice(1))) {
+    const help = SUBCOMMAND_HELP[command];
+    if (help) {
+        console.log(help);
+    } else {
+        // Unknown subcommand (or one not yet in the map) + --help: fall
+        // back to top-level help rather than printing nothing (REQ-6).
+        console.log(`Unknown subcommand "${command}" — run "lc --help" for the full command list.`);
+    }
+    process.exit(0);
+}
+
+// `lc help <subcommand>` — an alias for `lc <subcommand> --help` (REQ-5).
+if (command === 'help' && args[1]) {
+    const help = SUBCOMMAND_HELP[args[1]];
+    console.log(help || `Unknown subcommand "${args[1]}" — run "lc --help" for the full command list.`);
     process.exit(0);
 }
 
@@ -2556,8 +2672,13 @@ Please review this, answer any questions (some fields may contain questions rath
     // Supports both:
     //   lc new "multi word title" "description"   (quoted, each is one arg)
     //   lc new [multi word title] [description]   (bracket notation, each word is a separate arg)
-    const typeIdx = args.indexOf('--type');
-    const rawPositional = typeIdx !== -1 ? args.slice(1, typeIdx) : args.slice(1);
+    //
+    // Track AM-10099 item (g): this used to stop only at `--type`, so any
+    // OTHER flag (`--workspace`, `--merge-mode`, `--auto-run` — all three
+    // documented on this same command) leaked into the title/description.
+    // splitPositionalArgs cuts at the first flag-like token (or `--`),
+    // whichever it is.
+    const { positional: rawPositional } = splitPositionalArgs(args.slice(1));
     const rawStr = rawPositional.join(' ').trim();
 
     let name, desc;
@@ -2592,9 +2713,21 @@ Please review this, answer any questions (some fields may contain questions rath
         desc = '';
     }
 
+    // Track AM-10099 item (g), AC-19: a title that is itself flag-like
+    // (e.g. the positional slice came back empty because the very first
+    // token was a flag, or the whole rawStr looks like `--something`)
+    // means the caller almost certainly mistyped a flag or forgot to quote
+    // a title — reject explicitly rather than silently turning a flag into
+    // a folder name.
+    if (/^--?[a-zA-Z]/.test(rawStr)) {
+        console.error(`❌ "${rawStr}" looks like a flag, not a title. Quote the title, or check for a typo'd flag name.`);
+        console.error('    Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch] [--merge-mode direct|pr] [--auto-run yes|no]');
+        process.exit(1);
+    }
     if (!name) { console.log('❌ Usage: lc new "Track name" "Description" [--type dev|marketing|sales|support|other] [--workspace main|branch] [--merge-mode direct|pr] [--auto-run yes|no]'); process.exit(1); }
 
     const VALID_TRACK_TYPES = ['dev', 'marketing', 'sales', 'support', 'other'];
+    const typeIdx = args.indexOf('--type');
     let trackType = typeIdx !== -1 ? args[typeIdx + 1] : 'dev';
     if (!VALID_TRACK_TYPES.includes(trackType)) {
         console.error(`❌ Invalid track type "${trackType}". Must be one of: ${VALID_TRACK_TYPES.join(', ')}`);
@@ -2743,7 +2876,7 @@ Please review this, answer any questions (some fields may contain questions rath
     const trackNum = args[1];
     if (!trackNum) { console.log('❌ Usage: lc check-skills <track-number>'); process.exit(1); }
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-    const trackDir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    const trackDir = findTrackDir(projectRoot, trackNum);
     if (!trackDir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
     const indexPath = join(tracksDir, trackDir, 'index.md');
     const indexContent = existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : '';
@@ -2766,13 +2899,18 @@ Please review this, answer any questions (some fields may contain questions rath
 } else if (command === 'comment') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
     const trackNum = args[1];
-    const body = args[2];
+    // Track AM-10099 item (g), AC-18: `--` before the message posts it
+    // literally, even if it looks flag-like (e.g. `lc comment 42 -- --help`
+    // posts the literal text `--help` rather than being read as a help
+    // request — the wantsHelp() intercept above already stops scanning at
+    // `--`, this just makes the body extraction agree).
+    const body = args[2] === '--' ? args.slice(3).join(' ') : args[2];
     if (!trackNum || !body) { console.log('❌ Usage: lc comment [track-num] "message"'); process.exit(1); }
 
     const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
     if (cfg.mode === 'local-fs') {
         const tracksDir = join(projectRoot, 'conductor', 'tracks');
-        const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+        const dir = findTrackDir(projectRoot, trackNum);
         if (!dir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
         appendFileSync(join(tracksDir, dir, 'conversation.md'), `\n> **human**: ${body}\n`);
 
@@ -2810,7 +2948,7 @@ Please review this, answer any questions (some fields may contain questions rath
     if (!trackNum || !what) { console.log('❌ Usage: lc update-track [track-num] "what needs to be updated"'); process.exit(1); }
 
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-    const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    const dir = findTrackDir(projectRoot, trackNum);
     if (!dir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
 
     const trackPath = join(tracksDir, dir);
@@ -2874,7 +3012,7 @@ Please review this, answer any questions (some fields may contain questions rath
     if (trackRefMatch) {
         const trackNum = trackRefMatch[1];
         const tracksDir = join(projectRoot, 'conductor', 'tracks');
-        const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+        const dir = findTrackDir(projectRoot, trackNum);
         if (dir) {
             console.log(`ℹ️  Referenced existing Track ${trackNum} in description. Appending to it...`);
             const trackPath = join(tracksDir, dir);
@@ -2980,7 +3118,7 @@ Please review this, answer any questions (some fields may contain questions rath
     if (!trackNum) { console.log('❌ Usage: lc brainstorm <track-number>'); process.exit(1); }
 
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-    const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    const dir = findTrackDir(projectRoot, trackNum);
     if (!dir) { console.error(`❌ Track ${trackNum} not found`); process.exit(1); }
 
     const convPath = join(tracksDir, dir, 'conversation.md');
@@ -4303,7 +4441,7 @@ Please review this, answer any questions (some fields may contain questions rath
     }
 
     const tracksDir = join(projectRoot, 'conductor', 'tracks');
-    const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+    const dir = findTrackDir(projectRoot, trackNum);
     if (!dir) {
         // Fallback: try DB for local-api mode
         const cfg = JSON.parse(readFileSync(join(projectRoot, '.laneconductor.json'), 'utf8'));
@@ -4363,7 +4501,7 @@ Please review this, answer any questions (some fields may contain questions rath
 
     // Delete filesystem folder (all modes)
     if (existsSync(tracksDir)) {
-        const dir = readdirSync(tracksDir).find(d => d.startsWith(`${trackNum}-`));
+        const dir = findTrackDir(projectRoot, trackNum);
         if (dir) {
             rmSync(join(tracksDir, dir), { recursive: true, force: true });
             console.log(`🗑  Deleted folder: ${dir}`);
