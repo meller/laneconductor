@@ -38,8 +38,16 @@ function lastPostBody() {
 describe('NewProjectModal — Quick create (legacy, unchanged)', () => {
   beforeEach(() => apiFetchMock.mockClear());
 
-  it('defaults to Quick create mode and dispatches scaffold_context only (no wizard block)', async () => {
+  it('dispatches scaffold_context only (no wizard block) when Quick create mode is selected', async () => {
     const { container } = render(<NewProjectModal {...baseProps()} />);
+
+    // Track AM-10099 item (b): the modal's default mode is now 'chat'
+    // ("Create with chat"), a newer conversational flow added after this
+    // test was written — 'quick' is no longer the initial mode, so it must
+    // be selected explicitly. The thing this test actually verifies —
+    // Quick create's legacy scaffold_context-only payload shape — is
+    // unchanged.
+    fireEvent.click(screen.getByText('Quick create'));
 
     fireEvent.change(screen.getByPlaceholderText('e.g. My New App'), { target: { value: 'Digger Game' } });
     fireEvent.change(screen.getByPlaceholderText('/home/you/Code/my-new-app'), { target: { value: '/home/you/Code/digger-game' } });

@@ -66,7 +66,10 @@ describe('ChatView queued intervention semantics (Phase 6, REQ-9..REQ-11)', () =
 
     // Live hint indicates running task before send
     const liveHint = screen.getByTestId('composer-live-hint');
-    expect(liveHint.textContent).toContain('implement');
+    // Track AM-10099 item (b): TrackChatComposer's formatLiveAction()
+    // deliberately capitalizes the leading letter ("Implement right now —
+    // ...") so the sentence reads naturally — case-insensitive match.
+    expect(liveHint.textContent.toLowerCase()).toContain('implement');
 
     // Type and send
     fireEvent.change(screen.getByPlaceholderText(/Message host-a/), { target: { value: 'please tweak the style' } });
