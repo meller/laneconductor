@@ -225,19 +225,24 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ### Phase 9 — `Depends On` + log rotation (items h, i)
 
-- [ ] TC-9.1 (AC-22): track with `**Depends On**: N` stays queued while N
-      is `done:queue`. Expected today: it launches — the failing state.
-- [ ] TC-9.2 (AC-22): it auto-launches once N reaches `done:success`.
-- [ ] TC-9.3: `Depends On` naming a nonexistent track stays blocked
-      (fails closed).
-- [ ] TC-9.4: Multiple dependencies — all must be `done:success`.
-- [ ] TC-9.5: `waiting_for_reply` still bypasses the dependency gate.
-- [ ] TC-9.6: The tightened gate and `dependency-resume.mjs` agree,
-      asserted against one shared predicate.
-- [ ] TC-9.7 *(item (i), droppable)* (AC-23): sustained real output keeps
-      the log directory under the configured cap.
-- [ ] TC-9.8 *(item (i))*: rotation preserves the most recent output —
-      a bounded log is still useful for debugging.
+- [x] TC-9.1/TC-9.2 (AC-22): confirmed — a dependency at `done:queue`
+      stays blocking; flipped live to `done:success`, releases within one
+      poll cycle.
+- [x] TC-9.3: pre-existing coverage (unaffected by this fix) confirms
+      fails-closed for a nonexistent dependency — re-ran, still passes.
+- [~] TC-9.4: not independently tested with 2+ dependencies — the
+      `dependsOn.filter(dep => !isDependencyShipped(...))` mechanism
+      applies the same predicate per-entry regardless of count, so this
+      is "correct by construction" rather than separately verified.
+- [~] TC-9.5: not re-verified this phase — the `if (!waitingForReply)`
+      wrapper around the whole gate block was untouched by this fix, so
+      existing behavior should be unaffected, but no new test re-confirms
+      it live.
+- [x] TC-9.6: the gate now calls `isDependencyShipped` directly (not a
+      second copy), so agreement is structural, not merely tested.
+- [ ] TC-9.7/TC-9.8 *(item (i), droppable)*: not implemented — see
+      plan.md Phase 9 Task 4/5 (explicitly gated behind author
+      confirmation, unavailable this session).
 
 ### Phase 10 — The gate
 

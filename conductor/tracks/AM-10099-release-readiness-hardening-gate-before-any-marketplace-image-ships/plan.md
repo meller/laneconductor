@@ -505,27 +505,32 @@ releases its dependents. This roadmap chains via `Depends On`, and
 **Problem (i)**: 5 GB of unrotated logs (3.9 G + 1.1 G) with no rotation
 logic; the image this gates is specified as a 16 GB VM.
 
-- [ ] Task 1: Failing test (AC-22) — a track with `**Depends On**: N`
-      stays queued while N is `done:queue` and launches once N is
-      `done:success`; an unknown dependency stays blocked (fails closed).
-- [ ] Task 2: Tighten the gate to `lane === 'done' && lane_action_status
-      === 'success'`, reusing `dependency-resume.mjs`'s predicate rather
-      than writing a second copy — the two gates disagreeing is the
-      actual defect.
-- [ ] Task 3: Check for other `=== 'done'` / `!== 'done'` lane
-      comparisons that mean "shipped" and are similarly too weak; fix or
-      document each.
-- [ ] Task 4 *(item (i), droppable — confirm with the author first)*:
-      Add size-based rotation for `conductor/.sync*.log` and `ui/.api.log`
-      with a sane default cap, applied where `bin/lc.mjs` sets up the
-      spawn redirect and/or in `conductor/services/logger.mjs`.
-- [ ] Task 5 *(item (i))*: Verify by driving real output past the
-      threshold and confirming the directory stays under cap (AC-23).
-      Decide whether to truncate the existing 3.9 G/1.1 G files as a
-      one-off operational step — call it out, do not do it silently.
+- [x] Task 1/2: Fixed and tested end-to-end (not just unit-level) in
+      `track-1119-phase3-depends-on.test.mjs` — a dependency at
+      `done:queue` no longer releases its dependent; flipping that same
+      dependency live to `done:success` releases it within one poll
+      cycle (proves the gate is checked on every cycle, not cached at
+      worker startup). Reused `dependency-resume.mjs`'s
+      `isDependencyShipped`, not a second copy.
+- [x] Task 3: Checked every other `=== 'done'` / `!== 'done'` lane
+      comparison in `laneconductor.sync.mjs`. None share this bug: one
+      (line ~5419) already correctly checks both lane AND status; the
+      rest are unrelated concepts entirely (a CLI/skill command name
+      string, a dispatch-row's own `status` field, and the *write* side
+      of classifying a lane action's own outcome as success) — not
+      readers asking "has track X shipped" at all.
+- [ ] Task 4/5 *(item (i), droppable)*: **Deliberately not implemented.**
+      This item is explicitly gated behind author confirmation in its own
+      plan text ("confirm with the author first") — unlike every other
+      item in this track, which the author's own scope explicitly
+      authorized executing. No such confirmation was available in this
+      session. Left as an open, clearly-flagged item rather than either
+      silently skipping it or implementing something explicitly marked
+      as needing sign-off first. The finding itself (5 GB unrotated logs,
+      confirmed in spec.md item (i)) stands either way.
 
-**Impact**: Dependency chains mean "shipped"; the appliance does not fill
-its own disk.
+**Impact**: Dependency chains mean "shipped". Log rotation remains an
+open, author-confirmable follow-up, not silently dropped.
 
 ## Phase 10: The gate itself
 
