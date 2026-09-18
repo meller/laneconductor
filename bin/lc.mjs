@@ -246,6 +246,33 @@ function getRunningWorkerPid(pidFile) {
     return pid;
 }
 
+// Track AM-10099 items (c)/(g): the single shared positional/flag splitter
+// for every subcommand that takes "some positional args, then flags" —
+// `lc worker run <track> [<track> ...] [--worker-number N]` and
+// `lc new <title> <desc> [--type ...] [--merge-mode ...] ...` both fit this
+// exact shape. Replaces two independent, both-broken implementations:
+// `worker run`'s old `subArgs.filter(a => !a.startsWith('--'))` (dropped
+// flag NAMES but kept flag VALUES — `--worker-number 900094` left `900094`
+// in the positional list, read as a second track) and `lc new`'s old
+// `args.indexOf('--type')`-only slice (every OTHER flag — `--workspace`,
+// `--merge-mode`, `--auto-run` — silently folded into the title).
+//
+// Semantics: positionals are every token up to (not including) the FIRST
+// flag-like token (`/^--?[a-zA-Z]/`) or an explicit `--` terminator,
+// whichever comes first. `--` itself is consumed and never appears in
+// either returned array; everything after it is treated as literal
+// positional data even if it looks flag-like (the documented escape hatch —
+// e.g. `lc comment N -- --help` posts the literal text `--help`).
+function splitPositionalArgs(args) {
+    const dashDashIdx = args.indexOf('--');
+    const flagIdx = args.findIndex(a => /^--?[a-zA-Z]/.test(a));
+    if (dashDashIdx !== -1 && (flagIdx === -1 || dashDashIdx <= flagIdx)) {
+        return { positional: args.slice(0, dashDashIdx), flags: args.slice(dashDashIdx + 1) };
+    }
+    if (flagIdx === -1) return { positional: args, flags: [] };
+    return { positional: args.slice(0, flagIdx), flags: args.slice(flagIdx) };
+}
+
 // Track 1084 Phase 0: --worker-number lets multiple worker processes run
 // for the same project on the same machine (each with a stable identity
 // that survives restarts — see conductor/laneconductor.sync.mjs). Defaults
@@ -1913,7 +1940,10 @@ Please review this, answer any questions (some fields may contain questions rath
     // to watch one track run and get its exit code.
     if (sub === 'run') {
         if (!projectRoot) { console.error('❌ Not inside a LaneConductor project.'); process.exit(1); }
-        const tracks = subArgs.filter(a => !a.startsWith('--'));
+        // Track AM-10099 item (c1): was `subArgs.filter(a => !a.startsWith('--'))`,
+        // which kept flag VALUES (e.g. the `900094` in `--worker-number 900094`)
+        // in the track list — see splitPositionalArgs' own header comment.
+        const { positional: tracks } = splitPositionalArgs(subArgs);
         if (tracks.length === 0) {
             console.error('Usage: lc worker run <track> [<track> ...]\n\nRuns a worker scoped to those tracks in the foreground and exits when they are done.');
             process.exit(2);
