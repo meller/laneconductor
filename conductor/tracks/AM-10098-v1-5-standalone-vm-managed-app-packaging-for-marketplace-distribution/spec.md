@@ -7,12 +7,27 @@ developer's own machine. That install path assumes a great deal about the machin
 (a developer's `$HOME`, a `sudo`-able shell, an already-authenticated agent CLI, Docker, a
 hand-started Vite dev server) and none of it is verified on any machine except the author's.
 
-V1.5 is the **single-tenant distribution** path: a customer deploys their own standalone
-instance into their own cloud subscription — a marketplace VM image, or an Azure Managed
-Application ARM/Bicep template deploying that same payload. LaneConductor holds no customer
-credentials, no shared infrastructure, no multi-tenant state, and no billing surface. That is
-what makes it materially nearer-term and lower-risk than TU-10048 (V2 managed hosting), which
-needs all four.
+**North star:** one codebase, three deployment profiles — standalone (worker + hub-capable),
+hub (org management, worker-less), federated hubs (private-tracker worker sharing). Sovereign,
+vendor-agnostic, customer-owned. Vendor-hosted multi-tenant (TU-10048) is v3/later.
+
+This track is the **v1.5 revenue unlock**: a single-tenant standalone instance a customer
+deploys into their own Azure subscription — a dev-machine-class VM (16GB RAM minimum) with
+Postgres, the API/UI, a worker and the agent CLI pre-installed and auto-starting — as an
+**Azure Managed Application** (MSP/publisher-managed model: the publisher gets delegated access
+into the customer resource group for support and updates).
+
+**Roadmap Context & Execution Order (Order 3 of 5):**
+1. **Execution order 1 of 5: AM-10099** — Release readiness: hardening gate before any marketplace
+   image ships (**hard dependency**; nothing ships with untrusted tests or live lane-corruption paths).
+2. **Execution order 2 of 5: AM-10100** — Run ledger: per-run `requested_by`, `executed_by`, and
+   actual usage (ships single-node, included on this standalone image).
+3. **Execution order 3 of 5: AM-10098 (This track)** — V1.5 standalone Azure Managed Application packaging.
+4. **Execution order 4 of 5: AM-10101** — Hub deployment profile v2 (worker-less org management node).
+5. **Execution order 5 of 5: AM-10102** — Federated hubs v2.5 (private-tracker worker sharing between hubs).
+
+*Related:* AM-1120 (real-credential live deploy verification), AM-10091 (tighten auto-launch
+Depends On gate to require `done:success`).
 
 **Legal position (confirmed by reading this repo's own `LICENSE`, Elastic License 2.0,
 copyright Asaf Meller 2026):** ELv2's hosted-service limitation binds a *licensee*, not the
@@ -28,55 +43,45 @@ TU-10048).
 
 ### Non-Goals
 - Building the VM image, Dockerfile, compose stack, or ARM/Bicep template.
-- Choosing a marketplace vendor account or submitting a listing.
+- Submitting a live listing to Microsoft Partner Center prior to Phase 5–6 execution.
 - Pricing and commercial packaging — a business decision, explicitly out of scope.
 - Anything multi-tenant. That is TU-10048's problem, not this track's.
 
 ## Decisions
 
-Each open question carried on this track's `index.md` is resolved below. Decisions marked
-**[business]** are the author's call and are recorded here as a recommendation, not a
-technical finding.
+Each open question carried on this track's `index.md` is resolved below.
 
-### D-1 — Packaging format: a VM image whose payload is a container stack
+### D-1 — Packaging format: Azure Managed Application (MSP model) over a dev-class VM
 
-**Decision:** ship a **VM image (AWS AMI / Azure VHD / GCP image) that boots a
-docker-compose stack** — Postgres, the Express API, the built UI, and the sync worker — with
-customer project checkouts on a persistent host volume. Not a bare VM with host-installed
-Node/Postgres; not a pure serverless container app.
+**Decision:** Target the **Azure Managed Application (MSP/publisher-managed model)** deploying a
+dev-machine-class VM (16GB RAM minimum) that runs Postgres, the Express API, the built UI, and
+the sync worker with customer project checkouts on a persistent host volume.
 
-Rationale, all from the current code:
-- **Containers are already in the dependency chain.** `make install-db` (and `lc setup`'s DB
-  fallback) already `docker run postgres:16`. Requiring Docker on the image costs nothing new.
-- **There is no compiled artifact to ship.** `ui/server/index.mjs` imports ~20 modules from
-  `../../conductor/`, and `getInstallPath()`/`resolveSyncScript()` (`bin/lc.mjs:100`, `:330`)
-  resolve the worker script from a repo root recorded in `~/.laneconductorrc`. The deployable
-  unit is the whole repo tree, which is exactly what a container image is good at.
-- **But it needs a real, writable, persistent filesystem and the customer's own CLI.** The
-  worker creates git worktrees and `spawn`s the customer's agent CLI (`claude`/`agy`). That
-  rules out a locked-down serverless container and argues for a VM the customer can SSH into
-  and point at their own repos.
+Rationale and reconciliation:
+- **Commercial & Support Model:** The product owner decided on the Managed Application / MSP model
+  for distribution. A Managed Application grants the publisher delegated access into the managed
+  resource group for operational support and seamless updates, solving the customer-support gap
+  while keeping execution single-tenant in the customer's cloud tenancy.
+- **Resource Floor:** A dev-class machine (16GB RAM minimum) is required because Postgres, Node API/UI,
+  and concurrent LLM agent CLI spawns (`claude`/`agy` running git, test runners, and compiles)
+  cannot operate reliably on smaller VM SKUs (REQ-12).
+- **Architecture:** VM boots a containerized/compose stack (or supervised systemd units) with
+  persistent volume mapping for `/var/lib/laneconductor/projects/<name>`.
 
-**[business]** Target the **plain marketplace VM image on a single platform first**, not the
-Azure Managed Application. A Managed Application's distinguishing feature is a
-*publisher-managed* resource group — which directly contradicts the product's sovereignty
-positioning and reintroduces a slice of the vendor-holds-customer-infrastructure surface this
-track exists to avoid. Add the Managed Application wrapper later, over the same image, if a
-customer asks for it.
-
-### D-2 — First-run: yes, `lc setup` needs a non-interactive mode
+### D-2 — First-run: Zero-Secrets Bootstrap Form followed by Manager-driven Conversational Setup
 
 `runSetup()` (`bin/lc.mjs:805`) is a linear chain of `await question(...)` prompts with no
-flag-driven or file-driven path. A booting VM image has nobody to answer them, so first boot
-would hang or leave the instance unconfigured.
+headless path. A booting VM image cannot expect a human at a TTY.
 
-**Decision:** two-part first run.
-1. **Unattended:** `lc setup --non-interactive --seed <file>` reads a seed JSON
-   (`/etc/laneconductor/seed.json`, written by cloud-init / ARM template parameters) and
-   provisions mode, DB connection, ports and paths with no TTY.
-2. **Attended, in the browser:** the UI's first-run screen collects only what genuinely needs
-   a human — an admin credential for the instance (REQ-2) and the customer's own agent-CLI
-   authentication (REQ-7). No license key is collected (D-4).
+**Decision:** Two-part first run:
+1. **Bootstrap Secrets Form (Zero-Secrets Policy):** A dedicated, minimal first-run web form collects
+   the necessary initial secrets: instance admin credentials, TLS setup, and the customer's Claude API key
+   (the ToS-clean org-key path, headless-compatible). These values are written directly to `.env` or
+   local secret storage. **Crucial Rule:** Secrets *never* enter `conversation.md` or the database.
+2. **Manager-Driven Conversational Setup:** Once bootstrapped, the manager worker is seeded with
+   `set-up-this-machine` instead of `create-a-project` (leveraging the "Create with chat" flow from
+   Track 1091 Phase 7 / AM-1119). The manager conversationally discovers repositories, verifies
+   git access, and configures optional hub registration.
 
 ### D-3 — Updates: pinned image tags + `lc update`, not a git pull
 
@@ -88,7 +93,7 @@ migrations run exactly once, at `make install` (`install-migrate`), via an Atlas
 **Decision:** `lc update` pulls version-pinned container images, runs Atlas migrations, and
 restarts the stack. Atlas is **baked into the image** — no `curl | sh` at update time on a
 customer machine. Migrations run on **every boot and every update**, not once at install.
-Customer-managed (SSH in and update by hand) stays available but is not the documented path.
+Managed Application update packages apply via ARM template updates or `lc update`.
 
 ### D-4 — Licensing/entitlement: no technical gate
 
@@ -96,160 +101,142 @@ A grep of `bin/`, `conductor/`, and `ui/server/` finds **no license-key or entit
 machinery of any kind** today. ELv2's "you may not circumvent the license key functionality"
 clause is conditional on such functionality existing — it creates no obligation to add one.
 
-**Decision:** ship no license gate. The marketplace's own entitlement and billing is the
-commercial control, ELv2 is the legal one, and adding a key check would require exactly the
-phone-home dependency D-5 rejects.
+**Decision:** ship no license gate. The Azure Marketplace's own entitlement and billing is the
+commercial control, ELv2 is the legal one, and adding a key check would require a phone-home
+dependency.
 
 ### D-5 — Telemetry: none by default; a pull-based support bundle instead
 
-The product's own positioning in `conductor/product.md` is "Sovereign: 100% local — no cloud,
-no auth, no cost". Automatic phone-home contradicts that in a way a customer evaluating a
-sovereign product will notice.
+The product's positioning is sovereign and local. Automatic phone-home contradicts customer
+expectations.
 
 **Decision:** no automatic telemetry, no crash reporting, opt-in or otherwise, in v1.5.
 Support is served by `lc support-bundle` — a command that writes a **local, redacted** tarball
-(logs, versions, config with secrets stripped) that the customer chooses whether to send.
+(logs, versions, config with secrets stripped) that the customer or publisher support inspects.
 
-This is not merely a preference: REQ-1 documents an *existing, unintentional* egress path that
-must be closed before any image ships, or the "100% local" claim is false on a customer VM.
+### D-6 — Marketplace requirements: Azure Marketplace publisher certification
 
-### D-6 — Marketplace requirements: scope after platform choice
-
-Per-platform certification is bureaucratic, not engineering, work and should be scoped once
-D-1's platform is chosen. The engineering-visible subset is generic across platforms and is
-captured as REQ-6, REQ-10, REQ-11 and REQ-12 rather than deferred: no default passwords,
-first-boot credential generation, documented open ports, reproducible image provenance,
-bundled licence and third-party attribution.
+Engineering requirements for Azure Marketplace: no default passwords, first-boot credential
+generation, documented open ports, reproducible image provenance, bundled license and third-party
+attribution, and ARM template verification.
 
 ### D-7 — Pricing/packaging: out of scope
 
-Restated from `index.md`. Not a technical requirement; no engineering work depends on it.
+Restated from `index.md`. Marketplace SKU / billing structure is a business decision.
+
+### D-8 — Hub-capable by design (AM-10101 Alignment)
+
+**Decision:** The standalone v1.5 image ships **hub-capable by design**.
+The configuration setting "which hub am I registered to" (the `collectors` array) ships
+present-but-disabled (`enabled: false`). When Track AM-10101 (Hub v2) is deployed, existing
+v1.5 standalone instances can register with the hub via a simple configuration toggle, without
+requiring a full redeploy or rebuild.
+
+### D-9 — Run ledger integration (AM-10100 Alignment)
+
+**Decision:** The standalone v1.5 image includes the **run ledger** developed in Track AM-10100.
+The single-node schema will include the `runs` table capturing `requested_by`, `executed_by`,
+and parsed `stream-json` metrics (`total_cost_usd`, duration, token consumption), providing
+immediate per-track and per-developer usage metrics on the local instance.
+
+---
 
 ## Requirements
 
-Every requirement below is a **prerequisite gap found in the current code**, not a
-nice-to-have. REQ-1, REQ-2 and REQ-7 are hard blockers: shipping an image without them
-produces an instance that is respectively dishonest, remotely exploitable, or non-functional.
+Every requirement below is a **prerequisite gap found in the current code** or an **external
+roadmap gate**. REQ-13, REQ-1, REQ-2 and REQ-7 are hard blockers.
+
+- **REQ-13 (blocker) — Release readiness hardening gate (Track AM-10099).**
+  Nothing ships to a marketplace until the test suite is trustworthy and lane-state corruption paths
+  are closed:
+  - Migrate 25 worker-spawning tests to `isolated-worker.mjs` sandboxes.
+  - Triage and fix baseline vitest/node:test flakies (~39 cases).
+  - Resolve `lc worker run <track> --worker-number` parsing bug and claim-scoped worker cap.
+  - Harmonize SKILL.md and `isTrackClaimable` regarding auto-run bypass.
+  - Prevent DB->FS sync clobbering markers, and ensure process restart post-merge.
 
 - **REQ-1 (blocker) — Remove or gate the hardcoded cloud proxy.**
-  `ui/server/index.mjs:176-213` installs a global middleware that, for any request whose
-  `req.hostname` is neither `localhost` nor `127.0.0.1`, forwards the request to a hardcoded
-  Cloud Run URL (`https://api-pu7bcq73zq-uc.a.run.app`) and returns that response verbatim,
-  never reaching the local handler. A customer reaching their own VM by its public DNS name or
-  IP would therefore have every `/api/*`, `/track/*`, `/worker/*` call silently served by the
-  vendor's cloud — a functional break *and* a data-egress violation of the sovereignty claim.
-  The proxy must be off unless explicitly enabled.
+  `ui/server/index.mjs:176-213` installs a global middleware that forwards non-localhost requests to
+  a hardcoded Cloud Run URL. Must be gated behind an explicit opt-in and off by default.
 
 - **REQ-2 (blocker) — Bind and authenticate the instance.**
-  `server.listen(PORT, ...)` (`ui/server/index.mjs:5995`) passes no host, so the API binds all
-  interfaces. `loadAuthConfig()` (`ui/server/auth.mjs`) sets `AUTH_ENABLED = false` whenever
-  `VITE_FIREBASE_PROJECT_ID` is unset, which is the standalone case by definition — so
-  `requireAuth` passes everything through. The API spawns agent CLI processes and performs git
-  and filesystem operations on the host. Unauthenticated on a routable interface, that is
-  remote code execution. Needs: loopback binding by default, plus a local auth mode that does
-  not require a Firebase project (Firebase is a cloud dependency this deployment model must
-  not have).
-
-- **REQ-3 — Serve a built UI, not the Vite dev server.**
-  `conductor/systemd/laneconductor-ui.service` runs `ui/node_modules/.bin/vite`. Nothing in
-  `ui/server/index.mjs` serves `ui/dist` (no `express.static`, no `sendFile`), and the dev
-  server's `/api` and `/auth` proxying lives in `ui/vite.config.js`, so removing it moves that
-  routing responsibility to Express. A shipped image must run `vite build` and serve static
-  assets.
-
-- **REQ-4 — Path-portable services.** All three units in `conductor/systemd/` hardcode
-  `/home/meller/Code/laneconductor`, and the worker unit additionally hardcodes
-  `Environment=PATH=/home/meller/.local/bin:...` to find the `claude` binary. None of these
-  paths exist on a customer VM. The image needs generated or templated units over a fixed
-  install prefix.
-
-- **REQ-5 — Non-interactive provisioning.** Implements D-2 part 1: `lc setup
-  --non-interactive --seed <file>`, covering every prompt in `runSetup()` including the DB
-  fallback branch, with a non-zero exit and a clear diagnostic when the seed is incomplete
-  rather than falling back to a prompt.
-
-- **REQ-6 — No default credentials.** `make install-db`, `lc setup`'s Docker fallback, and
-  `.env.example` all use `postgres`/`postgres`, with 5432 published to the host. First boot
-  must generate a unique DB credential, store it where the stack reads it, and never publish
-  the DB port beyond the compose network.
+  `server.listen` binds all interfaces while `loadAuthConfig` disables auth when Firebase is absent.
+  Must default to loopback binding, and provide a local standalone auth mode that fails closed on
+  routable interfaces.
 
 - **REQ-7 (blocker) — Customer-supplied agent CLI and authentication.**
-  *Not previously captured as an open question, and the largest product-level risk on this
-  track.* LaneConductor performs no work without an agent CLI that is both installed and
-  logged in: `conductor/providers.mjs` enumerates `claude`, `antigravity`, `copilot` and a
-  retired `gemini`, and `spawnCli` launches that binary as the executing user. A marketplace
-  image cannot ship Anthropic credentials, and a customer who deploys expecting a working
-  product gets an instance that plans nothing and implements nothing until they bring their
-  own subscription. This needs: an explicit prerequisite on the listing, a first-run step that
-  verifies reachability *and* authentication (not just `--version`, which `lc setup` checks
-  today), and an unmistakable UI state when no provider is authenticated.
+  LaneConductor requires an authenticated agent CLI (`claude`/`agy`). The listing must clearly state
+  this prerequisite, first run must verify real authentication (not just `--version`), and the UI
+  must display an unmistakable non-functional state until configured.
 
-- **REQ-8 — Update and migration mechanism.** Implements D-3: `lc update`, image-tag pinning,
-  Atlas baked into the image, migrations applied on every boot and update.
+- **REQ-3 — Serve a built UI, not the Vite dev server.**
+  Serve `ui/dist` via Express static middleware with direct API routing.
 
-- **REQ-9 — Fixed project path convention.** Project identity is the absolute `repo_path`
-  (`projects.repo_path UNIQUE`, and `.laneconductor.json`'s own `project.repo_path`). The image
-  needs a documented convention — e.g. `/var/lib/laneconductor/projects/<name>` — so that
-  config, backups and restores are portable across a re-deployed instance.
+- **REQ-4 — Path-portable services.**
+  Replace hardcoded `/home/meller/Code/laneconductor` and paths in `conductor/systemd/` with
+  templated units over a configurable install prefix.
 
-- **REQ-10 — Reproducible, version-stamped image build.** Built from a tagged commit, with the
-  version reachable from `lc --version` and visible in the UI, so a support conversation can
-  establish what the customer is actually running.
+- **REQ-5 — Non-interactive provisioning.**
+  Support unattended bootstrapping for image initialization without blocking on readline prompts.
 
-- **REQ-11 — Licence and attribution artifacts.** `LICENSE` present in the image, plus
-  third-party dependency attributions, as every marketplace certification requires.
+- **REQ-6 — No default credentials.**
+  Generate unique DB credentials at first boot, purge default `postgres`/`postgres`, and do not
+  publish port 5432 outside the internal network.
 
-- **REQ-12 — Documented prerequisites, ports and sizing** on the listing: the agent-CLI
-  prerequisite from REQ-7, which ports are open, and a resource floor (Postgres, Node, the
-  UI, and N concurrent agent CLI processes is not a 1-vCPU workload).
+- **REQ-8 — Update and migration mechanism.**
+  `lc update` with baked-in Atlas CLI running idempotent migrations on every boot/update.
 
-## Prior groundwork that de-risks this
+- **REQ-9 — Fixed project path convention.**
+  Standardize on `/var/lib/laneconductor/projects/<name>` for consistent repository identity.
 
-Already shipped, and directly load-bearing for a customer install:
-- **AM-10093** — a written lane change could be silently reverted by a stale concurrent
-  dispatch or DB pull. Flagged at the time as marketplace hardening: a customer instance
-  restarted repeatedly during upgrades or crashes is precisely the environment that hits it.
-- **AM-10097** — CLI setup and skill-only scaffold both now write a correct `.gitignore`,
-  closing a real "works on the dogfooded install, breaks on a fresh one" gap.
-- **AM-10096** — the nested `.claude/.claude` corruption bug and its cleanup tooling, which
-  would otherwise bloat a customer's own repo silently over time.
+- **REQ-10 — Reproducible, version-stamped image build.**
+  Built from tagged commits, reporting version via `lc --version` and UI.
+
+- **REQ-11 — License and attribution artifacts.**
+  Bundle `LICENSE` and dependency attributions in the image.
+
+- **REQ-12 — Documented prerequisites, ports and sizing.**
+  Document 16GB RAM minimum, open ingress ports, and agent CLI subscription requirement.
+
+- **REQ-14 — Run ledger schema & capture (Track AM-10100).**
+  Bundle the `runs` table and agent stream-json usage parser.
+
+- **REQ-15 — Hub-ready configuration (Track AM-10101).**
+  Ship `collectors` array present-but-disabled for future hub connectivity.
+
+- **REQ-16 — Zero-Secrets Policy on first-run.**
+  Ensure credentials entered during bootstrap form bypass conversation comments and database records.
+
+---
+
+## Prior Groundwork
+
+- **AM-10093** — Fixed silent lane-change reverts from concurrent dispatches/DB pulls.
+- **AM-10097** — Clean `.gitignore` templates preventing runtime state contamination.
+- **AM-10096** — Nested `.claude` directory cleanup tooling.
+- **AM-10091** — *Not* prior groundwork: still `backlog:queue`, unplanned, as of this
+  writing. Its narrower core (`Depends On` gate requiring `done:success`) is being
+  delivered instead by REQ-13's own gate track, AM-10099 (item (h)/REQ-12) — see
+  that track's spec for why it deliberately doesn't close AM-10091 fully (broader
+  dependency semantics stay with that track, left open).
+
+---
 
 ## Acceptance Criteria — this planning pass
 
-- [x] Every open question on `index.md` has a recorded decision with its rationale (D-1..D-7).
-- [x] Prerequisite gaps are enumerated as requirements, each anchored to a specific file and
-      the observed behaviour that makes it a gap (REQ-1..REQ-12).
-- [x] The three hard blockers are identified and distinguished from ordinary work.
-- [x] `plan.md` carries the eventual build as explicitly unstarted phases.
+- [x] Every open question on `index.md` has a recorded decision (D-1..D-9).
+- [x] Roadmap dependencies (AM-10099, AM-10100, AM-10101) and execution order (3 of 5) are defined.
+- [x] Hard blockers identified: REQ-13 (AM-10099 gate), REQ-1 (proxy), REQ-2 (auth), REQ-7 (CLI auth).
+- [x] Packaging reconciled with Azure Managed Application / MSP model.
+- [x] First run updated to Zero-Secrets Bootstrap Form + Manager-driven setup.
+- [x] `plan.md` reflects updated phases and external gates.
 
-## Acceptance Criteria — v1.5 delivery (deferred; NOT satisfiable by this track)
+## Acceptance Criteria — v1.5 delivery (deferred)
 
-These describe the shipped product and are listed so the eventual build has a target. This
-track builds none of them, so it cannot reach `done` at 100% — that is intended.
-
-- [ ] A customer deploys the listing into their own subscription and reaches a working
-      dashboard over an authenticated connection, without SSH-ing in to finish setup.
-- [ ] That instance serves every API call from its own process — verified by confirming no
-      request leaves the VM to any vendor-controlled endpoint.
-- [ ] The customer connects their own agent CLI credentials and an autonomous track runs
-      plan → implement → review → quality-gate → done on their own repo.
-- [ ] `lc update` moves a running instance to a newer version, applying schema migrations,
-      without losing project or track data.
-- [ ] No default credential exists anywhere on a freshly deployed instance.
-
-## Open items for a human
-
-- **[business]** Which marketplace first (D-1). Needs a vendor account and the author's
-  commercial preference; no engineering work is blocked by it until Phase 5.
-- **REQ-7's listing consequence:** whether a product that requires the customer to bring their
-  own Anthropic subscription is viable as a paid marketplace listing, or whether that makes
-  the whole distribution model commercially awkward. This is worth settling *before* Phase 1,
-  because it can invalidate the track.
-- **Fundamentals conflict (flagged, not acted on):** REQ-2 requires adding authentication to
-  the instance, which contradicts `conductor/product.md`'s stated pillar *"Sovereign: 100%
-  local — no cloud, no auth, no cost"*. REQ-1 also shows that the "100% local" half of that
-  claim is already untrue for any non-localhost access. Separately, `conductor/tech-stack.md`
-  documents no containerization or distribution layer, which D-1 would add. Neither document
-  has been modified by this track — a human should decide whether the positioning is scoped to
-  the self-hosted developer install (in which case the docs need a distribution caveat) or
-  whether the standalone product is a deliberate exception to it.
+- [ ] AM-10099 hardening gate passed with all test suites green.
+- [ ] AM-10100 run ledger integrated and logging per-run metrics.
+- [ ] Azure Managed Application template deploys successfully in customer Azure subscription.
+- [ ] Bootstrap secrets form configures instance credentials without secret leakage.
+- [ ] Manager agent successfully onboards repositories conversationally.
+- [ ] Instance operates fully sovereign with no data leaking to vendor cloud endpoints.
+- [ ] Hub registration can be enabled via config toggle without image rebuild.

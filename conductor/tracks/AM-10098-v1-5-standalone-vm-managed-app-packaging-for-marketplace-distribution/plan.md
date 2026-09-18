@@ -1,34 +1,50 @@
 # Track AM-10098: V1.5 — Standalone VM / Managed-App packaging
 
-> **Status: deferred capture.** Phase 0 (this planning pass) is complete. Phases 1–6 describe
+> **Status: deferred capture.** Phase 0 (this re-planning pass) is complete. Phases 1–6 describe
 > the eventual v1.5 build and are deliberately unstarted — this track is not queued for
 > implementation, and must not be marked `done` while they remain open. Same resting state as
 > TU-10048.
 >
-> **Read `spec.md` first** — D-1..D-7 are the decisions these phases implement, and REQ-1,
-> REQ-2 and REQ-7 are hard blockers. Settle `spec.md`'s "Open items for a human" (especially
-> the REQ-7 commercial question) before starting Phase 1; it can invalidate the track.
+> **Execution Order & Prerequisites:**
+> - Execution Order: **3 of 5** in the sovereign roadmap.
+> - Hard Pre-condition: **Track AM-10099** (*Release readiness hardening gate*, Order 1) must be
+>   `done:success` before implementation begins.
+> - Prerequisite: **Track AM-10100** (*Run ledger*, Order 2) must be `done:success` before image
+>   bundling (Phase 2/5).
+> - Downstream: **Track AM-10101** (*Hub profile v2*, Order 4) connects to this image via its
+>   disabled-by-default `collectors` config.
+>
+> **Read `spec.md` first** — D-1..D-9 are the decisions these phases implement, and REQ-13, REQ-1,
+> REQ-2, and REQ-7 are hard blockers.
 
-## Phase 0: Decide the shape and inventory the prerequisites ✅
+## Phase 0: Re-plan and align with Roadmap & Azure Managed App model ✅
 
-**Problem**: The open questions on `index.md` were unanswered, and nobody had checked what in
-the current code actually stands between `make install` on the author's machine and a
-deployable single-tenant image.
-**Solution**: Resolve each question against the real code, and turn the findings into a
-requirement list.
+**Problem**: The original auto-plan was produced without knowing the 5-track roadmap, recommended
+a bare VM over an Azure Managed Application (which conflicted with product direction), and assumed
+an interactive CLI wizard rather than a manager-driven conversational first run.
+**Solution**: Reconcile decisions against source code, roadmap tracks, and the product owner's
+direction.
 
-- [x] Resolve packaging format, first-run, updates, licensing, telemetry, marketplace scope,
-      pricing → `spec.md` D-1..D-7
-- [x] Audit the install path (`Makefile`, `bin/lc.mjs` `runSetup`/`getInstallPath`),
-      the service units (`conductor/systemd/`), and the server
-      (`ui/server/index.mjs`, `ui/server/auth.mjs`, `ui/vite.config.js`)
-- [x] Record prerequisite gaps as REQ-1..REQ-12 with file-level anchors
-- [x] Confirm the ELv2 position by reading `LICENSE` directly
+- [x] Resolve packaging format: Azure Managed Application (MSP model) over 16GB dev-class VM (D-1)
+- [x] Establish roadmap execution order: AM-10099 (1) → AM-10100 (2) → AM-10098 (3) → AM-10101 (4) → AM-10102 (5)
+- [x] Align first run with Zero-Secrets bootstrap form + manager conversational setup (D-2)
+- [x] Establish hub-readiness requirement (D-8 / AM-10101 alignment)
+- [x] Integrate single-node run ledger requirement (D-9 / AM-10100 alignment)
+- [x] Record all prerequisite gaps as REQ-1..REQ-16 with file-level anchors
 
-**Impact**: The track now has a decided shape and a concrete, evidence-backed blocker list
-instead of open questions. Three findings were not previously known: the cloud proxy
-(REQ-1), the unauthenticated all-interfaces bind (REQ-2), and the customer-supplied agent CLI
-problem (REQ-7).
+**Impact**: The track plan is completely aligned with the active roadmap, the Azure Managed App
+model, and the zero-secrets policy.
+
+---
+
+## Prerequisite Gate Check (Before Phase 1 Execution)
+
+- [ ] Verify Track **AM-10099** has reached `Lane: done, Lane Status: success` (REQ-13).
+      No marketplace packaging begins with untrusted test suites or active lane-state corruption.
+- [ ] Verify Track **AM-10100** has reached `Lane: done, Lane Status: success` (REQ-14).
+      The single-node `runs` table and agent metric capture must be completed.
+
+---
 
 ## Phase 1: De-cloud and harden the local server
 
@@ -45,81 +61,99 @@ spawn processes on the host.
 - [ ] Task 1.4: Build and serve the UI from Express (`vite build` → static), moving the `/api`
       and `/auth` routing out of `ui/vite.config.js` (REQ-3)
 
-**Impact**: The same codebase can be exposed on a network interface without leaking traffic to
+**Impact**: The codebase can be exposed on a network interface without leaking traffic to
 the vendor or handing a stranger process execution on the host.
 
-## Phase 2: Path portability
+---
 
-**Problem**: Service units and install-path resolution hardcode the author's `$HOME`.
-**Solution**: A fixed install prefix and generated units.
+## Phase 2: Path portability, hub-readiness, and run ledger integration
+
+**Problem**: Service units and install paths hardcode `/home/meller`, the hub configuration does
+not ship pre-wired, and the run ledger schema from AM-10100 must be included.
+**Solution**: Configurable install prefixes, templated units, disabled-by-default hub collector
+settings, and run ledger persistence.
 
 - [ ] Task 2.1: Template the three `conductor/systemd/` units over an install prefix and a
       resolved agent-CLI `PATH`, generated at provision time (REQ-4)
 - [ ] Task 2.2: Establish and document the project path convention
       (`/var/lib/laneconductor/projects/<name>`), including what a backup/restore must carry
       given `projects.repo_path` is the identity key (REQ-9)
+- [ ] Task 2.3: Ship the `collectors` array present-but-disabled in default config, verifying that
+      an instance can register with a hub via config change without rebuild (REQ-15 / D-8)
+- [ ] Task 2.4: Verify the single-node `runs` ledger from AM-10100 is packaged and initializes
+      cleanly in the standalone DB schema (REQ-14 / D-9)
 
-**Impact**: The stack starts and supervises itself on a machine that is not the author's.
+**Impact**: The stack starts and supervises itself cleanly on any host, supports run ledger
+accounting, and is hub-capable by design.
 
-## Phase 3: Unattended provisioning and first run
+---
 
-**Problem**: `lc setup` can only be driven by a human at a TTY, ships default credentials, and
-verifies an agent CLI's presence but never its authentication.
-**Solution**: Seed-driven provisioning, generated credentials, and an honest first-run state.
+## Phase 3: Bootstrap Secrets Form & Manager-driven Conversational Setup
 
-- [ ] Task 3.1: `lc setup --non-interactive --seed <file>` covering every `runSetup()` prompt,
-      failing loudly on an incomplete seed rather than prompting (REQ-5)
-- [ ] Task 3.2: Generate unique Postgres credentials at first boot; stop publishing 5432 to
-      the host; purge `postgres`/`postgres` from the shipped defaults (REQ-6)
-- [ ] Task 3.3: First-run UI screen: set the instance admin credential, connect the customer's
-      own agent CLI, verify it is *authenticated* (not merely installed), and show an
-      unmistakable non-functional state until it is (REQ-7)
+**Problem**: `lc setup` requires an interactive terminal wizard, ships default credentials,
+verifies agent CLI presence without verifying authentication, and riskily prompts for secrets.
+**Solution**: A dedicated bootstrap secrets web form strictly enforcing the Zero-Secrets Policy,
+followed by a conversational setup driven by the manager agent.
 
-**Impact**: A customer goes from "deployed" to "configured" without SSH, and is told plainly
-when the instance cannot do any work yet.
+- [ ] Task 3.1: First-run bootstrap secrets web form: configure admin credential, TLS, and
+      Claude API key (headless org-key path) directly into `.env` / key store (REQ-5, REQ-7, REQ-16)
+- [ ] Task 3.2: Verify Zero-Secrets Policy: ensure bootstrap credentials are never written to
+      `conversation.md` or the database (REQ-16)
+- [ ] Task 3.3: First-run UI state: verify that the agent CLI is authenticated (not merely
+      installed) and display an unmistakable non-functional state until configured (REQ-7)
+- [ ] Task 3.4: Generate unique Postgres credentials at first boot, purge default `postgres`/`postgres`,
+      and restrict port 5432 to internal network (REQ-6)
+- [ ] Task 3.5: Seed the manager worker with `set-up-this-machine` task (leveraging Track 1091
+      "Create with chat" flow) to conversationally discover repositories, configure git access,
+      and handle optional hub registration
 
-## Phase 4: Updates and migrations
+**Impact**: A customer configures the instance securely in a browser without SSH, secrets stay
+out of project commentary, and the manager agent onboards projects smoothly.
 
-**Problem**: Updates assume a shared canonical checkout that a customer VM does not have, and
-migrations run once at install behind an Atlas CLI fetched by `curl | sh`.
-**Solution**: Pinned images, a first-class update command, migrations on every start.
+---
+
+## Phase 4: Updates, migrations, and support bundle
+
+**Problem**: Customer VMs lack a canonical git checkout for updates, and migrations run once at
+install behind `curl | sh`.
+**Solution**: Pinned images, a first-class update command, migrations on every start, and a
+redacted diagnostic bundle.
 
 - [ ] Task 4.1: Bake Atlas into the image; remove any network fetch from the update path
-- [ ] Task 4.2: Apply migrations on every boot and every update, idempotently
-- [ ] Task 4.3: `lc update` — pull pinned image tags, migrate, restart, report the resulting
-      version; safe to re-run (REQ-8)
-- [ ] Task 4.4: `lc support-bundle` — local, redacted diagnostics the customer chooses to send
-      (D-5); explicitly no automatic phone-home
+- [ ] Task 4.2: Apply migrations on every boot and update idempotently, preserving existing
+      project data and the `runs` ledger (REQ-8)
+- [ ] Task 4.3: `lc update` — pull pinned image tags, migrate, restart, and report resulting version (REQ-8)
+- [ ] Task 4.4: `lc support-bundle` — generate local, redacted diagnostics (logs, versions, configs
+      with secrets stripped) for publisher support inspection with no automatic phone-home (D-5)
 
-**Impact**: A deployed instance can receive fixes without the customer reasoning about schema
-state, and support has something to ask for that does not require telemetry.
+**Impact**: Managed instances update safely without data loss, and support can diagnose issues
+without telemetry.
 
-## Phase 5: Image build pipeline
+---
 
-**Problem**: There is no packaging artifact of any kind in the repo — no Dockerfile, no
-compose file, no ARM/Bicep template.
-**Solution**: A reproducible build from a tagged commit.
+## Phase 5: Image build pipeline & Azure Managed Application packaging
 
-- [ ] Task 5.1: Compose stack (Postgres, API, UI, worker) with the persistent volume from
-      Task 2.2
-- [ ] Task 5.2: VM image build from a git tag, version-stamped so `lc --version` and the UI
-      report what is actually running (REQ-10)
-- [ ] Task 5.3: First-boot unit that runs Phase 3's provisioning then starts the stack
-- [ ] Task 5.4: **[business gate]** Choose the target platform, then produce the
-      platform-specific wrapper (AMI / VHD / GCP image; Managed Application template only if
-      asked for — see D-1)
+**Problem**: No packaging artifacts exist in the repo.
+**Solution**: Reproducible build pipeline for dev-class VM image and Azure Managed Application template.
 
-**Impact**: A customer-deployable artifact exists for the first time.
+- [ ] Task 5.1: Container compose stack (Postgres, API, UI, worker) with persistent volume mappings
+- [ ] Task 5.2: Version-stamped VM image build from tagged commit, reporting via `lc --version` and UI (REQ-10)
+- [ ] Task 5.3: First-boot unit that launches Phase 3 bootstrap provisioning then starts stack
+- [ ] Task 5.4: Azure Managed Application ARM/Bicep template packaging, defining delegated publisher
+      access permissions for the MSP model and sizing the VM to >= 16GB RAM (D-1, REQ-12)
 
-## Phase 6: Listing and certification
+**Impact**: A complete, listable Azure Managed Application package is produced.
 
-**Problem**: Marketplace listings carry per-platform requirements that are bureaucratic rather
-than technical, and cannot be scoped before Phase 5's platform choice.
-**Solution**: Satisfy them against the chosen platform.
+---
+
+## Phase 6: Azure Marketplace listing and certification
+
+**Problem**: Marketplace listings require certification against technical and operational standards.
+**Solution**: Fulfill Azure Marketplace publisher requirements.
 
 - [ ] Task 6.1: Bundle `LICENSE` and third-party attributions in the image (REQ-11)
-- [ ] Task 6.2: Document prerequisites (including REQ-7's agent-CLI requirement), open ports,
-      and a resource floor (REQ-12)
-- [ ] Task 6.3: Work the chosen platform's certification checklist (D-6)
+- [ ] Task 6.2: Document listing prerequisites (customer Claude API key / agent subscription),
+      network security rules / open ports, and 16GB RAM floor (REQ-12)
+- [ ] Task 6.3: Pass Azure Marketplace certification and test deployment in customer subscription (D-6)
 
-**Impact**: The image is listable.
+**Impact**: The Azure Managed Application listing is published and verified.

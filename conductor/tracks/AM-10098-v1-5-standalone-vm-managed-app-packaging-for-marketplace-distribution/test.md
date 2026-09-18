@@ -28,20 +28,27 @@ cd ui && npx playwright test
 
 ### Phase 0: Decisions and prerequisite inventory (runnable now)
 - [x] TC-0.1: Every open question in `index.md` maps to a decision in `spec.md` — expected:
-      D-1..D-7 cover packaging format, first-run, updates, licensing, telemetry, marketplace
-      requirements, pricing, with none left unanswered.
-- [x] TC-0.2: Each of REQ-1..REQ-12 names a real file and a behaviour observable in the
-      current tree — expected: the cited paths and symbols exist and behave as described.
+      D-1..D-9 cover packaging format (Azure Managed App), first-run (zero-secrets form + manager setup),
+      updates, licensing, telemetry, marketplace requirements, pricing, hub-readiness, and run ledger.
+- [x] TC-0.2: Each of REQ-1..REQ-16 names a real file, behaviour, or roadmap gate observable in
+      the project tree.
 - [x] TC-0.3: `grep -rniE "license.key|entitlement" bin conductor ui/server` — expected: no
       license-gate machinery, confirming D-4's premise.
 - [x] TC-0.4: `find . -iname "Dockerfile*" -o -iname "docker-compose*" -o -iname "*.bicep"`
       (excluding `node_modules`) — expected: nothing, confirming Phase 5 starts from zero.
+- [x] TC-0.5: Verify roadmap tracks AM-10099, AM-10100, AM-10101 exist in `conductor/tracks/`
+      and have matching execution order markers.
+
+### Prerequisite Gate (Before Phase 1)
+- [ ] TC-GATE.1: Inspect Track AM-10099 status — expected: `Lane: done, Lane Status: success`.
+      Vitest and node:test suites are green; worker isolated sandboxes in place.
+- [ ] TC-GATE.2: Inspect Track AM-10100 status — expected: `Lane: done, Lane Status: success`.
+      `runs` ledger table and parser are completed and merged.
 
 ### Phase 1: De-cloud and harden (REQ-1, REQ-2, REQ-3)
 - [ ] TC-1.1 **[remote-host]**: with the proxy opt-in unset, issue `GET /api/projects` to the
       server via a non-localhost hostname — expected: served locally from this process; no
-      outbound request to any vendor endpoint (assert on a network capture or an injected
-      fetch spy, not on the response body alone, since a proxied response can look identical).
+      outbound request to any vendor endpoint.
 - [ ] TC-1.2: with the proxy explicitly enabled, the same request still proxies — expected:
       the opt-in works, so the cloud deployment's behaviour is preserved rather than deleted.
 - [ ] TC-1.3: start the API with no host override — expected: listening on loopback only;
@@ -53,7 +60,7 @@ cd ui && npx playwright test
 - [ ] TC-1.6: request `/` from the API with no Vite process running — expected: the built UI
       is served, and its `/api` and `/auth` calls resolve against the same origin.
 
-### Phase 2: Path portability (REQ-4, REQ-9)
+### Phase 2: Path portability, hub-readiness, and run ledger (REQ-4, REQ-9, REQ-14, REQ-15)
 - [ ] TC-2.1: generate the three systemd units against a prefix that is not
       `/home/meller/Code/laneconductor` — expected: `systemd-analyze verify` clean, and all
       three start, on a machine where that path does not exist.
@@ -62,56 +69,51 @@ cd ui && npx playwright test
 - [ ] TC-2.3: back up an instance, restore it onto a second machine at the same project path
       convention — expected: projects and tracks resolve; no duplicate `projects.repo_path`
       rows and no orphaned tracks.
+- [ ] TC-2.4: enable `collectors` array with a test hub target — expected: standalone instance
+      successfully connects to hub with config change only (no image rebuild).
+- [ ] TC-2.5: execute a test track lane action — expected: row inserted into local `runs` table
+      with `requested_by`, `executed_by`, `total_cost_usd`, and `duration_ms` populated.
 
-### Phase 3: Unattended provisioning and first run (REQ-5, REQ-6, REQ-7)
-- [ ] TC-3.1: `lc setup --non-interactive --seed <complete seed>` with stdin closed —
-      expected: exits 0, writes a valid `.laneconductor.json`, never blocks on a prompt.
-- [ ] TC-3.2: same with a seed missing a required field — expected: non-zero exit naming the
-      missing field. Must not fall back to prompting or to a default.
+### Phase 3: Bootstrap Secrets Form & Manager-driven Setup (REQ-5, REQ-6, REQ-7, REQ-16)
+- [ ] TC-3.1: Submit initial admin password and Claude API key via first-run bootstrap web form —
+      expected: written to `.env` / secret store; system moves to configured state.
+- [ ] TC-3.2: **Zero-Secrets assertion:** inspect `conversation.md` files and DB `track_comments`
+      after bootstrap — expected: submitted API keys and passwords are completely absent.
 - [ ] TC-3.3: on a freshly provisioned instance, `grep -r` the image and running config for
-      the string `postgres:postgres` and for the `.env.example` default — expected: absent;
-      the generated DB credential is unique per instance.
-- [ ] TC-3.4: port-scan a freshly booted instance — expected: 5432 is not reachable from
-      outside the compose network.
-- [ ] TC-3.5: boot with no agent CLI authenticated, then open the dashboard — expected: an
-      unmistakable "no provider connected" state, and a queued track does **not** silently sit
-      in `queue` looking like normal pending work.
+      `postgres:postgres` — expected: absent; unique DB credential generated.
+- [ ] TC-3.4: port-scan a freshly booted instance — expected: 5432 is not reachable externally.
+- [ ] TC-3.5: boot with no agent CLI authenticated — expected: unmistakable "no provider connected"
+      state in the UI.
 - [ ] TC-3.6: an agent CLI that is installed but **not logged in** — expected: first-run
-      verification reports it as unauthenticated. A `--version` check alone passes here, which
-      is exactly the false pass this case exists to catch.
-- [ ] TC-3.7: after connecting real credentials, a track runs plan → implement → review →
-      quality-gate → done on a repo on that instance — expected: it reaches `done` and the
-      resulting commit exists on that machine.
+      verification reports it as unauthenticated. A `--version` check alone must not pass.
+- [ ] TC-3.7: Manager agent onboarding: conversational `set-up-this-machine` collects a test repo
+      and initializes it as a LaneConductor project.
 
 ### Phase 4: Updates and migrations (REQ-8)
-- [ ] TC-4.1: `lc update` on an instance with projects and tracks, from version N to N+1 —
-      expected: new version reported by `lc --version` and the UI; every project and track
-      still present; `atlas migrate status` clean.
-- [ ] TC-4.2: `lc update` run twice — expected: the second run is a no-op, exits 0.
-- [ ] TC-4.3: `lc update` with no outbound network — expected: fails with a clear diagnostic
-      and leaves the running instance untouched, rather than half-migrating.
+- [ ] TC-4.1: `lc update` on an instance with projects, tracks, and runs ledger — expected:
+      new version reported; all data preserved; `atlas migrate status` clean.
+- [ ] TC-4.2: `lc update` run twice — expected: second run is a no-op, exits 0.
+- [ ] TC-4.3: `lc update` with no outbound network — expected: fails with clear diagnostic,
+      leaving running instance untouched.
 - [ ] TC-4.4: boot an image whose schema is older than its code — expected: migrations apply
-      on start; the API serves normally afterwards.
-- [ ] TC-4.5: `lc support-bundle` — expected: a local archive containing logs and versions,
-      with DB passwords and API tokens redacted; nothing is transmitted.
+      on start; API serves normally.
+- [ ] TC-4.5: `lc support-bundle` — expected: local archive with logs and sanitized configs;
+      zero data transmitted outbound.
 
-### Phase 5: Image build (REQ-10)
-- [ ] TC-5.1: build the image twice from the same git tag — expected: the same stamped
-      version, and `lc --version` inside both reports that tag.
-- [ ] TC-5.2: deploy the image into a clean cloud subscription and reach the dashboard —
-      expected: reachable over the authenticated path from Phase 1, no SSH needed.
-- [ ] TC-5.3: reboot a configured instance — expected: the whole stack (Postgres, API, UI,
-      worker) returns on its own; no manual start.
+### Phase 5: Image build & Azure Managed Application (REQ-10, D-1)
+- [ ] TC-5.1: build image twice from same git tag — expected: identical version stamp reported
+      by `lc --version` and UI.
+- [ ] TC-5.2: deploy Azure Managed Application ARM/Bicep template in a clean Azure subscription —
+      expected: succeeds; VM boots and reaches bootstrap screen over HTTPS.
+- [ ] TC-5.3: reboot configured VM — expected: entire stack returns automatically.
 
-### Phase 6: Listing (REQ-11, REQ-12)
+### Phase 6: Marketplace Listing & Certification (REQ-11, REQ-12, D-6)
 - [ ] TC-6.1: `LICENSE` and third-party attributions are present in the deployed image.
-- [ ] TC-6.2: the documented open ports match what the booted instance actually listens on.
+- [ ] TC-6.2: documented open ports and 16GB RAM floor match deployed template specifications.
+- [ ] TC-6.3: passes Azure Marketplace automated certification test kit.
 
 ## Acceptance Criteria
-- [x] Phase 0 cases pass against the current tree.
-- [ ] Every Phase 1–6 case above passes before the listing is submitted.
-- [ ] No case was marked passing on the strength of a `localhost` run where it is marked
-      **[remote-host]**.
-- [ ] No regression in the existing suites (`ui` vitest, worker `node --test`, Playwright)
-      from the Phase 1–4 changes, which touch shared server and CLI code paths used by the
-      author's own dogfooded install.
+- [x] Phase 0 cases pass against current tree.
+- [ ] Every Phase 1–6 case above passes before marketplace listing is published.
+- [ ] No case was marked passing on the strength of a `localhost` run where it is marked **[remote-host]**.
+- [ ] Zero-Secrets Policy is strictly validated on first-run flows.

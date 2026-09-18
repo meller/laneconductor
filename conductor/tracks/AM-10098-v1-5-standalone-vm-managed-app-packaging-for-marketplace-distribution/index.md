@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Auto-planned once (unrequested, Auto Run defaulted on at creation); re-plan pending scope confirmation -- spec.md/plan.md/test.md from that pass are kept as input
+**Phase**: Re-planned: aligned with Azure Managed Application (MSP model), roadmap execution order (AM-10099 hard gate, AM-10100 run ledger), hub-readiness (AM-10101), and manager-driven first run behind…
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
