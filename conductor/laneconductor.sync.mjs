@@ -8307,7 +8307,15 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // Track 10017: a track's own `**Auto Run**` marker (default false) is a
     // second, independent gate in the same predicate — a queued track is not
     // auto-picked unless it opts in, bypassed only for waitingForReply.
-    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
+    //
+    // Track AM-10099 item (d)/REQ-6: ...or unless this run is
+    // `isClaimScopedOnceRun` — `lc worker run <track>`'s
+    // `--only-tracks ... --once` shape, a direct human instruction, not
+    // passive queue auto-picking. Same predicate as the AM-10093
+    // base-worker-cap exemption above, for the same reason: a bounded,
+    // self-terminating run is a different KIND of thing than an ordinary
+    // `--only-tracks`-scoped standing worker, which stays gated (REQ-7).
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun, explicitlyRequested: isClaimScopedOnceRun })) continue;
 
     // Passive lanes should not trigger auto-automation actions.
     // Track 10035: 'done' is no longer passive — a done:queue track is

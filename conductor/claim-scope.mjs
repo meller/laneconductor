@@ -67,12 +67,28 @@ export function parseOnlyTracks(argv = []) {
  *                           `**Auto Run**` marker / DB `auto_run` column).
  *                           Defaults to false — a track with no indicator is
  *                           not auto-picked (track 10017).
+ * @param explicitlyRequested track AM-10099 item (d)/REQ-6: true only for a
+ *                           direct, bounded human/manager instruction naming
+ *                           this exact run — `lc worker run <track>`
+ *                           (`--only-tracks ... --once`) or an equivalent
+ *                           direct dispatch — never for an ordinary
+ *                           `--only-tracks`-scoped STANDING worker (no
+ *                           `--once`), which is still passive queue-
+ *                           narrowing and must stay gated (REQ-7). Bypasses
+ *                           ONLY the `autoRun` check below — never widens
+ *                           `onlyTracks` or `claimableSet`, both of which
+ *                           are permission decisions this parameter has no
+ *                           business overriding.
  *
  * The allowlist NARROWS ONLY: it can never make claimable something the
  * server excluded. An operator flag must not be able to widen a
- * permission decision. The same rule applies to `autoRun` — `onlyTracks`
- * naming a track does not bypass its `autoRun: false`; use
- * `lc worker run <track>` to force a specific run regardless of this gate.
+ * permission decision. The same rule applies to `autoRun` when narrowed via
+ * `onlyTracks` alone — naming a track in `--only-tracks` does not, by
+ * itself, bypass its `autoRun: false`; only `explicitlyRequested` (a
+ * genuinely different KIND of instruction, not just a narrower one) does
+ * that. SKILL.md's own claim that `lc worker run <track>` bypasses this
+ * gate was true in doc only until this parameter existed — see spec.md
+ * item (d).
  *
  * Note the deliberate asymmetry on waitingForReply. The pre-existing gate
  * bypasses `claimableSet` (and now `autoRun`) for tracks mid-conversation,
@@ -81,12 +97,12 @@ export function parseOnlyTracks(argv = []) {
  * scoped to track 42 would still answer arbitrary other tracks, and the
  * scoping guarantee would be worthless exactly when it matters.
  */
-export function isTrackClaimable(trackNumber, { claimableSet = null, onlyTracks = null, waitingForReply = false, autoRun = false } = {}) {
+export function isTrackClaimable(trackNumber, { claimableSet = null, onlyTracks = null, waitingForReply = false, autoRun = false, explicitlyRequested = false } = {}) {
   const n = normaliseTrackNumber(trackNumber);
 
   if (onlyTracks && !onlyTracks.has(n)) return false;
 
-  if (!autoRun && !waitingForReply) return false;
+  if (!autoRun && !waitingForReply && !explicitlyRequested) return false;
 
   if (claimableSet && !waitingForReply) {
     const allowed = claimableSet.has(n) || claimableSet.has(String(trackNumber).trim());
