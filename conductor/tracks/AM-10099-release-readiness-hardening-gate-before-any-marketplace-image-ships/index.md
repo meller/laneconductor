@@ -1,6 +1,6 @@
 # Track AM-10099: Release readiness: hardening gate before any marketplace image ships
 
-**Lane**: implement
+**Lane**: review
 **Lane Status**: running
 **Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)

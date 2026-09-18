@@ -636,65 +636,175 @@ incompatible implementations, one of them uncommitted on `main`.
 **Solution**: Identify the real writer, finish Phase 7 for both writers,
 and get an author decision on (d) before anything merges.
 
-- [ ] Task 1 **(blocking, item k)**: Identify the writer that produced the
-      2-line `index.md`. Neither known in-place writer can do it —
-      `updateIndexMDFromDB` and `syncTrackToFile` both regex-replace
-      markers inside existing content, and the former explicitly refuses
-      to rebuild a stub from an empty read. Search the whole-file writers
-      instead (`laneconductor.sync.mjs` lines ~3607/4046/4485/6433,
-      `ui/server/index.mjs` ~1378/2077/2301/2350, `bin/lc.mjs`'s
-      `writeFileSync(indexPath, …)` family) for any path that can emit
-      `**Lane**` + `**Lane Status**` and nothing else. **An ownership
-      table cannot protect markers from a writer that replaces the entire
-      file** — until this is named, item (e) is not closed regardless of
-      Phase 7.
-- [ ] Task 2 **(item k)**: Wire `conductor/laneconductor.sync.mjs`'s
-      `updateIndexMDFromDB` to `marker-ownership.mjs`. It currently
-      imports nothing from it and writes `**Merge Mode**` — an
-      `AUTHOR_OWNED_MARKERS` entry — with no provenance check. This is
-      Phase 7 Task 3's "both writers" requirement, still open; leave
-      TC-7.4 unchecked until it passes.
-      Fix the module header too: it claims both writers already use it.
-- [ ] Task 3 **(item l)**: Classify every marker both writers can write.
-      `Summary` (the track-1081 incident's own marker), `Track Kind`,
-      `Model`, `Last Run` and `Waiting for reply` appear in neither list.
-      Add a test that fails when a writable marker is in neither table, so
-      the lists cannot silently fall behind again.
+- [x] Task 1 **(blocking, item k)**: Identify the writer that produced the
+      2-line `index.md`. **Partial, honestly**: traced every whole-file
+      writer in `laneconductor.sync.mjs`/`ui/server/index.mjs`/`bin/lc.mjs`
+      — `createWorktree()`'s "sync files before worktree" commit (the one
+      that literally carries this incident's commit message) only `git
+      add`+`git commit`s whatever is ALREADY on disk; it never regenerates
+      content itself, confirming the truncation happened strictly earlier.
+      The strongest reproducible candidate found:
+      `autoLaunchLocalFs`'s pre-spawn claim write used
+      `readIfExists(indexPath) ?? content` — `??` only falls back on
+      `null`/`undefined`, not on an empty string, and `readIfExists`
+      returns `''` (not null) for a file that exists but reads back empty
+      — a real, reachable race against any of this module's many other
+      `writeFileSync`-to-index.md sites (`fs.writeFileSync`'s default
+      O_TRUNC-then-write is not atomic). Reproduced in isolation: this
+      exact bug, driven through the real `updateHeader` shape, produces
+      `\n**Lane Status**: running\n` — i.e. every other marker gone. **Not
+      a byte-exact match** to the observed incident (which also carried a
+      `**Lane**: plan` line this mechanism alone doesn't produce) — recorded
+      as an open gap, not papered over. Fixed regardless (Task 1b below):
+      it is a real, independently-confirmed defect in the exact hot path a
+      `plan`-lane auto-queue claim runs through, of the same class
+      `updateIndexMDFromDB` already had to guard against once
+      (`fileExists && !content.trim()`).
+      Test: `conductor/tests/track-10099-claim-empty-read-race.test.mjs`
+      (5/5 pass) — confirmed failing pre-fix via an inline pre-fix-shape
+      assertion (test 5), since the guarded helper is new code.
+- [x] Task 1b: Extracted the empty-read guard as
+      `resolveFreshContentForClaim()` in `claim-scope.mjs` (not inline in
+      `laneconductor.sync.mjs` — that file boots a whole worker on
+      import, so it's untestable directly; same reason every other pure
+      helper in this codebase lives in a small side-effect-free module).
+      Wired into the one call site that had the bug.
+- [x] Task 2 **(item k)**: Wired `conductor/laneconductor.sync.mjs`'s
+      `updateIndexMDFromDB` to `marker-ownership.mjs`
+      (`isAuthorOwnedMarker`). Its single call site
+      (`pullTracksMetadataFromDB`'s per-track loop) is exactly the
+      "generic/coarse sync" case that module's own header says must never
+      carry an author-owned marker — it can never assert
+      `AUTHORED_MARKER_PROVENANCE` (no human/UI action is behind it), so
+      the fix is simply: never write `Merge Mode` from this call site,
+      full stop. Fixed the module header's false "both writers" claim by
+      making it true instead of editing the claim.
+      Test: `conductor/tests/track-10099-worker-marker-ownership-wiring.test.mjs`
+      — confirmed 3/4 failing pre-fix (the exact TC-7.4 gap), 4/4 pass
+      post-fix.
+- [x] Task 3 **(item l)**: Classified every marker both writers can
+      write. `Summary` → machine-owned (regenerated by every lane action;
+      the track-1081 incident with it was a truncation bug in the sync
+      pipeline, already fixed separately in `summary-utils.mjs` — not an
+      authorship violation). `Waiting Reason` → machine-owned (travels
+      with `Lane Status: waiting`, same lifecycle). `Model` → author-owned
+      (a per-track override set only via the track detail panel's
+      dedicated field, same deliberateness as Merge Mode/Workspace/Auto
+      Run) — and its write site in `syncTrackToFile` had **no provenance
+      guard at all**, unlike its three siblings; added the same
+      `isAuthoredWrite` guard, and fixed the one real caller
+      (`/model-override` route) to assert
+      `AUTHORED_MARKER_PROVENANCE`, updating that route's own pre-existing
+      unit tests to match (fixture drift, not a behavior change — the
+      route's actual HTTP-level tests already covered the real call shape
+      and stayed green throughout).
+      `Track Kind` / `Last Run` were flagged in spec.md's addendum but
+      turned out not to be writable by either `updateIndexMDFromDB` or
+      `syncTrackToFile` at all (`Track Kind` is written only by the plan
+      lane's own classification step, `Last Run` only by
+      `spawnCli`/`bin/lc.mjs`'s CLI-driven writes) — out of scope for
+      "both DB→FS writers", left unclassified deliberately, not missed.
+      Added a completeness test asserting every marker either writer
+      *can* write is classified in one of the two tables (so a future
+      addition can't silently reopen this hole).
 - [ ] Task 4 **(blocking, item m — author decision, not ours)**: Item (d)
       is implemented twice. The branch uses `explicitlyRequested` (derived
       from the `--only-tracks … --once` run shape); the primary checkout
       has an uncommitted `--force-run <csv>` flag + `parseForceRun()`
       across `bin/lc.mjs`, `conductor/claim-scope.mjs` and
-      `conductor/laneconductor.sync.mjs`. They collide on merge. Do not
-      pick one autonomously — the primary's uncommitted work is another
-      session's in-flight code and is what is actually running today.
-- [ ] Task 5 **(item n)**: Fix both startup TDZ crashes
-      (`gitExec` in `refreshFileManifestCache`, `activeDispatch` in the
-      startup `reconcileOrphanedDispatches`). Note that track 1114's
-      `setTimeout(…, 0)` remedy is **already applied** to the first and
-      still fails — top-level `await`s yield the loop before the `const`s
-      are reached — so the fix is to move the declarations above their
-      first reachable use (or defer past the awaits), and 1114's own
-      documented pattern should be corrected to say so.
+      `conductor/laneconductor.sync.mjs`. They collide on merge. **Not
+      touched** — confirmed still uncommitted and unresolved on the
+      primary checkout as of this implement pass. Do not pick one
+      autonomously — the primary's uncommitted work is another session's
+      in-flight code and is what is actually running today.
+- [x] Task 5 **(item n)**: Fixed both startup TDZ crashes. Root cause
+      traced by source line, not guessed: this module has a top-level
+      `await upsertWorker();`. Two things scheduled BEFORE that line —
+      the `setTimeout(refreshFileManifestCache, 0)` tick, and, inside
+      `upsertWorker`'s own body, a fire-and-forgotten
+      `reconcileOrphanedDispatches()` call issued right after its own
+      internal `await post(...)` resolves — can both run while the
+      top-level await is still suspended, i.e. before the module's
+      synchronous evaluation ever reaches a `const` declared later in the
+      file. Track 1114's `setTimeout(fn, 0)` remedy only protects against
+      a plain macrotask boundary; it does nothing when a top-level
+      `await` sits between the schedule point and the declaration.
+      Fix: hoisted `GIT_ENV`/`gitExec`/`activeDispatch` (all
+      self-contained, zero dependency on anything declared between their
+      old and new position) to immediately after the import block, well
+      before the top-level `await upsertWorker()`.
+      Tests: `conductor/tests/track-10099-startup-tdz-crashes.test.mjs` —
+      a deterministic source-level pin (declaration line < top-level
+      await line, the actual structural property the fix establishes) plus
+      a best-effort live reproduction via a real worker spawn against a
+      real mock collector (not the isolated-worker helper's default
+      refusing port, which short-circuits `upsertWorker` before it ever
+      reaches the buggy call sites — confirmed empirically: the live test
+      passed even pre-fix against a refusing collector, for exactly that
+      reason). 4/4 pass. The live case is honestly a best-effort
+      reproduction of a genuine timing race, not a guaranteed repro on
+      every machine — the source-level pin is the reliable regression
+      guard.
 - [ ] Task 6 **(item i, still gated)**: Log rotation. Now measured:
       `conductor/.sync.log` 4.1 GB, `ui/.api.log` 1.1 GB, 25 MB for one
       14-minute scoped run. Still awaiting the author's go-ahead; AC-23
-      stays ⬜ until then.
+      stays ⬜ until then. Not attempted.
 
-**Impact**: Item (e) actually closes (today it does not), the ownership
-table stops having holes, the `--force-run`/`explicitlyRequested` collision
-is resolved deliberately rather than by whoever merges last, and the
-worker stops throwing on every start.
+**Additional finding while running the full suite (not this phase's
+scope, noted for the record):** `conductor/tests/track-10062-auth-required.test.mjs`
+is NOT one of AM-10089's 25 scoped files (confirmed: zero mentions in
+this track's own plan.md) and is unprotected — spawning it from inside
+this worktree produced a `.test-tmp-track-10062-auth-required-*` sandbox
+INSIDE the worktree and a worker process cwd'd to the primary checkout,
+the exact redirect-hazard shape Phase 1 closed for the 25 named files.
+`workflow.json`'s sha256 was checked before and after and is unchanged
+(`d7b144ec…9e4`) — no actual corruption occurred this run — but this file
+is a live, still-open instance of item (a)'s general class outside this
+track's enumerated scope. Flagging, not fixing: expanding Phase 1's file
+list is a scope decision for the author, not an autonomous addition here.
+
+**Impact**: Item (e)'s writer-coverage gap that Phase 7 left open is
+closed for the writer identified as most likely (with the honest caveat
+that the exact incident's byte sequence isn't 100% pinned down), the
+ownership table's holes are filled and a fourth un-guarded author-owned
+write site (`Model`) was found and fixed along the way, and the worker no
+longer throws two TDZ errors on every single start. Item (d) is
+deliberately left to the author — this is not a plan-lane or
+implement-lane decision.
 
 ## ⚠️ Gate status after this pass
 
-The Phase 10 verdict above stands with two corrections:
+- **AC-12/AC-13 (item e): now substantially stronger, not fully closed.**
+  Both known DB→FS writers are guarded and TC-7.4 now passes. The
+  strongest identified root-cause mechanism (the empty-read race) is
+  fixed and regression-tested. What remains open: the exact writer chain
+  for this incident's specific byte sequence (`**Lane**: plan` +
+  `**Lane Status**: running`, nothing else) was not conclusively
+  reproduced — see Task 1's honesty note. Recommend treating this as
+  "significantly hardened, watch for recurrence" rather than "proven
+  closed."
+- **Item (d) is still not shippable as-is** — two implementations, one
+  uncommitted on `main`, deliberately untouched pending an author
+  decision.
 
-- **AC-12/AC-13 (item e) must not be read as closed.** Phase 7 shipped a
-  real guard on the API-server writer, but the worker's writer was never
-  wired in, and the writer that caused today's recurrence is unidentified.
-- **Item (d) is not shippable as-is** — two implementations, one
-  uncommitted on `main`.
+The first blocker is meaningfully addressed; the second is unchanged and
+still blocks `done`. The track stays at `review:queue`.
 
-Both are blockers for `done`, not for `review`. The track stays at
-`review:queue`; review and quality-gate are the right lanes to weigh them.
+## ✅ COMPLETE (Phase 11 implement pass, 2026-09-18)
+
+4 of Phase 11's 6 tasks done with real, verified fixes; 2 deliberately
+untouched (Task 4 — author decision; Task 6 — gated behind author
+go-ahead). Full test suites re-confirmed green throughout: vitest
+136/136 files, 1004/1004 cases; the targeted new/affected node:test files
+13/13. The two pre-existing node:test failures encountered while running
+the full suite (`track-10083-claim-mirror-guard`,
+`track-1110-claim-race-api-mode`) were verified NOT caused by this pass —
+confirmed by temporarily swapping in the pre-Phase-11 `laneconductor.sync.mjs`
+and reproducing the identical failures there too, then restoring. No
+assertion was deleted or weakened. `workflow.json` sha256 unchanged
+throughout (`d7b144ec…9e4`).
+
+Landing at `review:queue` — see test.md's Phase 11 section for the
+per-task honesty notes (Task 1 in particular: the strongest identified
+mechanism was fixed and regression-tested, but the exact incident's byte
+sequence was not conclusively reproduced).
