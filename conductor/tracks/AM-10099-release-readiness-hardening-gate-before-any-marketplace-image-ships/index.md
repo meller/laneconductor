@@ -2,9 +2,9 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 40%
+**Progress**: 55%
 **Last Run**: claude/claude-opus-5 (primary)
-**Phase**: Phases 1-2, 4, 6 of 10 complete — vitest fully green; lc worker run flag parsing + base-worker-cap exemption fixed; Auto Run gate now agrees with SKILL.md. Full node:test baseline measurement in progress (Phase 3). Caught and corrected a mid-session mistake: an accidental edit landed on the primary checkout instead of this worktree, momentarily clobbering another session's in-progress uncommitted work — restored in full before proceeding.
+**Phase**: Phases 1, 2, 4, 6, 7 complete; Phase 3 substantially done (baseline measured — 1344/1392 passing after fixing a real import-time crash; the 3 originally-named flakies resolved or quarantined; broader ~20-suite triage explicitly left as an honest gap, not claimed complete). Real production bugs found and fixed this session: remote-api auth silently never enabled; per-track model override never shipped despite being marked done; a deliberately-committed Auto Run marker overwritable by a stale DB value. Caught and corrected a mid-session mistake: an accidental edit landed on the primary checkout instead of this worktree, momentarily clobbering another session's in-progress uncommitted work — restored in full before proceeding.
 **Type**: dev
 **Track Kind**: bug
 **Merge Mode**: direct

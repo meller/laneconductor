@@ -213,24 +213,72 @@ cannot be measured safely today: `worker-mode.test.mjs` and
 **Solution**: Only after Phase 1, measure the whole node:test suite, then
 triage under the same rules as Phase 2.
 
-- [ ] Task 1: Gate check — re-run Phase 1 Task 7's audit and refuse to
-      proceed unless 25/25 are protected. Record the confirmation.
-- [ ] Task 2: Measure the full `node --test conductor/tests/` baseline.
-      Capture pass/fail per file; this number does not exist yet.
-- [ ] Task 3: Run `local-api-e2e.test.mjs` **5 times** and record each
-      result — non-determinism is already proven (4/2 then 3/3), so a
-      single green run is not evidence. Diagnose the race (mock-collector
-      startup, port binding, or worker-registration timing are the
-      candidates) and fix it, or quarantine per REQ-4 (AC-7).
-- [ ] Task 4: Same treatment for `track-1086-session-worker` and
-      `worker-mode`, which Phase 1 will have just rewritten — re-measure
-      rather than assuming the scope's original counts still hold.
-- [ ] Task 5: Triage every remaining node:test failure into the Phase 2
-      table format, extended here.
-- [ ] Task 6: Confirm the primary checkout's `workflow.json` is untouched
-      and no orphan workers remain (REQ-15).
+- [x] Task 1: Confirmed 25/25 protected (Phase 1) before measuring.
+- [x] Task 2: Measured. First full run (before the Phase 4 `parseForceRun`
+      SyntaxError fix — see that commit's own writeup for how this was
+      discovered): **1392 tests, 1173 pass, 182 fail, 33 cancelled**. After
+      the fix: **1392 tests, 1344 pass, 43 fail, 5 cancelled**. The jump
+      confirms most of the first run's failures were the import-time crash
+      cascading, not independent defects.
+- [x] Task 3: `local-api-e2e.test.mjs` run 5+ times this session (7 total
+      across two rounds). Non-determinism confirmed (not a coincidence:
+      failing runs took measurably and consistently longer — ~2-3.5x —
+      than passing ones, and raising the poll timeout from 20000ms to
+      45000ms did not help, ruling out simple tuning). Diagnosed as far as
+      budget allowed (see the quarantine commit) and quarantined per
+      REQ-4/AC-7 — 5/5 pass + 1 skipped, deterministic over 3 consecutive
+      re-runs after quarantining.
+- [x] Task 4: `worker-mode.test.mjs` re-measured: 6/7 (matches the
+      originally-scoped 1/7) — root cause was a stale source-string regex
+      (the guard was deliberately widened after the test was written), not
+      a real regression; fixed, now 7/7.
+      `track-1086-session-worker.test.mjs` re-measured: 2/3 (matches the
+      originally-scoped 1/3) — spot-checked in Phase 1 against its
+      pre-migration content and confirmed pre-existing, unrelated to this
+      track's changes; left as-is (no `it.skip` added — REQ-4 requires a
+      row + reason for quarantine, and this one hasn't been individually
+      root-caused, so it stays an honestly-reported open flake rather than
+      a silently-skipped one).
+- [~] Task 5: **Partial.** Spot-checked several of the 43 remaining
+      failures/5 cancelled beyond the three explicitly-named flakies above
+      (`track-10035-new-track-flags.test.mjs`'s sparse-emission assertion —
+      confirmed stale, matches Phase 5's own planned fix, deferred there
+      since Phase 5 already touches this exact file; `track-1091-manager-worker`
+      — confirmed pre-existing in Phase 1). The remaining ~20 distinct
+      failing suites (`auto-launch`, `Conversation Action Dispatch`,
+      `TC-4: the cloud function serves every worker call`, `conv-sync
+      concurrent workers`, `integration-multi-pattern`, `lock-unlock`,
+      `per-worker-machine-token`, `Track 10020: resumed sessions`,
+      `run-marker.mjs`, `track-10045-worktree-isolation` [likely just its
+      own documented permanent-red canary, TC-1 — see that file's own
+      header — not re-verified individually here], `track-10047-bounded-resume`,
+      `track-10048-duplicate-folder`, `firebase.json predeploy hook`,
+      `manager pseudo-track contract`, `AM-10083 claim-mirror guard`,
+      `AM-10087 blocked-verdict override`, `AM-10090 resumed-session doc
+      drift`, `track-1085 dispatch inbox`, `track-1086 resume-failure
+      fallback`, `track-1102 F11/F12`, `track-1110 API-mode claim
+      atomicity`, `per-lane model dispatch E2E`, `lc worktrees (CLI)`,
+      `track-1119 global main-mode lock`, `AM-1119 Phase 6 INITIALS-NNN
+      folders`) were **not individually triaged** — this is an honest gap
+      against this task's original scope, not a claim of completeness.
+      Full per-file triage at Phase 2's level of rigor for all ~26 suites
+      would need meaningfully more time than remained in this session;
+      recorded here rather than silently left undone. None of the spot-
+      checks performed found anything caused by this track's own changes.
+- [x] Task 6: Confirmed — primary checkout's `conductor/workflow.json`
+      untouched throughout (spot-checked via sha256sum at multiple points
+      this session). Orphan check caught and fixed a **real** issue: three
+      `laneconductor.sync.mjs` processes from earlier in this measurement
+      (sandboxes already deleted, `cwd` showed `(deleted)`, burning
+      96-172% CPU each) were found and killed — confirmed via
+      `readlink /proc/<pid>/cwd` before killing, not a blind kill (one
+      other live process on this shared machine, from an unrelated
+      project, was correctly left alone).
 
-**Impact**: Both halves of the test suite have a known, defended state.
+**Impact**: Both halves of the test suite have a known, defended state for
+the items explicitly named in scope; the broader baseline is measured and
+recorded honestly, with a clear boundary between what was verified and
+what remains for a follow-up pass.
 
 ## Phase 4: `lc worker run` — flag parsing and cap exemption (item c)
 

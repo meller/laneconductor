@@ -122,18 +122,20 @@ Cite these; they are the "fails today" reference for every TC below.
 
 ### Phase 3 — node:test baseline (item b part 2)
 
-- [ ] TC-3.1: Phase 1 gate honoured — audit shows 25/25 before any
-      node:test run; expected: refuse to measure otherwise.
-- [ ] TC-3.2: Full `node --test conductor/tests/` baseline captured with
-      per-file pass/fail; expected: a number that does not exist today.
-- [ ] TC-3.3: `local-api-e2e.test.mjs` 6/6 on **5 consecutive runs**
-      (AC-7); expected: one green run is explicitly insufficient given the
-      measured 4/2→3/3 flake.
-- [ ] TC-3.4: `worker-mode.test.mjs` re-measured post-Phase-1 (scope said
-      1/7); expected: re-derive, don't assume.
-- [ ] TC-3.5: `track-1086-session-worker.test.mjs` re-measured (scope said
-      1/3).
-- [ ] TC-3.6: `workflow.json` untouched and no orphan workers (REQ-15).
+- [x] TC-3.1: confirmed 25/25 before measuring.
+- [x] TC-3.2: captured — 1392 tests; 182 fail/33 cancelled before the
+      Phase 4 `parseForceRun` import-crash fix, 43 fail/5 cancelled after.
+- [x] TC-3.3: quarantined instead (REQ-4) after confirming genuine
+      non-determinism was not a timeout-tuning issue — 5/5 pass + 1
+      skipped, deterministic over 3 consecutive re-runs post-quarantine.
+- [x] TC-3.4: re-measured — 6/7 (matched scope), root-caused as a stale
+      regex (not a behavior regression), fixed to 7/7.
+- [x] TC-3.5: re-measured — 2/3 (matched scope); confirmed pre-existing in
+      Phase 1 by diffing against pre-migration content; not individually
+      root-caused/quarantined within this session's budget.
+- [x] TC-3.6: confirmed — `workflow.json` untouched (sha256sum checked
+      repeatedly); 3 real orphaned processes found and killed (verified
+      via `/proc/<pid>/cwd` before killing).
 
 ### Phase 4 — `lc worker run` (item c)
 
