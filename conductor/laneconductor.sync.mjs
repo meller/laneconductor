@@ -4,7 +4,7 @@
 // Worker has zero DB knowledge — all writes go through the Collector HTTP API.
 
 import { watch } from 'chokidar';
-import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync, readlinkSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, appendFileSync, openSync, closeSync, mkdirSync, statSync, rmSync, copyFileSync, renameSync, readlinkSync, symlinkSync } from 'fs';
 import { dirname, join, basename, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { spawn, execSync, exec } from 'child_process';
@@ -35,7 +35,7 @@ import { truncateSummary, parseSummaryMarker, parseSummary } from './summary-uti
 import { parseConversationComments, findTurnStartOffsets } from './sync-conversation-utils.mjs';
 import { isResumeFailure } from './session-resilience-utils.mjs';
 import { buildClaudeArgs } from './claude-cli-args.mjs';
-import { parseOnlyTracks, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
+import { parseOnlyTracks, parseForceRun, isTrackClaimable, isScopedWorkFinished } from './claim-scope.mjs';
 import { parseNewJsonlLines, extractFinalAssistantText, extractBlockedQuestion, extractSessionContextTokens } from './stream-json-tail.mjs';
 import { MANAGER_PSEUDO_TRACK, isManagerPseudoTrack, shouldAdmitManagerPseudoTrack } from './services/manager-pseudo-track.mjs';
 import { META_PROJECT_NAME, ensureMetaProjectOnDisk } from './services/meta-project.mjs';
@@ -128,6 +128,18 @@ let workerMode = cliSyncOnly ? 'sync-only' : null; // Will be resolved after con
 let onlyTracks = null;
 try {
   onlyTracks = parseOnlyTracks(process.argv);
+} catch (err) {
+  console.error(`[LaneConductor] ${err.message}`);
+  process.exit(2);
+}
+
+// Track AM-10099 (item (d)): direct-dispatch counterpart to --only-tracks —
+// the one thing that actually bypasses a track's `autoRun: false` gate, for
+// exactly the tracks named here. See claim-scope.mjs's parseForceRun for why
+// --only-tracks alone was never enough despite SKILL.md's prior claim.
+let forceRunTracks = null;
+try {
+  forceRunTracks = parseForceRun(process.argv);
 } catch (err) {
   console.error(`[LaneConductor] ${err.message}`);
   process.exit(2);
@@ -3816,6 +3828,7 @@ console.log(
     ? `[LaneConductor] Claim scope: ONLY tracks [${[...onlyTracks].join(', ')}]${exitWhenDone ? ' (will exit when done)' : ''}`
     : '[LaneConductor] Claim scope: unscoped — may claim any queued track'
 );
+if (forceRunTracks) console.log(`[LaneConductor] Force-run (bypasses Auto Run): [${[...forceRunTracks].join(', ')}]`);
 if (!getIsLocalFs()) console.log(`[LaneConductor] Collectors: ${getCollectors().map(c => c.url).join(', ')}`);
 if (!getIsLocalFs()) console.log(`[LaneConductor] Dashboard: http://localhost:${getUi()?.port ?? 8090}`);
 
@@ -5001,6 +5014,32 @@ async function createWorktree(trackNumber) {
           console.warn(`[worktree] Failed to copy ${cfg} to worktree: ${e.message}`);
         }
       }
+    }
+
+    // Track AM-10099 Phase 2 (AC-6): a fresh worktree has no `ui/node_modules`
+    // — `npx vitest run` (and any other UI tooling) can't even start there,
+    // so `implement`/`quality-gate` lane actions were structurally unable to
+    // run the project's own test suite from inside a worktree at all.
+    // Symlinked (not copied/installed) from the primary checkout: an
+    // `npm install` here would add real time to every single worktree
+    // creation regardless of whether the track touches the UI at all, and a
+    // full copy would double the disk cost per worktree for no benefit in
+    // the common case. Trade-off, accepted deliberately: a track that
+    // actually changes `ui/package.json`/`package-lock.json` sees the
+    // PRIMARY checkout's installed deps here, not its own — such a track's
+    // own quality-gate must run `npm install` for real before trusting
+    // `vitest run` (same as any other lane action that changes dependencies
+    // would need to). Every other track — the overwhelming majority — gets
+    // a working `ui/node_modules` for free with zero extra cost.
+    try {
+      const primaryUiNodeModules = join(repoRoot, 'ui', 'node_modules');
+      const worktreeUiNodeModules = join(worktreePath, 'ui', 'node_modules');
+      const worktreeUiDirExists = existsSync(join(worktreePath, 'ui'));
+      if (worktreeUiDirExists && existsSync(primaryUiNodeModules) && !existsSync(worktreeUiNodeModules)) {
+        symlinkSync(primaryUiNodeModules, worktreeUiNodeModules, 'dir');
+      }
+    } catch (e) {
+      console.warn(`[worktree] Failed to symlink ui/node_modules into worktree: ${e.message}`);
     }
 
     // Copy .claude directory for skills.
@@ -8272,7 +8311,10 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     // Track 10017: a track's own `**Auto Run**` marker (default false) is a
     // second, independent gate in the same predicate — a queued track is not
     // auto-picked unless it opts in, bypassed only for waitingForReply.
-    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun })) continue;
+    //
+    // Track AM-10099: ...or unless it's named in --force-run — a direct
+    // human dispatch (`lc worker run <track>`), not passive queue-narrowing.
+    if (!isTrackClaimable(track_number, { claimableSet, onlyTracks, waitingForReply, autoRun, forceRunTracks })) continue;
 
     // Passive lanes should not trigger auto-automation actions.
     // Track 10035: 'done' is no longer passive — a done:queue track is
