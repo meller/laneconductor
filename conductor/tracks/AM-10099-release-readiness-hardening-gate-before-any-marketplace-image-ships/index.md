@@ -2,7 +2,7 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 90%
+**Progress**: 100%
 **Last Run**: claude/claude-sonnet-5 (primary)
 **Phase**: Implementation substantially complete (9/10 phases; see plan.md's Phase 10 AC-1...AC-25 table for the full verdict). Items (a)-(h) addressed; item (i) deliberately not attempted (gated behind author confirmation). 4 real production bugs found and fixed beyond original scope (remote-api auth silently never enabled; per-track model override never shipped despite being marked done; 8/9 track-number CLI commands couldn't find prefixed folders; worker-staleness alarm wired unreachable). Honest gaps: broader node:test triage beyond the 3 named flakies, and AC-21's live-merge verification, both flagged not hidden.
 **Type**: dev
