@@ -64,7 +64,7 @@ import { mergeDiscoveredWithPresets } from './services/model-discovery-merge.mjs
 import { parseStatus as parseStatusPure } from './services/parse-status.mjs';
 import { parseMergeModeMarker, resolveMergeMode } from './services/merge-mode.mjs';
 import { parseWaitingReason, writeWaitingReason, clearWaitingReason, resolveWaitingReason } from './services/waiting-state.mjs';
-import { decideAutoResume, clearWaitingOnTracks, clearAutoResumedMarker, writeAutoResumedMarker } from './services/dependency-resume.mjs';
+import { decideAutoResume, clearWaitingOnTracks, clearAutoResumedMarker, writeAutoResumedMarker, isDependencyShipped } from './services/dependency-resume.mjs';
 import { parseVerdict } from './services/verdict.mjs';
 import { pollTrackPr, resolvePrStatus } from './services/pr-flow.mjs';
 import { validatePathIsolation as sharedValidatePathIsolation } from './services/path-isolation.mjs';
@@ -8092,15 +8092,28 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
   // Track AM-1119 Phase 3 (Task 2): one pass to know every track's current
   // lane up front, so the dependency gate below (**Depends On**) can check
   // "is track X done?" without a second directory scan per candidate.
+  //
+  // Track AM-10099 item (h): stores `{ lane, laneActionStatus }`, not just
+  // the bare lane name — `lane === 'done'` alone means "quality-gated and
+  // queued for the merge action," NOT "shipped" (the merge action is what
+  // later sets lane_action_status to 'success' once the code is actually
+  // on main). The gate below now reuses isDependencyShipped
+  // (dependency-resume.mjs), the same `lane === 'done' && laneActionStatus
+  // === 'success'` predicate that module's own header already explains,
+  // instead of a second, weaker copy of the same idea.
   const laneStatusByTrackNumber = {};
   for (const dir of dirs) {
     const indexPath = join(tracksDir, dir, 'index.md');
     if (!existsSync(indexPath)) continue;
     const content = readFileSync(indexPath, 'utf8');
     const laneMatchForMap = content.match(/\*\*Lane\*\*:\s*([^\n]+)/i);
+    const laneStatusMatchForMap = content.match(/\*\*Lane Status\*\*:\s*([^\n]+)/i);
     const trackNumMatchForMap = dir.match(/(\d+)/);
     if (laneMatchForMap && trackNumMatchForMap) {
-      laneStatusByTrackNumber[trackNumMatchForMap[1]] = laneMatchForMap[1].trim();
+      laneStatusByTrackNumber[trackNumMatchForMap[1]] = {
+        lane: laneMatchForMap[1].trim(),
+        laneActionStatus: laneStatusMatchForMap ? laneStatusMatchForMap[1].trim() : null,
+      };
     }
     const statusMatch = content.match(/\*\*Lane Status\*\*:\s*running/i);
     if (statusMatch) {
@@ -8222,7 +8235,7 @@ async function autoLaunchLocalFs(globalLimit, claimableSet = null) {
     if (!waitingForReply) {
       const dependsOn = parseDependsOn(content);
       if (dependsOn.length > 0) {
-        const unmet = dependsOn.filter(dep => laneStatusByTrackNumber[dep] !== 'done');
+        const unmet = dependsOn.filter(dep => !isDependencyShipped(dep, laneStatusByTrackNumber));
         if (unmet.length > 0) {
           console.log(`[local-fs] Track ${track_number}: waiting on dependencies [${unmet.join(', ')}] to reach done — skipping`);
           continue;
