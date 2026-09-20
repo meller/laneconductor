@@ -9402,7 +9402,14 @@ async function runCreateProject(entry) {
             + `directory yourself (with a .gitignore), then retry.`,
         };
       }
-      execSync('git init -q', { cwd: targetPath, stdio: 'pipe' });
+      // Track 10099/dual-reader incident: a bare `git init` falls back to
+      // the host's global init.defaultBranch, which is unset on some
+      // machines (legacy `master`) — every other LaneConductor-built
+      // project uses `main`. `-b main` makes this deterministic regardless
+      // of the host's own git config, matching the convention every
+      // sibling project already follows and every later merge action
+      // assumes.
+      execSync('git init -q -b main', { cwd: targetPath, stdio: 'pipe' });
       execSync('git add -A', { cwd: targetPath, stdio: 'pipe' });
       // -c user.* so this works on machines with no global git identity;
       // this is a setup step, not an authored change.
