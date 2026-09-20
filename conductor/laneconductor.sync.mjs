@@ -44,7 +44,7 @@ import { buildLocalStateDigest } from './services/instance-state.mjs';
 import { extractUnansweredHumanTail } from './conversation-tail.mjs';
 import { computeTrackDocDigest, hasTrackDocDrift } from './services/track-doc-digest.mjs';
 import { isAuthorOwnedMarker } from './services/marker-ownership.mjs';
-import { slugify, resolveRepoTarget } from './create-project-utils.mjs';
+import { slugify, resolveRepoTarget, filterNonScaffoldEntries } from './create-project-utils.mjs';
 import { buildDeployJson, buildDeploymentStackMd, buildEnvExample } from './deployConfig.mjs';
 import { writeWizardConnectionsArtifacts } from './services/wizard-connections.mjs';
 import { deriveTrackPlan } from './services/wizard-track-plan.mjs';
@@ -9384,11 +9384,14 @@ async function runCreateProject(entry) {
   // allowlist here despite that warning: it's a template of variable
   // NAMES only, written by us above from buildEnvExample(), never actual
   // secret values — unlike `.env` itself, which stays excluded.
-  const SCAFFOLD_ENTRIES = new Set(['.laneconductor.json', 'conductor', '.claude', '.agents', '.git', '.env.example']);
+  //
+  // See create-project-utils.mjs's filterNonScaffoldEntries/SCAFFOLD_ENTRIES
+  // for what's allowlisted and why (Track 10099/AM-1005 dual-reader
+  // incident: `.gitignore` used to be missing from it).
   try {
     const isRepo = existsSync(join(targetPath, '.git'));
     if (!isRepo) {
-      const preExisting = readdirSync(targetPath).filter(e => !SCAFFOLD_ENTRIES.has(e));
+      const preExisting = filterNonScaffoldEntries(readdirSync(targetPath));
       if (preExisting.length > 0) {
         return {
           ok: false,

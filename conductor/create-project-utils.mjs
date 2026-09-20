@@ -13,6 +13,26 @@ export function slugify(name) {
     .replace(/^-+|-+$/g, '');
 }
 
+// Track 10099/AM-1005 (dual-reader incident): entries the scaffold-generate
+// step itself may already have written before runCreateProject's git-init
+// guard runs — never something a user's own pre-existing directory would
+// contain by surprise, and never anything holding a secret value (a
+// `.gitignore` or `.env.example` holds only patterns/variable names, never
+// real values; unlike `.env` itself, which must stay excluded here).
+// `.gitignore`'s absence from this set meant the guard fired on a file the
+// SAME dispatch had just created one step earlier — every brand-new
+// project's create-project dispatch reported "failed" here unconditionally,
+// with the scaffold itself already complete and correct.
+export const SCAFFOLD_ENTRIES = new Set(['.laneconductor.json', 'conductor', '.claude', '.agents', '.git', '.env.example', '.gitignore']);
+
+/** Directory entries NOT explained by our own just-written scaffold — a
+ * non-empty result means runCreateProject must refuse to git-init (it would
+ * otherwise risk `git add -A`-ing a user's own pre-existing files, secrets
+ * included, into a fresh history it just created). */
+export function filterNonScaffoldEntries(dirEntries) {
+  return dirEntries.filter(e => !SCAFFOLD_ENTRIES.has(e));
+}
+
 // See spec.md REQ-2b/REQ-3: payload.repo_source is {type: 'path', value} or
 // {type: 'git', value, target_path?}. 'path' needs no target resolution —
 // value already is the path. 'git' resolves to target_path if given,
