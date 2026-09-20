@@ -335,6 +335,7 @@ describe('TC-32..TC-37: track sessions', () => {
       claude_session_id: null,
       last_context_tokens: null,
       resume_count: 0,
+      doc_digest: null, // added by track-10090, same null-preserving pattern
     });
     expect(res.body.last_context_tokens).not.toBe(0);
   });
