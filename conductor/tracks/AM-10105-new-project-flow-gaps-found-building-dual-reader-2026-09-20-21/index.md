@@ -1,0 +1,28 @@
+# Track AM-10105: New-project flow gaps found building Dual Reader (2026-09-20/21)
+
+**Lane**: plan
+**Lane Status**: running
+**Progress**: 0%
+**Phase**: New
+**Type**: dev
+**Merge Mode**: direct
+**Auto Run**: yes
+**Author**: AM
+**Created By**: 2565050+meller@users.noreply.github.com
+**Problem**: Umbrella track for platform-level gaps found during a real end-to-end 'Create with chat' new-project session (Dual Reader), following track 1102's precedent. Some items from that session were already fixed live and are NOT reopened here (the .gitignore scaffold-entries bug - fixed as commit 6da8937d with regression test; git init defaulting to master with no origin - fixed via git init -q -b main). This track covers what's still open:
+
+1. **resume() is not idempotent (duplicate-dispatch race).** POST /api/projects/:id/tracks/:num/resume returned 409 once, then 200 on an immediate retry - the first call had already succeeded server-side, so the retry produced a second real queue transition. Two genuinely concurrent claude processes ended up claiming the same track_number in the same worktree (confirmed via each PID's own open file descriptors). Fix: make resume() idempotent - a second call on an already-resumed track should no-op, not re-transition.
+
+2. **Orphan-reclaim only checks its OWN tracked PID, not whether another untracked process already holds the track.** This is why the resume() race above turned into an actual collision instead of being caught: the per-track run marker (conductor/.runs/<track>.json) tracks exactly one PID, and reclaim logic only asks 'is my recorded PID alive', never 'is some other process already running this track'. Fix: before claiming/reclaiming a track, check for any live process actually working it (e.g. cross-reference conductor/logs/*.log or a process scan), not just the run marker's own PID.
+
+3. **A parked review:waiting track can loop forever instead of acting on the human's reply.** Review found real blockers and asked a question; replying and letting the comment auto-resume the review lane just re-ran a FRESH review session (new session_id, not --resume) that reached the same conclusion and re-asked the same question, ignoring the reply - happened 3 times in 10 minutes with no error. workflow.json's review.on_failure: implement:queue exists for exactly this case but a review that parks at 'waiting' (a question) rather than a hard failure never triggers it. Only escape was lc move <track> implement:queue directly, bypassing resume() entirely. Fix: a review-lane park with human-answered questions should route to implement:queue once answered, not just re-resume the same review lane.
+
+4. **Direct file edits to a track's index.md/spec.md/plan.md (bypassing the collector API) leave the DB silently stale, and there is no reconciliation trigger.** Reproduced live: a track was planned by editing conductor/tracks/<dir>/*.md directly on disk (not through lc or the UI's dispatch), and the DB (tracks.lane_status, tracks.index_content etc.) never picked up the change - the UI showed 'Plan, 0%, no content' while the real file had a completed plan. autoLaunchLocalFs's own gating logic reads the FILE directly so automation wasn't blocked, but the UI/DB view was actively misleading, and lc worker sync (run from the project directory) did not fix it either - it reported 'Track folder not found' for every track, suggesting the sync command itself has a project-root-resolution bug when invoked this way. Fix: (a) diagnose/fix lc worker sync's project resolution, (b) either detect and auto-reconcile a DB/file drift on next worker tick, or document explicitly that hand-editing track files requires an explicit resync step and make that step reliable.
+
+5. **projects.file_manifest column is missing from the deployed schema**, causing a recurring 500 on PATCH /worker/file-manifest ("column file_manifest of relation projects does not exist") on every worker startup. Non-fatal (the worker logs it and recovers) but happens on every single worker start. Fix: add the missing migration.
+
+6. **No documented GCP/Firebase deployment convention for new products.** Nothing states that every LaneConductor-built product shares ONE GCP project (laneconductor-site) as its own Firebase Hosting site + Functions codebase, rather than getting a dedicated GCP project. This was only discoverable by manually reading sibling products' .firebaserc/firebase.json by hand, and the default assumption (dedicated project per product) is actively wrong and hits GCP project-quota exhaustion. Fix: add conductor/deployment-conventions.md (or similar) at the meta level stating this plainly, and have the scaffold/wizard reference it instead of guessing.
+
+7. **Neon MCP server auth failed (401, invalid_token) during a live session**, cause unresolved - noted but not investigated. Worth checking whether this is a broken integration or a stale token, separately from this track's other items.
+
+8. **The scaffolded project's default workflow.json pauses after every plan phase (plan.on_success: plan:success) regardless of the track's own Auto Run: yes marker** - contradicts what Auto Run is supposed to mean, and produces the exact 'stuck after planning' symptom on every single track in a fresh project. A fix applied directly to one project's workflow.json (via the correct POST /api/projects/:id/workflow endpoint, since a plain file edit gets silently reverted by the next DB-to-file sync) is not a platform fix - decide project-wide whether the scaffold's default workflow.json should auto-advance plan-to-implement when Auto Run is yes.
