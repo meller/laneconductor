@@ -119,6 +119,13 @@ const server = createServer(async (req, res) => {
     return reply(res, 200, Object.values(state.tracks));
   }
 
+  // remote-sync's File -> DB push (conductor/remote-sync.mjs syncTrackToCollector).
+  if ((params = route('PATCH', '/api/projects/:id/tracks/:num', req)) !== null) {
+    if (!state.tracks[params.num]) state.tracks[params.num] = { track_number: params.num, lane_action_status: 'queue', fail_count: 0 };
+    Object.assign(state.tracks[params.num], body);
+    return reply(res, 200, { ok: true });
+  }
+
   // Mirrors the real server's GET /track/:num (ui/server/index.mjs) — full
   // track row plus its comments array. Two call sites in the worker
   // (seedCursorFromDB, the scaffold-missing-folder path) both already

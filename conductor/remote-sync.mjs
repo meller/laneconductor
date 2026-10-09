@@ -3,9 +3,10 @@
 // Remote Sync: Read track data from collector API and write to local files
 // Usage: node conductor/remote-sync.mjs [track-number]
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { dirname, join } from 'path';
 import { spawnSync } from 'child_process';
+import { resolveTrackFolderFs } from './services/track-folder-fs.mjs';
 
 // ── Config ─────────────────────────────────────────────────────────────────
 
@@ -121,16 +122,20 @@ async function syncTrackToDB(trackNumber, updates) {
 
 // ── File Operations ────────────────────────────────────────────────────────
 
+// Resolved through the same canonical resolver as `lc track-dir` and the
+// worker (Track 10040 REQ-15 / 10063). A private bare-`NNN-slug` regex here
+// used to skip every INITIALS-NNN-slug folder (e.g. AM-1126-...), logging
+// "Track folder not found" for them. Lookup only: the resolver's quarantine/
+// metadataUpdate decision is deliberately NOT applied — remote-sync must not
+// rename folders as a side effect of syncing a status line.
 function findTrackFolder(trackNumber) {
   const tracksDir = 'conductor/tracks';
-  if (!existsSync(tracksDir)) return null;
-
-  const dirs = readdirSync(tracksDir).filter(d => {
-    const match = d.match(/^(\d+)-/);
-    return match && match[1] === trackNumber.toString();
+  const { folder } = resolveTrackFolderFs({
+    tracksDir,
+    trackNumber: String(trackNumber),
+    metadataPath: 'conductor/tracks-metadata.json',
   });
-
-  return dirs.length > 0 ? join(tracksDir, dirs[0]) : null;
+  return folder ? join(tracksDir, folder) : null;
 }
 
 function updateTrackFile(trackFolder, track, metadata) {
