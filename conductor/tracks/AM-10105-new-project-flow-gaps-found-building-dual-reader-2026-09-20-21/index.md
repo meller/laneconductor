@@ -1,9 +1,9 @@
 # Track AM-10105: New-project flow gaps found building Dual Reader (2026-09-20/21)
 
 **Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Planned — 8 phases scoped
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: yes
@@ -26,3 +26,4 @@
 7. **Neon MCP server auth failed (401, invalid_token) during a live session**, cause unresolved - noted but not investigated. Worth checking whether this is a broken integration or a stale token, separately from this track's other items.
 
 8. **The scaffolded project's default workflow.json pauses after every plan phase (plan.on_success: plan:success) regardless of the track's own Auto Run: yes marker** - contradicts what Auto Run is supposed to mean, and produces the exact 'stuck after planning' symptom on every single track in a fresh project. A fix applied directly to one project's workflow.json (via the correct POST /api/projects/:id/workflow endpoint, since a plain file edit gets silently reverted by the next DB-to-file sync) is not a platform fix - decide project-wide whether the scaffold's default workflow.json should auto-advance plan-to-implement when Auto Run is yes.
+**Summary**: Umbrella track for platform-level gaps found during a real end-to-end 'Create with chat' new-project session (Dual Reader), following track 1102's precedent. Some items from that session were already fixed live and are NOT reopened here (the .gitignore scaffold-entries bug - fixed as commit 6da8937d with regression test; git init defaulting to master with no origin - fixed via git init -q -b main). This track covers what's still open:
