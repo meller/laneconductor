@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { TranscriptView } from './TranscriptView.jsx';
 import { TurnStatusBar } from './TurnStatusBar.jsx';
+import { CreateProjectDispatchView } from './CreateProjectDispatchView.jsx';
 import { TrackChatComposer } from './TrackChatComposer.jsx';
 import { CommentBubble } from './CommentBubble.jsx';
 import { useApi } from '../hooks/useApi.js';
@@ -96,6 +97,16 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
   }, [manager?.id, nonManagerWorkers.length]);
 
   const selectedWorker = targets.find(w => w.id === selectedId) ?? null;
+
+  // Track 10099: WorkerActivityLatch already branches on this to show
+  // CreateProjectDispatchView instead of the raw transcript for a
+  // create-project (or deploy) dispatch — a compact, polled status view
+  // instead of a growing wall of tool-call text nobody needs to scroll.
+  // ChatView computed the same parseWorkerTask() result for its header
+  // label only (see targetLabel below) and never reused it here, so this
+  // same "Create with chat" surface never got the compact view.
+  const selectedTask = parseWorkerTask(selectedWorker?.current_task);
+  const showCreateProjectDispatch = selectedTask?.kind === 'create-project';
 
   // Track 1091 Phase 7: the manager's pseudo-track conversation lives inside
   // ONE fixed repo (the meta project) — the manager itself is a single,
@@ -343,7 +354,9 @@ export function ChatView({ projectId, workers = [], tracks = [], pendingSeed = n
                   </div>
                 </div>
               )}
-              {!chatTarget ? (
+              {showCreateProjectDispatch ? (
+                <CreateProjectDispatchView dispatchId={selectedTask.dispatchId} />
+              ) : !chatTarget ? (
                 <p className="text-gray-600 text-sm italic pt-4">This worker has no running or recent track — nothing to talk about yet.</p>
               ) : (
                 <>
