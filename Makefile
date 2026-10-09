@@ -122,9 +122,14 @@ install-migrate:
 ## Install global 'lc' command
 install-cli:
 	@echo "📦 Installing global 'lc' command to /usr/local/bin/lc..."
-	@sudo ln -sf $(PWD)/bin/lc.mjs /usr/local/bin/lc
-	@sudo chmod +x /usr/local/bin/lc
-	@echo "✅ 'lc' command ready"
+	@export NVM_DIR="$$HOME/.nvm"; [ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh"; \
+	NODE_HINT=$$(command -v node 2>/dev/null); \
+	TMP=$$(mktemp); \
+	sed -e "s|@LC_ENTRY@|$(CURDIR)/bin/lc.mjs|" -e "s|@LC_NODE_HINT@|$$NODE_HINT|" bin/lc-shim.sh > "$$TMP"; \
+	sudo rm -f /usr/local/bin/lc; \
+	sudo install -m 755 "$$TMP" /usr/local/bin/lc; \
+	rm -f "$$TMP"
+	@echo "✅ 'lc' command ready (node: $$(/usr/local/bin/lc --version >/dev/null 2>&1 && echo ok || echo 'NOT FOUND — run make install-node'))"
 
 ## Install UI dependencies
 ui-install:
