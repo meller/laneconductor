@@ -451,6 +451,38 @@ which invited agents to rubber-stamp it; that is why this warning exists.)
 - [ ] Coverage: `<e.g. npm run test:coverage>` (Expected: >= <N>% lines)
 - [ ] Security: `<e.g. npm audit --audit-level=high>` (Expected: 0 high/critical)
 
+> The Automated Checks above are the FULL layer: the quality-gate lane runs
+> every command in this section. Do not put cheaper, partial commands here.
+
+## Test Layers (which tests for which change)
+
+> Guidance for developing, not for the gate. Run the layer a change needs,
+> not everything after every step; the full layer runs ONCE before the track
+> is done (this is what the lane executes). Fill the commands and the table
+> from what the project really has; delete rows it does not need.
+
+| Layer | Command | Cost |
+|-------|---------|------|
+| 0. Types | `<e.g. npx tsc --noEmit>` | seconds |
+| 1. Targeted (changed files) | `<e.g. npx vitest related <files> --run>` | seconds |
+| 2. Area (the folder / module touched) | `<e.g. npx vitest run src/<area>>` | under a minute |
+| 3. Full | the Automated Checks above | minutes |
+
+| Kind of change | Minimum layer while building |
+|----------------|------------------------------|
+| Docs, tracks, notes only | none |
+| Data / content files | the project's content guards + a dry run of any loader |
+| Text and translations only | the parity / lint checks, the component's tests, types |
+| One screen or module | layers 0-2 for that area |
+| A shared rule (used by many places, or with a second copy elsewhere) | area + the copy-parity tests + the simulator or property tests |
+| Server / schema | the server area tests; for a schema change the migration check |
+
+Rules: the full layer runs once before done (not after every step, not twice:
+a test that passes only on a second run is a bug to fix); a new rule gets a
+failing test first; record which commands ran and their counts in the track's
+`conversation.md`; fix a flaky test by waiting for the real condition, never
+with a longer fixed delay or a skip.
+
 ## End-to-End / Real-Product Checks
 
 > Required for any track touching UI or a user-facing flow. Unit tests
@@ -688,7 +720,7 @@ After scaffolding files, you MUST verify the project environment:
 - Write specific tasks to `conductor/tracks/001-fix-environment/plan.md` (e.g., `npm install chokidar`, `git init`, etc.).
 
 **Create `conductor/quality-gate.md` if enabled:**
-If `create_quality_gate` is `true` in `.laneconductor.json`, create `conductor/quality-gate.md` with quality standards (Unit Tests, Linting, Build, Security).
+If `create_quality_gate` is `true` in `.laneconductor.json`, create `conductor/quality-gate.md` with quality standards (Unit Tests, Linting, Build, Security). Use the template above, including its Test Layers section (the Automated Checks hold the full layer; the layers table tells builders which tests a change needs).
 
 Do NOT embed the sync.mjs code inline in this skill — the canonical source at
 `~/Code/laneconductor/conductor/laneconductor.sync.mjs` is always correct and avoids
