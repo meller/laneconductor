@@ -21,9 +21,9 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    `conversation.md`.
 1. **Locate the track.** Run `lc track-dir <N>`. If it prints a folder (exit 0, either naming
    convention), that folder is the track: go to Refine, whatever `file_sync_queue.md` says. Go to
-   Scaffold only if it exits non-zero (no folder anywhere) and `file_sync_queue.md` lists the
-   track as `**Status**: pending`. Without `lc`, scan `conductor/tracks/` for both
-   `INITIALS-NNN-slug` and bare `NNN-slug`.
+   Scaffold only if it exits non-zero (no folder anywhere) and the track is `pending` in
+   `file_sync_queue.md`. Without `lc`, scan `conductor/tracks/` for both `INITIALS-NNN-slug` and
+   bare `NNN-slug`.
 2. **Scaffold (only when step 1 found nothing).** Scaffolding over an existing track number
    creates a duplicate folder beside the real one. This happened on track 10040 when a
    legacy-only scan missed `AM-10040-...`.

@@ -128,18 +128,24 @@ drop a marker write or a command.
 
 ## Phase 4: The new SKILL.md index and frontmatter
 
-- [ ] Task 1: Replace SKILL.md with the frontmatter from spec section 5 and the body from spec
+- [x] Task 1: Replace SKILL.md with the frontmatter from spec section 5 and the body from spec
       section 6 (routing table, shared protocols, compact marker table). Keep the MIT
       attribution comment.
-- [ ] Task 2: Run the routing-completeness case: every `SLASH_COMMANDS` name, the daemon
+- [x] Task 2: Run the routing-completeness case: every `SLASH_COMMANDS` name, the daemon
       aliases and the two setup generate commands resolve to an existing file.
-- [ ] Task 3: Check that it fits: <= 200 lines, <= 20,000 bytes, no `$<digit>` /
+- [x] Task 3: Check that it fits: <= 200 lines, <= 20,000 bytes, no `$<digit>` /
       `$ARGUMENTS`, valid YAML, description + when_to_use <= 1,536 characters.
-- [ ] Task 4: Diff check that nothing was lost unintentionally. For each `^#{1,3} ` heading
+- [x] Task 4: Diff check that nothing was lost unintentionally. For each `^#{1,3} ` heading
       of the old file (outside code fences), confirm it appears in a new file or in spec
       section 3's "deleted" rows. Record the result here.
-- [ ] Task 5: Commit `refactor(track-10109): SKILL.md becomes a routing index`. The message
+- [x] Task 5: Commit `refactor(track-10109): SKILL.md becomes a routing index`. The message
       lists the REQ-6 behaviour corrections.
+
+Phase 4 result (2026-11-15): SKILL.md is 144 lines / 10,320 bytes (was 2,392 / 129,829).
+Heading diff check: every old heading (levels 1-3, outside fences) is mapped in
+`skill-mapping.md` (heading-coverage case of the structure test, no unmapped headings).
+Frontmatter parses as YAML (PyYAML and the test's strict flat parser); description + when_to_use
+= 828 characters.
 
 ## Phase 5: Verification
 

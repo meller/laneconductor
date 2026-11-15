@@ -170,7 +170,7 @@ describe('routing', () => {
       const r = rowFor(rows, n);
       if (!r) { problems.push(`no routing row for ${n}`); continue; }
       if (!r.links.length) { problems.push(`row for ${n} has no link`); continue; }
-      for (const l of r.links) if (!existsSync(join(SKILL_DIR, l))) problems.push(`row for ${n} links missing file ${l}`);
+      for (const l of r.links) if (!existsSync(join(SKILL_DIR, l.split("#")[0]))) problems.push(`row for ${n} links missing file ${l}`);
     }
     assert.deepEqual(problems, []);
   });

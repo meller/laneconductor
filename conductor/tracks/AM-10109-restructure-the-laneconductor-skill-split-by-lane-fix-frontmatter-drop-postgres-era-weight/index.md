@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: running
-**Progress**: 50%
-**Phase**: Phase 4 of 6 - SKILL.md routing index
+**Progress**: 67%
+**Phase**: Phase 5 of 6 - verification
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
@@ -34,7 +34,7 @@ Every line kept in the restructured skill and its lane files must carry either a
 - [x] Phase 1: Baseline, invariants and a failing structure test
 - [x] Phase 2: Lane files (lanes/plan, brainstorm, implement, review, quality-gate, merge)
 - [x] Phase 3: ops/, setup/, deploy/, legacy/ (+ retarget track-10097 test)
-- [ ] Phase 4: SKILL.md becomes a <=200-line routing index with new frontmatter
+- [x] Phase 4: SKILL.md becomes a <=200-line routing index with new frontmatter
 - [ ] Phase 5: Verification (structure test, daemon suites vs main, symlink, live plan + qualityGate runs, trigger spot-check, size table)
 - [ ] Phase 6: References and memory
 
