@@ -1,9 +1,9 @@
 # Track AM-10109: Restructure the laneconductor skill: split by lane, fix frontmatter, drop Postgres-era weight
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 67%
-**Phase**: Phase 5 of 6 - verification
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 90%
+**Phase**: Implemented; Phase 5 live verification (daemon suites, claude -p runs, trigger check) still open
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
@@ -36,7 +36,7 @@ Every line kept in the restructured skill and its lane files must carry either a
 - [x] Phase 3: ops/, setup/, deploy/, legacy/ (+ retarget track-10097 test)
 - [x] Phase 4: SKILL.md becomes a <=200-line routing index with new frontmatter
 - [ ] Phase 5: Verification (structure test, daemon suites vs main, symlink, live plan + qualityGate runs, trigger spot-check, size table)
-- [ ] Phase 6: References and memory
+- [x] Phase 6: References and memory
 
 ## PRINCIPLE (2026-11-15): LaneConductor is a second opinion, never a controller
 

@@ -1,14 +1,14 @@
 # LaneConductor — Project Memory
 
 ## Architecture
-- One repo: `laneconductor/` — skill (SKILL.md) + heartbeat worker + Vite UI (`ui/`)
-- Skill lives at `.claude/skills/laneconductor/SKILL.md` — the real file (not a symlink here)
-- Other projects symlink to this directory via `setup scaffold`
+- One repo: `laneconductor/` — skill (SKILL.md index + `lanes/`, `ops/`, `setup/`, `deploy/`, `legacy/`) + heartbeat worker + Vite UI (`ui/`)
+- Skill lives at `.claude/skills/laneconductor/` — the real directory (not a symlink here); `SKILL.md` is a <=200-line routing index, each lane's procedure is its own `lanes/<lane>.md` (track 10109)
+- Other projects symlink the whole skill directory via `setup scaffold`; a copy must include the subfolders
 - Install path stored in `~/.laneconductorrc` for `setup scaffold` to find
 - Real-time updates: Heartbeat worker notifies Express API via `/internal/sync-event`, which broadcasts to React dashboard via WebSockets (`ws`).
 
 ## Key Files
-- `.claude/skills/laneconductor/SKILL.md` — the Claude skill (all commands)
+- `.claude/skills/laneconductor/SKILL.md` — the skill's routing index; the command bodies are in `lanes/`, `ops/`, `setup/`, `deploy/`, `legacy/` beside it
 - `conductor/laneconductor.sync.mjs` — heartbeat worker template + actual worker for this repo
 - `conductor/deploy-runner.mjs` — shared `runDeploy(projectRoot, env)`, called by both `bin/lc.mjs`'s `deploy` command and the worker's dispatch handler (track 1085)
 - `ui/server/index.mjs` — Express API on :8091

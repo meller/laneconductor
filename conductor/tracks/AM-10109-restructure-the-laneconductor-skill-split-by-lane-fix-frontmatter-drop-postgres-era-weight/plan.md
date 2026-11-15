@@ -149,12 +149,12 @@ Frontmatter parses as YAML (PyYAML and the test's strict flat parser); descripti
 
 ## Phase 5: Verification
 
-- [ ] Task 1: Full structure test plus the retargeted 10097 test, green.
-- [ ] Task 2: Daemon suites from test.md "Phase 5", run on this branch **and** on `main`'s
+- [x] Task 1: Full structure test plus the retargeted 10097 test, green.
+- [ ] Task 2 (NOT RUN - see note): Daemon suites from test.md "Phase 5", run on this branch **and** on `main`'s
       tip in a scratch worktree. Compare the failure sets with `comm -23`. No failure unique
       to this branch.
-- [ ] Task 3: Symlink and worktree-copy cases (test.md T-SYM-1/2), green.
-- [ ] Task 4: Live run (AC-1).
+- [x] Task 3: Symlink and worktree-copy cases (test.md T-SYM-1/2), green.
+- [ ] Task 4 (NOT RUN - see note): Live run (AC-1).
     - [ ] Create a throwaway track **inside this worktree only**:
           `conductor/tracks/AM-99109-skill-split-canary/` with a small, real docs-only
           problem, `**Auto Run**: no`.
@@ -165,21 +165,48 @@ Frontmatter parses as YAML (PyYAML and the test's strict flat parser); descripti
     - [ ] Then run `claude -p "/laneconductor qualityGate 99109"` and stop it after the claim
           (AC-2).
     - [ ] Delete the throwaway folder afterwards. It must never be committed.
-- [ ] Task 5: Trigger spot-check (AC-3). In a fresh session in this worktree, type "plan
+- [ ] Task 5 (NOT RUN - see note): Trigger spot-check (AC-3). In a fresh session in this worktree, type "plan
       track 99109" and "create a track for fixing the README typo" (no slash). Note whether
       the skill was invoked. Repeat once with the old skill on `main` for comparison. Record
       both in conversation.md.
-- [ ] Task 6: Size table (AC-6): SKILL.md alone and SKILL.md + each lane file, in bytes and
+- [x] Task 6: Size table (AC-6): SKILL.md alone and SKILL.md + each lane file, in bytes and
       bytes/4, against the 129,829-byte baseline. Record it here.
+
+Phase 5 status (2026-11-15, implement run in `.worktrees/10109`):
+- Done: structure test (18 cases incl. TC-SYM-1), retargeted 10097 test (10), 10096 test with the
+  new TC-SYM-2a/2b (all green, 53 cases in the three files together), size table below.
+- NOT run, on purpose: the daemon mock-CLI suites (Task 2 / TC-D1). Running worker-spawning suites
+  from inside a worktree can register against the real primary checkout and database
+  (track-10082 hazard) and leak workers. They do not read skill text, so they should be run from
+  the primary checkout after merge, or in a scratch worktree by a human.
+- NOT run: the live `claude -p` runs and the no-slash trigger spot-check (Tasks 4 and 5,
+  AC-1/AC-2/AC-3). The implement run was restricted to pure-file tests. These need a human or a
+  later session; nothing in the structure tests proves the skill triggers or that a lane run
+  reads only `lanes/<lane>.md`.
+
+Size table (AC-6, bytes/4 as the token estimate):
+
+| Loaded | Bytes | ~Tokens | % of 129,829 |
+|---|---|---|---|
+| before: SKILL.md (2,392 lines) | 129,829 | 32,457 | 100% |
+| SKILL.md alone (144 lines) | 10,320 | 2,580 | 7.9% |
+| SKILL.md + lanes/plan.md | 18,674 | 4,668 | 14.4% |
+| SKILL.md + lanes/brainstorm.md | 11,625 | 2,906 | 9.0% |
+| SKILL.md + lanes/implement.md | 16,461 | 4,115 | 12.7% |
+| SKILL.md + lanes/review.md | 13,096 | 3,274 | 10.1% |
+| SKILL.md + lanes/quality-gate.md | 17,559 | 4,389 | 13.5% |
+| SKILL.md + lanes/merge.md | 16,556 | 4,139 | 12.8% |
+| SKILL.md + ops/tracks.md | 17,219 | 4,304 | 13.3% |
+| SKILL.md + setup/scaffold.md (largest non-lane) | 19,812 | 4,953 | 15.3% |
 
 ## Phase 6: References and memory
 
-- [ ] Task 1: Update `.claude/MEMORY.md` lines 4-11: the skill is now an index + lanes/.
-- [ ] Task 2: Update the header comment in `conductor/services/slash-commands.mjs` (it is
+- [x] Task 1: Update `.claude/MEMORY.md` lines 4-11: the skill is now an index + lanes/.
+- [x] Task 2: Update the header comment in `conductor/services/slash-commands.mjs` (it is
       sourced from the SKILL.md routing table). Comment only.
-- [ ] Task 3: Do not chase the prose "SKILL.md step N" comments in sync.mjs and tests
+- [x] Task 3: Do not chase the prose "SKILL.md step N" comments in sync.mjs and tests
       (spec 1). They are history, not contracts.
-- [ ] Task 4: Append a `> **system**:` note to this track's conversation.md listing the
+- [x] Task 4: Append a `> **system**:` note to this track's conversation.md listing the
       follow-ups: the stale `.agents/rules/laneconductor.md`; the `lc.mjs runAIAgent` skill
       path (revisit with 10106); legacy commands still in `SLASH_COMMANDS`; the two-skill
       split after 10106/10107.
