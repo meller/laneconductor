@@ -2,6 +2,8 @@
 
 **The local-first control plane for multi-agent AI development.**
 
+> **Direction (2026-11):** LaneConductor is moving to plain files + a small skill + a git-backed connector + Claude sub-agents. The earlier Postgres + daemon/worker + web UI stack is preserved at the [`v1-legacy`](../../tree/v1-legacy) tag and keeps working; it becomes an optional tier. See `conductor/product.md`.
+
 ![LaneConductor Kanban Dashboard](docs/hero.png)
 
 ### See it in action: Brainstorming → Planning → Automated Implementation
