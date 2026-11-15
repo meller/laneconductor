@@ -48,7 +48,7 @@ retry buffer, all for free). Capped at 20,000 paths (`truncated: true` beyond th
 `projects.file_manifest` / `file_manifest_digest` / `file_manifest_updated_at`.
 
 ## Database
-- **Engine**: PostgreSQL (local, default port 5432)
+- **Engine**: PostgreSQL (local, default port 5432) — optional: used only by the legacy daemon/UI stack. Track files are the source of truth; nothing in the skill or the connector requires a database.
 - **DB name**: `laneconductor` (default)
 - **Schema**: `projects` + `tracks` + `track_locks` tables
 - **ORM**: Prisma (type-safe query builder)
