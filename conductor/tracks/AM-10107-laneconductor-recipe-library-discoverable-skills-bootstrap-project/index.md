@@ -46,3 +46,7 @@ LaneConductor advises; Claude may always decide against it. Recipes, lane order,
 ## REQUIREMENT (2026-11-15): recipes are accountable
 
 Each recipe's served/followed/overridden history lives in the advice log (track 10106), not in the recipe file (no churn). A recipe overridden most of the time is flagged for rewrite or deletion; the "extract a recipe" step also covers retiring one. The user must be able to see which recipes are failing.
+
+## Correction (verified 2026-11-15): the "shared GCP project" is not universal
+
+Earlier text in this track/session said every sibling product (humanities-explorer, otralingo, macrodash, livingwork) deploys into the one shared `laneconductor-site` project. Checked against each repo's `.firebaserc`: livingwork, humanities-explorer and dual-reader default to `laneconductor-site`; otralingo defaults to `otralingo` and macrodash to `makrodash` (their own projects). The shared-project layout is a real convention for SOME products, not all - treat it as a recipe to apply deliberately, not "the" convention. Decide which layout is intended for new products.
