@@ -1,7 +1,7 @@
 ---
 name: laneconductor
 description: Plan, implement, review, quality-gate and merge LaneConductor tracks - the folders under conductor/tracks/ holding index.md, spec.md, plan.md, test.md and conversation.md - and create, move, update or comment on them. Use for any work on a LaneConductor track or any /laneconductor command.
-when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N" or "what is the status of track N", and for the worker's automated prompts "/laneconductor plan|implement|review|qualityGate|merge N". Setting up LaneConductor in a repo (setup, setup scaffold, setup-deploy, deploy) runs only when the user asks for it by name.
+when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N" or "what is the status of track N", and for the worker's automated prompts "/laneconductor plan|implement|review|qualityGate|merge N". Setting up LaneConductor in a repo (setup, setup scaffold, setup-deploy, deploy) runs only when the user asks for it by name.
 argument-hint: "[command] [track-number] [args]"
 allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 ---
@@ -43,6 +43,7 @@ overrides the human: the file formats and base-commit checks below, and the huma
 | `merge`, `done` | [lanes/merge.md](lanes/merge.md) (the `done` lane's action) | yes |
 | `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (prefer `lc new`, `lc update-track`, `lc report-bug`, `lc feature-request`) | yes |
 | `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) | yes |
+| `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
 | `setup`, `setup collection` | [setup/setup.md](setup/setup.md) | only when named |
 | `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (templates in [setup/templates.md](setup/templates.md)) | only when named |

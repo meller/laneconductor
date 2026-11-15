@@ -196,7 +196,7 @@ describe('routing', () => {
 describe('layout', () => {
   it('TC-8 the planned files exist', () => {
     const want = [
-      ...Object.values(LANE_FILES), 'ops/tracks.md',
+      ...Object.values(LANE_FILES), 'ops/tracks.md', 'ops/working-a-track.md',
       'setup/setup.md', 'setup/scaffold.md', 'setup/templates.md',
       'deploy/setup-deploy.md', 'deploy/deploy.md',
       'legacy/worker.md', 'legacy/db-schema.md', 'legacy/syncdb.md', 'legacy/remote-sync.md',
