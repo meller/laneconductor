@@ -58,3 +58,7 @@ Root cause: track STATE (index/spec/plan/test/conversation) and CODE both went t
 2. No manual commits: a hook (or the connector itself) auto-commits `conductor/` changes with a standard message; a small script creates a worktree and silently syncs the track folder first. This also keeps main clean, avoiding the dirty-primary-checkout blocks that stopped main-mode runs before.
 3. Commit and push are different costs: commit is local and cheap; push matters only for remote surfaces (web connector) and is lazy/debounced (end of turn or session), never a precondition for local work.
 4. In the connector, every write is a commit made by the server; the user never types one.
+
+## Verification note on the plan (2026-11-15)
+
+Independent check of fact F2 in spec.md (Claude Code truncates server instructions at 4,096 characters; "Tool search for MCP server authors" section): two separate fetches of https://code.claude.com/docs/en/mcp found NEITHER that section NOR the 4,096-character statement. This may be a limit of the fetch tool, but it is not confirmed - treat F2 and the cap as UNVERIFIED until read directly from the live page (and the "Correction to the Direction update" in spec.md likewise). Firsthand evidence stands: server instructions ARE injected into context in Claude Code in practice. U1 (claude.ai web/mobile) remains the first test (Phase 1 canary). Verified by me: the plan's commits touch only this track folder; conversation.md is gitignored (.gitignore:58, so D5 is real); product.md line 32 says "100% local" (the fundamentals conflict is real).
