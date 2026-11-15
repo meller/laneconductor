@@ -58,6 +58,20 @@ implement starts. Only Phases 7-9 depend on D1/D2, and D3/D4 change small parts 
 
 **Recommendation: a.**
 
+### D5: `conversation.md` is gitignored in this repo (found during planning)
+`.gitignore:58` ignores `conductor/tracks/**/conversation.md`. Locally, `append_conversation` could
+write the file but could not commit it (`git add` refuses ignored paths). Remotely, conversation
+history would not exist on GitHub at all, which contradicts "git is the store".
+| Option | Tradeoff |
+|---|---|
+| a. **Track `conversation.md` in git** (recommended): the human removes the ignore rule. Existing conversations get committed the first time each is touched, or in one sweep. | One store, and remote surfaces see the discussion. Cost: conversation history becomes part of git history, so it needs the same "no secrets in track files" discipline as everything else. |
+| b. The connector force-adds (`git add -f`) the files it writes | No .gitignore change, but tracked and ignored files get mixed silently and other tools stay confused. Not recommended. |
+| c. Keep conversations local-only | Remote surfaces cannot read or append discussion, so AC-b loses comments. Remote `append_conversation` would be disabled. |
+
+**Recommendation: a.** Until the human decides, `append_conversation` treats an ignored target as
+`commit: null` with `commitError: "conversation.md is gitignored (decision D5)"`. It never
+force-adds.
+
 ## Phase 1: Instructions and SDK spike (gate; build nothing else first)
 
 **Problem**: The design assumes server `instructions` replace per-session prompting. That is

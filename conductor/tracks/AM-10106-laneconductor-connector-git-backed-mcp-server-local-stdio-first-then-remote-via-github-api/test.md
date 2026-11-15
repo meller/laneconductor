@@ -42,6 +42,7 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 - [ ] TC-2.13: Commit failure (a pre-commit hook exiting 1) leaves the write on disk, the result has `commit: null` and `commitError` set, and it is not reported as a clean success
 - [ ] TC-2.14: An `.git/index.lock` present for 500 ms is retried and succeeds. Present the whole time: `WRITE_FAILED`.
 - [ ] TC-2.15: Freshness: ahead 2 gives `possibly_stale` + `unpushed_local_commits`. Behind 1 (after fetch) gives `stale` + `behind_upstream`. No upstream gives `no_upstream`. FETCH_HEAD older than 1 h gives `last_fetch_older_than_1h`. A dirty `conductor/` file gives `dirty_state_files`. Clean, synced and recently fetched gives `fresh`.
+- [ ] TC-2.17: With `conductor/tracks/**/conversation.md` gitignored in the fixture, an append writes the file, returns `commit: null` with a `commitError` naming D5, and never runs `git add -f`
 - [ ] TC-2.16: The provenance line contains the short commit, the branch, the backend, ahead/behind and the fetch age
 
 ### Phase 3: stdio MCP server (driven through the SDK client over stdio)
