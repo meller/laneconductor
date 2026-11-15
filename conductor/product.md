@@ -29,7 +29,7 @@ Non-dev tracks follow a **supervised implement** flow: AI drafts the content, hu
 - **Visibility**: Know what every AI agent is doing — code, content, or outreach — without reading terminal output
 - **Multi-function**: Dev, launch, market, support all in one board
 - **Closed loop**: KPI measurement after every non-dev track — did it actually work?
-- **Sovereign**: local by default — the skill alone works on plain files with no cloud, no auth and no cost. Anything beyond that is an opt-in layer, never required: a git-backed connector (your own repo) so remote Claude surfaces can reach your tracks, and the legacy Postgres + daemon + UI stack.
+- **Sovereign**: local by default — the skill alone works on plain files with no cloud, no auth and no cost. Anything beyond that is an opt-in layer, never required: a git-backed connector (your own repo) so remote Claude surfaces can reach your tracks, and an optional UI tier (Postgres as a rebuildable, one-way index of the files, plus its sync) - parked until wanted, and never required by the other layers.
 - **Agent-First**: Designed for the workflow of AI assistants, not human project managers
 
 LaneConductor supports **Multi-Target Synchronization**. You no longer select a global mode; instead, you configure individual **Collectors** in `.laneconductor.json`. Each collector has its own type and enabled status.
