@@ -11,39 +11,47 @@ Ground rules for every phase:
   before calling one a leak). From inside a worktree, a test where every subtest times out on
   "worker registered" is the track-10082 redirect hazard, not a regression.
 
+## Recorded baseline (Phase 1, 2026-11-15)
+
+SKILL.md before: 2,392 lines / 129,829 bytes (commit 20843334). The structure test reads this
+baseline with `git show <baseline_commit>:...` (commit hash stored in
+`conductor/tests/fixtures/track-10109-invariants.json`), not `main`, so it keeps working after
+the merge. Old section line ranges: plan 1411-1515, brainstorm 1517-1540, implement 1542-1666,
+review 1668-1705, quality-gate 1707-1834, merge 1836-1926.
+
 ## Phase 1: Baseline, invariants and a failing structure test
 
 **Problem**: Nothing currently guards the skill's content, so a restructure could silently
 drop a marker write or a command.
 **Solution**: Freeze what must survive, then write the test before moving any text.
 
-- [ ] Task 1: Record the baseline in this file: `wc -l -c` of SKILL.md (2,392 / 129,829) and
+- [x] Task 1: Record the baseline in this file: `wc -l -c` of SKILL.md (2,392 / 129,829) and
       the byte range of each lane section (plan 1411-1515, brainstorm 1517-1540, implement
       1542-1666, review 1668-1705, quality-gate 1707-1834, merge 1836-1926).
-- [ ] Task 2: Create `conductor/tests/fixtures/track-10109-invariants.json`. For each lane,
+- [x] Task 2: Create `conductor/tests/fixtures/track-10109-invariants.json`. For each lane,
       list the exact strings its file must contain, extracted from today's SKILL.md:
-    - [ ] plan: `**Lane**: plan`, `**Lane Status**: running`, `**Track Kind**`,
+    - [x] plan: `**Lane**: plan`, `**Lane Status**: running`, `**Track Kind**`,
           `lanes.plan.on_success`, `lc track-dir`, `(Test cases to be added)`, `## KPI`,
           `## Draft`, `FUNDAMENTALS CONFLICT`, `✅ Plan complete`, `already been moved`.
-    - [ ] brainstorm: `> **system**: Brainstorm`, `**Waiting for reply**: yes`.
-    - [ ] implement: `**Lane**: implement`, `lanes.implement.on_success`, `last_run.log`,
+    - [x] brainstorm: `> **system**: Brainstorm`, `**Waiting for reply**: yes`.
+    - [x] implement: `**Lane**: implement`, `lanes.implement.on_success`, `last_run.log`,
           `## ✅ COMPLETE`, `feat(track-NNN)`, `background`, `FUNDAMENTALS CONFLICT`,
           `**Waiting for reply**: yes` (non-dev), `✅ Implementation complete`.
-    - [ ] review: `**Lane**: review`, `**Verdict**: pass`, `**Verdict**: fail`,
+    - [x] review: `**Lane**: review`, `**Verdict**: pass`, `**Verdict**: fail`,
           `lanes.review.on_success`, `lanes.review.on_failure`, `## ✅ REVIEWED`,
           `✅ REVIEW PASSED`, `⚠️ REVIEW FAILED`.
-    - [ ] quality-gate: `**Lane**: quality-gate`, `**Verdict**: pass`, `**Verdict**: fail`,
+    - [x] quality-gate: `**Lane**: quality-gate`, `**Verdict**: pass`, `**Verdict**: fail`,
           `lanes.quality-gate.on_success`, `lanes.quality-gate.on_failure`, `done:queue`,
           `measure.mjs`, `## ❌ KPI MISS`, `## ✅ QUALITY PASSED`, `fix(quality-gate)`,
           the stub-scan `grep -rniE`, `Restart long-running processes`.
-    - [ ] merge: `**Lane**: done`, `lc worktrees merge`, `lc worktrees create-pr`,
+    - [x] merge: `**Lane**: done`, `lc worktrees merge`, `lc worktrees create-pr`,
           `branch not found`, `**Lane Status**: waiting`, `**Lane Status**: success`,
           `lanes.done.on_failure`, `✅ Merged track-NNN`, `⚠️ PR opened`.
-    - [ ] SKILL.md: `> **author**:`, `FRESH_SESSION`, `lc track-dir`, `INITIALS-NNN-slug`,
+    - [x] SKILL.md: `> **author**:`, `FRESH_SESSION`, `lc track-dir`, `INITIALS-NNN-slug`,
           `workflow.json`, the three completion emoji, `**Waiting On Tracks**`.
-    - [ ] A test (Task 3) checks that every string is present in **today's** SKILL.md, so the
+    - [x] A test (Task 3) checks that every string is present in **today's** SKILL.md, so the
           fixture cannot contain a typo that later passes vacuously.
-- [ ] Task 3: Write `conductor/tests/track-10109-skill-structure.test.mjs` (node:test, zero
+- [x] Task 3: Write `conductor/tests/track-10109-skill-structure.test.mjs` (node:test, zero
       deps) with every case in test.md "Phase 1". Run it: the structure cases fail and the
       fixture-validity case passes. Commit as `test(track-10109): skill structure guard (red)`.
 
