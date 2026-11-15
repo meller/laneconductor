@@ -21,47 +21,47 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 ## Test Cases
 
 ### Phase 1: Instructions and SDK spike (manual, observable)
-- [ ] TC-1.1: Claude Code with `lc-probe` over stdio, fresh session: "What is the LaneConductor canary codeword?" - expected: the correct codeword with no tool call (F2)
-- [ ] TC-1.2: claude.ai web, probe added as a custom connector (No sign-in), only it enabled, fresh chat, same question - expected: record the result. A correct answer with no tool call means U1 is verified. Anything else means U1 is false and the REQ-16 fallback is adopted.
-- [ ] TC-1.3: Both surfaces list the `probe_echo` tool and can call it - expected: works on SDK v2 (U2), or the v1 fallback is recorded
-- [ ] TC-1.4: The probe writes nothing to stdout except MCP messages (a logging call goes to stderr) - expected: the client never reports a parse error (F3)
+- [ ] TC-1.1 (HUMAN): Claude Code with `lc-probe` over stdio, fresh session: "What is the LaneConductor canary codeword?" - expected: the correct codeword with no tool call (F2)
+- [ ] TC-1.2 (HUMAN): claude.ai web, probe added as a custom connector (No sign-in), only it enabled, fresh chat, same question - expected: record the result. A correct answer with no tool call means U1 is verified. Anything else means U1 is false and the REQ-16 fallback is adopted.
+- [ ] TC-1.3 (HUMAN for the real clients; the SDK v2 client over stdio is verified in connector/test/probe.test.mjs): Both surfaces list the `probe_echo` tool and can call it - expected: works on SDK v2 (U2), or the v1 fallback is recorded
+- [x] TC-1.4: The probe writes nothing to stdout except MCP messages (a logging call goes to stderr) - expected: the client never reports a parse error (F3)
 
 ### Phase 2: Core library and LocalGitStore
-- [ ] TC-2.1: `blobSha(s)` equals `git hash-object --stdin` for ASCII, UTF-8 multibyte, empty and CRLF content
-- [ ] TC-2.2: Marker parse/set/remove round-trips `index.md` byte-for-byte except the edited line. Setting an absent marker inserts it after the last marker in the header block.
-- [ ] TC-2.3: Lane validation: `**Lane**: implement` accepted, `**Lane**: impl` rejected, `backlog` accepted, `**Lane Status**: done` rejected
-- [ ] TC-2.4: Conversation formatting: a multi-line body with blank lines and `##` headers gives every line prefixed `>`, and `parseConversationComments` returns exactly 1 entry with the same author and body
-- [ ] TC-2.5: A body starting with `> **claude**:` gives `VALIDATION_FAILED` with a hint
-- [ ] TC-2.6: Track resolution finds `AM-10106-x` and legacy `999-canary` by number. Two folders for one number gives `AMBIGUOUS_TRACK`.
-- [ ] TC-2.7: The next number is max(local both conventions, upstream tree) + 1. A pre-created folder with that number causes a retry to the next one.
-- [ ] TC-2.8: LocalGitStore precondition match: the write lands and exactly one commit touches only the written paths. An unrelated dirty file and an unrelated staged file stay uncommitted.
-- [ ] TC-2.9: Precondition mismatch: `{ ok: false, conflict }`, file bytes unchanged, no commit
-- [ ] TC-2.10: Precondition `sha: null` while the file exists gives a conflict (create never overwrites)
-- [ ] TC-2.11: Two concurrent `commitFiles` on the same path from the same base: exactly one succeeds and the other conflicts (the lock serializes; run 20 iterations)
-- [ ] TC-2.12: Checkout on branch `feature` gives `NOT_ON_STATE_BRANCH` for writes, while reads work with a warning
-- [ ] TC-2.13: Commit failure (a pre-commit hook exiting 1) leaves the write on disk, the result has `commit: null` and `commitError` set, and it is not reported as a clean success
-- [ ] TC-2.14: An `.git/index.lock` present for 500 ms is retried and succeeds. Present the whole time: `WRITE_FAILED`.
-- [ ] TC-2.15: Freshness: ahead 2 gives `possibly_stale` + `unpushed_local_commits`. Behind 1 (after fetch) gives `stale` + `behind_upstream`. No upstream gives `no_upstream`. FETCH_HEAD older than 1 h gives `last_fetch_older_than_1h`. A dirty `conductor/` file gives `dirty_state_files`. Clean, synced and recently fetched gives `fresh`.
-- [ ] TC-2.17: With `conductor/tracks/**/conversation.md` gitignored in the fixture, an append writes the file, returns `commit: null` with a `commitError` naming D5, and never runs `git add -f`
-- [ ] TC-2.16: The provenance line contains the short commit, the branch, the backend, ahead/behind and the fetch age
+- [x] TC-2.1: `blobSha(s)` equals `git hash-object --stdin` for ASCII, UTF-8 multibyte, empty and CRLF content
+- [x] TC-2.2: Marker parse/set/remove round-trips `index.md` byte-for-byte except the edited line. Setting an absent marker inserts it after the last marker in the header block.
+- [x] TC-2.3: Lane validation: `**Lane**: implement` accepted, `**Lane**: impl` rejected, `backlog` accepted, `**Lane Status**: done` rejected
+- [x] TC-2.4: Conversation formatting: a multi-line body with blank lines and `##` headers gives every line prefixed `>`, and `parseConversationComments` returns exactly 1 entry with the same author and body
+- [x] TC-2.5: A body starting with `> **claude**:` gives `VALIDATION_FAILED` with a hint
+- [x] TC-2.6: Track resolution finds `AM-10106-x` and legacy `999-canary` by number. Two folders for one number gives `AMBIGUOUS_TRACK`.
+- [x] TC-2.7: The next number is max(local both conventions, upstream tree) + 1. A pre-created folder with that number causes a retry to the next one.
+- [x] TC-2.8: LocalGitStore precondition match: the write lands and exactly one commit touches only the written paths. An unrelated dirty file and an unrelated staged file stay uncommitted.
+- [x] TC-2.9: Precondition mismatch: `{ ok: false, conflict }`, file bytes unchanged, no commit
+- [x] TC-2.10: Precondition `sha: null` while the file exists gives a conflict (create never overwrites)
+- [x] TC-2.11: Two concurrent `commitFiles` on the same path from the same base: exactly one succeeds and the other conflicts (the lock serializes; run 20 iterations)
+- [x] TC-2.12: Checkout on branch `feature` gives `NOT_ON_STATE_BRANCH` for writes, while reads work with a warning
+- [x] TC-2.13: Commit failure (a pre-commit hook exiting 1) leaves the write on disk, the result has `commit: null` and `commitError` set, and it is not reported as a clean success
+- [x] TC-2.14: An `.git/index.lock` present for 500 ms is retried and succeeds. Present the whole time: `WRITE_FAILED`.
+- [x] TC-2.15: Freshness: ahead 2 gives `possibly_stale` + `unpushed_local_commits`. Behind 1 (after fetch) gives `stale` + `behind_upstream`. No upstream gives `no_upstream`. FETCH_HEAD older than 1 h gives `last_fetch_older_than_1h`. A dirty `conductor/` file gives `dirty_state_files`. Clean, synced and recently fetched gives `fresh`.
+- [x] TC-2.17: With `conductor/tracks/**/conversation.md` gitignored in the fixture, an append writes the file, returns `commit: null` with a `commitError` naming D5, and never runs `git add -f`
+- [x] TC-2.16: The provenance line contains the short commit, the branch, the backend, ahead/behind and the fetch age
 
 ### Phase 3: stdio MCP server (driven through the SDK client over stdio)
-- [ ] TC-3.1: `tools/list` returns exactly the 8 v0 tools, each with `readOnlyHint` and `destructiveHint` matching the spec table
-- [ ] TC-3.2: The server `instructions` are present, at most 4,096 characters, and their first 300 characters mention planning tracks and `get_context`
-- [ ] TC-3.3: Every result (success and error) has a `structuredContent.provenance` and a text block whose first line is the provenance line
-- [ ] TC-3.4: `list_tracks` on a fixture with 3 tracks (one done): 2 returned by default, 3 with `include_done`, filters by lane, a duplicate number gives a warning
-- [ ] TC-3.5: `get_track` returns `base` with shas equal to `git hash-object` of each file and markers equal to the parsed values
-- [ ] TC-3.6: `get_track` on a track with an 80,000-character conversation: response text at most 40,000 characters, conversation truncated first, `spec`/`plan` full and present in `base.files`. A truncated file is absent from `base.files`.
-- [ ] TC-3.7: `create_track` produces a folder `XX-NNN-slug` with five files, `index.md` markers parse (Lane plan / queue), one commit, and the returned `base` can be used directly by `update_track`
-- [ ] TC-3.8: `update_track` with a fresh base and `files.plan`: written and committed, with the new base returned
-- [ ] TC-3.9: `update_track` reusing the old base after TC-3.8 gives `CONFLICT` with `details[0].file == "plan"` and current sha, and the file holds the TC-3.8 content
-- [ ] TC-3.10: `update_track` markers `{ "Lane Status": "success" }` while another session changed only `spec.md` since the base: accepted (no false conflict). The same marker changed by another session gives `CONFLICT` on the marker.
-- [ ] TC-3.11: `update_track` with `files.index` and `markers` together gives `VALIDATION_FAILED`. `files.conversation` gives `VALIDATION_FAILED` with a hint to use `append_conversation`.
-- [ ] TC-3.12: `update_track` with a base commit not in history gives `UNKNOWN_BASE`
-- [ ] TC-3.13: `append_conversation` twice from two clients concurrently: both entries present, both parse, order is arrival order
-- [ ] TC-3.14: `get_context` with no args returns a manifest with headings and first paragraphs and no full bodies. `files:["tech-stack.md"]` returns its content. `lane:"plan"` returns the repo's lane guide with the advice framing, `source` with its sha, and a `serve_id`.
-- [ ] TC-3.15: `get_context` with `lane:"plan"` in a repo without `.claude/skills/...` returns the bundled guide with `source: "bundled@<version>"`
-- [ ] TC-3.16: Unknown tool name gives a JSON-RPC error (protocol). Missing required `track` gives a JSON-RPC invalid-params error, not `isError`.
+- [x] TC-3.1 (6 of 8 tools until Phase 4): `tools/list` returns exactly the 8 v0 tools, each with `readOnlyHint` and `destructiveHint` matching the spec table
+- [x] TC-3.2: The server `instructions` are present, at most 4,096 characters, and their first 300 characters mention planning tracks and `get_context`
+- [x] TC-3.3: Every result (success and error) has a `structuredContent.provenance` and a text block whose first line is the provenance line
+- [x] TC-3.4: `list_tracks` on a fixture with 3 tracks (one done): 2 returned by default, 3 with `include_done`, filters by lane, a duplicate number gives a warning
+- [x] TC-3.5: `get_track` returns `base` with shas equal to `git hash-object` of each file and markers equal to the parsed values
+- [x] TC-3.6: `get_track` on a track with an 80,000-character conversation: response text at most 40,000 characters, conversation truncated first, `spec`/`plan` full and present in `base.files`. A truncated file is absent from `base.files`.
+- [x] TC-3.7: `create_track` produces a folder `XX-NNN-slug` with five files, `index.md` markers parse (Lane plan / queue), one commit, and the returned `base` can be used directly by `update_track`
+- [x] TC-3.8: `update_track` with a fresh base and `files.plan`: written and committed, with the new base returned
+- [x] TC-3.9: `update_track` reusing the old base after TC-3.8 gives `CONFLICT` with `details[0].file == "plan"` and current sha, and the file holds the TC-3.8 content
+- [x] TC-3.10: `update_track` markers `{ "Lane Status": "success" }` while another session changed only `spec.md` since the base: accepted (no false conflict). The same marker changed by another session gives `CONFLICT` on the marker.
+- [x] TC-3.11: `update_track` with `files.index` and `markers` together gives `VALIDATION_FAILED`. `files.conversation` gives `VALIDATION_FAILED` with a hint to use `append_conversation`.
+- [x] TC-3.12: `update_track` with a base commit not in history gives `UNKNOWN_BASE`
+- [x] TC-3.13: `append_conversation` twice from two clients concurrently: both entries present, both parse, order is arrival order
+- [x] TC-3.14: `get_context` with no args returns a manifest with headings and first paragraphs and no full bodies. `files:["tech-stack.md"]` returns its content. `lane:"plan"` returns the repo's lane guide with the advice framing, `source` with its sha, and a `serve_id`.
+- [x] TC-3.15: `get_context` with `lane:"plan"` in a repo without `.claude/skills/...` returns the bundled guide with `source: "bundled@<version>"`
+- [x] TC-3.16 (unknown tool is a protocol error; invalid args are an SDK isError result, see conversation.md deviation 1): Unknown tool name gives a JSON-RPC error (protocol). Missing required `track` gives a JSON-RPC invalid-params error, not `isError`.
 
 ### Phase 4: Advice log, report_outcome, health_report
 - [ ] TC-4.1: Each tool call appends one `call` line. `get_context` lane appends one `serve` line. All lines validate against the spec format (`v`, `ts`, `kind`, ...).

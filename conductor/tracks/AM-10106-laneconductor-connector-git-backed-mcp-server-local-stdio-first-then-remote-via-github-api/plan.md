@@ -111,11 +111,11 @@ throwaway, authless, data-free Cloud Run service for claude.ai.
 transport (logs to stderr only, F3), with tool handlers that are backend-agnostic
 (`connector/src/tools/*.mjs`).
 
-- [ ] Task 1: Response envelope (structuredContent + text with the provenance line + JSON), error mapping to `isError` (F5), 40,000-character cap (REQ-18)
-- [ ] Task 2: `list_tracks`, `get_track` (truncation order, `base`), `get_context` (manifest, files, lane guide with framing and `serve_id`)
-- [ ] Task 3: `create_track`, `update_track` (files/markers, REQ-4 checks), `append_conversation`
-- [ ] Task 4: Tool annotations as in the spec table (F8) and the server `instructions` from the spec (under 4,096 characters, F2)
-- [ ] Task 5: `connector/README.md`: setup (`claude mcp add ...` or `.mcp.json`) and removal (REQ-22)
+- [x] Task 1: Response envelope (structuredContent + text with the provenance line + JSON), error mapping to `isError` (F5), 40,000-character cap (REQ-18)
+- [x] Task 2: `list_tracks`, `get_track` (truncation order, `base`), `get_context` (manifest, files, lane guide with framing and `serve_id`)
+- [x] Task 3: `create_track`, `update_track` (files/markers, REQ-4 checks), `append_conversation`
+- [x] Task 4: Tool annotations as in the spec table (F8) and the server `instructions` from the spec (under 4,096 characters, F2)
+- [x] Task 5: `connector/README.md`: setup (`claude mcp add ...` or `.mcp.json`) and removal (REQ-22)
 
 **Impact**: Claude Code can plan and update tracks through the connector.
 
