@@ -82,11 +82,11 @@ instructions hold a canary codeword. It has one tool, `probe_echo`, which never 
 Run it over stdio in Claude Code, and over Streamable HTTP through a temporary tunnel or a
 throwaway, authless, data-free Cloud Run service for claude.ai.
 
-- [ ] Task 1: Write the probe (SDK v2, `instructions` with the canary, one tool with readOnlyHint/destructiveHint)
-- [ ] Task 2: Claude Code: add it with `claude mcp add --transport stdio lc-probe -- node connector/spike/probe.mjs` and ask for the codeword in a fresh session (expected: answered without a tool call, per F2)
-- [ ] Task 3: claude.ai web: add it as a custom connector (auth "No sign-in"), ask for the codeword in a fresh chat with only this connector on, and record the result for U1. Repeat on mobile if available.
-- [ ] Task 4: Record U1/U2 results in `conversation.md`. If claude.ai ignores instructions, adopt the fallback (REQ-16: a one-line pointer in claude.ai project instructions) and note it in spec.md. If SDK v2 fails to connect, switch to v1 `@modelcontextprotocol/sdk` and note it.
-- [ ] Task 5: Tear down the throwaway remote endpoint
+- [x] Task 1: Write the probe (SDK v2, `instructions` with the canary, one tool with readOnlyHint/destructiveHint). Done: `connector/spike/probe.mjs` (stdio, plus `--http <port>` for the claude.ai tunnel), verified with the SDK v2 client and raw 2025-03-26/2025-06-18 JSON-RPC clients (`connector/test/probe.test.mjs`).
+- [ ] Task 2 (HUMAN): Claude Code: add it with `claude mcp add --transport stdio lc-probe -- node connector/spike/probe.mjs` and ask for the codeword in a fresh session (expected: answered without a tool call, per F2)
+- [ ] Task 3 (HUMAN): claude.ai web: add it as a custom connector (auth "No sign-in"), ask for the codeword in a fresh chat with only this connector on, and record the result for U1. Repeat on mobile if available.
+- [ ] Task 4 (HUMAN, after Tasks 2-3; SDK side already recorded in conversation.md): Record U1/U2 results in `conversation.md`. If claude.ai ignores instructions, adopt the fallback (REQ-16: a one-line pointer in claude.ai project instructions) and note it in spec.md. If SDK v2 fails to connect, switch to v1 `@modelcontextprotocol/sdk` and note it.
+- [ ] Task 5 (HUMAN): Tear down the throwaway remote endpoint
 
 **Impact**: The design either stands on verified ground, or changes direction before any real code exists.
 
@@ -95,12 +95,12 @@ throwaway, authless, data-free Cloud Run service for claude.ai.
 **Problem**: Every tool needs format parsing, blob shas, provenance and safe local writes.
 **Solution**: Pure modules plus the local backend, with no MCP code yet.
 
-- [ ] Task 1: `connector/src/blob.mjs`: git blob sha of a string (REQ-5), checked against `git hash-object`
-- [ ] Task 2: `connector/src/markers.mjs`: parse, set and remove `**Name**: value` lines; validate lane and status against `workflow.json` (REQ-14)
-- [ ] Task 3: `connector/src/conversation.mjs`: format a raw body into a turn block, and validate it with `parseConversationComments` (REQ-13)
-- [ ] Task 4: `connector/src/tracks.mjs`: resolve a track (both naming conventions, through `decideTrackFolder`), next number (REQ-15), slug, templates
-- [ ] Task 5: `connector/src/store-local.mjs`: `LocalGitStore` implementing the spec interface (lock, preconditions, atomic write, `git commit -- <paths>`, index.lock retry, state-branch check)
-- [ ] Task 6: `connector/src/provenance.mjs`: provenance, `freshness` and `stale_reasons` exactly as the spec's rules, plus the one-line summary
+- [x] Task 1: `connector/src/blob.mjs`: git blob sha of a string (REQ-5), checked against `git hash-object`
+- [x] Task 2: `connector/src/markers.mjs`: parse, set and remove `**Name**: value` lines; validate lane and status against `workflow.json` (REQ-14)
+- [x] Task 3: `connector/src/conversation.mjs`: format a raw body into a turn block, and validate it with `parseConversationComments` (REQ-13)
+- [x] Task 4: `connector/src/tracks.mjs`: resolve a track (both naming conventions, through `decideTrackFolder`), next number (REQ-15), slug, templates
+- [x] Task 5: `connector/src/store-local.mjs`: `LocalGitStore` implementing the spec interface (lock, preconditions, atomic write, `git commit -- <paths>`, index.lock retry, state-branch check)
+- [x] Task 6: `connector/src/provenance.mjs`: provenance, `freshness` and `stale_reasons` exactly as the spec's rules, plus the one-line summary
 
 **Impact**: The concurrency and format guarantees exist and are unit-tested before any client sees them.
 
@@ -111,11 +111,11 @@ throwaway, authless, data-free Cloud Run service for claude.ai.
 transport (logs to stderr only, F3), with tool handlers that are backend-agnostic
 (`connector/src/tools/*.mjs`).
 
-- [ ] Task 1: Response envelope (structuredContent + text with the provenance line + JSON), error mapping to `isError` (F5), 40,000-character cap (REQ-18)
-- [ ] Task 2: `list_tracks`, `get_track` (truncation order, `base`), `get_context` (manifest, files, lane guide with framing and `serve_id`)
-- [ ] Task 3: `create_track`, `update_track` (files/markers, REQ-4 checks), `append_conversation`
-- [ ] Task 4: Tool annotations as in the spec table (F8) and the server `instructions` from the spec (under 4,096 characters, F2)
-- [ ] Task 5: `connector/README.md`: setup (`claude mcp add ...` or `.mcp.json`) and removal (REQ-22)
+- [x] Task 1: Response envelope (structuredContent + text with the provenance line + JSON), error mapping to `isError` (F5), 40,000-character cap (REQ-18)
+- [x] Task 2: `list_tracks`, `get_track` (truncation order, `base`), `get_context` (manifest, files, lane guide with framing and `serve_id`)
+- [x] Task 3: `create_track`, `update_track` (files/markers, REQ-4 checks), `append_conversation`
+- [x] Task 4: Tool annotations as in the spec table (F8) and the server `instructions` from the spec (under 4,096 characters, F2)
+- [x] Task 5: `connector/README.md`: setup (`claude mcp add ...` or `.mcp.json`) and removal (REQ-22)
 
 **Impact**: Claude Code can plan and update tracks through the connector.
 
