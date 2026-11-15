@@ -1,9 +1,10 @@
 # Track AM-10106: LaneConductor connector: git-backed MCP server (local stdio first, then remote via GitHub API)
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned
+**Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
