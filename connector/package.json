@@ -1,0 +1,23 @@
+{
+  "name": "lc-connector",
+  "version": "0.1.0",
+  "description": "LaneConductor connector: git-backed MCP server (track AM-10106)",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "lc-connector": "./bin/lc-connector.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0"
+  }
+}

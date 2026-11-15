@@ -82,11 +82,11 @@ instructions hold a canary codeword. It has one tool, `probe_echo`, which never 
 Run it over stdio in Claude Code, and over Streamable HTTP through a temporary tunnel or a
 throwaway, authless, data-free Cloud Run service for claude.ai.
 
-- [ ] Task 1: Write the probe (SDK v2, `instructions` with the canary, one tool with readOnlyHint/destructiveHint)
-- [ ] Task 2: Claude Code: add it with `claude mcp add --transport stdio lc-probe -- node connector/spike/probe.mjs` and ask for the codeword in a fresh session (expected: answered without a tool call, per F2)
-- [ ] Task 3: claude.ai web: add it as a custom connector (auth "No sign-in"), ask for the codeword in a fresh chat with only this connector on, and record the result for U1. Repeat on mobile if available.
-- [ ] Task 4: Record U1/U2 results in `conversation.md`. If claude.ai ignores instructions, adopt the fallback (REQ-16: a one-line pointer in claude.ai project instructions) and note it in spec.md. If SDK v2 fails to connect, switch to v1 `@modelcontextprotocol/sdk` and note it.
-- [ ] Task 5: Tear down the throwaway remote endpoint
+- [x] Task 1: Write the probe (SDK v2, `instructions` with the canary, one tool with readOnlyHint/destructiveHint). Done: `connector/spike/probe.mjs` (stdio, plus `--http <port>` for the claude.ai tunnel), verified with the SDK v2 client and raw 2025-03-26/2025-06-18 JSON-RPC clients (`connector/test/probe.test.mjs`).
+- [ ] Task 2 (HUMAN): Claude Code: add it with `claude mcp add --transport stdio lc-probe -- node connector/spike/probe.mjs` and ask for the codeword in a fresh session (expected: answered without a tool call, per F2)
+- [ ] Task 3 (HUMAN): claude.ai web: add it as a custom connector (auth "No sign-in"), ask for the codeword in a fresh chat with only this connector on, and record the result for U1. Repeat on mobile if available.
+- [ ] Task 4 (HUMAN, after Tasks 2-3; SDK side already recorded in conversation.md): Record U1/U2 results in `conversation.md`. If claude.ai ignores instructions, adopt the fallback (REQ-16: a one-line pointer in claude.ai project instructions) and note it in spec.md. If SDK v2 fails to connect, switch to v1 `@modelcontextprotocol/sdk` and note it.
+- [ ] Task 5 (HUMAN): Tear down the throwaway remote endpoint
 
 **Impact**: The design either stands on verified ground, or changes direction before any real code exists.
 
