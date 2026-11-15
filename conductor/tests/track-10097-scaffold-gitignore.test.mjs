@@ -134,15 +134,15 @@ test('a .gitignore with no trailing newline is not glued onto', () => {
   });
 });
 
-// ── Phase 3 (REQ-4): SKILL.md's prose fence must not drift from the shared list ──
+// ── Phase 3 (REQ-4): the skill's prose fence (setup/scaffold.md since track 10109) must not drift from the shared list ──
 
-test('SKILL.md\'s scaffold gitignore fence lists exactly the RUNTIME_STATE_PATTERNS set', () => {
-  const skillPath = join(REPO_ROOT, '.claude', 'skills', 'laneconductor', 'SKILL.md');
+test('setup/scaffold.md\'s scaffold gitignore fence lists exactly the RUNTIME_STATE_PATTERNS set', () => {
+  const skillPath = join(REPO_ROOT, '.claude', 'skills', 'laneconductor', 'setup', 'scaffold.md');
   const skill = readFileSync(skillPath, 'utf8');
 
   const marker = "Ensure `.gitignore` covers the sync-only runtime files";
   const markerIdx = skill.indexOf(marker);
-  assert.ok(markerIdx !== -1, 'expected to find the scaffold gitignore bullet in SKILL.md — did it get renamed/moved?');
+  assert.ok(markerIdx !== -1, 'expected to find the scaffold gitignore bullet in setup/scaffold.md — did it get renamed/moved? (track 10109 moved it there from SKILL.md)');
 
   const afterMarker = skill.slice(markerIdx);
   const fenceMatch = afterMarker.match(/```\n([\s\S]*?)```/);
@@ -154,15 +154,15 @@ test('SKILL.md\'s scaffold gitignore fence lists exactly the RUNTIME_STATE_PATTE
   assert.deepEqual(
     [...listed].sort(),
     [...expected].sort(),
-    'SKILL.md\'s fenced pattern list has drifted from RUNTIME_STATE_PATTERNS — the next new pattern must be added to both'
+    'setup/scaffold.md\'s fenced pattern list has drifted from RUNTIME_STATE_PATTERNS — the next new pattern must be added to both'
   );
 });
 
-test('SKILL.md explicitly carves out conductor/tracks/**/index.md — it must not be scaffolded as ignored', () => {
-  const skillPath = join(REPO_ROOT, '.claude', 'skills', 'laneconductor', 'SKILL.md');
+test('setup/scaffold.md explicitly carves out conductor/tracks/**/index.md — it must not be scaffolded as ignored', () => {
+  const skillPath = join(REPO_ROOT, '.claude', 'skills', 'laneconductor', 'setup', 'scaffold.md');
   const skill = readFileSync(skillPath, 'utf8');
   assert.ok(
     skill.includes('Do **not** add') && skill.includes('index.md'),
-    'SKILL.md must still explain why index.md is deliberately excluded from the runtime-state gitignore list'
+    'setup/scaffold.md must still explain why index.md is deliberately excluded from the runtime-state gitignore list'
   );
 });

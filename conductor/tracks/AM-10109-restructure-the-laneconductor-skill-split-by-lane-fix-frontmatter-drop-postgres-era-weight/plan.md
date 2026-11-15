@@ -91,7 +91,7 @@ drop a marker write or a command.
 
 ## Phase 3: ops/, setup/, deploy/, legacy/
 
-- [ ] Task 1: `ops/tracks.md`, holding:
+- [x] Task 1: `ops/tracks.md`, holding:
     - newTrack (1322-1376);
     - move (1288-1302);
     - pulse (1306-1318) without `**Status**`;
@@ -103,28 +103,28 @@ drop a marker write or a command.
     - updateTrack / reportaBug / featureRequest -> the `lc update-track` / `report-bug` /
       `feature-request` commands;
     - init-tracks-summary as a one-paragraph pointer.
-- [ ] Task 2: `setup/setup.md` (322-345, 145-161, 768-925, 2366-2391). Delete the dated model
+- [x] Task 2: `setup/setup.md` (322-345, 145-161, 768-925, 2366-2391). Delete the dated model
       names. Add "copy the whole folder" for non-symlink installs.
-- [ ] Task 3: `setup/scaffold.md` (349-557 minus templates, 561-727). Move the `.gitignore`
+- [x] Task 3: `setup/scaffold.md` (349-557 minus templates, 561-727). Move the `.gitignore`
       fence paragraph **word-for-word**.
-- [ ] Task 4: `setup/templates.md` (389-527, 730-764).
-- [ ] Task 5: `deploy/setup-deploy.md` (1101-1213), `deploy/deploy.md` (1217-1225).
-- [ ] Task 6: `legacy/worker.md`:
+- [x] Task 4: `setup/templates.md` (389-527, 730-764).
+- [x] Task 5: `deploy/setup-deploy.md` (1101-1213), `deploy/deploy.md` (1217-1225).
+- [x] Task 6: `legacy/worker.md`:
     - lc CLI 98-141;
     - activate/deactivate 985-1016, with `lc worker stop`;
     - lock/unlock 1380-1407, with the real scripts;
     - retries 2264-2276, with workflow.json;
     - logging 2280-2318.
-- [ ] Task 7: `legacy/db-schema.md` (927-961 + 978-981 + 2189-2222). Both schema copies go
+- [x] Task 7: `legacy/db-schema.md` (927-961 + 978-981 + 2189-2222). Both schema copies go
       side by side with a note on how they differ (`lane_action_status` /
       `lane_action_result` / `create_quality_gate` vs `created_by_email` / `author` and the
       unique key).
-- [ ] Task 8: `legacy/syncdb.md` (1974-2010) and `legacy/remote-sync.md` (2014-2051). The
+- [x] Task 8: `legacy/syncdb.md` (1974-2010) and `legacy/remote-sync.md` (2014-2051). The
       first copy at 1928-1934 is dropped.
-- [ ] Task 9: Retarget `conductor/tests/track-10097-scaffold-gitignore.test.mjs` (both
+- [x] Task 9: Retarget `conductor/tests/track-10097-scaffold-gitignore.test.mjs` (both
       `skillPath` reads, lines 140 and 162) to `setup/scaffold.md`. Update the "renamed/moved?"
       message. Run it green.
-- [ ] Task 10: Commit `refactor(track-10109): setup, deploy, ops and legacy skill files`.
+- [x] Task 10: Commit `refactor(track-10109): setup, deploy, ops and legacy skill files`.
 
 ## Phase 4: The new SKILL.md index and frontmatter
 
