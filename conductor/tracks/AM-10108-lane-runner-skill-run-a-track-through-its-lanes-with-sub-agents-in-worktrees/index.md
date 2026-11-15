@@ -1,9 +1,9 @@
 # Track AM-10108: Lane runner skill: run a track through its lanes with sub-agents in worktrees
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed as superseded: the minimal lane-runner note was folded into the laneconductor skill (ops/working-a-track.md, routed from the index and the 'run track N' trigger) and delivered with track 10109 (merged 260c9c6e). Verified: routing and a simulated plan run read only the index + lane file; the user reports the skill works as usual. Not built: any scheduler/orchestration (withdrawn by decision).
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
