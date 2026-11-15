@@ -37,3 +37,7 @@ Every line kept in the restructured skill and its lane files must carry either a
 - [ ] Phase 4: SKILL.md becomes a <=200-line routing index with new frontmatter
 - [ ] Phase 5: Verification (structure test, daemon suites vs main, symlink, live plan + qualityGate runs, trigger spot-check, size table)
 - [ ] Phase 6: References and memory
+
+## PRINCIPLE (2026-11-15): LaneConductor is a second opinion, never a controller
+
+LaneConductor advises; Claude may always decide against it. Recipes, lane order, conventions and tool results are phrased as recommendations with their reasoning ("this worked for you because..."), never as orders. Only two things are firm, and neither is LaneConductor outranking Claude: (a) mechanical integrity - file formats and the base-commit check that prevents silent overwrites; (b) the human's authority - ask before merge/push, never handle secrets (Claude may disagree, but says so and asks). When Claude deviates from advice it says why, and that deviation is recorded so the recipe can be improved or pruned; a recipe Claude keeps overriding is a bad recipe.
