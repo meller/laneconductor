@@ -1,10 +1,10 @@
 # Track AM-10109: Restructure the laneconductor skill: split by lane, fix frontmatter, drop Postgres-era weight
 
-**Lane**: quality-gate
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Verdict**: pass
-**Progress**: 90%
-**Phase**: Implemented; Phase 5 live verification (daemon suites, claude -p runs, trigger check) still open
+**Progress**: 100%
+**Phase**: Merged to main (260c9c6e); review passed; pure-file tests 53/53; syntax check + make help + lc --version ok on main. Unverified: skill auto-trigger on a fresh session, daemon suites vs main.
 **Type**: dev
 **Track Kind**: feature
 **Merge Mode**: direct
