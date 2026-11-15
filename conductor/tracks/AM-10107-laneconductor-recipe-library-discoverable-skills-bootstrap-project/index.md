@@ -1,9 +1,10 @@
 # Track AM-10107: LaneConductor recipe library: discoverable skills + bootstrap_project
 
 **Lane**: plan
-**Lane Status**: queue
+**Lane Status**: success
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned
+**Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
