@@ -13,7 +13,7 @@ the implement lane's retry loop, so write them up as gaps instead.
    - Unless `FRESH_SESSION: false` (review often resumes the session implement used), read
      `plan.md`, `spec.md`, `test.md`, and `product-guidelines.md`, `design-language.md`,
      `deployment-stack.md` where present.
-   - Always read `conversation.md`: it shows whether earlier review gaps were addressed and
+   - Always read `conversation.md` (create it if missing): it shows whether earlier review gaps were addressed and
      whether the human gave specific instructions.
 2. **Evaluate** the implementation against the requirements and guidelines.
    - Secrets: no hardcoded secrets or secrets in logs; ADC / Secret Manager used as

@@ -10,7 +10,7 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    would show it running in the wrong column. The claim also stops the worker double-launching it.
 0b. **Classify bug or feature** - only if `index.md` has neither a `**Workspace**` nor a
    `**Track Kind**` marker (an explicit `**Workspace**` always wins; skip this step). Decide from the
-   title, description, `conversation.md` and a quick look at the code area. Write
+   title, description, `conversation.md` (create it if missing) and a quick look at the code area. Write
    `**Track Kind**: bug` or `**Track Kind**: feature`, never `**Workspace**`. The reason:
    `**Workspace**` is a deliberate human override (`main` or `branch`), while `**Track Kind**` only
    feeds the default (bug -> `main`, feature -> `branch`). If plan wrote `**Workspace**`, an
@@ -92,9 +92,10 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    they are and append
    `> **system**: ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
    instead of the completion comment: a manual move always wins over this run's stale intent.
-   Otherwise read `conductor/workflow.json` and set `**Lane**` to `lanes.plan.on_success`
-   (this project's value is `plan:success`; do not assume the next lane is implement). Then append
-   the completion comment: `> **system**: ✅ Plan complete - moved to <lane>.`, or, if step 5b
+   Otherwise read `conductor/workflow.json` and apply `lanes.plan.on_success`, a `lane:status`
+   pair (this project's `plan:success` means `**Lane**: plan` and `**Lane Status**: success`; do not
+   assume the next lane is implement). Then append the completion comment:
+   `> **system**: ✅ Plan complete - track now at <lane>:<status>.`, or, if step 5b
    fired, `> **system**: ⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).
 

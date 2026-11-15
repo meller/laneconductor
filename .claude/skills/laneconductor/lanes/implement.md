@@ -18,7 +18,7 @@ commits go.
    work there, and finish with `node conductor/unlock.mjs NNN`, also when the work fails. If the
    lock is already held, stop and report instead of working in the primary checkout.
 3. **Read context.** On `FRESH_SESSION: false` skip what you already read this session, except
-   `conversation.md` and `last_run.log`, which you always check for anything new.
+   `conversation.md` (create it if missing) and `last_run.log`, which you always check for anything new.
    - `plan.md` (phases), `spec.md` (details and `**Type**`), `test.md` (drives the order of work).
    - `conductor/deployment-stack.md`, `product-guidelines.md`, `design-language.md`,
      `tech-stack.md`, each if present.
@@ -56,9 +56,11 @@ commits go.
    - Stop. Do not transition the lane yourself.
 4b. **Fundamentals conflict (dev tracks).** If what you must build conflicts with, or implies a
    change to, `product-guidelines.md`, `design-language.md`, `tech-stack.md` or `workflow.md`,
-   do not write code that contradicts them and do not rewrite them silently. Append the same
-   `> **system**: ⚠️ FUNDAMENTALS CONFLICT - ...` comment the plan lane uses, naming the doc and
-   the conflict. It is non-blocking unless proceeding would be actively wrong; then treat it like
+   do not write code that contradicts them and do not rewrite them silently. Append to
+   `conversation.md`: `> **system**: ⚠️ FUNDAMENTALS CONFLICT - this track's [requirement] appears to
+   require changing conductor/[doc].md ([specific conflict]). Continuing as specified; doc not
+   modified - please review whether conductor/[doc].md should be updated.` (one comment, prefix
+   each continuation line with `> `). It is non-blocking unless proceeding would be actively wrong; then treat it like
    any blocker and stop for human input instead of guessing.
 5. **Dev tracks: per phase.**
    - Implement the tasks.
