@@ -95,12 +95,12 @@ throwaway, authless, data-free Cloud Run service for claude.ai.
 **Problem**: Every tool needs format parsing, blob shas, provenance and safe local writes.
 **Solution**: Pure modules plus the local backend, with no MCP code yet.
 
-- [ ] Task 1: `connector/src/blob.mjs`: git blob sha of a string (REQ-5), checked against `git hash-object`
-- [ ] Task 2: `connector/src/markers.mjs`: parse, set and remove `**Name**: value` lines; validate lane and status against `workflow.json` (REQ-14)
-- [ ] Task 3: `connector/src/conversation.mjs`: format a raw body into a turn block, and validate it with `parseConversationComments` (REQ-13)
-- [ ] Task 4: `connector/src/tracks.mjs`: resolve a track (both naming conventions, through `decideTrackFolder`), next number (REQ-15), slug, templates
-- [ ] Task 5: `connector/src/store-local.mjs`: `LocalGitStore` implementing the spec interface (lock, preconditions, atomic write, `git commit -- <paths>`, index.lock retry, state-branch check)
-- [ ] Task 6: `connector/src/provenance.mjs`: provenance, `freshness` and `stale_reasons` exactly as the spec's rules, plus the one-line summary
+- [x] Task 1: `connector/src/blob.mjs`: git blob sha of a string (REQ-5), checked against `git hash-object`
+- [x] Task 2: `connector/src/markers.mjs`: parse, set and remove `**Name**: value` lines; validate lane and status against `workflow.json` (REQ-14)
+- [x] Task 3: `connector/src/conversation.mjs`: format a raw body into a turn block, and validate it with `parseConversationComments` (REQ-13)
+- [x] Task 4: `connector/src/tracks.mjs`: resolve a track (both naming conventions, through `decideTrackFolder`), next number (REQ-15), slug, templates
+- [x] Task 5: `connector/src/store-local.mjs`: `LocalGitStore` implementing the spec interface (lock, preconditions, atomic write, `git commit -- <paths>`, index.lock retry, state-branch check)
+- [x] Task 6: `connector/src/provenance.mjs`: provenance, `freshness` and `stale_reasons` exactly as the spec's rules, plus the one-line summary
 
 **Impact**: The concurrency and format guarantees exist and are unit-tested before any client sees them.
 
