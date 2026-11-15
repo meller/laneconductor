@@ -62,29 +62,29 @@ drop a marker write or a command.
 **Problem**: The lane procedures are buried at line 1,411+ and cross-reference each other.
 **Solution**: One self-contained file per lane, pruned under the Pruning rule.
 
-- [ ] Task 1: Create `lanes/plan.md` from lines 1411-1513. Drop step 6's pulse. Inline the
+- [x] Task 1: Create `lanes/plan.md` from lines 1411-1513. Drop step 6's pulse. Inline the
       spec/plan/test templates from 2111-2185 (without the `**Status**` index template).
       Inline the Track Kind / Workspace marker detail from line 1241-1242.
-- [ ] Task 2: `lanes/brainstorm.md` from 1517-1538.
-- [ ] Task 3: `lanes/implement.md` from 1542-1664:
-    - [ ] Keep one copy of the background-command rule.
-    - [ ] Delete the `**Status**: implement` write.
-    - [ ] Replace the lock pseudo-call with: "a worker or runner already locked the track and
+- [x] Task 2: `lanes/brainstorm.md` from 1517-1538.
+- [x] Task 3: `lanes/implement.md` from 1542-1664:
+    - [x] Keep one copy of the background-command rule.
+    - [x] Delete the `**Status**: implement` write.
+    - [x] Replace the lock pseudo-call with: "a worker or runner already locked the track and
           started you in `.worktrees/NNN`; by hand on a branch-mode track, use `node
           conductor/lock.mjs NNN` / `unlock.mjs NNN`". First check that wording against
           `conductor/lock.mjs`.
-    - [ ] Inline the test.md template.
-- [ ] Task 4: `lanes/review.md` from 1668-1703. Replace "see implement's step 0" with the
+    - [x] Inline the test.md template.
+- [x] Task 4: `lanes/review.md` from 1668-1703. Replace "see implement's step 0" with the
       one-sentence reason inline. Inline the Verdict marker rationale (line 1246).
-- [ ] Task 5: `lanes/quality-gate.md` from 1707-1832, with the same inline replacement. Keep
+- [x] Task 5: `lanes/quality-gate.md` from 1707-1832, with the same inline replacement. Keep
       the done-gate, stub scan, real-product check and self-healing TDD rule. Lines 1269-1284
       (stale `qualityGate`) are **not** carried over.
-- [ ] Task 6: `lanes/merge.md` from 1836-1924. Inline the Merge Mode / PR URL marker detail
+- [x] Task 6: `lanes/merge.md` from 1836-1924. Inline the Merge Mode / PR URL marker detail
       (1244-1245).
-- [ ] Task 7: Pruning pass on each file. For every paragraph, ask whether it carries a
+- [x] Task 7: Pruning pass on each file. For every paragraph, ask whether it carries a
       project fact or an incident lesson. Delete it if not. Keep the incident references
       short (track number + one clause).
-- [ ] Task 8: Run the lane-file cases of the structure test (self-containment, invariants).
+- [x] Task 8: Run the lane-file cases of the structure test (self-containment, invariants).
       Commit `refactor(track-10109): per-lane skill files`.
 
 **Impact**: Each lane's full procedure fits in one small file.
