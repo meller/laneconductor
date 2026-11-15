@@ -1,0 +1,15 @@
+{
+  "_comment": "Track 10109: strings each part of the restructured laneconductor skill must still contain. Extracted from the pre-restructure SKILL.md at baseline_commit; TC-0 proves every string exists there, so a typo here cannot pass vacuously.",
+  "baseline_commit": "208433341c4309442280c08e45f0fd4519b9ed78",
+  "baseline_path": ".claude/skills/laneconductor/SKILL.md",
+  "baseline_bytes": 129829,
+  "lanes": {
+    "plan": ["**Lane**: plan", "**Lane Status**: running", "**Track Kind**", "lanes.plan.on_success", "lc track-dir", "(Test cases to be added)", "## KPI", "## Draft", "FUNDAMENTALS CONFLICT", "✅ Plan complete", "already been moved"],
+    "brainstorm": ["> **system**: Brainstorm", "**Waiting for reply**: yes"],
+    "implement": ["**Lane**: implement", "lanes.implement.on_success", "last_run.log", "## ✅ COMPLETE", "feat(track-NNN)", "background", "FUNDAMENTALS CONFLICT", "**Waiting for reply**: yes", "✅ Implementation complete"],
+    "review": ["**Lane**: review", "**Verdict**: pass", "**Verdict**: fail", "lanes.review.on_success", "lanes.review.on_failure", "## ✅ REVIEWED", "✅ REVIEW PASSED", "⚠️ REVIEW FAILED"],
+    "quality-gate": ["**Lane**: quality-gate", "**Verdict**: pass", "**Verdict**: fail", "lanes.quality-gate.on_success", "lanes.quality-gate.on_failure", "done:queue", "measure.mjs", "## ❌ KPI MISS", "## ✅ QUALITY PASSED", "fix(quality-gate)", "grep -rniE", "Restart long-running processes"],
+    "merge": ["**Lane**: done", "lc worktrees merge", "lc worktrees create-pr", "branch not found", "**Lane Status**: waiting", "**Lane Status**: success", "lanes.done.on_failure", "✅ Merged track-NNN", "⚠️ PR opened"]
+  },
+  "index": ["> **author**:", "FRESH_SESSION", "lc track-dir", "INITIALS-NNN-slug", "workflow.json", "✅", "⚠️", "❌", "**Waiting On Tracks**"]
+}

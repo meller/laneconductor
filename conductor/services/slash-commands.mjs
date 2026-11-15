@@ -2,8 +2,10 @@
 // Track 10080 (REQ-13): the `/laneconductor` command surface as plain data,
 // so the Chat composer's slash-command menu (ui/src/lib/useComposerAutocomplete.js)
 // cannot drift from a hand-maintained copy inside a component. Sourced from
-// the laneconductor skill's own Core Commands / Quick Reference sections
-// (.claude/skills/laneconductor/SKILL.md) — kept here rather than parsed
+// the laneconductor skill's routing table (.claude/skills/laneconductor/SKILL.md,
+// which since track 10109 is an index pointing at lanes/, ops/, setup/, deploy/
+// and legacy/; conductor/tests/track-10109-skill-structure.test.mjs checks that
+// every name below has a routing row) — kept here rather than parsed
 // out of the skill file at runtime because the skill's markdown is prose,
 // not a stable data format.
 
