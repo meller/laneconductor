@@ -2,8 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 90%
+**Phase**: Implemented; Phase 5 live verification (daemon suites, claude -p runs, trigger check) still open
 **Type**: dev
 **Merge Mode**: direct
 **Auto Run**: no
@@ -28,3 +28,7 @@ ACCEPTANCE: SKILL.md under 500 lines (target 200 or less); each lane file self-c
 ## Pruning rule (2026-11-15)
 
 Every line kept in the restructured skill and its lane files must carry either a project-specific fact or a lesson from a real incident. Generic instructions Claude follows well unaided are deleted, not moved. Re-check this as models improve; the skill should shrink over time, not grow.
+
+## PRINCIPLE (2026-11-15): LaneConductor is a second opinion, never a controller
+
+LaneConductor advises; Claude may always decide against it. Recipes, lane order, conventions and tool results are phrased as recommendations with their reasoning ("this worked for you because..."), never as orders. Only two things are firm, and neither is LaneConductor outranking Claude: (a) mechanical integrity - file formats and the base-commit check that prevents silent overwrites; (b) the human's authority - ask before merge/push, never handle secrets (Claude may disagree, but says so and asks). When Claude deviates from advice it says why, and that deviation is recorded so the recipe can be improved or pruned; a recipe Claude keeps overriding is a bad recipe.

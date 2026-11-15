@@ -37,3 +37,11 @@ OUT OF SCOPE: the connector server itself (track 10106); the web UI.
 - Use the skill frontmatter's documented `metadata:` field (a free-form YAML map for your own key-value data) for recipe-specific fields (stack, prerequisites, reference, verified) instead of inventing undocumented top-level keys. Documented fields to reuse: name, description, when_to_use, paths, metadata.
 - Description plus `when_to_use` is truncated at 1,536 characters in the listing - another reason recipes must be searched on demand through the connector rather than listed in context.
 - Lane files produced by the skill restructure (track 10109) are natural recipe-style content for the connector to serve on demand.
+
+## PRINCIPLE (2026-11-15): LaneConductor is a second opinion, never a controller
+
+LaneConductor advises; Claude may always decide against it. Recipes, lane order, conventions and tool results are phrased as recommendations with their reasoning ("this worked for you because..."), never as orders. Only two things are firm, and neither is LaneConductor outranking Claude: (a) mechanical integrity - file formats and the base-commit check that prevents silent overwrites; (b) the human's authority - ask before merge/push, never handle secrets (Claude may disagree, but says so and asks). When Claude deviates from advice it says why, and that deviation is recorded so the recipe can be improved or pruned; a recipe Claude keeps overriding is a bad recipe.
+
+## REQUIREMENT (2026-11-15): recipes are accountable
+
+Each recipe's served/followed/overridden history lives in the advice log (track 10106), not in the recipe file (no churn). A recipe overridden most of the time is flagged for rewrite or deletion; the "extract a recipe" step also covers retiring one. The user must be able to see which recipes are failing.

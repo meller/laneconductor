@@ -34,3 +34,26 @@ OPEN QUESTIONS: remote auth (GitHub OAuth app vs GitHub App); hosting (Cloud Run
 
 - The daemon, workers and Auto Run are being retired, not just parked for the connector's sake: lane execution moves to the lane-runner skill (track 10108), where the main Claude session schedules and sub-agents work in worktrees. The skill itself is being restructured first (track 10109). Legacy stays parked until the beta earns its removal.
 - **First beta test - MCP server instructions.** The design leans on a server's `instructions` being injected into context so nobody has to prompt "use LaneConductor". Evidence so far: it is observed in Claude Code in this very session (a connected server's instructions appear in context). Not established: the official MCP page (https://code.claude.com/docs/en/mcp) does not document it either way, and it is unverified for claude.ai web/mobile custom connectors. A subagent claimed "MCP servers don't auto-provide instructions"; that was checked and is unsupported by the docs and contradicted by observation. Verify it on a claude.ai connector before building on it; fallback is a one-line CLAUDE.md pointer or a skill description trigger.
+
+## Correction (2026-11-15)
+
+Lane execution is NOT moving to a scheduling runner: per decision, Claude's native sub-agent/worktree behaviour is used as-is, with only a ~25-line track-conventions note (track 10108, scope changed). The connector's job is state, context and recipes, not supervising execution.
+
+## PRINCIPLE (2026-11-15): LaneConductor is a second opinion, never a controller
+
+LaneConductor advises; Claude may always decide against it. Recipes, lane order, conventions and tool results are phrased as recommendations with their reasoning ("this worked for you because..."), never as orders. Only two things are firm, and neither is LaneConductor outranking Claude: (a) mechanical integrity - file formats and the base-commit check that prevents silent overwrites; (b) the human's authority - ask before merge/push, never handle secrets (Claude may disagree, but says so and asks). When Claude deviates from advice it says why, and that deviation is recorded so the recipe can be improved or pruned; a recipe Claude keeps overriding is a bad recipe.
+
+## REQUIREMENT (2026-11-15): failures must be visible, and removal must be easy
+
+- **Advice log (file-based, append-only, per project):** each time the connector serves a recipe or context it records the serve; Claude appends one line of outcome - followed / deviated (with reason) / failed. The connector also logs what it can observe itself and reliably: tool errors, stale reads (remote behind local), calls that returned nothing useful. Follow/deviate reporting is best-effort (it depends on Claude reporting it); connector-side metrics are the reliable part; periodic human review is the backstop.
+- **Health report on request** (tool + readable summary): per recipe - served, followed, overridden, top override reasons; connector - error rate, stale-read rate, token cost added. Flags recipes overridden most of the time as candidates to rewrite or delete.
+- **Easy removal:** files stay valid without the connector (it is additive), so removing it means disconnecting it and losing nothing.
+- **Kill criteria defined BEFORE the beta starts** (thresholds set in the plan): e.g. advice override rate, connector error rate, or no measurable time/token saving over N sessions => decide keep / change LaneConductor / remove the connector, from evidence, with the human making the call.
+
+## DESIGN NOTE (2026-11-15): kill the "commit and push before everything" pattern
+
+Root cause: track STATE (index/spec/plan/test/conversation) and CODE both went through the same worktree+branch machinery, so a new or changed track folder had to be committed (and, for a remote reader, pushed) before anything else could see it. Separate them:
+1. State lives on main; only code lives on branches in worktrees. Docs-only lanes (plan; review notes) run in the primary checkout with NO worktree - the plan lane never needed one.
+2. No manual commits: a hook (or the connector itself) auto-commits `conductor/` changes with a standard message; a small script creates a worktree and silently syncs the track folder first. This also keeps main clean, avoiding the dirty-primary-checkout blocks that stopped main-mode runs before.
+3. Commit and push are different costs: commit is local and cheap; push matters only for remote surfaces (web connector) and is lazy/debounced (end of turn or session), never a precondition for local work.
+4. In the connector, every write is a commit made by the server; the user never types one.
