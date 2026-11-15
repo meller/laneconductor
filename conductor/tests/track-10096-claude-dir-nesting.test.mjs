@@ -10,7 +10,7 @@
 // behavior (verified by hand — see spec.md) and must pass here.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync, symlinkSync, lstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -344,5 +344,42 @@ describe('clean-nested-claude.mjs CLI', () => {
 
     assert.match(result, /nested 2 levels deep/, 'must report on the WORKTREE, not the baseline');
     assert.doesNotMatch(result, /unique to a nested depth/);
+  });
+});
+
+// Track AM-10109 (TC-SYM-2): the laneconductor skill is now an index plus
+// subfolders (lanes/, ops/, setup/, deploy/, legacy/). A worktree must receive
+// them, both where the skill is a real directory (this repo) and where it is a
+// symlink to the install (every other project).
+describe('copyClaudeDir carries the skill subfolders (track 10109)', () => {
+  it('TC-SYM-2a: a real skill directory arrives with lanes/plan.md', () => {
+    const repoRoot = mkTmp('lc-src-skill-');
+    const worktreePath = mkTmp('lc-dst-skill-');
+    const skill = join(repoRoot, '.claude', 'skills', 'laneconductor');
+    mkdirSync(join(skill, 'lanes'), { recursive: true });
+    writeFileSync(join(skill, 'SKILL.md'), 'index');
+    writeFileSync(join(skill, 'lanes', 'plan.md'), 'plan lane');
+
+    copyClaudeDir(repoRoot, worktreePath);
+
+    assert.equal(readFileSync(join(worktreePath, '.claude', 'skills', 'laneconductor', 'lanes', 'plan.md'), 'utf8'), 'plan lane');
+    assert.deepEqual(findNestedClaudeDirs(worktreePath), ['.claude']);
+  });
+
+  it('TC-SYM-2b: a symlinked skill directory stays a symlink and lanes/plan.md is reachable through it', () => {
+    const repoRoot = mkTmp('lc-src-link-');
+    const worktreePath = mkTmp('lc-dst-link-');
+    const install = mkTmp('lc-install-skill-');
+    mkdirSync(join(install, 'lanes'), { recursive: true });
+    writeFileSync(join(install, 'SKILL.md'), 'index');
+    writeFileSync(join(install, 'lanes', 'plan.md'), 'plan lane');
+    mkdirSync(join(repoRoot, '.claude', 'skills'), { recursive: true });
+    symlinkSync(install, join(repoRoot, '.claude', 'skills', 'laneconductor'), 'dir');
+
+    copyClaudeDir(repoRoot, worktreePath);
+
+    const copied = join(worktreePath, '.claude', 'skills', 'laneconductor');
+    assert.ok(lstatSync(copied).isSymbolicLink(), 'cpSync must not dereference the skill symlink');
+    assert.equal(readFileSync(join(copied, 'lanes', 'plan.md'), 'utf8'), 'plan lane');
   });
 });
