@@ -348,7 +348,9 @@ the limit, reads are served from cache with `served_from_cache_rate_limited`. Wr
 {"v":1,"ts":"…","kind":"tool_error","tool":"update_track","code":"WRITE_FAILED","message":"…","surface":"claude-code"}
 {"v":1,"ts":"…","kind":"stale_read","tool":"get_track","reasons":["unpushed_local_commits"],"surface":"claude.ai"}
 ```
-`kind` is one of `serve|outcome|call|tool_error|conflict|stale_read|empty_result|beta_start|beta_end`.
+`kind` is one of `serve|outcome|call|tool_error|conflict|stale_read|empty_result|beta_start|beta_end|push`
+(`push` is written by the opt-in `auto-state` push policy, D4). `tool_error` and `conflict` lines carry the
+code only, never the message (messages can echo user-supplied text).
 `session` is a per-connection id the server generates. `surface` comes from the client's
 `clientInfo.name`. No file contents, prompts or secrets are logged: only ids, codes, counts and
 Claude's one-line reasons.

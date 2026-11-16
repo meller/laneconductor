@@ -27,7 +27,8 @@ const open = async (dir) => {
 };
 const T = (n, slug) => `conductor/tracks/AM-${n}-${slug}`;
 const entry = (n, slug, content) => ({ folder: `AM-${n}-${slug}`, index: content === null ? null : { content, sha: blobSha(content) } });
-const filesOf = (dir, rev = 'HEAD') => git(dir, 'show', '--name-only', '--format=', rev).split('\n').sort();
+// The advice log rides along with connector commits (D3-a); these tests are about the track files.
+const filesOf = (dir, rev = 'HEAD') => git(dir, 'show', '--name-only', '--format=', rev).split('\n').filter((f) => !f.startsWith('conductor/advice-log/')).sort();
 
 test('generateSummary: sorted rows, blob-sha source, escaped cells, same input and stamp give identical text', () => {
   const a = INDEX(2, 'Two | with pipe', { lane: 'implement', status: 'running', extra: '**Depends On**: AM-1\n' });
@@ -88,7 +89,7 @@ test('create_track commits the summary in the SAME commit as the track files', a
   const sum = readFile(dir, SUMMARY_PATH);
   assert.match(sum, new RegExp(`\\| ${r.env.data.track.id} \\| Alpha feature \\| plan \\| queue \\| 0% \\|`));
   assert.ok(sum.includes(blobSha(readFile(dir, `conductor/tracks/${folder}/index.md`)).slice(0, 12)));
-  assert.equal(git(dir, 'status', '--porcelain'), '');
+  assert.equal(git(dir, 'status', '--porcelain', '--', 'conductor', ':(exclude)conductor/advice-log'), '');
 });
 
 test('update_track: a marker change regenerates the summary in the same commit; a spec-only change leaves a current summary alone', async () => {

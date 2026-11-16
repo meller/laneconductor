@@ -1,6 +1,8 @@
 // Typed errors shared by the library, the stores and the tool handlers. Codes are the spec's
 // "Error codes" table; `countsAsError` says whether a code counts toward KC-2 (connector error rate).
-const COUNTS = new Set(['NUMBER_COLLISION', 'WRITE_FAILED', 'BACKEND_UNAVAILABLE', 'RATE_LIMITED']);
+// INTERNAL_ERROR (an unexpected exception) is a connector bug, so it counts too.
+export const COUNTED_CODES = ['NUMBER_COLLISION', 'WRITE_FAILED', 'BACKEND_UNAVAILABLE', 'RATE_LIMITED', 'INTERNAL_ERROR'];
+const COUNTS = new Set(COUNTED_CODES);
 
 export class ConnectorError extends Error {
   constructor(code, message, { details, hint } = {}) {

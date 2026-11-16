@@ -46,7 +46,7 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 - [x] TC-2.16: The provenance line contains the short commit, the branch, the backend, ahead/behind and the fetch age
 
 ### Phase 3: stdio MCP server (driven through the SDK client over stdio)
-- [x] TC-3.1 (6 of 8 tools until Phase 4): `tools/list` returns exactly the 8 v0 tools, each with `readOnlyHint` and `destructiveHint` matching the spec table
+- [x] TC-3.1 (8 of 8 tools since Phase 4): `tools/list` returns exactly the 8 v0 tools, each with `readOnlyHint` and `destructiveHint` matching the spec table
 - [x] TC-3.2: The server `instructions` are present, at most 4,096 characters, and their first 300 characters mention planning tracks and `get_context`
 - [x] TC-3.3: Every result (success and error) has a `structuredContent.provenance` and a text block whose first line is the provenance line
 - [x] TC-3.4: `list_tracks` on a fixture with 3 tracks (one done): 2 returned by default, 3 with `include_done`, filters by lane, a duplicate number gives a warning
@@ -73,12 +73,12 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 - [x] TC-3b.7: `lc-summary.mjs --check` exits 1 when missing, a plain run writes the file without committing, `--check` then exits 0
 
 ### Phase 4: Advice log, report_outcome, health_report
-- [ ] TC-4.1: Each tool call appends one `call` line. `get_context` lane appends one `serve` line. All lines validate against the spec format (`v`, `ts`, `kind`, ...).
-- [ ] TC-4.2: Log lines contain no file contents: for a fixture with the sentinel `SECRET_SENTINEL_123` inside `spec.md`, grep the log and expect no match
-- [ ] TC-4.3: `report_outcome` deviated without a reason gives `VALIDATION_FAILED`. With a reason it is recorded. An unknown `serve_id` is recorded with `orphan: true` plus a warning.
-- [ ] TC-4.4: Local batching (D3-a): log lines appear in the working tree immediately and are included in the next connector commit. No commit is made for log lines alone.
-- [ ] TC-4.5: `health_report` on a synthetic log (100 calls, 6 tool_errors, 2 conflicts, 10 serves with 6 deviated / 2 followed): KC-2 = 6% (breach), conflicts excluded from the error rate, KC-3 = 75% with n=8 (`insufficient_data` overall, item flagged since n >= 5), KC-4 = 80%
-- [ ] TC-4.6: `health_report` with an empty log: every KC is `insufficient_data` and nothing fails
+- [x] TC-4.1: Each tool call appends one `call` line. `get_context` lane appends one `serve` line. All lines validate against the spec format (`v`, `ts`, `kind`, ...).
+- [x] TC-4.2: Log lines contain no file contents: for a fixture with the sentinel `SECRET_SENTINEL_123` inside `spec.md`, grep the log and expect no match
+- [x] TC-4.3: `report_outcome` deviated without a reason gives `VALIDATION_FAILED`. With a reason it is recorded. An unknown `serve_id` is recorded with `orphan: true` plus a warning.
+- [x] TC-4.4: Local batching (D3-a): log lines appear in the working tree immediately and are included in the next connector commit. No commit is made for log lines alone.
+- [x] TC-4.5: `health_report` on a synthetic log (100 calls, 6 tool_errors, 2 conflicts, 10 serves with 6 deviated / 2 followed): KC-2 = 6% (breach), conflicts excluded from the error rate, KC-3 = 75% with n=8 (`insufficient_data` overall, item flagged since n >= 5), KC-4 = 80%
+- [x] TC-4.6 (KC-8 is the exception: it is measured from the static instructions and tool list, not from the log, so it has a value even with an empty log): `health_report` with an empty log: every KC is `insufficient_data` and nothing fails
 
 ### Phase 5: Local hygiene
 - [ ] TC-5.1: Default push policy: after a connector commit with ahead 1, no push happens (remote ref unchanged, checked against a local bare remote), and the response warns with a hint to ask the human

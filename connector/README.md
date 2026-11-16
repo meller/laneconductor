@@ -5,9 +5,9 @@ A git-backed MCP server for LaneConductor (track AM-10106). It exposes a project
 context to Claude, and writes changes back as git commits. It stores, validates and advises. It does
 not schedule or dispatch work, and it is a second opinion, never a controller.
 
-Status: Phases 1 (code), 2, 3 and 3b of the plan: local stdio server, six tools, generated track
-summary. Not yet built: the advice log and `report_outcome` / `health_report` (Phase 4), push policy
-(Phase 5), the GitHub backend and the remote HTTP server (Phases 7-9).
+Status: Phases 1 (code), 2, 3, 3b and 4 of the plan: local stdio server, eight tools, generated track
+summary, advice log. Not yet built: push policy (Phase 5), the GitHub backend and the remote HTTP
+server (Phases 7-9).
 
 ## Setup (Claude Code, local stdio)
 
@@ -42,8 +42,9 @@ Check it: `claude mcp list`, then in a session ask "list the LaneConductor track
 
 ## Tools (v0)
 
-`list_tracks`, `get_track`, `get_context` (read-only); `create_track`, `update_track` (requires the
-`base` from your last read; stale files or markers are rejected with `CONFLICT`), `append_conversation`.
+`list_tracks`, `get_track`, `get_context`, `health_report` (read-only); `create_track`, `update_track`
+(requires the `base` from your last read; stale files or markers are rejected with `CONFLICT`),
+`append_conversation`, `report_outcome` (appends one line to the advice log, nothing else).
 Every response starts with a provenance line (which commit, which branch, ahead/behind, last fetch) and
 carries `structuredContent.provenance`; `freshness` is `fresh`, `possibly_stale` or `stale`.
 
@@ -60,6 +61,35 @@ disagrees with them. Tracks with broken markers are listed under "Needs attentio
 
 `conversation.md` is gitignored in the LaneConductor repo itself (decision D5, pending): there
 `append_conversation` writes the file but cannot commit it, and says so (`commit: null`, `commit_error`).
+
+## Advice log, health report, kill criteria
+
+The connector appends one JSON line per event to `conductor/advice-log/YYYY-MM.jsonl`: a `call` for
+every tool call, a `serve` when `get_context` hands out a lane guide (with a `serve_id`), and
+`tool_error`, `conflict`, `stale_read`, `empty_result` when they happen. Claude adds `outcome` lines
+through `report_outcome` (followed, deviated or failed, with a one-line reason). Lines carry ids,
+codes and counts only: no file contents, prompts or error messages.
+
+The lines are appended to the working tree at once and are committed together with the next
+connector commit; the log alone never causes a commit, and it is not counted as uncommitted plan
+state in the provenance line. For concurrent clones, `conductor/advice-log/*.jsonl merge=union` in
+`.gitattributes` lets simultaneous appends both survive.
+
+`health_report` summarises a window: per advice item (served, followed, deviated, failed,
+unreported, override rate, top deviation reasons, a flag when overridden most of the time) and for
+the connector (error, conflict, stale-read and empty-result rates, latency, estimated tokens), then
+the eight kill criteria with a verdict (`ok`, `warn`, `breach`, `insufficient_data`). The thresholds
+are data in `src/kill-criteria.mjs`. KC-1 and KC-5 are judged by hand. The decision to keep, change
+or remove is the human's.
+
+The window starts at `beta_start` in `conductor/advice-log/beta.json`, which you write by hand when
+the beta starts (and `beta_end` when it ends); nothing writes it automatically:
+
+```json
+{ "beta_start": "2026-11-20T09:00:00Z", "beta_end": null }
+```
+
+Without the file the window is the last 30 days.
 
 ## Docs-only lanes and state vs code
 

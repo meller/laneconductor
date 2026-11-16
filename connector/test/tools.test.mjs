@@ -27,6 +27,8 @@ const open = async (dir, opts) => {
   sessions.push(s);
   return s;
 };
+// The advice log is appended on every call and rides along with the next commit (D3-a), so state checks skip it.
+const EXCLUDE_LOG = ':(exclude)conductor/advice-log';
 const hashObject = (content) => execFileSync('git', ['hash-object', '--stdin'], { input: content }).toString().trim();
 const T = (n, slug) => `conductor/tracks/AM-${n}-${slug}`;
 const seed = (dir) => {
@@ -39,12 +41,12 @@ const seed = (dir) => {
 };
 
 // TC-3.1
-test('tools/list returns exactly the v0 tools with the spec annotations (Phase 4 adds the other two)', async () => {
+test('tools/list returns exactly the 8 v0 tools with the spec annotations', async () => {
   const s = await open(fixture());
   const { tools } = await s.client.listTools();
   const want = {
     list_tracks: [true, false], get_track: [true, false], get_context: [true, false],
-    create_track: [false, false], update_track: [false, true], append_conversation: [false, false],
+    health_report: [true, false], create_track: [false, false], update_track: [false, true], append_conversation: [false, false], report_outcome: [false, false],
   };
   assert.deepEqual(tools.map((t) => t.name).sort(), Object.keys(want).sort());
   for (const t of tools) {
@@ -63,7 +65,8 @@ test('server instructions: present, within the limit, first 300 characters menti
   assert.match(head, /plan/i);
   assert.match(head, /track/i);
   assert.match(head, /get_context/);
-  assert.doesNotMatch(ins, /report_outcome/, 'report_outcome is not registered until Phase 4');
+  assert.match(ins, /report_outcome/);
+  assert.match(ins, /health_report/);
 });
 
 // TC-3.3
@@ -303,7 +306,7 @@ test('markers: invalid lane/status are rejected, null removes a marker, Lane can
   assert.match(idx, /^\*\*Verdict\*\*: pass$/m);
   assert.deepEqual(ok.env.data.base.markers['Verdict'], 'pass');
   assert.ok(!('Phase' in ok.env.data.base.markers));
-  assert.equal(git(dir, 'diff', '--stat', 'HEAD', '--', 'conductor'), '', 'committed');
+  assert.equal(git(dir, 'diff', '--stat', 'HEAD', '--', 'conductor', EXCLUDE_LOG), '', 'committed');
 });
 
 // TC-3.11
@@ -367,7 +370,7 @@ test('append_conversation from two clients concurrently: both entries present, b
   assert.equal(entries.length, 2);
   assert.deepEqual(entries.map((e) => e.author).sort(), ['claude', 'human']);
   assert.ok(entries.some((e) => e.body === 'from A\n\nsecond paragraph'));
-  assert.equal(git(dir, 'status', '--porcelain', '--', 'conductor'), '', 'both committed');
+  assert.equal(git(dir, 'status', '--porcelain', '--', 'conductor', EXCLUDE_LOG), '', 'both committed');
 });
 
 test('append_conversation validation: pre-formatted body and a body that would split the turn are VALIDATION_FAILED', async () => {
@@ -428,7 +431,7 @@ test('get_context: manifest without bodies, files in full, lane guide from the r
   assert.match(lane.source, /^repo:\.claude\/skills\/laneconductor\/lanes\/plan\.md@[0-9a-f]{12}$/);
   assert.match(lane.advice, /ADVICE, not orders/);
   assert.match(lane.advice, /Do it this way\./);
-  assert.doesNotMatch(lane.advice, /report_outcome/);
+  assert.ok(lane.advice.includes(`call report_outcome with serve_id ${lane.serve_id}`));
   const lane2 = (await s.call('get_context', { lane: 'plan' })).env.data.lane_guide;
   assert.notEqual(lane2.serve_id, lane.serve_id, 'each serve gets its own id');
 

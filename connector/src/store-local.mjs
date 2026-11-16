@@ -5,6 +5,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { isLogFile, logFile } from './advice-log.mjs';
 import { blobSha } from './blob.mjs';
 import { fail } from './errors.mjs';
 
@@ -92,7 +93,27 @@ export class LocalGitStore {
       paths.push(f.slice(3));
       if (f[0] === 'R' || f[0] === 'C' || f[1] === 'R' || f[1] === 'C') i++;
     }
-    return paths;
+    // The advice log changes on every call; it is not plan state that a remote surface is missing.
+    return paths.filter((p) => !isLogFile(p));
+  }
+
+  /** Advice-log lines are appended to the working tree at once (D3-a) and committed with the next connector commit. */
+  async appendLog(lines) {
+    const byFile = new Map();
+    for (const l of lines) byFile.set(logFile(l.ts), `${byFile.get(logFile(l.ts)) ?? ''}${JSON.stringify(l)}\n`);
+    for (const [rel, text] of byFile) {
+      const abs = path.join(this.repo, rel);
+      await this._assertInside(abs);
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      await fs.appendFile(abs, text, 'utf8');
+    }
+  }
+
+  /** Uncommitted advice-log files, so a connector commit can carry them along. */
+  async _dirtyLogPaths() {
+    const r = await this._git(['status', '--porcelain=v1', '-z', '-uall', '--', 'conductor/advice-log']);
+    if (r.code !== 0) return [];
+    return r.stdout.split('\0').filter((f) => f.length > 3).map((f) => f.slice(3)).filter((p) => isLogFile(p));
   }
 
   async _upstream() {
@@ -361,6 +382,7 @@ export class LocalGitStore {
     if (commitPaths.length === 0) {
       return { ok: true, commit: null, commitError: `${ignored.join(', ')} is gitignored (decision D5); written but not committed`, ignored };
     }
+    for (const lp of await this._dirtyLogPaths()) if (!commitPaths.includes(lp) && !(await this._isIgnored(lp))) commitPaths.push(lp);
     const add = await this._withIndexLockRetry(['add', '-A', '--', ...commitPaths]);
     if (add.code !== 0) {
       await rollback().catch(() => {});

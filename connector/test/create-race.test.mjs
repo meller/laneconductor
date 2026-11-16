@@ -85,7 +85,7 @@ test('tools export is the v0 set and handlers carry no SDK imports', async () =>
   const fs = await import('node:fs');
   const path = await import('node:path');
   const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
-  assert.deepEqual(TOOLS.map((t) => t.name), ['list_tracks', 'get_track', 'get_context', 'create_track', 'update_track', 'append_conversation']);
+  assert.deepEqual(TOOLS.map((t) => t.name), ['list_tracks', 'get_track', 'get_context', 'health_report', 'create_track', 'update_track', 'append_conversation', 'report_outcome']);
   for (const f of [...fs.readdirSync(path.join(dir, 'tools')).map((n) => path.join('tools', n)), 'envelope.mjs', 'provenance.mjs', 'store-local.mjs']) {
     assert.doesNotMatch(fs.readFileSync(path.join(dir, f), 'utf8'), /@modelcontextprotocol/, `${f} must stay SDK-agnostic`);
   }

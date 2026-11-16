@@ -138,10 +138,10 @@ because nothing in code maintains it (see the two PLAN ADDITIONs on the summary 
 **Problem**: Failures must be visible, and advice must be accountable (REQUIREMENT section).
 **Solution**: Log writer, two tools and the report.
 
-- [ ] Task 1: `connector/src/advice-log.mjs`: JSONL writer (spec format). Connector-side events on every call. Batching per D3 (local: the working-tree append rides along with the next connector commit).
-- [ ] Task 2: `report_outcome` (an orphan `serve_id` is recorded with a warning)
-- [ ] Task 3: `health_report`: per-item and connector metrics, and a kill-criteria table with verdicts (thresholds below, kept in `connector/src/kill-criteria.mjs` as data)
-- [ ] Task 4: `beta_start` / `beta_end` markers in `conductor/advice-log/beta.json`, written when the human says the beta starts or ends (plain file edit, nothing automatic)
+- [x] Task 1: `connector/src/advice-log.mjs`: JSONL writer (spec format). Connector-side events on every call. Batching per D3 (local: the working-tree append rides along with the next connector commit).
+- [x] Task 2: `report_outcome` (an orphan `serve_id` is recorded with a warning)
+- [x] Task 3: `health_report`: per-item and connector metrics, and a kill-criteria table with verdicts (thresholds below, kept in `connector/src/kill-criteria.mjs` as data)
+- [x] Task 4 (the connector only READS `beta.json`, validated by `parseBeta`; the human writes it by hand, format in `connector/README.md`; the human's act of recording `beta_start` is Phase 6 Task 7): `beta_start` / `beta_end` markers in `conductor/advice-log/beta.json`, written when the human says the beta starts or ends (plain file edit, nothing automatic)
 
 **Impact**: Override rates, error rates and stale reads are measurable from day one of the beta.
 

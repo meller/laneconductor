@@ -99,7 +99,7 @@ export const getContext = {
         truncated,
       };
       if (truncated) warnings.push('The lane guide was truncated to fit the response limit.');
-      ctx.onServe?.({ serveId, tool: 'get_context', item: `lane:${args.lane}`, source: g.source, chars: g.content.length });
+      ctx.record?.({ kind: 'serve', id: serveId, tool: 'get_context', item: `lane:${args.lane}`, source: g.source, chars: g.content.length });
     }
     if (sizeOf(data) > MAX_TEXT_CHARS - ENVELOPE_RESERVE) warnings.push('Response is close to the size limit; request fewer files.');
     const parts = [];

@@ -46,18 +46,20 @@ const UNAVAILABLE = (err) => ({
 /** Runs one tool definition against a store and wraps the outcome. Never throws. */
 export async function runTool(def, ctx, args) {
   const started = Date.now();
+  const recorded = [];
+  const callCtx = { ...ctx, record: (e) => recorded.push(e) };
   let store = null;
   let outcome;
   try {
     store = ctx.resolveStore(args?.project);
     await ctx.assertConductorRepo(store);
-    const r = await def.run({ store, ctx, args });
-    outcome = { ok: true, data: r.data ?? {}, error: null, warnings: r.warnings ?? [], summary: r.summary, staleReasons: r.staleReasons ?? [] };
+    const r = await def.run({ store, ctx: callCtx, args });
+    outcome = { ok: true, data: r.data ?? {}, error: null, warnings: r.warnings ?? [], summary: r.summary, staleReasons: r.staleReasons ?? [], empty: Boolean(r.empty) };
   } catch (err) {
     const ce = err instanceof ConnectorError ? err : null;
     if (!ce) process.stderr.write(`[lc-connector] unexpected error in ${def.name}: ${err?.stack ?? err}\n`);
     outcome = {
-      ok: false, data: {}, summary: null, warnings: [], staleReasons: [],
+      ok: false, data: {}, summary: null, warnings: [], staleReasons: [], empty: false,
       error: ce ? ce.toJSON() : { code: 'INTERNAL_ERROR', message: String(err?.message ?? err), details: null, hint: 'This is a bug in the connector, not in your request.' },
     };
   }
@@ -71,6 +73,12 @@ export async function runTool(def, ctx, args) {
   const envelope = { ok: outcome.ok, data: outcome.data, error: outcome.error, warnings: boundWarnings(outcome.warnings), provenance };
   // The provenance line already carries `Freshness: ...` when the state is not fresh (REQ-10/11).
   const result = toResult(envelope, outcome.summary);
-  ctx.onCall?.({ tool: def.name, ok: outcome.ok, code: outcome.error?.code ?? null, latencyMs: Date.now() - started, chars: result.content[0].text.length });
+  if (store) {
+    await ctx.log?.(store, {
+      tool: def.name, readOnly: Boolean(def.annotations?.readOnlyHint), ok: outcome.ok, code: outcome.error?.code ?? null,
+      latencyMs: Date.now() - started, chars: result.content[0].text.length, freshness: provenance.freshness, staleReasons: provenance.stale_reasons,
+      empty: outcome.empty, recorded: outcome.ok ? recorded : [], commit: provenance.commit,
+    });
+  }
   return result;
 }

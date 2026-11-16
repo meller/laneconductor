@@ -13,7 +13,7 @@ export const FILE_NAMES = ['index', 'spec', 'plan', 'test', 'conversation'];
 export const WRITABLE_FILES = ['index', 'spec', 'plan', 'test'];
 export const trackPath = (folder, name) => `${TRACKS_DIR}/${folder}/${name}.md`;
 
-export const projectField = z.string().optional().describe('Repository to use; defaults to the server\'s configured repo.');
+export const projectField = z.string().optional().describe('Repo path; default: the server\'s repo.');
 export const trackField = z.union([z.string(), z.number()]).transform(String).describe('Track number, e.g. 10106 or AM-10106.');
 
 export const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
