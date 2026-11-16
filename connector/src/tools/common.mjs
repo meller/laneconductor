@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { countUnparsedLines, parseEntries } from '../conversation.mjs';
 import { fail } from '../errors.mjs';
-import { markerFingerprint, parseMarkers, trackTitle } from '../markers.mjs';
-import { isTrackFolder, resolveTrack } from '../tracks.mjs';
+import { markerFingerprint, parseMarkers } from '../markers.mjs';
+import { SUMMARY_PATH, generateSummary, summaryStamp } from '../summary.mjs';
+import { isTrackFolder, resolveTrack, trackIdentity } from '../tracks.mjs';
 
 export const TRACKS_DIR = 'conductor/tracks';
 export const FILE_NAMES = ['index', 'spec', 'plan', 'test', 'conversation'];
@@ -50,12 +51,6 @@ export function displayMarkers(indexContent) {
   return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.length > 200 ? `${v.slice(0, 200)}…` : v]));
 }
 
-export function trackIdentity(folder, indexContent) {
-  const m = folder.match(/^(?:([A-Za-z]+)-)?(\d+)-/);
-  const number = Number(m[2]);
-  return { number, id: m[1] ? `${m[1]}-${number}` : String(number), folder, title: (indexContent && trackTitle(indexContent)) || folder };
-}
-
 /** Reads the named files of a track and returns Map(name -> {content, sha}|null). */
 export async function readTrackFiles(store, folder, names) {
   const paths = names.map((n) => trackPath(folder, n));
@@ -69,5 +64,34 @@ export function conversationSummary(content, tail) {
   return { entries, total: all.length, unparsed_lines: content ? countUnparsedLines(content) : 0 };
 }
 
+/** Every track folder with its index.md (`{ content, sha }` or null), in the shape the summary generator takes. */
+export async function readEntries(store) {
+  const dirs = await trackDirNames(store);
+  const got = await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/index.md`));
+  return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null }));
+}
+
+/**
+ * The summary file change to add to a track write, or null when it would not change. `pending` maps
+ * folder -> the index.md text this write is about to produce. The file is regenerated, never merged,
+ * so it carries no precondition (a hand edit is simply replaced).
+ */
+export async function summaryChange(tx, nowMs, pending) {
+  const entries = await readEntries(tx);
+  for (const [folder, content] of pending) {
+    const e = { folder, index: { content, sha: blobSha(content) } };
+    const i = entries.findIndex((x) => x.folder === folder);
+    if (i === -1) entries.push(e);
+    else entries[i] = e;
+  }
+  const lanes = await workflowLanes(tx);
+  const cur = (await tx.readFiles([SUMMARY_PATH])).get(SUMMARY_PATH);
+  const stamp = cur ? summaryStamp(cur.content) : null;
+  if (stamp && generateSummary(entries, { lanes, generatedAt: stamp }).text === cur.content) return null;
+  const generatedAt = new Date(nowMs).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  return { path: SUMMARY_PATH, content: generateSummary(entries, { lanes, generatedAt }).text };
+}
+
+export { trackIdentity };
 export const sizeOf = (v) => JSON.stringify(v).length;
 export { blobSha, fail };

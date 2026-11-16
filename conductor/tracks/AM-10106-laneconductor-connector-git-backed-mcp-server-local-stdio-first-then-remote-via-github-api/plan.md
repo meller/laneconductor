@@ -125,11 +125,11 @@ transport (logs to stderr only, F3), with tool handlers that are backend-agnosti
 because nothing in code maintains it (see the two PLAN ADDITIONs on the summary in index.md).
 **Solution**: One deterministic generator function. No daemon, no LLM instruction.
 
-- [ ] Task 1: `connector/src/summary.mjs`: `generateSummary(repoTrackFiles)` reads every track's `index.md` markers (id, title, lane, lane status, progress, phase, depends on, last-modified) and returns the summary text with a generated-at stamp and a per-track source hash (blob sha of the index.md). Pure; reuses `resolveTrack` for folder resolution. Output file: `conductor/tracks-summary.md` (generated; header says never hand-edit).
-- [ ] Task 2: Lint pass in the same function: tracks with inconsistent markers (invalid Lane, Lane Status `running` with no live run, missing required marker) go under a "needs attention" section and are returned to `health_report`.
-- [ ] Task 3: Write path: `create_track` and `update_track` regenerate the summary and commit it in the SAME commit as the track change (one `commitFiles` call with both paths).
-- [ ] Task 4: Read path self-healing: `list_tracks` verifies each track's hash against the summary and, on any mismatch or a missing file, regenerates from a folder scan (and says so in `stale_reasons`); it never returns a stale row silently.
-- [ ] Task 5: `lc summary` command (thin wrapper over the same function) so `lc new` / `lc move` and plain-skill edits have a deterministic path. A conflict on the summary is resolved by regenerating, never by hand-merging.
+- [x] Task 1: `connector/src/summary.mjs`: `generateSummary(repoTrackFiles)` reads every track's `index.md` markers (id, title, lane, lane status, progress, phase, depends on, last-modified) and returns the summary text with a generated-at stamp and a per-track source hash (blob sha of the index.md). Pure; reuses `resolveTrack` for folder resolution. Output file: `conductor/tracks-summary.md` (generated; header says never hand-edit).
+- [x] Task 2 (partly; "Lane Status `running` with no live run" is deferred: the files hold no run registry, so a live run cannot be told from a stale `running`): Lint pass in the same function: tracks with inconsistent markers (invalid Lane, Lane Status `running` with no live run, missing required marker) go under a "needs attention" section and are returned to `health_report`.
+- [x] Task 3: Write path: `create_track` and `update_track` regenerate the summary and commit it in the SAME commit as the track change (one `commitFiles` call with both paths).
+- [x] Task 4: Read path self-healing: `list_tracks` verifies each track's hash against the summary and, on any mismatch or a missing file, regenerates from a folder scan (and says so in `stale_reasons`); it never returns a stale row silently.
+- [x] Task 5 (`lc summary [--check]` in `bin/lc.mjs`, a 5-line branch that runs `connector/bin/lc-summary.mjs`; it writes the file and does not commit; `lc new` / `lc move` do not call it yet): `lc summary` command (thin wrapper over the same function) so `lc new` / `lc move` and plain-skill edits have a deterministic path. A conflict on the summary is resolved by regenerating, never by hand-merging.
 
 **Impact**: A stale or hand-edited summary can never mislead, and no sync process exists to drift.
 

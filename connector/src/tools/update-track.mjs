@@ -3,7 +3,7 @@ import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
 import { markerFingerprint, parseMarkers, removeMarker, setMarker, validateIndex } from '../markers.mjs';
 import { resolveTrack } from '../tracks.mjs';
-import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
+import { FILE_NAMES, WRITABLE_FILES, baseMarkers, projectField, summaryChange, trackField, trackIdentity, trackPath, TRACKS_DIR, workflowLanes } from './common.mjs';
 
 const MAX_FILE_CHARS = 200_000;
 
@@ -94,11 +94,14 @@ export const updateTrack = {
       const changed = Object.keys(next).filter((n) => next[n] !== (curOf(n)?.content ?? null));
       const number = trackIdentity(folder, indexNow).number;
       if (changed.length === 0) return { folder, changed, number, noop: true, curOf, next, indexShaBefore: curOf('index')?.sha ?? null };
-      const names = changed.map((n) => `${n}.md`).join(' ');
+      const changes = changed.map((n) => ({ path: trackPath(folder, n), content: next[n] }));
+      const sum = await summaryChange(tx, ctx.now(), new Map(changed.includes('index') ? [[folder, next.index]] : []));
+      if (sum) changes.push(sum);
+      const names = changes.map((c) => c.path.split('/').pop()).join(' ');
       const message = `chore(track-${number}): update_track ${names} via lc-connector\n\nBase: ${base.commit}\nSurface: ${ctx.surface()}`;
       const r = await tx.commitFiles({
         preconditions: changed.map((n) => ({ path: trackPath(folder, n), sha: curOf(n)?.sha ?? null })),
-        changes: changed.map((n) => ({ path: trackPath(folder, n), content: next[n] })),
+        changes,
         message,
       });
       if (!r.ok) {
@@ -107,7 +110,7 @@ export const updateTrack = {
           hint: 'Re-read with get_track and retry.',
         });
       }
-      return { folder, changed, number, r, message, next, curOf, indexShaBefore: curOf('index')?.sha ?? null };
+      return { folder, changed, number, r, message, next, curOf, summaryWritten: Boolean(sum), indexShaBefore: curOf('index')?.sha ?? null };
     });
 
     const head = await store.head();
@@ -138,6 +141,7 @@ export const updateTrack = {
       data: {
         written: res.changed.map((n) => trackPath(res.folder, n)),
         commit: res.r?.commit ? { sha: res.r.commit, message: res.message.split('\n')[0] } : null,
+        ...(res.summaryWritten ? { summary_regenerated: true } : {}),
         ...(res.r?.commitError ? { commit_error: res.r.commitError } : {}),
         base: newBase,
       },

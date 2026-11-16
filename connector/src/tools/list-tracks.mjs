@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
-import { parseMarkers, trackTitle } from '../markers.mjs';
-import { trackNumberOfFolder } from '../tracks.mjs';
-import { TRACKS_DIR, projectField, readOnly, sizeOf, trackDirNames, trackIdentity } from './common.mjs';
+import { SUMMARY_PATH, checkSummary, rowOf } from '../summary.mjs';
+import { projectField, readEntries, readOnly, sizeOf, workflowLanes } from './common.mjs';
 
 const input = z.object({
   project: projectField,
@@ -21,40 +20,25 @@ export const listTracks = {
   input,
   async run({ store, args }) {
     const limit = args.limit ?? 50;
-    const dirs = await trackDirNames(store);
-    const reads = await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/index.md`));
+    const entries = await readEntries(store);
     const warnings = [];
-    const byNumber = new Map();
-    const rows = [];
-    for (const folder of dirs) {
-      const n = trackNumberOfFolder(folder);
-      byNumber.set(n, [...(byNumber.get(n) ?? []), folder]);
-      const idx = reads.get(`${TRACKS_DIR}/${folder}/index.md`);
-      const ident = trackIdentity(folder, idx?.content ?? '');
-      if (!idx) {
-        warnings.push(`${folder}: no index.md`);
-        rows.push({ number: ident.number, id: ident.id, folder, title: ident.title, lane: null, lane_status: null, progress: null, phase: null, type: null, summary: '', waiting_for_reply: false, depends_on: [] });
-        continue;
-      }
-      const v = parseMarkers(idx.content).values;
-      if (!('Lane' in v)) warnings.push(`${folder}: index.md has no **Lane** marker`);
-      const progress = parseInt(v['Progress'] ?? '', 10);
-      rows.push({
-        number: ident.number,
-        id: ident.id,
-        folder,
-        title: trackTitle(idx.content) ?? folder,
-        lane: v['Lane']?.trim() ?? null,
-        lane_status: v['Lane Status']?.trim() ?? null,
-        progress: Number.isFinite(progress) ? progress : null,
-        phase: v['Phase']?.trim() ?? null,
-        type: v['Type']?.trim() ?? null,
-        summary: (v['Summary'] ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
-        waiting_for_reply: (v['Waiting for reply'] ?? '').trim().toLowerCase() === 'yes',
-        depends_on: (v['Depends On'] ?? '').split(/[,\s]+/).map((s) => s.replace(/^[A-Za-z]+-/, '')).filter((s) => /^\d+$/.test(s)),
-      });
+    const rows = entries.map((e) => rowOf(e.folder, e.index));
+    for (const r of rows) {
+      if (r.source === null) warnings.push(`${r.folder}: no index.md`);
+      else if (r.lane === null) warnings.push(`${r.folder}: index.md has no **Lane** marker`);
     }
+    const byNumber = new Map();
+    for (const r of rows) byNumber.set(r.number, [...(byNumber.get(r.number) ?? []), r.folder]);
     for (const [n, folders] of byNumber) if (folders.length > 1) warnings.push(`Duplicate track number ${n}: ${folders.sort().join(', ')}`);
+    // The rows above come from the track files themselves; the summary file is only checked, so a
+    // stale or hand-edited one is reported instead of being believed.
+    const staleReasons = [];
+    const cur = (await store.readFiles([SUMMARY_PATH])).get(SUMMARY_PATH);
+    const check = checkSummary(cur?.content ?? null, entries, await workflowLanes(store));
+    if (check.status !== 'ok') {
+      staleReasons.push('track_summary_regenerated');
+      warnings.push(`${check.reason}; this list was regenerated from a scan of the track folders. The next track write (or \`lc summary\`) rewrites the file.`);
+    }
     const q = args.query?.toLowerCase();
     const matches = rows
       .filter((r) => (args.lane ? r.lane === args.lane : true))
@@ -70,9 +54,12 @@ export const listTracks = {
       truncated = true;
     }
     if (truncated) warnings.push(`Showing ${shown.length} of ${matches.length} tracks; narrow with lane, query or limit.`);
+    const filtered = Boolean(args.lane || args.lane_status || args.query);
     return {
-      data: { tracks: shown, total: matches.length, truncated },
+      data: { tracks: shown.map(({ source, ...r }) => r), total: matches.length, truncated },
       warnings,
+      staleReasons,
+      empty: filtered && matches.length === 0,
       summary: `${shown.length} of ${matches.length} track${matches.length === 1 ? '' : 's'}.`,
     };
   },

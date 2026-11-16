@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fail } from '../errors.mjs';
-import { baseMarkers, projectField, trackPath, TRACKS_DIR, FILE_NAMES, trackDirNames, trackIdentity } from './common.mjs';
+import { baseMarkers, projectField, summaryChange, trackPath, TRACKS_DIR, FILE_NAMES, trackIdentity } from './common.mjs';
 import { buildTrackFiles, defaultInitials, nextNumber } from '../tracks.mjs';
 import { blobSha } from '../blob.mjs';
 
@@ -35,8 +35,11 @@ export const createTrack = {
           type: args.type ?? 'dev', trackKind: args.track_kind, autoRun: args.auto_run ?? 'no', mergeMode: args.merge_mode ?? 'direct', dependsOn,
         });
         const changes = FILE_NAMES.map((n) => ({ path: trackPath(t.folder, n), content: t.files[n] }));
-        const msg = `chore(track-${number}): create_track ${FILE_NAMES.map((n) => `${n}.md`).join(' ')} via lc-connector\n\nSurface: ${ctx.surface()}`;
-        const r = await tx.commitFiles({ preconditions: changes.map((c) => ({ path: c.path, sha: null })), changes, message: msg });
+        const preconditions = changes.map((c) => ({ path: c.path, sha: null }));
+        const sum = await summaryChange(tx, ctx.now(), new Map([[t.folder, t.files.index]]));
+        if (sum) changes.push(sum);
+        const msg = `chore(track-${number}): create_track ${changes.map((c) => c.path.split('/').pop()).join(' ')} via lc-connector\n\nSurface: ${ctx.surface()}`;
+        const r = await tx.commitFiles({ preconditions, changes, message: msg });
         return { r, t, number, msg };
       });
       if (!res.r.ok) {

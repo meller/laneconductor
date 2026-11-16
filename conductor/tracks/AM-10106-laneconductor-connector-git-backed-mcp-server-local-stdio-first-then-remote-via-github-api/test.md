@@ -63,6 +63,15 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 - [x] TC-3.15: `get_context` with `lane:"plan"` in a repo without `.claude/skills/...` returns the bundled guide with `source: "bundled@<version>"`
 - [x] TC-3.16 (unknown tool is a protocol error; invalid args are an SDK isError result, see conversation.md deviation 1): Unknown tool name gives a JSON-RPC error (protocol). Missing required `track` gives a JSON-RPC invalid-params error, not `isError`.
 
+### Phase 3b: Generated track summary
+- [x] TC-3b.1: `generateSummary` is deterministic (same entries and stamp give identical text, any input order), rows carry the blob-sha source, `|` in titles is escaped
+- [x] TC-3b.2: Lint: invalid lane, invalid status, missing markers, missing index.md and duplicate numbers all appear under "needs attention"
+- [x] TC-3b.3: `checkSummary` reports `missing`, `stale` (hand edit, no stamp, index.md changed behind it) and `ok`
+- [x] TC-3b.4: `create_track` commits the summary in the same single commit as the five track files
+- [x] TC-3b.5: `update_track` marker edits regenerate the summary in the same commit; a spec-only edit leaves a current summary alone; any write creates a missing summary
+- [x] TC-3b.6: `list_tracks` with a missing or hand-edited summary, or an index.md edited behind it: `track_summary_regenerated` in `stale_reasons`, rows still correct; after a track write the reason is gone
+- [x] TC-3b.7: `lc-summary.mjs --check` exits 1 when missing, a plain run writes the file without committing, `--check` then exits 0
+
 ### Phase 4: Advice log, report_outcome, health_report
 - [ ] TC-4.1: Each tool call appends one `call` line. `get_context` lane appends one `serve` line. All lines validate against the spec format (`v`, `ts`, `kind`, ...).
 - [ ] TC-4.2: Log lines contain no file contents: for a fixture with the sentinel `SECRET_SENTINEL_123` inside `spec.md`, grep the log and expect no match

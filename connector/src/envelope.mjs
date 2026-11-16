@@ -2,7 +2,7 @@
 // carries `provenance`, and the first line of its text is the provenance line (REQ-10). The text
 // also holds the full JSON (F5 back-compat) and stays under 40,000 characters (REQ-18).
 import { ConnectorError } from './errors.mjs';
-import { buildProvenance } from './provenance.mjs';
+import { buildProvenance, withReasons } from './provenance.mjs';
 
 export const MAX_TEXT_CHARS = 40_000;
 /** Room tools should leave for the provenance block, error fields and warnings when sizing `data`. */
@@ -52,12 +52,12 @@ export async function runTool(def, ctx, args) {
     store = ctx.resolveStore(args?.project);
     await ctx.assertConductorRepo(store);
     const r = await def.run({ store, ctx, args });
-    outcome = { ok: true, data: r.data ?? {}, error: null, warnings: r.warnings ?? [], summary: r.summary };
+    outcome = { ok: true, data: r.data ?? {}, error: null, warnings: r.warnings ?? [], summary: r.summary, staleReasons: r.staleReasons ?? [] };
   } catch (err) {
     const ce = err instanceof ConnectorError ? err : null;
     if (!ce) process.stderr.write(`[lc-connector] unexpected error in ${def.name}: ${err?.stack ?? err}\n`);
     outcome = {
-      ok: false, data: {}, summary: null, warnings: [],
+      ok: false, data: {}, summary: null, warnings: [], staleReasons: [],
       error: ce ? ce.toJSON() : { code: 'INTERNAL_ERROR', message: String(err?.message ?? err), details: null, hint: 'This is a bug in the connector, not in your request.' },
     };
   }
@@ -67,6 +67,7 @@ export async function runTool(def, ctx, args) {
   } catch (err) {
     provenance = UNAVAILABLE(err);
   }
+  if (outcome.staleReasons.length) provenance = withReasons(provenance, outcome.staleReasons, ctx.now());
   const envelope = { ok: outcome.ok, data: outcome.data, error: outcome.error, warnings: boundWarnings(outcome.warnings), provenance };
   // The provenance line already carries `Freshness: ...` when the state is not fresh (REQ-10/11).
   const result = toResult(envelope, outcome.summary);

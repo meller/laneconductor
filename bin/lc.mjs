@@ -796,6 +796,7 @@ Deployment  (per project)
   deploy [env]         Execute deployment for a specific environment (prod/staging/preview)
   remote-sync          Bidirectional sync between API and local files (newer wins)
   init-summary         Regenerate conductor/tracks.md
+  summary [--check]    Regenerate conductor/tracks-summary.md (the connector's generated track list)
   verify               Run project verification checks
 
 Global configuration: ${RC_FILE}
@@ -871,6 +872,7 @@ const SUBCOMMAND_HELP = {
     verify: 'lc verify  — Run project verification checks',
     'remote-sync': 'lc remote-sync  — Bidirectional sync between API and local files (newer wins)',
     'init-summary': 'lc init-summary  — Regenerate conductor/tracks.md',
+    summary: 'lc summary [--check]  — Regenerate conductor/tracks-summary.md from the track folders (--check: write nothing, exit 1 if out of date)',
     delete: 'lc delete [id]  — Permanently delete a track',
     remove: 'lc delete [id]  — Permanently delete a track',
 };
@@ -4491,6 +4493,11 @@ Please review this, answer any questions (some fields may contain questions rath
     const script = join(getInstallPath(), 'conductor', command === 'remote-sync' ? 'remote-sync.mjs' : 'init-tracks-summary.mjs');
     spawnSync('node', [script], { stdio: 'inherit', cwd: projectRoot });
     process.exit(0);
+} else if (command === 'summary') {
+    if (!projectRoot) { process.exit(1); }
+    const script = join(getInstallPath(), 'connector', 'bin', 'lc-summary.mjs');
+    const r = spawnSync('node', [script, '--repo', projectRoot, ...args.slice(1)], { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
 } else if (command === 'delete' || command === 'remove') {
     if (!projectRoot) { console.error('❌ Error: No Project Root found.'); process.exit(1); }
     const trackNum = args[1];

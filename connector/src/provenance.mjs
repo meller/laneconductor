@@ -80,3 +80,12 @@ export async function buildProvenance(store, { now = Date.now() } = {}) {
   p.line = provenanceLine(p, now);
   return p;
 }
+
+/** Adds tool-level reasons (e.g. a regenerated summary) to a provenance block, at least `possibly_stale`. */
+export function withReasons(p, reasons, now) {
+  const extra = reasons.filter((r) => !p.stale_reasons.includes(r));
+  if (!extra.length) return p;
+  const next = { ...p, stale_reasons: [...p.stale_reasons, ...extra], freshness: p.freshness === 'stale' ? 'stale' : 'possibly_stale' };
+  next.line = provenanceLine(next, now);
+  return next;
+}

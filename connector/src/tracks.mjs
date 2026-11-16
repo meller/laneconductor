@@ -3,9 +3,10 @@
 // (conductor/services/track-folder.mjs) so both naming conventions behave exactly as elsewhere.
 import { decideTrackFolder } from '../../conductor/services/track-folder.mjs';
 import { fail } from './errors.mjs';
-import { parseMarkers } from './markers.mjs';
+import { parseMarkers, trackTitle } from './markers.mjs';
 
 const FOLDER_RE = /^(?:[A-Za-z]+-)?(\d+)-/;
+const FOLDER_RE_FULL = /^(?:([A-Za-z]+)-)?(\d+)-/;
 
 export const isTrackFolder = (name) => FOLDER_RE.test(name);
 
@@ -33,6 +34,13 @@ export function resolveTrack(dirNames, ref) {
   }
   const decision = decideTrackFolder({ dirNames: matches, trackNumber: String(number), registeredFolder: null, registeredExists: false });
   return decision.folder ?? matches[0];
+}
+
+/** `{ number, id, folder, title }` from a folder name and (optionally) its index.md text. */
+export function trackIdentity(folder, indexContent) {
+  const m = folder.match(FOLDER_RE_FULL);
+  const number = Number(m[2]);
+  return { number, id: m[1] ? `${m[1]}-${number}` : String(number), folder, title: (indexContent && trackTitle(indexContent)) || folder };
 }
 
 export function nextNumber(localDirs, upstreamDirs = []) {

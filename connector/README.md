@@ -5,9 +5,9 @@ A git-backed MCP server for LaneConductor (track AM-10106). It exposes a project
 context to Claude, and writes changes back as git commits. It stores, validates and advises. It does
 not schedule or dispatch work, and it is a second opinion, never a controller.
 
-Status: Phases 1 (code), 2 and 3 of the plan: local stdio server, six tools. Not yet built: the advice
-log and `report_outcome` / `health_report` (Phase 4), push policy (Phase 5), the GitHub backend and
-the remote HTTP server (Phases 7-9).
+Status: Phases 1 (code), 2, 3 and 3b of the plan: local stdio server, six tools, generated track
+summary. Not yet built: the advice log and `report_outcome` / `health_report` (Phase 4), push policy
+(Phase 5), the GitHub backend and the remote HTTP server (Phases 7-9).
 
 ## Setup (Claude Code, local stdio)
 
@@ -50,6 +50,13 @@ carries `structuredContent.provenance`; `freshness` is `fresh`, `possibly_stale`
 Every write is a commit made by the server (`chore(track-NNN): <tool> <files> via lc-connector`) that
 touches exactly the written paths, so unrelated staged or dirty files are never swept in. The server
 never pushes (decision D4 is pending): when the response says `unpushed_local_commits`, ask the human.
+
+`conductor/tracks-summary.md` is a generated list of every track (id, title, lane, status, progress,
+phase, dependencies, and the blob sha of each `index.md`). Never edit it by hand: `create_track` and
+`update_track` regenerate it in the same commit as the track change, `lc summary` regenerates it
+(`lc summary --check` exits 1 when it is missing or out of date), and `list_tracks` builds its rows
+from the track files and reports `track_summary_regenerated` in `stale_reasons` when the file
+disagrees with them. Tracks with broken markers are listed under "Needs attention" in the file.
 
 `conversation.md` is gitignored in the LaneConductor repo itself (decision D5, pending): there
 `append_conversation` writes the file but cannot commit it, and says so (`commit: null`, `commit_error`).

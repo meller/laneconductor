@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 26%
-**Phase**: Phases 1(code)-3 done; 4-10 pending decisions D1-D5
+**Progress**: 31%
+**Phase**: Phases 1(code)-3b done; 4-10 pending decisions D1-D5
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
