@@ -113,7 +113,13 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 - [ ] TC-8.9: No GitHub token, client secret or private key ever appears in responses, the advice log or stderr logs (grep for sentinel values in test config)
 - [ ] TC-8.10: Remote advice-log flush (D3-a): 49 lines give no commit. The 50th line, or 10 minutes, gives exactly one commit.
 
+### Phase 6: scriptable parts of the local beta scenarios (`connector/test/beta-local.test.mjs`)
+- [x] TC-6.1 (B-c, local half): two unpushed connector commits: a read from a fresh session is `possibly_stale` with `unpushed_local_commits`, ahead 2, behind 0, and the remote head is unchanged
+- [x] TC-6.2 (B-d, local half): two server processes write `plan.md` from one base, sequentially and in 5 simultaneous rounds: exactly one wins, the other gets `CONFLICT`, and the file equals the winner's bytes
+- [x] TC-6.3 (B-e, automated part): the create/update/append/list/context/health flow works with unreachable Postgres and proxy settings, the server process holds no sockets, and `connector/src` imports no database or network module
+
 ## Beta scenarios (Phases 6 and 9; manual, results recorded in `beta-report.md`)
+(B-c, B-d and B-e have automated local halves, TC-6.1 to TC-6.3; they stay open here until run by hand in the scratch project and, for the remote halves, in Phase 9.)
 - [ ] B-a (AC-a): scratch project without the skill and CLAUDE.md mention. "plan a CSV export for the report page": a new track folder with 5 files. `index.md` markers parse. `conversation.md` parses. No human mention of LaneConductor in the session.
 - [ ] B-b (AC-b): claude.ai web with the remote connector against the scratch GitHub repo, same request: a new commit on `main` authored by the signed-in user, with valid files
 - [ ] B-c (AC-c): two unpushed local state commits. Local read: `possibly_stale` with `unpushed_local_commits`. Remote read: head commit and age shown, and Claude's reply mentions possible staleness.

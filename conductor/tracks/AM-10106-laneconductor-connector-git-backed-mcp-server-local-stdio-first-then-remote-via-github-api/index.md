@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 48%
-**Phase**: Phases 1(code)-5 done; 6-10 pending (6 partly HUMAN) and decisions D1-D5
+**Progress**: 52%
+**Phase**: Phases 1(code)-5 done; 6 automated parts done, its real-session steps are HUMAN; 7-10 pending decisions D1-D5
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

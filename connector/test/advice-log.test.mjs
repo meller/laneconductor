@@ -70,7 +70,7 @@ test('failures: CONFLICT is a conflict line (not a tool_error), other errors are
   writeFile(dir, `${T(1, 'one')}/index.md`, INDEX(1, 'One'));
   writeFile(dir, `${T(1, 'one')}/plan.md`, '# p\n');
   commitAll(dir);
-  addRemote(dir);
+  cleanup.push(addRemote(dir));
   const s = await open(dir);
   const g = await s.call('get_track', { track: '1' });
   await s.call('update_track', { track: '1', base: g.env.data.base, files: { plan: '# p2\n' } }); // local commit ahead of origin

@@ -162,13 +162,13 @@ smallest footprint possible.
 **Problem**: The local half must be shown to work before anything is hosted.
 **Solution**: Run the scenarios in `test.md` "Beta scenarios" against a scratch project, and record the results.
 
-- [ ] Task 1: Scratch project `~/Code/lc-connector-beta` (own git repo, a `conductor/` with context files, no LaneConductor skill, no CLAUDE.md mention) with the stdio connector configured
-- [ ] Task 2: B-a: "plan <small feature>" with no pattern prompting, then check the files with the format checker
-- [ ] Task 3: B-c local: commit locally without pushing, and check that a read shows `unpushed_local_commits`
-- [ ] Task 4: B-d: two sessions edit `plan.md` from the same base; the second gets `CONFLICT`, and the file holds the first edit
-- [ ] Task 5: B-e: run all of the above with Postgres stopped and no sync daemon running
-- [ ] Task 6: B-f: confirm the token-measurement method (U7), then 5 paired "plan X" runs (skill only vs connector), medians recorded in `beta-report.md` in this track folder
-- [ ] Task 7: The human records `beta_start` (Phase 4 Task 4)
+- [ ] Task 1 (HUMAN: a real directory in ~/Code with the connector added to a real Claude Code config): Scratch project `~/Code/lc-connector-beta` (own git repo, a `conductor/` with context files, no LaneConductor skill, no CLAUDE.md mention) with the stdio connector configured
+- [ ] Task 2 (HUMAN: needs a real Claude session; the format checks themselves are covered by TC-3.7 and TC-2.4): B-a: "plan <small feature>" with no pattern prompting, then check the files with the format checker
+- [x] Task 3 (automated against a throwaway repo and the real stdio server, `connector/test/beta-local.test.mjs`; the live scratch-project run is Task 1's): B-c local: commit locally without pushing, and check that a read shows `unpushed_local_commits`
+- [x] Task 4 (automated, same file, two real server processes, sequential and 5 simultaneous rounds): B-d: two sessions edit `plan.md` from the same base; the second gets `CONFLICT`, and the file holds the first edit
+- [ ] Task 5 (partly automated: B-c and B-d pass with unreachable Postgres settings, no sockets in the server process and no DB or network code in `connector/src`; the full run including B-a with Postgres actually stopped is HUMAN): B-e: run all of the above with Postgres stopped and no sync daemon running
+- [ ] Task 6 (HUMAN: real Claude sessions and the token measurement): B-f: confirm the token-measurement method (U7), then 5 paired "plan X" runs (skill only vs connector), medians recorded in `beta-report.md` in this track folder
+- [ ] Task 7 (HUMAN): The human records `beta_start` (Phase 4 Task 4)
 
 **Impact**: Local go or no-go evidence. The beta clock starts.
 
