@@ -95,7 +95,7 @@ export const getContext = {
         lane: args.lane,
         serve_id: serveId,
         source: g.source,
-        advice: framing({ serveId, hasOutcomeTool: ctx.hasTool('report_outcome') }) + (truncated ? g.content.slice(0, room) : g.content),
+        advice: framing({ serveId, hasOutcomeTool: ctx.hasTool('report_outcome'), lane: args.lane }) + (truncated ? g.content.slice(0, room) : g.content),
         truncated,
       };
       if (truncated) warnings.push('The lane guide was truncated to fit the response limit.');

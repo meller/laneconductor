@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createConnectorServer } from '../src/server.mjs';
+import { readPushPolicy } from '../src/push-policy.mjs';
 import { LocalGitStore } from '../src/store-local.mjs';
 
 const pkg = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'));
@@ -61,8 +62,12 @@ for (const r of repos) {
     process.exit(2);
   }
 }
-const stores = repos.map((repo) => new LocalGitStore({ repo, stateBranch: args.stateBranch }));
-err(`v${pkg.version} serving ${repos.join(', ')} (state branch ${args.stateBranch})`);
+const stores = repos.map((repo) => {
+  const { policy, problem } = readPushPolicy(repo);
+  if (problem) err(`${repo}: ${problem}`);
+  return new LocalGitStore({ repo, stateBranch: args.stateBranch, pushPolicy: policy });
+});
+err(`v${pkg.version} serving ${repos.join(', ')} (state branch ${args.stateBranch}; push policy ${stores.map((s) => s.pushPolicy).join(', ')})`);
 
 const handle = serveStdio(() => createConnectorServer({ stores, version: pkg.version }), { onerror: (e) => err(String(e?.stack ?? e)) });
 const shutdown = () => {

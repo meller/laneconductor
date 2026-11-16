@@ -3,6 +3,7 @@
 // also holds the full JSON (F5 back-compat) and stays under 40,000 characters (REQ-18).
 import { ConnectorError } from './errors.mjs';
 import { buildProvenance, withReasons } from './provenance.mjs';
+import { pushWarnings } from './push-policy.mjs';
 
 export const MAX_TEXT_CHARS = 40_000;
 /** Room tools should leave for the provenance block, error fields and warnings when sizing `data`. */
@@ -70,7 +71,9 @@ export async function runTool(def, ctx, args) {
     provenance = UNAVAILABLE(err);
   }
   if (outcome.staleReasons.length) provenance = withReasons(provenance, outcome.staleReasons, ctx.now());
-  const envelope = { ok: outcome.ok, data: outcome.data, error: outcome.error, warnings: boundWarnings(outcome.warnings), provenance };
+  const ps = store?.pushStatus?.();
+  const hints = ps ? pushWarnings({ policy: ps.policy, ahead: provenance.upstream?.ahead ?? 0, last: ps.last }) : [];
+  const envelope = { ok: outcome.ok, data: outcome.data, error: outcome.error, warnings: boundWarnings([...outcome.warnings, ...hints]), provenance };
   // The provenance line already carries `Freshness: ...` when the state is not fresh (REQ-10/11).
   const result = toResult(envelope, outcome.summary);
   if (store) {

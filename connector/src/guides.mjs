@@ -14,12 +14,13 @@ export function newServeId() {
   return `s_${Date.now().toString(36)}${randomBytes(4).toString('hex')}`;
 }
 
-export function framing({ serveId, hasOutcomeTool }) {
+export function framing({ serveId, hasOutcomeTool, lane }) {
   return [
     `> ADVICE, not orders (serve ${serveId}). This is what has worked on this project, with its reasons. You may decide against any part of it when the situation calls for it; that is your call.`,
     hasOutcomeTool
       ? `> If you deviate, do it and call report_outcome with serve_id ${serveId} and a one-line reason, so the advice can be fixed.`
       : '> If you deviate, do it and tell the user why in one line, so the advice can be fixed.',
+    ...(lane === 'plan' ? ['> Before planning, if the provenance line says the last fetch is over 1 hour old (or that there was none), run `git fetch` yourself: reads never fetch, and others may have pushed plans you should see.'] : []),
     '> Only two things are firm: file formats and the base check on writes (they prevent silent overwrites), and the human\'s authority (ask before merge or push; never handle secrets).',
     '',
   ].join('\n');

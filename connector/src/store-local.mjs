@@ -8,6 +8,7 @@ import path from 'node:path';
 import { isLogFile, logFile } from './advice-log.mjs';
 import { blobSha } from './blob.mjs';
 import { fail } from './errors.mjs';
+import { PUSH_IDLE_MS } from './push-policy.mjs';
 
 const STATE_ROOT = 'conductor/';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,7 +32,7 @@ function git(cwd, args, { input, env } = {}) {
 }
 
 export class LocalGitStore {
-  constructor({ repo, stateBranch = 'main', now = Date.now, lockTimeoutMs = 10_000, lockStaleMs = 30_000, indexLockRetries = 3, indexLockBackoffMs = 200 }) {
+  constructor({ repo, stateBranch = 'main', now = Date.now, lockTimeoutMs = 10_000, lockStaleMs = 30_000, indexLockRetries = 3, indexLockBackoffMs = 200, pushPolicy = 'ask', pushIdleMs = PUSH_IDLE_MS, timers = { set: setTimeout, clear: clearTimeout } }) {
     this.repo = path.resolve(repo);
     this.stateBranch = stateBranch;
     this.now = now;
@@ -39,6 +40,11 @@ export class LocalGitStore {
     this.lockStaleMs = lockStaleMs;
     this.indexLockRetries = indexLockRetries;
     this.indexLockBackoffMs = indexLockBackoffMs;
+    this.pushPolicy = pushPolicy;
+    this.pushIdleMs = pushIdleMs;
+    this.timers = timers;
+    this._pushTimer = null;
+    this._lastPush = null;
     this._chain = Promise.resolve();
     this._lockPath = null;
     this._realRepo = null;
@@ -142,6 +148,56 @@ export class LocalGitStore {
     const r = await this._git(['ls-tree', '-d', '--name-only', `${this.stateBranch}@{upstream}`, `${dir.replace(/\/?$/, '/')}`]);
     if (r.code !== 0) return [];
     return r.stdout.split('\n').filter(Boolean).map((p) => path.posix.basename(p));
+  }
+
+  // ---- push policy (D4) -----------------------------------------------------------------------
+
+  pushStatus() {
+    return { policy: this.pushPolicy, last: this._lastPush };
+  }
+
+  /** `auto-state` only: restart the idle countdown after every connector commit (a write burst pushes once). */
+  _schedulePush() {
+    if (this.pushPolicy !== 'auto-state') return;
+    if (this._pushTimer) this.timers.clear(this._pushTimer);
+    this._pushTimer = this.timers.set(() => this.pushState().catch(() => {}), this.pushIdleMs);
+    this._pushTimer?.unref?.();
+  }
+
+  /**
+   * Fast-forward push of the state branch, only when every unpushed commit touches nothing outside
+   * conductor/. Never forces. The outcome is remembered (for response warnings) and logged as a `push` line.
+   */
+  async pushState() {
+    this._pushTimer = null;
+    const result = await this._tryPush();
+    this._lastPush = result;
+    const lines = [{ v: 1, ts: new Date(this.now()).toISOString().replace(/\.\d{3}Z$/, 'Z'), kind: 'push', session: 'store', surface: 'lc-connector', ok: result.ok, ...(result.reason ? { reason: result.reason } : {}), commits: result.commits }];
+    await this.appendLog(lines).catch(() => {});
+    return result;
+  }
+
+  async _tryPush() {
+    const up = await this._upstream();
+    if (!up) return { ok: false, reason: 'no_upstream', commits: [] };
+    if (up.behind > 0) return { ok: false, reason: 'behind_upstream', commits: [] };
+    if (up.ahead === 0) return { ok: true, commits: [] };
+    const range = `${up.ref}..refs/heads/${this.stateBranch}`;
+    const merges = (await this._git(['rev-list', '--merges', '--abbrev-commit', range])).stdout.split('\n').filter(Boolean);
+    if (merges.length) return { ok: false, reason: 'merge_commit', commits: merges };
+    const log = (await this._git(['log', '--format=@%h', '--name-only', range])).stdout.split('\n');
+    const commits = [];
+    const outside = new Set();
+    let cur = null;
+    for (const l of log) {
+      if (l.startsWith('@')) { cur = l.slice(1); commits.push(cur); } else if (l && !l.startsWith(STATE_ROOT)) outside.add(cur);
+    }
+    if (outside.size) return { ok: false, reason: 'non_state_commit', commits: [...outside] };
+    const remote = (await this._git(['config', `branch.${this.stateBranch}.remote`])).stdout.trim();
+    const mergeRef = (await this._git(['config', `branch.${this.stateBranch}.merge`])).stdout.trim();
+    if (!remote || !mergeRef) return { ok: false, reason: 'no_upstream', commits: [] };
+    const r = await this._git(['push', '-q', remote, `refs/heads/${this.stateBranch}:${mergeRef}`]);
+    return r.code === 0 ? { ok: true, commits } : { ok: false, reason: 'push_rejected', commits };
   }
 
   async isAncestor(commit) {
@@ -404,6 +460,7 @@ export class LocalGitStore {
       return { ok: true, commit: null, commitError: `git commit failed: ${detail || `exit ${r.code}`}`, ignored };
     }
     const sha = (await this._gitOk(['rev-parse', 'HEAD'])).trim();
+    this._schedulePush();
     return { ok: true, commit: sha, ...(ignored.length ? { ignored } : {}) };
   }
 }

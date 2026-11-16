@@ -151,9 +151,9 @@ because nothing in code maintains it (see the two PLAN ADDITIONs on the summary 
 **Solution**: Connector writes already commit (REQ-7). Add the drift and push pieces with the
 smallest footprint possible.
 
-- [ ] Task 1: `freshness` reports ahead, behind and last fetch (done in Phase 2). Add to the plan-lane framing that Claude should `git fetch` when the last fetch is over 1 h old.
-- [ ] Task 2: Push policy per D4. Default `ask`: responses carry `unpushed_local_commits` plus a hint to ask the human. Opt-in `auto-state`: fast-forward-only push of commits that touch only `conductor/`, 60 s idle debounce, every push logged.
-- [ ] Task 3: Document in `connector/README.md` that docs-only lanes run in the primary checkout with no worktree, and that code branches never carry state.
+- [x] Task 1: `freshness` reports ahead, behind and last fetch (done in Phase 2). Add to the plan-lane framing that Claude should `git fetch` when the last fetch is over 1 h old.
+- [x] Task 2: Push policy per D4. Default `ask`: responses carry `unpushed_local_commits` plus a hint to ask the human. Opt-in `auto-state`: fast-forward-only push of commits that touch only `conductor/`, 60 s idle debounce, every push logged.
+- [x] Task 3: Document in `connector/README.md` that docs-only lanes run in the primary checkout with no worktree, and that code branches never carry state.
 
 **Impact**: Local work becomes remotely visible quickly, and push stays under the human's authority.
 

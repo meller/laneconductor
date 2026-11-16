@@ -5,9 +5,9 @@ A git-backed MCP server for LaneConductor (track AM-10106). It exposes a project
 context to Claude, and writes changes back as git commits. It stores, validates and advises. It does
 not schedule or dispatch work, and it is a second opinion, never a controller.
 
-Status: Phases 1 (code), 2, 3, 3b and 4 of the plan: local stdio server, eight tools, generated track
-summary, advice log. Not yet built: push policy (Phase 5), the GitHub backend and the remote HTTP
-server (Phases 7-9).
+Status: Phases 1 (code), 2, 3, 3b, 4 and 5 of the plan: local stdio server, eight tools, generated
+track summary, advice log, push policy. Not yet built: the GitHub backend and the remote HTTP server
+(Phases 7-9).
 
 ## Setup (Claude Code, local stdio)
 
@@ -49,8 +49,31 @@ Every response starts with a provenance line (which commit, which branch, ahead/
 carries `structuredContent.provenance`; `freshness` is `fresh`, `possibly_stale` or `stale`.
 
 Every write is a commit made by the server (`chore(track-NNN): <tool> <files> via lc-connector`) that
-touches exactly the written paths, so unrelated staged or dirty files are never swept in. The server
-never pushes (decision D4 is pending): when the response says `unpushed_local_commits`, ask the human.
+touches exactly the written paths (plus any uncommitted advice-log lines), so unrelated staged or
+dirty files are never swept in.
+
+### Push policy (decision D4)
+
+By default (`ask`) the connector never pushes. When local commits are ahead of the upstream, every
+response says `unpushed_local_commits` in `stale_reasons` and carries a warning telling Claude to ask
+the human whether to push, because remote surfaces cannot see those commits.
+
+The human can opt in to a standing permission in `.laneconductor.json`:
+
+```json
+{ "connector": { "push": "auto-state" } }
+```
+
+With `auto-state`, 60 seconds after the last connector write (a burst of writes pushes once) the
+connector pushes the state branch, fast-forward only and never forced, and only when every unpushed
+commit touches nothing outside `conductor/` and none is a merge commit. Otherwise it pushes nothing
+and the next responses name the commits or the reason (the remote moved, no upstream, rejected). Each
+attempt is logged as a `push` line in the advice log. The countdown lives in the server process, so
+a session that ends within the 60 seconds leaves its commits local; they are then reported as
+unpushed by the next session. Any other value falls back to `ask`.
+
+Reads never run `git fetch`. The plan lane guide tells Claude to run `git fetch` itself when the
+provenance line shows the last fetch is over an hour old.
 
 `conductor/tracks-summary.md` is a generated list of every track (id, title, lane, status, progress,
 phase, dependencies, and the blob sha of each `index.md`). Never edit it by hand: `create_track` and
@@ -94,9 +117,13 @@ Without the file the window is the last 30 days.
 ## Docs-only lanes and state vs code
 
 Track state lives on the state branch (default `main`) and code lives on branches. The plan lane and
-other docs-only work run in the primary checkout with no worktree; the connector commits the state
-files itself, so nothing needs a manual commit before another session or surface can see it. Code
-branches should never carry track-folder changes.
+other docs-only lanes (such as review notes) run in the primary checkout with no worktree: they never
+needed one, and a worktree is what forced "commit and push before everything". The connector commits
+the state files itself, so nothing needs a manual commit before another session or surface can see
+them locally; pushing stays under the human's authority (see Push policy). Code branches never carry
+track state: edit `conductor/` through the connector, on the state branch, and writes from another
+branch are refused with `NOT_ON_STATE_BRANCH`. Code lanes (implement) are the only ones that use a
+worktree, and only for code.
 
 ## Removal
 

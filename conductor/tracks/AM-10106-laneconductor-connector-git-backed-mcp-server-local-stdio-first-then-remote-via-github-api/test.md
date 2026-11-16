@@ -81,10 +81,13 @@ fixture repo is created under `os.tmpdir()` with its own `git init -b main` and
 - [x] TC-4.6 (KC-8 is the exception: it is measured from the static instructions and tool list, not from the log, so it has a value even with an empty log): `health_report` with an empty log: every KC is `insufficient_data` and nothing fails
 
 ### Phase 5: Local hygiene
-- [ ] TC-5.1: Default push policy: after a connector commit with ahead 1, no push happens (remote ref unchanged, checked against a local bare remote), and the response warns with a hint to ask the human
-- [ ] TC-5.2: `connector.push: "auto-state"`: after 60 s idle (injected clock) the commits that touch only `conductor/` are pushed fast-forward
-- [ ] TC-5.3: `auto-state` with an unpushed commit touching `src/x.js`: no push, with a warning naming the commit
-- [ ] TC-5.4: `auto-state` when the remote moved (non-fast-forward): no push, no force, warning `behind_upstream`
+- [x] TC-5.1: Default push policy: after a connector commit with ahead 1, no push happens (remote ref unchanged, checked against a local bare remote), and the response warns with a hint to ask the human
+- [x] TC-5.2: `connector.push: "auto-state"`: after 60 s idle (injected clock) the commits that touch only `conductor/` are pushed fast-forward
+- [x] TC-5.3: `auto-state` with an unpushed commit touching `src/x.js`: no push, with a warning naming the commit
+- [x] TC-5.4: `auto-state` when the remote moved (non-fast-forward): no push, no force, warning `behind_upstream`
+
+- [x] TC-5.5: `auto-state` without an upstream, with a rejected push, or with an unpushed merge commit: no push, a reason is reported, nothing throws
+- [x] TC-5.6: `connector.push` is read from `.laneconductor.json` (absent or invalid means `ask`), and the plan lane guide (only) tells Claude to `git fetch` when the last fetch is over 1 hour old
 
 ### Phase 7: GitHubStore (fake fetch with recorded fixtures; live tests opt-in)
 - [ ] TC-7.1: The read path issues ref (with `If-None-Match`), then trees, then blobs. A second `list_tracks` with an unchanged ref issues exactly 1 request and it returns 304.
