@@ -23,9 +23,9 @@
 
 ## Phase 3: Landing page (coordinate with the posts program, track 10112, which is editing landing/)
 
-- [ ] Task 1: Agree with 10112 who edits landing/index.html; make changes on a branch and do not overwrite uncommitted work
-- [ ] Task 2: Replace the old product description with the plugin story: one install, skill plus connector, board; add an Install section with the commands above; link the docs
-- [ ] Task 3: Only claims that are verified; the directory listing, claude.ai chat connector and the remote connector are stated as not available yet unless that changed
-- [ ] Task 4: Check mobile and both themes; deploy only when the owner says so
+- [x] Task 1: Agree with 10112 who edits landing/index.html; make changes on a branch and do not overwrite uncommitted work (Done as a patch of landing/index.html on this branch, touching only the LaneConductor sections; it does not touch the showcase, the nav, firebase.json or posts/.)
+- [x] Task 2: Replace the old product description with the plugin story: one install, skill plus connector, board; add an Install section with the commands above; link the docs (No Download button: no release is published yet.)
+- [x] Task 3: Only claims that are verified; the directory listing, claude.ai chat connector and the remote connector are stated as not available yet unless that changed
+- [ ] Task 4: Check mobile and both themes; deploy only when the owner says so (Open: the page has one dark theme only; mobile rules were reused and the install box scrolls sideways on narrow screens, but no browser check was possible here. Deploy only when the owner says so.)
 
 **Impact**: A new user can install the plugin, an existing user can migrate, and nothing on the public pages describes the retired model.
