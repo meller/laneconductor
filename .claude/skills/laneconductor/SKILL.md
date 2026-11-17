@@ -14,8 +14,8 @@ quality-gate, done) and every lane writes its state as bold markers in the track
 This works with or without a running worker: the markers are the interface, a sync worker (if any)
 only reads them.
 
-Paths below are relative to this file's directory. In a project that is
-`.claude/skills/laneconductor/`. If you only received this text (some non-Claude CLIs paste
+Paths below are relative to this file's directory: `.claude/skills/laneconductor/` in a project, or
+the plugin's `skills/laneconductor/` when installed as the LaneConductor plugin. If you only received this text (some non-Claude CLIs paste
 `SKILL.md` without a path), read the lane files from that directory.
 
 LaneConductor is a second opinion, not a controller. Lanes, recipes and conventions here are

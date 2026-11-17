@@ -10,7 +10,11 @@ import { createConnectorServer } from '../src/server.mjs';
 import { readPushPolicy } from '../src/push-policy.mjs';
 import { LocalGitStore } from '../src/store-local.mjs';
 
-const pkg = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'));
+// package.json sits beside bin/ in the repo (connector/) and one level up in the generated plugin
+// (plugins/laneconductor/server/bin -> plugin root), so look in both.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const pkgPath = ['..', path.join('..', '..')].map((d) => path.join(here, d, 'package.json')).find((p) => fs.existsSync(p));
+const pkg = pkgPath ? JSON.parse(fs.readFileSync(pkgPath, 'utf8')) : { version: 'unknown' };
 const err = (m) => process.stderr.write(`[lc-connector] ${m}\n`);
 
 function parseArgs(argv) {

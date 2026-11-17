@@ -103,7 +103,9 @@ tracks.md}` and `conductor/workflow.json` (copied from the install, see `templat
   that IS worth tracking; a project that finds its own `index.md` diffs are
   pure marker-churn noise should decide that for itself, not inherit it
   silently from scaffolding.
-- **Link the skill into this project** so agents can invoke it locally. Link the **directory**
+- **Link the skill into this project** so agents can invoke it locally. Skip this step when the
+  skill is already provided by the LaneConductor plugin (this file's path contains `/plugins/` or
+  `/.claude/plugins/`, not `<project>/.claude/skills/`): the plugin is the install, and the symlink would add a second copy. Link the **directory**
   (`-n` keeps `ln` from creating the link inside an existing directory link, which here would
   write into the skill folder itself):
   ```bash

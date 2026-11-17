@@ -1,0 +1,17 @@
+{
+  "name": "laneconductor",
+  "owner": {
+    "name": "Asaf Meller"
+  },
+  "description": "LaneConductor plugins: the planning and delivery workflow skill and its git-backed MCP connector.",
+  "plugins": [
+    {
+      "name": "laneconductor",
+      "source": "./plugins/laneconductor",
+      "description": "The LaneConductor skill and its git-backed MCP connector, delivered as one plugin.",
+      "author": {
+        "name": "Asaf Meller"
+      }
+    }
+  ]
+}

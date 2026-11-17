@@ -175,7 +175,8 @@ Edit it directly or via `/laneconductor workflow set`.
 See `conductor/workflow.json` for lane transitions, parallel limits, and model overrides.
 ```
 
-**Also create `conductor/workflow.json`** during scaffold (copy from the canonical laneconductor repo):
+**Also create `conductor/workflow.json`** during scaffold (copy from the canonical laneconductor repo;
+with only the plugin installed there is no canonical repo to copy from, so ask the human where theirs is):
 ```bash
 SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
 LC_REPO=$(dirname $(dirname $(dirname "$SKILL_DIR")))
