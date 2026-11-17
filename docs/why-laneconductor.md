@@ -28,8 +28,10 @@ LaneConductor is a combination of two projects, plus a Kanban view:
 - **Kanban**: the lanes, and a board that shows where every piece of work stands.
 
 When this project started, its author did not find a Conductor for Claude or a Superpowers for Gemini, and wanted both
-at once, so this is the combination. Versions of both for other agents have appeared since; LaneConductor is not a
-replacement for either, it is the two ideas working together with lanes and a board on top.
+at once, so this is the combination. That has changed: Conductor now lists Claude Code and Antigravity as supported
+hosts, and Superpowers lists Gemini CLI among more than fifteen supported agents (checked 2026-11-17). If you want
+either one on its own, use it directly. LaneConductor is the two ideas working together, with lanes, a board and
+conflict-checked shared state on top.
 
 ## Different tools, different jobs
 
@@ -38,6 +40,8 @@ replacement for either, it is the two ideas working together with lanes and a bo
 | **A product tracker** (Jira, Linear, Azure DevOps) | The product view: what to build, for whom, in what order, roadmaps and reporting | In the tracker, in the cloud | Not applicable: it tracks work, it does not do it | The tracker account |
 | **A tracker's own coding agent** (for example the Jira Coding Agent) | Turn a work item into a draft pull request | In the work item and the prompt you give the agent | In the vendor's cloud sandbox | A paid tracker plan, vendor credits, a connected cloud repository |
 | **A tracker's connector for Claude** (for example Atlassian's Rovo MCP server, Azure DevOps's remote MCP server) | Let Claude read and update work items | Stays in the tracker | Your own Claude | Connecting the tracker's connector |
+| **Conductor** (Gemini CLI extension, now also for Claude Code) | Context files, then a spec and plan per track, implement, review, revert | Files in your repository | Your machine | The plugin and a supported agent |
+| **Superpowers** (skills framework, many agents) | A working process: brainstorm, plan, build with sub-agents, verify | Wherever your agent keeps it; the repository does not state a tracking format | Your machine | The plugin and a supported agent |
 | **Plain Claude Code** | Do the work, with plan mode when you ask for it | In the session, unless you save it | Your machine | Claude Code |
 | **LaneConductor** | The engineering view: plan first, build to the plan, review against it, keep the record | **Files in your git repository**, reviewed with the code | **Your machine**, your own Claude | The plugin and Claude Code or Cowork; no tracker, no server |
 
