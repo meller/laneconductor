@@ -33,15 +33,45 @@ hosts, and Superpowers lists Gemini CLI among more than fifteen supported agents
 either one on its own, use it directly. LaneConductor is the two ideas working together, with lanes, a board and
 conflict-checked shared state on top.
 
-## Different tools, different jobs
+## LaneConductor and its sources
+
+Based on each project's README and skill list on 2026-11-17. "Not in its README" means exactly that; it does not mean
+the project cannot do it.
+
+| | [Conductor](https://github.com/gemini-cli-extensions/conductor) | [Superpowers](https://github.com/obra/superpowers) | LaneConductor |
+|---|---|---|---|
+| Context files, and a spec and plan for every track | Yes (its core) | Not in its README | Yes |
+| Brainstorm before you build | Not in its README | Yes (its flagship skill) | Yes, adapted from Superpowers |
+| Test-driven development | A preference setting | A full skill | Mentioned in the plan and implement steps; no skill of its own |
+| Systematic debugging | Not in its README | A skill | **No** |
+| Code review | A review command | Skills for requesting and for receiving review | A review lane; nothing for receiving feedback |
+| Verify before calling it done | Not in its README | A skill | A quality-gate lane that runs your project's own checks |
+| Revert | By track, phase or task | Not in its README | A revert command (its depth is not compared here) |
+| Sub-agents and worktrees | Not in its README | Sub-agents per task; a worktrees skill | One sub-agent per track, in its own worktree |
+| Merge and deploy | Not in its README | A "finish the branch" skill | A merge lane and deploy procedures |
+| **Lanes and a board** | Not in its README | Not in its README | **Yes**: lanes, and a board of every track |
+| **Safe shared state** (writes checked against what you last read) | Not in its README | Not in its README | **Yes**, through the local connector |
+| **New-project interview, recipes, privacy scan** | Not in its README | Not in its README | **Yes** |
+| Writing new skills | Not in its README | A skill | No |
+| Agents supported | Antigravity and Claude Code | More than fifteen | Claude Code and Cowork |
+
+How to read it: Conductor gives the conventions, Superpowers gives the working discipline, and LaneConductor adds the
+lanes, the board and the shared state that keeps several sessions from overwriting each other. Where Superpowers is
+ahead (debugging, test-driven development, receiving a review), use it **alongside** LaneConductor instead of
+expecting LaneConductor to duplicate it. If all you want is context files and a spec and plan per track, use Conductor
+directly.
+
+## LaneConductor and product trackers
+
+"Jira" here stands for the whole category of product-management tools (Jira, Linear, Azure DevOps and others). They do
+a different job from LaneConductor, so this compares use cases, not features.
+
 
 | | What it is for | Where the plan lives | Where the work runs | What it needs |
 |---|---|---|---|---|
 | **A product tracker** (Jira, Linear, Azure DevOps) | The product view: what to build, for whom, in what order, roadmaps and reporting | In the tracker, in the cloud | Not applicable: it tracks work, it does not do it | The tracker account |
 | **A tracker's own coding agent** (for example the Jira Coding Agent) | Turn a work item into a draft pull request | In the work item and the prompt you give the agent | In the vendor's cloud sandbox | A paid tracker plan, vendor credits, a connected cloud repository |
 | **A tracker's connector for Claude** (for example Atlassian's Rovo MCP server, Azure DevOps's remote MCP server) | Let Claude read and update work items | Stays in the tracker | Your own Claude | Connecting the tracker's connector |
-| **Conductor** (Gemini CLI extension, now also for Claude Code) | Context files, then a spec and plan per track, implement, review, revert | Files in your repository | Your machine | The plugin and a supported agent |
-| **Superpowers** (skills framework, many agents) | A working process: brainstorm, plan, build with sub-agents, verify | Wherever your agent keeps it; the repository does not state a tracking format | Your machine | The plugin and a supported agent |
 | **Plain Claude Code** | Do the work, with plan mode when you ask for it | In the session, unless you save it | Your machine | Claude Code |
 | **LaneConductor** | The engineering view: plan first, build to the plan, review against it, keep the record | **Files in your git repository**, reviewed with the code | **Your machine**, your own Claude | The plugin and Claude Code or Cowork; no tracker, no server |
 
