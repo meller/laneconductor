@@ -167,6 +167,38 @@ export const COMMANDS = [
       + '2. With `lane key value`, confirm the one field with me, change only that field in the file, and print `workflow.json updated: lanes.<lane>.<key> = <value>`. Edit nothing else.',
   },
   {
+    name: 'recipes', group: 'create and manage', title: 'List recipes',
+    description: 'List the recipes available (the shipped library and your own), optionally matching a stack',
+    example: 'which recipes do I have for firebase hosting',
+    args: [{ name: 'stack', hint: 'stack words', description: 'Words naming a stack or a need, e.g. "nodejs firebase-hosting"; empty lists everything.', required: false }],
+    procedure: 'Recipes: {{stack}} (nothing given means list them all). Read only; change nothing. The procedure is the skill file `ops/recipes.md` ("Find and rank").\n\n'
+      + '1. Read both libraries in the documented order: the shipped one inside the skill, then my own (`recipes.path` in `.laneconductor.json` or the `LC_RECIPES` environment variable). Use the `lc-recipe-match` script when it exists.\n'
+      + '2. Show at most five matches (all of them when I gave no words), each with its name, one line on why, its `verified` date and any freshness warning. If neither library exists, say so; that is a normal answer.\n'
+      + '3. Recommend, never order: apply nothing. Applying a recipe is `ops/apply-recipe.md`, and only when I choose one.',
+  },
+  {
+    name: 'add-recipe', group: 'create and manage', title: 'Add a recipe',
+    description: 'Turn something solved and verified into a recipe in your own library (runs only because you named it)',
+    example: 'add a recipe for the deploy setup we just finished',
+    args: [{ name: 'solved', hint: 'what was solved', description: 'What was solved and worked, in your words; empty means ask me.', required: false }],
+    procedure: 'Add a recipe for: {{solved}} (nothing given means ask me what was solved). This runs only because I named it. The procedure is the skill file `ops/add-recipe.md`; read it in full first and follow it.\n\n'
+      + '1. Check the criteria (reusable, verified in real use, not obvious from general knowledge, names a real incident or fact) and search both libraries first: update an existing recipe instead of duplicating it.\n'
+      + '2. Draft in the recipe format, run the checker and show me its result.\n'
+      + '3. Save nothing until I say yes. Then save to MY library as a local commit; never push.',
+  },
+  {
+    name: 'new-project', group: 'setup and deploy', title: 'Start a new project',
+    description: 'Start a project: a short interview, recipe recommendations, the conductor scaffold and the first tracks (runs only because you named it)',
+    example: 'start a new project: a habit tracker', connector: true,
+    args: [{ name: 'idea', hint: 'name or idea', description: 'The project name or a few words about the idea; empty means ask me.', required: false }],
+    procedure: 'New project: {{idea}} (nothing given means ask me). This runs only because I named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
+      + '1. Detect whether this is an empty folder or an existing repository (then offer only the `conductor/` scaffold).\n'
+      + '2. Interview me in chat, one question at a time, short, stopping early when the answers are enough.\n'
+      + '3. Recommend up to five recipes with a reason and a date each; I choose, and nothing is applied silently. If there are no recipes, say so and continue.\n'
+      + '4. Show what the scaffold will create and ask before writing it, then create the first tracks in the plan lane.\n'
+      + '5. Summarize, then ask before any commit. Never push.',
+  },
+  {
     name: 'help', group: 'create and manage', title: 'Help',
     description: 'List every LaneConductor command with an example phrase',
     example: 'what can LaneConductor do', args: [], render: 'help',

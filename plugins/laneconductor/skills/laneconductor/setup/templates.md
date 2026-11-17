@@ -175,14 +175,33 @@ Edit it directly or via `/laneconductor workflow set`.
 See `conductor/workflow.json` for lane transitions, parallel limits, and model overrides.
 ```
 
-**Also create `conductor/workflow.json`** during scaffold (copy from the canonical laneconductor repo;
-with only the plugin installed there is no canonical repo to copy from, so ask the human where theirs is):
-```bash
-SKILL_DIR=$(cat ~/.laneconductorrc 2>/dev/null || echo "$HOME/Code/laneconductor/.claude/skills/laneconductor")
-LC_REPO=$(dirname $(dirname $(dirname "$SKILL_DIR")))
-cp "$LC_REPO/conductor/workflow.json" conductor/workflow.json
-echo "✅ workflow.json copied from canonical source"
+**`conductor/workflow.json` default** (create it during scaffold from this text; there is no canonical
+repository to copy from when only the plugin is installed, and none is needed). No model names are set:
+the project picks its own.
+```json
+{
+  "global": { "total_parallel_limit": 3 },
+  "defaults": { "parallel_limit": 1, "max_retries": 1 },
+  "lanes": {
+    "plan": { "parallel_limit": 1, "max_retries": 1, "on_success": "plan:success", "on_failure": "backlog" },
+    "implement": { "parallel_limit": 2, "max_retries": 3, "on_success": "review:queue", "on_failure": "implement:failure" },
+    "review": { "parallel_limit": 1, "max_retries": 1, "on_success": "quality-gate:queue", "on_failure": "implement:queue" },
+    "quality-gate": { "parallel_limit": 1, "max_retries": 1, "on_success": "done:queue", "on_failure": "plan:queue" },
+    "done": { "parallel_limit": 1, "max_retries": 1, "on_failure": "done:failure" }
+  }
+}
 ```
+
+**`.laneconductor.json` of a new project** (the `new-project` flow): a state branch and nothing else that
+needs a running process. No `mode`, no database, no collectors, no worker settings. Add `recipes.path` only
+when the person named a personal recipe library.
+```json
+{ "project": { "name": "<name>" }, "connector": { "state_branch": "main" } }
+```
+
+**`.gitignore` entries of a new project**: `conductor/tracks/**/conversation.md`,
+`conductor/tracks/**/conversation.json` and `.worktrees/`. The other runtime lines in `scaffold.md` belong to
+the parked sync worker and are not added by `new-project`.
 
 
 

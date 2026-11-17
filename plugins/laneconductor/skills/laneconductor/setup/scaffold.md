@@ -3,6 +3,9 @@
 Run only when the user asks for it by name (or the setup wizard's `setup scaffold generate` prompt
 sends you here). Two entry points create the same `conductor/` structure:
 
+- **`new-project`** ([../ops/new-project.md](../ops/new-project.md)): the guided interview for a new project. It
+  uses this file's file list and `templates.md`, but with a smaller `.gitignore`, a `.laneconductor.json` with only a
+  state branch, and no daemon, database, symlink or sync-worker content (see the new-project procedure).
 - **`setup scaffold generate`**: the file-generation half of `lc setup`. The CLI wizard already
   scanned the project, ran the brainstorm loop with the user and got confirmation. Generate the
   files and ask no questions.
@@ -61,7 +64,7 @@ all the files above from the answers.
 
 Both create `conductor/{tracks/, code_styleguides/, product.md, product-guidelines.md,
 design-language.md, tech-stack.md, deployment-stack.md, user-stories.md, workflow.md, kpis.md,
-tracks.md}` and `conductor/workflow.json` (copied from the install, see `templates.md`). Also:
+tracks.md}` and `conductor/workflow.json` (the default in `templates.md`). Also:
 
 - Create `.claude/MEMORY.md` if it does not exist.
 - **Ensure `.gitignore` covers the sync-only runtime files that are never

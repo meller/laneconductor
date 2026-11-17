@@ -41,7 +41,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
       fs.cpSync(path.join(REPO, rel), path.join(tmp, rel), { recursive: true });
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });
-    for (const bin of ['lc-connector.mjs', 'lc-board.mjs']) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
+    for (const bin of fs.readdirSync(path.join(REPO, 'connector/bin'))) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
     for (const rel of ['connector/package.json', 'connector/package-lock.json', 'connector/PLUGIN-README.md', 'LICENSE']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
     // The repo files the server imports from outside connector/ (the generator finds them by their imports).
     for (const rel of listFiles(path.join(PLUGIN, 'conductor'))) {
@@ -74,7 +74,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
 test('manifest, marketplace (ONE entry) and .mcp.json have the agreed shape', () => {
   const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
   const pkg = readJson(path.join(REPO, 'connector/package.json'));
-  assert.equal(pkg.version, '0.4.0');
+  assert.equal(pkg.version, '0.5.0');
   assert.equal(m.name, 'laneconductor');
   assert.equal(m.version, pkg.version, 'the plugin version follows connector/package.json');
   assert.equal(m.dependencies, undefined, 'the one plugin has no dependencies');
@@ -330,7 +330,7 @@ test('make-zip: deterministic, holds exactly the plugin files at the zip root, k
   const run = (...args) => spawnSync(process.execPath, [path.join(REPO, 'scripts/make-zip.mjs'), ...args], { encoding: 'utf8' });
   const ok = run('--out', path.join(tmp, 'dist'));
   assert.equal(ok.status, 0, ok.stderr);
-  const zipPath = path.join(tmp, 'dist', 'laneconductor-0.4.0.zip');
+  const zipPath = path.join(tmp, 'dist', 'laneconductor-0.5.0.zip');
   assert.ok(fs.readFileSync(zipPath).equals(a));
   assert.match(ok.stdout, new RegExp(`files:\\s+${files.size}\\n`));
   assert.match(ok.stdout, /sha256: [0-9a-f]{64}/);

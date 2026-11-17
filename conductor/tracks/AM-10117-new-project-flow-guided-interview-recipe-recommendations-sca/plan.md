@@ -2,23 +2,23 @@
 
 ## Phase 1: The procedure and the command (works with no recipes)
 
-- [ ] Task 1: `ops/new-project.md` in the skill source: situation detection, the interview (reuse `lanes/brainstorm.md`; the question list of REQ-1; stop rules), the scaffold step pointing at `setup/scaffold.md` and `setup/templates.md`, first tracks, the commit question
-- [ ] Task 2: Catalog entries `new-project` and `add-recipe` (and `recipes`: list what is available) in track 10116's catalog so the commands and MCP prompts are generated; the skill routing table gets the rows; the coverage test passes
-- [ ] Task 3: Scaffold templates reviewed so every file is tailored from interview answers and `quality-gate.md` names only commands that exist; no daemon or database content
-- [ ] Task 4: Fixture test: a scripted interview in a temp repo produces the files and the tracks (the procedure is Markdown, so the test checks the templates render and the first-track writer output; the conversation itself is HUMAN-checked)
+- [x] Task 1: `ops/new-project.md` in the skill source: situation detection, the interview (reuse `lanes/brainstorm.md`; the question list of REQ-1; stop rules), the scaffold step pointing at `setup/scaffold.md` and `setup/templates.md`, first tracks, the commit question
+- [x] Task 2: Catalog entries `new-project` and `add-recipe` (and `recipes`: list what is available) in track 10116's catalog so the commands and MCP prompts are generated; the skill routing table gets the rows; the coverage test passes
+- [x] Task 3: Scaffold templates reviewed so every file is tailored from interview answers and `quality-gate.md` names only commands that exist; no daemon or database content
+- [x] Task 4: Fixture test: a scripted interview in a temp repo produces the files and the tracks (the procedure is Markdown, so the test checks the templates render and the first-track writer output; the conversation itself is HUMAN-checked)
 
 ## Phase 2: Recipes inside the skill
 
-- [ ] Task 1: Library layout `skills/laneconductor/recipes/<name>/` (nested, not separately registered), generator copies it; zero always-on token cost verified with the token estimate
-- [ ] Task 2: Discovery order and matching rule (REQ-2): shipped library then `recipes.path` / `LC_RECIPES`; the matching on stack and prerequisites is written as a procedure Claude follows plus a small deterministic helper (`lc-recipe-match`) that ranks by stack overlap so ranking is not left to chance
-- [ ] Task 3: Merge track 10107 Phase 2 (the checker, secret scanner, reference resolver) into main and ship `lc-recipe-check` in the plugin
-- [ ] Task 4: The privacy gate: a script that refuses a recipe with a secret, email, phone, or a name from a deny list (private project ids, site names, private repo names read from a local file, never committed); tests with fixtures
+- [x] Task 1: Library layout `skills/laneconductor/recipes/<name>/` (nested, not separately registered), generator copies it; zero always-on token cost verified with the token estimate
+- [x] Task 2: Discovery order and matching rule (REQ-2): shipped library then `recipes.path` / `LC_RECIPES`; the matching on stack and prerequisites is written as a procedure Claude follows plus a small deterministic helper (`lc-recipe-match`) that ranks by stack overlap so ranking is not left to chance
+- [x] Task 3: Merge track 10107 Phase 2 (the checker, secret scanner, reference resolver) into main and ship `lc-recipe-check` in the plugin
+- [x] Task 4: The privacy gate: a script that refuses a recipe with a secret, email, phone, or a name from a deny list (private project ids, site names, private repo names read from a local file, never committed); tests with fixtures
 - [ ] Task 5: The first shipped recipes: review each of the nine library recipes with the human, publish only those that pass the gate (human approval recorded here); the rest stay personal
 
 ## Phase 3: Apply and add
 
-- [ ] Task 1: Apply-a-recipe procedure (REQ-5): render files, show You-run steps, conflict report
-- [ ] Task 2: `add-recipe` procedure (REQ-6) using the checker, saving to the personal library as a commit
+- [x] Task 1: Apply-a-recipe procedure (REQ-5): render files, show You-run steps, conflict report
+- [x] Task 2: `add-recipe` procedure (REQ-6) using the checker, saving to the personal library as a commit
 - [ ] Task 3: Skill text, README and the landing page mention the flow (coordinate with track 10114)
 
 ## Phase 4: Real use
