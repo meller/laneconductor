@@ -189,17 +189,19 @@ should say what to do next (REQ-24).
 
 **Impact**: "plan X" works the same on Claude Code now and on claude.ai and mobile once the remote entry exists, without re-prompting the pattern each session.
 
-## Phase 5d: A place to see the tracks (the board; no daemon)
+## Phase 5d: A place to see the tracks (a board per project; no daemon)
 
-**Problem**: With the daemon dropped (2026-11-17) nothing syncs files into Postgres, so the Kanban UI no longer updates, and the human still needs one view of all tracks across projects.
-**Solution**: One code-maintained generator reads each project's track files and produces a single data file; viewers are thin and replaceable. Files stay the truth; the board is a rebuildable copy (never hand-edited, never written back).
+**Problem**: With the daemon dropped (2026-11-17) nothing syncs files into Postgres, so the Kanban UI no longer updates, and the human wants to see each project's tracks in one place and refresh it by asking Claude.
+**Solution**: One code-maintained generator, one dashboard per project. Files stay the truth; a board is a rebuildable snapshot (never hand-edited, never written back). Honest limits (verified from the tool contracts): only Claude can create or update a Claude artifact (a script, hook or the connector cannot call the Artifact tool), so a board is as fresh as the last time Claude refreshed it, and the page shows its "generated at" time.
 
-- [ ] Task 1: `lc board` (or `scripts/board.mjs`): reads `conductor/tracks/*/index.md` markers for each project listed in a small config (default: every `~/Code/*` that has `conductor/`), reusing `connector/src/summary.mjs` and the same lint ("needs attention"); writes `board.json` (project, track, title, lane, lane status, progress, phase, depends on, needs-attention flags, generated-at). Titles, lanes, status and progress only: never conversation text or file bodies
-- [ ] Task 2: Viewer A, recommended first: a Claude artifact (private by default, one self-contained HTML page: lanes as columns, project filter, needs-attention list) published from `board.json`; works on phone and any Claude surface with no server. Refreshed by running the generator and republishing, which Claude does when asked ("update the board")
-- [ ] Task 3: Viewer B, optional: the existing Vite UI fed by an on-demand `lc index` (files to Postgres, one way, run by hand or by a git hook), only if the artifact is not enough. No resident process
-- [ ] Task 4: Privacy rule: before publishing, check each project's visibility; a project that is private or sensitive is listed by name only if the human has opted it in (config `board.include`), and the artifact stays private unless the human shares it
+- [ ] Task 1: `lc board` (or `scripts/board.mjs`): for ONE project, reads `conductor/tracks/*/index.md` markers and writes `conductor/board.json` (track, title, lane, lane status, progress, phase, depends on, needs-attention flags, generated-at, source hash per track), reusing `connector/src/summary.mjs` and its lint. Titles, lanes, status and progress only: never conversation text or file bodies. Deterministic; `--check` mode for drift
+- [ ] Task 2: The board artifact per project (recommended first viewer): one self-contained page (lanes as columns, needs-attention list, generated-at stamp), private by default, created by Claude the first time the human asks ("show the board"), not by any background process. The artifact URL is stored in that project's `.laneconductor.json` (`board.artifact_url`) so any later session republishes to the SAME artifact (a publish needs the URL: it is read first, then updated in place)
+- [ ] Task 3: The update path: a skill trigger "update the board" (or `/laneconductor board`): run the generator, then republish the artifact at `board.artifact_url`. Evaluate (artifact-capabilities, not yet read) whether the page should keep its rows in the artifact's own database and be refreshed by a small batch write instead of republishing the whole page
+- [ ] Task 4: New projects: the setup/scaffold step OFFERS the board (asks the human; Claude creates it then). Existing projects get it on request. Nothing is created automatically, and nothing refreshes it unless Claude is running
+- [ ] Task 5: Optional overview page (a second artifact): one row per project (counts per lane, needs-attention count, link to that project's board). Projects are listed only if opted in (`board.include`); a private project's board is never merged into another's artifact
+- [ ] Task 6: Privacy: a board is private by default and is never shared automatically; publishing is checked against the project's visibility (a public repo can still have a private board, but say so). Optional later viewer: the Vite UI through an on-demand `lc index` (files to Postgres, one way), only if the artifact is not enough
 
-**Impact**: One place to see every project's tracks with nothing running in the background.
+**Impact**: Each project has one place to see its tracks, refreshed by asking Claude, with nothing running in the background.
 
 ## Phase 6: Local beta validation (AC-a, AC-c local, AC-d local, AC-e, AC-f)
 

@@ -123,3 +123,6 @@ Human decision after reading the Claude plugin docs. See plan Phase 5c for the v
 
 ## DECISION (2026-11-17): the sync daemon is dropped
 Human decision: Claude manages the tracks (skill now, plugin and connector next); no daemon, no resident sync. The laneconductor project's worker (PID 25351, AUTOMATIC sync+poll, idle, with Auto Run tracks queued) was stopped; the other 19 conductor projects never ran one (survey of ~/Code). Consequences: no unattended runs (use a scheduled task if wanted); the Kanban UI and Postgres no longer update from files; the cloud collector stays off. Replacement for seeing things: plan Phase 5d (generated `board.json`, shown as a Claude artifact first). The Postgres/UI tier stays parked, not deleted (tag `v1-legacy`), revivable through an on-demand indexer.
+
+## ADJUSTMENT (2026-11-17): the board is per project, with an optional overview
+Human: each project gets its own dashboard artifact and can ask Claude to update it. Adopted: plan Phase 5d now makes the per-project board the unit (URL kept in `.laneconductor.json`, "update the board" trigger), with an opt-in overview page. Corrections to the idea as first stated: creation and refresh are done by Claude on request (a script or the connector cannot publish an artifact), so nothing is automatic and a board is a snapshot with a generated-at time.
