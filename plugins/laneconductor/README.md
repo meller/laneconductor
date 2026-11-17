@@ -54,6 +54,19 @@ mobile, because it needs a local git checkout. The skill alone also works in cha
 - Commits touch only the paths written, so unrelated staged or dirty files are never swept in.
 - It never force-pushes, and by default never pushes at all.
 
+## Commands and subagents
+
+Commands run as `/laneconductor:<name>` and are thin entry points to the skill: `plan`, `brainstorm`,
+`implement`, `review`, `quality-gate`, `merge`, `run`, `new`, `bug`, `feature`, `status`, `move`, `comment`,
+`board`, `workflow` and `review-plan`, each taking a track number or title; `setup` and `deploy` run only when you
+name them. Two subagents ship with them: `track-runner` works one track through one lane in its own git
+worktree, and `plan-reviewer` reads a track's spec and plan and reports gaps without changing anything.
+
+`run`, `implement` and `review` only recommend `track-runner` (one subagent per track, each in its own worktree,
+so tracks do not collide and can run in parallel) and show the exact dispatch; nothing starts until you say yes.
+Commands and subagents run in Claude Code and Cowork. In claude.ai chat the commands load as skills; subagents
+do not run there.
+
 ## Board
 
 `lc board --site <dir>` (the `lc` command-line tool from the LaneConductor repository) writes a static page
