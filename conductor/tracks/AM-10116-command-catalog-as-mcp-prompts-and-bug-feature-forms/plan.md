@@ -18,7 +18,7 @@
 
 - [ ] Task 1: Generator profile builds `commands/*.md` from the catalog with the fallback line; remove `connector/plugin-extras/commands/`
 - [ ] Task 1b: Catalog entries and generated commands for `help`, `show-board` and `refresh-board` (REQ-8); coverage: show-board and refresh-board are aliases of the skill's `board` row, `help` is new
-- [ ] Task 2: Coverage test per REQ-5; lean directory emulation and add-on tests still pass
+- [ ] Task 2: Coverage test per REQ-5; the lean profile's directory emulation (built into a temp dir) and the full-plugin tests still pass
 - [ ] Task 3: Regenerate both plugins, bump the version, validate `--strict`
 
 ## Phase 4: Documents and the human check
