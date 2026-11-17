@@ -184,3 +184,32 @@ cp "$LC_REPO/conductor/workflow.json" conductor/workflow.json
 echo "✅ workflow.json copied from canonical source"
 ```
 
+
+
+**Track spec forms** (bug and feature tracks; used by `ops/tracks.md`, and written by the connector's `create_track` with `track_kind`). A hand-made bug or feature track uses the same sections. `spec.md` starts with the title and `## Problem Statement` holding the request text unchanged; the sections below follow it in this order, each left as `(To be filled in.)` until the plan lane fills it. Set `**Track Kind**: bug` or `feature` in `index.md`. With no kind, keep the generic skeleton (`## Problem Statement`, then `## Requirements`).
+
+```markdown
+# Spec: [title]
+
+## Problem Statement
+[the problem text, unchanged]
+
+## Symptom
+## Steps to reproduce
+## Expected result
+## Actual result
+## Suspected area
+## Environment
+```
+
+A **feature** spec has `## The need`, `## Who it is for`, `## Wanted outcome`, `## Acceptance criteria`, `## Out of scope` in place of the six bug sections.
+
+A **bug** track's `test.md` starts with a regression-test case, before any other test:
+
+```markdown
+# Tests: Track NNN - [title]
+
+- [ ] TC-1 (regression): a test that reproduces the bug (the steps in "Steps to reproduce") and FAILS before the fix; it passes after the fix and stays in the suite
+```
+
+Any other kind (or none) keeps `(Test cases to be added)` in `test.md`.

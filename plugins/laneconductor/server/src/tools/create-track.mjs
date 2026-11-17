@@ -9,7 +9,7 @@ const input = z.object({
   title: z.string().min(1).max(120).describe('Short single-line title.'),
   problem: z.string().min(1).describe('The problem or request in plain markdown (no "## " headings and no "**Name**:" lines).'),
   type: z.enum(['dev', 'marketing', 'sales', 'support', 'other']).optional().describe('Track type (default dev).'),
-  track_kind: z.enum(['bug', 'feature']).optional(),
+  track_kind: z.enum(['bug', 'feature']).optional().describe('Writes the bug or feature form into spec.md.'),
   author_initials: z.string().regex(/^[A-Za-z]{1,6}$/).optional().describe('Folder prefix, e.g. AM. Defaults to the most common prefix in this project.'),
   auto_run: z.enum(['yes', 'no']).optional().describe('Default no.'),
   merge_mode: z.enum(['direct', 'pr']).optional().describe('Default direct.'),

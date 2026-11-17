@@ -216,6 +216,17 @@ test('create_track makes XX-NNN-slug with five files, valid markers, one commit,
   assert.equal(second.env.data.track.folder, 'XX-2-second');
 });
 
+test('create_track with track_kind bug writes the bug form and a regression-test first case (10116)', async () => {
+  const dir = fixture();
+  const s = await open(dir);
+  const c = await s.call('create_track', { title: 'Export is broken', problem: 'The export button does nothing.', track_kind: 'bug' });
+  assert.equal(c.isError, false, c.text);
+  const spec = readFile(dir, `conductor/tracks/${c.env.data.track.folder}/spec.md`);
+  assert.match(spec, /## Problem Statement\n\nThe export button does nothing\.\n\n## Symptom\n/);
+  assert.match(spec, /## Steps to reproduce[\s\S]*## Expected result[\s\S]*## Actual result[\s\S]*## Suspected area[\s\S]*## Environment/);
+  assert.match(readFile(dir, `conductor/tracks/${c.env.data.track.folder}/test.md`), /TC-1 \(regression\)/);
+});
+
 test('create_track: number follows the max of both conventions and reuses the common initials', async () => {
   const dir = fixture();
   writeFile(dir, 'conductor/tracks/999-canary/index.md', INDEX(999, 'Canary'));

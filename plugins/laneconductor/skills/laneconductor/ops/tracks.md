@@ -122,7 +122,15 @@ work, a bug or a feature to an existing track and returns it to backlog), `lc re
 and `lc feature-request [desc]` (each updates a matching track or creates a new bug / feature
 track). Without `lc`, the recommended equivalent is: search `conductor/tracks/*/index.md` for a
 matching track; if one exists append the new detail to its `conversation.md` and `move NNN backlog`,
-otherwise create one with newTrack.
+otherwise create one with newTrack and set `**Track Kind**: bug` or `feature`.
+
+A new bug or feature track is a form, not the generic skeleton. A bug `spec.md` has, after
+`## Problem Statement`: `## Symptom`, `## Steps to reproduce`, `## Expected result`,
+`## Actual result`, `## Suspected area`, `## Environment`, and its `test.md` starts with a
+regression-test case that reproduces the bug and fails before the fix. A feature `spec.md` has
+`## The need`, `## Who it is for`, `## Wanted outcome`, `## Acceptance criteria`, `## Out of scope`.
+The exact text is in [setup/templates.md](../setup/templates.md) ("Track spec forms"); the
+connector's `create_track` with `track_kind` writes the same forms.
 
 ## init-tracks-summary
 
