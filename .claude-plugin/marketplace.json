@@ -3,28 +3,12 @@
   "owner": {
     "name": "Asaf Meller"
   },
-  "description": "LaneConductor plugins: the planning and delivery workflow plugin, and two optional local add-ons (the board and the safe-writes connector).",
+  "description": "LaneConductor: the planning and delivery workflow plugin, with its local connector and board.",
   "plugins": [
     {
       "name": "laneconductor",
       "source": "./plugins/laneconductor",
-      "description": "The LaneConductor skill, slash commands and subagents for tracks kept as files in git. Markdown only.",
-      "author": {
-        "name": "Asaf Meller"
-      }
-    },
-    {
-      "name": "laneconductor-board",
-      "source": "./plugins/laneconductor-board",
-      "description": "Local add-on: the board generator, a static page of every track by lane. Needs a script that runs on your computer. Requires laneconductor.",
-      "author": {
-        "name": "Asaf Meller"
-      }
-    },
-    {
-      "name": "laneconductor-connector",
-      "source": "./plugins/laneconductor-connector",
-      "description": "Optional local add-on: the git-backed MCP connector (conflict-checked writes, automatic commits, freshness warnings). Requires laneconductor.",
+      "description": "The LaneConductor skill, slash commands and subagents, a local MCP connector for safe track writes, and the board generator, for tracks kept as files in git.",
       "author": {
         "name": "Asaf Meller"
       }

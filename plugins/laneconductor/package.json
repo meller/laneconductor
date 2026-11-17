@@ -1,5 +1,5 @@
 {
-  "name": "laneconductor-connector",
+  "name": "laneconductor",
   "version": "0.3.0",
   "type": "module",
   "dependencies": {

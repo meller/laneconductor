@@ -14,8 +14,8 @@ From the project root:
 site=$(mktemp -d) && lc board --site "$site" --json
 ```
 
-No `lc` on PATH but the `laneconductor-board` plugin is installed: find its `server/bin/lc-board.mjs` (Glob `**/laneconductor-board/**/server/bin/lc-board.mjs` under `~/.claude/plugins`) and run `node <that path> --repo . --site "$site" --json`.
-Neither exists (the main `laneconductor` plugin alone cannot generate the board; `laneconductor-board` can): say so and stop. The temp dir stays outside the repo (the command refuses a folder
+No `lc` on PATH but the LaneConductor plugin is installed: run its own board script, `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site "$site" --json`. If that variable is not substituted, find the script (Glob `**/laneconductor/**/server/bin/lc-board.mjs` under `~/.claude/plugins`) and run `node <that path> --repo . --site "$site" --json`.
+Neither exists: say so and stop. The temp dir stays outside the repo (the command refuses a folder
 under `conductor/`). Stdout is one JSON object and nothing else: `{ "page": "<dir>/board.html",
 "root": "<dir>", "files": ["board.json", "docs/1.json", ...] }`. `board.html` is the page (identical
 every time, no data in it); `board.json` is the data (project, generated_at, tracks, attn); each

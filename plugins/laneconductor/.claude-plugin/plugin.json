@@ -1,7 +1,7 @@
 {
   "name": "laneconductor",
   "version": "0.3.0",
-  "description": "LaneConductor: the planning and delivery workflow for tracks kept as files in git. A skill, slash commands and two subagents; the connector is an optional add-on.",
+  "description": "LaneConductor: the planning and delivery workflow for tracks kept as files in git. A skill, slash commands, subagents, a local MCP connector for safe track writes, and a board generator.",
   "author": {
     "name": "Asaf Meller",
     "url": "https://github.com/meller"
