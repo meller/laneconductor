@@ -1,9 +1,9 @@
 # Track AM-10116: Command catalog as MCP prompts (the FITI pattern) and bug and feature forms
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: implement
+**Lane Status**: running
 **Progress**: 10%
-**Phase**: Planned (spec, plan and tests written); implement after the two-tier plugin work (track 10106 Phase 5e) merges
+**Phase**: Implement lane started: track-runner subagent in its own worktree, phases 1 to 4
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
