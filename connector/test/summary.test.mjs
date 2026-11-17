@@ -161,3 +161,91 @@ test('lc-summary CLI: --check exits 1 when missing, plain run writes without com
   assert.match(git(dir, 'status', '--porcelain'), /\?\? conductor\/tracks-summary\.md/);
   assert.equal(run('--check').status, 0);
 });
+
+// ---- privacy: a track that is not in git must never reach a committed summary ----------------
+const SENTINEL = 'ZZ-DRAFT-SENTINEL-7f3a';
+const draftFixture = () => {
+  const dir = fixture();
+  writeFile(dir, `${T(1, 'one')}/index.md`, INDEX(1, 'One'));
+  writeFile(dir, `${T(2, 'two')}/index.md`, INDEX(2, 'Two'));
+  commitAll(dir);
+  // an untracked, unpublished draft with a unique sentinel title
+  writeFile(dir, `${T(9, 'draft')}/index.md`, INDEX(9, `Draft ${SENTINEL}`));
+  writeFile(dir, `${T(9, 'draft')}/spec.md`, `# ${SENTINEL}\n`);
+  return dir;
+};
+const sentinelInCommit = (dir, rev = 'HEAD') => {
+  const out = [git(dir, 'show', '--stat', '--format=%B', rev)];
+  for (const f of git(dir, 'show', '--name-only', '--format=', rev).split('\n').filter(Boolean)) out.push(git(dir, 'show', `${rev}:${f}`));
+  return out.some((t) => t.includes(SENTINEL));
+};
+
+test('privacy: create_track commits a summary of the 2 tracked tracks + the new one, never the untracked draft', async () => {
+  const dir = draftFixture();
+  const s = await open(dir);
+  const r = await s.call('create_track', { title: 'Brand new', problem: 'Do it.' });
+  assert.equal(r.isError, false, r.text);
+  const sum = git(dir, 'show', `HEAD:${SUMMARY_PATH}`);
+  assert.match(sum, /\| AM-1 \| One \|/);
+  assert.match(sum, /\| AM-2 \| Two \|/);
+  assert.match(sum, /\| Brand new \|/);
+  assert.match(sum, /\n3 tracks\./);
+  assert.ok(!sum.includes(SENTINEL));
+  assert.ok(!sentinelInCommit(dir), 'sentinel absent from the commit message and every committed file');
+  assert.ok(!git(dir, 'show', '--name-only', '--format=').includes('AM-9-draft'), 'the draft folder is not in the commit');
+});
+
+test('privacy: update_track commits a summary with the updated track and not the untracked draft', async () => {
+  const dir = draftFixture();
+  const s = await open(dir);
+  const g = await s.call('get_track', { track: '2' });
+  const u = await s.call('update_track', { track: '2', base: g.env.data.base, markers: { Progress: '50%' } });
+  assert.equal(u.isError, false, u.text);
+  const sum = git(dir, 'show', `HEAD:${SUMMARY_PATH}`);
+  assert.match(sum, /\| AM-2 \| Two \| plan \| queue \| 50% \|/);
+  assert.match(sum, /\n2 tracks\./);
+  assert.ok(!sentinelInCommit(dir));
+  // a spec-only update of the DRAFT writes its spec but must not put its title into any summary
+  const gd = await s.call('get_track', { track: '9' });
+  const d = await s.call('update_track', { track: '9', base: gd.env.data.base, files: { spec: '# edited draft spec\n' } });
+  assert.equal(d.isError, false, d.text);
+  assert.ok(!git(dir, 'show', `HEAD:${SUMMARY_PATH}`).includes(SENTINEL));
+});
+
+test('privacy: once the draft is committed it appears in the next summary', async () => {
+  const dir = draftFixture();
+  const s = await open(dir);
+  const g = await s.call('get_track', { track: '1' });
+  await s.call('update_track', { track: '1', base: g.env.data.base, markers: { Progress: '10%' } });
+  assert.ok(!git(dir, 'show', `HEAD:${SUMMARY_PATH}`).includes(SENTINEL));
+  commitAll(dir, 'publish the draft');
+  const g2 = await s.call('get_track', { track: '1' });
+  const u = await s.call('update_track', { track: '1', base: g2.env.data.base, markers: { Progress: '20%' } });
+  assert.equal(u.isError, false, u.text);
+  assert.ok(git(dir, 'show', `HEAD:${SUMMARY_PATH}`).includes(`Draft ${SENTINEL}`));
+});
+
+test('privacy: list_tracks lists the draft as untracked with a warning, and it causes no permanent stale reason', async () => {
+  const dir = draftFixture();
+  const s = await open(dir);
+  const g = await s.call('get_track', { track: '1' });
+  await s.call('update_track', { track: '1', base: g.env.data.base, markers: { Progress: '10%' } });
+  const l = await s.call('list_tracks');
+  const draft = l.env.data.tracks.find((t) => t.id === 'AM-9');
+  assert.equal(draft.untracked, true);
+  assert.equal(l.env.data.tracks.find((t) => t.id === 'AM-1').untracked, undefined, 'tracked tracks carry no flag');
+  assert.ok(l.env.warnings.some((w) => /Not committed/.test(w) && w.includes('AM-9-draft')));
+  assert.ok(!l.env.provenance.stale_reasons.includes('track_summary_regenerated'), JSON.stringify(l.env.provenance.stale_reasons));
+});
+
+test('privacy: lc summary leaves the untracked draft out by default and --include-untracked adds it', () => {
+  const dir = draftFixture();
+  const run = (...a) => spawnSync(process.execPath, [BIN_SUMMARY, '--repo', dir, ...a], { encoding: 'utf8' });
+  assert.equal(run().status, 0);
+  assert.ok(!readFile(dir, SUMMARY_PATH).includes(SENTINEL));
+  assert.match(readFile(dir, SUMMARY_PATH), /\n2 tracks\./);
+  assert.equal(run('--check').status, 0, 'default check compares the tracked set');
+  assert.equal(run('--include-untracked').status, 0);
+  assert.ok(readFile(dir, SUMMARY_PATH).includes(`Draft ${SENTINEL}`));
+  assert.match(readFile(dir, SUMMARY_PATH), /\n3 tracks\./);
+});

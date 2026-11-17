@@ -268,6 +268,14 @@ export class LocalGitStore {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** Paths under `prefix` that are in the tree of HEAD (Set; empty when there is no commit yet). Local git only, no network. */
+  async trackedFiles(prefix) {
+    const norm = this._normalize(prefix.replace(/\/+$/, ''));
+    const r = await this._git(['ls-tree', '-r', '--name-only', '-z', 'HEAD', '--', `${norm}/`]);
+    if (r.code !== 0) return new Set();
+    return new Set(r.stdout.split('\0').filter(Boolean));
+  }
+
   async _read(rel) {
     const norm = this._normalize(rel);
     const abs = path.join(this.repo, norm);
@@ -344,6 +352,7 @@ export class LocalGitStore {
         return await fn({
           listDir: (p) => this.listDir(p),
           readFiles: (p) => this.readFiles(p),
+          trackedFiles: (p) => this.trackedFiles(p),
           upstreamDirs: (p) => this.upstreamDirs(p),
           head: () => this.head(),
           isAncestor: (c) => this.isAncestor(c),
