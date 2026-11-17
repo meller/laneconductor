@@ -12,6 +12,7 @@
 - [ ] Task 2: Register prompts and the `help` prompt in `connector/src/server.mjs`; instructions mention prompts; keep the instructions under 4,096 characters
 - [ ] Task 3: Tests with the SDK client: `prompts/list`, `prompts/get` with arguments, missing required argument error, `help` content, no tool contract change
 - [ ] Task 4: README section: how to use the prompts from a client; link to FITI's pattern as the origin
+- [ ] Task 5: Example hints in every tool description (REQ-7), a read-only `help` tool backed by the catalog, a test for the four annotations on all tools, and the KC-8 token estimate before and after (trim wording if over budget)
 
 ## Phase 3: Generate the plugin commands from the catalog
 
