@@ -189,6 +189,18 @@ should say what to do next (REQ-24).
 
 **Impact**: "plan X" works the same on Claude Code now and on claude.ai and mobile once the remote entry exists, without re-prompting the pattern each session.
 
+## Phase 5d: A place to see the tracks (the board; no daemon)
+
+**Problem**: With the daemon dropped (2026-11-17) nothing syncs files into Postgres, so the Kanban UI no longer updates, and the human still needs one view of all tracks across projects.
+**Solution**: One code-maintained generator reads each project's track files and produces a single data file; viewers are thin and replaceable. Files stay the truth; the board is a rebuildable copy (never hand-edited, never written back).
+
+- [ ] Task 1: `lc board` (or `scripts/board.mjs`): reads `conductor/tracks/*/index.md` markers for each project listed in a small config (default: every `~/Code/*` that has `conductor/`), reusing `connector/src/summary.mjs` and the same lint ("needs attention"); writes `board.json` (project, track, title, lane, lane status, progress, phase, depends on, needs-attention flags, generated-at). Titles, lanes, status and progress only: never conversation text or file bodies
+- [ ] Task 2: Viewer A, recommended first: a Claude artifact (private by default, one self-contained HTML page: lanes as columns, project filter, needs-attention list) published from `board.json`; works on phone and any Claude surface with no server. Refreshed by running the generator and republishing, which Claude does when asked ("update the board")
+- [ ] Task 3: Viewer B, optional: the existing Vite UI fed by an on-demand `lc index` (files to Postgres, one way, run by hand or by a git hook), only if the artifact is not enough. No resident process
+- [ ] Task 4: Privacy rule: before publishing, check each project's visibility; a project that is private or sensitive is listed by name only if the human has opted it in (config `board.include`), and the artifact stays private unless the human shares it
+
+**Impact**: One place to see every project's tracks with nothing running in the background.
+
 ## Phase 6: Local beta validation (AC-a, AC-c local, AC-d local, AC-e, AC-f)
 
 **Problem**: The local half must be shown to work before anything is hosted.
