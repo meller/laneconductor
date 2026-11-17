@@ -1,6 +1,6 @@
 # LaneConductor
 
-**Plan, build and review your work with Claude. The plans live as plain files in your git repository.**
+**The conventions of Conductor, the discipline of Superpowers, and a Kanban board: plan, build and review with Claude, with the plans kept as plain files in your git repository.**
 
 [![License: Elastic-2.0](https://img.shields.io/badge/License-Elastic--2.0-purple.svg)](LICENSE)
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-blue)](https://claude.ai/code)
@@ -14,7 +14,7 @@ is no database to run and no background process to keep alive.
 ## What it is now
 
 - **Direction (decided 2026-11-16).** Claude plus git plus a connector. The tracks are files in git.
-- **One plugin.** The skill (the workflow), 18 slash commands, two subagents, the local connector and the board
+- **One plugin.** The skill (the workflow), the slash commands (type `/laneconductor:` to list them), two subagents, the local connector and the board
   script ship together as the `laneconductor` plugin. There is nothing else to install.
 - **A board.** Ask Claude to update the board and it gives you every track by lane as a private Claude artifact.
 - **Safe writes.** One writer per change, and every write is checked against what you last read (see
@@ -24,6 +24,26 @@ is no database to run and no background process to keep alive.
 
 The lane pipeline is unchanged: **Plan, Implement, Review, Quality Gate, Merge**. Quality gates (tests, lint, build)
 are still what decides whether a track is done.
+
+## Where this comes from
+
+LaneConductor combines two projects and adds a Kanban view:
+
+- **[Conductor](https://github.com/gemini-cli-extensions/conductor)**, a Gemini CLI extension: project context kept as
+  Markdown files, and a spec and plan for every track, so the context survives between sessions. The `conductor/`
+  folder and its context files follow it.
+- **[Superpowers](https://github.com/obra/superpowers)** by Jesse Vincent (MIT): a skills framework for coding agents
+  with a real working process (brainstorm, plan, build with sub-agents, verify). Portions of LaneConductor's workflow
+  protocols are adapted from it.
+- **Kanban**: lanes, and a board that shows where every track stands.
+
+When this started, the author did not find a Conductor for Claude or a Superpowers for Gemini, and wanted both at once.
+Versions for other agents have appeared since; LaneConductor is the two ideas together, not a replacement for either.
+
+**Who it is for:** anyone who works with an AI coding agent and wants the plan written down, in the repository, before
+the code. **Not for:** a team whose process lives entirely in Jira (or a similar tool) and that does not use AI agents.
+LaneConductor is not a product tracker, and it is not a ticket-to-pull-request agent; see
+[Why LaneConductor](docs/why-laneconductor.md) for the comparison and the sources.
 
 ## Install
 
@@ -161,6 +181,8 @@ and `lc ui` belong to it. Use that tag if you want to run it.
 
 ## Documentation
 
+- [Why LaneConductor](docs/why-laneconductor.md): where it comes from, how it differs from trackers and their coding
+  agents, who it is for and who it is not for.
 - [`connector/PLUGIN-README.md`](connector/PLUGIN-README.md): what the plugin contains, what it runs and writes,
   board privacy.
 - [`connector/README.md`](connector/README.md): the connector's tools, push policy, advice log and board data.
