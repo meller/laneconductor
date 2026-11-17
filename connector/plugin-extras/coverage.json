@@ -1,0 +1,27 @@
+{
+  "comment": "Routing-table commands of the laneconductor skill that have NO command file in plugins/laneconductor/commands/. connector/test/plugin-coverage.test.mjs fails when a routing-table name is neither a command (or an alias of one, below) nor listed here.",
+  "entries": {
+    "init-tracks-summary": { "kind": "automatic", "reason": "The connector regenerates tracks-summary.md on every write; `lc summary` remains for plain edits made outside the connector." },
+    "revert": { "kind": "skill-only", "reason": "Needs judgement about which commit and which phase to undo; a thin command would hide that decision." },
+    "delete": { "kind": "skill-only", "reason": "Destructive, no undo, and the skill runs it only when named; a one-keystroke command invites accidents. The safe alternative is /laneconductor:move N backlog." }
+  },
+  "aliases": {
+    "qualityGate": "quality-gate",
+    "done": "merge",
+    "newTrack": "new",
+    "reportaBug": "bug",
+    "featureRequest": "feature",
+    "updateTrack": "move",
+    "pulse": "move",
+    "workflow set": "workflow",
+    "run track N": "run",
+    "work a track end to end": "run",
+    "show the board": "board",
+    "update the board": "board",
+    "setup collection": "setup",
+    "setup scaffold": "setup",
+    "setup scaffold generate": "setup",
+    "setup-deploy": "deploy",
+    "setup-deploy generate": "deploy"
+  }
+}

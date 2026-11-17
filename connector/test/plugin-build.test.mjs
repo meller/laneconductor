@@ -36,7 +36,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
   // Build a scratch "repo" holding only what the generator reads, then edit one generated file.
   const tmp = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-plugin-drift-'));
   try {
-    for (const rel of ['.claude/skills/laneconductor', 'connector/src', 'connector/guides']) {
+    for (const rel of ['.claude/skills/laneconductor', 'connector/src', 'connector/guides', 'connector/plugin-extras']) {
       fs.cpSync(path.join(REPO, rel), path.join(tmp, rel), { recursive: true });
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });

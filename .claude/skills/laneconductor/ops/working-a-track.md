@@ -24,3 +24,10 @@ file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**P
 - Append to `conversation.md` as `> **author**: text` (every line prefixed `> `); anything else
   is silently ignored by sync.
 - If a decision is the human's, ask in `conversation.md`, set `**Waiting for reply**: yes`, and stop.
+
+## Plugin users: one subagent per track in a worktree
+With the LaneConductor plugin (Claude Code or Cowork, not chat), the `laneconductor:track-runner`
+subagent is the recommended way to work a track: one subagent per track, each in its own worktree,
+so code stays off the primary checkout, tracks run in parallel and do not collide. Recommend it and
+show the exact dispatch (agent name and one-line prompt); start nothing until the human says yes.
+`/laneconductor:run N`, `:implement N` and `:review N` do this. It never merges or pushes.

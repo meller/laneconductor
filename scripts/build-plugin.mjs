@@ -16,6 +16,7 @@
 //     relative path outside connector/        so `../../conductor/x.mjs` keeps resolving)
 //   connector/package.json + lockfile       package.json + package-lock.json at the plugin ROOT (Claude
 //                                            Code installs registry deps only from a root lockfile)
+//   connector/plugin-extras/{commands,agents}/**  commands/**, agents/** (track AM-10115 Phase 2: slash commands and subagents)
 //   connector/PLUGIN-README.md              README.md ({{VERSION}} filled in; the directory wants a README here)
 //   LICENSE                                 LICENSE (Elastic License 2.0; named by `license` in plugin.json)
 //
@@ -34,6 +35,11 @@ const AUTHOR_URL = 'https://github.com/meller';
 const REPO_URL = 'https://github.com/meller/laneconductor';
 const SERVER_ENTRY = 'bin/lc-connector.mjs';
 const SERVER_BINS = [SERVER_ENTRY, 'bin/lc-board.mjs'];
+// Plugin extras (track AM-10115): connector/plugin-extras/<dir>/ is copied verbatim to plugins/laneconductor/<dir>/.
+// EXTENSION POINT: Phase 1 adds 'hooks' (hooks/hooks.json) and 'scripts' (the shell scripts it names) to this
+// list; nothing else in the generator needs to change, and the directory pre-checks cover whatever lands.
+export const EXTRAS_SRC = 'connector/plugin-extras';
+export const EXTRAS_DIRS = ['commands', 'agents'];
 
 // The plugin's skill does not ship the parked daemon-era tier (worker, syncdb, remote-sync, Postgres
 // schema); it stays in the LaneConductor repository's own skill. Everything else is copied as is,
@@ -140,6 +146,12 @@ export function buildPlugin(repo = REPO) {
       addFrom(targetRel, targetRel);
       queue.push(targetRel);
     }
+  }
+
+  // Plugin extras: commands, agents (and later hooks and scripts); exec bits follow the source files.
+  for (const dir of EXTRAS_DIRS) {
+    if (!fs.existsSync(path.join(repo, EXTRAS_SRC, dir))) continue;
+    for (const r of walk(path.join(repo, EXTRAS_SRC, dir))) addFrom(`${EXTRAS_SRC}/${dir}/${r}`, `${dir}/${r}`);
   }
 
   // package.json + lockfile at the plugin root, derived from the connector's (runtime deps only).
