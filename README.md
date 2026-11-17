@@ -1,137 +1,177 @@
-# LaneConductor 🛰️
+# LaneConductor
 
-**The local-first control plane for multi-agent AI development.**
-
-> **Direction (2026-11):** LaneConductor is moving to plain files + a small skill + a git-backed connector + Claude sub-agents. The earlier Postgres + daemon/worker + web UI stack is preserved at the [`v1-legacy`](../../tree/v1-legacy) tag and keeps working; it becomes an optional tier. See `conductor/product.md`.
-
-![LaneConductor Kanban Dashboard](docs/hero.png)
-
-### See it in action: Brainstorming → Planning → Automated Implementation
-![Demo: LaneConductor Workflow](docs/demo.gif)
-
-LaneConductor is a **sovereign developer environment** that orchestrates AI agents (Claude, Gemini, and more) across multiple repositories, giving you real-time visibility through a unified Kanban dashboard — with zero cloud dependency and zero cost.
-
+**Plan, build and review your work with Claude. The plans live as plain files in your git repository.**
 
 [![License: Elastic-2.0](https://img.shields.io/badge/License-Elastic--2.0-purple.svg)](LICENSE)
 [![Works with Claude Code](https://img.shields.io/badge/works%20with-Claude%20Code-blue)](https://claude.ai/code)
-[![Works with Gemini CLI](https://img.shields.io/badge/works%20with-Gemini%20CLI-orange)](https://github.com/google-gemini/gemini-cli)
 [![Documentation](https://img.shields.io/badge/docs-Knowledge%20Base-cyan)](https://laneconductor-site.web.app/wiki.html)
 
----
+LaneConductor is Claude plus git plus a small connector. Each piece of work is a **track**: a folder under
+`conductor/tracks/` with `index.md` (state), `spec.md`, `plan.md`, `test.md` and `conversation.md`. Claude manages the
+tracks for you (it plans them, works them in lanes, reviews them and merges them), and git keeps the history. There
+is no database to run and no background process to keep alive.
 
-## ⚡ Key Features
+## What it is now
 
-- **Hybrid Operating Modes**:
-    - **Local-First**: Runs 100% on your hardware via local SQLite/Postgres. Zero cloud, zero cost.
-    - **Remote / Team Mode**: Scales to production via Google Cloud Functions and **Neon Postgres**, enabling shared visibility for distributed teams.
-- **The Conductor Pattern**: A structured **Plan → Implement → Review → Quality Gate → Done** pipeline. Compatible with the [Gemini CLI conductor format](https://github.com/google-gemini/gemini-cli).
-- **Filesystem Message Bus**: Uses simple Markdown files in `conductor/tracks/` as the source of truth, enabling agents and humans to coordinate seamlessly.
-- **Live Kanban Dashboard**: A Vite + React dashboard that syncs in real-time with your filesystem via a local Postgres database.
-- **Quality Gates**: Automated verification (tests, linting, builds) that must pass before any work is considered "Done".
-- **Git Worktree Isolation & Panel**: Automatically isolates branch-mode track execution using Git Worktrees, keeping the main repository clean. The dashboard's **Worktrees Panel** offers live dev-server preview swapping, PR approval, and git lock management.
-- **Multi-Agent Support**: Natively optimized for **Claude Code** and **Gemini**, with support for primary and fallback LLM configurations.
+- **Direction (decided 2026-11-16).** Claude plus git plus a connector. The tracks are files in git.
+- **One plugin.** The skill (the workflow), 18 slash commands, two subagents, the local connector and the board
+  script ship together as the `laneconductor` plugin. There is nothing else to install.
+- **A board.** Ask Claude to update the board and it gives you every track by lane as a private Claude artifact.
+- **Safe writes.** One writer per change, and every write is checked against what you last read (see
+  [Safety and privacy](#safety-and-privacy)).
+- **The older stack is parked.** The Postgres dashboard, the sync daemon, workers and dispatch, the cloud collector
+  and federated hubs are kept at the [`v1-legacy`](../../tree/v1-legacy) git tag. See [The legacy tier](#the-legacy-tier).
 
----
+The lane pipeline is unchanged: **Plan, Implement, Review, Quality Gate, Merge**. Quality gates (tests, lint, build)
+are still what decides whether a track is done.
 
-## 🛰️ LaneConductor vs. Standalone Coding Agents
+## Install
 
-While standalone terminal tools (such as Claude Code, Gemini CLI, Aider, or Cursor) provide interactive single-session coding, LaneConductor acts as an **autonomous multi-agent control plane** that orchestrates complex development lifecycles across your entire repository.
-
-| Dimension | Standalone Coding Agents | LaneConductor Control Plane |
-| :--- | :--- | :--- |
-| **Architecture** | Ephemeral, single-terminal REPL | Sovereign multi-agent control plane with background worker fleet |
-| **Visibility** | Terminal scrollback buffer | Real-time Kanban dashboard backed by local Postgres & Markdown bus |
-| **Workspace Isolation** | Runs directly in your active working tree; prone to dirty checkouts | **Git Worktree Isolation**: automated worktrees per track keep `main` pristine |
-| **Lifecycle & Safety** | Open-ended chat; manual testing & manual git committing | **Structured Conductor Pipeline**: Plan → Implement → Review → Automated Quality Gates → PR/Merge |
-| **Target Switchability** | Single monolithic conversation session | Switch between **The Manager** (instance health & gap triage) and **Track Workers** |
-| **Steerable Alignment** | Ad-hoc chat disconnected from project roadmaps | Conversational steering updates live design docs (`spec.md`, `plan.md`) and re-queues tracks |
-| **Parallel Execution** | One task at a time; blocks your terminal | Multi-track concurrent queues running headlessly in parallel worktrees |
-
-### Why LaneConductor?
-- **From Babysitting to Orchestration**: Instead of watching an agent edit one file at a time, queue tracks to background workers that plan, implement, run quality gates, push branches, and open pull requests autonomously.
-- **Dual-Mode Safety**: Chat turns run lock-free in your main working directory for instant planning and design doc synchronization. All code modifications are strictly sandboxed inside dedicated Git Worktrees.
-- **Continuous Project Memory**: Specifications, implementation plans, and conversation histories are persisted directly in `conductor/tracks/`, serving as a durable, human-and-agent readable single source of truth.
-
----
-
-## 🛰️ Advanced Track Features
-
-Every Track folder under `conductor/tracks/` is controlled by a stateful `index.md` file. You can configure execution and workflow behavior per-track using simple markers:
-
-- **Workspace Mode (`**Workspace**: main|branch`)**:
-  - `branch` (default): Isolation in a dedicated git worktree on a track branch.
-  - `main`: Execution directly in the primary checkout (perfect for local developer-agent pairing or self-hosted worker infrastructure updates).
-- **PR & Merge Mode (`**Merge Mode**: pr|direct`)**:
-  - `pr` (default): Automatically pushes the branch and opens a GitHub Pull Request upon passing the Quality Gate. You can review, preview, and merge it straight from the dashboard.
-  - `direct`: The worker merges the track branch directly to `main` without opening a PR.
-- **Auto-Run Configuration (`**Auto Run**: yes|no`)**:
-  - `yes`: Allows the worker to claim the track from the queue and execute it automatically through planning, implementation, and review.
-  - `no` (or omitted): Restricts execution to manual trigger actions from the UI or CLI.
-
----
-
-## 🚀 Quick Start
-
-### Option A: Standard (CLI-driven)
+You need [Claude Code](https://claude.ai/code) (or Cowork) and Node.js 20 or newer (the connector uses it).
 
 ```bash
-# 1. Install the lc CLI globally
-git clone https://github.com/meller/laneconductor.git && cd laneconductor && make install
-
-# 2. Initialize in your project
-cd ~/your-project && lc setup
-
-# 3. Start the worker and dashboard
-lc start && lc ui
+claude plugin marketplace add meller/laneconductor
+claude plugin install laneconductor@laneconductor
 ```
 
-The Kanban dashboard will be available at [**localhost:8090**](http://localhost:8090).
+Add `--scope local` to install it for one project only (just for you), or `--scope user` to have it in every
+project. Then run `/reload-plugins` in your session.
 
-### 🧠 Option B: AI-Native (Skill Only)
-No CLI, no local DB, no UI required. **Works on Windows, macOS, and Linux.**
+Check that it loaded:
 
-1.  **Install Skill**: Copy the `laneconductor` folder from `.claude/skills/` into your Claude Desktop skill directory.
-2.  **Initialize**: Open your **project codebase** and run the following within Claude:
-    ```bash
-    /laneconductor setup
-    ```
-3.  **Conduct**: Manage your project entirely through the AI skill. Try these commands:
-    - `/laneconductor newTrack "Feature Name" "Short Description"`
-    - `/laneconductor plan NNN`
-    - `/laneconductor implement NNN`
-    Check `conductor/tracks.md` at any time for a project-wide summary.
+- `claude plugin list` shows `laneconductor`.
+- `/mcp` shows `plugin:laneconductor:lc`, the connector.
 
----
+If you installed with `--scope local` and open another folder, `claude plugin list` shows the plugin as disabled
+there. That is how local scope works, not a fault.
 
-### Optional: AI Context Scaffolding
-
-Use the Claude Code skill to automatically scan your codebase and generate project documentation:
+To update:
 
 ```bash
-# Within Claude Code
-/laneconductor setup scaffold
+claude plugin marketplace update laneconductor
+claude plugin update laneconductor@laneconductor
 ```
 
----
+then `/reload-plugins`.
 
-## 📖 Documentation
+The plugin is not in Anthropic's plugin directory. The directory accepts only Markdown from a publisher that is not
+Verified, and this plugin runs a small local program, so you install it from this marketplace. That is parked until
+a remote connector exists. Hooks are planned as a separate opt-in extension (`laneconductor-hooks`) and are not
+available yet.
 
-For a deep dive into operating modes, CLI reference, and workflow configuration, visit the [**LaneConductor Knowledge Base**](https://laneconductor-site.web.app/wiki.html).
+### Other ways to get it
 
----
+A zip of the plugin can be built with `node scripts/make-zip.mjs --out <dir>` (a deterministic zip of
+`plugins/laneconductor`). It can be loaded with "Upload plugin" in the Claude desktop app or claude.ai
+(Customize, Plugins, Add). No release zip has been published yet, so use the marketplace route above for now.
 
-## 🛠️ Project Structure
+### What works where
 
-- `bin/`: The universal `lc` command-line tool.
-- `conductor/`: Core orchestrator logic and heartbeat worker.
-- `ui/`: Vite + React Kanban dashboard and Express API.
-- `cloud/`: Firebase functions and Postgres connectors for remote/team mode.
-- `migrations/`: Schema versioning using Atlas.
-- `.claude/skills/`: The specialized AI skill definition for Claude.
+| Where you use Claude | Skill and commands | Connector, board script, subagents |
+| :--- | :---: | :---: |
+| Claude Code, on your computer | yes | yes |
+| Cowork, on your computer | yes | yes |
+| claude.ai chat | yes (as skills; Claude edits the track files directly) | no |
 
----
+A remote connector for chat and mobile does not exist yet; it is not available.
 
-## 📄 License
+## Use it
 
-This project is licensed under the [Elastic License 2.0](LICENSE) - free to use, modify, and
+Open your project in Claude Code and ask in plain words, or use a command:
+
+- `/laneconductor:setup` sets LaneConductor up in a new project; `/laneconductor:new <title: what and why>` starts a
+  track (`:bug` and `:feature` start one of those kinds).
+- `/laneconductor:plan 12`, `:implement 12`, `:review 12`, `:quality-gate 12`, `:merge 12` take a track through
+  its lanes. `:run` recommends the next step and asks before it starts anything.
+- `/laneconductor:status`, `:move`, `:comment`, `:workflow`, `:brainstorm` and `:review-plan` do what they say.
+- `/laneconductor:board` shows or refreshes the board.
+
+For each track the `track-runner` subagent can work it in its own git worktree, so tracks do not collide, and the
+read-only `plan-reviewer` subagent reads a plan and reports gaps without changing anything. Both only start when
+you say yes.
+
+## The board
+
+The board is part of the plugin: `/laneconductor:board`, or just ask Claude to "update the board".
+
+- It is a static page plus a data snapshot (`board.json`), built by `lc board --site <dir>` (the plugin has its own
+  copy of the script, so you do not need the `lc` command). Claude publishes it as a **private** artifact and keeps
+  its URL in `.laneconductor.json` (`board.artifact_url`).
+- It is a **snapshot**. It changes only when Claude refreshes it, and it shows when it was generated.
+- Click a track to see its Overview, Plan, Spec and Tests.
+- Every document passes a privacy scan first. A file with secrets, email addresses or phone numbers in it is
+  withheld whole and named by track number and file name. `conversation.md` is left out unless you set
+  `board.include_conversation: true`.
+- Sharing the board shares the documents on it, so share it only with people who may read them.
+- It needs the plugin's local script, so it works in Claude Code and Cowork, not in claude.ai chat alone.
+
+## Migrate an existing project
+
+If the project used the earlier install (`make install`, or a copy or symlink of the skill):
+
+1. Install the plugin (above).
+2. Open a session in the project and confirm `/mcp` shows `plugin:laneconductor:lc`.
+3. Remove the project's own skill (`.claude/skills/laneconductor`, often a symlink) and any user-level copy
+   (`~/.claude/skills/laneconductor`) so the skill is not loaded twice.
+4. If a worker runs for the project, stop it with `lc worker stop`. Nothing needs it any more.
+
+Your tracks do not change; they are the same files. A Postgres database from the older setup is not read by the
+plugin and can be left alone or dropped. If you used the 0.2.x `laneconductor` plugin, you already have the
+connector and the board script; update the plugin and nothing else is needed. The connector's MCP key is `lc`, and
+its tools are named `mcp__plugin_laneconductor_lc__<tool>`. The commands fall back to editing the track files
+directly only if the connector's MCP server fails to start.
+
+## Safety and privacy
+
+- **One writer per change.** A track file is changed by one writer at a time, through the connector, so two
+  writers do not overwrite each other.
+- **Conflict checks.** A write needs the `base` from your last read; if someone edited the file since, it is refused
+  with `CONFLICT` and nothing is overwritten.
+- **Automatic commits.** Each write is one git commit containing only the files it wrote, on the project's state
+  branch.
+- **State branch.** The connector writes on `connector.state_branch` from `.laneconductor.json` if you set it;
+  otherwise the repo's default branch; otherwise the current branch if it is `main` or `master`; otherwise `main`.
+  It refuses to write while the checkout is on any other branch.
+- **No pushes without asking.** The connector makes no network requests and never pushes unless you set
+  `connector.push: auto-state`. The skill asks before any push or merge.
+- **`conversation.md` stays on your machine.** It is gitignored, per machine, and not put on the board by default.
+- **Advice log.** The connector appends tool names, success flags, timings and sizes to `conductor/advice-log/` in
+  your repo. It holds no file contents and no prompts.
+
+## Recipe library
+
+A library of reusable recipes (nine so far) is packaged as its own plugin and marketplace. It is local and not
+published yet, and the test of whether Claude discovers the right recipe on its own is still in progress.
+
+## The legacy tier
+
+The earlier version of LaneConductor was a Postgres-backed Kanban dashboard (Vite and React), a sync daemon,
+queue workers with dispatch, a cloud collector and federated hubs. It is parked, not deleted: it is preserved at the
+[`v1-legacy`](../../tree/v1-legacy) git tag, the daemon is stopped, and the plugin does not need any of it. The
+folders `conductor/`, `ui/`, `cloud/`, `migrations/` and `bin/` still hold that code, and `make install`, `lc start`
+and `lc ui` belong to it. Use that tag if you want to run it.
+
+![The legacy Kanban dashboard](docs/hero.png)
+
+## Documentation
+
+- [`connector/PLUGIN-README.md`](connector/PLUGIN-README.md): what the plugin contains, what it runs and writes,
+  board privacy.
+- [`connector/README.md`](connector/README.md): the connector's tools, push policy, advice log and board data.
+- [`connector/ARCHITECTURE.md`](connector/ARCHITECTURE.md): the neutral core and the Claude adapter.
+- [Knowledge Base](https://laneconductor-site.web.app/wiki.html).
+- [`conductor/product.md`](conductor/product.md) and [`conductor/tech-stack.md`](conductor/tech-stack.md).
+
+## Project structure
+
+- `plugins/laneconductor/`: the built plugin (generated; do not edit by hand).
+- `connector/`: the connector's source, its tests and the plugin's extra files.
+- `scripts/`: the plugin generator and the zip script.
+- `.claude/skills/laneconductor/`: the source of the skill (lane guides and operations).
+- `conductor/tracks/`: this project's own tracks.
+- Legacy tier (tag `v1-legacy`): `bin/` (the `lc` CLI), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
+
+## License
+
+This project is licensed under the [Elastic License 2.0](LICENSE): free to use, modify and
 self-host; the one restriction is offering it to third parties as a hosted or managed service.

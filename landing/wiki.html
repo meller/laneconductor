@@ -347,52 +347,43 @@
                 <div class="sidebar-title">Introduction</div>
                 <ul class="sidebar-links">
                     <li><a href="#what-is-it">What is LaneConductor?</a></li>
-                    <li><a href="#vs-coding-agents">LaneConductor vs. Agents</a></li>
                     <li><a href="#conductor-pattern">The Conductor Pattern</a></li>
                     <li><a href="#installation">Installation</a></li>
-                    <li><a href="#claude-skill">Use as Claude Skill</a></li>
+                    <li><a href="#claude-skill">The plugin</a></li>
+                    <li><a href="#board">The board</a></li>
+                    <li><a href="#safety-privacy">Safety and privacy</a></li>
+                    <li><a href="#recipes">Recipe library</a></li>
                 </ul>
             </div>
             <div class="sidebar-group">
-                <div class="sidebar-title">Architecture</div>
+                <div class="sidebar-title">Tracks</div>
                 <ul class="sidebar-links">
-                    <li><a href="#modes">Operating Modes</a></li>
                     <li><a href="#setup-scaffold">Setup Scaffold</a></li>
-                    <li><a href="#bidirectional-sync">Bidirectional Sync</a></li>
-                    <li><a href="#filesystem-bus">Filesystem Bus</a></li>
+                    <li><a href="#filesystem-bus">Files in git</a></li>
+                    <li><a href="#lifecycle">Track Lifecycle</a></li>
+                    <li><a href="#quality-gates">Quality Gates</a></li>
+                    <li><a href="#project-status">Project Status</a></li>
                 </ul>
             </div>
             <div class="sidebar-group">
-                <div class="sidebar-title">Integrations</div>
+                <div class="sidebar-title">Legacy tier (v1-legacy)</div>
                 <ul class="sidebar-links">
+                    <li><a href="#vs-coding-agents">LaneConductor vs. Agents</a></li>
+                    <li><a href="#modes">Operating Modes</a></li>
+                    <li><a href="#bidirectional-sync">Bidirectional Sync</a></li>
                     <li><a href="#modular-integrations">Modular Architecture</a></li>
                     <li><a href="#jira-workflow">Jira Workflow</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-group">
-                <div class="sidebar-title">Workflow</div>
-                <ul class="sidebar-links">
-                    <li><a href="#lifecycle">Track Lifecycle</a></li>
                     <li><a href="#chat-control-plane">Persistent Chat Surface</a></li>
                     <li><a href="#workspace-modes">Workspace Modes</a></li>
                     <li><a href="#worktrees-panel">Worktrees &amp; Panel</a></li>
                     <li><a href="#concurrency-model">Concurrency &amp; Locking</a></li>
-                    <li><a href="#merge-modes">PR & Merge Modes</a></li>
+                    <li><a href="#merge-modes">PR &amp; Merge Modes</a></li>
                     <li><a href="#auto-run">Auto-Run Configuration</a></li>
                     <li><a href="#llm-config">LLM Configuration</a></li>
-                    <li><a href="#quality-gates">Quality Gates</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-group">
-                <div class="sidebar-title">Status & Safety</div>
-                <ul class="sidebar-links">
-                    <li><a href="#project-status">Project Status</a></li>
                     <li><a href="#operational-safety">Operational Safety</a></li>
-                </ul>
-            </div>
-            <div class="sidebar-group">
-                <div class="sidebar-title">Security</div>
-                <ul class="sidebar-links">
+                    <li><a href="#autoresearch">Autoresearch</a></li>
+                    <li><a href="#cli-general">CLI Reference</a></li>
+                    <li><a href="#configuration">Configuration</a></li>
                     <li><a href="#secret-management">Secret Management</a></li>
                     <li><a href="#gitignore-pattern">What to Gitignore</a></li>
                 </ul>
@@ -402,21 +393,24 @@
         <main>
             <header>
                 <h1>Knowledge Base</h1>
-                <p>The AI orchestration layer for your whole business — dev, launch, market, support. One board. Closed loop.</p>
+                <p>Claude plus git plus a connector. Your plans are plain files in your repository, and Claude manages them.</p>
             </header>
 
             <section id="what-is-it">
                 <h2>What is LaneConductor?</h2>
-                <p>LaneConductor is the AI orchestration layer for your whole business — not just code. Dev ships features, marketing posts launches, sales runs outreach, support resolves tickets. Every function runs as a <strong>track</strong> on one board, executed or assisted by AI agents, and measured against a KPI so you know what actually worked.</p>
+                <p>LaneConductor keeps a project's plans as plain files in git. Each piece of work is a
+                    <strong>track</strong>: a folder under <code>conductor/tracks/</code> with its state, spec, plan,
+                    tests and conversation. Claude plans, implements, reviews and merges tracks for you, and git keeps the
+                    history. There is no database to run and no background process to keep alive.</p>
 
-                <p>It is not a project tracker (those are passive — humans do the work). LaneConductor is an <strong>operating layer</strong>: agents execute the work, outcomes are measured, and failed experiments automatically replan with measurement data attached. The Conductor metaphor is exact — it doesn't play the instruments, it orchestrates them.</p>
-
-                <div class="diagram-container">
-                    <img src="/docs/architecture.png" alt="LaneConductor Architecture" />
-                    <div class="diagram-caption">Figure 1: High-level architecture of the LaneConductor ecosystem.</div>
+                <div class="callout">
+                    <div class="callout-title">Direction (decided 2026-11-16)</div>
+                    <p>Claude plus git plus a connector, delivered as one plugin. The Postgres dashboard, the sync
+                        daemon, workers and dispatch, the cloud collector and federated hubs are the earlier version of
+                        LaneConductor. They are parked at the <code>v1-legacy</code> git tag, the daemon is stopped, and
+                        the plugin does not need any of them. Sections of this page that describe that older stack are
+                        listed under <strong>Legacy tier</strong> in the sidebar and marked on the page.</p>
                 </div>
-
-                <p>It acts as the "connective tissue" between every business function and its AI agent — providing visibility, guardrails, KPI measurement, and closed-loop replanning for every track.</p>
 
                 <h3>Track Types</h3>
                 <table>
@@ -432,6 +426,12 @@
 
             <section id="vs-coding-agents">
                 <h2>LaneConductor vs. Standalone Coding Agents</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>While standalone CLI tools (such as Claude Code, Gemini CLI, Cursor Agent, or Aider) provide interactive single-session coding in a terminal, LaneConductor functions as an <strong>autonomous multi-agent control plane</strong> orchestrating complex development lifecycles across your entire repository.</p>
 
                 <div class="callout">
@@ -521,68 +521,148 @@
 
             <section id="installation">
                 <h2>Installation</h2>
-                <p>LaneConductor is designed to be lightweight and sovereign. It runs entirely on your hardware.</p>
-                <h3>Global Setup</h3>
-                <p>First, clone the core orchestrator and register the <code>lc</code> command.</p>
-                <pre><code>git clone https://github.com/meller/laneconductor.git
-cd laneconductor
-make install</code></pre>
+                <p>LaneConductor is one Claude plugin, <code>laneconductor</code>. It holds the skill, the slash
+                    commands, two subagents, the local connector and the board script, so there is nothing else to
+                    install. You need Claude Code (or Cowork) and Node.js 20 or newer.</p>
+                <pre><code>claude plugin marketplace add meller/laneconductor
+claude plugin install laneconductor@laneconductor</code></pre>
+                <p>Add <code>--scope local</code> to install it for one project only (just for you), or
+                    <code>--scope user</code> for every project. Then run <code>/reload-plugins</code>.</p>
 
-                <h3>Project Setup</h3>
-                <p>Navigate to any repo you want to track. LaneConductor needs to be initialized in each repository.</p>
-                <pre><code>cd ~/Code/my-awesome-app
-lc setup    # Scaffolds conductor/ directory and registers the project</code></pre>
+                <h3>Check that it loaded</h3>
+                <ul>
+                    <li><code>claude plugin list</code> shows <code>laneconductor</code>.</li>
+                    <li><code>/mcp</code> shows <code>plugin:laneconductor:lc</code>, the connector.</li>
+                </ul>
+                <p>With local scope, the plugin shows as disabled when you open a different folder. That is how local
+                    scope works, not a fault.</p>
 
-                <p>After initializing with the CLI, use <strong>any AI Agent</strong> (Claude or Gemini) to generate
-                    your AI context
-                    files automatically:</p>
-                <pre><code># In Claude Code
-/laneconductor setup scaffold
+                <h3>Update</h3>
+                <pre><code>claude plugin marketplace update laneconductor
+claude plugin update laneconductor@laneconductor</code></pre>
+                <p>then <code>/reload-plugins</code>.</p>
 
-# In Gemini CLI
-Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
+                <h3>What works where</h3>
+                <table>
+                    <thead><tr><th>Where</th><th>Skill and commands</th><th>Connector, board script, subagents</th></tr></thead>
+                    <tbody>
+                        <tr><td>Claude Code, on your computer</td><td>yes</td><td>yes</td></tr>
+                        <tr><td>Cowork, on your computer</td><td>yes</td><td>yes</td></tr>
+                        <tr><td>claude.ai chat</td><td>yes (Claude edits the track files directly)</td><td>no</td></tr>
+                    </tbody>
+                </table>
+                <p>A remote connector for chat and mobile does not exist yet; it is not available. The plugin is not
+                    in Anthropic's plugin directory (the directory accepts only Markdown from a publisher that is not
+                    Verified, and this plugin runs a small local program), so you install it from the marketplace above.
+                    Hooks are planned as a separate opt-in extension, <code>laneconductor-hooks</code>, and are not
+                    available yet.</p>
 
-                <div class="callout">
-                    <div class="callout-title">Skill Symlinking</div>
-                    <p>When you run <code>lc setup</code>, LaneConductor automatically creates a <strong>symbolic
-                            link</strong> (linux symlink)
-                        from your global installation into <code>.claude/skills/laneconductor</code> of the target repo.
-                        This ensures that all projects always use the latest version of the skill without manual
-                        copying.</p>
-                </div>
-
-                <div class="callout">
-                    <div class="callout-title">Database Requirement</div>
-                    <p>For <code>local-api</code> mode, you'll need a local Postgres instance. LaneConductor uses a
-                        single database to track all your projects simultaneously.</p>
-                </div>
+                <h3>Migrating a project that used the earlier install</h3>
+                <ol>
+                    <li>Install the plugin (above).</li>
+                    <li>Open a session in the project and confirm <code>/mcp</code> shows
+                        <code>plugin:laneconductor:lc</code>.</li>
+                    <li>Remove the project's own skill (<code>.claude/skills/laneconductor</code>, often a symlink) and
+                        any copy in <code>~/.claude/skills</code>, so the skill is not loaded twice.</li>
+                    <li>If a worker runs for the project, stop it with <code>lc worker stop</code>.</li>
+                </ol>
+                <p>Your tracks do not change. <code>make install</code>, <code>lc start</code> and a Postgres database
+                    belong to the legacy tier and are not needed.</p>
             </section>
 
             <section id="claude-skill">
-                <h2>Use as a Pure Claude Skill — Default Configuration</h2>
-                <p><strong>Claude is the default and recommended primary agent for LaneConductor.</strong> While the CLI handles infrastructure,
-                    the <code>/laneconductor</code> skill provides Claude Code with the instructions and tools it needs
-                    to operate autonomously. This is the most stable and well-tested configuration.</p>
+                <h2>The plugin: skill, commands and subagents</h2>
+                <p>The skill teaches Claude the workflow: the lane guides (<code>plan</code>, <code>brainstorm</code>,
+                    <code>implement</code>, <code>review</code>, <code>quality-gate</code>, <code>merge</code>), the
+                    track operations and the guardrails for working a track. The commands are thin entry points to it,
+                    run as <code>/laneconductor:&lt;name&gt;</code>:</p>
+                <pre><code>/laneconductor:setup
+/laneconductor:new &lt;title: what and why&gt;
+/laneconductor:plan 101
+/laneconductor:implement 101
+/laneconductor:review 101
+/laneconductor:board</code></pre>
+                <p>There are 18 commands: <code>plan</code>, <code>implement</code>, <code>review</code>,
+                    <code>quality-gate</code>, <code>merge</code>, <code>run</code>, <code>new</code>, <code>bug</code>,
+                    <code>feature</code>, <code>status</code>, <code>move</code>, <code>comment</code>,
+                    <code>board</code>, <code>workflow</code>, <code>setup</code>, <code>deploy</code>,
+                    <code>brainstorm</code> and <code>review-plan</code>. <code>setup</code> and <code>deploy</code> run
+                    only when you name them.</p>
 
-                <h3>How to Invoke</h3>
-                <p>Once you've run <code>lc setup</code>, the skill is automatically symlinked into your project's
-                    <code>.claude/skills/</code>. You can then use it directly in your chat:
-                </p>
-                <pre><code>/laneconductor implement 101</code></pre>
-
-                <h3>Pure Skill Workflow</h3>
-                <p>In this mode, Claude uses its internal "System Prompt" (defined in <code>SKILL.md</code>) to:</p>
+                <h3>Subagents</h3>
                 <ul>
-                    <li>Understand the **Conductor Workflow**.</li>
-                    <li>Read/Write to the **Filesystem Bus** (<code>conductor/tracks/</code>).</li>
-                    <li>Perform **Bidirectional Sync** with the local database.</li>
-                    <li>Coordinate with other agents through shared Markdown state.</li>
+                    <li><code>track-runner</code> works one track through one lane in its own git worktree, so tracks
+                        do not collide.</li>
+                    <li><code>plan-reviewer</code> reads a track's spec and plan and reports gaps without changing
+                        anything.</li>
                 </ul>
+                <p><code>run</code>, <code>implement</code> and <code>review</code> only recommend
+                    <code>track-runner</code> and show the exact dispatch; nothing starts until you say yes.</p>
+
+                <h3>The connector</h3>
+                <p>A local MCP server that reads and writes the track files for Claude: conflict-checked writes, one git
+                    commit per write, and freshness warnings. It makes no network requests of its own. The commands fall
+                    back to editing the track files directly only if the connector's server fails to start. See the
+                    <a href="https://github.com/meller/laneconductor/blob/main/connector/PLUGIN-README.md">plugin
+                    README</a> for exactly what it runs and writes.</p>
+            </section>
+
+            <section id="board">
+                <h2>The board</h2>
+                <p>The board shows every track by lane. It is part of the plugin: run
+                    <code>/laneconductor:board</code>, or ask Claude to "update the board".</p>
+                <ul>
+                    <li>It is built by <code>lc board --site &lt;dir&gt;</code> (the plugin carries its own copy of the
+                        script) as a static page plus <code>board.json</code> and one document file per track. Claude
+                        publishes it as a <strong>private</strong> artifact and keeps its URL in
+                        <code>.laneconductor.json</code> (<code>board.artifact_url</code>).</li>
+                    <li>It is a <strong>snapshot</strong>. It changes only when Claude refreshes it, and it shows when it
+                        was generated.</li>
+                    <li>Click a track to see its Overview, Plan, Spec and Tests.</li>
+                    <li>Every document is scanned first. A file with secrets, email addresses or phone numbers in it is
+                        withheld whole and named by track number and file name.
+                        <code>conversation.md</code> is left out unless you set
+                        <code>board.include_conversation: true</code>.</li>
+                    <li>Sharing the board shares the documents on it. Share it only with people who may read them.</li>
+                    <li>It needs the plugin's local script, so it works in Claude Code and Cowork, not in claude.ai chat
+                        alone.</li>
+                </ul>
+            </section>
+
+            <section id="safety-privacy">
+                <h2>Safety and privacy</h2>
+                <ul>
+                    <li><strong>One writer per change.</strong> A track file is changed by one writer at a time, through
+                        the connector.</li>
+                    <li><strong>Conflict checks.</strong> A write needs the <code>base</code> from your last read. If the
+                        file changed since, the write is refused with <code>CONFLICT</code> and nothing is overwritten.</li>
+                    <li><strong>Automatic commits.</strong> Each write is one git commit containing only the files it
+                        wrote.</li>
+                    <li><strong>State branch.</strong> The connector writes on <code>connector.state_branch</code> from
+                        <code>.laneconductor.json</code> if you set it; otherwise the repo's default branch; otherwise
+                        the current branch if it is <code>main</code> or <code>master</code>; otherwise
+                        <code>main</code>. It refuses to write on any other branch.</li>
+                    <li><strong>No pushes without asking.</strong> It never pushes unless you set
+                        <code>connector.push</code> to <code>auto-state</code>, and the skill asks before any push or
+                        merge.</li>
+                    <li><strong><code>conversation.md</code> stays on your machine.</strong> It is gitignored and per
+                        machine.</li>
+                    <li><strong>Advice log.</strong> The connector appends tool names, success flags, timings and sizes
+                        to <code>conductor/advice-log/</code> in your repository. It holds no file contents and no
+                        prompts.</li>
+                </ul>
+            </section>
+
+            <section id="recipes">
+                <h2>Recipe library</h2>
+                <p>A library of reusable recipes (nine so far) is packaged as its own plugin and marketplace. It is local
+                    and not published yet, and the test of whether Claude finds the right recipe on its own is still in
+                    progress.</p>
             </section>
 
             <section id="setup-scaffold">
                 <h2>The Setup Scaffold Process</h2>
-                <p>The <code>/laneconductor setup scaffold</code> command is the fastest way to give an AI agent context
+                <p>The <code>/laneconductor:setup scaffold</code> command is the fastest way to give an AI agent context
                     about your project. It uses AI reasoning to scan your codebase and generate documentation.</p>
 
                 <h3>What happens during Scaffold?</h3>
@@ -606,8 +686,8 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                             <li><code>code_styleguides/</code>: Detailed rules inferred from your config files.</li>
                         </ul>
                     </li>
-                    <li><strong>Skill Linking:</strong> It ensures the LaneConductor skill is symlinked so it can be
-                        used locally.</li>
+                    <li><strong>Skill Linking:</strong> When the skill comes from the plugin, scaffold does not link
+                        it into the project (the plugin is the install, and a link would load it twice).</li>
                 </ol>
 
                 <div class="callout">
@@ -619,6 +699,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="llm-config">
                 <h2>LLM Configuration</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>LaneConductor allows you to define which AI agents and models are used for specific tasks, providing
                     a robust fallback system.</p>
 
@@ -655,10 +741,14 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     lane, which preserves session continuity across lane transitions.</p>
             </section>
 
-            </section>
-            
             <section id="modular-integrations">
                 <h2>Modular Integrations</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>LaneConductor supports a service-oriented integration architecture designed for security and scalability. It is designed to bridge the gap between your local environment and enterprise tools across multiple operating modes.</p>
                 
                 <div class="callout">
@@ -680,6 +770,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="jira-workflow">
                 <h2>Jira Workflow — Hybrid Sync</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>The Jira integration uses a <strong>Hybrid Sync</strong> model: Inbound Webhooks for instant updates, and Polling-based Bidirectional Sync for reliability and conflict resolution.</p>
 
                 <h3>1. Inbound (Jira → LC)</h3>
@@ -708,6 +804,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="modes">
                 <h2>Operating Modes</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>One of LaneConductor's greatest strengths is its flexibility. You can switch modes based on your
                     environment.</p>
 
@@ -758,21 +860,21 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
             </section>
 
             <section id="project-status">
-                <h2>Project Status & Verified Environment</h2>
-                <p>LaneConductor is in rapid active development. To ensure a stable experience, we recommend using the
-                    following verified configurations:</p>
-                <ul>
-                    <li><strong>Operating Systems:</strong> Ubuntu (Linux) and Windows Subsystem for Linux (WSL2).</li>
-                    <li><strong>Verified AI APIs:</strong> Claude CLI (<code>claude</code>) and Gemini CLI
-                        (<code>npx @google/gemini-cli</code>).</li>
-                    <li><strong>Core Mode:</strong> <code>local-api</code> (Local Postgres + Vite UI) is the primary
-                        tested pathway for daily development.</li>
-                </ul>
-                <p>Other environments (macOS, direct Windows) and mode combinations are currently under development.</p>
+                <h2>Project Status</h2>
+                <p>The plugin is at version 0.3.0 and under active development. It is not in Anthropic's plugin
+                    directory, a remote connector for claude.ai chat and mobile is not available, and the hooks
+                    extension (<code>laneconductor-hooks</code>) is planned, not available. The recipe library is local
+                    and still being tested.</p>
             </section>
 
             <section id="operational-safety">
                 <h2>Operational Safety & Best Practices</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>Working with AI agents requires a balance between automation and oversight. We've identified two
                     primary patterns of operation:</p>
 
@@ -804,6 +906,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="bidirectional-sync">
                 <h2>Bidirectional Sync &amp; Track Status</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>LaneConductor solves the "source of truth" problem with a deterministic sync loop. It bridges the gap
                     between the <strong>Filesystem</strong> (where agents work) and the <strong>API/UI</strong> (where
                     humans coordinate).</p>
@@ -829,7 +937,7 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
             </section>
 
             <section id="filesystem-bus">
-                <h2>Filesystem Bus</h2>
+                <h2>Files in git</h2>
                 <p>The <strong>Filesystem Bus</strong> is the primary communication channel for LaneConductor. Instead
                     of complex API calls, orchestration is handled by reading and writing to standardized Markdown files
                     in your repository's <code>conductor/</code> directory.</p>
@@ -858,19 +966,25 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
                     <li><strong>plan.md:</strong> The step-by-step execution phases.</li>
                     <li><strong>test.md:</strong> Verification criteria and test plans, driving our <strong>context and
                             test-driven</strong> approach.</li>
-                    <li><strong>conversation.md:</strong> The full history of comments between the human and the agent.
+                    <li><strong>conversation.md:</strong> The history of comments between the human and the agent. It stays on your machine (gitignored).
                     </li>
                     <li><strong>quality-gate.md:</strong> Track-specific quality criteria and verification results.</li>
                 </ul>
 
                 <h3>State Transitions</h3>
                 <p>Tracks move through the workflow based on the <code>conductor/workflow.json</code> configuration.
-                    Transitions can be triggered by the CLI, the UI, or the Agent itself through <code>lc pulse</code>.
+                    Claude moves a track between lanes through the connector (<code>/laneconductor:move</code>, or as part of a lane command).
                 </p>
             </section>
 
             <section id="chat-control-plane">
                 <h2>Persistent Chat &amp; Control Surface</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>Accessible at <code>/chat</code> in the web dashboard, the persistent Chat surface provides a unified control room to interact with, steer, and monitor all agents in your LaneConductor instance.</p>
 
                 <h3>1. Target Switchability: Manager vs. Track Workers</h3>
@@ -904,6 +1018,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="workspace-modes">
                 <h2>Workspace Modes</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>Every track resolves to one of two workspace modes at execution time:</p>
                 <ul>
                     <li><strong><code>branch</code> (Default)</strong>: Runs in an isolated Git worktree on a track-specific branch (e.g., <code>track-NNN</code>) and merges back to main only when the track succeeds. This keeps main clean and isolates autonomous runs.</li>
@@ -919,6 +1039,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="worktrees-panel">
                 <h2>Worktrees &amp; Panel</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>When running a track in <code>branch</code> workspace mode, LaneConductor leverages Git Worktrees to provide isolated parallel execution. This isolates the agent's work, ensuring that uncommitted changes and branch states are quarantined. The <strong>Worktrees Panel</strong> on the dashboard provides direct human visibility and control over these environments:</p>
                 <ul>
                     <li><strong>Active Worktrees Visibility</strong>: Lists all currently checked out track worktrees, their absolute filesystem paths, corresponding branch names, and unmerged commits.</li>
@@ -930,6 +1056,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="concurrency-model">
                 <h2>Concurrency &amp; Locking</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>Four independent constraints govern how many track sessions can run at once, stacked together
                     rather than substituting for one another:</p>
                 <ul>
@@ -960,6 +1092,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="merge-modes">
                 <h2>PR &amp; Merge Modes</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>Controls how track branches integrate back into the main branch once the Quality Gate passes:</p>
                 <ul>
                     <li><strong><code>pr</code> (Default)</strong>: Pushes the track branch to GitHub and opens a Pull Request. A human can preview the branch from the Worktrees panel and approve/merge the PR directly in the LaneConductor UI or on GitHub.</li>
@@ -970,6 +1108,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="auto-run">
                 <h2>Auto-Run Configuration</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>Determines whether a track can be automatically claimed and executed by background workers without manual human triggering:</p>
                 <ul>
                     <li><code>**Auto Run**: yes</code>: Allows non-sync-only workers to pick up the track from the queue and automatically move it through planning, implementation, and review.</li>
@@ -991,6 +1135,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="autoresearch">
                 <h2>Autoresearch Pattern — Karpathy-Inspired KPI Loops</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
 
                 <p>Most AI workflows focus on the <em>generate</em> step but skip the <em>evaluate</em> step. Andrej
                     Karpathy's autoresearch idea is simple: <strong>define the measurement method before you start,
@@ -1061,6 +1211,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="cli-general">
                 <h2>CLI Reference: General</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <table class="command-table">
                     <tr>
                         <td>lc setup</td>
@@ -1103,6 +1259,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="cli-track">
                 <h2>CLI Reference: Track Management</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <table class="command-table">
                     <tr>
                         <td>lc new [title]</td>
@@ -1149,6 +1311,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="configuration">
                 <h2>Configuration</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>LaneConductor is highly configurable. The two main control files are:</p>
 
                 <h3>1. .laneconductor.json</h3>
@@ -1170,6 +1338,12 @@ Prompt with instructions from .claude/skills/laneconductor/SKILL.md</code></pre>
 
             <section id="secret-management">
                 <h2>Secret Management</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>LaneConductor follows a strict pattern: <strong>no secrets in source code, no secrets in git history</strong>. All credentials are stored in GCP Secret Manager and pulled locally on demand via ADC.</p>
 
                 <h3>The Pattern</h3>
@@ -1207,6 +1381,12 @@ DB_PASSWORD=$(gcloud secrets versions access latest --secret="CLOUD_DB_PASSWORD"
 
             <section id="gitignore-pattern">
                 <h2>What to Gitignore</h2>
+                <div class="callout" style="border-left-color: var(--amber);">
+                    <div class="callout-title" style="color: var(--amber);">Legacy tier</div>
+                    <p>This section describes the earlier Postgres, daemon and worker stack (git tag
+                        <code>v1-legacy</code>). The plugin does not need it.</p>
+                </div>
+
                 <p>The following files are always gitignored. Each has a corresponding <code>.example</code> file committed in its place:</p>
 
                 <table style="width:100%;border-collapse:collapse;margin-top:1rem;">
