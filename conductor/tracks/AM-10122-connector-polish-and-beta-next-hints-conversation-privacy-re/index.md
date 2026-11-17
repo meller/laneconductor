@@ -1,9 +1,9 @@
 # Track AM-10122: Connector polish and beta: next hints, conversation privacy, real-session beta run (carved out of 10106)
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Backlog: do the next-hint field and the privacy setting only if real use shows the need; the beta decision is a human judgement after 2+ weeks of use. Original contracts are in track 10106's spec and plan.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
