@@ -1,9 +1,9 @@
 # Track AM-10117: New-project flow: guided interview, recipe recommendations, scaffold, and add-a-recipe
 
-**Lane**: plan
+**Lane**: quality-gate
 **Lane Status**: success
-**Progress**: 10%
-**Phase**: Planned (spec, plan and tests written); implement after track 10116 lands (the command catalog)
+**Progress**: 75%
+**Phase**: Merged to local main (b901692e), plugin 0.5.0, not pushed. Phases 1-3 done except the landing mention. 322 tests, build --check, strict validate pass. Open: Phase 2 Task 5 (human review of the nine recipes before any is shipped), Phase 3 Task 3 (landing mention), Phase 4 (real use of new-project and add-recipe).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
