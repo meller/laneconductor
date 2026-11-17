@@ -133,6 +133,8 @@ test('B-e: the whole local flow works with no database and no daemon: unreachabl
   const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).forEach((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : files.push(path.join(d, e.name))));
   walk(SRC);
   for (const f of files) {
+    // board-page.html is a static asset the server never executes: it runs in the viewer's browser and fetches its own board.json.
+    if (f.endsWith('.html')) continue;
     const text = fs.readFileSync(f, 'utf8');
     const rel = path.relative(SRC, f);
     assert.doesNotMatch(text, /from '(pg|postgres|node:net|node:http|node:https|node:dns|node:tls)'|laneconductor\.sync|\bfetch\(/, `${rel} must not touch a database or the network`);

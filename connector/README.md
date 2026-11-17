@@ -197,7 +197,7 @@ delete `connector/`. Nothing is lost and no state exists only inside the connect
 
 ## Board data (`lc board`)
 
-`lc board [--out <file>] [--pretty] [--now <iso>] [--check <file>]` prints a JSON snapshot of one
+`lc board [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir>]` prints a JSON snapshot of one
 project's tracks for a dashboard (Phase 5d): `project`, `generated_at`, `lanes`, `tracks` (number,
 folder, title, lane, lane_status, progress, phase, depends_on, auto_run, merge_mode, source_hash,
 needs_attention), `counts` (per lane, needs-attention, archived) and `needs_attention` (number plus
@@ -209,6 +209,24 @@ writes a file, and `--check <file>` exits 1 when the file's data differs from a 
 (`generated_at` is ignored). Tracks sort by lane order, then number descending. `_duplicate-*` and
 `_quarantine-*` folders are listed with `archived: true` and left out of the counts and the
 needs-attention list. The generator ships in the plugin as `server/bin/lc-board.mjs`.
+
+### The board page (`lc board --site <dir>` and the `board` skill command)
+
+`--site <dir>` writes the two files a board artifact is published from, prints their absolute paths
+(one per line, nothing else) and creates `<dir>` if needed; it refuses a folder inside the repo's
+`conductor/`. `board.html` is `src/board-page.html` copied byte for byte: a static page (lanes as
+columns, Done and needs-attention lists, a status filter, light and dark) that holds no data and
+fetches `board.json` by a relative URL, with a loading state and a "Could not load board.json" error
+state. `board.json` is the page's data (`project`, `generated_at`, `tracks` as `n, p, t, l, s, g, h, a`,
+`attn` as `n, p, t, r`; live tracks only, titles, lanes, status, progress, phase and check reasons).
+A refresh therefore replaces only `board.json`. Only Claude can create or update a Claude artifact
+(a script or this connector cannot call the Artifact tool), so publishing is the skill command
+`board` ("show the board", "update the board", `/laneconductor board`, steps in
+`skills/laneconductor/ops/board.md`): it generates into a temp dir, publishes both files to the URL
+in `.laneconductor.json` (`board.artifact_url`, created after a yes the first time), and opens it.
+The board is private until the human shares it, and it is a snapshot, never live. In the plugin the
+generator is `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site <dir>`. Tests:
+`test/board-page.test.mjs` (the files, privacy, and the page run against a fake DOM).
 
 ## Tests
 

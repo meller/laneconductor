@@ -1,0 +1,350 @@
+<title>LaneConductor Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: a flow board. Summary line, filter row, one column per lane (work moves left to right), then done and needs-attention below. */
+:root {
+  --bg: #F2F5F3;
+  --surface: #FFFFFF;
+  --ink: #15201C;
+  --muted: #566660;
+  --line: #D8E0DC;
+  --accent: #1E6F5C;
+  --accent-soft: #DDEEE8;
+  --ok: #2B7A4B;      --ok-soft: #DCEFE3;
+  --warn: #9A6A12;    --warn-soft: #F6E9C8;
+  --bad: #B03A2A;     --bad-soft: #F5DDD8;
+  --info: #3A5F96;    --info-soft: #DFE7F3;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1613; --surface: #17211D; --ink: #E5EDEA; --muted: #93A49D; --line: #263430;
+    --accent: #5FC7A8; --accent-soft: #1B3A31;
+    --ok: #6CCB92; --ok-soft: #173325; --warn: #E3B24F; --warn-soft: #382C12;
+    --bad: #EE8B7B; --bad-soft: #3B1D18; --info: #8FB0E6; --info-soft: #1A2B47;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1613; --surface: #17211D; --ink: #E5EDEA; --muted: #93A49D; --line: #263430;
+  --accent: #5FC7A8; --accent-soft: #1B3A31;
+  --ok: #6CCB92; --ok-soft: #173325; --warn: #E3B24F; --warn-soft: #382C12;
+  --bad: #EE8B7B; --bad-soft: #3B1D18; --info: #8FB0E6; --info-soft: #1A2B47;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 40px; }
+.wrap { max-width: 1280px; margin-inline: auto; display: flex; flex-direction: column; gap: 22px; }
+.board { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+[hidden] { display: none !important; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 24px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.02em; line-height: 1.05; margin: 0; text-wrap: balance; }
+.proj { font-family: var(--font-mono); font-size: 12px; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.stamp { min-width: 0; text-align: right; color: var(--muted); font-size: 12.5px; }
+.stamp b { color: var(--ink); font-weight: 500; }
+.refresh { font-family: var(--font-mono); font-size: 12px; background: var(--accent-soft); color: var(--accent); padding: 2px 7px; border-radius: 4px; }
+
+.summary { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: baseline; padding-block: 12px; border-block: 1px solid var(--line); }
+.stat { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.stat .n { font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat .l { color: var(--muted); }
+.stat.attn .n { color: var(--bad); }
+.stat.flight .n { color: var(--accent); }
+
+.flow { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--line); gap: 2px; }
+.flow i { display: block; min-width: 3px; background: var(--accent); opacity: .35; }
+.flow i[data-l="implement"], .flow i[data-l="review"], .flow i[data-l="quality-gate"] { opacity: 1; }
+.flow i[data-l="plan"] { opacity: .65; }
+.flow i[data-l="done"] { background: var(--ok); opacity: .55; }
+.flowkey { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 12px; margin-top: 8px; }
+.flowkey span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--accent); opacity: .5; vertical-align: baseline; }
+.flowkey span[data-l="done"]::before { background: var(--ok); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.controls input[type="search"] { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0; flex: 1 1 220px; max-width: 360px; }
+.controls input[type="search"]:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 12.5px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.chip .c { font-family: var(--font-mono); margin-left: 4px; opacity: .8; }
+
+.banner { margin: 0; padding: 9px 12px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+.banner a { color: var(--accent); font-weight: 500; text-underline-offset: 2px; }
+.banner a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; align-items: start; }
+.lane { background: color-mix(in srgb, var(--surface) 55%, var(--bg)); border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lane > h2 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 2px 4px 4px; }
+.lane > h2 .n { color: var(--ink); font-size: 14px; }
+.cards { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 11px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card.flag { border-left: 3px solid var(--bad); }
+.card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.id { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.title { font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.phase { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.pill { font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.queue { background: var(--info-soft); color: var(--info); }
+.pill.running { background: var(--accent-soft); color: var(--accent); }
+.pill.success { background: var(--ok-soft); color: var(--ok); }
+.pill.failure { background: var(--bad-soft); color: var(--bad); }
+.pill.waiting { background: var(--warn-soft); color: var(--warn); }
+.pill.none { background: var(--line); color: var(--muted); }
+.more { font: inherit; font-size: 12.5px; color: var(--accent); background: none; border: 0; padding: 6px 4px; cursor: pointer; text-align: left; }
+.empty { color: var(--muted); font-size: 12.5px; padding: 6px 4px; }
+
+section.block { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+section.block > h2 { margin: 0; font-family: var(--font-display); font-size: 20px; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+section.block > h2 .n { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-weight: 400; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 0; max-width: 70ch; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 520px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.t { overflow-wrap: anywhere; min-width: 0; }
+td .why { color: var(--bad); font-size: 12.5px; }
+.status { display: flex; flex-direction: column; gap: 6px; padding: 28px 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.status .big { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: -0.01em; }
+.status .sub { color: var(--muted); max-width: 70ch; }
+.status.error { border-color: var(--bad); background: var(--bad-soft); }
+.status.error .big { color: var(--bad); }
+.status .spin { align-self: flex-start; width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; }
+@media (prefers-reduced-motion: no-preference) { .status .spin { animation: spin .9s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (max-width: 560px) { .stamp { text-align: left; } .stat .n { font-size: 24px; } }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .3s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="proj" id="proj"></div>
+      <h1>LaneConductor Board</h1>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="spin" aria-hidden="true"></span>
+    <div class="big">Loading the board</div>
+    <div class="sub">Reading board.json, the snapshot published next to this page.</div>
+  </div>
+
+  <div class="board" id="board" hidden>
+  <div>
+    <div class="summary" id="summary"></div>
+  </div>
+
+  <div>
+    <div class="flow" id="flow" role="img" aria-label="Tracks per lane"></div>
+    <div class="flowkey" id="flowkey"></div>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="q" placeholder="Find a track by number or title" aria-label="Find a track by number or title" autocomplete="off">
+    <div class="chips" id="chips" role="group" aria-label="Filter by lane status"></div>
+  </div>
+
+  <p class="banner" id="filter-banner" role="status" aria-live="polite" hidden></p>
+
+  <div class="lanes" id="lanes"></div>
+
+  <section class="block" id="attn-block">
+    <h2>Needs attention <span class="n" id="attn-n"></span></h2>
+    <p class="hint">Tracks whose markers do not match the workflow, or that are stuck. These come from a check of every track file, so a fix is an edit to that track's <span class="mono">index.md</span>.</p>
+    <div class="chips" id="attn-chips" role="group" aria-label="Filter by cause"></div>
+    <div class="tablewrap"><table><thead><tr><th>Track</th><th>Title</th><th>Status</th><th>Why</th></tr></thead><tbody id="attn-rows"></tbody></table></div>
+    <button class="more" id="attn-more" hidden></button>
+  </section>
+
+  <section class="block" id="done-block">
+    <h2>Done <span class="n" id="done-n"></span></h2>
+    <div class="tablewrap"><table><thead><tr><th>Track</th><th>Title</th><th>Status</th><th>Progress</th></tr></thead><tbody id="done-rows"></tbody></table></div>
+    <button class="more" id="done-more" hidden></button>
+  </section>
+  </div>
+
+  <footer>A snapshot read from the track files, not a live view. To refresh it, ask Claude: <span class="refresh">update the board</span></footer>
+</div>
+
+<script>
+(function () {
+  // The page never changes when the data does: it fetches board.json, published as a file next to it.
+  function fail(why) {
+    var s = document.getElementById('status');
+    s.textContent = ''; s.className = 'status error'; s.setAttribute('role', 'alert');
+    var big = document.createElement('div'); big.className = 'big'; big.textContent = 'Could not load board.json';
+    var sub = document.createElement('div'); sub.className = 'sub';
+    sub.textContent = 'The snapshot file next to this page is missing or unreadable (' + why + '). Ask Claude: update the board.';
+    s.appendChild(big); s.appendChild(sub);
+  }
+  function load() {
+    var p;
+    try { p = fetch('board.json', { cache: 'no-cache' }); } catch (e) { return fail(String(e && e.message || e)); }
+    p.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (D) { if (!D || !Array.isArray(D.tracks) || !Array.isArray(D.attn)) throw new Error('unexpected format'); start(D); })
+      .catch(function (e) { fail(String(e && e.message || e)); });
+  }
+  function start(D) {
+  var LANES = ['backlog', 'plan', 'implement', 'review', 'quality-gate'];
+  var STATUSES = ['queue', 'running', 'success', 'failure', 'waiting'];
+  var state = { q: '', status: 'all', cause: 'all', open: {}, attnAll: false, doneAll: false };
+  var PER = 8;
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function idOf(t) { return (t.p ? t.p + '-' : '') + t.n; }
+  function pill(s) { var p = el('span', 'pill ' + (STATUSES.indexOf(s) >= 0 ? s : 'none'), s || 'no status'); return p; }
+  function match(t) {
+    if (state.status !== 'all' && t.s !== state.status) return false;
+    if (!state.q) return true;
+    var q = state.q.toLowerCase();
+    return String(t.n).indexOf(q) >= 0 || (t.t || '').toLowerCase().indexOf(q) >= 0 || idOf(t).toLowerCase().indexOf(q) >= 0;
+  }
+  function ago(iso) {
+    var m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (isNaN(m)) return '';
+    if (m < 2) return 'just now'; if (m < 90) return m + ' min ago';
+    var h = Math.round(m / 60); if (h < 36) return h + ' h ago';
+    return Math.round(h / 24) + ' days ago';
+  }
+  function cause(r) {
+    if (/used by \d+ folders/.test(r)) return 'Duplicate number';
+    if (/Lane Status/.test(r)) return 'Odd lane status';
+    if (/Lane\*\* marker is missing|Lane\*\* "/.test(r)) return 'Lane missing or unknown';
+    if (/no index/.test(r)) return 'No index.md';
+    return 'Other';
+  }
+
+  var live = D.tracks;
+  var statusByKey = {}; live.forEach(function (t) { statusByKey[idOf(t)] = t.s; });
+  var DONE_CAP = 12, FILTER_CAP = 40;
+  var byLane = {}; LANES.concat(['done']).forEach(function (l) { byLane[l] = []; });
+  live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
+  Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); });
+  var inflight = byLane.implement.length + byLane.review.length + byLane['quality-gate'].length;
+
+  document.getElementById('proj').textContent = D.project + ' / ' + live.length + ' tracks';
+  var st = document.getElementById('stamp');
+  var when = new Date(D.generated_at);
+  st.appendChild(el('div', null, 'Read ' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })));
+  st.appendChild(el('div', null, ago(D.generated_at)));
+
+  var sm = document.getElementById('summary');
+  [['flight', inflight, 'in progress'], ['', byLane.plan.length, 'being planned'], ['', byLane.backlog.length, 'in backlog'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done']].forEach(function (x) {
+    var s = el('div', 'stat ' + x[0]); s.appendChild(el('span', 'n', String(x[1]))); s.appendChild(el('span', 'l', x[2])); sm.appendChild(s);
+  });
+
+  var flow = document.getElementById('flow'), key = document.getElementById('flowkey');
+  LANES.concat(['done']).forEach(function (l) {
+    var n = byLane[l].length; if (!n) return;
+    var i = document.createElement('i'); i.dataset.l = l; i.style.flex = String(n); i.title = l + ': ' + n; flow.appendChild(i);
+    var k = el('span', null, l + ' ' + n); k.dataset.l = l; key.appendChild(k);
+  });
+
+  var chips = document.getElementById('chips');
+  function drawChips() {
+    chips.textContent = '';
+    ['all'].concat(STATUSES).forEach(function (s) {
+      var n = s === 'all' ? live.length : live.filter(function (t) { return t.s === s; }).length;
+      if (s !== 'all' && !n) return;
+      var b = el('button', 'chip', s); b.type = 'button'; b.setAttribute('aria-pressed', String(state.status === s));
+      b.appendChild(el('span', 'c', String(n)));
+      b.onclick = function () { state.status = s; render(); }; chips.appendChild(b);
+    });
+  }
+
+  function link(href, text) { var a = el('a', null, text); a.setAttribute('href', href); return a; }
+  function drawBanner() {
+    var b = document.getElementById('filter-banner');
+    b.textContent = '';
+    if (state.status === 'all') { b.hidden = true; return; }
+    var inLanes = 0, inDone = 0;
+    live.filter(match).forEach(function (t) { if (t.l === 'done') inDone++; else if (byLane[t.l]) inLanes++; });
+    var total = live.filter(match).length;
+    var inAttn = D.attn.filter(attnMatch).length;
+    b.hidden = false;
+    b.appendChild(el('span', null, total + (total === 1 ? ' track has' : ' tracks have') + ' status ' + state.status + (total ? ': ' : '.')));
+    var parts = [];
+    if (inLanes) parts.push(el('span', null, inLanes + ' in lanes'));
+    if (inDone) { var d = link('#done-block', inDone + ' in Done'); parts.push(d); }
+    if (inAttn) { var a = link('#attn-block', inAttn + ' in Needs attention'); parts.push(a); }
+    parts.forEach(function (n, i) { if (i) b.appendChild(el('span', null, ', ')); b.appendChild(n); });
+  }
+
+  function card(t) {
+    var c = el('div', 'card' + (t.a ? ' flag' : ''));
+    var top = el('div', 'top'); top.appendChild(el('span', 'id', idOf(t))); top.appendChild(pill(t.s)); c.appendChild(top);
+    c.appendChild(el('div', 'title', t.t));
+    if (t.g > 0 || t.l !== 'backlog') { var b = el('div', 'bar'), f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g)) + '%'; b.appendChild(f); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-valuenow', String(t.g)); b.setAttribute('aria-label', 'Progress'); c.appendChild(b); }
+    if (t.h && t.h !== 'New') c.appendChild(el('div', 'phase', t.h));
+    return c;
+  }
+  function drawLanes() {
+    var host = document.getElementById('lanes'); host.textContent = '';
+    LANES.forEach(function (l) {
+      var all = byLane[l], rows = all.filter(match);
+      var col = el('div', 'lane'); var h = el('h2', null, l); h.appendChild(el('span', 'n', rows.length === all.length ? String(all.length) : rows.length + ' / ' + all.length)); col.appendChild(h);
+      var cards = el('div', 'cards'); col.appendChild(cards);
+      var show = state.open[l] ? rows : rows.slice(0, PER);
+      show.forEach(function (t) { cards.appendChild(card(t)); });
+      if (!rows.length) col.appendChild(el('div', 'empty', all.length ? 'None here' : 'Empty.'));
+      if (rows.length > PER) { var m = el('button', 'more', state.open[l] ? 'Show fewer' : 'Show all ' + rows.length); m.type = 'button'; m.onclick = function () { state.open[l] = !state.open[l]; drawLanes(); }; col.appendChild(m); }
+      host.appendChild(col);
+    });
+  }
+
+  function attnMatch(a) {
+    if (state.status !== 'all' && statusByKey[idOf(a)] !== state.status) return false;
+    return !state.q || String(a.n).indexOf(state.q) >= 0 || (a.t || '').toLowerCase().indexOf(state.q.toLowerCase()) >= 0;
+  }
+  function drawAttn() {
+    var all = D.attn; var causes = {};
+    all.forEach(function (a) { a.r.forEach(function (r) { var c = cause(r); causes[c] = (causes[c] || 0) + 1; }); });
+    var ch = document.getElementById('attn-chips'); ch.textContent = '';
+    ['all'].concat(Object.keys(causes).sort(function (a, b) { return causes[b] - causes[a]; })).forEach(function (c) {
+      var b = el('button', 'chip', c === 'all' ? 'all' : c); b.type = 'button'; b.setAttribute('aria-pressed', String(state.cause === c));
+      b.appendChild(el('span', 'c', String(c === 'all' ? all.length : causes[c]))); b.onclick = function () { state.cause = c; state.attnAll = false; drawAttn(); }; ch.appendChild(b);
+    });
+    var rows = all.filter(function (a) { return state.cause === 'all' || a.r.some(function (r) { return cause(r) === state.cause; }); })
+      .filter(attnMatch);
+    document.getElementById('attn-n').textContent = rows.length === all.length ? String(all.length) : rows.length + ' of ' + all.length;
+    var tb = document.getElementById('attn-rows'); tb.textContent = '';
+    (state.attnAll ? rows : rows.slice(0, DONE_CAP)).forEach(function (a) {
+      var tr = document.createElement('tr');
+      var c1 = el('td', 'mono', idOf(a)); var c2 = el('td', 't', a.t || '(no title)'); var cs = el('td'); cs.appendChild(pill(statusByKey[idOf(a)])); var c3 = el('td'); a.r.forEach(function (r) { c3.appendChild(el('div', 'why', r.replace(/\*\*/g, ''))); });
+      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(cs); tr.appendChild(c3); tb.appendChild(tr);
+    });
+    var m = document.getElementById('attn-more'); m.hidden = rows.length <= DONE_CAP; m.textContent = state.attnAll ? 'Show fewer' : 'Show all ' + rows.length;
+    m.onclick = function () { state.attnAll = !state.attnAll; drawAttn(); };
+  }
+
+  function drawDone() {
+    var rows = byLane.done.filter(match); var tb = document.getElementById('done-rows'); tb.textContent = '';
+    document.getElementById('done-n').textContent = rows.length === byLane.done.length ? String(rows.length) : rows.length + ' of ' + byLane.done.length;
+    // A status filter that matches Done rows opens the list (up to FILTER_CAP) so the matches are not hidden behind "Show all".
+    var cap = state.status !== 'all' ? FILTER_CAP : DONE_CAP;
+    (state.doneAll ? rows : rows.slice(0, cap)).forEach(function (t) {
+      var tr = document.createElement('tr'); tr.appendChild(el('td', 'mono', idOf(t))); tr.appendChild(el('td', 't', t.t));
+      var cs = el('td'); cs.appendChild(pill(t.s)); tr.appendChild(cs); tr.appendChild(el('td', 'mono', t.g + '%')); tb.appendChild(tr);
+    });
+    var m = document.getElementById('done-more'); m.hidden = rows.length <= cap; m.textContent = state.doneAll ? 'Show fewer' : 'Show all ' + rows.length;
+    m.onclick = function () { state.doneAll = !state.doneAll; drawDone(); };
+  }
+
+  function render() { drawChips(); drawBanner(); drawLanes(); drawAttn(); drawDone(); }
+  document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim(); state.attnAll = false; state.doneAll = false; render(); });
+  render();
+  document.getElementById('status').hidden = true;
+  document.getElementById('board').hidden = false;
+  }
+  load();
+})();
+</script>

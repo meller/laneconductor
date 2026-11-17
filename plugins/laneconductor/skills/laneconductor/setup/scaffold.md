@@ -167,3 +167,9 @@ gaps) and put the fixes (`npm install chokidar`, `git init`, ...) in its `plan.m
 
 If `create_quality_gate` is `true` in `.laneconductor.json`, create `conductor/quality-gate.md` from
 the template in `templates.md`, including its Test Layers section.
+
+## Offer the board
+
+At the end of scaffolding, ask once: "Create a private board for this project (every track by lane,
+refreshed when you ask)?" On yes, follow [../ops/board.md](../ops/board.md) from "No URL: create".
+On no, do nothing; the human can ask for it later ("show the board"). Never create it unasked.

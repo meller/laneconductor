@@ -102,3 +102,30 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
 
 /** True when two boards hold the same data (`generated_at` is ignored). */
 export const sameBoard = (a, b) => JSON.stringify({ ...a, generated_at: null }) === JSON.stringify({ ...b, generated_at: null });
+
+const PREFIX_RE = /^([A-Za-z]{1,6})-\d+/;
+const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
+
+/**
+ * The data the static board page (`board-page.html`) renders, from a `buildBoard` result: live tracks
+ * only (archived copies are left out). Short keys keep the file small. Only titles, lanes, status,
+ * progress, phase and check reasons: the same privacy surface as the board itself.
+ *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
+ *           g progress, h phase (cut at 130 chars), a needs attention
+ *   attn:   n number, p prefix, t title, r reasons
+ */
+export function boardPageData(board) {
+  const live = board.tracks.filter((t) => !t.archived);
+  const titleOf = new Map(live.map((t) => [t.folder, t.title]));
+  return {
+    project: board.project,
+    generated_at: board.generated_at,
+    tracks: live.map((t) => ({ n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention) })),
+    attn: board.needs_attention
+      .filter((a) => titleOf.has(a.folder))
+      .map((a) => ({ n: a.number, p: prefixOf(a.folder), t: titleOf.get(a.folder) ?? '', r: a.reasons })),
+  };
+}
+
+/** Where the static page lives; it is shipped byte for byte and never carries data. */
+export const BOARD_PAGE_PATH = new URL('./board-page.html', import.meta.url);
