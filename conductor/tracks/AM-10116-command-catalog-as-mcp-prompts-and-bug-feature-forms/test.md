@@ -1,0 +1,9 @@
+# Tests: Track 10116
+
+- [ ] TC-1: create_track bug: spec has Problem Statement with the text unchanged, then Symptom, Steps to reproduce, Expected result, Actual result, Suspected area, Environment in that order; test.md case 1 is the regression test
+- [ ] TC-2: create_track feature: spec has The need, Who it is for, Wanted outcome, Acceptance criteria, Out of scope; no kind: generic skeleton byte-identical to today
+- [ ] TC-3: prompts/list returns every catalog command and `help`; prompts/get substitutes arguments; a missing required argument is an error naming the argument
+- [ ] TC-4: the catalog and the skill routing table agree (coverage test); one plugin command file and one prompt per entry; no hand-written command file remains
+- [ ] TC-5: no Claude-specific string (plugin prefix, subagent names) in the catalog or in prompt output
+- [ ] TC-6: lean plugin directory emulation, add-on, `claude plugin validate --strict` on both plugins and the marketplace
+- [ ] TC-7 (HUMAN): real client shows the prompts; a bug created from `/laneconductor:bug` has the form
