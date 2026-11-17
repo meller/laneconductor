@@ -74,9 +74,8 @@ claude plugin update laneconductor@laneconductor
 
 then `/reload-plugins`.
 
-The plugin is not in Anthropic's plugin directory. The directory accepts only Markdown from a publisher that is not
-Verified, and this plugin runs a small local program, so you install it from this marketplace. That is parked until
-a remote connector exists. Hooks are planned as a separate opt-in extension (`laneconductor-hooks`) and are not
+The plugin is not in Anthropic's plugin directory yet, so you install it from this marketplace or by upload. A directory
+submission is being prepared. Hooks are planned as a separate opt-in extension (`laneconductor-hooks`) and are not
 available yet.
 
 ### Other ways to get it

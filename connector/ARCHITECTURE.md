@@ -42,9 +42,10 @@ There is ONE plugin, `laneconductor`, installed locally from the owner's marketp
 - `full` (the default build, `plugins/laneconductor`, the one we ship): the skill, commands, agents, the MCP server with
   server key `lc` (tools are named `mcp__plugin_laneconductor_lc__<tool>`), the board script and page, the lockfile and the
   icon.
-- `lean` (built on demand with `--profile lean --out <dir>`, not in the marketplace): Markdown, JSON and one PNG only, which
-  is what Anthropic's plugin directory accepts from a publisher that is not a Verified organization. Directory submission
-  is parked until the remote connector exists; the profile is kept ready and tested.
+- `lean` (built on demand with `--profile lean --out <dir>`, not in the marketplace): Markdown, JSON and one PNG only; kept
+  ready and tested. Anthropic's directory rules as read on 2026-11-17 allow a local MCP server inside a plugin bundle (the
+  lockfile install and the local server are held for a reviewer), so the full plugin is the one to submit and the lean
+  profile is only a fallback if the portal blocks it.
 
 The commands and agents use the connector's tools and fall back to editing the track files directly when the MCP server
 fails to start. Hooks will not go into the main plugin: they will be a separate, opt-in extension, `laneconductor-hooks`

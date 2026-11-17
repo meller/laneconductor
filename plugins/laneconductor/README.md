@@ -95,8 +95,7 @@ only the skill and the commands load (as skills), and Claude edits the track fil
 
 ## Not in Anthropic's directory
 
-This plugin is not in Anthropic's plugin directory, because the directory accepts only Markdown from a publisher that is
-not a Verified organization and this plugin runs a local program; install it from the marketplace above or by upload.
+This plugin is not in Anthropic's plugin directory yet; install it from the marketplace above or by upload.
 
 ## License and support
 
