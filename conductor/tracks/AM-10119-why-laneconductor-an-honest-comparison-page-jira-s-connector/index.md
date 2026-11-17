@@ -1,15 +1,15 @@
 # Track AM-10119: Why LaneConductor: an honest comparison page (Jira's connector, Linear, community plugins, plain Claude)
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 70%
+**Phase**: Docs page written (docs/why-laneconductor.md and README origin section, commit dd495f3d), not pushed. Open: the owner's review of the wording, the short landing section (needs the owner's go; landing/index.html has another session's uncommitted edits), re-verify sources before any release.
 **Track Kind**: feature
 **Type**: marketing
 **Merge Mode**: direct
 **Auto Run**: no
 **Author**: AM
-**Depends On**: 10114, 10118
+**Depends On**: 10114
 **Problem**: People will ask why they would use LaneConductor when their tracker already has a Claude connector or plugin. We need one honest, sourced "why use it and when not to" page (docs and landing) that compares the options and positions the real difference: where the plan lives and who owns the system of record.
 
 Facts gathered 2026-11-17 (web search, to be re-verified with the official pages before publishing): Atlassian hosts a remote MCP server (the Rovo MCP server) that exposes Jira, Confluence and Compass to MCP clients including Claude, with OAuth; a Claude Code setup line exists for the hosted server. Claude's plugin marketplace lists a Linear plugin. Community plugins exist for Jira with spec-driven and TDD workflows, and some sync Jira task trees with local state in both directions. So "access to Jira from Claude" and even "local copy of Jira tasks" are not unique to us.

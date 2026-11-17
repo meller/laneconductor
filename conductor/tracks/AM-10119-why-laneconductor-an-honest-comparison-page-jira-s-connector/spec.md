@@ -1,17 +1,29 @@
-# Spec: Why LaneConductor: an honest comparison page (Jira's connector, Linear, community plugins, plain Claude)
+# Spec: Why LaneConductor: an honest comparison page (use cases, not a tracker fight)
 
 ## Problem Statement
 
-People will ask why they would use LaneConductor when their tracker already has a Claude connector or plugin. We need one honest, sourced "why use it and when not to" page (docs and landing) that compares the options and positions the real difference: where the plan lives and who owns the system of record.
+People will ask why they would use LaneConductor when their tracker (Jira, Linear, Azure DevOps) already has a Claude connector or even its own coding agent. We need one honest, sourced page (docs and landing) that explains the different jobs, where LaneConductor comes from, who it is for and who it is not for.
 
-Facts gathered 2026-11-17 (web search, to be re-verified with the official pages before publishing): Atlassian hosts a remote MCP server (the Rovo MCP server) that exposes Jira, Confluence and Compass to MCP clients including Claude, with OAuth; a Claude Code setup line exists for the hosted server. Claude's plugin marketplace lists a Linear plugin. Community plugins exist for Jira with spec-driven and TDD workflows, and some sync Jira task trees with local state in both directions. So "access to Jira from Claude" and even "local copy of Jira tasks" are not unique to us.
+## Positioning (human, 2026-11-17)
 
-The comparison should therefore be about different jobs: (1) a tracker's connector gives Claude access to issues in a cloud system of record; (2) LaneConductor keeps the specs, plans and tests as files in git next to the code (local-first, works offline, versioned and reviewed with the code, branchable), with lanes and guidance, conflict-safe writes across sessions, one subagent per track in its own worktree, a private board, recipes of known solutions, and a privacy scan; (3) together: work locally, then mirror to the tracker through its connector (track 10118, the `laneconductor-jira` add-on).
-
-Rules for the page: every claim about another product is sourced and dated; no negative claims we cannot verify ("nobody else does X" is not allowed unless checked); say plainly when someone should NOT use LaneConductor (a team whose process lives entirely in Jira, no use of Claude, no wish to keep plans in the repo); include a small table (what it is, where plans live, offline, who it is for, cost of setup) and the combined workflow; no numbers that were not measured; keep tone factual, not promotional.
-
-Where it lives: a docs page (`docs/why-laneconductor.md`) linked from the README, and a short section on the landing page (coordinate with tracks 10114 and 10112). Depends on 10114 (docs rewrite) so the claims match.
+- Origin: LaneConductor combines Gemini CLI's Conductor (conventions: context files, spec and plan per track) and Superpowers by Jesse Vincent (process: brainstorm, plan, sub-agents, verify), and adds a Kanban view. When it started the author did not find a Conductor for Claude or a Superpowers for Gemini. Ports of both for other agents have appeared since (so never write "does not exist"). Credit both openly.
+- "Jira" stands for the whole product-management category (Jira, Linear, Azure DevOps, ...). Their job is the product view; this is a different use case, so the page compares use cases, not features.
+- We do NOT compete with ticket-to-pull-request agents. Atlassian's Jira Coding Agent turns a work item into a draft pull request in a vendor cloud sandbox (needs a Standard or Premium plan and Rovo credits). The page must never claim "ticket to pull request" as ours, and never claim another product cannot do something.
+- A small team can use LaneConductor alone; a larger one can add a tracker later. A tracker add-on (10118) is planned, not built, and nothing on the page depends on it.
+- Not for: a team whose process lives entirely in Jira and that does not use AI agents. For everyone else who works with an AI agent.
 
 ## Requirements
 
-(To be written in the plan lane.)
+- REQ-1: `docs/why-laneconductor.md`, linked from the README: short answer, origin with credits, a use-case table (tracker, tracker's coding agent, tracker's connector, plain Claude Code, LaneConductor), one worked example, alone versus with a tracker, who it is for and not for, sources.
+- REQ-2: Every claim about another product links to its source and carries the check date (2026-11-17); no unverified claims (the Atlassian third-party-agent announcement returned 403 and is not used).
+- REQ-3: No numbers that were not measured; factual tone.
+- REQ-4: README: tagline, a "Where this comes from" section with credits, no stale command count.
+- REQ-5: A short landing-page section with the same story. The owner sees the wording first; deploy only when the owner says so.
+
+## Acceptance Criteria
+
+- [x] AC-1: The docs page exists with the sections above and sources (commit dd495f3d).
+- [x] AC-2: The README credits Conductor and Superpowers and links the page.
+- [ ] AC-3: The owner reviewed the wording.
+- [ ] AC-4: The landing section is added after the owner agrees.
+- [ ] AC-5: Sources re-verified before a public release.
