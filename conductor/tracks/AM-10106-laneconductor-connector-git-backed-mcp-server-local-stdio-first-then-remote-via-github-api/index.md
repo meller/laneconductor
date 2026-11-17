@@ -117,3 +117,6 @@ KNOCK-ON FOR 10107 (apply when its in-flight agents finish, to avoid editing its
 
 ## SCOPE NOTE (2026-11-17): a Claude connector for now
 The target is Claude only (Claude Code and claude.ai) for now. REQ-24 (`next`) is in scope because it is small and helps Claude. REQ-25 (the browse-only `GET /start` surface) and the other-client part of REQ-26 (the compatibility matrix beyond Claude surfaces) are PARKED with the rest of the broader Colfiti-style demo: worth revisiting once the Claude connector works, not built now. The matrix, when filled, starts with Claude rows only.
+
+## DECISION (2026-11-17): deliver a LaneConductor plugin = the skill and the connector together
+Human decision after reading the Claude plugin docs. See plan Phase 5c for the verified constraints and tasks. The recipe library (track 10107) ships the same way: its recipes are skills in a plugin and the library repo is a git marketplace, so native skill discovery may replace `find_recipe` / `get_recipe` / `bootstrap_project` (10107 Phases 4-6 are on hold until native discovery is tested). What does not change: git as the store, the connector's value for writes (conflict checks, provenance), decisions D1-D6, the privacy guard, the summary generator.
