@@ -1,9 +1,9 @@
 # Track AM-10121: Remote connector for claude.ai chat and mobile: GitHubStore, HTTP server, OAuth, deploy (carved out of 10106)
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Backlog: decide first whether tracks are needed from claude.ai chat or the phone; the plugin works locally today. Full contracts are in track 10106's spec and plan.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

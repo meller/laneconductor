@@ -46,3 +46,4 @@
 {"v":1,"ts":"2026-11-17T19:44:13Z","kind":"stale_read","session":"c_8051e13ac50b","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
 {"v":1,"ts":"2026-11-17T19:44:13Z","kind":"call","session":"c_8051e13ac50b","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":59,"chars":37017,"backend":"local"}
 {"v":1,"ts":"2026-11-17T19:44:13Z","kind":"stale_read","session":"c_8051e13ac50b","surface":"claude-code","tool":"get_track","reasons":["dirty_state_files"],"backend":"local"}
+{"v":1,"ts":"2026-11-17T19:44:24Z","kind":"call","session":"c_8051e13ac50b","surface":"claude-code","tool":"create_track","ok":true,"latency_ms":130,"chars":5167,"backend":"local"}
