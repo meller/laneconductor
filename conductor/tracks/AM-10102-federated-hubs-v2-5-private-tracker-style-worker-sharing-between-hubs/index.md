@@ -1,6 +1,6 @@
 # Track AM-10102: Federated hubs (v2.5): private-tracker style worker sharing between hubs
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: New

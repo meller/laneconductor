@@ -1,7 +1,7 @@
 # Devto Blog Post
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 
 # Devto Blog Post
 

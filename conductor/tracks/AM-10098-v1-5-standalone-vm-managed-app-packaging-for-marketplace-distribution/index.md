@@ -1,6 +1,6 @@
 # Track AM-10098: V1.5: Standalone VM image for Azure Marketplace (Managed Application / MSP model) with manager-driven first run
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: Re-planned: aligned with Azure Managed Application (MSP model), roadmap execution order (AM-10099 hard gate, AM-10100 run ledger), hub-readiness (AM-10101), and manager-driven first run behind…

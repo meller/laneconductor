@@ -1,6 +1,6 @@
 # Twitter X Thread
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 
 # Track 1054: Twitter/X Thread

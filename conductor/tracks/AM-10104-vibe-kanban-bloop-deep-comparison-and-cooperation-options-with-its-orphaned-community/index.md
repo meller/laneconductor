@@ -1,6 +1,6 @@
 # Track AM-10104: Vibe Kanban (Bloop) deep comparison and cooperation options with its orphaned community
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: New

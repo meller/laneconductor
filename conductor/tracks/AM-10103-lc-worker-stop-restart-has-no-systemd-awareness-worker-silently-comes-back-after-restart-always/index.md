@@ -1,6 +1,6 @@
 # Track AM-10103: lc worker stop/restart has no systemd awareness — worker silently comes back after Restart=always
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: New

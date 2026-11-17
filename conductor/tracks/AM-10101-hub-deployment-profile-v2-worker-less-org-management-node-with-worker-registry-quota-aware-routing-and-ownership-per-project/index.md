@@ -1,6 +1,6 @@
 # Track AM-10101: Hub deployment profile (v2): worker-less org-management node with worker registry, quota-aware routing and ownership-per-project
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
 **Phase**: New

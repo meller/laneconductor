@@ -1,7 +1,7 @@
 # Track AM-10105: New-project flow gaps found building Dual Reader (2026-09-20/21)
 
-**Lane**: plan
-**Lane Status**: success
+**Lane**: backlog
+**Lane Status**: queue
 **Progress**: 100%
 **Phase**: Planned — 8 phases scoped
 **Type**: dev
