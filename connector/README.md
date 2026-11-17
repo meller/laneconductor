@@ -202,13 +202,13 @@ delete `connector/`. Nothing is lost and no state exists only inside the connect
 
 ## Board data (`lc board`)
 
-`lc board [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir>]` prints a JSON snapshot of one
+`lc board [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir> [--json]]` prints a JSON snapshot of one
 project's tracks for a dashboard (Phase 5d): `project`, `generated_at`, `lanes`, `tracks` (number,
 folder, title, lane, lane_status, progress, phase, depends_on, auto_run, merge_mode, source_hash,
 needs_attention), `counts` (per lane, needs-attention, archived) and `needs_attention` (number plus
 reasons). It reads only `conductor/workflow.json`, `.laneconductor.json` (`project.name`) and each
-track's `index.md` header, and cuts every marker value at its first line: conversation, spec, plan
-and test files and the Problem and Summary text are never read or copied. The output goes to stdout
+track's `index.md` header, and cuts every marker value at its first line: in this mode (no `--site`)
+conversation, spec, plan and test files and the Problem and Summary text are never read or copied. The output goes to stdout
 and nothing is written into the repo (a board is a rebuildable snapshot, not a committed file); `--out`
 writes a file, and `--check <file>` exits 1 when the file's data differs from a fresh build
 (`generated_at` is ignored). Tracks sort by lane order, then number descending. `_duplicate-*` and
@@ -217,14 +217,18 @@ needs-attention list. The generator ships in the plugin as `server/bin/lc-board.
 
 ### The board page (`lc board --site <dir>` and the `board` skill command)
 
-`--site <dir>` writes the two files a board artifact is published from, prints their absolute paths
-(one per line, nothing else) and creates `<dir>` if needed; it refuses a folder inside the repo's
+`--site <dir>` writes the files a board artifact is published from (`board.html`, `board.json` and
+`docs/<number>.json`, below), prints the first two absolute paths (one per line, nothing else on
+stdout) and creates `<dir>` if needed; with `--json` stdout is instead the single object
+`{ "page", "root", "files" }` (files relative to `root`: `board.json` and every docs file), ready for
+the Artifact tool; it refuses a folder inside the repo's
 `conductor/`. `board.html` is `src/board-page.html` copied byte for byte: a static page (lanes as
 columns, Done and needs-attention lists, a status filter, light and dark) that holds no data and
 fetches `board.json` by a relative URL, with a loading state and a "Could not load board.json" error
-state. `board.json` is the page's data (`project`, `generated_at`, `tracks` as `n, p, t, l, s, g, h, a`,
-`attn` as `n, p, t, r`; live tracks only, titles, lanes, status, progress, phase and check reasons).
-A refresh therefore replaces only `board.json`. Only Claude can create or update a Claude artifact
+state. `board.json` is the page's data (`project`, `generated_at`, `tracks` as `n, p, t, l, s, g, h, a, d`
+(plus `gh` on done tracks), `attn` as `n, p, t, r`, and `docs_dropped` when the file cap bit; live tracks
+only, titles, lanes, status, progress, phase and check reasons). A refresh therefore replaces only
+`board.json` and the docs files. Only Claude can create or update a Claude artifact
 (a script or this connector cannot call the Artifact tool), so publishing is the skill command
 `board` ("show the board", "update the board", `/laneconductor board`, steps in
 `skills/laneconductor/ops/board.md`): it generates into a temp dir, publishes both files to the URL
@@ -232,6 +236,45 @@ in `.laneconductor.json` (`board.artifact_url`, created after a yes the first ti
 The board is private until the human shares it, and it is a snapshot, never live. In the plugin the
 generator is `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site <dir>`. Tests:
 `test/board-page.test.mjs` (the files, privacy, and the page run against a fake DOM).
+
+### Track detail (documents on the board)
+
+Clicking (or Enter/Space on) a track card, a Done row or a needs-attention row opens a drawer (a
+full-screen sheet at phone width) with the track's id, title, lane, status, progress and phase and the
+tabs Overview (`index.md`), Plan, Spec and Tests, plus Conversation only when the docs file has one.
+The tabs read `docs/<number>.json`, fetched once and kept in memory. `lc board --site` writes one such
+file (`{ n, folder, index, plan, spec, test, conversation?, withheld? }`) for every live, non-archived
+track that is not done, at most 200 per site (oldest backlog tracks are dropped first and counted in
+`board.json` as `docs_dropped`; with the page and `board.json` that stays under the Artifact tool's 255
+files per publish). Each file is cut at 60,000 characters with a `[truncated]` note. Done tracks have no
+docs file; the drawer says so and links to the track folder on GitHub when `origin` is a github.com
+remote (`gh` in `board.json`, https only, opens in a new tab). Track folders are resolved with the same
+helpers as the connector, and a number shared by two live folders gets no docs.
+
+Privacy:
+
+- `conversation.md` is off by default (it is per-machine, gitignored for privacy, and can hold
+  anything); `"board": { "include_conversation": true }` in `.laneconductor.json` adds it, read-only.
+- `"board": { "include_docs": false }` turns the documents off: no `docs/` is written and the drawer
+  shows the header only.
+- Every file goes through `src/scan.mjs` first (`scanText`, pure: GitHub, Anthropic/OpenAI, AWS, Slack
+  and Google keys, private key blocks, bearer tokens, database URLs with a password to a non-local
+  host, `password = value` assignments, email addresses other than `noreply` and obvious placeholders,
+  and phone numbers with separators). It returns line numbers and pattern names only, never the matched
+  text. A file with any match is not embedded: its field is left out, `withheld[<field>]` says
+  `possible secret or personal data (N matches)`, the page shows `withheld: <reason>` in its place, the
+  rest of that track's files are still embedded, and `lc board` names the file on stderr (track,
+  file, line numbers) so Claude can tell the human.
+- The page footer says that sharing the board shares these documents.
+- Markdown is rendered by a small in-page renderer that builds DOM nodes with `createElement` and
+  `createTextNode` only (no html-string API anywhere): tags in a document stay text, only `https:`
+  links become anchors (new tab, `noopener noreferrer`), images show their alt text.
+- A similar scanner exists as `connector/src/recipes/scan` on the track-10107 branch. The two should
+  be merged into one module later; this one is deliberately independent of that branch.
+
+Tests: `test/scan.test.mjs`, `test/board-docs.test.mjs`, and the detail tests in
+`test/board-page.test.mjs` (open and close, tabs, one fetch, withheld notice, GitHub link, focus, and
+an XSS document).
 
 ## Tests
 

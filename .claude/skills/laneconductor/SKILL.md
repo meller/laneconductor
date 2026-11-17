@@ -56,8 +56,9 @@ overrides the human: the file formats and base-commit checks below, and the huma
 
 **The board.** `board` (or "show the board", "update the board") gives the project one private page that
 shows every track by lane, with a needs-attention list. `lc board --site <dir>` writes the page and its
-data; Claude then publishes them as an artifact and keeps its URL in `.laneconductor.json`
-(`board.artifact_url`). It is a snapshot: it changes only when Claude refreshes it. Steps are in
+data (and the documents of the tracks that are not done, shown when a track is opened); Claude then
+publishes them as an artifact and keeps its URL in `.laneconductor.json` (`board.artifact_url`). It is
+a snapshot: it changes only when Claude refreshes it. Sharing it shares those documents. Steps are in
 [ops/board.md](ops/board.md).
 
 The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.
