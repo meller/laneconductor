@@ -14,6 +14,8 @@
 //     relative path outside connector/        so `../../conductor/x.mjs` keeps resolving)
 //   connector/package.json + lockfile       package.json + package-lock.json at the plugin ROOT (Claude
 //                                            Code installs registry deps only from a root lockfile)
+//   connector/PLUGIN-README.md              README.md ({{VERSION}} filled in; the directory wants a README here)
+//   LICENSE                                 LICENSE (Elastic License 2.0; named by `license` in plugin.json)
 //
 // Why a copy: only the plugin directory is installed, and symlinks leading outside it are rejected.
 // Why server/ and not bin/: a top-level bin/ stops claude.ai and Cowork installing the plugin.
@@ -26,6 +28,8 @@ export const PLUGIN_REL = 'plugins/laneconductor';
 export const MARKETPLACE_REL = '.claude-plugin/marketplace.json';
 const SKILL_SRC = '.claude/skills/laneconductor';
 const AUTHOR = 'Asaf Meller';
+const AUTHOR_URL = 'https://github.com/meller';
+const REPO_URL = 'https://github.com/meller/laneconductor';
 const SERVER_ENTRY = 'bin/lc-connector.mjs';
 const SERVER_BINS = [SERVER_ENTRY, 'bin/lc-board.mjs'];
 
@@ -103,12 +107,22 @@ export function buildPlugin(repo = REPO) {
   }
   add('package-lock.json', json({ name: pluginPkgName, version: pkg.version, lockfileVersion: lock.lockfileVersion, requires: true, packages }));
 
+  // README (the directory's checks read the plugin folder) and LICENSE.
+  add('README.md', fs.readFileSync(path.join(repo, 'connector/PLUGIN-README.md'), 'utf8').replaceAll('{{VERSION}}', pkg.version));
+  addFrom('LICENSE', 'LICENSE');
+
   // Manifest and MCP config.
   add('.claude-plugin/plugin.json', json({
     name: 'laneconductor',
     version: pkg.version,
-    author: { name: AUTHOR },
     description: 'LaneConductor: the planning and delivery workflow skill plus the git-backed MCP connector that reads and writes tracks safely.',
+    author: { name: AUTHOR, url: AUTHOR_URL },
+    homepage: 'https://laneconductor.com',
+    repository: REPO_URL,
+    license: 'Elastic-2.0',
+    keywords: ['laneconductor', 'tracks', 'planning', 'git', 'mcp'],
+    documentationUrl: `${REPO_URL}/blob/main/connector/PLUGIN-README.md`,
+    supportUrl: `${REPO_URL}/issues`,
   }));
   add('.mcp.json', json({
     mcpServers: {

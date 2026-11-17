@@ -45,7 +45,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });
     for (const bin of ['lc-connector.mjs', 'lc-board.mjs']) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
-    for (const rel of ['connector/package.json', 'connector/package-lock.json']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
+    for (const rel of ['connector/package.json', 'connector/package-lock.json', 'connector/PLUGIN-README.md', 'LICENSE']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
     // The repo files the server imports from outside connector/ (the generator finds them by their imports).
     for (const rel of listFiles(path.join(PLUGIN, 'conductor'))) {
       fs.mkdirSync(path.dirname(path.join(tmp, 'conductor', rel)), { recursive: true });
@@ -93,6 +93,28 @@ test('manifest, marketplace and .mcp.json have the agreed shape', () => {
   assert.deepEqual(s.args, ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs', '--repo', '${CLAUDE_PROJECT_DIR}']);
   assert.equal(s.type, undefined, 'no remote (http) entry yet: plan 5c Task 6 waits for Phase 8');
   assert.equal(s.env, undefined);
+});
+
+test('directory listing: README (>= 40 words outside code blocks), LICENSE and manifest fields', () => {
+  const readme = fs.readFileSync(path.join(PLUGIN, 'README.md'), 'utf8');
+  const prose = readme.replace(/```[\s\S]*?```/g, ' ');
+  const words = prose.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+  assert.ok(words >= 40, `the directory needs >= 40 words outside code blocks, got ${words}`);
+  assert.ok(words >= 120, `our own floor is 120 words, got ${words}`);
+  assert.ok(!readme.includes('{{'), 'a template placeholder was left in the README');
+  assert.ok(readme.includes(`Version ${readJson(path.join(REPO, 'connector/package.json')).version}`));
+  for (const must of ['LICENSE', 'Elastic License 2.0', 'auto-state', 'no network requests', 'conductor/advice-log', 'lc board --site']) {
+    assert.ok(readme.includes(must), `README must mention ${must}`);
+  }
+  assert.ok(fs.readFileSync(path.join(PLUGIN, 'LICENSE')).equals(fs.readFileSync(path.join(REPO, 'LICENSE'))), 'plugin LICENSE is the repo LICENSE');
+  const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
+  assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
+  for (const k of ['description', 'version']) assert.ok(typeof m[k] === 'string' && m[k].length > 0, k);
+  assert.deepEqual(m.author, { name: 'Asaf Meller', url: 'https://github.com/meller' });
+  assert.equal(m.license, 'Elastic-2.0');
+  assert.deepEqual(m.keywords, ['laneconductor', 'tracks', 'planning', 'git', 'mcp']);
+  for (const k of ['homepage', 'repository', 'documentationUrl', 'supportUrl']) assert.match(m[k], /^https:\/\//, k);
+  assert.equal(m.privacyPolicyUrl, undefined, 'no privacy policy page exists yet; do not invent a URL');
 });
 
 test('no top-level bin/ in the plugin, no symlinks, no node_modules committed', () => {
