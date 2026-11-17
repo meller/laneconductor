@@ -2,8 +2,8 @@
 
 **Lane**: implement
 **Lane Status**: queue
-**Progress**: 55%
-**Phase**: Phases 1(code)-5 done; 5c code done (tasks 1-4, 7, 8; Task 5 HUMAN, Task 6 after Phase 8); 5d Task 1 done (lc board); 6 automated parts done, its real-session steps are HUMAN; 7-10 pending decisions D1-D5
+**Progress**: 56%
+**Phase**: Phases 1(code)-5 done; 5c code done (tasks 1-4, 7, 8; Task 5 HUMAN, Task 6 after Phase 8); 5d Tasks 1-4 done in code (lc board, static page + board.json, skill command `board`; the real publish is (verified by the orchestrator)), Tasks 5-6 pending; 6 automated parts done, its real-session steps are HUMAN; 7-10 pending decisions D1-D5
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
