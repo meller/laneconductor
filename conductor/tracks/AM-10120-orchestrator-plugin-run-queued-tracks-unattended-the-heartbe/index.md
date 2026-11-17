@@ -1,9 +1,9 @@
 # Track AM-10120: Orchestrator plugin: run queued tracks unattended (the heartbeat, without a daemon or database)
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Backlog: parked idea (decided 2026-11-17: not now; build only when there is a real wish to run tracks unattended); after the hooks extension (10115) and the lane-runner skill (10108)
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
