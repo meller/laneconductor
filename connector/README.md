@@ -35,8 +35,24 @@ Or commit a `.mcp.json` at the project root:
 ```
 
 Options: `--repo <path>` (repeatable; the first is the default; defaults to the current directory),
-`--state-branch <name>` (default `main`: writes are refused with `NOT_ON_STATE_BRANCH` when the
-checkout is on another branch; reads still work and say so).
+`--state-branch <name>` (applies to every `--repo`; see below).
+
+### State branch
+
+Writes are refused with `NOT_ON_STATE_BRANCH` when the checkout is not on the state branch; reads
+still work and say so. The state branch is resolved per repo at startup, first match wins:
+
+1. the `--state-branch <name>` flag (every `--repo`);
+2. `connector.state_branch` in that repo's `.laneconductor.json`, e.g. `{ "connector": { "state_branch": "public" } }`
+   (a non-empty, safe branch name; anything else stops the server at startup with an error naming the repo);
+3. the repo's default branch, from `refs/remotes/origin/HEAD` (read locally: no fetch, no network);
+4. the current branch, if it is `main` or `master`;
+5. `main`.
+
+So a repo whose default branch is `master` works with no flag and no config, and the plugin's
+`.mcp.json` needs none. Each repo's choice and the rule that made it is logged to stderr at startup
+(`<repo>: state branch master (chosen by origin_head)`) and returned as `provenance.state_branch_source`
+(`cli_flag`, `config`, `origin_head`, `current_branch` or `default`) next to `provenance.branch`.
 
 Check it: `claude mcp list`, then in a session ask "list the LaneConductor tracks".
 
