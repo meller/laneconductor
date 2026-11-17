@@ -55,6 +55,7 @@ conductor/.doc-sync/
 conductor/tracks-metadata.json
 conductor/tracks-metadata.json.tmp-*
 conductor/tracks.md
+conductor/tracks/**/conversation.md
 conductor/tracks/**/conversation.json
 
 # Build output
