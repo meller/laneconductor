@@ -8,3 +8,4 @@
 - [ ] TC-6: lean plugin directory emulation, add-on, `claude plugin validate --strict` on both plugins and the marketplace
 - [ ] TC-7 (HUMAN): real client shows the prompts; a bug created from `/laneconductor:bug` has the form
 - [ ] TC-8: every tool description contains at least one `Example:` line; the `help` tool lists every catalog command with an example phrase; all tools, including help, carry the four annotation hints; KC-8 estimate recorded
+- [ ] TC-9: the generated plugin has commands help, show-board, refresh-board with descriptions and argument hints; show-board text forbids regenerating; refresh-board text names the stored URL and asks before creating; help text lists every command exactly once and the optional-plugin note
