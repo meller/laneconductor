@@ -111,8 +111,9 @@ read, so two sessions cannot silently overwrite each other.
 - **Larger team.** When you need roadmaps, stakeholders and priorities across teams, a product tracker takes the
   product view and LaneConductor stays the engineering view. The tracker's connector and LaneConductor's connector work
   side by side in the same Claude session: one brings the product, the other plans and does the technical work.
-- **Linking a tracker to tracks** (taking a ticket and making a track from it, and reporting milestones back) is
-  planned as an optional add-on and is **not built yet**. See track 10118. Nothing on this page depends on it.
+- **No tracker integration of our own.** LaneConductor does not ship a Jira, Linear or Azure DevOps connector. The
+  tracker vendors provide those (see the sources above), and Claude can use them next to LaneConductor in the same
+  session, for example "read PROJ-123, then plan it as a track". Nothing here depends on any tracker.
 
 ## Who it is for, and who it is not for
 
