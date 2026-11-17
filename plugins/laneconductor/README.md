@@ -8,7 +8,7 @@ LaneConductor keeps a project's plans as plain files in git: one folder per trac
   guidance for setting up LaneConductor in a new project and for deploying;
 - `lc-connector`, a local MCP server that reads and writes those track files safely, as git commits.
 
-Version 0.1.0.
+Version 0.2.0.
 
 ## Install
 

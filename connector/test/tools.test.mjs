@@ -11,6 +11,8 @@ import { parseConversationComments } from '../../conductor/sync-conversation-uti
 import { parseMarkers } from '../src/markers.mjs';
 import { INSTRUCTIONS_LIMIT } from '../src/instructions.mjs';
 
+const CONNECTOR_VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+
 const cleanup = [];
 const sessions = [];
 after(async () => {
@@ -447,7 +449,7 @@ test('get_context lane in a repo without .claude/skills/... returns the bundled 
   const s = await open(fixture());
   for (const lane of ['plan', 'implement', 'review', 'quality-gate', 'merge', 'brainstorm']) {
     const g = (await s.call('get_context', { lane })).env.data.lane_guide;
-    assert.equal(g.source, 'bundled@0.1.0', lane);
+    assert.equal(g.source, `bundled@${CONNECTOR_VERSION}`, lane);
     assert.match(g.advice, new RegExp(`${lane} lane`), lane);
   }
 });

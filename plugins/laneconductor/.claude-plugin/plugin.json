@@ -1,6 +1,6 @@
 {
   "name": "laneconductor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "LaneConductor: the planning and delivery workflow skill plus the git-backed MCP connector that reads and writes tracks safely.",
   "author": {
     "name": "Asaf Meller",
