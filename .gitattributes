@@ -1,7 +1,4 @@
-# Force LF line endings on all platforms
-* text=auto eol=lf
-
-# Binaries — no line ending conversion
+# Binaries: stored as-is, never text-converted.
 *.png binary
 *.jpg binary
 *.jpeg binary

@@ -1,8 +1,21 @@
 {
   "name": "laneconductor",
   "version": "0.1.0",
+  "description": "LaneConductor: the planning and delivery workflow skill plus the git-backed MCP connector that reads and writes tracks safely.",
   "author": {
-    "name": "Asaf Meller"
+    "name": "Asaf Meller",
+    "url": "https://github.com/meller"
   },
-  "description": "LaneConductor: the planning and delivery workflow skill plus the git-backed MCP connector that reads and writes tracks safely."
+  "homepage": "https://laneconductor.com",
+  "repository": "https://github.com/meller/laneconductor",
+  "license": "Elastic-2.0",
+  "keywords": [
+    "laneconductor",
+    "tracks",
+    "planning",
+    "git",
+    "mcp"
+  ],
+  "documentationUrl": "https://github.com/meller/laneconductor/blob/main/connector/PLUGIN-README.md",
+  "supportUrl": "https://github.com/meller/laneconductor/issues"
 }

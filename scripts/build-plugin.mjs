@@ -6,7 +6,9 @@
 //   node scripts/build-plugin.mjs --check   write nothing; exit 1 when the committed output differs
 //
 // Sources                                   Output (under plugins/laneconductor/)
-//   .claude/skills/laneconductor/**         skills/laneconductor/**
+//   .claude/skills/laneconductor/**         skills/laneconductor/** (without legacy/, the parked daemon and
+//                                            database tier; SKILL.md and setup/setup.md get explicit edits,
+//                                            see SKILL_EDITS)
 //   connector/bin/lc-connector.mjs          server/bin/lc-connector.mjs
 //   connector/bin/lc-board.mjs              server/bin/lc-board.mjs (the board data generator, Phase 5d)
 //   connector/src/**, connector/guides/**   server/src/**, server/guides/**
@@ -14,6 +16,8 @@
 //     relative path outside connector/        so `../../conductor/x.mjs` keeps resolving)
 //   connector/package.json + lockfile       package.json + package-lock.json at the plugin ROOT (Claude
 //                                            Code installs registry deps only from a root lockfile)
+//   connector/PLUGIN-README.md              README.md ({{VERSION}} filled in; the directory wants a README here)
+//   LICENSE                                 LICENSE (Elastic License 2.0; named by `license` in plugin.json)
 //
 // Why a copy: only the plugin directory is installed, and symlinks leading outside it are rejected.
 // Why server/ and not bin/: a top-level bin/ stops claude.ai and Cowork installing the plugin.
@@ -26,8 +30,50 @@ export const PLUGIN_REL = 'plugins/laneconductor';
 export const MARKETPLACE_REL = '.claude-plugin/marketplace.json';
 const SKILL_SRC = '.claude/skills/laneconductor';
 const AUTHOR = 'Asaf Meller';
+const AUTHOR_URL = 'https://github.com/meller';
+const REPO_URL = 'https://github.com/meller/laneconductor';
 const SERVER_ENTRY = 'bin/lc-connector.mjs';
 const SERVER_BINS = [SERVER_ENTRY, 'bin/lc-board.mjs'];
+
+// The plugin's skill does not ship the parked daemon-era tier (worker, syncdb, remote-sync, Postgres
+// schema); it stays in the LaneConductor repository's own skill. Everything else is copied as is,
+// except the exact edits below, which remove the pointers into the excluded folder. Each edit names
+// the source text it replaces and the build throws when that text is gone, so a source change cannot
+// silently leave a dead link in the plugin.
+export const SKILL_EXCLUDE_DIRS = ['legacy'];
+export const LEGACY_NOTE = 'Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
+  + '`syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the '
+  + 'LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.';
+export const SKILL_EDITS = {
+  'SKILL.md': [
+    [
+      '| `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock` | [legacy/worker.md](legacy/worker.md) (also retries and logging) | only when named |\n'
+      + '| `syncdb` | [legacy/syncdb.md](legacy/syncdb.md) | only when named |\n'
+      + '| `remote-sync` | [legacy/remote-sync.md](legacy/remote-sync.md) | only when named |\n',
+      '',
+    ],
+    ['The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.', LEGACY_NOTE],
+  ],
+  'setup/setup.md': [
+    ["`setup/`, `deploy/` and\n`legacy/` subfolders travel with it.", '`setup/` and `deploy/`\nsubfolders travel with it.'],
+    ['## Operating modes\n', '## Operating modes (`local-api` and `remote-api` belong to the parked database tier)\n'],
+    ['## setup collection\n', '## setup collection (steps 2 and 3 apply only to the parked database tier)\n'],
+    [
+      'Create the schema with the SQL in `legacy/db-schema.md`\n   (`psql',
+      'Create the schema with the SQL of the parked tier (`db-schema.md` in the LaneConductor repository\'s skill, not shipped in this plugin)\n   (`psql',
+    ],
+  ],
+};
+
+/** Applies the explicit SKILL_EDITS for one skill file (path relative to the skill folder). */
+export function transformSkillFile(rel, text, edits = SKILL_EDITS) {
+  let out = text;
+  for (const [from, to] of edits[rel] ?? []) {
+    if (!out.includes(from)) throw new Error(`skill transform for ${rel}: source text not found (update SKILL_EDITS): ${JSON.stringify(from.slice(0, 80))}`);
+    out = out.replace(from, () => to);
+  }
+  return out;
+}
 
 const json = (v) => `${JSON.stringify(v, null, 2)}\n`;
 
@@ -62,8 +108,15 @@ export function buildPlugin(repo = REPO) {
   };
   const add = (rel, content) => files.set(rel, { content: Buffer.from(content), exec: false });
 
-  // Skill: everything under the skill folder.
-  for (const r of walk(path.join(repo, SKILL_SRC))) addFrom(`${SKILL_SRC}/${r}`, `skills/laneconductor/${r}`);
+  // Skill: everything under the skill folder except the parked tier, with the explicit edits applied.
+  for (const r of walk(path.join(repo, SKILL_SRC))) {
+    if (SKILL_EXCLUDE_DIRS.some((d) => r.startsWith(`${d}/`))) continue;
+    addFrom(`${SKILL_SRC}/${r}`, `skills/laneconductor/${r}`);
+    if (SKILL_EDITS[r]) {
+      const f = files.get(`skills/laneconductor/${r}`);
+      f.content = Buffer.from(transformSkillFile(r, f.content.toString('utf8')));
+    }
+  }
 
   // Server: entry point, src/, guides/ (server/ is connector/'s stand-in).
   for (const bin of SERVER_BINS) addFrom(`connector/${bin}`, `server/${bin}`);
@@ -103,18 +156,28 @@ export function buildPlugin(repo = REPO) {
   }
   add('package-lock.json', json({ name: pluginPkgName, version: pkg.version, lockfileVersion: lock.lockfileVersion, requires: true, packages }));
 
+  // README (the directory's checks read the plugin folder) and LICENSE.
+  add('README.md', fs.readFileSync(path.join(repo, 'connector/PLUGIN-README.md'), 'utf8').replaceAll('{{VERSION}}', pkg.version));
+  addFrom('LICENSE', 'LICENSE');
+
   // Manifest and MCP config.
   add('.claude-plugin/plugin.json', json({
     name: 'laneconductor',
     version: pkg.version,
-    author: { name: AUTHOR },
     description: 'LaneConductor: the planning and delivery workflow skill plus the git-backed MCP connector that reads and writes tracks safely.',
+    author: { name: AUTHOR, url: AUTHOR_URL },
+    homepage: 'https://laneconductor.com',
+    repository: REPO_URL,
+    license: 'Elastic-2.0',
+    keywords: ['laneconductor', 'tracks', 'planning', 'git', 'mcp'],
+    documentationUrl: `${REPO_URL}/blob/main/connector/PLUGIN-README.md`,
+    supportUrl: `${REPO_URL}/issues`,
   }));
   add('.mcp.json', json({
     mcpServers: {
       'lc-connector': {
         command: 'node',
-        args: ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs', '--repo', '${CLAUDE_PROJECT_DIR}'],
+        args: ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs'], // the repo comes from CLAUDE_PROJECT_DIR (Claude Code exports it), else the cwd
       },
     },
   }));

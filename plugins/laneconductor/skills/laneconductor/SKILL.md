@@ -50,9 +50,6 @@ overrides the human: the file formats and base-commit checks below, and the huma
 | `setup scaffold`, `setup scaffold generate` | [setup/scaffold.md](setup/scaffold.md) (templates in [setup/templates.md](setup/templates.md)) | only when named |
 | `setup-deploy`, `setup-deploy generate` | [deploy/setup-deploy.md](deploy/setup-deploy.md) | only when named |
 | `deploy` | [deploy/deploy.md](deploy/deploy.md) | only when named |
-| `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock` | [legacy/worker.md](legacy/worker.md) (also retries and logging) | only when named |
-| `syncdb` | [legacy/syncdb.md](legacy/syncdb.md) | only when named |
-| `remote-sync` | [legacy/remote-sync.md](legacy/remote-sync.md) | only when named |
 
 **The board.** `board` (or "show the board", "update the board") gives the project one private page that
 shows every track by lane, with a needs-attention list. `lc board --site <dir>` writes the page and its
@@ -61,7 +58,7 @@ publishes them as an artifact and keeps its URL in `.laneconductor.json` (`board
 a snapshot: it changes only when Claude refreshes it. Sharing it shares those documents. Steps are in
 [ops/board.md](ops/board.md).
 
-The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.
+Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, `syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.
 
 ## Finding a track
 

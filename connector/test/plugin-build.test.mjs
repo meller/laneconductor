@@ -1,6 +1,6 @@
 // Phase 5c: the generated LaneConductor plugin (plugins/laneconductor/) and its marketplace file.
-// What is NOT covered here is HUMAN (plan 5c Task 5): installing from the marketplace, `/mcp`
-// showing the server connected, and the `${CLAUDE_PROJECT_DIR}` substitution in a real Claude Code.
+// What is NOT covered here is HUMAN (plan 5c Task 5, 5e): installing from the marketplace, `/mcp`
+// showing the server connected, and Claude Code really exporting CLAUDE_PROJECT_DIR to the server.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -8,10 +8,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAll, diffAgainstDisk, REPO, PLUGIN_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
+import { buildAll, diffAgainstDisk, transformSkillFile, SKILL_EDITS, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, REPO, PLUGIN_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
+import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -20,11 +21,6 @@ const listFiles = (root, rel = '') => fs.readdirSync(path.join(root, rel), { wit
   if (e.name === 'node_modules') return [];
   return e.isDirectory() ? listFiles(root, r) : [r];
 });
-
-function claudeAvailable() {
-  const r = spawnSync('claude', ['--version'], { encoding: 'utf8' });
-  return !r.error && r.status === 0;
-}
 
 test('regenerating gives byte-identical output (no drift) and is deterministic', () => {
   assert.deepEqual(diffAgainstDisk(), [], 'run: node scripts/build-plugin.mjs');
@@ -45,7 +41,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });
     for (const bin of ['lc-connector.mjs', 'lc-board.mjs']) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
-    for (const rel of ['connector/package.json', 'connector/package-lock.json']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
+    for (const rel of ['connector/package.json', 'connector/package-lock.json', 'connector/PLUGIN-README.md', 'LICENSE']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
     // The repo files the server imports from outside connector/ (the generator finds them by their imports).
     for (const rel of listFiles(path.join(PLUGIN, 'conductor'))) {
       fs.mkdirSync(path.dirname(path.join(tmp, 'conductor', rel)), { recursive: true });
@@ -65,15 +61,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
   }
 });
 
-for (const [label, target] of [['the plugin', PLUGIN], ['the marketplace', REPO]]) {
-  test(`claude plugin validate passes on ${label} (--strict for the plugin)`, (t) => {
-    if (!claudeAvailable()) return t.skip('the claude CLI is not on PATH; run `claude plugin validate` by hand');
-    const args = ['plugin', 'validate', target, ...(target === PLUGIN ? ['--strict'] : [])];
-    const r = spawnSync('claude', args, { encoding: 'utf8', cwd: os.tmpdir() });
-    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
-    assert.match(r.stdout, /Validation passed/);
-  });
-}
+// `claude plugin validate --strict` on the plugin and the marketplace runs in directory-precheck.test.mjs.
 
 test('manifest, marketplace and .mcp.json have the agreed shape', () => {
   const manifest = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
@@ -90,9 +78,31 @@ test('manifest, marketplace and .mcp.json have the agreed shape', () => {
   assert.deepEqual(Object.keys(mcp.mcpServers), ['lc-connector']);
   const s = mcp.mcpServers['lc-connector'];
   assert.equal(s.command, 'node');
-  assert.deepEqual(s.args, ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs', '--repo', '${CLAUDE_PROJECT_DIR}']);
+  assert.deepEqual(s.args, ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs'], 'only ${CLAUDE_PLUGIN_ROOT} is used: the repo comes from the CLAUDE_PROJECT_DIR environment variable');
   assert.equal(s.type, undefined, 'no remote (http) entry yet: plan 5c Task 6 waits for Phase 8');
   assert.equal(s.env, undefined);
+});
+
+test('directory listing: README (>= 40 words outside code blocks), LICENSE and manifest fields', () => {
+  const readme = fs.readFileSync(path.join(PLUGIN, 'README.md'), 'utf8');
+  const prose = readme.replace(/```[\s\S]*?```/g, ' ');
+  const words = prose.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+  assert.ok(words >= 40, `the directory needs >= 40 words outside code blocks, got ${words}`);
+  assert.ok(words >= 120, `our own floor is 120 words, got ${words}`);
+  assert.ok(!readme.includes('{{'), 'a template placeholder was left in the README');
+  assert.ok(readme.includes(`Version ${readJson(path.join(REPO, 'connector/package.json')).version}`));
+  for (const must of ['LICENSE', 'Elastic License 2.0', 'auto-state', 'no network requests', 'conductor/advice-log', 'lc board --site']) {
+    assert.ok(readme.includes(must), `README must mention ${must}`);
+  }
+  assert.ok(fs.readFileSync(path.join(PLUGIN, 'LICENSE')).equals(fs.readFileSync(path.join(REPO, 'LICENSE'))), 'plugin LICENSE is the repo LICENSE');
+  const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
+  assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
+  for (const k of ['description', 'version']) assert.ok(typeof m[k] === 'string' && m[k].length > 0, k);
+  assert.deepEqual(m.author, { name: 'Asaf Meller', url: 'https://github.com/meller' });
+  assert.equal(m.license, 'Elastic-2.0');
+  assert.deepEqual(m.keywords, ['laneconductor', 'tracks', 'planning', 'git', 'mcp']);
+  for (const k of ['homepage', 'repository', 'documentationUrl', 'supportUrl']) assert.match(m[k], /^https:\/\//, k);
+  assert.equal(m.privacyPolicyUrl, undefined, 'no privacy policy page exists yet; do not invent a URL');
 });
 
 test('no top-level bin/ in the plugin, no symlinks, no node_modules committed', () => {
@@ -130,17 +140,7 @@ test('package.json and the lockfile: registry-only exact pins, lockfile v2/3, no
 });
 
 test('REQ-12-style secret scan over the plugin directory', () => {
-  const patterns = {
-    'GitHub token': /\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}/,
-    'Anthropic or OpenAI key': /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}/,
-    'AWS access key': /\bAKIA[0-9A-Z]{16}\b/,
-    'Slack token': /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
-    'Google API key': /\bAIza[0-9A-Za-z_-]{30,}/,
-    'private key block': /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-    'bearer credential': /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/,
-    'credential assignment': /\b(?:password|passwd|secret|api[_-]?key|access[_-]?token)\b\s*[:=]\s*['"][^'"\s]{12,}['"]/i,
-    'connection string with password': /\b[a-z]+:\/\/[^/\s:@]+:[^/\s@]{3,}@/,
-  };
+  const patterns = SECRET_PATTERNS;
   const hits = [];
   for (const rel of listFiles(PLUGIN)) {
     const text = fs.readFileSync(path.join(PLUGIN, rel), 'utf8');
@@ -168,6 +168,70 @@ test('skill: frontmatter fits the listing budget and every relative link resolve
     assert.ok(!path.isAbsolute(l) && !l.startsWith('..'), `${l} must stay relative and inside the skill`);
     assert.ok(fs.existsSync(path.join(skillDir, l)), `${l} (linked from SKILL.md) is missing from the plugin copy`);
   }
+});
+
+test('lean skill: the parked legacy tier is not shipped and nothing points at it', () => {
+  const skillDir = path.join(PLUGIN, 'skills/laneconductor');
+  assert.deepEqual(SKILL_EXCLUDE_DIRS, ['legacy']);
+  assert.ok(!fs.existsSync(path.join(skillDir, 'legacy')), 'legacy/ must not ship');
+  const src = path.join(REPO, '.claude/skills/laneconductor');
+  const shipped = listFiles(skillDir).sort();
+  const wanted = listFiles(src).filter((r) => !r.startsWith('legacy/')).sort();
+  assert.deepEqual(shipped, wanted, 'the plugin skill is the source skill minus legacy/ (setup/, deploy/, lanes/, ops/ all ship)');
+  for (const dir of ['setup', 'deploy', 'lanes', 'ops']) assert.ok(shipped.some((r) => r.startsWith(`${dir}/`)), `${dir}/ ships`);
+  // No file in the plugin names a legacy/ path (the generator drops every pointer to it).
+  const offenders = listFiles(PLUGIN).filter((rel) => /(^|[^A-Za-z])legacy\//.test(fs.readFileSync(path.join(PLUGIN, rel), 'utf8')));
+  assert.deepEqual(offenders, []);
+  const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
+  assert.ok(skill.includes(LEGACY_NOTE), 'SKILL.md carries the one honest line about the parked tier');
+  for (const cmd of ['syncdb', 'remote-sync']) assert.ok(!skill.includes(`| \`${cmd}\``), `no routing row for ${cmd}`);
+  // Every relative markdown link in every shipped skill file resolves (code fences skipped).
+  for (const rel of shipped.filter((r) => r.endsWith('.md'))) {
+    const text = fs.readFileSync(path.join(skillDir, rel), 'utf8').replace(/```[\s\S]*?```/g, '');
+    for (const m of text.matchAll(/\]\(([^)#\s]+)\)/g)) {
+      if (/^[a-z]+:/.test(m[1])) continue;
+      assert.ok(fs.existsSync(path.join(skillDir, path.dirname(rel), m[1])), `${rel} links to missing ${m[1]}`);
+    }
+  }
+});
+
+test('lean skill: no database or cloud-service tooling in SKILL.md, lanes/ or ops/; setup/ and deploy/ stay tame', () => {
+  const skillDir = path.join(PLUGIN, 'skills/laneconductor');
+  const banned = /psql|gcloud|DATABASE_URL|neon\.tech|supabase|run\.app|collector/i;
+  const hits = listFiles(skillDir)
+    .filter((r) => r === 'SKILL.md' || r.startsWith('lanes/') || r.startsWith('ops/'))
+    .filter((r) => banned.test(fs.readFileSync(path.join(skillDir, r), 'utf8')));
+  assert.deepEqual(hits, []);
+  // setup/ and deploy/ are instructions the user asks for by name, so they may name tools such as gcloud,
+  // but every URL must be local, an example, or this project's own; no credentials (the secret scan also runs).
+  const okHost = /^(localhost|127\.0\.0\.1|example\.com|(?:[a-z0-9-]+\.)?laneconductor\.(?:com|io)|github\.com)$/;
+  for (const r of listFiles(skillDir).filter((x) => x.startsWith('setup/') || x.startsWith('deploy/'))) {
+    const text = fs.readFileSync(path.join(skillDir, r), 'utf8');
+    for (const m of text.matchAll(/https?:\/\/([^/\s:`'")>]+)/g)) assert.match(m[1], okHost, `${r}: URL host ${m[1]} is not local, an example or this project's`);
+    assert.ok(!/neon\.tech|supabase\.co|\.run\.app/i.test(text), `${r} names a private service host`);
+  }
+  // The database steps that remain in setup.md say they belong to the parked tier.
+  const setup = fs.readFileSync(path.join(skillDir, 'setup/setup.md'), 'utf8');
+  assert.match(setup, /^## Operating modes \(.*parked database tier\)$/m);
+  assert.match(setup, /^## setup collection \(steps 2 and 3 apply only to the parked database tier\)$/m);
+  assert.ok(setup.indexOf('psql') > setup.indexOf('## setup collection (steps 2'), 'the psql step sits under that heading');
+});
+
+test('skill transform: explicit edits, and a missing anchor fails the build', () => {
+  const edits = { 'a.md': [['one', '1'], ['two\n', '']] };
+  assert.equal(transformSkillFile('a.md', 'x one two\ny', edits), 'x 1 y');
+  assert.equal(transformSkillFile('b.md', 'untouched', edits), 'untouched', 'files without edits pass through');
+  assert.throws(() => transformSkillFile('a.md', 'only one', edits), /source text not found/);
+  // Every real edit applies to the real source today (the build would throw otherwise), and removes what it names.
+  const src = path.join(REPO, '.claude/skills/laneconductor');
+  for (const rel of Object.keys(SKILL_EDITS)) {
+    const text = fs.readFileSync(path.join(src, rel), 'utf8');
+    const out = transformSkillFile(rel, text);
+    assert.notEqual(out, text, rel);
+    assert.ok(!/(^|[^A-Za-z])legacy\//.test(out), `${rel} still names legacy/`);
+  }
+  // Source skill is untouched by the transform: the repo's own copy keeps the legacy tier.
+  assert.ok(fs.existsSync(path.join(src, 'legacy/worker.md')));
 });
 
 test('skill path audit: no hard-coded project or machine paths outside the setup docs', () => {
@@ -208,11 +272,12 @@ test('generated server starts over stdio from a copy of the plugin dir and answe
       via = 'symlink to connector/node_modules (offline npm cache was cold)';
     }
     t.diagnostic(`dependencies installed via ${via}`);
-    // Use the committed .mcp.json entry with the two documented substitutions applied.
+    // Use the committed .mcp.json entry with ${CLAUDE_PLUGIN_ROOT} applied; Claude Code exports CLAUDE_PROJECT_DIR to the process.
     const entry = readJson(path.join(copy, '.mcp.json')).mcpServers['lc-connector'];
-    const sub = (s) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', copy).replaceAll('${CLAUDE_PROJECT_DIR}', project);
+    const sub = (s) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', copy);
+    assert.ok(!entry.args.some((a) => a.includes('${CLAUDE_PROJECT_DIR}')), 'no project variable in args');
     assert.equal(entry.command, 'node');
-    raw = spawnRaw(process.execPath, entry.args.map(sub), { cwd: tmp });
+    raw = spawnRaw(process.execPath, entry.args.map(sub), { cwd: tmp, env: { ...process.env, CLAUDE_PROJECT_DIR: project } });
     const init = await raw.initialize();
     assert.ok(init.result, JSON.stringify(init));
     assert.equal(init.result.serverInfo.version, readJson(path.join(copy, 'package.json')).version, 'version read from the plugin root package.json');
