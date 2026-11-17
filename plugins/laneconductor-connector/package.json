@@ -1,6 +1,6 @@
 {
-  "name": "laneconductor-plugin",
-  "version": "0.2.0",
+  "name": "laneconductor-connector",
+  "version": "0.3.0",
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",

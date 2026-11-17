@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "lc-connector": {
+    "lc": {
       "command": "node",
       "args": [
         "${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs"

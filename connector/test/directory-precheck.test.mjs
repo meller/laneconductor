@@ -1,5 +1,7 @@
-// Local pre-checks for Anthropic's plugin directory submission (track AM-10106, Phase 5e). They mirror the
-// automated checks of the directory's pre-submission checklist that can be run offline. The portal's own
+// Local pre-checks for Anthropic's plugin directory submission (track AM-10106, Phase 5e), run over ALL THREE plugins (the lean
+// plugins/laneconductor and the add-ons plugins/laneconductor-board and plugins/laneconductor-connector); the stricter rules for the lean one, which is the only
+// one submitted, are in directory-lean.test.mjs. They mirror the automated checks of the directory's pre-submission checklist
+// that can be run offline. The portal's own
 // Validate (claude.ai/directory/manage) is HUMAN; findings it marks "held for a reviewer" (lockfile install,
 // local Node server) are expected.
 import { test } from 'node:test';
@@ -8,10 +10,13 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, PLUGIN_REL } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, BOARD_REL, CONNECTOR_REL } from '../../scripts/build-plugin.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
+const BOARD = path.join(REPO, BOARD_REL);
+const CONN = path.join(REPO, CONNECTOR_REL);
+const PLUGINS = [['lean plugin', PLUGIN], ['board add-on', BOARD], ['connector add-on', CONN]];
 const KIB = 1024;
 const MIB = KIB * KIB;
 
@@ -22,15 +27,15 @@ function entries(root, rel = '') {
     return e.isDirectory() ? [{ rel: r, dir: true }, ...entries(root, r)] : [{ rel: r, link: e.isSymbolicLink() }];
   });
 }
-const all = () => entries(PLUGIN);
-const files = () => all().filter((e) => !e.dir).map((e) => e.rel);
+const all = (root) => entries(root);
+const files = (root) => all(root).filter((e) => !e.dir).map((e) => e.rel);
 
 function claudeAvailable() {
   const r = spawnSync('claude', ['--version'], { encoding: 'utf8' });
   return !r.error && r.status === 0;
 }
 
-for (const [label, target] of [['the plugin folder', PLUGIN], ['the marketplace (repo root)', REPO]]) {
+for (const [label, target] of [['the lean plugin folder', PLUGIN], ['the board add-on folder (dependencies on the lean plugin)', BOARD], ['the connector add-on folder (dependencies on the lean plugin)', CONN], ['the marketplace (repo root)', REPO]]) {
   test(`claude plugin validate --strict passes on ${label}`, (t) => {
     if (!claudeAvailable()) return t.skip('the claude CLI is not on PATH: run `claude plugin validate <path> --strict` by hand');
     const r = spawnSync('claude', ['plugin', 'validate', target, '--strict'], { encoding: 'utf8', cwd: os.tmpdir() });
@@ -39,11 +44,11 @@ for (const [label, target] of [['the plugin folder', PLUGIN], ['the marketplace 
   });
 }
 
-test('plugin folder: at most 512 files, each under 256 KiB, no links, no junk files, no package-manager config', () => {
-  const list = files();
+for (const [label, PLUGIN] of PLUGINS) test(`${label}: at most 512 files, each under 256 KiB, no links, no junk files, no package-manager config (the connector's package.json and lockfile are its own)`, () => {
+  const list = files(PLUGIN);
   assert.ok(list.length <= 512, `${list.length} files (limit 512)`);
   const junk = /(^|\/)(\.DS_Store|Thumbs\.db|__MACOSX|\.npmrc|\.yarnrc(\.yml)?|\.pnpmrc|bunfig\.toml)$|(^|\/)__MACOSX\//;
-  for (const e of all()) {
+  for (const e of all(PLUGIN)) {
     assert.ok(!e.link, `${e.rel} is a symlink`);
     assert.ok(!junk.test(e.rel), `${e.rel} must not ship`);
     assert.ok(!/(^|\/)node_modules(\/|$)/.test(e.rel), `${e.rel}: node_modules must not ship`);
@@ -56,9 +61,9 @@ test('plugin folder: at most 512 files, each under 256 KiB, no links, no junk fi
   assert.ok(bytes < 4 * MIB, `plugin folder is ${bytes} bytes`);
 });
 
-test('plugin folder: only text files (UTF-8, no NUL bytes) or images and fonts', () => {
+for (const [label, PLUGIN] of PLUGINS) test(`${label}: only text files (UTF-8, no NUL bytes) or images and fonts`, () => {
   const binaryOk = /\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf|otf)$/i;
-  for (const rel of files()) {
+  for (const rel of files(PLUGIN)) {
     if (binaryOk.test(rel)) continue;
     const buf = fs.readFileSync(path.join(PLUGIN, rel));
     assert.ok(!buf.includes(0), `${rel} contains NUL bytes: not a text file`);
@@ -66,33 +71,34 @@ test('plugin folder: only text files (UTF-8, no NUL bytes) or images and fonts',
   }
 });
 
-test('plugin folder: no minified code (every source line is readable)', () => {
-  for (const rel of files().filter((r) => /\.(mjs|js|json)$/.test(r) && !/package-lock\.json$/.test(r))) {
+for (const [label, PLUGIN] of PLUGINS) test(`${label}: no minified code (every source line is readable)`, () => {
+  for (const rel of files(PLUGIN).filter((r) => /\.(mjs|js|json)$/.test(r) && !/package-lock\.json$/.test(r))) {
     const longest = Math.max(...fs.readFileSync(path.join(PLUGIN, rel), 'utf8').split('\n').map((l) => l.length));
     assert.ok(longest <= 600, `${rel} has a ${longest}-character line: minified or generated code?`);
   }
 });
 
-test('plugin folder: the secret scan is clean', () => {
+for (const [label, PLUGIN] of PLUGINS) test(`${label}: the secret scan is clean`, () => {
   const hits = [];
-  for (const rel of files()) {
+  for (const rel of files(PLUGIN).filter((r) => !/\.png$/.test(r))) {
     const text = fs.readFileSync(path.join(PLUGIN, rel), 'utf8');
     for (const [label, re] of Object.entries(SECRET_PATTERNS)) if (re.test(text)) hits.push(`${rel}: ${label}`);
   }
   assert.deepEqual(hits, []);
 });
 
-test('.mcp.json: a local server started with node on a file inside the plugin, using only ${CLAUDE_PLUGIN_ROOT}', () => {
-  const mcp = JSON.parse(fs.readFileSync(path.join(PLUGIN, '.mcp.json'), 'utf8'));
+test('connector .mcp.json: a local server started with node on a file inside the plugin, using only ${CLAUDE_PLUGIN_ROOT}', () => {
+  for (const dir of [PLUGIN, BOARD]) assert.ok(!fs.existsSync(path.join(dir, '.mcp.json')), 'only the connector has a .mcp.json');
+  const mcp = JSON.parse(fs.readFileSync(path.join(CONN, '.mcp.json'), 'utf8'));
   const [name, s] = Object.entries(mcp.mcpServers)[0];
-  assert.equal(name, 'lc-connector');
+  assert.equal(name, 'lc', 'server key is lc');
   assert.equal(s.command, 'node');
   const text = JSON.stringify(s);
   const vars = [...text.matchAll(/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/g)].map((m) => m[0]);
   assert.deepEqual([...new Set(vars)], ['${CLAUDE_PLUGIN_ROOT}'], 'no other variable');
   assert.ok(!/[*?`]|\$\(/.test(text), 'no wildcard or command substitution');
   const target = s.args[0].replace('${CLAUDE_PLUGIN_ROOT}/', '');
-  assert.ok(fs.existsSync(path.join(PLUGIN, target)), `${target} exists inside the plugin`);
+  assert.ok(fs.existsSync(path.join(CONN, target)), `${target} exists inside the plugin`);
   assert.ok(s.args.every((a) => !a.startsWith('--') || a.length > 2), 'plain arguments');
 });
 
@@ -103,7 +109,7 @@ test('.gitattributes: nothing that rewrites file contents (filter, LFS, export-i
     const lines = fs.readFileSync(path.join(REPO, rel), 'utf8').split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
     for (const l of lines) assert.ok(!/\b(filter|export-ignore|export-subst|eol|text|ident|working-tree-encoding)\b|\blfs\b/i.test(l.replace(/\s\bbinary\b/, '')), `${rel}: "${l}" rewrites or hides content`);
   }
-  assert.ok(!fs.existsSync(path.join(PLUGIN, '.gitattributes')));
+  for (const dir of [PLUGIN, BOARD, CONN]) assert.ok(!fs.existsSync(path.join(dir, '.gitattributes')));
 });
 
 test('the repository as GitHub archives it is under 50 MiB and 10,000 files', async (t) => {

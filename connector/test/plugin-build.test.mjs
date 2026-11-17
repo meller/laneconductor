@@ -1,4 +1,6 @@
-// Phase 5c: the generated LaneConductor plugin (plugins/laneconductor/) and its marketplace file.
+// Phase 5c and the three-plugin split: the generated LaneConductor plugins (plugins/laneconductor/ = lean main plugin,
+// plugins/laneconductor-board/ = board add-on, plugins/laneconductor-connector/ = connector add-on) and the marketplace file.
+// The board add-on's own behaviour is tested in addons.test.mjs.
 // What is NOT covered here is HUMAN (plan 5c Task 5, 5e): installing from the marketplace, `/mcp`
 // showing the server connected, and Claude Code really exporting CLAUDE_PROJECT_DIR to the server.
 import { test } from 'node:test';
@@ -8,13 +10,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAll, diffAgainstDisk, transformSkillFile, SKILL_EDITS, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, REPO, PLUGIN_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
+import { buildAll, diffAgainstDisk, transformSkillFile, removeFrontmatterKey, SKILL_EDITS, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, HABITS, REPO, PLUGIN_REL, BOARD_REL, CONNECTOR_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
-const PLUGIN = path.join(REPO, PLUGIN_REL);
+const PLUGIN = path.join(REPO, PLUGIN_REL); // lean
+const BOARD = path.join(REPO, BOARD_REL); // board add-on
+const EXT = path.join(REPO, CONNECTOR_REL); // connector add-on
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const listFiles = (root, rel = '') => fs.readdirSync(path.join(root, rel), { withFileTypes: true }).flatMap((e) => {
   const r = rel ? `${rel}/${e.name}` : e.name;
@@ -41,21 +45,27 @@ test('--check exits 1 and names the file when the committed output has drifted',
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });
     for (const bin of ['lc-connector.mjs', 'lc-board.mjs']) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
-    for (const rel of ['connector/package.json', 'connector/package-lock.json', 'connector/PLUGIN-README.md', 'LICENSE']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
+    for (const rel of ['connector/package.json', 'connector/package-lock.json', 'connector/PLUGIN-README.md', 'connector/BOARD-README.md', 'connector/CONNECTOR-README.md', 'LICENSE']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
     // The repo files the server imports from outside connector/ (the generator finds them by their imports).
-    for (const rel of listFiles(path.join(PLUGIN, 'conductor'))) {
+    for (const rel of listFiles(path.join(EXT, 'conductor'))) {
       fs.mkdirSync(path.dirname(path.join(tmp, 'conductor', rel)), { recursive: true });
       fs.copyFileSync(path.join(REPO, 'conductor', rel), path.join(tmp, 'conductor', rel));
     }
     fs.cpSync(PLUGIN, path.join(tmp, PLUGIN_REL), { recursive: true });
+    fs.cpSync(BOARD, path.join(tmp, BOARD_REL), { recursive: true });
+    fs.cpSync(EXT, path.join(tmp, CONNECTOR_REL), { recursive: true });
     fs.mkdirSync(path.join(tmp, '.claude-plugin'), { recursive: true });
     fs.copyFileSync(path.join(REPO, MARKETPLACE_REL), path.join(tmp, MARKETPLACE_REL));
     assert.deepEqual(diffAgainstDisk(tmp), [], 'the scratch copy starts clean');
     fs.appendFileSync(path.join(tmp, PLUGIN_REL, 'skills/laneconductor/SKILL.md'), '\nedited by hand\n');
     fs.writeFileSync(path.join(tmp, PLUGIN_REL, 'stray.txt'), 'x');
+    fs.appendFileSync(path.join(tmp, CONNECTOR_REL, 'server/src/tracks.mjs'), '\n// edited by hand\n');
+    fs.rmSync(path.join(tmp, BOARD_REL, 'server/src/scan.mjs'));
     const problems = diffAgainstDisk(tmp);
     assert.ok(problems.includes(`differs: ${PLUGIN_REL}/skills/laneconductor/SKILL.md`), problems.join('\n'));
     assert.ok(problems.includes(`extra file: ${PLUGIN_REL}/stray.txt`), problems.join('\n'));
+    assert.ok(problems.includes(`differs: ${CONNECTOR_REL}/server/src/tracks.mjs`), problems.join('\n'));
+    assert.ok(problems.includes(`missing: ${BOARD_REL}/server/src/scan.mjs`), problems.join('\n'));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -63,65 +73,94 @@ test('--check exits 1 and names the file when the committed output has drifted',
 
 // `claude plugin validate --strict` on the plugin and the marketplace runs in directory-precheck.test.mjs.
 
-test('manifest, marketplace and .mcp.json have the agreed shape', () => {
-  const manifest = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
+test('manifests, marketplace and .mcp.json have the agreed shape', () => {
+  const lean = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
+  const board = readJson(path.join(BOARD, '.claude-plugin/plugin.json'));
+  const conn = readJson(path.join(EXT, '.claude-plugin/plugin.json'));
   const pkg = readJson(path.join(REPO, 'connector/package.json'));
-  assert.equal(manifest.name, 'laneconductor');
-  assert.equal(manifest.version, pkg.version, 'plugin version follows connector/package.json');
+  assert.equal(pkg.version, '0.3.0');
+  assert.deepEqual([lean.name, board.name, conn.name], ['laneconductor', 'laneconductor-board', 'laneconductor-connector']);
+  for (const m of [lean, board, conn]) assert.equal(m.version, pkg.version, 'all plugin versions follow connector/package.json');
+  assert.equal(lean.dependencies, undefined, 'the lean plugin has no dependencies');
+  assert.equal(lean.mcpServers, undefined, 'the lean plugin declares no MCP server');
+  assert.deepEqual(board.dependencies, ['laneconductor'], 'the board add-on depends on the lean plugin');
+  assert.deepEqual(conn.dependencies, ['laneconductor'], 'the connector add-on depends on the lean plugin');
   const market = readJson(path.join(REPO, MARKETPLACE_REL));
   assert.equal(market.name, 'laneconductor');
-  assert.equal(market.plugins.length, 1);
-  assert.equal(market.plugins[0].name, manifest.name, 'marketplace entry name equals the manifest name');
-  assert.equal(market.plugins[0].source, './plugins/laneconductor');
-  assert.ok(!market.plugins[0].source.includes('..'));
-  const mcp = readJson(path.join(PLUGIN, '.mcp.json'));
-  assert.deepEqual(Object.keys(mcp.mcpServers), ['lc-connector']);
-  const s = mcp.mcpServers['lc-connector'];
+  assert.deepEqual(market.plugins.map((p) => p.name), [lean.name, board.name, conn.name], 'marketplace entry names equal the manifest names');
+  assert.deepEqual(market.plugins.map((p) => p.source), ['./plugins/laneconductor', './plugins/laneconductor-board', './plugins/laneconductor-connector']);
+  for (const p of market.plugins) assert.ok(!p.source.includes('..'));
+  for (const dir of [PLUGIN, BOARD]) assert.ok(!fs.existsSync(path.join(dir, '.mcp.json')), 'only the connector has a .mcp.json');
+  const mcp = readJson(path.join(EXT, '.mcp.json'));
+  assert.deepEqual(Object.keys(mcp.mcpServers), ['lc'], 'the server key is lc (the plugin name already says connector)');
+  const s = mcp.mcpServers.lc;
   assert.equal(s.command, 'node');
   assert.deepEqual(s.args, ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs'], 'only ${CLAUDE_PLUGIN_ROOT} is used: the repo comes from the CLAUDE_PROJECT_DIR environment variable');
   assert.equal(s.type, undefined, 'no remote (http) entry yet: plan 5c Task 6 waits for Phase 8');
   assert.equal(s.env, undefined);
+  for (const dir of [BOARD, EXT]) for (const rel of ['skills', 'commands', 'agents']) assert.ok(!fs.existsSync(path.join(dir, rel)), `the add-ons ship no ${rel}/`);
+  assert.ok(!fs.existsSync(path.join(EXT, 'server/bin/lc-board.mjs')), 'the connector ships without the board script');
+  assert.ok(!fs.existsSync(path.join(BOARD, 'server/bin/lc-connector.mjs')), 'the board ships without the connector');
 });
 
-test('directory listing: README (>= 40 words outside code blocks), LICENSE and manifest fields', () => {
-  const readme = fs.readFileSync(path.join(PLUGIN, 'README.md'), 'utf8');
-  const prose = readme.replace(/```[\s\S]*?```/g, ' ');
-  const words = prose.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
-  assert.ok(words >= 40, `the directory needs >= 40 words outside code blocks, got ${words}`);
-  assert.ok(words >= 120, `our own floor is 120 words, got ${words}`);
-  assert.ok(!readme.includes('{{'), 'a template placeholder was left in the README');
-  assert.ok(readme.includes(`Version ${readJson(path.join(REPO, 'connector/package.json')).version}`));
-  for (const must of ['LICENSE', 'Elastic License 2.0', 'auto-state', 'no network requests', 'conductor/advice-log', 'lc board --site']) {
-    assert.ok(readme.includes(must), `README must mention ${must}`);
+const proseWords = (text) => text.replace(/```[\s\S]*?```/g, ' ').split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w)).length;
+
+test('directory listing: READMEs (>= 40 words outside code blocks), LICENSE and manifest fields', () => {
+  const version = readJson(path.join(REPO, 'connector/package.json')).version;
+  const read = (dir) => fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
+  for (const [label, dir, musts] of [
+    ['lean', PLUGIN, ['LICENSE', 'Elastic License 2.0', 'laneconductor-board', 'laneconductor-connector', 'claude plugin install laneconductor-connector@laneconductor', 'claude plugin install laneconductor-board@laneconductor', 'plan-reviewer', 'track-runner', 'lc board --site']],
+    ['board', BOARD, ['LICENSE', 'Elastic License 2.0', 'a script that runs on your computer', 'not from Anthropic\'s directory', '--site', 'no network requests', 'withheld', 'laneconductor-connector']],
+    ['connector', EXT, ['LICENSE', 'Elastic License 2.0', 'auto-state', 'no network requests', 'conductor/advice-log', 'conflict-checked writes, automatic commits and freshness warnings', 'old single `laneconductor` plugin', 'install `laneconductor-connector`', 'laneconductor-board']],
+  ]) {
+    const readme = read(dir);
+    const words = proseWords(readme);
+    assert.ok(words >= 40, `${label}: the directory needs >= 40 words outside code blocks, got ${words}`);
+    assert.ok(words >= 120, `${label}: our own floor is 120 words, got ${words}`);
+    assert.ok(!readme.includes('{{'), `${label}: a template placeholder was left in the README`);
+    assert.ok(readme.includes(`Version ${version}`));
+    for (const must of musts) assert.ok(readme.includes(must), `${label} README must mention ${must}`);
+    assert.ok(!/laneconductor-(plus|extended)/.test(readme), `${label}: names a plugin that does not exist`);
   }
-  assert.ok(fs.readFileSync(path.join(PLUGIN, 'LICENSE')).equals(fs.readFileSync(path.join(REPO, 'LICENSE'))), 'plugin LICENSE is the repo LICENSE');
-  const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
-  assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
-  for (const k of ['description', 'version']) assert.ok(typeof m[k] === 'string' && m[k].length > 0, k);
-  assert.deepEqual(m.author, { name: 'Asaf Meller', url: 'https://github.com/meller' });
-  assert.equal(m.license, 'Elastic-2.0');
-  assert.deepEqual(m.keywords, ['laneconductor', 'tracks', 'planning', 'git', 'mcp']);
-  for (const k of ['homepage', 'repository', 'documentationUrl', 'supportUrl']) assert.match(m[k], /^https:\/\//, k);
-  assert.equal(m.privacyPolicyUrl, undefined, 'no privacy policy page exists yet; do not invent a URL');
+  for (const dir of [PLUGIN, BOARD, EXT]) assert.ok(fs.readFileSync(path.join(dir, 'LICENSE')).equals(fs.readFileSync(path.join(REPO, 'LICENSE'))), 'plugin LICENSE is the repo LICENSE');
+  for (const [dir, keywords, doc] of [
+    [PLUGIN, ['laneconductor', 'tracks', 'planning', 'git'], 'PLUGIN-README.md'],
+    [BOARD, ['laneconductor', 'tracks', 'board', 'dashboard'], 'BOARD-README.md'],
+    [EXT, ['laneconductor', 'tracks', 'git', 'mcp'], 'CONNECTOR-README.md'],
+  ]) {
+    const m = readJson(path.join(dir, '.claude-plugin/plugin.json'));
+    assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
+    for (const k of ['description', 'version']) assert.ok(typeof m[k] === 'string' && m[k].length > 0, k);
+    assert.deepEqual(m.author, { name: 'Asaf Meller', url: 'https://github.com/meller' });
+    assert.equal(m.license, 'Elastic-2.0');
+    assert.deepEqual(m.keywords, keywords);
+    for (const k of ['homepage', 'repository', 'documentationUrl', 'supportUrl']) assert.match(m[k], /^https:\/\//, k);
+    assert.ok(m.documentationUrl.endsWith(`/connector/${doc}`));
+    assert.equal(m.privacyPolicyUrl, undefined, 'no privacy policy page exists yet; do not invent a URL');
+  }
 });
 
-test('no top-level bin/ in the plugin, no symlinks, no node_modules committed', () => {
-  assert.ok(!fs.existsSync(path.join(PLUGIN, 'bin')), 'a top-level bin/ stops claude.ai and Cowork installing the plugin');
+test('no top-level bin/ in any plugin, no symlinks, no node_modules committed', () => {
+  for (const dir of [PLUGIN, BOARD, EXT]) assert.ok(!fs.existsSync(path.join(dir, 'bin')), 'a top-level bin/ stops claude.ai and Cowork installing the plugin');
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
     assert.ok(!e.isSymbolicLink(), `${path.join(dir, e.name)} is a symlink`);
     if (e.isDirectory() && e.name !== 'node_modules') walk(path.join(dir, e.name));
   });
   walk(PLUGIN);
-  const tracked = execFileSync('git', ['-C', REPO, 'ls-files', PLUGIN_REL], { encoding: 'utf8' }).split('\n').filter(Boolean);
+  walk(BOARD);
+  walk(EXT);
+  const tracked = execFileSync('git', ['-C', REPO, 'ls-files', PLUGIN_REL, BOARD_REL, CONNECTOR_REL], { encoding: 'utf8' }).split('\n').filter(Boolean);
   assert.ok(tracked.every((f) => !f.includes('/node_modules/')), 'node_modules must not be committed');
 });
 
-test('package.json and the lockfile: registry-only exact pins, lockfile v2/3, no scripts or overrides', () => {
-  const pkg = readJson(path.join(PLUGIN, 'package.json'));
+test('connector package.json and the lockfile: registry-only exact pins, lockfile v2/3, no scripts or overrides', () => {
+  for (const dir of [PLUGIN, BOARD]) assert.ok(!fs.existsSync(path.join(dir, 'package.json')) && !fs.existsSync(path.join(dir, 'package-lock.json')), 'only the connector has package files');
+  const pkg = readJson(path.join(EXT, 'package.json'));
+  assert.equal(pkg.name, 'laneconductor-connector');
   assert.deepEqual(Object.keys(pkg).sort(), ['dependencies', 'name', 'type', 'version']);
   const exact = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
   for (const [n, v] of Object.entries(pkg.dependencies)) assert.match(v, exact, `${n} is not an exact pin`);
-  const lock = readJson(path.join(PLUGIN, 'package-lock.json'));
+  const lock = readJson(path.join(EXT, 'package-lock.json'));
   assert.ok([2, 3].includes(lock.lockfileVersion), `lockfileVersion ${lock.lockfileVersion}`);
   assert.equal(lock.packages[''].version, pkg.version);
   assert.deepEqual(lock.packages[''].dependencies, pkg.dependencies);
@@ -139,18 +178,21 @@ test('package.json and the lockfile: registry-only exact pins, lockfile v2/3, no
   assert.ok(!lock.packages['node_modules/@modelcontextprotocol/client'], 'the test-only client is not shipped');
 });
 
-test('REQ-12-style secret scan over the plugin directory', () => {
+test('REQ-12-style secret scan over all plugin directories', () => {
   const patterns = SECRET_PATTERNS;
   const hits = [];
-  for (const rel of listFiles(PLUGIN)) {
-    const text = fs.readFileSync(path.join(PLUGIN, rel), 'utf8');
-    for (const [label, re] of Object.entries(patterns)) if (re.test(text)) hits.push(`${rel}: ${label}`);
+  for (const dir of [PLUGIN, BOARD, EXT]) {
+    for (const rel of listFiles(dir)) {
+      if (/\.png$/.test(rel)) continue;
+      const text = fs.readFileSync(path.join(dir, rel), 'utf8');
+      for (const [label, re] of Object.entries(patterns)) if (re.test(text)) hits.push(`${path.basename(dir)}/${rel}: ${label}`);
+    }
+    for (const name of ['.env', '.laneconductor.json', '.worker.tokens.json']) {
+      assert.ok(!listFiles(dir).some((r) => path.basename(r).startsWith(name)), `${name} must not ship`);
+    }
   }
   assert.deepEqual(hits, []);
-  for (const name of ['.env', '.laneconductor.json', '.worker.tokens.json']) {
-    assert.ok(!listFiles(PLUGIN).some((r) => path.basename(r).startsWith(name)), `${name} must not ship`);
-  }
-  const mcp = fs.readFileSync(path.join(PLUGIN, '.mcp.json'), 'utf8');
+  const mcp = fs.readFileSync(path.join(EXT, '.mcp.json'), 'utf8');
   assert.ok(!/"env"|"headers"|Authorization/i.test(mcp), 'no secrets or auth in .mcp.json');
 });
 
@@ -234,6 +276,35 @@ test('skill transform: explicit edits, and a missing anchor fails the build', ()
   assert.ok(fs.existsSync(path.join(src, 'legacy/worker.md')));
 });
 
+test('lean skill: allowed-tools is deleted, the Habits section is appended, the source skill is untouched', () => {
+  const md = fs.readFileSync(path.join(PLUGIN, 'skills/laneconductor/SKILL.md'), 'utf8');
+  const fm = md.match(/^---\n([\s\S]*?)\n---\n/)[1];
+  assert.ok(!/allowed-tools|allowedTools/.test(fm), 'the directory allows only Read, Grep, Glob, LS; the skill drops the key');
+  assert.ok(fm.includes('name: laneconductor') && fm.includes('argument-hint:'), 'the other frontmatter keys stay');
+  const src = fs.readFileSync(path.join(REPO, '.claude/skills/laneconductor/SKILL.md'), 'utf8');
+  assert.match(src, /^allowed-tools: /m, 'the SOURCE skill keeps its allowed-tools');
+  assert.ok(md.endsWith(HABITS), 'Habits is the last section');
+  const habits = md.slice(md.indexOf('\n## Habits (this plugin has no hooks)'));
+  assert.ok(habits.trim().split('\n').length <= 14, 'Habits stays within 14 lines');
+  assert.ok(md.split('\n').length < 500, 'SKILL.md stays under 500 lines');
+  assert.ok(!/(^|[\s`(])[\w./-]*\.(sh|mjs|js|py)\b/.test(habits) && !/scripts?\//.test(habits), 'Habits names no script path');
+  assert.match(habits, /3-line status/);
+  assert.match(habits, /exactly one next step in one line/);
+  assert.match(habits, /Without them, re-read the file right before editing and change only the marker lines; never rewrite the whole file/);
+  assert.match(habits, /Before any `git push`, say what will be pushed/);
+  // The board generator lives in the board plugin, so the lean ops/board.md does not point into a server/ folder it lacks.
+  const board = fs.readFileSync(path.join(PLUGIN, 'skills/laneconductor/ops/board.md'), 'utf8');
+  assert.ok(!board.includes('${CLAUDE_PLUGIN_ROOT}/server'), 'no dead pointer to server/ in the lean plugin');
+  assert.ok(board.includes('laneconductor-board'));
+});
+
+test('removeFrontmatterKey deletes exactly one key and fails loudly when it is gone', () => {
+  const doc = '---\nname: x\nallowed-tools: Read, Edit\nargument-hint: y\n---\nbody\n';
+  assert.equal(removeFrontmatterKey(doc, 'allowed-tools'), '---\nname: x\nargument-hint: y\n---\nbody\n');
+  assert.throws(() => removeFrontmatterKey(doc, 'nope'), /not found/);
+  assert.throws(() => removeFrontmatterKey('no frontmatter', 'x'), /no frontmatter/);
+});
+
 test('skill path audit: no hard-coded project or machine paths outside the setup docs', () => {
   const skillDir = path.join(PLUGIN, 'skills/laneconductor');
   const offenders = [];
@@ -254,14 +325,14 @@ test('skill path audit: no hard-coded project or machine paths outside the setup
   assert.match(head, /skills\/laneconductor\/` when installed as the LaneConductor plugin/);
 });
 
-test('generated server starts over stdio from a copy of the plugin dir and answers initialize + tools/list', async (t) => {
+test('generated server starts over stdio from a copy of the connector plugin dir and answers initialize + tools/list', async (t) => {
   const real = fs.realpathSync(os.tmpdir());
   const tmp = fs.mkdtempSync(path.join(real, 'lc-plugin-run-'));
   const copy = path.join(tmp, 'plugin');
   const project = makeRepo({ prefix: 'lc-plugin-project-' });
   let raw;
   try {
-    fs.cpSync(PLUGIN, copy, { recursive: true });
+    fs.cpSync(EXT, copy, { recursive: true });
     // Dependencies as Claude Code installs them: `npm ci` from the root lockfile. The offline cache
     // may be cold on a fresh machine; then fall back to the repo's already-installed modules.
     const ci = spawnSync('npm', ['ci', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: copy, encoding: 'utf8' });
@@ -273,7 +344,7 @@ test('generated server starts over stdio from a copy of the plugin dir and answe
     }
     t.diagnostic(`dependencies installed via ${via}`);
     // Use the committed .mcp.json entry with ${CLAUDE_PLUGIN_ROOT} applied; Claude Code exports CLAUDE_PROJECT_DIR to the process.
-    const entry = readJson(path.join(copy, '.mcp.json')).mcpServers['lc-connector'];
+    const entry = readJson(path.join(copy, '.mcp.json')).mcpServers.lc;
     const sub = (s) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', copy);
     assert.ok(!entry.args.some((a) => a.includes('${CLAUDE_PROJECT_DIR}')), 'no project variable in args');
     assert.equal(entry.command, 'node');

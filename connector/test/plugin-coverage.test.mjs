@@ -1,11 +1,13 @@
 // Track AM-10115 Phase 2: every command of the skill's routing table has a plugin action (a command file) or a
 // recorded reason (connector/plugin-extras/coverage.json), and the commands and agents are well formed.
+// The commands and agents live in the LEAN plugin (plugins/laneconductor); the connector tools they may use belong to the
+// laneconductor-connector plugin, so the lean agents must not name them in `tools`.
 // HUMAN, not covered here: running the commands and the subagent in a real Claude Code session (plan Task 8).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { REPO, PLUGIN_REL } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, BOARD_REL, CONNECTOR_REL, BOARD_NAME, CONNECTOR_NAME, CONNECTOR_TOOL_PREFIX } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
@@ -16,7 +18,7 @@ const COMMANDS = ls(path.join(PLUGIN, 'commands')).map((f) => f.replace(/\.md$/,
 const AGENTS = ls(path.join(PLUGIN, 'agents')).map((f) => f.replace(/\.md$/, ''));
 const read = (rel) => fs.readFileSync(path.join(PLUGIN, rel), 'utf8');
 const TOOL_NAMES = new Set(TOOLS.map((t) => t.name));
-const MCP_PREFIX = 'mcp__plugin_laneconductor_lc-connector__';
+const MCP_PREFIX = CONNECTOR_TOOL_PREFIX; // mcp__plugin_laneconductor-connector_lc__
 
 /** { fm: Map<key, value>, body: string } of a markdown file with simple `key: value` frontmatter. */
 function parse(text) {
@@ -94,7 +96,9 @@ test('commands and agents reference only files and tools that ship', () => {
       assert.ok(fs.existsSync(path.join(SKILL, m[1])), `${rel} names ${m[1]}, which is not in the shipped skill`);
     }
     for (const m of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([A-Za-z0-9._/-]+)/g)) assert.ok(fs.existsSync(path.join(PLUGIN, m[1])), `${rel} names ${m[1]}, which is not shipped`);
-    for (const m of text.matchAll(/\bmcp__plugin_laneconductor_lc-connector__(\w+)/g)) assert.ok(TOOL_NAMES.has(m[1]), `${rel} names unknown connector tool ${m[1]}`);
+    for (const m of text.matchAll(/\bmcp__plugin_[A-Za-z-]+_lc__(\w+)/g)) assert.ok(TOOL_NAMES.has(m[1]), `${rel} names unknown connector tool ${m[1]}`);
+    assert.ok(!/mcp__plugin_laneconductor_|mcp__plugin_[A-Za-z-]+_lc-connector__/.test(text), `${rel}: an old tool prefix (single plugin or server key lc-connector) no longer exists`);
+    assert.ok(!/laneconductor-(plus|extended)/.test(text), `${rel}: names a plugin that does not exist`);
     assert.ok(!/\bgit add (-A|\.)(\s|$)/.test(text.replace(/never `git add -A`[^\n]*/g, '')), `${rel}: must not tell anyone to git add -A`);
   }
   // Connector tool names used in command bodies (backticked snake_case) exist.
@@ -120,18 +124,18 @@ test('agents: documented frontmatter only, valid isolation, tool names that exis
     if (fm.has('isolation')) assert.equal(fm.get('isolation'), 'worktree');
     assert.ok(body.trim().length > 0);
     for (const t of (fm.get('tools') ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
-      if (t.startsWith('mcp__')) {
-        assert.ok(t.startsWith(MCP_PREFIX) && TOOL_NAMES.has(t.slice(MCP_PREFIX.length)), `${a}: unknown connector tool ${t}`);
-      } else {
-        assert.ok(['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob'].includes(t), `${a}: unexpected tool ${t} (no web tools)`);
-      }
+      // The lean plugin has no connector, so a tool list naming one would name a tool that does not exist.
+      assert.ok(!t.startsWith('mcp__'), `${a}: the lean build must not name connector tools in tools (${t})`);
+      assert.ok(['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob'].includes(t), `${a}: unexpected tool ${t} (no web tools)`);
     }
   }
   const runner = parse(read('agents/track-runner.md')).fm;
   assert.equal(runner.get('isolation'), 'worktree');
   assert.ok(Number(runner.get('maxTurns')) > 0);
   const reviewer = (parse(read('agents/plan-reviewer.md')).fm.get('tools') ?? '').split(',').map((s) => s.trim());
-  for (const t of reviewer) assert.ok(['Read', 'Grep', 'Glob', `${MCP_PREFIX}get_track`, `${MCP_PREFIX}get_context`].includes(t), `plan-reviewer must be read-only, has ${t}`);
+  assert.deepEqual(reviewer, ['Read', 'Grep', 'Glob'], 'plan-reviewer is read-only');
+  const runnerTools = (runner.get('tools') ?? '').split(',').map((s) => s.trim());
+  assert.deepEqual(runnerTools, ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob']);
 });
 
 test('run, implement and review recommend track-runner, show the dispatch and start nothing unasked', () => {
@@ -150,4 +154,30 @@ test('run, implement and review recommend track-runner, show the dispatch and st
 
 test('the real table: automatic and skill-only rows are exactly the recorded ones', () => {
   assert.deepEqual(Object.keys(COVERAGE.entries).sort(), ['delete', 'init-tracks-summary', 'revert']);
+});
+
+test('commands that use the connector name the plugin and its tool prefix, and say what to do without it', () => {
+  const usesConnector = COMMANDS.filter((c) => /`(?:get|list|create|update|append)_[a-z_]+`/.test(read(`commands/${c}.md`)));
+  assert.ok(usesConnector.length >= 10, `only ${usesConnector.length} commands use connector tools`);
+  for (const c of usesConnector) {
+    const t = read(`commands/${c}.md`);
+    assert.ok(t.includes(CONNECTOR_NAME), `${c}: names the connector plugin (${CONNECTOR_NAME})`);
+    assert.ok(t.includes(`${MCP_PREFIX}*`), `${c}: names the tool prefix ${MCP_PREFIX}*`);
+    assert.match(t, /[Ww]ithout the connector/, `${c}: says what to do without the connector`);
+    assert.match(t, /ops\/tracks\.md/, `${c}: points at the skill for the file formats`);
+  }
+  // board and run say plainly that generating the board needs the board plugin or `lc`.
+  for (const c of ['board', 'run']) {
+    const t = read(`commands/${c}.md`);
+    assert.ok(t.includes(`needs the \`${BOARD_NAME}\` plugin or the \`lc\` command on PATH`), `${c}: board generation needs ${BOARD_NAME} or lc`);
+    assert.match(t, /say so/, `${c}: stops and says so when neither exists`);
+  }
+});
+
+test('the lean plugin ships no connector tool, and the add-ons ship no skill, commands or agents', () => {
+  for (const rel of [BOARD_REL, CONNECTOR_REL]) {
+    for (const d of ['skills', 'commands', 'agents']) assert.ok(!fs.existsSync(path.join(REPO, rel, d)), `${rel} must not ship ${d}/`);
+  }
+  const lean = fs.readdirSync(PLUGIN, { recursive: true }).map(String);
+  assert.ok(!lean.some((r) => r === '.mcp.json' || r.startsWith('server')), 'lean plugin has no server');
 });

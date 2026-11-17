@@ -3,7 +3,6 @@ name: laneconductor
 description: Plan, implement, review, quality-gate and merge LaneConductor tracks - the folders under conductor/tracks/ holding index.md, spec.md, plan.md, test.md and conversation.md - and create, move, update or comment on them. Use for any work on a LaneConductor track or any /laneconductor command.
 when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the worker's automated prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, setup-deploy, deploy) runs only when the user asks for it by name.
 argument-hint: "[command] [track-number] [args]"
-allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 ---
 <!-- Portions of workflow protocols adapted from superpowers by Jesse Vincent (MIT License) -->
 
@@ -148,3 +147,10 @@ check (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers 
 
 Commits that belong to a track say so: `feat(track-NNN): ...`, `fix(track-NNN): ...`,
 `docs(track-NNN): ...`; `refactor:` for changes across several tracks.
+
+## Habits (this plugin has no hooks)
+
+- First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has `conductor/tracks`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from `git status -sb`), reading the files directly if the optional connector is not installed. Once per session; never on unrelated prompts.
+- When a lane finishes, offer exactly one next step in one line (update the board if `laneconductor-board` or `lc` is there, review the plan, move on) and wait. Do not act on it.
+- The connector is optional. Change track markers with its tools when they exist (the `laneconductor-connector` plugin). Without them, re-read the file right before editing and change only the marker lines; never rewrite the whole file.
+- Before any `git push`, say what will be pushed (branch, commits, files) and ask. This plugin cannot scan for secrets without scripts, so the check is yours.
