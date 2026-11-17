@@ -121,9 +121,63 @@ td .why { color: var(--bad); font-size: 12.5px; }
 footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
 @media (max-width: 560px) { .stamp { text-align: left; } .stat .n { font-size: 24px; } }
 @media (prefers-reduced-motion: no-preference) { .bar i { transition: width .3s ease; } }
+
+/* Track detail: a drawer on wide screens, a full-screen sheet at phone width. */
+.card[role="button"], tr[role="button"] { cursor: pointer; }
+.card[role="button"]:hover, tr[role="button"]:hover { border-color: var(--accent); }
+tr[role="button"]:hover td { background: var(--accent-soft); }
+.card[role="button"]:focus-visible, tr[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.detail { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: flex-end; }
+.detail-back { position: absolute; inset: 0; background: rgba(8, 14, 11, .55); }
+.drawer { position: relative; width: min(860px, 100%); height: 100%; background: var(--bg); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; box-shadow: -8px 0 28px rgba(0, 0, 0, .18); }
+.d-head { padding: 16px 20px 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; background: var(--surface); }
+.d-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.d-top .grow { flex: 1; }
+.lanetag { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 7px; }
+.close { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+.drawer h2 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.2; letter-spacing: -0.01em; overflow-wrap: anywhere; text-wrap: balance; }
+.d-prog { display: flex; align-items: center; gap: 10px; }
+.d-prog .bar { flex: 1; height: 6px; }
+.d-prog .mono { font-size: 12px; color: var(--muted); }
+.tabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); overflow-x: auto; }
+.tab { font: inherit; font-size: 13.5px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+.tab:focus-visible, .close:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.d-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px 40px; min-width: 0; }
+.d-body:focus { outline: none; }
+.notice { border: 1px solid var(--line); border-left: 3px solid var(--warn); background: var(--warn-soft); color: var(--ink); border-radius: 6px; padding: 10px 12px; max-width: 70ch; }
+.notice.plain { border-left-color: var(--accent); background: var(--accent-soft); }
+.notice a, .md a { color: var(--accent); text-underline-offset: 2px; }
+.notice a:focus-visible, .md a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.d-body .status { padding: 20px; }
+.btn { font: inherit; font-size: 13px; align-self: flex-start; color: var(--surface); background: var(--accent); border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.md { max-width: 78ch; overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md h3, .md h4, .md h5, .md h6 { font-family: var(--font-display); letter-spacing: -0.01em; line-height: 1.25; margin: 1.4em 0 .5em; }
+.md h3 { font-size: 19px; } .md h4 { font-size: 16.5px; } .md h5, .md h6 { font-size: 14.5px; }
+.md p { margin: .6em 0; }
+.md ul, .md ol { margin: .5em 0; padding-left: 1.5em; }
+.md li { margin: .25em 0; }
+.md li > p { margin: .2em 0; }
+.md li.task { list-style: none; margin-left: -1.3em; }
+.md .ck { font-family: var(--font-mono); font-size: 12.5px; margin-right: 6px; color: var(--muted); }
+.md li.task.on .ck { color: var(--ok); }
+.md code { font-family: var(--font-mono); font-size: 12.5px; background: var(--accent-soft); border-radius: 3px; padding: 1px 4px; }
+.md pre { margin: .8em 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+.md pre code { background: none; padding: 0; font-size: 12.5px; white-space: pre; overflow-wrap: normal; }
+.md blockquote { margin: .8em 0; padding: 2px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 1.2em 0; }
+.md .mdtable { overflow-x: auto; margin: .8em 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.md table { min-width: 0; width: auto; }
+.md th, .md td { padding: 6px 10px; font-size: 13px; }
+@media (max-width: 700px) {
+  .detail { justify-content: stretch; }
+  .drawer { width: 100%; border-left: 0; box-shadow: none; }
+  .d-head, .d-body { padding-inline: 16px; }
+}
 </style>
 
-<div class="wrap">
+<div class="wrap" id="wrap">
   <header>
     <div>
       <div class="proj" id="proj"></div>
@@ -172,11 +226,226 @@ footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line)
   </section>
   </div>
 
-  <footer>A snapshot read from the track files, not a live view. To refresh it, ask Claude: <span class="refresh">update the board</span></footer>
+  <footer>A snapshot read from the track files, not a live view. To refresh it, ask Claude: <span class="refresh">update the board</span>. Opening a track shows its documents (overview, plan, spec and tests) as published with this board. Sharing the board shares these documents.</footer>
+</div>
+
+<div class="detail" id="detail" hidden>
+  <div class="detail-back" id="detail-back"></div>
+  <section class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">
+    <div class="d-head">
+      <div class="d-top"><span class="id" id="d-id"></span><span class="lanetag" id="d-lane"></span><span id="d-pill"></span><span class="grow"></span><button type="button" class="close" id="d-close">Close</button></div>
+      <h2 id="d-title"></h2>
+      <div class="d-prog"><div class="bar" id="d-bar"></div><span class="mono" id="d-pct"></span></div>
+      <div class="phase" id="d-phase"></div>
+    </div>
+    <div class="tabs" id="d-tabs" role="tablist" aria-label="Track documents" hidden></div>
+    <div class="d-body" id="d-body" role="tabpanel" tabindex="-1"></div>
+  </section>
 </div>
 
 <script>
 (function () {
+  // ---- Safe markdown for the track documents. Every node is made with createElement or
+  // createTextNode and filled through text nodes: document text is never parsed as markup, so tags in a
+  // document (script, img, event handlers) stay inert text. Only https links become anchors; images are
+  // shown as their alt text; nothing else can produce a URL.
+  var MD_MAX_DEPTH = 6;
+  function mdEl(tag, cls) { var e = document.createElement(tag); if (cls) e.className = cls; return e; }
+  function mdText(s) { return document.createTextNode(s); }
+  function mdLink(href, ctx) {
+    var a = mdEl('a'); a.setAttribute('href', href); a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); ctx.links.push(a); return a;
+  }
+  var MD_HTTPS = /^https:\/\/[^\s<>"'`]+$/i;
+  function mdBracket(s, open) {
+    var d = 0;
+    for (var j = open; j < s.length; j++) {
+      var c = s.charAt(j);
+      if (c === '\\') j++;
+      else if (c === '[') d++;
+      else if (c === ']') { d--; if (d === 0) return j; }
+    }
+    return -1;
+  }
+  function mdParen(s, open) {
+    var d = 0;
+    for (var j = open; j < s.length; j++) {
+      var c = s.charAt(j);
+      if (c === '\\') j++;
+      else if (c === '(') d++;
+      else if (c === ')') { d--; if (d === 0) return j; }
+    }
+    return -1;
+  }
+  function mdCodeEnd(s, from, k) {
+    var j = from;
+    while ((j = s.indexOf('`', j)) >= 0) {
+      var m = 1; while (s.charAt(j + m) === '`') m++;
+      if (m === k) return j;
+      j += m;
+    }
+    return -1;
+  }
+  function mdInline(parent, s, ctx, depth) {
+    if (depth > MD_MAX_DEPTH) { parent.appendChild(mdText(s)); return; }
+    var buf = '', i = 0, n = s.length;
+    function flush() { if (buf) { parent.appendChild(mdText(buf)); buf = ''; } }
+    while (i < n) {
+      var c = s.charAt(i);
+      if (c === '\n') { flush(); parent.appendChild(mdEl('br')); i++; continue; }
+      if (c === '\\' && i + 1 < n && /[\\`*_{}\[\]()#+\-.!|>~<]/.test(s.charAt(i + 1))) { buf += s.charAt(i + 1); i += 2; continue; }
+      if (c === '`') {
+        var k = 1; while (s.charAt(i + k) === '`') k++;
+        var end = mdCodeEnd(s, i + k, k);
+        if (end > 0) { flush(); var code = mdEl('code'); code.appendChild(mdText(s.slice(i + k, end).replace(/\n/g, ' ').replace(/^ (.+) $/, '$1'))); parent.appendChild(code); i = end + k; continue; }
+        buf += s.substr(i, k); i += k; continue;
+      }
+      if (c === '[' || (c === '!' && s.charAt(i + 1) === '[')) {
+        var img = c === '!', open = img ? i + 1 : i, close = mdBracket(s, open);
+        if (close > 0 && s.charAt(close + 1) === '(') {
+          var pe = mdParen(s, close + 1);
+          if (pe > 0) {
+            var label = s.slice(open + 1, close), dest = s.slice(close + 2, pe).trim().split(/\s+/)[0] || '';
+            dest = dest.replace(/^<|>$/g, '');
+            flush();
+            if (!img && !ctx.noLink && MD_HTTPS.test(dest)) { var a = mdLink(dest, ctx); mdInline(a, label, { links: ctx.links, noLink: true }, depth + 1); parent.appendChild(a); }
+            else mdInline(parent, label, ctx, depth + 1);
+            i = pe + 1; continue;
+          }
+        }
+      }
+      if (!ctx.noLink && (c === 'h' || c === '<')) {
+        var at = c === '<' ? i + 1 : i;
+        if (s.substr(at, 8).toLowerCase() === 'https://' && (c === '<' || i === 0 || /[\s(*_>]/.test(s.charAt(i - 1)))) {
+          var um = /^https:\/\/[^\s<>"'`()\[\]]+/i.exec(s.slice(at));
+          if (um) {
+            var url = um[0].replace(/[.,;:!?*_]+$/, '');
+            if (url.length > 8 && MD_HTTPS.test(url)) {
+              flush(); var al = mdLink(url, ctx); al.appendChild(mdText(url)); parent.appendChild(al);
+              i = at + url.length; if (c === '<' && s.charAt(i) === '>') i++;
+              continue;
+            }
+          }
+        }
+      }
+      if (c === '*' || c === '_') {
+        var run = 1; while (s.charAt(i + run) === c) run++;
+        var nxt = s.charAt(i + run), prv = i ? s.charAt(i - 1) : ' ';
+        if (nxt && !/\s/.test(nxt) && (c === '*' || !/\w/.test(prv))) {
+          var want = run >= 2 ? 2 : 1, closeStr = c === '*' ? '**'.slice(0, want) : '__'.slice(0, want), j = i + want, endIdx = -1;
+          while ((j = s.indexOf(closeStr, j)) >= 0) {
+            if (want === 1 && s.charAt(j + 1) === c) { j += 2; continue; }
+            if (j > i + want && !/\s/.test(s.charAt(j - 1)) && (c === '*' || !/\w/.test(s.charAt(j + want) || ' '))) { endIdx = j; break; }
+            j += 1;
+          }
+          if (endIdx > 0) { flush(); var em = mdEl(want === 2 ? 'strong' : 'em'); mdInline(em, s.slice(i + want, endIdx), ctx, depth + 1); parent.appendChild(em); i = endIdx + want; continue; }
+        }
+        buf += s.substr(i, run); i += run; continue;
+      }
+      buf += c; i++;
+    }
+    flush();
+  }
+
+  var MD_LIST = /^(\s*)([-*+]|\d{1,9}[.)])(\s+)(.*)$|^(\s*)([-*+]|\d{1,9}[.)])\s*$/;
+  var MD_HR = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+  var MD_HEAD = /^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/;
+  var MD_FENCE = /^\s{0,3}(`{3,}|~{3,})/;
+  var MD_SEP = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+  function mdIndent(l) { return /^ */.exec(l)[0].length; }
+  function mdListLine(l) {
+    var m = MD_LIST.exec(l);
+    if (!m) return null;
+    if (m[2] !== undefined) return { indent: m[1].length, marker: m[2], content: m[1].length + m[2].length + Math.min(m[3].length, 4), text: m[4] };
+    return { indent: m[5].length, marker: m[6], content: m[5].length + m[6].length + 1, text: '' };
+  }
+  function mdTableStart(lines, i) { return lines[i].indexOf('|') >= 0 && i + 1 < lines.length && lines[i + 1].indexOf('|') >= 0 && MD_SEP.test(lines[i + 1]) && !MD_HR.test(lines[i + 1]); }
+  function mdBlockStart(lines, i) {
+    var l = lines[i];
+    return MD_FENCE.test(l) || MD_HEAD.test(l) || MD_HR.test(l) || /^\s{0,3}>/.test(l) || mdListLine(l) !== null || mdTableStart(lines, i);
+  }
+  function mdCells(row) {
+    var s = row.trim(); if (s.charAt(0) === '|') s = s.slice(1);
+    var cells = [], cur = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charAt(i);
+      if (c === '\\' && s.charAt(i + 1) === '|') { cur += '|'; i++; }
+      else if (c === '|') { cells.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    if (cur.trim() !== '' || !/\|\s*$/.test(row)) cells.push(cur.trim());
+    return cells;
+  }
+  function mdBlocks(parent, lines, ctx, depth, tight) {
+    var i = 0, n = lines.length, emitted = 0;
+    if (depth > MD_MAX_DEPTH) { var p0 = mdEl('p'); mdInline(p0, lines.join('\n'), ctx, MD_MAX_DEPTH + 1); parent.appendChild(p0); return; }
+    while (i < n) {
+      var line = lines[i];
+      if (/^\s*$/.test(line)) { i++; continue; }
+      var fm = MD_FENCE.exec(line);
+      if (fm) {
+        var mk = fm[1], ind = mdIndent(line), body = [], closeRe = new RegExp('^\\s{0,3}' + (mk.charAt(0) === '`' ? '`' : '~') + '{' + mk.length + ',}\\s*$'); i++;
+        while (i < n && !closeRe.test(lines[i])) { body.push(lines[i].slice(Math.min(ind, mdIndent(lines[i])))); i++; }
+        i++;
+        var pre = mdEl('pre'), cd = mdEl('code'); cd.appendChild(mdText(body.join('\n'))); pre.appendChild(cd); parent.appendChild(pre); emitted++; continue;
+      }
+      var hm = MD_HEAD.exec(line);
+      if (hm) { var h = mdEl('h' + Math.min(6, hm[1].length + 2)); mdInline(h, hm[2], ctx, 0); parent.appendChild(h); i++; emitted++; continue; }
+      if (MD_HR.test(line)) { parent.appendChild(mdEl('hr')); i++; emitted++; continue; }
+      if (mdTableStart(lines, i)) {
+        var head = mdCells(line), rows = []; i += 2;
+        while (i < n && lines[i].indexOf('|') >= 0 && !/^\s*$/.test(lines[i])) { rows.push(mdCells(lines[i])); i++; }
+        var wrap = mdEl('div', 'mdtable'), tb = mdEl('table'), th = mdEl('thead'), htr = mdEl('tr');
+        head.forEach(function (c) { var x = mdEl('th'); mdInline(x, c, ctx, 0); htr.appendChild(x); });
+        th.appendChild(htr); tb.appendChild(th);
+        var tbody = mdEl('tbody');
+        rows.forEach(function (r) { var tr = mdEl('tr'); for (var q = 0; q < head.length; q++) { var td = mdEl('td'); mdInline(td, r[q] || '', ctx, 0); tr.appendChild(td); } tbody.appendChild(tr); });
+        tb.appendChild(tbody); wrap.appendChild(tb); parent.appendChild(wrap); emitted++; continue;
+      }
+      if (/^\s{0,3}>/.test(line)) {
+        var inner = [];
+        while (i < n && /^\s{0,3}>/.test(lines[i])) { inner.push(lines[i].replace(/^\s{0,3}>\s?/, '')); i++; }
+        var bq = mdEl('blockquote'); mdBlocks(bq, inner, ctx, depth + 1, false); parent.appendChild(bq); emitted++; continue;
+      }
+      var lm = mdListLine(line);
+      if (lm) {
+        var ordered = /\d/.test(lm.marker), list = mdEl(ordered ? 'ol' : 'ul'), listIndent = lm.indent;
+        if (ordered && parseInt(lm.marker, 10) !== 1) list.setAttribute('start', String(parseInt(lm.marker, 10)));
+        while (i < n) {
+          var it = mdListLine(lines[i]);
+          if (!it || it.indent < listIndent || /\d/.test(it.marker) !== ordered || MD_HR.test(lines[i])) break;
+          var item = [it.text], prevBlank = false; i++;
+          while (i < n) {
+            var l2 = lines[i];
+            if (/^\s*$/.test(l2)) {
+              var j = i + 1; while (j < n && /^\s*$/.test(lines[j])) j++;
+              if (j < n && mdIndent(lines[j]) >= it.content) { for (; i < j; i++) item.push(''); prevBlank = true; continue; }
+              break;
+            }
+            if (mdIndent(l2) >= it.content) { item.push(l2.slice(it.content)); prevBlank = false; i++; continue; }
+            if (!prevBlank && !mdBlockStart(lines, i)) { item.push(l2.trim()); i++; continue; }
+            break;
+          }
+          var li = mdEl('li'), tm = /^\[([ xX])\]\s+(.*)$/.exec(item[0]);
+          if (tm) { var on = tm[1] !== ' '; li.className = 'task' + (on ? ' on' : ''); var ck = mdEl('span', 'ck'); ck.appendChild(mdText(on ? '[x]' : '[ ]')); li.appendChild(ck); item[0] = tm[2]; }
+          mdBlocks(li, item, ctx, depth + 1, true); list.appendChild(li);
+        }
+        parent.appendChild(list); emitted++; continue;
+      }
+      var para = [line]; i++;
+      while (i < n && !/^\s*$/.test(lines[i]) && !mdBlockStart(lines, i)) { para.push(lines[i].trim()); i++; }
+      var host = tight && emitted === 0 ? parent : mdEl('p');
+      mdInline(host, para.map(function (x, q) { return q ? x : x.replace(/^\s+/, ''); }).join('\n'), ctx, 0);
+      if (host !== parent) parent.appendChild(host);
+      emitted++;
+    }
+  }
+  /** Renders `text` into `container`; returns the anchors it made (for the focus trap). */
+  function mdRender(container, text) {
+    var ctx = { links: [], noLink: false };
+    mdBlocks(container, String(text).replace(/\r\n?/g, '\n').replace(/\t/g, '    ').split('\n'), ctx, 0, false);
+    return ctx.links;
+  }
+
   // The page never changes when the data does: it fetches board.json, published as a file next to it.
   function fail(why) {
     var s = document.getElementById('status');
@@ -224,7 +493,7 @@ footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line)
   }
 
   var live = D.tracks;
-  var statusByKey = {}; live.forEach(function (t) { statusByKey[idOf(t)] = t.s; });
+  var statusByKey = {}, byKey = {}; live.forEach(function (t) { statusByKey[idOf(t)] = t.s; byKey[idOf(t)] = t; });
   var DONE_CAP = 12, FILTER_CAP = 40;
   var byLane = {}; LANES.concat(['done']).forEach(function (l) { byLane[l] = []; });
   live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
@@ -279,12 +548,141 @@ footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line)
     parts.forEach(function (n, i) { if (i) b.appendChild(el('span', null, ', ')); b.appendChild(n); });
   }
 
+  // ---- Track detail: a drawer (a full-screen sheet on phones) with the track's documents.
+  var $ = function (id) { return document.getElementById(id); };
+  var DOC_TABS = [['index', 'Overview', 'index.md'], ['plan', 'Plan', 'plan.md'], ['spec', 'Spec', 'spec.md'], ['test', 'Tests', 'test.md'], ['conversation', 'Conversation', 'conversation.md']];
+  var docsCache = {}, focusEls = {}, cur = null, seq = 0, tabEls = [], bodyLinks = [], retryBtn = null;
+
+  function loadDocs(t) {
+    var key = t.n;
+    if (docsCache[key]) return docsCache[key];
+    var p;
+    try { p = fetch('docs/' + t.n + '.json', { cache: 'no-cache' }); } catch (e) { return Promise.reject(e); }
+    var q = p.then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) { if (!d || typeof d !== 'object' || d.n !== t.n) throw new Error('unexpected format'); return d; });
+    docsCache[key] = q;
+    q.catch(function () { if (docsCache[key] === q) delete docsCache[key]; });
+    return q;
+  }
+  function hasConversation(doc) { return Boolean(doc && (doc.conversation !== undefined || (doc.withheld && doc.withheld.conversation))); }
+  function loadingEl() {
+    var s = el('div', 'status'); s.setAttribute('role', 'status');
+    var sp = el('span', 'spin'); sp.setAttribute('aria-hidden', 'true'); s.appendChild(sp); s.appendChild(el('div', 'big', 'Loading the document'));
+    return s;
+  }
+  function setBody() { var b = $('d-body'); b.textContent = ''; bodyLinks = []; retryBtn = null; return b; }
+  function ghLink(url) {
+    if (typeof url !== 'string' || !/^https:\/\//i.test(url)) return null;
+    var a = el('a', null, 'Open in GitHub'); a.setAttribute('href', url); a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener noreferrer'); return a;
+  }
+  function renderNoDocs(t) {
+    var b = setBody(), n = el('div', 'notice plain');
+    n.appendChild(el('div', null, t.l === 'done' ? 'Finished tracks do not carry their documents on this board.' : 'This board does not publish documents for this track.'));
+    var a = ghLink(t.gh);
+    if (a) { var p = el('div'); p.appendChild(a); n.appendChild(p); bodyLinks.push(a); }
+    b.appendChild(n);
+  }
+  function renderError(e) {
+    var b = setBody(), s = el('div', 'status error'); s.setAttribute('role', 'alert');
+    s.appendChild(el('div', 'big', 'Could not load docs/' + cur.t.n + '.json'));
+    s.appendChild(el('div', 'sub', 'The documents file is missing or unreadable (' + String(e && e.message || e) + ').'));
+    retryBtn = el('button', 'btn', 'Try again'); retryBtn.type = 'button'; retryBtn.onclick = function () { showTab(cur.tab); };
+    s.appendChild(retryBtn); b.appendChild(s);
+  }
+  function renderDoc(doc, key) {
+    var b = setBody(), meta = DOC_TABS.filter(function (x) { return x[0] === key; })[0];
+    if (doc.withheld && doc.withheld[key]) {
+      var w = el('div', 'notice'); w.appendChild(el('div', null, 'withheld: ' + doc.withheld[key]));
+      w.appendChild(el('div', 'hint', meta[2] + ' is not published on this board; read it in the repository.')); b.appendChild(w);
+    } else if (!doc[key]) {
+      b.appendChild(el('div', 'notice plain', 'No ' + meta[2] + ' in this track.'));
+    } else {
+      var md = el('div', 'md'); bodyLinks = mdRender(md, doc[key]); b.appendChild(md);
+    }
+    b.scrollTop = 0;
+  }
+  function buildTabs(doc) {
+    var tabs = $('d-tabs'); tabs.textContent = ''; tabEls = [];
+    DOC_TABS.filter(function (x) { return x[0] !== 'conversation' || hasConversation(doc); }).forEach(function (x) {
+      var b = el('button', 'tab', x[1]); b.type = 'button'; b.dataset.k = x[0];
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(cur.tab === x[0])); b.setAttribute('tabindex', cur.tab === x[0] ? '0' : '-1');
+      b.onclick = function () { showTab(x[0]); };
+      b.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (!d) return;
+        e.preventDefault(); var i = tabEls.indexOf(b), nx = tabEls[(i + d + tabEls.length) % tabEls.length]; showTab(nx.dataset.k); nx.focus();
+      });
+      tabs.appendChild(b); tabEls.push(b);
+    });
+    tabs.hidden = false;
+  }
+  function showTab(key) {
+    cur.tab = key;
+    tabEls.forEach(function (b) { var on = b.dataset.k === key; b.setAttribute('aria-selected', String(on)); b.setAttribute('tabindex', on ? '0' : '-1'); });
+    var b = setBody(); b.appendChild(loadingEl());
+    var mine = cur.seq;
+    loadDocs(cur.t).then(function (doc) {
+      if (!cur || cur.seq !== mine || cur.tab !== key) return;
+      if (hasConversation(doc) && !tabEls.some(function (x) { return x.dataset.k === 'conversation'; })) buildTabs(doc);
+      renderDoc(doc, key);
+    }).catch(function (e) { if (cur && cur.seq === mine && cur.tab === key) renderError(e); });
+  }
+  function openDetail(t, kind) {
+    seq++;
+    cur = { t: t, kind: kind, tab: 'index', seq: seq };
+    $('d-id').textContent = idOf(t);
+    $('d-lane').textContent = t.l || 'no lane';
+    var ps = $('d-pill'); ps.textContent = ''; ps.appendChild(pill(t.s));
+    $('d-title').textContent = t.t || '(no title)';
+    var bar = $('d-bar'); bar.textContent = ''; var f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g || 0)) + '%'; bar.appendChild(f);
+    bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuenow', String(t.g || 0)); bar.setAttribute('aria-label', 'Progress');
+    $('d-pct').textContent = (t.g || 0) + '%';
+    $('d-phase').textContent = t.h && t.h !== 'New' ? t.h : '';
+    $('detail').hidden = false;
+    $('wrap').setAttribute('inert', '');
+    var tabs = $('d-tabs'); tabs.textContent = ''; tabEls = [];
+    if (t.d && Number.isInteger(t.n)) { buildTabs(null); showTab('index'); }
+    else { tabs.hidden = true; renderNoDocs(t); }
+    $('d-close').focus();
+  }
+  function closeDetail() {
+    if (!cur) return;
+    var back = focusEls[cur.kind + ':' + idOf(cur.t)];
+    cur = null; seq++;
+    $('detail').hidden = true;
+    $('wrap').removeAttribute('inert');
+    if (back && back.focus) back.focus();
+  }
+  function trapList() {
+    var list = [$('d-close')];
+    tabEls.forEach(function (b) { if (b.attrs ? b.attrs['aria-selected'] === 'true' : b.getAttribute('aria-selected') === 'true') list.push(b); });
+    if (retryBtn) list.push(retryBtn);
+    return list.concat(bodyLinks);
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!cur) return;
+    if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); closeDetail(); return; }
+    if (e.key !== 'Tab') return;
+    var list = trapList(), i = list.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); list[list.length - 1].focus(); }
+    else if (!e.shiftKey && (i < 0 || i === list.length - 1)) { e.preventDefault(); list[0].focus(); }
+  });
+  $('d-close').onclick = closeDetail;
+  $('detail-back').addEventListener('click', closeDetail);
+  function activatable(node, t, kind) {
+    node.setAttribute('role', 'button'); node.setAttribute('tabindex', '0');
+    node.setAttribute('aria-label', idOf(t) + ': ' + (t.t || '(no title)') + '. Open details');
+    focusEls[kind + ':' + idOf(t)] = node;
+    node.addEventListener('click', function () { openDetail(t, kind); });
+    node.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); openDetail(t, kind); } });
+  }
+
   function card(t) {
     var c = el('div', 'card' + (t.a ? ' flag' : ''));
     var top = el('div', 'top'); top.appendChild(el('span', 'id', idOf(t))); top.appendChild(pill(t.s)); c.appendChild(top);
     c.appendChild(el('div', 'title', t.t));
     if (t.g > 0 || t.l !== 'backlog') { var b = el('div', 'bar'), f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g)) + '%'; b.appendChild(f); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-valuenow', String(t.g)); b.setAttribute('aria-label', 'Progress'); c.appendChild(b); }
     if (t.h && t.h !== 'New') c.appendChild(el('div', 'phase', t.h));
+    activatable(c, t, 'card');
     return c;
   }
   function drawLanes() {
@@ -320,7 +718,7 @@ footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line)
     (state.attnAll ? rows : rows.slice(0, DONE_CAP)).forEach(function (a) {
       var tr = document.createElement('tr');
       var c1 = el('td', 'mono', idOf(a)); var c2 = el('td', 't', a.t || '(no title)'); var cs = el('td'); cs.appendChild(pill(statusByKey[idOf(a)])); var c3 = el('td'); a.r.forEach(function (r) { c3.appendChild(el('div', 'why', r.replace(/\*\*/g, ''))); });
-      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(cs); tr.appendChild(c3); tb.appendChild(tr);
+      tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(cs); tr.appendChild(c3); activatable(tr, byKey[idOf(a)] || { n: a.n, p: a.p, t: a.t, l: null, s: null, g: 0, h: '', d: false }, 'attn'); tb.appendChild(tr);
     });
     var m = document.getElementById('attn-more'); m.hidden = rows.length <= DONE_CAP; m.textContent = state.attnAll ? 'Show fewer' : 'Show all ' + rows.length;
     m.onclick = function () { state.attnAll = !state.attnAll; drawAttn(); };
@@ -333,7 +731,7 @@ footer { color: var(--muted); font-size: 12px; border-top: 1px solid var(--line)
     var cap = state.status !== 'all' ? FILTER_CAP : DONE_CAP;
     (state.doneAll ? rows : rows.slice(0, cap)).forEach(function (t) {
       var tr = document.createElement('tr'); tr.appendChild(el('td', 'mono', idOf(t))); tr.appendChild(el('td', 't', t.t));
-      var cs = el('td'); cs.appendChild(pill(t.s)); tr.appendChild(cs); tr.appendChild(el('td', 'mono', t.g + '%')); tb.appendChild(tr);
+      var cs = el('td'); cs.appendChild(pill(t.s)); tr.appendChild(cs); tr.appendChild(el('td', 'mono', t.g + '%')); activatable(tr, t, 'done'); tb.appendChild(tr);
     });
     var m = document.getElementById('done-more'); m.hidden = rows.length <= cap; m.textContent = state.doneAll ? 'Show fewer' : 'Show all ' + rows.length;
     m.onclick = function () { state.doneAll = !state.doneAll; drawDone(); };
