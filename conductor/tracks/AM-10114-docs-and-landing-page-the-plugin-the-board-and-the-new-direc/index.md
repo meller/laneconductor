@@ -1,9 +1,9 @@
 # Track AM-10114: Docs and landing page: the plugin, the board, and the new direction
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 5%
-**Phase**: Implement lane started: track-runner subagent in its own worktree (docs, README, product and tech-stack, landing page); the landing page is coordinated with the posts program
+**Lane**: review
+**Lane Status**: success
+**Progress**: 80%
+**Phase**: Merged to local main (327bce5b docs, 0fc24dc6 landing). Reviewed: mobile overflow found and fixed, desktop and 375px checked in a browser, privacy scan clean. Open: release download button and release steps (need a published release), connector README sync, deploy (owner's say), push of the landing source (owner's yes).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
