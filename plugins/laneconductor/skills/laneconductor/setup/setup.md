@@ -15,8 +15,8 @@ Add LaneConductor to a project: `cd your-project && lc setup`.
 
 `lc setup` symlinks the **whole skill directory** from the install into the project's
 `.claude/skills/laneconductor` (and `.agents/skills/laneconductor`), so updates to the
-laneconductor repo reach every project at once, and the `lanes/`, `ops/`, `setup/`, `deploy/` and
-`legacy/` subfolders travel with it. Without symlinks (Windows without WSL, Claude Desktop),
+laneconductor repo reach every project at once, and the `lanes/`, `ops/`, `setup/` and `deploy/`
+subfolders travel with it. Without symlinks (Windows without WSL, Claude Desktop),
 copy the whole folder, not just `SKILL.md`: the index links to files beside it. `lc` lives in the
 install's `bin/`; `make install-cli` puts it on the PATH.
 
@@ -41,7 +41,7 @@ Initializes LaneConductor in the current project.
 In skill-only mode there is no heartbeat worker; the AI updates the `conductor/` files itself
 during its turn.
 
-## Operating modes
+## Operating modes (`local-api` and `remote-api` belong to the parked database tier)
 
 `mode` in `.laneconductor.json` is the first field and controls everything else:
 
@@ -55,14 +55,14 @@ If `mode` is missing, it is inferred from `collectors`: none -> `local-fs`; a UR
 `localhost` or `127.0.0.1` -> `local-api`; any other URL -> `remote-api`. One `.laneconductor.json`
 per repository; `project.id` is its identity in the database (omit it for `local-fs`).
 
-## setup collection
+## setup collection (steps 2 and 3 apply only to the parked database tier)
 
 Configures the operating mode, the AI agents, and registers the project. Ask in this order.
 
 1. **Mode** (table above). For `local-fs`, skip steps 2 and 3.
 2. **DB connection** (`local-api` only): host `localhost`, name `laneconductor`, port `5432`, user
    `postgres`, password, SSL `n`. The password goes in `.env` as `DB_PASSWORD`, never in
-   `.laneconductor.json`. Create the schema with the SQL in `legacy/db-schema.md`
+   `.laneconductor.json`. Create the schema with the SQL of the parked tier (`db-schema.md` in the LaneConductor repository's skill, not shipped in this plugin)
    (`psql -h <host> -p <port> -U <user> -d <db> -f <file>`, or a one-off node script).
 3. **Collectors** (not `local-fs`): local only (default), LC cloud, or both. A cloud token is stored
    in `.env` as `COLLECTOR_n_TOKEN` (n is the collector's array index), never in the JSON; for a

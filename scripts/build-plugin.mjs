@@ -6,7 +6,9 @@
 //   node scripts/build-plugin.mjs --check   write nothing; exit 1 when the committed output differs
 //
 // Sources                                   Output (under plugins/laneconductor/)
-//   .claude/skills/laneconductor/**         skills/laneconductor/**
+//   .claude/skills/laneconductor/**         skills/laneconductor/** (without legacy/, the parked daemon and
+//                                            database tier; SKILL.md and setup/setup.md get explicit edits,
+//                                            see SKILL_EDITS)
 //   connector/bin/lc-connector.mjs          server/bin/lc-connector.mjs
 //   connector/bin/lc-board.mjs              server/bin/lc-board.mjs (the board data generator, Phase 5d)
 //   connector/src/**, connector/guides/**   server/src/**, server/guides/**
@@ -32,6 +34,46 @@ const AUTHOR_URL = 'https://github.com/meller';
 const REPO_URL = 'https://github.com/meller/laneconductor';
 const SERVER_ENTRY = 'bin/lc-connector.mjs';
 const SERVER_BINS = [SERVER_ENTRY, 'bin/lc-board.mjs'];
+
+// The plugin's skill does not ship the parked daemon-era tier (worker, syncdb, remote-sync, Postgres
+// schema); it stays in the LaneConductor repository's own skill. Everything else is copied as is,
+// except the exact edits below, which remove the pointers into the excluded folder. Each edit names
+// the source text it replaces and the build throws when that text is gone, so a source change cannot
+// silently leave a dead link in the plugin.
+export const SKILL_EXCLUDE_DIRS = ['legacy'];
+export const LEGACY_NOTE = 'Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
+  + '`syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the '
+  + 'LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.';
+export const SKILL_EDITS = {
+  'SKILL.md': [
+    [
+      '| `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock` | [legacy/worker.md](legacy/worker.md) (also retries and logging) | only when named |\n'
+      + '| `syncdb` | [legacy/syncdb.md](legacy/syncdb.md) | only when named |\n'
+      + '| `remote-sync` | [legacy/remote-sync.md](legacy/remote-sync.md) | only when named |\n',
+      '',
+    ],
+    ['The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.', LEGACY_NOTE],
+  ],
+  'setup/setup.md': [
+    ["`setup/`, `deploy/` and\n`legacy/` subfolders travel with it.", '`setup/` and `deploy/`\nsubfolders travel with it.'],
+    ['## Operating modes\n', '## Operating modes (`local-api` and `remote-api` belong to the parked database tier)\n'],
+    ['## setup collection\n', '## setup collection (steps 2 and 3 apply only to the parked database tier)\n'],
+    [
+      'Create the schema with the SQL in `legacy/db-schema.md`\n   (`psql',
+      'Create the schema with the SQL of the parked tier (`db-schema.md` in the LaneConductor repository\'s skill, not shipped in this plugin)\n   (`psql',
+    ],
+  ],
+};
+
+/** Applies the explicit SKILL_EDITS for one skill file (path relative to the skill folder). */
+export function transformSkillFile(rel, text, edits = SKILL_EDITS) {
+  let out = text;
+  for (const [from, to] of edits[rel] ?? []) {
+    if (!out.includes(from)) throw new Error(`skill transform for ${rel}: source text not found (update SKILL_EDITS): ${JSON.stringify(from.slice(0, 80))}`);
+    out = out.replace(from, () => to);
+  }
+  return out;
+}
 
 const json = (v) => `${JSON.stringify(v, null, 2)}\n`;
 
@@ -66,8 +108,15 @@ export function buildPlugin(repo = REPO) {
   };
   const add = (rel, content) => files.set(rel, { content: Buffer.from(content), exec: false });
 
-  // Skill: everything under the skill folder.
-  for (const r of walk(path.join(repo, SKILL_SRC))) addFrom(`${SKILL_SRC}/${r}`, `skills/laneconductor/${r}`);
+  // Skill: everything under the skill folder except the parked tier, with the explicit edits applied.
+  for (const r of walk(path.join(repo, SKILL_SRC))) {
+    if (SKILL_EXCLUDE_DIRS.some((d) => r.startsWith(`${d}/`))) continue;
+    addFrom(`${SKILL_SRC}/${r}`, `skills/laneconductor/${r}`);
+    if (SKILL_EDITS[r]) {
+      const f = files.get(`skills/laneconductor/${r}`);
+      f.content = Buffer.from(transformSkillFile(r, f.content.toString('utf8')));
+    }
+  }
 
   // Server: entry point, src/, guides/ (server/ is connector/'s stand-in).
   for (const bin of SERVER_BINS) addFrom(`connector/${bin}`, `server/${bin}`);

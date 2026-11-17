@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAll, diffAgainstDisk, REPO, PLUGIN_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
+import { buildAll, diffAgainstDisk, transformSkillFile, SKILL_EDITS, SKILL_EXCLUDE_DIRS, LEGACY_NOTE, REPO, PLUGIN_REL, MARKETPLACE_REL } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
@@ -190,6 +190,70 @@ test('skill: frontmatter fits the listing budget and every relative link resolve
     assert.ok(!path.isAbsolute(l) && !l.startsWith('..'), `${l} must stay relative and inside the skill`);
     assert.ok(fs.existsSync(path.join(skillDir, l)), `${l} (linked from SKILL.md) is missing from the plugin copy`);
   }
+});
+
+test('lean skill: the parked legacy tier is not shipped and nothing points at it', () => {
+  const skillDir = path.join(PLUGIN, 'skills/laneconductor');
+  assert.deepEqual(SKILL_EXCLUDE_DIRS, ['legacy']);
+  assert.ok(!fs.existsSync(path.join(skillDir, 'legacy')), 'legacy/ must not ship');
+  const src = path.join(REPO, '.claude/skills/laneconductor');
+  const shipped = listFiles(skillDir).sort();
+  const wanted = listFiles(src).filter((r) => !r.startsWith('legacy/')).sort();
+  assert.deepEqual(shipped, wanted, 'the plugin skill is the source skill minus legacy/ (setup/, deploy/, lanes/, ops/ all ship)');
+  for (const dir of ['setup', 'deploy', 'lanes', 'ops']) assert.ok(shipped.some((r) => r.startsWith(`${dir}/`)), `${dir}/ ships`);
+  // No file in the plugin names a legacy/ path (the generator drops every pointer to it).
+  const offenders = listFiles(PLUGIN).filter((rel) => /(^|[^A-Za-z])legacy\//.test(fs.readFileSync(path.join(PLUGIN, rel), 'utf8')));
+  assert.deepEqual(offenders, []);
+  const skill = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
+  assert.ok(skill.includes(LEGACY_NOTE), 'SKILL.md carries the one honest line about the parked tier');
+  for (const cmd of ['syncdb', 'remote-sync']) assert.ok(!skill.includes(`| \`${cmd}\``), `no routing row for ${cmd}`);
+  // Every relative markdown link in every shipped skill file resolves (code fences skipped).
+  for (const rel of shipped.filter((r) => r.endsWith('.md'))) {
+    const text = fs.readFileSync(path.join(skillDir, rel), 'utf8').replace(/```[\s\S]*?```/g, '');
+    for (const m of text.matchAll(/\]\(([^)#\s]+)\)/g)) {
+      if (/^[a-z]+:/.test(m[1])) continue;
+      assert.ok(fs.existsSync(path.join(skillDir, path.dirname(rel), m[1])), `${rel} links to missing ${m[1]}`);
+    }
+  }
+});
+
+test('lean skill: no database or cloud-service tooling in SKILL.md, lanes/ or ops/; setup/ and deploy/ stay tame', () => {
+  const skillDir = path.join(PLUGIN, 'skills/laneconductor');
+  const banned = /psql|gcloud|DATABASE_URL|neon\.tech|supabase|run\.app|collector/i;
+  const hits = listFiles(skillDir)
+    .filter((r) => r === 'SKILL.md' || r.startsWith('lanes/') || r.startsWith('ops/'))
+    .filter((r) => banned.test(fs.readFileSync(path.join(skillDir, r), 'utf8')));
+  assert.deepEqual(hits, []);
+  // setup/ and deploy/ are instructions the user asks for by name, so they may name tools such as gcloud,
+  // but every URL must be local, an example, or this project's own; no credentials (the secret scan also runs).
+  const okHost = /^(localhost|127\.0\.0\.1|example\.com|(?:[a-z0-9-]+\.)?laneconductor\.(?:com|io)|github\.com)$/;
+  for (const r of listFiles(skillDir).filter((x) => x.startsWith('setup/') || x.startsWith('deploy/'))) {
+    const text = fs.readFileSync(path.join(skillDir, r), 'utf8');
+    for (const m of text.matchAll(/https?:\/\/([^/\s:`'")>]+)/g)) assert.match(m[1], okHost, `${r}: URL host ${m[1]} is not local, an example or this project's`);
+    assert.ok(!/neon\.tech|supabase\.co|\.run\.app/i.test(text), `${r} names a private service host`);
+  }
+  // The database steps that remain in setup.md say they belong to the parked tier.
+  const setup = fs.readFileSync(path.join(skillDir, 'setup/setup.md'), 'utf8');
+  assert.match(setup, /^## Operating modes \(.*parked database tier\)$/m);
+  assert.match(setup, /^## setup collection \(steps 2 and 3 apply only to the parked database tier\)$/m);
+  assert.ok(setup.indexOf('psql') > setup.indexOf('## setup collection (steps 2'), 'the psql step sits under that heading');
+});
+
+test('skill transform: explicit edits, and a missing anchor fails the build', () => {
+  const edits = { 'a.md': [['one', '1'], ['two\n', '']] };
+  assert.equal(transformSkillFile('a.md', 'x one two\ny', edits), 'x 1 y');
+  assert.equal(transformSkillFile('b.md', 'untouched', edits), 'untouched', 'files without edits pass through');
+  assert.throws(() => transformSkillFile('a.md', 'only one', edits), /source text not found/);
+  // Every real edit applies to the real source today (the build would throw otherwise), and removes what it names.
+  const src = path.join(REPO, '.claude/skills/laneconductor');
+  for (const rel of Object.keys(SKILL_EDITS)) {
+    const text = fs.readFileSync(path.join(src, rel), 'utf8');
+    const out = transformSkillFile(rel, text);
+    assert.notEqual(out, text, rel);
+    assert.ok(!/(^|[^A-Za-z])legacy\//.test(out), `${rel} still names legacy/`);
+  }
+  // Source skill is untouched by the transform: the repo's own copy keeps the legacy tier.
+  assert.ok(fs.existsSync(path.join(src, 'legacy/worker.md')));
 });
 
 test('skill path audit: no hard-coded project or machine paths outside the setup docs', () => {
