@@ -2,8 +2,8 @@
 
 **Lane**: plan
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 27%
+**Phase**: Phase 2 built (commands, agents, coverage test); Phase 1 hooks pending
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct

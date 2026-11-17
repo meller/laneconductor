@@ -24,12 +24,12 @@ Facts verified in the hooks reference (2026-11-17): events include SessionStart,
 
 ## Phase 2: Commands, the track-runner subagent, and the coverage test (do this phase first; Phase 1 hooks need its generator hook-up)
 
-- [ ] Task 1: `scripts/build-plugin.mjs` copies `connector/plugin-extras/` (commands/, agents/, hooks/, scripts/) into the generated plugin; the directory pre-checks and `claude plugin validate --strict` still pass
-- [ ] Task 2: Commands for every row of the Coverage table in the spec (thin files, one description line each, body only points at the skill procedure and the connector tool); `$ARGUMENTS` is the track number or title
-- [ ] Task 3: The `track-runner` subagent (`agents/track-runner.md`, `isolation: worktree`, tools limited to what a lane needs): works one track through the lane the command names, in its own worktree, using the connector for track state and git for code; reports a one-paragraph result; never merges or pushes without the human
-- [ ] Task 4: `/laneconductor:run N` and the implement/review commands RECOMMEND the subagent (one per track, worktree per track, the lessons in `ops/working-a-track.md`: commit and push before branching, no `git add -A` in a worktree, check for leaked processes after tests) and show the exact dispatch; they start nothing unasked
-- [ ] Task 5: `connector/plugin-extras/coverage.json` lists the skill-only and automatic rows with reasons; the coverage test parses the generated SKILL.md routing table and fails on an unmapped row (so a new skill command cannot ship without a plugin action)
-- [ ] Task 6: `plan-reviewer` subagent (read-only) and `/laneconductor:review-plan N`
+- [x] Task 1: `scripts/build-plugin.mjs` copies `connector/plugin-extras/` (commands/, agents/, hooks/, scripts/) into the generated plugin; the directory pre-checks and `claude plugin validate --strict` still pass
+- [x] Task 2: Commands for every row of the Coverage table in the spec (thin files, one description line each, body only points at the skill procedure and the connector tool); `$ARGUMENTS` is the track number or title
+- [x] Task 3: The `track-runner` subagent (`agents/track-runner.md`, `isolation: worktree`, tools limited to what a lane needs): works one track through the lane the command names, in its own worktree, using the connector for track state and git for code; reports a one-paragraph result; never merges or pushes without the human
+- [x] Task 4: `/laneconductor:run N` and the implement/review commands RECOMMEND the subagent (one per track, worktree per track, the lessons in `ops/working-a-track.md`: commit and push before branching, no `git add -A` in a worktree, check for leaked processes after tests) and show the exact dispatch; they start nothing unasked
+- [x] Task 5: `connector/plugin-extras/coverage.json` lists the skill-only and automatic rows with reasons; the coverage test parses the generated SKILL.md routing table and fails on an unmapped row (so a new skill command cannot ship without a plugin action)
+- [x] Task 6: `plan-reviewer` subagent (read-only) and `/laneconductor:review-plan N`
 - [ ] Task 7: README and skill text name the commands; the skill's "How to run a command" section says the plugin's commands are the entry points
 - [ ] Task 8 (HUMAN): in Claude Code, `/laneconductor:status`, `:plan`, `:run` on a scratch repo; confirm the subagent recommendation and that nothing starts unasked
 
