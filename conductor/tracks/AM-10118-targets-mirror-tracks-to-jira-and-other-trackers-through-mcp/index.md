@@ -3,7 +3,7 @@
 **Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Backlog: direction recorded 2026-11-17 (LaneConductor is the engineering layer under a product tool; one generic target contract, one add-on per tool, Jira first but not now); plan after the new-project flow and the hooks extension
+**Phase**: Backlog: an optional add-on for teams that also use a product tool (positioning of 2026-11-17: plan-first process in git, not a ticket-to-PR agent); one generic target contract, one add-on per tool, Jira first but not now; plan after the new-project flow and the hooks extension
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
