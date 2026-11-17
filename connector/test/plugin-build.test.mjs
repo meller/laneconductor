@@ -12,6 +12,7 @@ import { buildAll, diffAgainstDisk, transformSkillFile, SKILL_EDITS, SKILL_EXCLU
 import { TOOLS } from '../src/tools/index.mjs';
 import { makeRepo } from './helpers/repo.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
+import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -20,11 +21,6 @@ const listFiles = (root, rel = '') => fs.readdirSync(path.join(root, rel), { wit
   if (e.name === 'node_modules') return [];
   return e.isDirectory() ? listFiles(root, r) : [r];
 });
-
-function claudeAvailable() {
-  const r = spawnSync('claude', ['--version'], { encoding: 'utf8' });
-  return !r.error && r.status === 0;
-}
 
 test('regenerating gives byte-identical output (no drift) and is deterministic', () => {
   assert.deepEqual(diffAgainstDisk(), [], 'run: node scripts/build-plugin.mjs');
@@ -65,15 +61,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
   }
 });
 
-for (const [label, target] of [['the plugin', PLUGIN], ['the marketplace', REPO]]) {
-  test(`claude plugin validate passes on ${label} (--strict for the plugin)`, (t) => {
-    if (!claudeAvailable()) return t.skip('the claude CLI is not on PATH; run `claude plugin validate` by hand');
-    const args = ['plugin', 'validate', target, ...(target === PLUGIN ? ['--strict'] : [])];
-    const r = spawnSync('claude', args, { encoding: 'utf8', cwd: os.tmpdir() });
-    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
-    assert.match(r.stdout, /Validation passed/);
-  });
-}
+// `claude plugin validate --strict` on the plugin and the marketplace runs in directory-precheck.test.mjs.
 
 test('manifest, marketplace and .mcp.json have the agreed shape', () => {
   const manifest = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
@@ -152,17 +140,7 @@ test('package.json and the lockfile: registry-only exact pins, lockfile v2/3, no
 });
 
 test('REQ-12-style secret scan over the plugin directory', () => {
-  const patterns = {
-    'GitHub token': /\bgh[pousr]_[A-Za-z0-9]{20,}\b|\bgithub_pat_[A-Za-z0-9_]{20,}/,
-    'Anthropic or OpenAI key': /\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}/,
-    'AWS access key': /\bAKIA[0-9A-Z]{16}\b/,
-    'Slack token': /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
-    'Google API key': /\bAIza[0-9A-Za-z_-]{30,}/,
-    'private key block': /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-    'bearer credential': /\bBearer\s+[A-Za-z0-9._~+/-]{20,}/,
-    'credential assignment': /\b(?:password|passwd|secret|api[_-]?key|access[_-]?token)\b\s*[:=]\s*['"][^'"\s]{12,}['"]/i,
-    'connection string with password': /\b[a-z]+:\/\/[^/\s:@]+:[^/\s@]{3,}@/,
-  };
+  const patterns = SECRET_PATTERNS;
   const hits = [];
   for (const rel of listFiles(PLUGIN)) {
     const text = fs.readFileSync(path.join(PLUGIN, rel), 'utf8');
