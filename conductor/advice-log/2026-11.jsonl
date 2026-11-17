@@ -1,0 +1,4 @@
+{"v":1,"ts":"2026-11-17T17:31:29Z","kind":"call","session":"c_acae8f1124b2","surface":"claude-code","tool":"list_tracks","ok":true,"latency_ms":64,"chars":6254,"backend":"local"}
+{"v":1,"ts":"2026-11-17T17:31:29Z","kind":"stale_read","session":"c_acae8f1124b2","surface":"claude-code","tool":"list_tracks","reasons":["dirty_state_files","track_summary_regenerated"],"backend":"local"}
+{"v":1,"ts":"2026-11-17T17:48:48Z","kind":"call","session":"c_acae8f1124b2","surface":"claude-code","tool":"health_report","ok":true,"latency_ms":61,"chars":23260,"backend":"local"}
+{"v":1,"ts":"2026-11-17T17:48:48Z","kind":"stale_read","session":"c_acae8f1124b2","surface":"claude-code","tool":"health_report","reasons":["dirty_state_files"],"backend":"local"}
