@@ -7,6 +7,18 @@ It is not a project tracker (those are passive — humans do the work). LaneCond
 
 **One-liner**: *"AI agents for every business function. One board. Closed loop."*
 
+## Current direction (decided 2026-11-16)
+
+**Claude plus git plus a connector.** Tracks are plain files in git (`conductor/tracks/<ID>/`: `index.md`, `spec.md`, `plan.md`, `test.md`, `conversation.md`), and Claude manages them. Nothing in the core needs a database, a daemon or a network service.
+
+- **One plugin, `laneconductor`**, installed locally (marketplace `meller/laneconductor`, or an uploaded zip): the skill, 18 slash commands, two subagents (`track-runner` works one track in its own git worktree; `plan-reviewer` is read-only), the local connector (MCP server key `lc`: conflict-checked writes, automatic commits, freshness warnings; no network of its own, never pushes unless `connector.push` is `auto-state`) and the board script. The connector and board script run in Claude Code and Cowork on the computer; in claude.ai chat only the skill and commands load. A remote connector for chat and mobile does not exist yet.
+- **The board**: `/laneconductor:board` (or "update the board") builds a static page plus `board.json` and per-track documents with `lc board --site <dir>`; Claude publishes them as a private artifact. A snapshot, not live. Documents pass a privacy scan; `conversation.md` is never included by default.
+- **Safety**: one writer per change; a stale write returns `CONFLICT`; `conversation.md` stays per machine and gitignored; the state branch is resolved per repo (`connector.state_branch`, else the default branch, else `main` or `master`); the connector asks before any push.
+- **Recipe library**: reusable recipes packaged as a plugin and marketplace, local and not published; the discovery test is in progress.
+- **Parked (git tag `v1-legacy`)**: the Postgres UI tier, the sync daemon, workers and dispatch, the cloud collector and federated hubs. The daemon is stopped. See "Legacy tier" below.
+
+Sources: `README.md`, `connector/PLUGIN-README.md`, `connector/ARCHITECTURE.md`, `connector/README.md`.
+
 ## Track Types
 LaneConductor supports four track domains:
 
@@ -29,8 +41,14 @@ Non-dev tracks follow a **supervised implement** flow: AI drafts the content, hu
 - **Visibility**: Know what every AI agent is doing — code, content, or outreach — without reading terminal output
 - **Multi-function**: Dev, launch, market, support all in one board
 - **Closed loop**: KPI measurement after every non-dev track — did it actually work?
-- **Sovereign**: local by default — the skill alone works on plain files with no cloud, no auth and no cost. Anything beyond that is an opt-in layer, never required: a git-backed connector (your own repo) so remote Claude surfaces can reach your tracks, and an optional UI tier (Postgres as a rebuildable, one-way index of the files, plus its sync) - parked until wanted, and never required by the other layers.
+- **Sovereign**: local by default. The plugin works on plain files in your own git repository, with no cloud, no auth and no cost, and its connector makes no network requests of its own. The Postgres UI tier and its sync are parked (`v1-legacy`) and never required.
 - **Agent-First**: Designed for the workflow of AI assistants, not human project managers
+
+---
+
+# Legacy tier (parked, git tag `v1-legacy`)
+
+Everything below this line describes the earlier Postgres, daemon and web UI stack. It is kept for the people who still run it and is **not** how LaneConductor works now: the plugin, the skill and the connector do not need any of it. Do not follow these sections for a new install; use the plugin install in `README.md`.
 
 LaneConductor supports **Multi-Target Synchronization**. You no longer select a global mode; instead, you configure individual **Collectors** in `.laneconductor.json`. Each collector has its own type and enabled status.
 
