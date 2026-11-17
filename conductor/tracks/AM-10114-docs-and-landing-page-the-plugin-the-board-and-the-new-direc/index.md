@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: success
-**Progress**: 80%
-**Phase**: Merged to local main (327bce5b docs, 0fc24dc6 landing). Reviewed: mobile overflow found and fixed, desktop and 375px checked in a browser, privacy scan clean. Open: release download button and release steps (need a published release), connector README sync, deploy (owner's say), push of the landing source (owner's yes).
+**Progress**: 90%
+**Phase**: Merged, pushed (main 15f9157b) and DEPLOYED 2026-11-17 to laneconductor-site.web.app from a clean checkout of main (the other session's uncommitted drafts were not included). Open: Download button and release steps (need a published GitHub release), landing section for the comparison tables (track 10119).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
