@@ -1,9 +1,9 @@
 # Track AM-10116: Command catalog as MCP prompts (the FITI pattern) and bug and feature forms
 
-**Lane**: implement
-**Lane Status**: running
-**Progress**: 10%
-**Phase**: Implement lane started: track-runner subagent in its own worktree, phases 1 to 4
+**Lane**: quality-gate
+**Lane Status**: success
+**Progress**: 95%
+**Phase**: Merged to local main (41caab44), plugin 0.4.0. Review and quality gate passed: 251 tests, build --check, strict validate on plugin and marketplace, real stdio call of prompts and help, privacy scan clean. Open: AC-5 human check in a real session after the plugin update.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
