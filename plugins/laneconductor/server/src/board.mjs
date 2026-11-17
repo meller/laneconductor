@@ -13,7 +13,11 @@ const PHASE_MAX = 200;
 
 export const isArchivedFolder = (name) => ARCHIVE_RE.test(name);
 
-const one = (v) => (v === null ? null : v.replace(/\s+/g, ' ').trim());
+// A marker value can run over following lines (legacy index.md files with no `## ` heading let the
+// body flow into the last marker), so every value is cut at its first line before it is published.
+const one = (v, max = 100) => (v === null || v === undefined ? null : v.split('\n')[0].replace(/\s+/g, ' ').trim().slice(0, max));
+// Lint messages quote the offending marker value; quote only its first line.
+const safeReason = (r) => one(r.replace(/^(\*\*[A-Za-z ]+\*\*) "([\s\S]*)" (is not one of:)/, (_, name, val, rest) => `${name} "${one(val, 40)}" ${rest}`), 200);
 const yesNo = (v) => {
   const s = (v ?? '').trim().toLowerCase();
   return s === 'yes' ? true : s === 'no' ? false : null;
@@ -24,7 +28,7 @@ function trackOf(e, archived) {
   const name = archived ? e.folder.replace(ARCHIVE_RE, '') : e.folder;
   const r = rowOf(name, e.index);
   const v = e.index ? parseMarkers(e.index.content).values : {};
-  const merge = v['Merge Mode']?.trim();
+  const merge = one(v['Merge Mode'] ?? null, 40);
   return {
     row: { ...r, folder: e.folder },
     track: {
@@ -34,9 +38,9 @@ function trackOf(e, archived) {
       lane: one(r.lane),
       lane_status: one(r.lane_status),
       progress: r.progress,
-      phase: r.phase === null ? null : r.phase.replace(/\s+/g, ' ').slice(0, PHASE_MAX),
+      phase: one(r.phase, PHASE_MAX),
       depends_on: r.depends_on,
-      auto_run: yesNo(v['Auto Run']),
+      auto_run: yesNo(one(v['Auto Run'] ?? null)),
       merge_mode: merge || null,
       source_hash: r.source,
       ...(archived ? { archived: true } : {}),
@@ -63,7 +67,7 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
 
   // Lint only the live folders: archived copies share their track's number and would read as clashes.
   const lint = lintTracks(active, act.map((a) => a.row), laneList);
-  const reasonsByFolder = new Map(lint.map((l) => [l.folder, [...l.problems]]));
+  const reasonsByFolder = new Map(lint.map((l) => [l.folder, l.problems.map(safeReason)]));
   act.forEach(({ row }) => {
     const reasons = reasonsByFolder.get(row.folder) ?? [];
     if (row.waiting_for_reply) reasons.push('waiting for a human reply');
