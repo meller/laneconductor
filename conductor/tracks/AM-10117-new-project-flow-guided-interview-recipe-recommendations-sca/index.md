@@ -1,9 +1,9 @@
 # Track AM-10117: New-project flow: guided interview, recipe recommendations, scaffold, and add-a-recipe
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane Status**: success
+**Progress**: 10%
+**Phase**: Planned (spec, plan and tests written); implement after track 10116 lands (the command catalog)
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
