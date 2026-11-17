@@ -3,7 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: success
 **Progress**: 95%
-**Phase**: Merged to local main (41caab44), plugin 0.4.0. Review and quality gate passed: 251 tests, build --check, strict validate on plugin and marketplace, real stdio call of prompts and help, privacy scan clean. Open: AC-5 human check in a real session after the plugin update.
+**Phase**: Merged and pushed (main 3ea4654c; plugin 0.4.0, now superseded by 0.5.0 on main). Review and quality gate passed. Open: AC-5 human check in a real session (update the plugin, type /laneconductor: and try /laneconductor:bug).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
