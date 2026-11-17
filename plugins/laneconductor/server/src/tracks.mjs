@@ -71,6 +71,25 @@ export function defaultInitials(dirNames, requested) {
 
 const oneLine = (s) => s.replace(/\s+/g, ' ').trim();
 
+// Spec forms per track_kind (track 10116). The skill's setup/templates.md and ops/tracks.md describe
+// the same sections so a hand-made track matches. No kind keeps the generic skeleton.
+export const FORM_SECTIONS = {
+  bug: ['Symptom', 'Steps to reproduce', 'Expected result', 'Actual result', 'Suspected area', 'Environment'],
+  feature: ['The need', 'Who it is for', 'Wanted outcome', 'Acceptance criteria', 'Out of scope'],
+};
+
+function specText(title, problem, trackKind) {
+  const sections = FORM_SECTIONS[trackKind];
+  if (!sections) return `# Spec: ${title}\n\n## Problem Statement\n\n${problem}\n\n## Requirements\n\n(To be written in the plan lane.)\n`;
+  return `# Spec: ${title}\n\n## Problem Statement\n\n${problem}\n\n${sections.map((h) => `## ${h}\n\n(To be filled in.)\n`).join('\n')}`;
+}
+
+function testText(number, title, trackKind) {
+  const head = `# Tests: Track ${number} - ${title}\n\n`;
+  if (trackKind !== 'bug') return `${head}(Test cases to be added)\n`;
+  return `${head}- [ ] TC-1 (regression): a test that reproduces the bug (the steps in "Steps to reproduce") and FAILS before the fix; it passes after the fix and stays in the suite\n\n(More test cases to be added)\n`;
+}
+
 export function buildTrackFiles({ number, initials, title, problem, type = 'dev', trackKind, autoRun = 'no', mergeMode = 'direct', dependsOn }) {
   if (typeof title !== 'string' || title.trim() === '' || title.length > 120 || /[\r\n]/.test(title)) {
     throw fail('VALIDATION_FAILED', 'title must be a single line of 1 to 120 characters');
@@ -107,9 +126,9 @@ export function buildTrackFiles({ number, initials, title, problem, type = 'dev'
   if (back['Lane'] !== 'plan' || back['Summary'] !== summary) throw fail('VALIDATION_FAILED', 'Could not build a valid index.md from the given title and problem');
   const files = {
     index: header,
-    spec: `# Spec: ${title.trim()}\n\n## Problem Statement\n\n${problem.trim()}\n\n## Requirements\n\n(To be written in the plan lane.)\n`,
+    spec: specText(title.trim(), problem.trim(), trackKind),
     plan: `# Track ${number}: ${title.trim()}\n\n(Plan to be written in the plan lane.)\n`,
-    test: `# Tests: Track ${number} - ${title.trim()}\n\n(Test cases to be added)\n`,
+    test: testText(number, title.trim(), trackKind),
     conversation: `# Conversation: Track ${id}\n\n`,
   };
   return { id, folder, files };

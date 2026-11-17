@@ -12,7 +12,7 @@ const input = z.object({
 export const getTrack = {
   name: 'get_track',
   title: 'Get a track',
-  description: 'Read one track: its markers, files and the latest conversation entries, plus the `base` you must pass back to update_track. Large content is truncated (conversation first) with explicit flags; a truncated file cannot be overwritten.',
+  description: 'Read one track: its markers, files and the latest conversation entries, plus the `base` you must pass back to update_track. Large content is truncated (conversation first) with explicit flags; a truncated file cannot be overwritten.\nExample: "show track 10106" -> get_track {track: 10106}',
   annotations: readOnly,
   input,
   async run({ store, args }) {

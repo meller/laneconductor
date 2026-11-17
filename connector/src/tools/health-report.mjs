@@ -16,7 +16,7 @@ const input = z.object({
 export const healthReport = {
   name: 'health_report',
   title: 'Health report',
-  description: 'How the advice and the connector are doing over a window: per advice item (served, followed, deviated, override rate, top reasons), connector error, conflict and stale-read rates, and each kill criterion with its verdict. Use it when the human asks whether the connector is earning its place. The decision is theirs.',
+  description: 'How the advice and the connector are doing over a window: per advice item (served, followed, deviated, override rate, top reasons), connector error, conflict and stale-read rates, and each kill criterion with its verdict. Use it when the human asks whether the connector is earning its place. The decision is theirs.\nExample: "is the connector worth keeping" -> health_report {}',
   annotations: readOnly,
   input,
   async run({ store, ctx, args }) {

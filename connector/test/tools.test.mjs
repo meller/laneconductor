@@ -43,12 +43,12 @@ const seed = (dir) => {
 };
 
 // TC-3.1
-test('tools/list returns exactly the 8 v0 tools with the spec annotations', async () => {
+test('tools/list returns exactly the 8 v0 tools plus help, with the spec annotations', async () => {
   const s = await open(fixture());
   const { tools } = await s.client.listTools();
   const want = {
     list_tracks: [true, false], get_track: [true, false], get_context: [true, false],
-    health_report: [true, false], create_track: [false, false], update_track: [false, true], append_conversation: [false, false], report_outcome: [false, false],
+    health_report: [true, false], create_track: [false, false], update_track: [false, true], append_conversation: [false, false], report_outcome: [false, false], help: [true, false],
   };
   assert.deepEqual(tools.map((t) => t.name).sort(), Object.keys(want).sort());
   for (const t of tools) {
@@ -214,6 +214,17 @@ test('create_track makes XX-NNN-slug with five files, valid markers, one commit,
   assert.equal(readFile(dir, `conductor/tracks/${d.track.folder}/plan.md`), '# Plan\n- [ ] a\n');
   const second = await s.call('create_track', { title: 'Second', problem: 'p' });
   assert.equal(second.env.data.track.folder, 'XX-2-second');
+});
+
+test('create_track with track_kind bug writes the bug form and a regression-test first case (10116)', async () => {
+  const dir = fixture();
+  const s = await open(dir);
+  const c = await s.call('create_track', { title: 'Export is broken', problem: 'The export button does nothing.', track_kind: 'bug' });
+  assert.equal(c.isError, false, c.text);
+  const spec = readFile(dir, `conductor/tracks/${c.env.data.track.folder}/spec.md`);
+  assert.match(spec, /## Problem Statement\n\nThe export button does nothing\.\n\n## Symptom\n/);
+  assert.match(spec, /## Steps to reproduce[\s\S]*## Expected result[\s\S]*## Actual result[\s\S]*## Suspected area[\s\S]*## Environment/);
+  assert.match(readFile(dir, `conductor/tracks/${c.env.data.track.folder}/test.md`), /TC-1 \(regression\)/);
 });
 
 test('create_track: number follows the max of both conventions and reuses the common initials', async () => {

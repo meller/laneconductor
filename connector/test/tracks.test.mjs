@@ -82,3 +82,30 @@ test('buildTrackFiles rejects a problem that would corrupt the header block', ()
   assert.throws(() => buildTrackFiles({ ...base, title: 'two\nlines', problem: 'p' }), { code: 'VALIDATION_FAILED' });
   assert.throws(() => buildTrackFiles({ ...base, title: '', problem: 'p' }), { code: 'VALIDATION_FAILED' });
 });
+
+// Track 10116, TC-1 and TC-2: the bug and feature forms.
+const headings = (spec) => [...spec.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+const formBase = { number: 7, initials: 'XX', title: 'Form', type: 'dev', autoRun: 'no', mergeMode: 'direct' };
+
+test('buildTrackFiles bug: problem text unchanged, then the six bug sections in order, regression test first', () => {
+  const problem = 'The export button does nothing.\n\nIt worked last week.';
+  const t = buildTrackFiles({ ...formBase, problem, trackKind: 'bug' });
+  assert.deepEqual(headings(t.files.spec), ['Problem Statement', 'Symptom', 'Steps to reproduce', 'Expected result', 'Actual result', 'Suspected area', 'Environment']);
+  assert.ok(t.files.spec.includes(`## Problem Statement\n\n${problem}\n\n## Symptom`));
+  const first = t.files.test.split('\n').find((l) => l.startsWith('- [ ]'));
+  assert.match(first, /^- \[ \] TC-1 \(regression\): .*reproduces the bug.*FAILS before the fix/);
+  assert.equal(parseMarkers(t.files.index).values['Track Kind'], 'bug');
+});
+
+test('buildTrackFiles feature: problem text unchanged, then the five feature sections', () => {
+  const t = buildTrackFiles({ ...formBase, problem: 'Users want CSV.', trackKind: 'feature' });
+  assert.deepEqual(headings(t.files.spec), ['Problem Statement', 'The need', 'Who it is for', 'Wanted outcome', 'Acceptance criteria', 'Out of scope']);
+  assert.ok(t.files.spec.includes('## Problem Statement\n\nUsers want CSV.\n\n## The need'));
+  assert.equal(t.files.test, '# Tests: Track 7 - Form\n\n(Test cases to be added)\n');
+});
+
+test('buildTrackFiles with no kind keeps the generic skeleton byte for byte', () => {
+  const t = buildTrackFiles({ ...formBase, problem: 'p' });
+  assert.equal(t.files.spec, '# Spec: Form\n\n## Problem Statement\n\np\n\n## Requirements\n\n(To be written in the plan lane.)\n');
+  assert.equal(t.files.test, '# Tests: Track 7 - Form\n\n(Test cases to be added)\n');
+});

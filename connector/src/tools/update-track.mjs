@@ -28,7 +28,7 @@ const input = z.object({
 export const updateTrack = {
   name: 'update_track',
   title: 'Update a track',
-  description: 'Replace track files (index, spec, plan, test) and/or set status markers in index.md, committing the change. Requires the `base` from your last read of the track: a stale file or marker is rejected with CONFLICT (re-read, merge, retry), never overwritten. Bundle status markers with the document edit in one call.',
+  description: 'Replace track files (index, spec, plan, test) and/or set status markers in index.md, committing the change. Requires the `base` from your last read of the track: a stale file or marker is rejected with CONFLICT (re-read, merge, retry), never overwritten. Bundle status markers with the document edit in one call.\nExample: "move 10106 to implement" -> update_track {track: 10106, base, markers: {Lane: "implement"}}',
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   input,
   async run({ store, ctx, args }) {

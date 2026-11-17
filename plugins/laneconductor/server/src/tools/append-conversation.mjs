@@ -14,7 +14,7 @@ const input = z.object({
 export const appendConversation = {
   name: 'append_conversation',
   title: 'Append to a track conversation',
-  description: 'Append one comment to a track\'s conversation.md in the format the sync parser requires. Append-only: no base needed. Pass the plain text only. Use author "human" only to relay the human\'s own words.',
+  description: 'Append one comment to a track\'s conversation.md in the format the sync parser requires. Append-only: no base needed. Pass the plain text only. Use author "human" only to relay the human\'s own words.\nExample: "comment on 10106: ship it" -> append_conversation {track: 10106, author: "human", body: "ship it"}',
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   input,
   async run({ store, ctx, args }) {

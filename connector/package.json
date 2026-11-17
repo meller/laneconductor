@@ -1,6 +1,6 @@
 {
   "name": "lc-connector",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "LaneConductor connector: git-backed MCP server (track AM-10106)",
   "type": "module",
   "private": true,

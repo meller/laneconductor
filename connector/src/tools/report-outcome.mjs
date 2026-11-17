@@ -16,7 +16,7 @@ const input = z.object({
 export const reportOutcome = {
   name: 'report_outcome',
   title: 'Report what happened to a piece of advice',
-  description: 'Record whether you followed, deviated from, or failed with a lane guide or context you got from get_context (by its serve_id). Deviating is fine; the one-line reason is how bad advice gets fixed. Appends one line to the advice log; it does not change track files.',
+  description: 'Record whether you followed, deviated from, or failed with a lane guide or context you got from get_context (by its serve_id). Deviating is fine; the one-line reason is how bad advice gets fixed. Appends one line to the advice log; it does not change track files.\nExample: "skipped that guide, the plan was stale" -> report_outcome {serve_id, outcome: "deviated", reason: "plan was stale"}',
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   input,
   async run({ store, ctx, args }) {

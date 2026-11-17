@@ -31,7 +31,7 @@ function describeFile(name, content, sha) {
 export const getContext = {
   name: 'get_context',
   title: 'Get project context and lane guide',
-  description: 'Start here when planning or working a track. With no arguments: a manifest of the project context files (product, tech-stack, workflow, quality-gate, kpis, styleguides) and the lane transitions. `files` returns chosen files in full; `lane` returns that lane\'s guide, framed as advice you may decline.',
+  description: 'Start here when planning or working a track. With no arguments: a manifest of the project context files (product, tech-stack, workflow, quality-gate, kpis, styleguides) and the lane transitions. `files` returns chosen files in full; `lane` returns that lane\'s guide, framed as advice you may decline.\nExample: "plan track 10106" -> get_context {lane: "plan"} then get_track {track: 10106}',
   annotations: readOnly,
   input,
   async run({ store, ctx, args }) {

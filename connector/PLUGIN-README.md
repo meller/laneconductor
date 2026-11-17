@@ -12,10 +12,10 @@ Version {{VERSION}}.
 
 - the `laneconductor` skill: the lane guides (`plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`),
   the track operations (create, move, comment, status, workflow) and the working-a-track guardrails;
-- slash commands that are thin entry points to the skill, run as `/laneconductor:<name>`: `plan`, `brainstorm`,
-  `implement`, `review`, `quality-gate`, `merge`, `run`, `new`, `bug`, `feature`, `status`, `move`, `comment`,
-  `board`, `workflow` and `review-plan`, each taking a track number or title; `setup` and `deploy` run only when you
-  name them;
+- slash commands, run as `/laneconductor:<name>` (type `/laneconductor:` to list them; `help` shows each with an example
+  phrase): `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`, `new`, `bug`, `feature`, `status`,
+  `move`, `comment`, `board`, `show-board`, `refresh-board`, `workflow`, `review-plan` and `help`; `setup` and `deploy` run
+  only when you name them. They are generated from the same command catalog the connector serves as MCP prompts, so any MCP client sees the same commands;
 - two subagents: `track-runner` works one track through one lane in its own git worktree, and `plan-reviewer`
   reads a track's spec and plan and reports gaps without changing anything. `run`, `implement` and `review` only
   recommend `track-runner` (one subagent per track, so tracks do not collide) and show the exact dispatch; nothing
