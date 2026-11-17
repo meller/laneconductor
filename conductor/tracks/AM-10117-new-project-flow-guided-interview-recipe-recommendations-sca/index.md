@@ -3,7 +3,7 @@
 **Lane**: quality-gate
 **Lane Status**: success
 **Progress**: 75%
-**Phase**: Merged to local main (b901692e), plugin 0.5.0, not pushed. Phases 1-3 done except the landing mention. 322 tests, build --check, strict validate pass. Open: Phase 2 Task 5 (human review of the nine recipes before any is shipped), Phase 3 Task 3 (landing mention), Phase 4 (real use of new-project and add-recipe).
+**Phase**: Merged and pushed (main 15f9157b), plugin 0.5.0. Phases 1-3 done except the landing mention. Open: Phase 2 Task 5 (human review of the nine recipes before any is shipped), Phase 3 Task 3 (landing mention of the flow), Phase 4 (real use of new-project and add-recipe). Update the plugin to 0.5.0 to try it.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
