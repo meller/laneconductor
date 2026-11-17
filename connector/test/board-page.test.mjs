@@ -7,7 +7,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { makeRepo, writeFile, commitAll, rm, INDEX } from './helpers/repo.mjs';
+import { makeRepo, writeFile, commitAll, git, rm, INDEX } from './helpers/repo.mjs';
+import { FAKES } from './helpers/fakes.mjs';
 import { buildBoard, boardPageData } from '../src/board.mjs';
 
 const BIN = new URL('../bin/lc-board.mjs', import.meta.url).pathname;
@@ -42,13 +43,13 @@ function fixture() {
   return dir;
 }
 
-test('--site writes exactly board.html and board.json, prints their absolute paths and nothing else', () => {
+test('--site writes board.html, board.json and docs/, prints their absolute paths and nothing else', () => {
   const repo = fixture();
   const site = path.join(tmp('lc-site-'), 'nested', 'out'); // does not exist yet
   const r = run(repo, '--site', site);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, `${path.join(site, 'board.html')}\n${path.join(site, 'board.json')}\n`);
-  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json']);
+  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'docs']);
   assert.ok(!fs.readdirSync(repo).includes('board.json'), 'nothing is written into the repo');
 });
 
@@ -75,7 +76,7 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'tracks', 'attn']);
   assert.equal(j.project, 'Page Fixture');
   assert.equal(j.generated_at, NOW);
-  for (const t of j.tracks) assert.deepEqual(Object.keys(t), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a']);
+  for (const t of j.tracks) assert.deepEqual(Object.keys(t), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
   for (const a2 of j.attn) assert.deepEqual(Object.keys(a2), ['n', 'p', 't', 'r']);
   assert.equal(j.tracks.length, 8, 'live tracks only');
   assert.ok(!raw.includes('ARCHIVED-SENTINEL'), 'archived folders are left out');
@@ -126,11 +127,19 @@ test('existing behaviours are unchanged: stdout JSON, --out, --check', () => {
 
 // --- the page, run against a fake DOM -------------------------------------------------------------
 
+let fakeDoc = null;
+class TextNode {
+  constructor(t) { this.nodeType = 3; this._text = String(t); }
+  get textContent() { return this._text; }
+}
 class El {
-  constructor(tag) { this.tag = tag; this.children = []; this.className = ''; this.dataset = {}; this.style = {}; this.attrs = {}; this._text = ''; this.hidden = false; this.handlers = {}; }
+  constructor(tag) { this.tag = tag; this.nodeType = 1; this.children = []; this.className = ''; this.dataset = {}; this.style = {}; this.attrs = {}; this._text = ''; this.hidden = false; this.handlers = {}; this.scrollTop = 0; }
   appendChild(c) { this.children.push(c); return c; }
-  setAttribute(k, v) { this.attrs[k] = v; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return this.attrs[k] ?? null; }
+  removeAttribute(k) { delete this.attrs[k]; }
   addEventListener(e, f) { this.handlers[e] = f; }
+  focus() { if (fakeDoc) fakeDoc.activeElement = this; }
   set textContent(v) { this._text = String(v); this.children = []; }
   get textContent() { return this._text + this.children.map((c) => c.textContent).join(''); }
 }
@@ -152,10 +161,13 @@ async function runPage(fetchStub) {
     if (had.fetch === undefined) delete globalThis.fetch; else globalThis.fetch = had.fetch;
     restore = () => {};
   };
-  globalThis.document = { getElementById: (id) => (ids[id] ??= new El(`#${id}`)), createElement: (t) => new El(t) };
+  const created = [];
+  fakeDoc = { activeElement: null, handlers: {}, created, getElementById: (id) => (ids[id] ??= new El(`#${id}`)), createElement: (t) => { created.push(t); return new El(t); }, createTextNode: (t) => new TextNode(t), addEventListener(e, f) { this.handlers[e] = f; } };
+  globalThis.document = fakeDoc;
   globalThis.fetch = fetchStub;
   new Function(code)();
   await flush();
+  ids.__doc = fakeDoc;
   return ids;
 }
 
@@ -268,4 +280,444 @@ test('page: a status filter whose matches are all in Done explains where they ar
   // Back to all: the banner goes away.
   ids.chips.children.find((c) => c._text === 'all').onclick();
   assert.equal(ids['filter-banner'].hidden, true);
+});
+
+// --- track detail (Phase 5d Task 7) -----------------------------------------------------------------
+
+const SPEC_MD = [
+  '# Spec heading', '', 'A paragraph with **bold**, *italic*, `inline code` and a [link](https://example.org/a).', 'Second line of the paragraph.', '',
+  '- first', '- second', '  - nested', '', '1. one', '2. two', '',
+  '- [x] done item', '- [ ] open item', '', '```js', 'const a = "<b>not bold</b>";', '```', '',
+  '> quoted text', '', '---', '', '| col a | col b |', '|---|---|', '| 1 | 2 |', '',
+].join('\n');
+const walk = (e, fn) => { fn(e); for (const c of e.children ?? []) walk(c, fn); };
+const all = (e, pred) => { const out = []; walk(e, (x) => { if (pred(x)) out.push(x); }); return out; };
+const ev = (key, extra = {}) => ({ key, preventDefault() { this.prevented = true; }, ...extra });
+
+function detailFixture({ board, remote = 'git@github.com:acme/widgets.git' } = {}) {
+  const dir = makeRepo();
+  cleanup.push(dir);
+  writeFile(dir, '.laneconductor.json', JSON.stringify({ project: { name: 'Detail Fixture' }, ...(board ? { board } : {}) }));
+  const t = (n, title, lane, status, extra) => writeFile(dir, `conductor/tracks/AM-${n}-t${n}/index.md`, INDEX(n, title, { lane, status, extra }));
+  t(201, 'Planned one', 'plan', 'queue');
+  t(202, 'Built one', 'implement', 'running', '**Phase**: Phase 2\n'.replace(/^/, ''));
+  t(203, 'Shipped one', 'done', 'success');
+  t(204, 'Parked one', 'backlog', 'queue');
+  t(208, 'Odd lane', 'nowhere', 'queue');
+  writeFile(dir, 'conductor/tracks/AM-201-t201/spec.md', SPEC_MD);
+  writeFile(dir, 'conductor/tracks/AM-201-t201/plan.md', '# Plan 201\n\n- [ ] Task 1: do it\n');
+  writeFile(dir, 'conductor/tracks/AM-201-t201/test.md', '# Tests 201\n');
+  writeFile(dir, 'conductor/tracks/AM-201-t201/conversation.md', '> **human**: talk about 201\n');
+  writeFile(dir, 'conductor/tracks/AM-202-t202/spec.md', `# Spec 202\n\nthe key is ${FAKES['Google API key']}\n`);
+  writeFile(dir, 'conductor/tracks/AM-202-t202/plan.md', '# Plan 202\n');
+  writeFile(dir, 'conductor/tracks/AM-203-t203/spec.md', '# Spec 203 DONE-SPEC-SENTINEL\n');
+  commitAll(dir);
+  if (remote) git(dir, 'remote', 'add', 'origin', remote);
+  return dir;
+}
+
+/** Generates a site and returns the board.json data plus a fetch stub that serves the site's files and counts requests. */
+function siteFor(repo) {
+  const site = tmp('lc-site-detail-');
+  const r = run(repo, '--site', site);
+  assert.equal(r.status, 0, r.stderr);
+  const data = JSON.parse(fs.readFileSync(path.join(site, 'board.json'), 'utf8'));
+  const calls = [];
+  const fetchStub = async (u) => {
+    calls.push(u);
+    if (u === 'board.json') return { ok: true, status: 200, json: async () => data };
+    const f = path.join(site, u);
+    if (!fs.existsSync(f)) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(f, 'utf8')) };
+  };
+  return { site, data, calls, fetchStub };
+}
+const cardOf = (ids, lane, i = 0) => ids.lanes.children[['backlog', 'plan', 'implement', 'review', 'quality-gate'].indexOf(lane)].children[1].children[i];
+const tabNames = (ids) => ids['d-tabs'].children.map((b) => b._text);
+const tabBy = (ids, name) => ids['d-tabs'].children.find((b) => b._text === name);
+
+test('detail: clicking a card opens the drawer with the header, Overview from docs/<n>.json, and moves focus into it', async () => {
+  const { data, calls, fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  assert.ok(!ids.detail || ids.detail.hidden === true, 'closed at first (the markup has it hidden)');
+  assert.match(fs.readFileSync(PAGE, 'utf8'), /<div class="detail" id="detail" hidden>/);
+  const card = cardOf(ids, 'plan');
+  assert.equal(card.attrs.role, 'button');
+  assert.equal(card.attrs.tabindex, '0');
+  card.handlers.click();
+  assert.equal(ids.detail.hidden, false);
+  assert.equal(ids.wrap.attrs.inert, '', 'the board behind the drawer is inert');
+  assert.equal(ids['d-id'].textContent, 'AM-201');
+  assert.equal(ids['d-title'].textContent, 'Planned one');
+  assert.equal(ids['d-lane'].textContent, 'plan');
+  assert.equal(ids['d-pill'].children[0].className, 'pill queue');
+  assert.equal(ids['d-pct'].textContent, '0%');
+  assert.equal(ids['d-bar'].attrs.role, 'progressbar');
+  assert.equal(ids.__doc.activeElement, ids['d-close']);
+  assert.match(ids['d-body'].textContent, /Loading the document/);
+  await flush();
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests']);
+  assert.equal(tabBy(ids, 'Overview').attrs['aria-selected'], 'true');
+  assert.ok(ids['d-body'].textContent.includes('Track AM-201: Planned one'));
+  assert.deepEqual(calls.filter((u) => u.startsWith('docs/')), ['docs/201.json']);
+  assert.equal(data.tracks.find((t) => t.n === 201).d, true);
+});
+
+test('detail: Enter and Space on a card open it; done rows and attention rows are buttons too', async () => {
+  const { fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  const card = cardOf(ids, 'implement');
+  const e1 = ev('Enter');
+  card.handlers.keydown(e1);
+  assert.equal(e1.prevented, true);
+  assert.equal(ids['d-title'].textContent, 'Built one');
+  ids['d-close'].onclick();
+  assert.equal(ids.detail.hidden, true);
+  const e2 = ev(' ');
+  cardOf(ids, 'backlog').handlers.keydown(e2);
+  assert.equal(ids['d-title'].textContent, 'Parked one');
+  ids['d-close'].onclick();
+  const other = ev('a');
+  card.handlers.keydown(other);
+  assert.equal(ids.detail.hidden, true, 'other keys do nothing');
+  assert.equal(other.prevented, undefined);
+  // A done row and an attention row.
+  const row = ids['done-rows'].children[0];
+  assert.equal(row.attrs.role, 'button');
+  assert.equal(row.attrs.tabindex, '0');
+  row.handlers.click();
+  assert.equal(ids['d-title'].textContent, 'Shipped one');
+  ids['d-close'].onclick();
+  const attn = ids['attn-rows'].children[0];
+  assert.equal(attn.attrs.role, 'button');
+  attn.handlers.keydown(ev('Enter'));
+  assert.equal(ids['d-title'].textContent, 'Odd lane');
+  assert.equal(ids['d-lane'].textContent, 'nowhere');
+});
+
+test('detail: tabs switch, each shows its document, and docs/<n>.json is fetched once (cached across tabs and reopening)', async () => {
+  const { calls, fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  tabBy(ids, 'Plan').onclick();
+  assert.match(ids['d-body'].textContent, /Loading the document/, 'a loading state while the file is pending');
+  await flush();
+  assert.equal(tabBy(ids, 'Plan').attrs['aria-selected'], 'true');
+  assert.equal(tabBy(ids, 'Overview').attrs['aria-selected'], 'false');
+  assert.ok(ids['d-body'].textContent.includes('Plan 201'));
+  tabBy(ids, 'Spec').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('Spec heading'));
+  tabBy(ids, 'Tests').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('Tests 201'));
+  tabBy(ids, 'Overview').onclick();
+  await flush();
+  ids['d-close'].onclick();
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  tabBy(ids, 'Spec').onclick();
+  await flush();
+  assert.deepEqual(calls.filter((u) => u.startsWith('docs/')), ['docs/201.json'], 'one fetch for all of that');
+  // Arrow keys move between tabs.
+  const right = ev('ArrowRight');
+  tabBy(ids, 'Spec').handlers.keydown(right);
+  await flush();
+  assert.equal(tabBy(ids, 'Tests').attrs['aria-selected'], 'true');
+  assert.equal(right.prevented, true);
+});
+
+test('detail: the Conversation tab exists only when the doc has one (off by default)', async () => {
+  const off = siteFor(detailFixture());
+  let ids = await runPage(off.fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  assert.ok(!tabNames(ids).includes('Conversation'));
+  const on = siteFor(detailFixture({ board: { include_conversation: true } }));
+  ids = await runPage(on.fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests', 'Conversation']);
+  tabBy(ids, 'Conversation').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('talk about 201'));
+  // The track without a conversation file has no tab even with the flag on.
+  ids['d-close'].onclick();
+  cardOf(ids, 'implement').handlers.click();
+  await flush();
+  assert.ok(!tabNames(ids).includes('Conversation'));
+});
+
+test('detail: a withheld file shows "withheld: <reason>" and never the text; the other tabs still render', async () => {
+  const { fetchStub, site } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  cardOf(ids, 'implement').handlers.click();
+  await flush();
+  tabBy(ids, 'Spec').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('withheld: possible secret or personal data (1 match)'));
+  assert.ok(!ids['d-body'].textContent.includes(FAKES['Google API key']));
+  assert.ok(!fs.readFileSync(path.join(site, 'docs/202.json'), 'utf8').includes(FAKES['Google API key']));
+  tabBy(ids, 'Plan').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('Plan 202'));
+  assert.ok(!ids['d-body'].textContent.includes('withheld'));
+  // An absent file says so.
+  tabBy(ids, 'Tests').onclick();
+  await flush();
+  assert.match(ids['d-body'].textContent, /No test\.md in this track/);
+});
+
+test('detail: a done track has no tabs and no fetch, a note, and an Open in GitHub link (https, new tab, noopener)', async () => {
+  const { calls, fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  ids['done-rows'].children[0].handlers.click();
+  await flush();
+  assert.equal(ids['d-tabs'].hidden, true);
+  assert.deepEqual(calls.filter((u) => u.startsWith('docs/')), []);
+  assert.match(ids['d-body'].textContent, /Finished tracks do not carry their documents/);
+  const links = all(ids['d-body'], (e) => e.tag === 'a');
+  assert.equal(links.length, 1);
+  assert.equal(links[0].textContent, 'Open in GitHub');
+  assert.equal(links[0].attrs.href, 'https://github.com/acme/widgets/tree/main/conductor/tracks/AM-203-t203');
+  assert.equal(links[0].attrs.target, '_blank');
+  assert.match(links[0].attrs.rel, /\bnoopener\b/);
+  assert.ok(!ids['d-body'].textContent.includes('DONE-SPEC-SENTINEL'));
+  // Without a github remote there is no link, only the note. A non-https gh value is never linked.
+  const nogh = siteFor(detailFixture({ remote: null }));
+  const ids2 = await runPage(nogh.fetchStub);
+  ids2['done-rows'].children[0].handlers.click();
+  assert.equal(all(ids2['d-body'], (e) => e.tag === 'a').length, 0);
+  assert.match(ids2['d-body'].textContent, /Finished tracks do not carry/);
+  const bad = JSON.parse(JSON.stringify(nogh.data));
+  bad.tracks.find((t) => t.n === 203).gh = 'javascript:evil()';
+  const ids3 = await runPage(async (u) => ({ ok: true, status: 200, json: async () => bad }));
+  ids3['done-rows'].children[0].handlers.click();
+  assert.equal(all(ids3['d-body'], (e) => e.tag === 'a').length, 0);
+});
+
+test('detail: with board.include_docs false the drawer shows the header only', async () => {
+  const { calls, fetchStub } = siteFor(detailFixture({ board: { include_docs: false } }));
+  const ids = await runPage(fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  assert.equal(ids['d-title'].textContent, 'Planned one');
+  assert.equal(ids['d-tabs'].hidden, true);
+  assert.deepEqual(calls.filter((u) => u.startsWith('docs/')), []);
+  assert.match(ids['d-body'].textContent, /does not publish documents/);
+});
+
+test('detail: a failed or malformed docs fetch shows an error with Try again; success afterwards is not blocked by a cached failure', async () => {
+  const { data } = siteFor(detailFixture());
+  let mode = 'http';
+  let docFetches = 0;
+  const ids = await runPage(async (u) => {
+    if (u === 'board.json') return { ok: true, status: 200, json: async () => data };
+    docFetches++;
+    if (mode === 'http') return { ok: false, status: 500, json: async () => ({}) };
+    if (mode === 'format') return { ok: true, status: 200, json: async () => ({ n: 999 }) };
+    if (mode === 'throw') throw new Error('offline');
+    return { ok: true, status: 200, json: async () => ({ n: 201, folder: 'x', index: 'recovered text', plan: '', spec: '', test: '' }) };
+  });
+  const card = cardOf(ids, 'plan');
+  for (const m of ['http', 'format', 'throw']) {
+    mode = m;
+    card.handlers.click();
+    await flush();
+    assert.equal(ids['d-body'].children[0].className, 'status error', m);
+    assert.match(ids['d-body'].textContent, /Could not load docs\/201\.json/, m);
+    ids['d-close'].onclick();
+  }
+  assert.equal(docFetches, 3, 'a failure is not cached');
+  mode = 'ok';
+  card.handlers.click();
+  await flush();
+  const retry = all(ids['d-body'], (e) => e.tag === 'button')[0];
+  assert.equal(retry, undefined, 'no error state once it loads');
+  assert.ok(ids['d-body'].textContent.includes('recovered text'));
+  mode = 'http';
+  ids['d-close'].onclick();
+  const { fetchStub } = siteFor(detailFixture());
+  // Try again re-requests.
+  let n2 = 0;
+  const ids2 = await runPage(async (u) => { if (u === 'board.json') return fetchStub(u); n2++; return n2 === 1 ? { ok: false, status: 503, json: async () => ({}) } : fetchStub(u); });
+  cardOf(ids2, 'plan').handlers.click();
+  await flush();
+  const again = all(ids2['d-body'], (e) => e.tag === 'button')[0];
+  assert.equal(again._text, 'Try again');
+  again.onclick();
+  await flush();
+  assert.ok(ids2['d-body'].textContent.includes('Track AM-201'));
+});
+
+test('detail: Esc and Close both close it, the board is no longer inert, and focus returns to the clicked element', async () => {
+  const { fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  const card = cardOf(ids, 'plan');
+  card.focus();
+  card.handlers.click();
+  await flush();
+  assert.equal(ids.__doc.activeElement, ids['d-close']);
+  const esc = ev('Escape');
+  ids.__doc.handlers.keydown(esc);
+  assert.equal(esc.prevented, true);
+  assert.equal(ids.detail.hidden, true);
+  assert.ok(!('inert' in ids.wrap.attrs));
+  assert.equal(ids.__doc.activeElement, card);
+  // Close button and backdrop.
+  const row = ids['done-rows'].children[0];
+  row.handlers.click();
+  ids['d-close'].onclick();
+  assert.equal(ids.detail.hidden, true);
+  assert.equal(ids.__doc.activeElement, row);
+  cardOf(ids, 'backlog').handlers.click();
+  ids['detail-back'].handlers.click();
+  assert.equal(ids.detail.hidden, true);
+  // Esc with nothing open does nothing.
+  const idle = ev('Escape');
+  ids.__doc.handlers.keydown(idle);
+  assert.equal(idle.prevented, undefined);
+  // The focus goes back to the redrawn element if the list was redrawn while the drawer was open.
+  const before = cardOf(ids, 'plan');
+  before.handlers.click();
+  ids.q.handlers.input({ target: { value: 'planned' } });
+  ids.__doc.handlers.keydown(ev('Escape'));
+  assert.equal(ids.__doc.activeElement, cardOf(ids, 'plan'));
+});
+
+test('detail: focus is trapped while open (Tab wraps at the ends, Shift+Tab too)', async () => {
+  const { fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  const selected = tabBy(ids, 'Overview');
+  // [close, selected tab]: Tab on the last wraps to the first, Shift+Tab on the first wraps to the last.
+  ids.__doc.activeElement = selected;
+  const fwd = ev('Tab');
+  ids.__doc.handlers.keydown(fwd);
+  assert.equal(fwd.prevented, true);
+  assert.equal(ids.__doc.activeElement, ids['d-close']);
+  const back = ev('Tab', { shiftKey: true });
+  ids.__doc.handlers.keydown(back);
+  assert.equal(back.prevented, true);
+  assert.equal(ids.__doc.activeElement, selected);
+  // Tab in the middle is left to the browser.
+  ids.__doc.activeElement = ids['d-close'];
+  const mid = ev('Tab');
+  ids.__doc.handlers.keydown(mid);
+  assert.equal(mid.prevented, undefined);
+  // Focus that escaped the drawer is pulled back in.
+  ids.__doc.activeElement = cardOf(ids, 'plan');
+  const lost = ev('Tab');
+  ids.__doc.handlers.keydown(lost);
+  assert.equal(ids.__doc.activeElement, ids['d-close']);
+  // Links inside a document join the cycle.
+  tabBy(ids, 'Spec').onclick();
+  await flush();
+  tabBy(ids, 'Spec').focus();
+  const link = all(ids['d-body'], (e) => e.tag === 'a')[0];
+  assert.ok(link);
+  ids.__doc.activeElement = link;
+  ids.__doc.handlers.keydown(ev('Tab'));
+  assert.equal(ids.__doc.activeElement, ids['d-close'], 'Tab on the last link wraps');
+});
+
+test('detail: the markdown renderer builds headings, lists, task items, code, quotes, rules and tables, with no raw html', async () => {
+  const { fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  tabBy(ids, 'Spec').onclick();
+  await flush();
+  const md = ids['d-body'].children[0];
+  assert.equal(md.className, 'md');
+  const tags = (e) => all(e, (x) => x.tag).map((x) => x.tag);
+  const t = tags(md);
+  for (const want of ['h3', 'p', 'strong', 'em', 'code', 'a', 'br', 'ul', 'ol', 'li', 'pre', 'blockquote', 'hr', 'table', 'th', 'td']) assert.ok(t.includes(want), `renders ${want}`);
+  assert.equal(all(md, (x) => x.tag === 'h3')[0].textContent, 'Spec heading');
+  assert.equal(all(md, (x) => x.tag === 'strong')[0].textContent, 'bold');
+  assert.equal(all(md, (x) => x.tag === 'a')[0].attrs.href, 'https://example.org/a');
+  const lis = all(md, (x) => x.tag === 'li');
+  assert.ok(lis.some((l) => l.className === 'task on' && l.textContent === '[x]done item'));
+  assert.ok(lis.some((l) => l.className === 'task' && l.textContent === '[ ]open item'));
+  assert.equal(all(md, (x) => x.tag === 'ul').length, 3, 'two lists plus the nested one (the task list is a third)');
+  assert.ok(all(md, (x) => x.tag === 'pre')[0].textContent.includes('const a = "<b>not bold</b>";'), 'code text is literal');
+  assert.ok(!t.includes('b'), 'the <b> inside the code block is text, not an element');
+  assert.deepEqual(all(md, (x) => x.tag === 'th').map((x) => x.textContent), ['col a', 'col b']);
+  assert.deepEqual(all(md, (x) => x.tag === 'td').map((x) => x.textContent), ['1', '2']);
+  assert.ok(!ids.__doc.created.includes('script'));
+  // The page itself never uses an html-string API.
+  assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|DOMParser|createContextualFragment/.test(fs.readFileSync(PAGE, 'utf8')));
+});
+
+test('detail XSS: script tags, img onerror and javascript: links in a document render as inert text; no element is made for them', async () => {
+  const hostile = [
+    '# Title <script>steal(1)</script>',
+    '', '<img src=x onerror=steal(2)>',
+    '', '<iframe src="https://evil.example"></iframe> <svg onload=steal(3)>',
+    '', '[click me](javascript:steal(4)) and [data](data:text/html,<b>x</b>) and [mixed](JaVaScRiPt:steal(5)) and [rel](spec.md) and [http](http://plain.example)',
+    '', '[good](https://example.org/ok "title") and <https://example.org/auto> and https://example.org/bare.',
+    '', '![pic](https://evil.example/p.png) ![x](javascript:steal(6))',
+    '', '`<b>code</b>`',
+    '', '| h1 | h2 |', '|---|---|', '| <i>x</i> | [j](javascript:steal(7)) |',
+    '', '> <u onmouseover=steal(8)>q</u>',
+    '', '- <a href="javascript:steal(9)">raw anchor</a>',
+    '', '[nested [brackets] ](javascript:steal(10))', '[![img](https://e.example/i.png)](javascript:steal(11))',
+  ].join('\n');
+  const data = { project: 'p', generated_at: NOW, attn: [], tracks: [{ n: 1, p: 'AM', t: 'Hostile', l: 'plan', s: 'queue', g: 0, h: '', a: false, d: true }] };
+  const ids = await runPage(async (u) => (u === 'board.json'
+    ? { ok: true, status: 200, json: async () => data }
+    : { ok: true, status: 200, json: async () => ({ n: 1, folder: 'AM-1-x', index: hostile, plan: '', spec: '', test: '' }) }));
+  ids.__doc.created.length = 0;
+  cardOf(ids, 'plan').handlers.click();
+  await flush();
+  const body = ids['d-body'];
+  const text = body.textContent;
+  assert.ok(text.includes('<script>steal(1)</script>'), 'the tag is shown as text');
+  assert.ok(text.includes('<img src=x onerror=steal(2)>'));
+  assert.ok(text.includes('<iframe'));
+  assert.ok(text.includes('raw anchor'));
+  // No element for any tag in the document: only the tags the renderer itself uses.
+  const allowed = new Set(['div', 'h3', 'p', 'br', 'a', 'code', 'pre', 'strong', 'em', 'ul', 'li', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span', 'button', 'i']);
+  for (const tag of ids.__doc.created) assert.ok(allowed.has(tag), `unexpected element <${tag}>`);
+  for (const bad of ['script', 'img', 'iframe', 'svg', 'u', 'b', 'object', 'embed', 'style', 'link']) assert.ok(!ids.__doc.created.includes(bad), `no <${bad}> created`);
+  // Only the https links became anchors, and nothing carries an event handler or a script URL.
+  const anchors = all(body, (e) => e.tag === 'a');
+  assert.deepEqual(anchors.map((a) => a.attrs.href).sort(), ['https://example.org/auto', 'https://example.org/bare', 'https://example.org/ok'].sort());
+  for (const a of anchors) { assert.equal(a.attrs.target, '_blank'); assert.match(a.attrs.rel, /noopener/); }
+  walk(body, (e) => {
+    for (const [k, v] of Object.entries(e.attrs ?? {})) {
+      assert.ok(!/^on/i.test(k), `no ${k} attribute`);
+      assert.ok(!/javascript:|data:/i.test(v), `no script url in ${k}`);
+    }
+    assert.ok(!('onerror' in e) && !('onload' in e));
+  });
+  // The link text of a refused link stays as plain text.
+  assert.ok(text.includes('click me') && text.includes('mixed') && text.includes('rel') && text.includes('http'));
+  assert.ok(!all(body, (e) => e.tag === 'a' && /click me|mixed/.test(e.textContent)).length);
+});
+
+test('detail: search matches titles only, never document bodies', async () => {
+  const { fetchStub } = siteFor(detailFixture());
+  const ids = await runPage(fetchStub);
+  ids.q.handlers.input({ target: { value: 'DONE-SPEC-SENTINEL' } });
+  assert.equal(ids.lanes.children.reduce((n, c) => n + c.children[1].children.length, 0), 0);
+  ids.q.handlers.input({ target: { value: 'Spec heading' } });
+  assert.equal(ids.lanes.children.reduce((n, c) => n + c.children[1].children.length, 0), 0);
+  ids.q.handlers.input({ target: { value: 'planned' } });
+  assert.equal(ids.lanes.children.reduce((n, c) => n + c.children[1].children.length, 0), 1);
+});
+
+test('page markup: a dialog with a labelled title, tabs container, the privacy footer line, and the drawer is outside the inert wrapper', () => {
+  const html = fs.readFileSync(PAGE, 'utf8');
+  assert.match(html, /<section class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">/);
+  assert.match(html, /id="d-tabs" role="tablist"/);
+  assert.match(html, /id="d-body" role="tabpanel"/);
+  assert.match(html, /Sharing the board shares these documents\./);
+  assert.ok(html.indexOf('id="detail"') > html.indexOf('</footer>'), 'the detail is after (outside) the .wrap block that gets inert');
+  assert.match(html, /@media \(max-width: 700px\)[\s\S]*?\.drawer \{ width: 100%/);
+  assert.match(html, /@media \(prefers-color-scheme: dark\)/);
+  assert.match(html, /:root\[data-theme="dark"\]/);
+  assert.ok(!/https?:\/\/(?!fonts\.g)[^"' )]*\.(?:js|css)\b/.test(html), 'no external script or stylesheet beyond the fonts');
 });
