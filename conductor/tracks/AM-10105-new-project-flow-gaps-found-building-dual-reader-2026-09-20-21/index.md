@@ -31,3 +31,12 @@
 ## Correction (verified 2026-11-15): the "shared GCP project" is not universal
 
 Earlier text in this track/session said every sibling product (humanities-explorer, otralingo, macrodash, livingwork) deploys into the one shared `laneconductor-site` project. Checked against each repo's `.firebaserc`: livingwork, humanities-explorer and dual-reader default to `laneconductor-site`; otralingo defaults to `otralingo` and macrodash to `makrodash` (their own projects). The shared-project layout is a real convention for SOME products, not all - treat it as a recipe to apply deliberately, not "the" convention. Decide which layout is intended for new products.
+
+## TRIAGE (2026-11-17): most of this track targets the parked legacy tier
+
+Direction (decided 2026-11-16): agent-based Claude + git + connector; the Postgres daemon, workers and dispatch are the legacy tier (tag `v1-legacy`). Against that:
+- **Legacy-tier, recommend park/close unless the daemon is revived:** Phase 1 (idempotent `resume()`), Phase 2 (cross-process claim guard), Phase 3 (answered-park routing and park streak), Phase 4b (file/DB drift on the worker tick), Phase 5 (migration runner and pending-migration detection). All concern the DB-backed worker.
+- **Already done:** Phase 4a (`remote-sync` folder resolution): fixed in commit 311d3656 with a regression test.
+- **Superseded:** Phase 6 (deployment conventions doc): the recipe `shared-gcp-firebase-site` in the recipe library (track 10107) records these conventions, and passed its baseline.
+- **Still worth doing, small:** Phase 8 (correct the `Auto Run` documentation: `plan.on_success` is a human gate) and Phase 7 (Neon MCP auth: the Neon server currently fails with 401 because a configured Authorization header disables OAuth; fixing it means editing the user's MCP config, so it is the human's call).
+This is a recommendation only; no marker was changed. The human decides which phases to close.
