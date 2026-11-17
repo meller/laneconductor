@@ -1,9 +1,9 @@
 # Track AM-10106: LaneConductor connector: git-backed MCP server (local stdio first, then remote via GitHub API)
 
-**Lane**: implement
-**Lane Status**: queue
-**Progress**: 60%
-**Phase**: Phases 1(code)-5 done (3b Task 6: the committed summary lists only tracks in git, so a draft track's title cannot reach a commit); 5c code done (tasks 1-4, 7, 8; Task 5 HUMAN, Task 6 after Phase 8); 5d Tasks 1-4 and 7 done in code (lc board, static page + board.json, skill command `board`, track detail drawer with docs files and privacy scan; the real publish is (verified by the orchestrator)), Tasks 5-6 pending; 5e done in code as ONE plugin `laneconductor` installed locally (skill, commands, agents, connector, board script; README, LICENSE, env-based repo, pre-checks, zip script), with the directory-eligible lean variant kept as an on-demand profile and directory submission PARKED until the remote connector exists; hooks will be a separate opt-in extension `laneconductor-hooks` with track 10115 Phase 1; 6 automated parts done, its real-session steps are HUMAN; 7-10 pending decisions D1-D5
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Closed 2026-11-17. The local connector is built, tested (251 then 322 tests), packaged in the plugin and pushed (plugin 0.5.0). The remote half moved to track 10121 (GitHubStore, HTTP server, OAuth, deploy, remote beta); the local polish and the human-judged beta moved to track 10122. This track's spec and plan stay as the reference for both.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
