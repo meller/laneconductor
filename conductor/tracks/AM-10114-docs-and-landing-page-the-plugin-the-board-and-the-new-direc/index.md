@@ -1,9 +1,9 @@
 # Track AM-10114: Docs and landing page: the plugin, the board, and the new direction
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: implement
+**Lane Status**: running
+**Progress**: 5%
+**Phase**: Implement lane started: track-runner subagent in its own worktree (docs, README, product and tech-stack, landing page); the landing page is coordinated with the posts program
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
