@@ -3,7 +3,7 @@
 **Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: Backlog: an optional add-on for teams that also use a product tool (positioning of 2026-11-17: plan-first process in git, not a ticket-to-PR agent); one generic target contract, one add-on per tool, Jira first but not now; plan after the new-project flow and the hooks extension
+**Phase**: DROPPED 2026-11-17 (human decision): not building a Jira or other tracker connector. Atlassian ships its own (Rovo MCP server, Jira Coding Agent) and so do other tracker vendors; people use that connector next to LaneConductor's in the same Claude session. Kept only for the market facts in the spec. Delete the track if you want it gone.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
