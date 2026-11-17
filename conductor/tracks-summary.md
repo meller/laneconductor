@@ -268,7 +268,7 @@ Generated: 2026-11-17T19:44:53Z
 | AM-10104 | Vibe Kanban (Bloop) deep comparison and cooperation options with its orphaned community | backlog | queue | 0% | New | - | 548fa4c94a72 |
 | AM-10105 | New-project flow gaps found building Dual Reader (2026-09-20/21) | backlog | queue | 100% | Planned — 8 phases scoped | - | a0d307c624f3 |
 | AM-10106 | LaneConductor connector: git-backed MCP server (local stdio first, then remote via GitHub API) | done | success | 100% | Closed 2026-11-17. The local connector is built, tested (251 then 322 tests), p… | - | 2404efaa2703 |
-| AM-10107 | LaneConductor recipe library: discoverable skills + bootstrap_project | plan | success | 40% | Phases 1-3 done; 3c plugin packaging done (install and discovery test HUMAN); 4… | 10106 | ef81b05e8dd5 |
+| AM-10107 | LaneConductor recipe library: discoverable skills + bootstrap_project | done | success | 100% | Closed 2026-11-17 as superseded by track 10117. Kept from this track: the recip… | 10106 | 15f3e54690e4 |
 | AM-10108 | Lane runner skill: run a track through its lanes with sub-agents in worktrees | done | success | 100% | Closed as superseded: the minimal lane-runner note was folded into the lanecond… | - | 5166ebe0dc02 |
 | AM-10109 | Restructure the laneconductor skill: split by lane, fix frontmatter, drop Postgres-era weight | done | success | 100% | Merged to main (260c9c6e); review passed; pure-file tests 53/53; syntax check +… | - | e72ade42fc08 |
 | AM-10114 | Docs and landing page: the plugin, the board, and the new direction | review | success | 90% | Merged, pushed (main 15f9157b) and DEPLOYED 2026-11-17 to laneconductor-site.we… | 10106 | 0aadf0e9315d |

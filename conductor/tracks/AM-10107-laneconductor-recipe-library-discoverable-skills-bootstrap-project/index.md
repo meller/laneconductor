@@ -1,9 +1,9 @@
 # Track AM-10107: LaneConductor recipe library: discoverable skills + bootstrap_project
 
-**Lane**: plan
+**Lane**: done
 **Lane Status**: success
-**Progress**: 0%
-**Phase**: Planned
+**Progress**: 100%
+**Phase**: Closed 2026-11-17 as superseded by track 10117. Kept from this track: the recipe format and the checker, secret scanner and reference resolver (merged with 10117, shipped as lc-recipe-check), and the proof that a recipe changes Claude's output (the Phase 1 baseline). Dropped: find_recipe, get_recipe, bootstrap_project and save_recipe as connector tools (Phases 4-7); recipes now live inside the skill and the new-project flow reads them. Still open and human: the review of the nine recipes before any is shipped, and the discovery test (both tracked in 10117).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
