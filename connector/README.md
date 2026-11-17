@@ -195,6 +195,21 @@ Everything the connector writes is an ordinary LaneConductor file, readable and 
 To remove it: `claude mcp remove lc-connector` (or delete the `.mcp.json` entry) and, if you want,
 delete `connector/`. Nothing is lost and no state exists only inside the connector.
 
+## Board data (`lc board`)
+
+`lc board [--out <file>] [--pretty] [--now <iso>] [--check <file>]` prints a JSON snapshot of one
+project's tracks for a dashboard (Phase 5d): `project`, `generated_at`, `lanes`, `tracks` (number,
+folder, title, lane, lane_status, progress, phase, depends_on, auto_run, merge_mode, source_hash,
+needs_attention), `counts` (per lane, needs-attention, archived) and `needs_attention` (number plus
+reasons). It reads only `conductor/workflow.json`, `.laneconductor.json` (`project.name`) and each
+track's `index.md` header, and cuts every marker value at its first line: conversation, spec, plan
+and test files and the Problem and Summary text are never read or copied. The output goes to stdout
+and nothing is written into the repo (a board is a rebuildable snapshot, not a committed file); `--out`
+writes a file, and `--check <file>` exits 1 when the file's data differs from a fresh build
+(`generated_at` is ignored). Tracks sort by lane order, then number descending. `_duplicate-*` and
+`_quarantine-*` folders are listed with `archived: true` and left out of the counts and the
+needs-attention list. The generator ships in the plugin as `server/bin/lc-board.mjs`.
+
 ## Tests
 
 ```bash
