@@ -41,7 +41,7 @@ test('--check exits 1 and names the file when the committed output has drifted',
       fs.cpSync(path.join(REPO, rel), path.join(tmp, rel), { recursive: true });
     }
     fs.mkdirSync(path.join(tmp, 'connector/bin'), { recursive: true });
-    for (const bin of ['lc-connector.mjs', 'lc-board.mjs']) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
+    for (const bin of fs.readdirSync(path.join(REPO, 'connector/bin'))) fs.copyFileSync(path.join(REPO, 'connector/bin', bin), path.join(tmp, 'connector/bin', bin));
     for (const rel of ['connector/package.json', 'connector/package-lock.json', 'connector/PLUGIN-README.md', 'LICENSE']) fs.copyFileSync(path.join(REPO, rel), path.join(tmp, rel));
     // The repo files the server imports from outside connector/ (the generator finds them by their imports).
     for (const rel of listFiles(path.join(PLUGIN, 'conductor'))) {

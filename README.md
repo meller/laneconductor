@@ -81,6 +81,12 @@ Open your project in Claude Code and ask in plain words, or use a command:
 
 - `/laneconductor:setup` sets LaneConductor up in a new project; `/laneconductor:new <title: what and why>` starts a
   track (`:bug` and `:feature` start one of those kinds).
+- `/laneconductor:new-project <name or idea>` starts a project from a short chat: it asks a few questions one at a
+  time, recommends recipes (things already solved in your stack, up to five, each with a reason and a date; you
+  choose), writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks. It asks before
+  any commit and never pushes. `/laneconductor:recipes` lists the recipes available and `/laneconductor:add-recipe`
+  saves something you solved into your own recipe library (a local repository you name in `recipes.path` in
+  `.laneconductor.json`, or in `LC_RECIPES`) as a local commit, after the checker passes and you say yes.
 - `/laneconductor:plan 12`, `:implement 12`, `:review 12`, `:quality-gate 12`, `:merge 12` take a track through
   its lanes. `:run` recommends the next step and asks before it starts anything.
 - `/laneconductor:status`, `:move`, `:comment`, `:workflow`, `:brainstorm` and `:review-plan` do what they say.

@@ -28,7 +28,7 @@ const sampleArgs = (cmd) => Object.fromEntries(cmd.args.map((a) => [a.name, samp
 test('catalog: every command has the fields, unique names, a known group and exactly the commands of the spec', () => {
   assert.equal(new Set(COMMAND_NAMES).size, COMMAND_NAMES.length);
   const want = ['plan', 'brainstorm', 'implement', 'review', 'quality-gate', 'merge', 'run', 'new', 'bug', 'feature', 'status', 'move', 'comment',
-    'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board'];
+    'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board', 'recipes', 'add-recipe', 'new-project'];
   assert.deepEqual([...COMMAND_NAMES].sort(), [...want].sort());
   for (const c of COMMANDS) {
     assert.ok(GROUPS.includes(c.group), `${c.name}: group`);

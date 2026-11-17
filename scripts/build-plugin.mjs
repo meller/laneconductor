@@ -84,6 +84,15 @@ export const CONNECTOR_TOOL_PREFIX = `mcp__plugin_${PLUGIN_NAME}_lc__`;
 // the source text it replaces and the build throws when that text is gone, so a source change cannot
 // silently leave a dead link in the plugin.
 export const SKILL_EXCLUDE_DIRS = ['legacy'];
+// The recipes inside the skill (track AM-10117): `recipes/<name>/SKILL.md` ships in both profiles. A recipe's `files/` may hold
+// any file type (templates, config, scripts); the LEAN profile is Markdown, text, JSON and YAML only, so it drops the files of
+// a recipe whose extension is not one of those (templates ending in .tmpl, scripts); the recipe text stays.
+export const LEAN_SKIP_RECIPE_FILE = /^recipes\/[^/]+\/files\/(?!.*\.(?:md|markdown|txt|json|ya?ml)$)/i;
+// Server entry points of the full plugin (their relative imports follow): the connector, the board and the recipe and scaffold scripts.
+export const SERVER_ENTRIES = [
+  'bin/lc-connector.mjs', 'bin/lc-board.mjs', 'bin/lc-scaffold.mjs',
+  'bin/lc-recipe-check.mjs', 'bin/lc-recipe-match.mjs', 'bin/lc-recipe-gate.mjs', 'bin/lc-recipe-apply.mjs', 'bin/lc-recipe-save.mjs',
+];
 export const LEGACY_NOTE = 'Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
   + '`syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the '
   + 'LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.';
@@ -292,6 +301,7 @@ function buildCommon(repo, profile) {
   // Skill: everything under the skill folder except the parked tier, with the explicit edits applied.
   for (const r of walk(path.join(repo, SKILL_SRC))) {
     if (SKILL_EXCLUDE_DIRS.some((d) => r.startsWith(`${d}/`))) continue;
+    if (profile === 'lean' && LEAN_SKIP_RECIPE_FILE.test(r)) continue;
     const dest = `skills/laneconductor/${r}`;
     c.addFrom(`${SKILL_SRC}/${r}`, dest);
     const f = c.files.get(dest);
@@ -373,7 +383,7 @@ function addServer(c, repo, { entries, assets = [], dirs = [] }) {
 function buildFull(repo) {
   const { c, pkg } = buildCommon(repo, 'full');
   const lock = JSON.parse(fs.readFileSync(path.join(repo, 'connector/package-lock.json'), 'utf8'));
-  addServer(c, repo, { entries: ['bin/lc-connector.mjs', 'bin/lc-board.mjs'], assets: ['src/board-page.html'], dirs: ['guides'] });
+  addServer(c, repo, { entries: SERVER_ENTRIES, assets: ['src/board-page.html'], dirs: ['guides'] });
   addExtras(c, repo, FULL_EXTRAS_SRC, FULL_EXTRAS_DIRS);
 
   // package.json + lockfile at the plugin root, derived from the connector's (runtime deps only).
