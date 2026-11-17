@@ -8,6 +8,7 @@
 // Sources                                   Output (under plugins/laneconductor/)
 //   .claude/skills/laneconductor/**         skills/laneconductor/**
 //   connector/bin/lc-connector.mjs          server/bin/lc-connector.mjs
+//   connector/bin/lc-board.mjs              server/bin/lc-board.mjs (the board data generator, Phase 5d)
 //   connector/src/**, connector/guides/**   server/src/**, server/guides/**
 //   repo files the server imports with a    the same repo-relative path (server/ stands in for connector/,
 //     relative path outside connector/        so `../../conductor/x.mjs` keeps resolving)
@@ -26,6 +27,7 @@ export const MARKETPLACE_REL = '.claude-plugin/marketplace.json';
 const SKILL_SRC = '.claude/skills/laneconductor';
 const AUTHOR = 'Asaf Meller';
 const SERVER_ENTRY = 'bin/lc-connector.mjs';
+const SERVER_BINS = [SERVER_ENTRY, 'bin/lc-board.mjs'];
 
 const json = (v) => `${JSON.stringify(v, null, 2)}\n`;
 
@@ -64,7 +66,7 @@ export function buildPlugin(repo = REPO) {
   for (const r of walk(path.join(repo, SKILL_SRC))) addFrom(`${SKILL_SRC}/${r}`, `skills/laneconductor/${r}`);
 
   // Server: entry point, src/, guides/ (server/ is connector/'s stand-in).
-  addFrom(`connector/${SERVER_ENTRY}`, `server/${SERVER_ENTRY}`);
+  for (const bin of SERVER_BINS) addFrom(`connector/${bin}`, `server/${bin}`);
   for (const dir of ['src', 'guides']) {
     for (const r of walk(path.join(repo, 'connector', dir))) addFrom(`connector/${dir}/${r}`, `server/${dir}/${r}`);
   }

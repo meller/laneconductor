@@ -797,6 +797,7 @@ Deployment  (per project)
   remote-sync          Bidirectional sync between API and local files (newer wins)
   init-summary         Regenerate conductor/tracks.md
   summary [--check]    Regenerate conductor/tracks-summary.md (the connector's generated track list)
+  board [--out <file>] Print the board data (tracks by lane, needs attention) as JSON; writes nothing by default
   verify               Run project verification checks
 
 Global configuration: ${RC_FILE}
@@ -873,6 +874,7 @@ const SUBCOMMAND_HELP = {
     'remote-sync': 'lc remote-sync  — Bidirectional sync between API and local files (newer wins)',
     'init-summary': 'lc init-summary  — Regenerate conductor/tracks.md',
     summary: 'lc summary [--check]  — Regenerate conductor/tracks-summary.md from the track folders (--check: write nothing, exit 1 if out of date)',
+    board: 'lc board [--out <file>] [--pretty] [--check <file>]  — Print the board data (tracks by lane, needs attention) as JSON on stdout; writes nothing unless --out (--check: exit 1 if the file is out of date)',
     delete: 'lc delete [id]  — Permanently delete a track',
     remove: 'lc delete [id]  — Permanently delete a track',
 };
@@ -4496,6 +4498,11 @@ Please review this, answer any questions (some fields may contain questions rath
 } else if (command === 'summary') {
     if (!projectRoot) { process.exit(1); }
     const script = join(getInstallPath(), 'connector', 'bin', 'lc-summary.mjs');
+    const r = spawnSync('node', [script, '--repo', projectRoot, ...args.slice(1)], { stdio: 'inherit' });
+    process.exit(r.status ?? 1);
+} else if (command === 'board') {
+    if (!projectRoot) { process.exit(1); }
+    const script = join(getInstallPath(), 'connector', 'bin', 'lc-board.mjs');
     const r = spawnSync('node', [script, '--repo', projectRoot, ...args.slice(1)], { stdio: 'inherit' });
     process.exit(r.status ?? 1);
 } else if (command === 'delete' || command === 'remove') {
