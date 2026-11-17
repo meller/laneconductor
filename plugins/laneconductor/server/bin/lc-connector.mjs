@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // LaneConductor connector, stdio transport (track AM-10106, Phase 3).
-//   lc-connector.mjs --repo <path> [--repo <path2>] [--state-branch <branch>]
+//   lc-connector.mjs [--repo <path>]... [--state-branch <branch>]
+// With no --repo it serves $CLAUDE_PROJECT_DIR, else the git top level of the current directory.
 // stdout carries MCP messages only (F3); every log line goes to stderr.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { createConnectorServer } from '../src/server.mjs';
 import { readPushPolicy } from '../src/push-policy.mjs';
+import { resolveRepoSource } from '../src/repo-source.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { LocalGitStore } from '../src/store-local.mjs';
 
@@ -37,9 +39,11 @@ function parseArgs(argv) {
   return out;
 }
 
-const USAGE = `Usage: lc-connector.mjs --repo <path> [--repo <path>...] [--state-branch <branch>]
+const USAGE = `Usage: lc-connector.mjs [--repo <path>]... [--state-branch <branch>]
 
-  --repo <path>          Git checkout holding conductor/tracks/ (repeatable; the first is the default). Default: current directory.
+  --repo <path>          Git checkout holding conductor/tracks/ (repeatable; the first is the default). Without it the connector
+                         serves the CLAUDE_PROJECT_DIR environment variable (Claude Code sets it), else the top level of the
+                         git repository containing the current directory, else it stops with an error.
   --state-branch <name>  Branch that holds track state, for every --repo. Without it each repo resolves its own, first match wins:
                          connector.state_branch in its .laneconductor.json; its default branch (refs/remotes/origin/HEAD);
                          the current branch if it is main or master; else main. Writes are refused on any other branch.
@@ -62,7 +66,15 @@ if (args.version) {
   process.exit(0);
 }
 
-const repos = (args.repos.length ? args.repos : [process.cwd()]).map((r) => path.resolve(r));
+let repos;
+try {
+  const resolved = resolveRepoSource({ flags: args.repos, env: process.env, cwd: process.cwd() });
+  repos = resolved.repos;
+  err(`repo ${repos.join(', ')} (chosen by ${{ flag: '--repo flag', env: 'CLAUDE_PROJECT_DIR', cwd: 'current directory' }[resolved.source]})`);
+} catch (e) {
+  err(e.message);
+  process.exit(2);
+}
 for (const r of repos) {
   if (!fs.existsSync(r) || !fs.statSync(r).isDirectory()) {
     err(`--repo ${r} is not a directory`);

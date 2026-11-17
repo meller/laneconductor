@@ -34,8 +34,21 @@ Or commit a `.mcp.json` at the project root:
 }
 ```
 
-Options: `--repo <path>` (repeatable; the first is the default; defaults to the current directory),
-`--state-branch <name>` (applies to every `--repo`; see below).
+Options: `--repo <path>` (repeatable; the first is the default), `--state-branch <name>` (applies to every
+`--repo`; see below).
+
+### Which repository it serves
+
+Without `--repo` the connector resolves the repository at startup, first match wins:
+
+1. the `--repo` flag(s);
+2. the `CLAUDE_PROJECT_DIR` environment variable (Claude Code exports it to plugin MCP servers, so the plugin's
+   `.mcp.json` passes no repo argument at all);
+3. the git top level of the current directory, when it is inside a git repository;
+4. otherwise a startup error naming the three options (exit code 2, nothing on stdout).
+
+The choice is logged to stderr, like the state branch rule: `repo /path/to/project (chosen by CLAUDE_PROJECT_DIR)`
+(`--repo flag`, `CLAUDE_PROJECT_DIR` or `current directory`). The logic is `src/repo-source.mjs`.
 
 ### State branch
 
@@ -144,13 +157,18 @@ worktree, and only for code.
 ## The LaneConductor plugin (skill + connector as one unit)
 
 `plugins/laneconductor/` is a Claude plugin that bundles the `laneconductor` skill and this server
-(`.mcp.json` starts it over stdio against the open project). `.claude-plugin/marketplace.json` at the
+(`.mcp.json` starts it over stdio; it serves the open project through `CLAUDE_PROJECT_DIR`). `.claude-plugin/marketplace.json` at the
 repo root makes the repo a plugin marketplace with that one entry. Both are GENERATED; do not edit
 them by hand.
 
 How the generator works (`scripts/build-plugin.mjs`, deterministic, no timestamps):
 
-- the skill is copied from `.claude/skills/laneconductor/`;
+- the skill is copied from `.claude/skills/laneconductor/` without its `legacy/` folder (the parked daemon and
+  Postgres tier stays in the repo's own skill). `SKILL_EDITS` in the generator removes the pointers into it from
+  `SKILL.md` and `setup/setup.md` (a missing anchor fails the build); `setup/` and `deploy/` ship;
+- `README.md` comes from `connector/PLUGIN-README.md` (the plugin folder's README, what the Anthropic directory
+  reads) and `LICENSE` from the repo root; `plugin.json` carries the listing fields (license, homepage, repository,
+  keywords, documentationUrl, supportUrl);
 - the server is copied from `connector/bin/lc-connector.mjs`, `connector/src/` and `connector/guides/`
   into `server/` (a top-level `bin/` would stop claude.ai and Cowork installing the plugin), plus the
   few repo files it imports from outside `connector/` (found by following the imports) at their repo-relative path
@@ -184,7 +202,10 @@ HUMAN verification (plan Phase 5c Task 5; none of it is automated, and a nested 
 
 1. After the install, `/mcp` shows `plugin:laneconductor:lc-connector` connected.
 2. In a scratch repo with a `conductor/` folder, "plan X" works through the connector. This also confirms that
-   `${CLAUDE_PROJECT_DIR}` is substituted in the MCP `args` (the docs say so; no test has seen it work).
+   Claude Code exports `CLAUDE_PROJECT_DIR` to the plugin's MCP server (the docs say so; the tests only set it
+   themselves). After updating an older install of the plugin, `/mcp` must still show the server connected: the
+   `--repo ${CLAUDE_PROJECT_DIR}` arguments are gone from `.mcp.json`. If the stderr log says `(chosen by current
+   directory)` or the server fails to start with "no repository to serve", the variable was not exported.
 3. Run `claude plugin eval`.
 
 The remote (`http`) entry for claude.ai and Cowork is plan Phase 5c Task 6, after the Phase 8 server exists.

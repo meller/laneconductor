@@ -1,6 +1,6 @@
 // Phase 5c: the generated LaneConductor plugin (plugins/laneconductor/) and its marketplace file.
-// What is NOT covered here is HUMAN (plan 5c Task 5): installing from the marketplace, `/mcp`
-// showing the server connected, and the `${CLAUDE_PROJECT_DIR}` substitution in a real Claude Code.
+// What is NOT covered here is HUMAN (plan 5c Task 5, 5e): installing from the marketplace, `/mcp`
+// showing the server connected, and Claude Code really exporting CLAUDE_PROJECT_DIR to the server.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -90,7 +90,7 @@ test('manifest, marketplace and .mcp.json have the agreed shape', () => {
   assert.deepEqual(Object.keys(mcp.mcpServers), ['lc-connector']);
   const s = mcp.mcpServers['lc-connector'];
   assert.equal(s.command, 'node');
-  assert.deepEqual(s.args, ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs', '--repo', '${CLAUDE_PROJECT_DIR}']);
+  assert.deepEqual(s.args, ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs'], 'only ${CLAUDE_PLUGIN_ROOT} is used: the repo comes from the CLAUDE_PROJECT_DIR environment variable');
   assert.equal(s.type, undefined, 'no remote (http) entry yet: plan 5c Task 6 waits for Phase 8');
   assert.equal(s.env, undefined);
 });
@@ -294,11 +294,12 @@ test('generated server starts over stdio from a copy of the plugin dir and answe
       via = 'symlink to connector/node_modules (offline npm cache was cold)';
     }
     t.diagnostic(`dependencies installed via ${via}`);
-    // Use the committed .mcp.json entry with the two documented substitutions applied.
+    // Use the committed .mcp.json entry with ${CLAUDE_PLUGIN_ROOT} applied; Claude Code exports CLAUDE_PROJECT_DIR to the process.
     const entry = readJson(path.join(copy, '.mcp.json')).mcpServers['lc-connector'];
-    const sub = (s) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', copy).replaceAll('${CLAUDE_PROJECT_DIR}', project);
+    const sub = (s) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', copy);
+    assert.ok(!entry.args.some((a) => a.includes('${CLAUDE_PROJECT_DIR}')), 'no project variable in args');
     assert.equal(entry.command, 'node');
-    raw = spawnRaw(process.execPath, entry.args.map(sub), { cwd: tmp });
+    raw = spawnRaw(process.execPath, entry.args.map(sub), { cwd: tmp, env: { ...process.env, CLAUDE_PROJECT_DIR: project } });
     const init = await raw.initialize();
     assert.ok(init.result, JSON.stringify(init));
     assert.equal(init.result.serverInfo.version, readJson(path.join(copy, 'package.json')).version, 'version read from the plugin root package.json');

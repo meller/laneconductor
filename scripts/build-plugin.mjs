@@ -177,7 +177,7 @@ export function buildPlugin(repo = REPO) {
     mcpServers: {
       'lc-connector': {
         command: 'node',
-        args: ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs', '--repo', '${CLAUDE_PROJECT_DIR}'],
+        args: ['${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs'], // the repo comes from CLAUDE_PROJECT_DIR (Claude Code exports it), else the cwd
       },
     },
   }));

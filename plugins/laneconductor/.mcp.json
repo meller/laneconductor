@@ -3,9 +3,7 @@
     "lc-connector": {
       "command": "node",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs",
-        "--repo",
-        "${CLAUDE_PROJECT_DIR}"
+        "${CLAUDE_PLUGIN_ROOT}/server/bin/lc-connector.mjs"
       ]
     }
   }
