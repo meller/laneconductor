@@ -30,7 +30,9 @@
 //                                            SKILL.md has its `allowed-tools` key deleted so Claude Code applies its normal
 //                                            permission check and a Habits section appended; SKILL.md, setup/setup.md and
 //                                            ops/board.md get explicit edits, see skillEdits)
-//   connector/plugin-extras/{commands,agents}/**  commands/**, agents/** (slash commands and subagents)
+//   connector/src/commands.mjs (the catalog)  commands/*.md, one per catalog entry (generated, see renderCommand; Claude's frontmatter,
+//                                            sub-agent names, the Artifact tool and the fallback line are added here, the catalog is neutral)
+//   connector/plugin-extras/agents/**       agents/** (subagents)
 //   connector/plugin-extras/icon.png        .claude-plugin/icon.png
 //   connector/PLUGIN-README.md              README.md ({{VERSION}} filled in)
 //   LICENSE                                 LICENSE (Elastic License 2.0; named by `license` in plugin.json)
@@ -48,6 +50,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { COMMANDS, argumentHint, helpText } from '../connector/src/commands.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PLUGIN_NAME = 'laneconductor';
@@ -61,9 +64,10 @@ const AUTHOR_URL = 'https://github.com/meller';
 const REPO_URL = 'https://github.com/meller/laneconductor';
 export const ICON_SRC = 'connector/plugin-extras/icon.png'; // made by scripts/make-icon.mjs; the human may replace it
 // Plugin extras (track AM-10115): connector/plugin-extras/<dir>/ is copied verbatim to plugins/laneconductor/<dir>/
-// (both profiles: commands and subagents are Markdown).
+// (both profiles: subagents are Markdown). The slash commands are NOT extras any more (track AM-10116): they are generated from
+// the command catalog, connector/src/commands.mjs, which the connector also serves as MCP prompts.
 export const EXTRAS_SRC = 'connector/plugin-extras';
-export const EXTRAS_DIRS = ['commands', 'agents'];
+export const EXTRAS_DIRS = ['agents'];
 // EXTENSION POINT for anything that must stay inside the main plugin (nothing today): put sources under
 // connector/plugin-extras-full/<dir>/, add the directory names to FULL_EXTRAS_DIRS and any plugin.json wiring in buildFull.
 // The HOOKS do not go here: they will be a separate, opt-in extension plugin, `laneconductor-hooks` (dependencies:
@@ -237,6 +241,48 @@ function addExtras(c, repo, srcRoot, dirs, transform = (_, t) => t) {
   }
 }
 
+// ---- Slash commands, generated from the catalog (track AM-10116, REQ-3) ----
+// What is Claude-only about a command lives here, not in the catalog: frontmatter, the sub-agent names, the Artifact tool, the
+// board script lookup, and the fallback line for when the connector's tools are unavailable.
+export const FALLBACK_LINE = `Use the connector's tools (\`${CONNECTOR_TOOL_PREFIX}*\`) when they are present. If the connector's tools are unavailable (its MCP server failed to start), do the same by editing the track files directly, following the skill's \`ops/tracks.md\` (it has the formats): re-read a file right before editing it and change only the lines you mean to change.`;
+const SUBAGENT_NOTE = 'In Claude Code the sub-agent is `laneconductor:track-runner`, one per track, each in its own worktree. See "Plugin users" in the skill\'s `ops/working-a-track.md`.';
+const BOARD_SCRIPT_NOTE = 'Generating the board needs the plugin\'s own board script or the `lc` command on PATH. The script is `server/bin/lc-board.mjs` in this plugin: find it with Glob `**/laneconductor/**/server/bin/lc-board.mjs` under `~/.claude/plugins` (the `${CLAUDE_PLUGIN_ROOT}` variable may not be substituted in command text) and run `node <that path> --repo . --site "$site" --json`, or use `lc board --site "$site" --json` when `lc` is on PATH. If neither exists, say so plainly and stop; do not try to build the page by hand.';
+const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no connector tool does it, so this is your job.';
+const OPEN_NOTE = 'Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.';
+export const CLAUDE_EXTRAS = {
+  implement: [SUBAGENT_NOTE],
+  review: [SUBAGENT_NOTE],
+  run: [SUBAGENT_NOTE, BOARD_SCRIPT_NOTE],
+  'review-plan': ['Dispatch the `laneconductor:plan-reviewer` subagent (read only) with that prompt.'],
+  help: ['In Claude Code, type a command as `/laneconductor:<name>`, for example `/laneconductor:plan 10106`; typing `/laneconductor:` lists them all.'],
+  'show-board': [OPEN_NOTE],
+  'refresh-board': [PUBLISH_NOTE, BOARD_SCRIPT_NOTE],
+  board: [PUBLISH_NOTE, OPEN_NOTE, BOARD_SCRIPT_NOTE],
+};
+
+/** A frontmatter value, double-quoted when plain YAML would misread it. */
+function yamlValue(v) {
+  return /^[\[{*&!|>'"%@`#-]|: | #/.test(v) ? JSON.stringify(v) : v;
+}
+
+/** The Claude Code command file for one catalog entry. Deterministic. */
+export function renderCommand(cmd) {
+  const hint = argumentHint(cmd);
+  const front = ['---', `description: ${yamlValue(cmd.description)}`, ...(hint ? [`argument-hint: ${yamlValue(hint)}`] : []), '---'];
+  let body;
+  if (cmd.render === 'help') {
+    body = `Show me this list as it is; run nothing else.\n\n${helpText()}`;
+  } else if (cmd.args.length <= 1) {
+    body = cmd.procedure.replace(/\{\{\w+\}\}/g, '`$ARGUMENTS`');
+  } else {
+    // Several arguments arrive as one string: name them in order and refer to them by name.
+    const names = cmd.args.map((a) => a.hint ?? a.name).join(', then ');
+    body = `Arguments: \`$ARGUMENTS\` (${names}).\n\n${cmd.procedure.replace(/\{\{(\w+)\}\}/g, '<$1>')}`;
+  }
+  const parts = [body, ...(CLAUDE_EXTRAS[cmd.name] ?? []), ...(cmd.connector ? [FALLBACK_LINE] : [])];
+  return `${front.join('\n')}\n${parts.join('\n\n')}\n`;
+}
+
 /** The parts both profiles share: the skill (edited per profile), commands, agents, icon, LICENSE and the manifest. */
 function buildCommon(repo, profile) {
   const c = collector(repo);
@@ -259,6 +305,7 @@ function buildCommon(repo, profile) {
     f.content = Buffer.from(text);
   }
 
+  for (const cmd of COMMANDS) c.add(`commands/${cmd.name}.md`, renderCommand(cmd));
   addExtras(c, repo, EXTRAS_SRC, EXTRAS_DIRS, profile === 'lean' ? (rel, t) => (rel.startsWith('agents/') ? stripMcpTools(t) : t) : undefined);
   c.addFrom(ICON_SRC, '.claude-plugin/icon.png');
   c.addFrom('LICENSE', 'LICENSE');

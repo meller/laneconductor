@@ -216,7 +216,7 @@ How the generator works (`scripts/build-plugin.mjs`, deterministic, no timestamp
 - the README comes from `connector/PLUGIN-README.md`, `LICENSE` from the repo root; `plugin.json` carries the listing fields
   (license, homepage, repository, keywords, documentationUrl, supportUrl); the icon is `connector/plugin-extras/icon.png`
   (made by `scripts/make-icon.mjs`; replace it with any square PNG of 512 to 2048 px);
-- commands and agents are copied from `connector/plugin-extras/{commands,agents}/`;
+- commands are generated from the catalog `connector/src/commands.mjs` (the same table the connector serves as MCP prompts); agents are copied from `connector/plugin-extras/agents/`;
 - the server is the two entry scripts (`connector/bin/lc-connector.mjs`, `connector/bin/lc-board.mjs`) plus every file they
   reach with a relative import (found by following the imports), copied under `server/` (a top-level `bin/` would stop
   claude.ai and Cowork installing the plugin); repo files outside `connector/` land at their repo-relative path

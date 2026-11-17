@@ -15,9 +15,14 @@ This is the product. It has no Claude-only assumption and must keep none.
 - **Recipes.** Reusable procedures (track AM-10107), also plain Markdown.
 - **Connector logic.** `connector/src/**`: reading and writing track files with base-commit checks, commits,
   push policy, summaries, the board data. The MCP SDK is imported only by `src/server.mjs` and the entry `bin/lc-connector.mjs`.
-- **The MCP tool contract.** The eight tools in `connector/src/tools/` (`get_context`, `list_tracks`, `get_track`,
-  `create_track`, `update_track`, `append_conversation`, `report_outcome`, `health_report`) and their
-  inputs and outputs. Any MCP client can use them.
+- **The MCP tool contract.** The tools in `connector/src/tools/` (`get_context`, `list_tracks`, `get_track`,
+  `create_track`, `update_track`, `append_conversation`, `report_outcome`, `health_report`, and the read-only
+  `help`) and their inputs and outputs. Any MCP client can use them.
+- **The command catalog.** `connector/src/commands.mjs` (track AM-10116) is the single, agent-neutral source of every
+  command: name, description, arguments, example phrase and a short procedure that names the lane guides and the
+  connector tools by their plain names. Two adapters read it: the stdio server registers each entry as an MCP prompt
+  (plus a `help` prompt and tool; the pattern is FITI's), and the plugin generator writes the Claude Code
+  `commands/*.md` from it. The catalog names no Claude tool prefix, plugin path or sub-agent.
 
 ## (b) The Claude adapter
 
@@ -26,7 +31,7 @@ produced by the generator profiles in `scripts/build-plugin.mjs` from sources in
 and never edited by hand under `plugins/`:
 
 - the plugin manifests (`plugin.json`), the marketplace entries (`.claude-plugin/marketplace.json`) and the icon;
-- the slash commands (`commands/`) and subagents (`agents/`), including their Claude frontmatter;
+- the slash commands (`commands/`), generated from the neutral command catalog (Claude frontmatter, the sub-agent names, the Artifact tool and the fallback line for an unavailable connector are added by the generator), and the subagents (`agents/`, from `connector/plugin-extras/agents/`);
 - the skill frontmatter transforms (the `allowed-tools` key is dropped in both profiles) and the Habits section appended
   to `SKILL.md` because no hooks ship in the main plugin;
 - `.mcp.json`, which starts the connector over stdio with Claude's `${CLAUDE_PLUGIN_ROOT}` variable.

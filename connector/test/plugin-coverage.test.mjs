@@ -1,5 +1,6 @@
-// Track AM-10115 Phase 2: every command of the skill's routing table has a plugin action (a command file) or a
-// recorded reason (connector/plugin-extras/coverage.json), and the commands and agents are well formed.
+// Track AM-10115 Phase 2 and AM-10116: every command of the skill's routing table is in the command catalog (connector/src/commands.mjs)
+// or has a recorded reason (connector/plugin-extras/coverage.json); every catalog entry yields exactly one plugin command file and
+// one MCP prompt; the commands and agents are well formed.
 // The commands, agents, connector and board script all live in the one plugin (plugins/laneconductor); the commands and agents
 // use the connector tools (`mcp__plugin_laneconductor_lc__*`) and say what to do when the tools are unavailable.
 // HUMAN, not covered here: running the commands and the subagent in a real Claude Code session (plan Task 8).
@@ -9,6 +10,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO, PLUGIN_REL, PLUGIN_NAME, CONNECTOR_TOOL_PREFIX } from '../../scripts/build-plugin.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
+import { COMMANDS as CATALOG, COMMAND_NAMES, argumentHint, helpText } from '../src/commands.mjs';
+import { connect } from './helpers/mcp.mjs';
+import { makeRepo, rm } from './helpers/repo.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
 const SKILL = path.join(PLUGIN, 'skills/laneconductor');
@@ -58,7 +62,42 @@ test('every routing-table command has a command file, an alias to one, or a reas
     if (COVERAGE.entries[n]?.reason) continue;
     unmapped.push(n);
   }
-  assert.deepEqual(unmapped, [], 'add a commands/<name>.md in connector/plugin-extras, or list the name with a reason in coverage.json');
+  assert.deepEqual(unmapped, [], 'add the command to connector/src/commands.mjs, or list the name with a reason in coverage.json');
+});
+
+test('every catalog command is a routing-table name, an alias target, or listed under catalogOnly with a reason', () => {
+  const names = new Set(routingNames());
+  const targets = new Set([...names].map((n) => COVERAGE.aliases[n] ?? n));
+  for (const c of COMMAND_NAMES) {
+    if (targets.has(c) || names.has(c)) continue;
+    assert.ok(COVERAGE.catalogOnly?.[c]?.length >= 20, `${c} is in the catalog but not in the skill routing table: add an alias or a catalogOnly reason in coverage.json`);
+  }
+  for (const [c, reason] of Object.entries(COVERAGE.catalogOnly ?? {})) {
+    assert.ok(COMMAND_NAMES.includes(c), `catalogOnly ${c} is not a catalog command; remove it`);
+    assert.ok(!targets.has(c) && !names.has(c), `catalogOnly ${c} is in the routing table; remove it from catalogOnly`);
+    assert.ok(reason.length >= 20, `${c}: needs a real reason`);
+  }
+});
+
+// REQ-3, REQ-5 / AC-2, TC-4: the plugin's commands ARE the catalog, one file and one MCP prompt per entry, no hand-written command file.
+test('one plugin command file and one MCP prompt per catalog entry; no hand-written command source remains', async () => {
+  assert.deepEqual([...COMMANDS].sort(), [...COMMAND_NAMES].sort());
+  assert.ok(!fs.existsSync(path.join(REPO, 'connector/plugin-extras/commands')), 'connector/plugin-extras/commands/ must stay removed: commands are generated from connector/src/commands.mjs');
+  for (const c of CATALOG) {
+    const { fm } = parse(read(`commands/${c.name}.md`));
+    assert.equal(fm.get('description').replace(/^"|"$/g, '').replace(/\\"/g, '"'), c.description, `${c.name}: description comes from the catalog`);
+    assert.equal(fm.has('argument-hint'), c.args.length > 0, `${c.name}: argument-hint exists exactly when there are arguments`);
+    if (c.args.length) assert.equal(JSON.parse(`[${fm.get('argument-hint').startsWith('"') ? fm.get('argument-hint') : JSON.stringify(fm.get('argument-hint'))}]`)[0], argumentHint(c), `${c.name}: argument-hint`);
+  }
+  const dir = makeRepo();
+  const s = await connect(dir);
+  try {
+    const { prompts } = await s.client.listPrompts();
+    assert.deepEqual(prompts.map((p) => p.name).sort(), [...COMMANDS].sort(), 'one prompt per command file');
+  } finally {
+    await s.close();
+    rm(dir);
+  }
 });
 
 test('coverage.json is honest: reasons present, no stale names, nothing listed twice', () => {
@@ -77,15 +116,15 @@ test('coverage.json is honest: reasons present, no stale names, nothing listed t
 
 test('commands: the spec list exists, each has a description and an argument-hint, and a short body', () => {
   const want = ['plan', 'brainstorm', 'implement', 'review', 'quality-gate', 'merge', 'run', 'new', 'bug', 'feature', 'status',
-    'move', 'comment', 'board', 'workflow', 'setup', 'deploy', 'review-plan'];
+    'move', 'comment', 'board', 'workflow', 'setup', 'deploy', 'review-plan', 'help', 'show-board', 'refresh-board'];
   assert.deepEqual(want.filter((c) => !COMMANDS.includes(c)), []);
   for (const c of COMMANDS) {
     const { fm, body } = parse(read(`commands/${c}.md`));
     assert.ok((fm.get('description') ?? '').length > 10, `${c}: frontmatter needs a description`);
-    assert.ok(fm.has('argument-hint'), `${c}: frontmatter needs an argument-hint`);
+    if (CATALOG.find((x) => x.name === c).args.length) assert.ok(fm.has('argument-hint'), `${c}: frontmatter needs an argument-hint`);
     for (const k of fm.keys()) assert.ok(['description', 'argument-hint', 'allowed-tools', 'model'].includes(k), `${c}: undocumented frontmatter field ${k}`);
-    assert.ok(body.trim().split('\n').length < 40, `${c}: body must stay under 40 lines (the skill is the single source)`);
-    assert.ok(body.includes('$ARGUMENTS'), `${c}: must use $ARGUMENTS`);
+    assert.ok(body.trim().split('\n').length < (c === 'help' ? 45 : 40), `${c}: body must stay under 40 lines (the skill is the single source)`);
+    if (CATALOG.find((x) => x.name === c).args.length) assert.ok(body.includes('$ARGUMENTS'), `${c}: must use $ARGUMENTS`);
   }
 });
 
@@ -143,7 +182,7 @@ test('run, implement and review recommend track-runner, show the dispatch and st
     const t = read(`commands/${c}.md`);
     assert.ok(t.includes('laneconductor:track-runner'), `${c}: names the subagent`);
     assert.match(t, /RECOMMEND, do not start/, `${c}: recommends, does not start`);
-    assert.match(t, /one per track/, `${c}: one subagent per track`);
+    assert.match(t, /one sub-agent per track/, `${c}: one subagent per track`);
     assert.match(t, /own worktree/, `${c}: own worktree`);
     assert.match(t, /Start nothing until I say yes/, `${c}: waits for a yes`);
   }
@@ -166,6 +205,20 @@ test('commands that use the connector name its tool prefix, and say what to do w
     assert.match(t, /ops\/tracks\.md/, `${c}: points at the skill for the file formats`);
     assert.ok(!/[Ww]ithout the connector/.test(t), `${c}: the connector is part of the plugin, not optional`);
   }
+  // The explicit board commands (REQ-8, TC-9).
+  const show = read('commands/show-board.md');
+  assert.match(show, /never regenerate/i);
+  assert.match(show, /Never call `publish`/);
+  assert.match(show, /Artifact tool, action `open`/);
+  const refresh = read('commands/refresh-board.md');
+  assert.match(refresh, /republish them to the stored URL/);
+  assert.match(refresh, /ask me "Create a private board for this project\?" and create nothing without my yes/);
+  assert.match(read('commands/board.md'), /ask me which one I want/);
+  // help lists every command exactly once, grouped, with the note on the `lc` command-line tool.
+  const help = read('commands/help.md');
+  assert.ok(help.includes(helpText()), 'help.md holds the catalog help text');
+  for (const c of CATALOG) assert.equal(help.split('\n').filter((l) => new RegExp(`^- ${c.name}( |:)`).test(l)).length, 1, `${c.name} listed once in help`);
+  assert.match(help, /Needs the `lc` command-line tool .* when it is missing/);
   // board and run say plainly that generating the board needs the plugin's own script or `lc`, and how to find the script.
   for (const c of ['board', 'run']) {
     const t = read(`commands/${c}.md`);

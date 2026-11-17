@@ -1,5 +1,5 @@
 {
-  "comment": "Routing-table commands of the laneconductor skill that have NO command file in plugins/laneconductor/commands/. connector/test/plugin-coverage.test.mjs fails when a routing-table name is neither a command (or an alias of one, below) nor listed here.",
+  "comment": "Routing-table commands of the laneconductor skill that have NO command in the catalog (connector/src/commands.mjs, which becomes both the MCP prompts and plugins/laneconductor/commands/*.md). connector/test/plugin-coverage.test.mjs fails when a routing-table name is neither a catalog command (or an alias of one, below) nor listed here, and when a catalog command is neither a routing name, an alias target, nor listed under catalogOnly.",
   "entries": {
     "init-tracks-summary": { "kind": "automatic", "reason": "The connector regenerates tracks-summary.md on every write; `lc summary` remains for plain edits made outside the connector." },
     "revert": { "kind": "skill-only", "reason": "Needs judgement about which commit and which phase to undo; a thin command would hide that decision." },
@@ -16,12 +16,16 @@
     "workflow set": "workflow",
     "run track N": "run",
     "work a track end to end": "run",
-    "show the board": "board",
-    "update the board": "board",
+    "show the board": "show-board",
+    "update the board": "refresh-board",
     "setup collection": "setup",
     "setup scaffold": "setup",
     "setup scaffold generate": "setup",
     "setup-deploy": "deploy",
     "setup-deploy generate": "deploy"
+  },
+  "catalogOnly": {
+    "review-plan": "A plugin command that dispatches the read-only plan-reviewer subagent; the skill's routing table has no row for it because it is not a skill procedure.",
+    "help": "New in track AM-10116: lists every command with an example phrase (a FITI-style help). The skill has no routing row for it: asking what LaneConductor can do is not a skill procedure."
   }
 }

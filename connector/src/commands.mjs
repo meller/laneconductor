@@ -31,14 +31,14 @@ const LANE_WORK = (lane, dispatch) => (
 );
 const SHOW_BOARD = (
   'Show the existing board. Read only: never regenerate or republish it.\n\n'
-  + '1. Find the stored board address (`board.artifact_url` in `.laneconductor.json`; step 2 of the skill file `ops/board.md`).\n'
+  + '1. Find the stored board URL (`board.artifact_url` in `.laneconductor.json`; step 2 of the skill file `ops/board.md`).\n'
   + '2. Open the stored board and give me the link, when the snapshot was generated (its read time) and the privacy note: the board is private, it is a snapshot, and sharing it shares the documents of the tracks that are not done.\n'
-  + '3. If no board is stored, say so and suggest `refresh-board`; do not create one.'
+  + '3. If no board URL is stored, say so and suggest `refresh-board`; do not create one.'
 );
 const REFRESH_BOARD = (
-  'Refresh the board: rebuild its page and data from the track files and republish them to the stored address. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.\n\n'
+  'Refresh the board: rebuild its page and data from the track files and republish them to the stored URL. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.\n\n'
   + '1. Generate the page and data (step 1): `lc board --site <dir> --json`, or the board script when `lc` is missing. If neither exists, say so and stop; do not build the page by hand.\n'
-  + '2. Find the stored address (step 2) and update that board in place (step 3a). If none is stored, ask me "Create a private board for this project?" and create nothing without my yes (step 3b).\n'
+  + '2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, ask me "Create a private board for this project?" and create nothing without my yes (step 3b).\n'
   + '3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name.'
 );
 
@@ -185,7 +185,7 @@ export const COMMANDS = [
   },
   {
     name: 'refresh-board', group: 'board', title: 'Refresh the board',
-    description: 'Rebuild the board from the track files and republish it to its stored link',
+    description: 'Rebuild the board from the track files and republish it to its stored URL',
     example: 'refresh the board', needsLc: 'always', args: [], procedure: REFRESH_BOARD,
   },
   {
