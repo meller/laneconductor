@@ -4,5 +4,5 @@ argument-hint: <track number or title>
 ---
 Review the plan of track `$ARGUMENTS`. Read only; change no file and no marker.
 
-1. Dispatch the `laneconductor:plan-reviewer` subagent with the prompt "Review the spec and plan of track N and report gaps, missing tests, unclear tasks and risks." It reads through the connector and returns advice.
-2. Show me its answer as it is. Where agents are unavailable (chat), call `get_track` yourself and give the same four headings.
+1. Dispatch the `laneconductor:plan-reviewer` subagent with the prompt "Review the spec and plan of track N and report gaps, missing tests, unclear tasks and risks." It reads the track files and returns advice.
+2. Show me its answer as it is. Where agents are unavailable (chat), read `spec.md` and `plan.md` yourself and give the same four headings.
