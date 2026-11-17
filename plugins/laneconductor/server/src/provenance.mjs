@@ -65,6 +65,7 @@ export async function buildProvenance(store, { now = Date.now() } = {}) {
     backend: desc.backend,
     repo: desc.repo,
     branch: desc.branch,
+    ...(desc.branchSource ? { state_branch_source: desc.branchSource } : {}),
     commit: head.commit,
     commit_time: head.commitTime,
     read_at: new Date(now).toISOString(),
