@@ -27,24 +27,24 @@ and never edited by hand under `plugins/`:
 
 - the plugin manifests (`plugin.json`), the marketplace entries (`.claude-plugin/marketplace.json`) and the icon;
 - the slash commands (`commands/`) and subagents (`agents/`), including their Claude frontmatter;
-- the skill frontmatter transforms (for the directory build the `allowed-tools` key is dropped) and the
-  Habits section appended to the lean `SKILL.md` because that plugin has no hooks;
-- the hooks, when they ship (track AM-10115 Phase 1): shell scripts wired by `hooks/hooks.json`;
+- the skill frontmatter transforms (the `allowed-tools` key is dropped in both profiles) and the Habits section appended
+  to `SKILL.md` because no hooks ship in the main plugin;
 - `.mcp.json`, which starts the connector over stdio with Claude's `${CLAUDE_PLUGIN_ROOT}` variable.
 
-Three plugins exist because the directory accepts only Markdown, text, JSON, YAML and a few image types
-from a publisher that is not a Verified organization. Each is one adapter of the same core, built by its own
-generator profile from the same sources, all in one marketplace:
+There is ONE plugin, `laneconductor`, installed locally from the owner's marketplace or by uploading a zip (decision of
+2026-11-17: the connector is the main LaneConductor). It is built by the generator in two profiles from the same sources:
 
-- `plugins/laneconductor` (lean, directory-eligible): the skill, commands, agents, icon. No program.
-- `plugins/laneconductor-board` (local add-on, depends on the lean one): the board generator script and exactly
-  the source files it imports. No npm package.
-- `plugins/laneconductor-connector` (optional local add-on, depends on the lean one): the MCP server with server
-  key `lc` (tools are named `mcp__plugin_laneconductor-connector_lc__<tool>`), its lockfile, and later the hooks
-  that match its tool names.
+- `full` (the default build, `plugins/laneconductor`, the one we ship): the skill, commands, agents, the MCP server with
+  server key `lc` (tools are named `mcp__plugin_laneconductor_lc__<tool>`), the board script and page, the lockfile and the
+  icon.
+- `lean` (built on demand with `--profile lean --out <dir>`, not in the marketplace): Markdown, JSON and one PNG only, which
+  is what Anthropic's plugin directory accepts from a publisher that is not a Verified organization. Directory submission
+  is parked until the remote connector exists; the profile is kept ready and tested.
 
-The commands and agents work with or without the connector: they use its tools when present and edit the track
-files directly otherwise. Hooks, when they ship, go into an add-on, never into the lean plugin.
+The commands and agents use the connector's tools and fall back to editing the track files directly when the MCP server
+fails to start. Hooks will not go into the main plugin: they will be a separate, opt-in extension, `laneconductor-hooks`
+(`dependencies: ["laneconductor"]`, scripts only), not yet available, because hooks run on every session and tool call
+and must be removable by uninstalling them.
 
 ## (c) What another agent would need
 
@@ -60,7 +60,7 @@ No adapter for another agent exists yet; this note only fixes where it would go.
 
 ## The rule
 
-Claude-specific behaviour never leaks into (a). Tool-name prefixes such as `mcp__plugin_laneconductor-connector_lc__...`,
+Claude-specific behaviour never leaks into (a). Tool-name prefixes such as `mcp__plugin_laneconductor_lc__...`,
 frontmatter keys, `${CLAUDE_PLUGIN_ROOT}`, plugin names and directory rules belong to (b) and only to (b). If a
 guide or a connector change needs one of them, put it in a generator transform or in a file under
 `connector/plugin-extras/`, and keep the neutral source text agent-neutral.

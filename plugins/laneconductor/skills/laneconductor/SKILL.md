@@ -148,9 +148,9 @@ check (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers 
 Commits that belong to a track say so: `feat(track-NNN): ...`, `fix(track-NNN): ...`,
 `docs(track-NNN): ...`; `refactor:` for changes across several tracks.
 
-## Habits (until hooks ship)
+## Habits (until the hooks extension ships)
 
 - First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has `conductor/tracks`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from `git status -sb`), using the connector's tools or reading the files directly. Once per session; never on unrelated prompts.
 - When a lane finishes, offer exactly one next step in one line (update the board, review the plan, move on) and wait. Do not act on it.
 - The connector is included: change track markers with its tools (`mcp__plugin_laneconductor_lc__*`). If they are unavailable (its MCP server failed to start), re-read the file right before editing and change only the marker lines; never rewrite the whole file.
-- Before any `git push`, say what will be pushed (branch, commits, files) and ask. Until hooks ship nothing scans for secrets automatically, so the check is yours.
+- Before any `git push`, say what will be pushed (branch, commits, files) and ask. Until the hooks extension ships nothing scans for secrets automatically, so the check is yours.

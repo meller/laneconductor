@@ -1,22 +1,24 @@
-// Local pre-checks for Anthropic's plugin directory submission (track AM-10106, Phase 5e), run over ALL THREE plugins (the lean
-// plugins/laneconductor and the add-ons plugins/laneconductor-board and plugins/laneconductor-connector); the stricter rules for the lean one, which is the only
-// one submitted, are in directory-lean.test.mjs. They mirror the automated checks of the directory's pre-submission checklist
-// that can be run offline. The portal's own
-// Validate (claude.ai/directory/manage) is HUMAN; findings it marks "held for a reviewer" (lockfile install,
-// local Node server) are expected.
+// Local pre-checks of the one plugin (plugins/laneconductor, profile `full`), track AM-10106 Phase 5e. Anthropic's directory
+// submission is PARKED (the portal accepts only Markdown from a publisher that is not Verified; this plugin runs a local
+// program), so what is checked here is what a local install needs and what stays good practice: `claude plugin validate
+// --strict` on the plugin and the marketplace, the version/manifest/size limits (512 files, 256 KiB per file), a secrets scan,
+// no top-level bin/, and the connector starting over stdio from a temp copy and answering tools/list. The directory's own rules
+// (Markdown only, no scripts, no .mcp.json, ...) are emulated against the LEAN profile in directory-lean.test.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, PLUGIN_REL, BOARD_REL, CONNECTOR_REL } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL } from '../../scripts/build-plugin.mjs';
+import { TOOLS } from '../src/tools/index.mjs';
+import { makeRepo } from './helpers/repo.mjs';
+import { spawnRaw } from './helpers/rawstdio.mjs';
 import { SECRET_PATTERNS } from './helpers/secret-patterns.mjs';
 
 const PLUGIN = path.join(REPO, PLUGIN_REL);
-const BOARD = path.join(REPO, BOARD_REL);
-const CONN = path.join(REPO, CONNECTOR_REL);
-const PLUGINS = [['lean plugin', PLUGIN], ['board add-on', BOARD], ['connector add-on', CONN]];
+const PLUGINS = [['the plugin', PLUGIN]];
+const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const KIB = 1024;
 const MIB = KIB * KIB;
 
@@ -35,7 +37,7 @@ function claudeAvailable() {
   return !r.error && r.status === 0;
 }
 
-for (const [label, target] of [['the lean plugin folder', PLUGIN], ['the board add-on folder (dependencies on the lean plugin)', BOARD], ['the connector add-on folder (dependencies on the lean plugin)', CONN], ['the marketplace (repo root)', REPO]]) {
+for (const [label, target] of [['the plugin folder', PLUGIN], ['the marketplace (repo root)', REPO]]) {
   test(`claude plugin validate --strict passes on ${label}`, (t) => {
     if (!claudeAvailable()) return t.skip('the claude CLI is not on PATH: run `claude plugin validate <path> --strict` by hand');
     const r = spawnSync('claude', ['plugin', 'validate', target, '--strict'], { encoding: 'utf8', cwd: os.tmpdir() });
@@ -44,7 +46,7 @@ for (const [label, target] of [['the lean plugin folder', PLUGIN], ['the board a
   });
 }
 
-for (const [label, PLUGIN] of PLUGINS) test(`${label}: at most 512 files, each under 256 KiB, no links, no junk files, no package-manager config (the connector's package.json and lockfile are its own)`, () => {
+for (const [label, PLUGIN] of PLUGINS) test(`${label}: at most 512 files, each under 256 KiB, no links, no junk files, no package-manager config (the package.json and lockfile are the connector's)`, () => {
   const list = files(PLUGIN);
   assert.ok(list.length <= 512, `${list.length} files (limit 512)`);
   const junk = /(^|\/)(\.DS_Store|Thumbs\.db|__MACOSX|\.npmrc|\.yarnrc(\.yml)?|\.pnpmrc|bunfig\.toml)$|(^|\/)__MACOSX\//;
@@ -87,10 +89,10 @@ for (const [label, PLUGIN] of PLUGINS) test(`${label}: the secret scan is clean`
   assert.deepEqual(hits, []);
 });
 
-test('connector .mcp.json: a local server started with node on a file inside the plugin, using only ${CLAUDE_PLUGIN_ROOT}', () => {
-  for (const dir of [PLUGIN, BOARD]) assert.ok(!fs.existsSync(path.join(dir, '.mcp.json')), 'only the connector has a .mcp.json');
-  const mcp = JSON.parse(fs.readFileSync(path.join(CONN, '.mcp.json'), 'utf8'));
+test('.mcp.json: a local server started with node on a file inside the plugin, using only ${CLAUDE_PLUGIN_ROOT}', () => {
+  const mcp = readJson(path.join(PLUGIN, '.mcp.json'));
   const [name, s] = Object.entries(mcp.mcpServers)[0];
+  assert.equal(Object.keys(mcp.mcpServers).length, 1);
   assert.equal(name, 'lc', 'server key is lc');
   assert.equal(s.command, 'node');
   const text = JSON.stringify(s);
@@ -98,8 +100,64 @@ test('connector .mcp.json: a local server started with node on a file inside the
   assert.deepEqual([...new Set(vars)], ['${CLAUDE_PLUGIN_ROOT}'], 'no other variable');
   assert.ok(!/[*?`]|\$\(/.test(text), 'no wildcard or command substitution');
   const target = s.args[0].replace('${CLAUDE_PLUGIN_ROOT}/', '');
-  assert.ok(fs.existsSync(path.join(CONN, target)), `${target} exists inside the plugin`);
+  assert.ok(fs.existsSync(path.join(PLUGIN, target)), `${target} exists inside the plugin`);
   assert.ok(s.args.every((a) => !a.startsWith('--') || a.length > 2), 'plain arguments');
+});
+
+test('version and manifest limits: semver version equal to connector/package.json, valid name, no top-level bin/, no hooks directory', () => {
+  const m = readJson(path.join(PLUGIN, '.claude-plugin/plugin.json'));
+  assert.match(m.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(m.version, readJson(path.join(REPO, 'connector/package.json')).version);
+  assert.equal(readJson(path.join(PLUGIN, 'package.json')).version, m.version);
+  assert.match(m.name, /^[a-z0-9]+(-[a-z0-9]+)*$/);
+  assert.ok(m.name.length <= 64 && m.description.length <= 1024);
+  assert.ok(!fs.existsSync(path.join(PLUGIN, 'bin')), 'a top-level bin/ stops claude.ai and Cowork installing the plugin');
+  assert.ok(!fs.existsSync(path.join(PLUGIN, 'hooks')));
+});
+
+test('the connector starts over stdio from a temp copy of the plugin and answers initialize + tools/list (and a call that reads guides and conductor/ helpers)', async (t) => {
+  const real = fs.realpathSync(os.tmpdir());
+  const tmp = fs.mkdtempSync(path.join(real, 'lc-plugin-run-'));
+  const copy = path.join(tmp, 'plugin');
+  const project = makeRepo({ prefix: 'lc-plugin-project-' });
+  let raw;
+  try {
+    fs.cpSync(PLUGIN, copy, { recursive: true });
+    // Dependencies as Claude Code installs them: `npm ci` from the root lockfile. The offline cache
+    // may be cold on a fresh machine; then fall back to the repo's already-installed modules.
+    const ci = spawnSync('npm', ['ci', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: copy, encoding: 'utf8' });
+    let via = 'npm ci --offline';
+    if (ci.status !== 0) {
+      fs.rmSync(path.join(copy, 'node_modules'), { recursive: true, force: true });
+      fs.symlinkSync(path.join(REPO, 'connector/node_modules'), path.join(copy, 'node_modules'), 'dir');
+      via = 'symlink to connector/node_modules (offline npm cache was cold)';
+    }
+    t.diagnostic(`dependencies installed via ${via}`);
+    // Use the committed .mcp.json entry with ${CLAUDE_PLUGIN_ROOT} applied; Claude Code exports CLAUDE_PROJECT_DIR to the process.
+    const entry = readJson(path.join(copy, '.mcp.json')).mcpServers.lc;
+    const sub = (s) => s.replaceAll('${CLAUDE_PLUGIN_ROOT}', copy);
+    assert.ok(!entry.args.some((a) => a.includes('${CLAUDE_PROJECT_DIR}')), 'no project variable in args');
+    assert.equal(entry.command, 'node');
+    raw = spawnRaw(process.execPath, entry.args.map(sub), { cwd: tmp, env: { ...process.env, CLAUDE_PROJECT_DIR: project } });
+    const init = await raw.initialize();
+    assert.ok(init.result, JSON.stringify(init));
+    assert.equal(init.result.serverInfo.version, readJson(path.join(copy, 'package.json')).version, 'version read from the plugin root package.json');
+    assert.ok((init.result.instructions ?? '').length > 0);
+    const list = await raw.request('tools/list', {});
+    const names = list.result.tools.map((x) => x.name).sort();
+    assert.equal(names.length, TOOLS.length);
+    assert.deepEqual(names, TOOLS.map((x) => x.name).sort());
+    const call = await raw.request('tools/call', { name: 'list_tracks', arguments: {} });
+    assert.ok(call.result && !call.result.isError, JSON.stringify(call));
+    const ctx = await raw.request('tools/call', { name: 'get_context', arguments: { lane: 'plan' } });
+    assert.ok(ctx.result && !ctx.result.isError, JSON.stringify(ctx));
+    assert.ok(raw.stdoutLines.every((l) => { try { JSON.parse(l); return true; } catch { return false; } }), 'stdout is MCP-only');
+    assert.ok(raw.stderr().includes('serving'), raw.stderr());
+  } finally {
+    if (raw) await raw.kill();
+    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(project, { recursive: true, force: true });
+  }
 });
 
 test('.gitattributes: nothing that rewrites file contents (filter, LFS, export-ignore, export-subst, text/eol)', () => {
@@ -109,7 +167,7 @@ test('.gitattributes: nothing that rewrites file contents (filter, LFS, export-i
     const lines = fs.readFileSync(path.join(REPO, rel), 'utf8').split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'));
     for (const l of lines) assert.ok(!/\b(filter|export-ignore|export-subst|eol|text|ident|working-tree-encoding)\b|\blfs\b/i.test(l.replace(/\s\bbinary\b/, '')), `${rel}: "${l}" rewrites or hides content`);
   }
-  for (const dir of [PLUGIN, BOARD, CONN]) assert.ok(!fs.existsSync(path.join(dir, '.gitattributes')));
+  assert.ok(!fs.existsSync(path.join(PLUGIN, '.gitattributes')));
 });
 
 test('the repository as GitHub archives it is under 50 MiB and 10,000 files', async (t) => {

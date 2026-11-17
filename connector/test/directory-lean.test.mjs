@@ -1,6 +1,8 @@
 // Emulates the rules Anthropic's plugin directory applies to a plugin from a publisher that is NOT a Verified organization,
-// against the LEAN plugin (plugins/laneconductor), the only one submitted. The rules come from running the directory's own
-// validation on the old single plugin (8 blocking, 3 warnings, 7 policy holds, 2026-11-17):
+// against the LEAN profile of the generator (`node scripts/build-plugin.mjs --profile lean --out <dir>`), built here into a
+// temp dir. The directory submission is PARKED until the remote connector exists (decision of 2026-11-17: the shipped plugin
+// is the one full plugin installed locally); this test keeps the directory-eligible variant alive and tested. The rules come
+// from running the directory's own validation on the old single plugin (8 blocking, 3 warnings, 7 policy holds, 2026-11-17):
 //   - only Markdown, text, JSON, YAML and PNG/JPEG/GIF/WebP/ICO files (plus a LICENSE file); no script or program files
 //     (any .mjs, anything starting with `#!`); no package.json or lockfile installs; no package-manager config files;
 //   - no local (stdio) MCP server (.mcp.json), no hooks, no `.claude/skills` folder inside, no `.claude-plugin` folder other
@@ -10,15 +12,19 @@
 // listing), whether it also inspects subagent `tools:` lists, and its content scanners beyond the patterns below.
 // `checkLean(dir)` returns the list of problems; the first test asserts it is empty for the real plugin, the others prove each
 // rule fires on a copy of the plugin that breaks it.
-import { test } from 'node:test';
+import { test, after } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { REPO, PLUGIN_REL } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, writeProfile } from '../../scripts/build-plugin.mjs';
 
-const LEAN = path.join(REPO, PLUGIN_REL);
+const TMP = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'lc-lean-build-'));
+after(() => fs.rmSync(TMP, { recursive: true, force: true }));
+const LEAN = path.join(TMP, 'laneconductor');
+writeProfile('lean', LEAN);
 const KIB = 1024;
 const TEXT_EXT = /\.(md|markdown|txt|json|ya?ml)$/i;
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|ico)$/i;
@@ -165,11 +171,11 @@ export function checkLean(dir) {
   return problems;
 }
 
-test('the lean plugin passes every emulated directory rule', () => {
+test('the lean build passes every emulated directory rule', () => {
   assert.deepEqual(checkLean(LEAN), []);
 });
 
-test('the lean plugin holds exactly what the decision says, and nothing else', () => {
+test('the lean build holds exactly the Markdown variant, and nothing else', () => {
   const files = entries(LEAN).filter((e) => !e.dir).map((e) => e.rel);
   const top = new Set(files.map((r) => r.split('/')[0]));
   assert.deepEqual([...top].sort(), ['.claude-plugin', 'LICENSE', 'README.md', 'agents', 'commands', 'skills']);
@@ -248,4 +254,26 @@ test('every text file of the lean plugin is Markdown, JSON or LICENSE, none star
     assert.ok(!fs.readFileSync(abs, 'utf8').startsWith('#!'), `${rel} starts with #!`);
     assert.equal(fs.statSync(abs).mode & 0o111, 0, `${rel} is executable`);
   }
+});
+
+test('lean build: agents name no connector tools, README and skill do not claim the connector or board script, the profile never touches plugins/', () => {
+  for (const a of ['plan-reviewer', 'track-runner']) {
+    const fm = fs.readFileSync(path.join(LEAN, `agents/${a}.md`), 'utf8').match(/^---\n([\s\S]*?)\n---\n/)[1];
+    assert.ok(!/^tools:.*mcp__/m.test(fm), `${a}: lean tools list names a connector tool`);
+    assert.match(fm, /^tools: Read/m);
+  }
+  const readme = fs.readFileSync(path.join(LEAN, 'README.md'), 'utf8');
+  assert.match(readme, /no connector and no board script/);
+  const habits = fs.readFileSync(path.join(LEAN, 'skills/laneconductor/SKILL.md'), 'utf8');
+  assert.match(habits, /## Habits \(this variant has no hooks and no connector\)/);
+  assert.ok(!fs.readFileSync(path.join(LEAN, 'skills/laneconductor/ops/board.md'), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/server'), 'no dead pointer to server/ in the lean skill');
+  // The CLI refuses a lean build without --out, inside plugins/, or into a non-empty folder.
+  const run = (...args) => spawnSync(process.execPath, [path.join(REPO, 'scripts/build-plugin.mjs'), ...args], { encoding: 'utf8' });
+  assert.equal(run('--profile', 'lean').status, 1);
+  assert.match(run('--profile', 'lean', '--out', path.join(REPO, PLUGIN_REL, 'x')).stderr, /refusing to write inside/);
+  assert.match(run('--profile', 'lean', '--out', LEAN).stderr, /is not empty/);
+  assert.match(run('--profile', 'lean', '--check').stderr, /--check checks only the default build/);
+  const fresh = path.join(TMP, 'second');
+  assert.equal(run('--profile', 'lean', '--out', fresh).status, 0);
+  assert.deepEqual(checkLean(fresh), []);
 });

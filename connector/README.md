@@ -159,93 +159,96 @@ track state: edit `conductor/` through the connector, on the state branch, and w
 branch are refused with `NOT_ON_STATE_BRANCH`. Code lanes (implement) are the only ones that use a
 worktree, and only for code.
 
-## The LaneConductor plugins (three, one marketplace)
+## The LaneConductor plugin (one, installed locally)
 
 How the layers fit (a neutral core, a Claude adapter, and what another agent would need) is in
 [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Anthropic's plugin directory accepts only Markdown, text, JSON, YAML and a few image types from a publisher
-that is not a Verified organization, and blocks local MCP servers, package installs, scripts, hooks and any
-`allowed-tools` beyond Read, Grep, Glob and LS. So the work is shipped as three Claude plugins, all in the
-`laneconductor` marketplace (`.claude-plugin/marketplace.json` at the repo root):
+Decision (human, 2026-11-17): the connector is the main LaneConductor, so there is ONE plugin, `laneconductor`, installed
+locally from the owner's marketplace (`meller/laneconductor`, `.claude-plugin/marketplace.json` at the repo root) or by
+uploading a zip (`node scripts/make-zip.mjs --out <dir>`). Anthropic's plugin directory is not being submitted: it accepts
+only Markdown, text, JSON, YAML and a few image types from a publisher that is not a Verified organization, and blocks local
+MCP servers, package installs, scripts, hooks and any `allowed-tools` beyond Read, Grep, Glob and LS. The directory-eligible
+variant stays as an on-demand build profile for when the remote connector exists.
 
-- `plugins/laneconductor` (LEAN main plugin, directory-eligible): the `laneconductor` skill, the slash commands,
-  the two subagents, README, LICENSE and an icon. Nothing else: no server, no package files, no scripts, no hooks.
-- `plugins/laneconductor-board` (local add-on, `"dependencies": ["laneconductor"]`): the board generator
-  (`server/bin/lc-board.mjs`) and exactly the `connector/src` and `conductor/` files it imports. No package.json,
-  no lockfile, no `.mcp.json`: it needs no npm package.
-- `plugins/laneconductor-connector` (OPTIONAL local add-on, `"dependencies": ["laneconductor"]`): this server
-  without the board script (`.mcp.json` starts it over stdio under the server key `lc`; it serves the open project
-  through `CLAUDE_PROJECT_DIR`), its lockfile, and later the hooks that match its tool names.
+`plugins/laneconductor` (profile `full`, the default build) holds:
 
-The add-ons ship no skill and no commands. The connector is optional: the commands and subagents use its tools when they
-exist (`mcp__plugin_laneconductor-connector_lc__*`) and edit the track files directly otherwise.
+- the `laneconductor` skill, the slash commands (`/laneconductor:<name>`), the two subagents, README, LICENSE and an icon;
+- the connector: `.mcp.json` starts `server/bin/lc-connector.mjs` over stdio under the server key `lc` (it serves the open
+  project through `CLAUDE_PROJECT_DIR`; tools are named `mcp__plugin_laneconductor_lc__<tool>`), its guides, and its
+  `package.json` and `package-lock.json` at the plugin root;
+- the board generator, `server/bin/lc-board.mjs`, with the board page and the files both scripts import.
+
+The commands and subagents use the connector's tools; if its MCP server fails to start they fall back to editing the track
+files directly, following `ops/tracks.md`. The hooks are NOT part of this plugin: they will be a separate, opt-in extension,
+`laneconductor-hooks` (`dependencies: ["laneconductor"]`, scripts only, no package.json), not yet available.
 
 Everything under `plugins/` and the marketplace file is GENERATED; do not edit them by hand.
 
-How the generator works (`scripts/build-plugin.mjs`, deterministic, no timestamps, one source set, three profiles):
+How the generator works (`scripts/build-plugin.mjs`, deterministic, no timestamps, one source set, two profiles):
 
-- the lean skill is copied from `.claude/skills/laneconductor/` without its `legacy/` folder (the parked daemon and
-  Postgres tier stays in the repo's own skill). `SKILL_EDITS` in the generator removes the pointers into it from
-  `SKILL.md` and `setup/setup.md` (a missing anchor fails the build) and repoints the board generator in
-  `ops/board.md`; the `allowed-tools` key is deleted from `SKILL.md` (so Claude Code applies its normal
-  permission check) and a short `## Habits (this plugin has no hooks)` section is appended. The source skill is
+- the skill is copied from `.claude/skills/laneconductor/` without its `legacy/` folder (the parked daemon and
+  Postgres tier stays in the repo's own skill). `skillEdits` in the generator removes the pointers into it from
+  `SKILL.md` and `setup/setup.md` (a missing anchor fails the build) and points `ops/board.md` at the plugin's own board
+  script; the `allowed-tools` key is deleted from `SKILL.md` (so Claude Code applies its normal
+  permission check) and a short `## Habits (until the hooks extension ships)` section is appended. The source skill is
   not touched;
-- READMEs come from `connector/PLUGIN-README.md` (lean), `connector/BOARD-README.md` and `connector/CONNECTOR-README.md`,
-  `LICENSE` from the repo root; each `plugin.json` carries the listing fields (license, homepage, repository,
-  keywords, documentationUrl, supportUrl); the icon is `connector/plugin-extras/icon.png` (made by
-  `scripts/make-icon.mjs`; replace it with any square PNG of 512 to 2048 px);
-- commands and agents are copied from `connector/plugin-extras/{commands,agents}/` into the lean plugin;
-- each add-on's server is the entry script (`connector/bin/lc-board.mjs` or `connector/bin/lc-connector.mjs`) plus
-  every file it reaches with a relative import (found by following the imports), copied under `server/` (a top-level
-  `bin/` would stop claude.ai and Cowork installing the plugin); repo files outside `connector/` land at their
-  repo-relative path (`conductor/services/track-folder.mjs`, and for the connector `conductor/providers.mjs` and
-  `conductor/sync-conversation-utils.mjs`); the board also gets `src/board-page.html` and the connector `guides/`;
-- the connector's `package.json` and `package-lock.json` sit at its ROOT (Claude Code runs `npm ci` there at
-  cache time: registry packages, exact pins, no lifecycle scripts) and hold the runtime dependencies only;
-- all three plugin `version`s come from `connector/package.json`. EXTENSION POINTS: the hooks (track AM-10115 Phase 1)
-  go into an add-on profile (`BOARD_EXTRAS_DIRS` or `CONNECTOR_EXTRAS_DIRS` in the generator), never the lean one.
+- the README comes from `connector/PLUGIN-README.md`, `LICENSE` from the repo root; `plugin.json` carries the listing fields
+  (license, homepage, repository, keywords, documentationUrl, supportUrl); the icon is `connector/plugin-extras/icon.png`
+  (made by `scripts/make-icon.mjs`; replace it with any square PNG of 512 to 2048 px);
+- commands and agents are copied from `connector/plugin-extras/{commands,agents}/`;
+- the server is the two entry scripts (`connector/bin/lc-connector.mjs`, `connector/bin/lc-board.mjs`) plus every file they
+  reach with a relative import (found by following the imports), copied under `server/` (a top-level `bin/` would stop
+  claude.ai and Cowork installing the plugin); repo files outside `connector/` land at their repo-relative path
+  (`conductor/services/track-folder.mjs`, `conductor/providers.mjs`, `conductor/sync-conversation-utils.mjs`); the board
+  also gets `src/board-page.html` and the connector `guides/`;
+- `package.json` and `package-lock.json` sit at the plugin ROOT (Claude Code runs `npm ci` there at cache time: registry
+  packages, exact pins, no lifecycle scripts) and hold the runtime dependencies only;
+- the plugin `version` comes from `connector/package.json`;
+- `--profile lean --out <dir>` writes the directory-eligible Markdown-only variant (skill, commands, agents without
+  connector tools, a fixed README, manifest, icon) into `<dir>`; it refuses a folder inside `plugins/` or a non-empty
+  one, is not in the marketplace, and `--check` ignores it. It is PARKED until the remote connector exists, and
+  `test/directory-lean.test.mjs` builds it into a temp dir and runs the directory emulation on it so it stays working.
 
 Only the plugin directory is copied on install, and symlinks that leave it are rejected, so the
 output is real copies and a test fails on drift:
 
 ```bash
-node scripts/build-plugin.mjs          # rebuild the three plugin folders and the marketplace file, then commit
+node scripts/build-plugin.mjs          # rebuild plugins/laneconductor and the marketplace file, then commit
 node scripts/build-plugin.mjs --check  # exit 1 if the committed output differs from a fresh build
-for p in laneconductor laneconductor-board laneconductor-connector; do claude plugin validate ./plugins/$p --strict; done
+claude plugin validate ./plugins/laneconductor --strict
 claude plugin validate . --strict
+node scripts/make-zip.mjs --out <dir>  # laneconductor-<version>.zip for "Upload plugin"; prints file count and SHA-256
 ```
 
-`test/directory-lean.test.mjs` emulates the directory's rules for the lean plugin (allowed file types, no scripts,
-no `allowed-tools` beyond Read, Grep, Glob and LS, icon size, README length, and so on); `test/addons.test.mjs`
-covers the two add-ons (manifest dependency, the board script running from a bare copy, the connector starting over stdio).
+Tests: `test/plugin-build.test.mjs` (drift, manifests, README, lockfile, skill transforms, the zip),
+`test/directory-precheck.test.mjs` (`claude plugin validate`, size limits, secrets, the connector starting over stdio from a
+temp copy), `test/full-plugin.test.mjs` (layout, the board script running from a temp copy with `npm ci --offline`),
+`test/plugin-coverage.test.mjs` (commands and agents) and `test/directory-lean.test.mjs` (the lean profile).
 
 Install (HUMAN, from a Claude Code session; this edits your real settings, so it is not run by the tests):
 
 ```bash
 claude plugin marketplace add <path-or-git-url-of-this-repo>
-claude plugin install laneconductor@laneconductor
-claude plugin install laneconductor-board@laneconductor       # optional: the dashboard
-claude plugin install laneconductor-connector@laneconductor    # optional: safe writes
+claude plugin install laneconductor@laneconductor            # add --scope local for one project, --scope user for all
 ```
 
 Update: knowledge changes (skill, guides) ship by bumping `version` in `connector/package.json`,
 running the generator, and pushing. User-added marketplaces do not auto-update by default, so run
-`claude plugin marketplace update laneconductor` and then `claude plugin update laneconductor@laneconductor`
-(and the same for the two add-ons), or turn on auto-update for the marketplace in `/plugin`.
-Bump the version or the cache keeps the old copy. Migration from 0.2.x: the single `laneconductor` plugin of that
-version included the connector and the board script; on update it becomes the lean main plugin, so install
-`laneconductor-board` to get the dashboard and `laneconductor-connector` to keep safe writes.
+`claude plugin marketplace update laneconductor` and then `claude plugin update laneconductor@laneconductor`,
+or turn on auto-update for the marketplace in `/plugin`. Bump the version or the cache keeps the old copy. Users of the
+0.2.x plugin already have the connector; remove a project's own skill symlink or a user-level skill copy so the skill is not
+loaded twice.
 
 HUMAN verification (none of it is automated, and a nested session cannot authenticate here):
 
-1. After installing the connector, `/mcp` shows `plugin:laneconductor-connector:lc` connected.
+1. After installing, `/mcp` shows `plugin:laneconductor:lc` connected.
 2. In a scratch repo with a `conductor/` folder, "plan X" works through the connector. This also confirms that
    Claude Code exports `CLAUDE_PROJECT_DIR` to the plugin's MCP server (the docs say so; the tests only set it
    themselves). If the stderr log says `(chosen by current directory)` or the server fails to start with "no
    repository to serve", the variable was not exported.
-3. Without the connector the commands still work by editing the track files.
-4. With `laneconductor-board`, `/laneconductor:board` finds `server/bin/lc-board.mjs` and publishes the board.
+3. With the connector disabled the commands still work by editing the track files.
+4. `/laneconductor:board` finds `server/bin/lc-board.mjs` and publishes the board.
 5. Run `claude plugin eval`.
 
 ## Removal

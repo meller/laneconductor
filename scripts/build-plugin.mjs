@@ -8,7 +8,8 @@
 //
 // ONE PLUGIN, `laneconductor`, installed locally from the owner's marketplace (meller/laneconductor) or by uploading a zip
 // (scripts/make-zip.mjs). Decision of the human, 2026-11-17: the connector is the main LaneConductor, so the plugin holds
-// everything: the skill, the commands, the subagents, the local MCP connector, the board script and page, later the hooks.
+// everything: the skill, the commands, the subagents, the local MCP connector, the board script and page. The hooks will be a
+// second, separate plugin (`laneconductor-hooks`, not built yet, track AM-10115 Phase 1).
 // Anthropic's plugin directory is NOT being submitted: it accepts only Markdown, text, JSON, YAML and a few image types from a
 // publisher that is not a Verified organization, and blocks local MCP servers, package installs, scripts, hooks and any
 // `allowed-tools` beyond Read, Grep, Glob, LS. The directory-eligible variant is kept as an on-demand profile for when the
@@ -63,10 +64,11 @@ export const ICON_SRC = 'connector/plugin-extras/icon.png'; // made by scripts/m
 // (both profiles: commands and subagents are Markdown).
 export const EXTRAS_SRC = 'connector/plugin-extras';
 export const EXTRAS_DIRS = ['commands', 'agents'];
-// EXTENSION POINT for the hooks (track AM-10115 Phase 1). Hooks run commands and scripts, so they are FULL-only: put the
-// sources under connector/plugin-extras-full/<dir>/ (hooks/hooks.json and the scripts it names), add the directory names to
-// FULL_EXTRAS_DIRS and any plugin.json wiring in buildFull. Nothing else in the generator needs to change; the lean profile
-// (and its directory-emulation test) keeps proving the directory variant has none of it.
+// EXTENSION POINT for anything that must stay inside the main plugin (nothing today): put sources under
+// connector/plugin-extras-full/<dir>/, add the directory names to FULL_EXTRAS_DIRS and any plugin.json wiring in buildFull.
+// The HOOKS do not go here: they will be a separate, opt-in extension plugin, `laneconductor-hooks` (dependencies:
+// ["laneconductor"], scripts only, no package.json), because hooks run on every session and tool call and must be removable by
+// uninstalling them. It is not built yet (track AM-10115 Phase 1); the marketplace has one entry until then.
 export const FULL_EXTRAS_SRC = 'connector/plugin-extras-full';
 export const FULL_EXTRAS_DIRS = [];
 // Claude Code's tool names for the connector: `mcp__plugin_<plugin name>_<server key>__<tool>` (the server key is `lc`).
@@ -114,15 +116,15 @@ export function skillEdits(profile = 'full') {
 }
 export const SKILL_EDITS = skillEdits('full');
 
-// No hooks ship yet (hooks run scripts, which the lean variant may never hold), so the few habits a hook would enforce are
-// written into SKILL.md as plain rules. When the hooks ship, the hooks do this work and the section goes.
+// No hooks ship yet (they will be the separate `laneconductor-hooks` extension), so the few habits a hook would enforce are
+// written into SKILL.md as plain rules. When the hooks extension ships, the hooks do this work and the section goes.
 export const HABITS = `
-## Habits (until hooks ship)
+## Habits (until the hooks extension ships)
 
 - First time in a session the user starts track work or mentions tracks, lanes or the board, in a project that has \`conductor/tracks\`: give a 3-line status first (tracks in flight, anything waiting for the human, unpushed commits from \`git status -sb\`), using the connector's tools or reading the files directly. Once per session; never on unrelated prompts.
 - When a lane finishes, offer exactly one next step in one line (update the board, review the plan, move on) and wait. Do not act on it.
 - The connector is included: change track markers with its tools (\`mcp__plugin_laneconductor_lc__*\`). If they are unavailable (its MCP server failed to start), re-read the file right before editing and change only the marker lines; never rewrite the whole file.
-- Before any \`git push\`, say what will be pushed (branch, commits, files) and ask. Until hooks ship nothing scans for secrets automatically, so the check is yours.
+- Before any \`git push\`, say what will be pushed (branch, commits, files) and ask. Until the hooks extension ships nothing scans for secrets automatically, so the check is yours.
 `;
 export const HABITS_LEAN = `
 ## Habits (this variant has no hooks and no connector)
@@ -319,7 +321,7 @@ function addServer(c, repo, { entries, assets = [], dirs = [] }) {
  * FULL profile (plugins/laneconductor, the default): everything in the lean plugin plus the local MCP connector and the board
  * script (server/bin/lc-connector.mjs, server/bin/lc-board.mjs, the files they import, the guides and the board page), the
  * conductor/ helpers they import, package.json + lockfile at the root, and .mcp.json.
- * EXTENSION POINT: the hooks are added here (FULL_EXTRAS_DIRS), track AM-10115 Phase 1.
+ * EXTENSION POINT (FULL_EXTRAS_DIRS): only for things that must stay in this plugin; the hooks are a separate extension plugin.
  */
 function buildFull(repo) {
   const { c, pkg } = buildCommon(repo, 'full');

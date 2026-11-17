@@ -27,8 +27,9 @@ Version 0.3.0.
 - the board generator, `server/bin/lc-board.mjs`, used by `/laneconductor:board`: a static page and data snapshot of
   every track by lane, which Claude publishes as a private artifact.
 
-Hooks are planned and will be listed here when they ship. Until then a few habits (a short status first, one
-next step, asking before a push) are written into the skill.
+Hooks are not part of this plugin. They are planned as a separate, opt-in extension, `laneconductor-hooks` (not yet
+available), because hooks run on every session and tool call; you will be able to remove it by uninstalling it. Until
+then a few habits (a short status first, one next step, asking before a push) are written into the skill.
 
 ## Install
 
