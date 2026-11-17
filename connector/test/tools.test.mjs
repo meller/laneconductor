@@ -43,12 +43,12 @@ const seed = (dir) => {
 };
 
 // TC-3.1
-test('tools/list returns exactly the 8 v0 tools with the spec annotations', async () => {
+test('tools/list returns exactly the 8 v0 tools plus help, with the spec annotations', async () => {
   const s = await open(fixture());
   const { tools } = await s.client.listTools();
   const want = {
     list_tracks: [true, false], get_track: [true, false], get_context: [true, false],
-    health_report: [true, false], create_track: [false, false], update_track: [false, true], append_conversation: [false, false], report_outcome: [false, false],
+    health_report: [true, false], create_track: [false, false], update_track: [false, true], append_conversation: [false, false], report_outcome: [false, false], help: [true, false],
   };
   assert.deepEqual(tools.map((t) => t.name).sort(), Object.keys(want).sort());
   for (const t of tools) {

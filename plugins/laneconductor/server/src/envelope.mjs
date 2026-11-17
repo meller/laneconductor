@@ -50,10 +50,12 @@ export async function runTool(def, ctx, args) {
   const recorded = [];
   const callCtx = { ...ctx, record: (e) => recorded.push(e) };
   let store = null;
+  let repoOk = true;
   let outcome;
   try {
     store = ctx.resolveStore(args?.project);
-    await ctx.assertConductorRepo(store);
+    if (def.repoOptional) await ctx.assertConductorRepo(store).catch(() => { repoOk = false; });
+    else await ctx.assertConductorRepo(store);
     const r = await def.run({ store, ctx: callCtx, args });
     outcome = { ok: true, data: r.data ?? {}, error: null, warnings: r.warnings ?? [], summary: r.summary, staleReasons: r.staleReasons ?? [], empty: Boolean(r.empty) };
   } catch (err) {
@@ -76,7 +78,7 @@ export async function runTool(def, ctx, args) {
   const envelope = { ok: outcome.ok, data: outcome.data, error: outcome.error, warnings: boundWarnings([...outcome.warnings, ...hints]), provenance };
   // The provenance line already carries `Freshness: ...` when the state is not fresh (REQ-10/11).
   const result = toResult(envelope, outcome.summary);
-  if (store) {
+  if (store && repoOk) {
     await ctx.log?.(store, {
       tool: def.name, readOnly: Boolean(def.annotations?.readOnlyHint), ok: outcome.ok, code: outcome.error?.code ?? null,
       latencyMs: Date.now() - started, chars: result.content[0].text.length, freshness: provenance.freshness, staleReasons: provenance.stale_reasons,

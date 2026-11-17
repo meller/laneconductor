@@ -15,7 +15,7 @@ const input = z.object({
 export const listTracks = {
   name: 'list_tracks',
   title: 'List tracks',
-  description: 'List this project\'s tracks (newest number first) with lane, status, progress and a short summary. Use it to find a track or to see what is in flight before planning; done tracks are hidden unless include_done.',
+  description: 'List this project\'s tracks (newest number first) with lane, status, progress and a short summary. Use it to find a track or to see what is in flight before planning; done tracks are hidden unless include_done.\nExample: "is there a track about CSV" -> list_tracks {query: "csv"}',
   annotations: readOnly,
   input,
   async run({ store, args }) {

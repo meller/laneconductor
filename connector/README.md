@@ -73,13 +73,33 @@ Check it: `claude mcp list`, then in a session ask "list the LaneConductor track
 
 `list_tracks`, `get_track`, `get_context`, `health_report` (read-only); `create_track`, `update_track`
 (requires the `base` from your last read; stale files or markers are rejected with `CONFLICT`),
-`append_conversation`, `report_outcome` (appends one line to the advice log, nothing else).
+`append_conversation`, `report_outcome` (appends one line to the advice log, nothing else); and `help`
+(read-only, works in any folder: the command list below). Every tool description ends with `Example:` lines
+(a natural phrase mapped to the call) and carries all four annotation hints.
 Every response starts with a provenance line (which commit, which branch, ahead/behind, last fetch) and
 carries `structuredContent.provenance`; `freshness` is `fresh`, `possibly_stale` or `stale`.
 
 Every write is a commit made by the server (`chore(track-NNN): <tool> <files> via lc-connector`) that
 touches exactly the written paths (plus any uncommitted advice-log lines), so unrelated staged or
 dirty files are never swept in.
+
+### Commands as MCP prompts (`prompts/list`, `prompts/get`)
+
+The connector also offers every LaneConductor command as an MCP prompt, from one catalog
+(`src/commands.mjs`): `plan`, `brainstorm`, `implement`, `review`, `quality-gate`, `merge`, `run`,
+`review-plan`, `new`, `bug`, `feature`, `status`, `move`, `comment`, `workflow`, `help`, `board`,
+`show-board`, `refresh-board`, `setup`, `deploy`. `prompts/get` returns one user message: the procedure with the
+arguments filled in (a missing required argument is an error that names it). The `help` prompt, and the
+read-only `help` tool for clients that do not surface prompts, list the commands grouped, one example phrase each,
+and say which commands need the `lc` command-line tool when it is missing.
+
+In a client that shows prompts (Claude Desktop, Cursor and others) pick one from the prompt menu; in claude.ai and
+on mobile (through the remote connector) the same prompts appear, where plugin commands do not exist. The catalog is
+neutral (no Claude tool prefix); the Claude Code plugin's `commands/*.md` are generated from it by
+`scripts/build-plugin.mjs`, so the two cannot drift. `bug` and `feature` create real forms: `create_track` with
+`track_kind` writes the form into `spec.md` (a bug's `test.md` starts with a regression-test case).
+The pattern, a single table registered as prompts plus a `help` tool with example phrases, comes from FITI
+(`functions/src/mcp.js` and `tools.js`).
 
 ### Push policy (decision D4)
 

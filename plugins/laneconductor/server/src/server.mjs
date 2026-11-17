@@ -7,6 +7,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { callEvents } from './advice-log.mjs';
 import { runTool } from './envelope.mjs';
 import { fail } from './errors.mjs';
+import { COMMANDS, renderCommand } from './commands.mjs';
 import { buildInstructions } from './instructions.mjs';
 import { TOOLS } from './tools/index.mjs';
 import { z } from 'zod';
@@ -63,7 +64,7 @@ export function createContext({ stores, version, tools = TOOLS, now = Date.now }
   return ctx;
 }
 
-export function createConnectorServer({ stores, version, tools = TOOLS, now }) {
+export function createConnectorServer({ stores, version, tools = TOOLS, commands = COMMANDS, now }) {
   const ctx = createContext({ stores, version, tools, now });
   const server = new McpServer({ name: SERVER_NAME, version }, { instructions: ctx.instructions });
   ctx.surface = () => server.server.getClientVersion?.()?.name ?? 'unknown';
@@ -73,6 +74,14 @@ export function createConnectorServer({ stores, version, tools = TOOLS, now }) {
       { title: def.title, description: def.description, inputSchema: def.input, annotations: def.annotations },
       async (args) => runTool(def, ctx, args),
     );
+  }
+  // The command catalog as MCP prompts (the FITI pattern, src/commands.mjs): prompts/get returns one user message,
+  // the procedure with the arguments filled in. Additive: no tool, response shape or error code depends on it.
+  for (const cmd of commands) {
+    const shape = Object.fromEntries(cmd.args.map((a) => [a.name, a.required ? z.string().min(1).describe(a.description) : z.string().optional().describe(a.description)]));
+    const config = { title: cmd.title, description: cmd.description };
+    if (cmd.args.length) config.argsSchema = z.object(shape);
+    server.registerPrompt(cmd.name, config, (args) => ({ messages: [{ role: 'user', content: { type: 'text', text: renderCommand(cmd, args ?? {}) } }] }));
   }
   return server;
 }

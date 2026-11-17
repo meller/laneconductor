@@ -19,7 +19,7 @@ const input = z.object({
 export const createTrack = {
   name: 'create_track',
   title: 'Create a track',
-  description: 'Create a new track folder (index.md, spec.md, plan.md, test.md, conversation.md) in the plan lane, queued, and commit it. Allocates the next number. Search with list_tracks first so you extend an existing track instead of duplicating it. Returns a `base` usable directly with update_track.',
+  description: 'Create a new track folder (index.md, spec.md, plan.md, test.md, conversation.md) in the plan lane, queued, and commit it. Allocates the next number. Search with list_tracks first so you extend an existing track instead of duplicating it. Returns a `base` usable directly with update_track.\nExample: "flag a bug: export fails" -> create_track {title: "Export fails", problem: "...", track_kind: "bug"}',
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   input,
   async run({ store, ctx, args }) {
