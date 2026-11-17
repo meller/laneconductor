@@ -32,9 +32,10 @@ function git(cwd, args, { input, env } = {}) {
 }
 
 export class LocalGitStore {
-  constructor({ repo, stateBranch = 'main', now = Date.now, lockTimeoutMs = 10_000, lockStaleMs = 30_000, indexLockRetries = 3, indexLockBackoffMs = 200, pushPolicy = 'ask', pushIdleMs = PUSH_IDLE_MS, timers = { set: setTimeout, clear: clearTimeout } }) {
+  constructor({ repo, stateBranch = 'main', stateBranchSource = 'default', now = Date.now, lockTimeoutMs = 10_000, lockStaleMs = 30_000, indexLockRetries = 3, indexLockBackoffMs = 200, pushPolicy = 'ask', pushIdleMs = PUSH_IDLE_MS, timers = { set: setTimeout, clear: clearTimeout } }) {
     this.repo = path.resolve(repo);
     this.stateBranch = stateBranch;
+    this.stateBranchSource = stateBranchSource;
     this.now = now;
     this.lockTimeoutMs = lockTimeoutMs;
     this.lockStaleMs = lockStaleMs;
@@ -51,7 +52,7 @@ export class LocalGitStore {
   }
 
   describe() {
-    return { backend: 'local', repo: this.repo, branch: this.stateBranch };
+    return { backend: 'local', repo: this.repo, branch: this.stateBranch, branchSource: this.stateBranchSource };
   }
 
   _git(args, opts) {
