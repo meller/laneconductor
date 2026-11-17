@@ -1,9 +1,9 @@
 # Track AM-10118: Targets: mirror tracks to Jira and other trackers through MCP connectors, on demand, no daemon
 
-**Lane**: plan
+**Lane**: backlog
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Backlog: decided as an optional add-on plugin per tracker (laneconductor-jira first, with hooks); plan after the new-project flow and the hooks extension
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
