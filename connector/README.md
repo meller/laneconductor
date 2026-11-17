@@ -125,6 +125,54 @@ track state: edit `conductor/` through the connector, on the state branch, and w
 branch are refused with `NOT_ON_STATE_BRANCH`. Code lanes (implement) are the only ones that use a
 worktree, and only for code.
 
+## The LaneConductor plugin (skill + connector as one unit)
+
+`plugins/laneconductor/` is a Claude plugin that bundles the `laneconductor` skill and this server
+(`.mcp.json` starts it over stdio against the open project). `.claude-plugin/marketplace.json` at the
+repo root makes the repo a plugin marketplace with that one entry. Both are GENERATED; do not edit
+them by hand.
+
+How the generator works (`scripts/build-plugin.mjs`, deterministic, no timestamps):
+
+- the skill is copied from `.claude/skills/laneconductor/`;
+- the server is copied from `connector/bin/lc-connector.mjs`, `connector/src/` and `connector/guides/`
+  into `server/` (a top-level `bin/` would stop claude.ai and Cowork installing the plugin), plus the
+  few repo files it imports from outside `connector/` (found by following the imports) at their repo-relative path
+  (`conductor/providers.mjs`, `conductor/sync-conversation-utils.mjs`, `conductor/services/track-folder.mjs`);
+- `package.json` and `package-lock.json` sit at the plugin ROOT (Claude Code runs `npm ci` there at
+  cache time: registry packages, exact pins, no lifecycle scripts) and hold the runtime dependencies only;
+- the plugin `version` comes from `connector/package.json`.
+
+Only the plugin directory is copied on install, and symlinks that leave it are rejected, so the
+output is real copies and a test fails on drift:
+
+```bash
+node scripts/build-plugin.mjs          # rebuild plugins/laneconductor/ and the marketplace file, then commit
+node scripts/build-plugin.mjs --check  # exit 1 if the committed output differs from a fresh build
+claude plugin validate ./plugins/laneconductor --strict && claude plugin validate .
+```
+
+Install (HUMAN, from a Claude Code session; this edits your real settings, so it is not run by the tests):
+
+```bash
+claude plugin marketplace add <path-or-git-url-of-this-repo>
+claude plugin install laneconductor@laneconductor
+```
+
+Update: knowledge changes (skill, guides) ship by bumping `version` in `connector/package.json`,
+running the generator, and pushing. User-added marketplaces do not auto-update by default, so run
+`claude plugin marketplace update laneconductor` and then `claude plugin update laneconductor@laneconductor`
+(or turn on auto-update for the marketplace in `/plugin`). Bump the version or the cache keeps the old copy.
+
+HUMAN verification (plan Phase 5c Task 5; none of it is automated, and a nested session cannot authenticate here):
+
+1. After the install, `/mcp` shows `plugin:laneconductor:lc-connector` connected.
+2. In a scratch repo with a `conductor/` folder, "plan X" works through the connector. This also confirms that
+   `${CLAUDE_PROJECT_DIR}` is substituted in the MCP `args` (the docs say so; no test has seen it work).
+3. Run `claude plugin eval`.
+
+The remote (`http`) entry for claude.ai and Cowork is plan Phase 5c Task 6, after the Phase 8 server exists.
+
 ## Removal
 
 Everything the connector writes is an ordinary LaneConductor file, readable and writable without it.
