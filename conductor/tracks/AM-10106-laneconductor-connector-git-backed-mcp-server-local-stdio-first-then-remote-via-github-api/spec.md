@@ -159,10 +159,26 @@ mentions them (U1).
   wanted) with nothing lost. The connector never creates state that exists only inside itself.
 
 ### Open item: fundamentals conflict
-- REQ-23 (open): the remote half needs cloud hosting and OAuth, and the connector makes files (not
-  Postgres) the authority. `conductor/product.md` (Core Goals: "Sovereign: 100% local — no cloud, no
-  auth, no cost") and `conductor/tech-stack.md` (Postgres as the database layer) say otherwise. This
-  plan does not edit those docs. It is flagged in `conversation.md` for the human to decide.
+- REQ-23 (resolved 2026-11-16): the remote half needs cloud hosting and OAuth while the connector makes
+  files the authority. `conductor/product.md` and `conductor/tech-stack.md` were updated to match
+  (local by default; Postgres is an optional, rebuildable index of the files; the cloud tier is optional
+  and parked until wanted). Decisions D1-D6 are recorded in index.md.
+
+### Self-describing and browse-only (added 2026-11-17; evidence: the human's Colfiti/FITI demo thinking)
+- REQ-24: Every tool response carries a `next` field: one short imperative line telling Claude what to
+  do next (for example "ask the human before pushing: 2 unpushed commits", "call get_track to see the
+  new base"), or `null`. It is advice, never an action the connector takes itself ("second opinion,
+  never a controller"). It is additive to the response schema, so the additive-only tool contract holds.
+- REQ-25: A browse-only surface is READ-ONLY. The remote server exposes a plain `GET /start` (what this
+  is, the instructions, what it can do, and a `next` line) and read-only GET views of tracks, so a chat
+  that can only browse can follow it with no schema. Writes exist only on the authenticated MCP path:
+  there are NO state-changing GET endpoints (unlike a stateless demo, this server saves real files, and
+  a browser prefetch or link crawler must never be able to write).
+- REQ-26: Client behaviour is recorded as evidence, never assumed. `compat-matrix.md` in this track
+  folder holds one row per client/surface that was actually tested (read the instructions? called the
+  tools? followed `next`? avoided claiming it saved something that it did not?) with the date and who
+  tested it. Nothing is claimed about a client until a row exists. Claims that this approach is rare or
+  novel need a search first and are not made without one.
 
 ## Acceptance Criteria (the beta, as observable outcomes)
 

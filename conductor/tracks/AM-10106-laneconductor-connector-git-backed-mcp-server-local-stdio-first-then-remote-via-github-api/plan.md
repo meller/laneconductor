@@ -160,6 +160,18 @@ smallest footprint possible.
 
 **Impact**: Local work becomes remotely visible quickly, and push stays under the human's authority.
 
+## Phase 5b: Self-describing responses (`next`)
+
+**Problem**: A client should be able to follow the connector without reading a schema, and a response
+should say what to do next (REQ-24).
+**Solution**: One small, additive change to the response envelope.
+
+- [ ] Task 1: `next` field in the envelope (string or null) with the rules in REQ-24; the handlers that already produce hints (unpushed commits, CONFLICT, stale summary, empty results) set it
+- [ ] Task 2: Tests: every tool returns `next`; it never triggers an action; the tool list hash changes only additively
+- [ ] Task 3: Mention `next` in the server instructions (stay under 4,096 characters) and README
+
+**Impact**: Chats that can only follow instructions still get a clear path, and the same field serves the remote `/start`.
+
 ## Phase 6: Local beta validation (AC-a, AC-c local, AC-d local, AC-e, AC-f)
 
 **Problem**: The local half must be shown to work before anything is hosted.
@@ -198,14 +210,14 @@ tarball cold-start seed, a rate-limit guard, and writes through `createCommitOnB
 `/.well-known/oauth-protected-resource` with `resource` equal to the exact connector URL, a `401`
 with `WWW-Authenticate: Bearer resource_metadata=…`, AS metadata, CIMD and DCR, PKCE S256, and
 redirect URIs `https://claude.ai/api/mcp/auth_callback` plus loopback on any port for Claude Code
-(F9). It federates sign-in to the GitHub App (D1-a), stores GitHub tokens server-side (encrypted,
-key in Secret Manager), issues its own audience-bound tokens, and never passes the GitHub token
-through (F4).
+(F9). Sign-in is Google (D1 as decided, reusing FITI's pattern: Firebase Auth on a static `/authorize` page plus an email allow-list). GitHub access is a GitHub App INSTALLED on the repos: the server mints short-lived installation tokens from the App private key (Secret Manager), limited by a per-email repo map, so no per-user GitHub token is stored (D6 mostly moot). It issues its own audience-bound tokens and never passes a GitHub token through (F4).
 
 - [ ] Task 1: Resolve U3, and use the SDK's auth helpers where they cover the AS role
 - [ ] Task 2: HTTP server, auth endpoints, user allow-list, and per-user repo selection (`project` = `owner/name`, limited to repos the App is installed on)
 - [ ] Task 3: Container and deployment config for Cloud Run (D2-a). **The human performs the deploy and the GitHub App registration**, and secrets go into Secret Manager by the human.
 - [ ] Task 4: Advice-log buffering and flush for the remote backend (D3-a)
+- [ ] Task 5 (REQ-25): `GET /start` (static, self-describing, with a `next` line) and read-only GET views of tracks for browse-only chats. No state-changing GET endpoint exists; a test enumerates the route table and fails on any GET that writes.
+- [ ] Task 6 (D1, human part): deploy shape follows FITI (Firebase Hosting rewrites `/mcp`, `/oauth/**`, `/.well-known/**` to one function in `laneconductor-site`); the human registers the GitHub App and performs the deploy.
 
 **Impact**: A remote connector URL that a claude.ai user can add.
 
@@ -218,6 +230,7 @@ through (F4).
 - [ ] Task 2: B-c remote: with the laptop holding unpushed state commits, a remote read shows the head commit and its age, and Claude mentions possible staleness
 - [ ] Task 3: B-d remote: a concurrent edit gives `CONFLICT`, and the GitHub file holds the first edit
 - [ ] Task 4: Check the request budgets from the spec (spot check through the `x-ratelimit-remaining` deltas logged)
+- [ ] Task 5 (REQ-26, HUMAN): fill `compat-matrix.md` with what each client actually did (claude.ai web, mobile, Claude Code, plus any other the human tries): read the instructions, called the tools, followed `next`, did not claim a save that did not happen. Claim nothing about a client without a row.
 
 **Impact**: The full beta scope is shown working.
 
@@ -228,7 +241,7 @@ through (F4).
 
 - [ ] Task 1: The beta window runs at least 2 weeks **and** at least 10 connector sessions (at most 4 weeks)
 - [ ] Task 2: Run `health_report` and save the summary into `beta-report.md` with the AC-f numbers
-- [ ] Task 3: The human records keep / change / remove (connector, LaneConductor advice, remote half) in `conversation.md`, citing the kill-criteria table
+- [ ] Task 3: The human records keep / change / remove (connector, LaneConductor advice, remote half) in `beta-report.md` and the `index.md` decisions section (tracked files: `conversation.md` is per-machine), citing the kill-criteria table
 - [ ] Task 4: If remove: disconnect it, delete `connector/` on a branch, and leave the track files untouched (REQ-22)
 
 **Impact**: A decision about the connector backed by the beta's numbers.
