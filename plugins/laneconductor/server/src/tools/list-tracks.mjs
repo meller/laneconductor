@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ENVELOPE_RESERVE, MAX_TEXT_CHARS } from '../envelope.mjs';
 import { SUMMARY_PATH, checkSummary, rowOf } from '../summary.mjs';
-import { projectField, readEntries, readOnly, sizeOf, workflowLanes } from './common.mjs';
+import { projectField, publishable, readEntries, readOnly, sizeOf, workflowLanes } from './common.mjs';
 
 const input = z.object({
   project: projectField,
@@ -22,7 +22,9 @@ export const listTracks = {
     const limit = args.limit ?? 50;
     const entries = await readEntries(store);
     const warnings = [];
-    const rows = entries.map((e) => rowOf(e.folder, e.index));
+    const rows = entries.map((e) => ({ ...rowOf(e.folder, e.index), ...(e.tracked === false ? { untracked: true } : {}) }));
+    const drafts = rows.filter((r) => r.untracked).map((r) => r.folder);
+    if (drafts.length) warnings.push(`Not committed (not in git yet; left out of conductor/tracks-summary.md): ${drafts.join(', ')}`);
     for (const r of rows) {
       if (r.source === null) warnings.push(`${r.folder}: no index.md`);
       else if (r.lane === null) warnings.push(`${r.folder}: index.md has no **Lane** marker`);
@@ -34,7 +36,7 @@ export const listTracks = {
     // stale or hand-edited one is reported instead of being believed.
     const staleReasons = [];
     const cur = (await store.readFiles([SUMMARY_PATH])).get(SUMMARY_PATH);
-    const check = checkSummary(cur?.content ?? null, entries, await workflowLanes(store));
+    const check = checkSummary(cur?.content ?? null, publishable(entries), await workflowLanes(store));
     if (check.status !== 'ok') {
       staleReasons.push('track_summary_regenerated');
       warnings.push(`${check.reason}; this list was regenerated from a scan of the track folders. The next track write (or \`lc summary\`) rewrites the file.`);

@@ -64,26 +64,37 @@ export function conversationSummary(content, tail) {
   return { entries, total: all.length, unparsed_lines: content ? countUnparsedLines(content) : 0 };
 }
 
-/** Every track folder with its index.md (`{ content, sha }` or null), in the shape the summary generator takes. */
+/**
+ * Every track folder with its index.md (`{ content, sha }` or null), in the shape the summary generator
+ * takes, plus `tracked`: whether that index.md is in git at HEAD. A track that is not in git yet (an
+ * unpublished draft) is `tracked: false`; stores without `trackedFiles` count every track as tracked.
+ */
 export async function readEntries(store) {
   const dirs = await trackDirNames(store);
   const got = await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/index.md`));
-  return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null }));
+  const tracked = store.trackedFiles ? await store.trackedFiles(TRACKS_DIR) : null;
+  return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null, tracked: tracked ? tracked.has(`${TRACKS_DIR}/${folder}/index.md`) : true }));
 }
+
+/** The entries a COMMITTED summary may list: tracked ones, plus the folders in `include` (the write's own track). */
+export const publishable = (entries, include = []) => entries.filter((e) => e.tracked !== false || include.includes(e.folder));
 
 /**
  * The summary file change to add to a track write, or null when it would not change. `pending` maps
  * folder -> the index.md text this write is about to produce. The file is regenerated, never merged,
- * so it carries no precondition (a hand edit is simply replaced).
+ * so it carries no precondition (a hand edit is simply replaced). Untracked draft tracks are left out
+ * unless `includeUntracked` (only `lc summary --include-untracked`, which writes a file but commits nothing).
  */
-export async function summaryChange(tx, nowMs, pending) {
-  const entries = await readEntries(tx);
+export async function summaryChange(tx, nowMs, pending, { includeUntracked = false } = {}) {
+  let entries = await readEntries(tx);
   for (const [folder, content] of pending) {
-    const e = { folder, index: { content, sha: blobSha(content) } };
+    const e = { folder, index: { content, sha: blobSha(content) }, tracked: true };
     const i = entries.findIndex((x) => x.folder === folder);
     if (i === -1) entries.push(e);
     else entries[i] = e;
   }
+  // Privacy: only tracks whose index.md is in git, or is written by this very commit (pending), may appear in a committed file.
+  if (!includeUntracked) entries = publishable(entries, [...pending.keys()]);
   const lanes = await workflowLanes(tx);
   const cur = (await tx.readFiles([SUMMARY_PATH])).get(SUMMARY_PATH);
   const stamp = cur ? summaryStamp(cur.content) : null;
