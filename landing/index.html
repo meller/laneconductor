@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LaneConductor — AI Orchestration for Your Whole Business</title>
+    <title>LaneConductor: plan and ship with Claude, from plain files in git</title>
     <meta name="description"
-        content="Dev, launch, market, support — AI agents for every business function. One board. Closed loop. Local-first, no cloud, no cost." />
-    <meta property="og:title" content="LaneConductor — AI Orchestration for Your Whole Business" />
+        content="A Claude plugin that keeps your plans as plain files in git. Skill, commands, subagents, a local connector and a board. No database, no daemon." />
+    <meta property="og:title" content="LaneConductor: plan and ship with Claude, from plain files in git" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta property="og:description"
-        content="Ship code, post launches, run marketing outreach — AI agents for every business function with a KPI-gated closed loop. Sovereign, local-first, no SaaS." />
+        content="Two commands install a Claude plugin that plans, implements, reviews and merges tracks kept as files in your repository." />
     <meta property="og:type" content="website" />
     <style>
         /* ─── Reset ───────────────────────────────────────────────── */
@@ -166,6 +166,11 @@
         }
 
         /* ─── HERO ───────────────────────────────────────────────── */
+        .hero > .container {
+            min-width: 0;
+            width: 100%;
+        }
+
         .hero {
             min-height: 100vh;
             display: flex;
@@ -367,6 +372,31 @@
 
         #copy-btn.copied {
             color: var(--green);
+        }
+
+        #install-box {
+            max-width: 620px;
+        }
+
+        .hero-install-cmd.multi {
+            min-width: 0;
+            white-space: pre;
+            overflow-x: auto;
+            text-overflow: clip;
+            line-height: 1.8;
+        }
+
+        .hero-install-note {
+            font-size: 13px;
+            color: var(--ink-muted);
+            max-width: 520px;
+            margin: -20px auto 32px;
+            line-height: 1.6;
+        }
+
+        .hero-install-note code {
+            font-family: var(--font-mono);
+            color: var(--cyan);
         }
 
         .hero-actions {
@@ -1425,21 +1455,22 @@
             <div class="hero-content">
                 <div class="hero-badge">
                     <div class="hero-badge-dot"></div>
-                    AI Orchestration for Every Business Function
+                    Claude plus git plus a connector
                 </div>
                 <h1>
-                    Dev. Launch. Market.<br />
-                    <span class="word-conductor">One conductor.</span>
+                    Your plans live in git.<br />
+                    <span class="word-conductor">Claude runs them.</span>
                 </h1>
                 <p class="hero-sub">
-                    AI agents for your whole business — not just code.<br />
-                    <span style="font-style:italic;color:var(--ink)">Ship features, post launches, run marketing.</span> One board. Closed loop.
+                    LaneConductor is a Claude plugin. Each piece of work is a track: plain files in your repository
+                    that Claude plans, implements, reviews and merges, one lane at a time. No database, no daemon.
                 </p>
 
                 <div style="display:flex;justify-content:center;margin-bottom:36px;">
                     <div class="hero-install" id="install-box">
                         <span class="hero-install-label">$</span>
-                        <span class="hero-install-cmd" id="install-cmd">make install</span>
+                        <span class="hero-install-cmd multi" id="install-cmd">claude plugin marketplace add meller/laneconductor
+claude plugin install laneconductor@laneconductor</span>
                         <button id="copy-btn" title="Copy install command" onclick="copyInstall()">
                             <svg id="copy-icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
                                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1449,6 +1480,8 @@
                         </button>
                     </div>
                 </div>
+
+                <p class="hero-install-note">For Claude Code or Cowork, with Node.js 20 or newer. Add <code>--scope local</code> to install for one project, then run <code>/reload-plugins</code>.</p>
 
                 <div class="hero-actions" style="flex-direction:column;gap:12px;align-items:center;">
                     <div style="display:flex;gap:16px;justify-content:center;">
@@ -1487,8 +1520,8 @@
                 <div class="tb-dot red"></div>
                 <div class="tb-dot yellow"></div>
                 <div class="tb-dot green"></div>
-                <span class="preview-titlebar-label">LaneConductor · localhost:8090</span>
-                <span class="preview-titlebar-badge">live</span>
+                <span class="preview-titlebar-label">LaneConductor board · example tracks</span>
+                <span class="preview-titlebar-badge">snapshot</span>
             </div>
             <div class="preview-body">
                 <div class="preview-lanes">
@@ -1540,7 +1573,7 @@
                         <div class="preview-lane-header" style="color:#10b981;">Done</div>
                         <div class="preview-card">
                             <div class="pc-track">#011</div>
-                            <div class="pc-title">Core Heartbeat Worker</div>
+                            <div class="pc-title">Login rate limit</div>
                             <div class="pc-badge done">done</div>
                             <div class="pc-progress" style="margin-top:8px;">
                                 <div class="pc-progress-inner green" style="width:100%"></div>
@@ -1548,7 +1581,7 @@
                         </div>
                         <div class="preview-card">
                             <div class="pc-track">#009</div>
-                            <div class="pc-title">Vite UI Dashboard</div>
+                            <div class="pc-title">Settings page</div>
                             <div class="pc-badge done">done</div>
                             <div class="pc-progress" style="margin-top:8px;">
                                 <div class="pc-progress-inner green" style="width:100%"></div>
@@ -1566,23 +1599,29 @@
         <div class="pillars-grid" style="max-width:1100px;margin:0 auto;">
             <div class="pillar fade-in">
                 <div class="pillar-icon sovereign">🔒</div>
-                <div class="pillar-title">Sovereign</div>
-                <p class="pillar-desc">Everything runs on your machine. Your project metadata never leaves your network.
-                    No third-party SaaS, no API keys for the dashboard itself, no subscription.</p>
+                <div class="pillar-title">Yours</div>
+                <p class="pillar-desc">Plans are Markdown files in your own repository, with git history. The connector
+                    makes no network requests of its own and never pushes unless you set <code
+                        style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">connector.push</code> to
+                    <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">auto-state</code>.
+                    Conversations stay on your machine.</p>
             </div>
             <div class="pillar fade-in" style="transition-delay:0.1s">
                 <div class="pillar-icon realtime">⚡</div>
-                <div class="pillar-title">Real-time</div>
-                <p class="pillar-desc">A heartbeat worker watches your <code
-                        style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">conductor/tracks/</code>
-                    files and syncs to Postgres every 5s. The Kanban UI polls every 2s — you always see what the agent
-                    is doing.</p>
+                <div class="pillar-title">Safe writes</div>
+                <p class="pillar-desc">One writer per change. A write needs the version you last read; if the file changed
+                    since, it is refused with a <code
+                        style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">CONFLICT</code> and nothing
+                    is overwritten. Each write is one git commit.</p>
             </div>
             <div class="pillar fade-in" style="transition-delay:0.2s">
                 <div class="pillar-icon multi">🗂</div>
-                <div class="pillar-title">Multi-project</div>
-                <p class="pillar-desc">One dashboard, every repo. Each project registers itself; all share one Postgres
-                    db. Switch between projects instantly, see all agent activity from a single pane.</p>
+                <div class="pillar-title">One plugin</div>
+                <p class="pillar-desc">The skill, 18 commands, two subagents, the local connector and the board ship
+                    together. Install it for one project with <code
+                        style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">--scope local</code> or for
+                    every project with <code
+                        style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">--scope user</code>.</p>
             </div>
         </div>
     </section>
@@ -1591,59 +1630,59 @@
     <section class="how-section" id="how">
         <div class="container">
             <div class="section-label">How it works</div>
-            <h2 class="section-title">Three commands. Full visibility.</h2>
-            <p class="section-sub">Pick your lane. Whether you want the full Kanban experience or a minimalist AI skill, setup takes under two minutes.</p>
+            <h2 class="section-title">Install it. Ask Claude. See the board.</h2>
+            <p class="section-sub">Set a project up once, then work each track through its lanes by asking Claude or by using a slash command.</p>
             <div class="how-paths">
-                <!-- PATH A: STANDARD -->
+                <!-- SET UP -->
                 <div class="fade-in">
                     <div style="font-size: 12px; font-weight: 700; color: var(--blue); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                        <span>Standard (CLI + Dashboard)</span>
+                        <span>Once per project</span>
                     </div>
                     <div class="steps" style="grid-template-columns: 1fr; gap: 32px; margin-top: 0;">
                         <div class="step" style="padding-left: 32px;">
                             <div class="step-number">01 — INSTALL</div>
-                            <div class="step-title" style="font-size: 16px;">Clone & install</div>
-                            <p class="step-desc" style="font-size: 13px;">Clone the repo and run <code>make install</code> to register the <code>lc</code> CLI globally.</p>
-                            <div class="step-code">make install</div>
+                            <div class="step-title" style="font-size: 16px;">Add the plugin</div>
+                            <p class="step-desc" style="font-size: 13px;">Two commands in a terminal. Then run <code>/reload-plugins</code> in your session and check that <code>/mcp</code> lists <code>plugin:laneconductor:lc</code>.</p>
+                            <div class="step-code">claude plugin marketplace add meller/laneconductor<br />claude plugin install laneconductor@laneconductor</div>
                         </div>
                         <div class="step" style="padding-left: 32px;">
-                            <div class="step-number">02 — SETUP</div>
-                            <div class="step-title" style="font-size: 16px;">Initialize project</div>
-                            <p class="step-desc" style="font-size: 13px;">In your project repo, run <code>lc setup</code> to register the project and scaffold your AI context files.</p>
-                            <div class="step-code">lc setup</div>
+                            <div class="step-number">02 — SET UP</div>
+                            <div class="step-title" style="font-size: 16px;">Prepare the repository</div>
+                            <p class="step-desc" style="font-size: 13px;">Claude tells you what it will create before it writes anything, then sets up the <code>conductor/</code> folder.</p>
+                            <div class="step-code">/laneconductor:setup</div>
                         </div>
                         <div class="step" style="padding-left: 32px;">
-                            <div class="step-number">03 — START</div>
-                            <div class="step-title" style="font-size: 16px;">Launch dashboard & worker</div>
-                            <p class="step-desc" style="font-size: 13px;">Start the shared Kanban dashboard (once per machine), then the project worker (once per session).</p>
-                            <div class="step-code">lc ui start &amp;&amp; lc start</div>
+                            <div class="step-number">03 — FIRST TRACK</div>
+                            <div class="step-title" style="font-size: 16px;">Describe the work</div>
+                            <p class="step-desc" style="font-size: 13px;">Say what and why. Claude checks for a similar track first, then creates the track folder.</p>
+                            <div class="step-code">/laneconductor:new &lt;title: what and why&gt;</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- PATH B: AI-NATIVE -->
+                <!-- EVERY TRACK -->
                 <div class="fade-in" style="transition-delay: 0.1s;">
                     <div style="font-size: 12px; font-weight: 700; color: var(--cyan); margin-bottom: 24px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(34, 211, 238, 0.2); padding-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-                        <span>AI-Native (Skill Only)</span>
+                        <span>For each track</span>
                     </div>
                     <div class="steps" style="grid-template-columns: 1fr; gap: 32px; margin-top: 0;">
                         <div class="step" style="padding-left: 32px;">
-                            <div class="step-number">01 — INSTALL</div>
-                            <div class="step-title" style="font-size: 16px;">Copy Skill</div>
-                            <p class="step-desc" style="font-size: 13px;">Copy the <code>laneconductor</code> folder to your AI editor's skills directory (e.g., Claude Desktop).</p>
-                            <div class="step-code"># Manual Folder Copy</div>
+                            <div class="step-number">01 — PLAN</div>
+                            <div class="step-title" style="font-size: 16px;">Claude writes the spec and plan</div>
+                            <p class="step-desc" style="font-size: 13px;">They land in the track folder as Markdown. Read them, edit them, comment on them. Claude follows what you change.</p>
+                            <div class="step-code">/laneconductor:plan 12</div>
                         </div>
                         <div class="step" style="padding-left: 32px;">
-                            <div class="step-number">02 — INITIALIZE</div>
-                            <div class="step-title" style="font-size: 16px;">Run Setup</div>
-                            <p class="step-desc" style="font-size: 13px;">Open your **project codebase** and run <code>/laneconductor setup</code> in your AI editor.</p>
-                            <div class="step-code">/laneconductor setup</div>
+                            <div class="step-number">02 — BUILD</div>
+                            <div class="step-title" style="font-size: 16px;">Implement, review, gate, merge</div>
+                            <p class="step-desc" style="font-size: 13px;">Each lane has a command. Claude recommends a <code>track-runner</code> subagent in its own worktree for the work, and nothing starts until you say yes.</p>
+                            <div class="step-code">/laneconductor:implement 12</div>
                         </div>
                         <div class="step" style="padding-left: 32px;">
-                            <div class="step-number">03 — CONDUCT</div>
-                            <div class="step-title" style="font-size: 16px;">Manage Tracks</div>
-                            <p class="step-desc" style="font-size: 13px;">Create and execute tracks with <code>newTrack</code>, <code>plan</code>, and <code>implement</code> commands. You can use the <strong>agy extension</strong> or <strong>Claude skill</strong> interchangeably.</p>
-                            <div class="step-code">/laneconductor newTrack</div>
+                            <div class="step-number">03 — SEE</div>
+                            <div class="step-title" style="font-size: 16px;">Ask for the board</div>
+                            <p class="step-desc" style="font-size: 13px;">Every track by lane, as a private artifact. It is a snapshot: it changes when you ask Claude to update it.</p>
+                            <div class="step-code">/laneconductor:board</div>
                         </div>
                     </div>
                 </div>
@@ -1654,70 +1693,62 @@
     <!-- MODES -->
     <section class="modes-section" id="modes">
         <div class="container" style="padding-top:96px;padding-bottom:96px;">
-            <div class="section-label">Operating Modes</div>
-            <h2 class="section-title">Pick your setup.<br />Switch any time.</h2>
-            <p class="section-sub" style="margin-bottom: 32px;">LaneConductor runs in multiple modes — from a zero-infrastructure AI skill to a full local Kanban UI. One config field, <code style="font-family:var(--font-mono);font-size:14px;color:var(--cyan)">"mode"</code>, governs everything.</p>
-
+            <div class="section-label">Where it works</div>
+            <h2 class="section-title">What works where.<br />And what does not yet.</h2>
+            <p class="section-sub" style="margin-bottom: 32px;">The plugin loads in several Claude surfaces, but the connector, the board script and the subagents run only on your own computer.</p>
             <div class="modes-grid">
                 <div class="mode-card mode-skill fade-in" style="background: rgba(34,211,238,0.03);">
-                    <span class="mode-badge">ai-native</span>
-                    <div class="mode-title">Skill Only</div>
-                    <p class="mode-desc">Minimalist AI orchestration. No CLI, no database, no UI required. Simply copy
-                        the skill into your AI editor (Claude Desktop, etc.), and the AI manages the
-                        <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">conductor/</code> 
-                        structure directly. **Cross-platform support for Windows, macOS, and Linux.**</p>
+                    <span class="mode-badge">on your computer</span>
+                    <div class="mode-title">Claude Code and Cowork</div>
+                    <p class="mode-desc">The whole plugin: the skill and commands, both subagents, the local connector
+                        and the board script.</p>
                     <div class="mode-facts">
-                        <div class="mode-fact"><span class="dot"></span>Zero infrastructure overhead</div>
-                        <div class="mode-fact"><span class="dot"></span>Works everywhere Claude works</div>
-                        <div class="mode-fact"><span class="dot"></span>AI-driven project setup & scaffolding</div>
-                        <div class="mode-fact"><span class="dot"></span>Use <code>newTrack</code>, <code>plan</code>, and <code>implement</code></div>
-                        <div class="mode-fact"><span class="dot"></span>Best for: Windows users, lightweight dev</div>
+                        <div class="mode-fact"><span class="dot"></span>Conflict-checked writes, one commit each</div>
+                        <div class="mode-fact"><span class="dot"></span><code>track-runner</code> works a track in its own worktree</div>
+                        <div class="mode-fact"><span class="dot"></span>The board, as a private artifact</div>
+                        <div class="mode-fact"><span class="dot"></span>Needs Node.js 20 or newer</div>
                     </div>
                 </div>
 
                 <div class="mode-card mode-cli fade-in">
-                    <span class="mode-badge">local-fs</span>
-                    <div class="mode-title">CLI Only</div>
-                    <p class="mode-desc">Pure filesystem + CLI. The agent reads and writes Markdown files — no database, no
-                        API, no network. Works offline, in CI pipelines, and on air-gapped machines. Requires Node.js.</p>
+                    <span class="mode-badge">skill only</span>
+                    <div class="mode-title">claude.ai chat</div>
+                    <p class="mode-desc">The skill and the commands load as skills, and Claude edits the track files
+                        directly, following the skill. The connector, the board script and the subagents do not run
+                        there.</p>
                     <div class="mode-facts">
-                        <div class="mode-fact"><span class="dot"></span>No Postgres required</div>
-                        <div class="mode-fact"><span class="dot"></span>Universal 'lc' commands</div>
-                        <div class="mode-fact"><span class="dot"></span>Progress via <code
-                                style="font-family:var(--font-mono);font-size:11px">**Progress**: 80%</code> in index.md
-                        </div>
-                        <div class="mode-fact"><span class="dot"></span>Best for: offline, CI, scripting</div>
+                        <div class="mode-fact"><span class="dot"></span>Planning and track operations by conversation</div>
+                        <div class="mode-fact"><span class="dot"></span>No conflict-checked writes</div>
+                        <div class="mode-fact"><span class="dot"></span>No board</div>
                     </div>
                 </div>
 
-                <div class="mode-card mode-local fade-in" style="transition-delay:0.1s">
-                    <span class="mode-badge">local-api</span>
-                    <div class="mode-title">Full Local Stack</div>
-                    <p class="mode-desc">Rich visibility. A heartbeat worker syncs filesystem changes to a local
-                        Postgres DB. The Kanban board at <code
-                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">localhost:8090</code>
-                        gives you real-time visibility across all repos.</p>
-                    <div class="mode-facts">
-                        <div class="mode-fact"><span class="dot"></span>Local Postgres + Express API</div>
-                        <div class="mode-fact"><span class="dot"></span>Kanban UI at localhost:8090</div>
-                        <div class="mode-fact"><span class="dot"></span>Multi-project, single pane of glass</div>
-                        <div class="mode-fact"><span class="dot"></span>Best for: solo dev, daily workflow</div>
-                    </div>
-                </div>
-
-                <div class="mode-card mode-remote fade-in" style="transition-delay:0.2s;opacity:0.75;">
+                <div class="mode-card mode-remote fade-in" style="transition-delay:0.1s;opacity:0.75;">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                        <span class="mode-badge">remote-api</span>
-                        <span style="font-size:11px;font-weight:600;color:var(--ink-faint);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:2px 7px;letter-spacing:0.05em;">COMING SOON</span>
+                        <span class="mode-badge">remote</span>
+                        <span style="font-size:11px;font-weight:600;color:var(--ink-faint);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:2px 7px;letter-spacing:0.05em;">NOT YET AVAILABLE</span>
                     </div>
-                    <div class="mode-title">Remote / Team</div>
-                    <p class="mode-desc">Connect to a hosted or self-hosted collector. Multiple machines sync to the
-                        same DB. Share the Kanban board with your team without any per-machine setup.</p>
+                    <div class="mode-title">Chat and mobile connector</div>
+                    <p class="mode-desc">A remote connector would let claude.ai chat and mobile reach your tracks. It
+                        does not exist yet. The plugin is also not in Anthropic's plugin directory, which accepts only
+                        Markdown from a publisher that is not Verified; that is parked until a remote connector
+                        exists.</p>
                     <div class="mode-facts">
-                        <div class="mode-fact"><span class="dot"></span>Remote collector URL</div>
-                        <div class="mode-fact"><span class="dot"></span>Multi-machine sync</div>
-                        <div class="mode-fact"><span class="dot"></span>Token-based auth per collector</div>
-                        <div class="mode-fact"><span class="dot"></span>Best for: teams, multi-machine</div>
+                        <div class="mode-fact"><span class="dot"></span>Install from the marketplace for now</div>
+                        <div class="mode-fact"><span class="dot"></span>Hooks are planned as a separate extension</div>
+                    </div>
+                </div>
+
+                <div class="mode-card mode-local fade-in" style="transition-delay:0.2s;opacity:0.75;">
+                    <span class="mode-badge">legacy</span>
+                    <div class="mode-title">The earlier stack, parked</div>
+                    <p class="mode-desc">The Postgres dashboard, the sync daemon, workers and dispatch, the cloud
+                        collector and federated hubs are kept at the <code
+                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">v1-legacy</code> git
+                        tag. The plugin does not need any of them, and the daemon is stopped.</p>
+                    <div class="mode-facts">
+                        <div class="mode-fact"><span class="dot"></span>Optional, never required</div>
+                        <div class="mode-fact"><span class="dot"></span>Existing projects: install the plugin, remove the old skill link, stop the worker</div>
                     </div>
                 </div>
             </div>
@@ -1728,63 +1759,59 @@
     <section class="arch-section" id="architecture">
         <div class="container" style="padding-top:90px; padding-bottom:90px;">
             <div class="section-label">Architecture</div>
-            <h2 class="section-title">Filesystem-First • Distributed</h2>
-            <p class="section-sub">LaneConductor bridges localized Markdown definitions with persistent state via a
-                strict Bidirectional Sync Loop. Your agents talk to files, the system talks to the team.</p>
+            <h2 class="section-title">Files in git.<br />Claude plus a connector.</h2>
+            <p class="section-sub">Tracks are Markdown files in your repository. Claude reads and writes them through
+                a small local connector. There is no database and no daemon; the older tier that had both is optional and
+                parked.</p>
 
             <div class="arch-diag-container fade-in">
-                <!-- THE SYNC LOOP -->
                 <div class="arch-flow">
                     <div class="arch-node">
                         <div class="arch-node-tag">The Brains</div>
                         <div class="feature-icon" style="font-size: 24px; margin-bottom: 12px;">🧠</div>
-                        <div class="arch-node-title">Agent / Developer</div>
-                        <div class="arch-node-desc">Claude or Gemini modifies <code>tracks/*.md</code> direct on disk.
+                        <div class="arch-node-title">Claude</div>
+                        <div class="arch-node-desc">Plans, implements and reviews tracks with the skill and commands.
                         </div>
                     </div>
 
                     <div class="arch-arrow">
-                        <div class="arch-arrow-label">Writes Markdown</div>
-                        <div class="arch-arrow-label arch-label-bottom">Filesystem Event</div>
+                        <div class="arch-arrow-label">Tool calls</div>
+                        <div class="arch-arrow-label arch-label-bottom">Results</div>
                     </div>
 
                     <div class="arch-node" style="border-color: var(--purple);">
-                        <div class="arch-node-tag" style="background: var(--purple);">Sync Worker</div>
-                        <div class="feature-icon" style="font-size: 24px; margin-bottom: 12px;">💓</div>
-                        <div class="arch-node-title">The Heartbeat</div>
-                        <div class="arch-node-desc">Watches FS, parses markers, and pushes to API every 5s.</div>
+                        <div class="arch-node-tag" style="background: var(--purple);">Connector</div>
+                        <div class="feature-icon" style="font-size: 24px; margin-bottom: 12px;">🔌</div>
+                        <div class="arch-node-title">Local MCP server</div>
+                        <div class="arch-node-desc">Conflict-checked writes, one commit per write. No network of its own.</div>
                     </div>
 
                     <div class="arch-arrow">
-                        <div class="arch-arrow-label">Syncs to API</div>
-                        <div class="arch-arrow-label arch-label-bottom">Polls Changes</div>
+                        <div class="arch-arrow-label">Commits</div>
+                        <div class="arch-arrow-label arch-label-bottom">Reads</div>
                     </div>
 
                     <div class="arch-node">
-                        <div class="arch-node-tag">Control Plane</div>
-                        <div class="feature-icon" style="font-size: 24px; margin-bottom: 12px;">📊</div>
-                        <div class="arch-node-title">Postgres / UI</div>
-                        <div class="arch-node-desc">Persistent state for visibility and team coordination.</div>
+                        <div class="arch-node-tag">Source of truth</div>
+                        <div class="feature-icon" style="font-size: 24px; margin-bottom: 12px;">📁</div>
+                        <div class="arch-node-title">Files in git</div>
+                        <div class="arch-node-desc">Index, spec, plan, test and conversation, per track.</div>
                     </div>
                 </div>
 
-                <!-- DISTRIBUTED LAYER -->
                 <div class="dist-diag">
                     <div class="dist-box">
-                        <div style="font-size: 11px; font-weight: 900; color: var(--cyan); margin-bottom: 4px;">LOCAL
-                            NODE A</div>
-                        <div class="arch-node-desc">Worker 1 + Git Worktree</div>
+                        <div style="font-size: 11px; font-weight: 900; color: var(--cyan); margin-bottom: 4px;">TRACK A</div>
+                        <div class="arch-node-desc">track-runner in its own worktree</div>
                     </div>
                     <div class="dist-box"
                         style="border-style: solid; border-color: var(--purple); background: rgba(139, 92, 246, 0.05);">
-                        <div style="font-size: 11px; font-weight: 900; color: var(--purple); margin-bottom: 4px;">SHARED
-                            TRUTH</div>
-                        <div class="arch-node-desc">Git Locks + Remote Collector</div>
+                        <div style="font-size: 11px; font-weight: 900; color: var(--purple); margin-bottom: 4px;">STATE BRANCH</div>
+                        <div class="arch-node-desc">Where track state is written</div>
                     </div>
                     <div class="dist-box">
-                        <div style="font-size: 11px; font-weight: 900; color: var(--cyan); margin-bottom: 4px;">LOCAL
-                            NODE B</div>
-                        <div class="arch-node-desc">Worker 2 + Git Worktree</div>
+                        <div style="font-size: 11px; font-weight: 900; color: var(--cyan); margin-bottom: 4px;">TRACK B</div>
+                        <div class="arch-node-desc">track-runner in its own worktree</div>
                     </div>
                 </div>
             </div>
@@ -1794,26 +1821,27 @@
                 <div class="fade-in">
                     <h3
                         style="font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; color: var(--purple);">
-                        Filesystem Message Bus</h3>
-                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6;">We treat your filesystem as
-                        the source of truth. The <code>file_sync_queue.md</code> acts as a local message bus between the
-                        UI and your local agents.</p>
+                        Files, not a database</h3>
+                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6;">The track files in
+                        <code>conductor/tracks/</code> are the source of truth, and git keeps their history. They are
+                        plain text, so you can read and edit them yourself.</p>
                 </div>
                 <div class="fade-in" style="transition-delay: 0.1s;">
                     <h3
                         style="font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; color: var(--cyan);">
-                        Git-Backed Identity</h3>
-                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6;">Coordination happens via Git
-                        locks and worktrees. This ensures that multiple workers can safely coordinate on the same
-                        project without database dependency.</p>
+                        One writer, checked writes</h3>
+                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6;">A write must carry the
+                        version you last read. If the file changed since, the connector refuses it with a
+                        <code>CONFLICT</code>, and you merge and retry. Nothing is silently overwritten.</p>
                 </div>
                 <div class="fade-in" style="transition-delay: 0.2s;">
                     <h3
                         style="font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; color: var(--amber);">
-                        Conflict Resolution</h3>
-                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6;">A deterministic "Newer Wins"
-                        strategy resolves simultaneous edits between the UI and local markdown files. No manual merge
-                        conflicts, ever.</p>
+                        A state branch per repo</h3>
+                    <p style="font-size: 13px; color: var(--ink-muted); line-height: 1.6;">The connector writes on
+                        <code>connector.state_branch</code> if you set it, otherwise the repo's default branch,
+                        otherwise <code>main</code> or <code>master</code>. It refuses to write on any other branch and
+                        asks before any push.</p>
                 </div>
             </div>
         </div>
@@ -1822,45 +1850,43 @@
     <!-- ADVANTAGES -->
     <section class="adv-section" id="advantages">
         <div class="container" style="padding-top:100px; padding-bottom:100px;">
-            <div class="section-label">A Professional Standard</div>
-            <h2 class="section-title">The Blueprint for<br />Secure Orchestration.</h2>
-            <p class="section-sub">LaneConductor provides the professional-grade orchestration bus built to make agentic
-                workflows production-ready for teams who prioritize security and scale.</p>
+            <div class="section-label">Why this way</div>
+            <h2 class="section-title">Plain files.<br />Nothing to run.</h2>
+            <p class="section-sub">Keeping plans as files in git, and letting Claude manage them, removes the parts of
+                a tracker that you would otherwise have to host and keep in sync.</p>
 
             <div class="adv-grid">
                 <div class="adv-item fade-in">
-                    <div class="adv-title">Air-Gapped by Design</div>
-                    <p class="adv-desc">Run in <code>local-fs</code> mode for total isolation. No data leaves your
-                        machine, no external APIs required. Perfect for high-security environments and proprietary
-                        codebases.</p>
+                    <div class="adv-title">Nothing to host</div>
+                    <p class="adv-desc">No database, no daemon, no worker. If the connector's server fails to start,
+                        the commands fall back to editing the track files directly.</p>
                 </div>
                 <div class="adv-item fade-in" style="transition-delay: 0.1s;">
-                    <div class="adv-title">Zero-Overhead CLI</div>
-                    <p class="adv-desc">Everything is controlled by the <code>lc</code> command. Orchestrate entire
-                        fleets of agents without ever leaving the terminal or needing a heavy desktop environment.</p>
+                    <div class="adv-title">Stays with your repo</div>
+                    <p class="adv-desc">The connector makes no network requests of its own. The advice log it keeps
+                        holds tool names, timings and sizes, never file contents or prompts, and
+                        <code>conversation.md</code> is gitignored and stays on your machine.</p>
                 </div>
                 <div class="adv-item fade-in" style="transition-delay: 0.2s;">
-                    <div class="adv-title">Human-First Truth</div>
-                    <p class="adv-desc">Markdown is the source of truth. If a human edits a plan, the agent follows. If
-                        an agent hits a blocker, it writes a message. Total transparency, naturally version-controlled.
-                    </p>
+                    <div class="adv-title">Human-first truth</div>
+                    <p class="adv-desc">Markdown is the source of truth. If you edit a plan, Claude follows it. If
+                        Claude hits a blocker, it writes a comment. All of it has git history.</p>
                 </div>
                 <div class="adv-item fade-in" style="transition-delay: 0.3s;">
-                    <div class="adv-title">Cross-Agent Memory</div>
-                    <p class="adv-desc">Most systems lose context between sessions. LaneConductor provides a persistent
-                        "Agentic Memory" via the Filesystem Bus, allowing Claude to pick up exactly where Gemini left
-                        off.</p>
+                    <div class="adv-title">Lanes with a gate</div>
+                    <p class="adv-desc">Plan, implement, review, quality gate, merge. The quality gate runs your own
+                        tests, lint and build, and the skill asks before any push or merge.</p>
                 </div>
                 <div class="adv-item fade-in" style="transition-delay: 0.4s;">
-                    <div class="adv-title">Vendor Agnostic</div>
-                    <p class="adv-desc">Swap agents, models, and providers in seconds. Whether you use Claude Code,
-                        Gemini CLI, or custom internal tools, LaneConductor orchestrates them all with one interface.
-                    </p>
+                    <div class="adv-title">A board you control</div>
+                    <p class="adv-desc">The board is a private artifact that Claude refreshes when you ask. Documents
+                        are scanned first, and sharing the board shares those documents.</p>
                 </div>
                 <div class="adv-item fade-in" style="transition-delay: 0.5s;">
-                    <div class="adv-title">Distributed Coordination</div>
-                    <p class="adv-desc">Coordinate work across local dev servers, edge nodes, and cloud control planes.
-                        Secure worker sandboxing ensures every agent is strictly confined to its assigned project.</p>
+                    <div class="adv-title">Honest limits</div>
+                    <p class="adv-desc">No remote connector for chat and mobile yet, no listing in Anthropic's plugin
+                        directory, and the hooks extension is planned, not available. We say so here so you do not find
+                        out later.</p>
                 </div>
             </div>
         </div>
@@ -1874,101 +1900,74 @@
 
             <div class="features-grid">
                 <div class="feature-card fade-in">
-                    <div class="feature-icon">💓</div>
-                    <div class="feature-title">Heartbeat Worker</div>
-                    <p class="feature-desc">A lightweight Node.js process watches your markdown track files with
-                        chokidar and syncs state to Postgres every 5 seconds. No polling the filesystem from the browser
-                        — pure event-driven.</p>
-                    <span class="feature-tag">laneconductor.sync.mjs</span>
+                    <div class="feature-icon">📋</div>
+                    <div class="feature-title">The board</div>
+                    <p class="feature-desc">Every track by lane, as a private Claude artifact. Click a track to open its
+                        Overview, Plan, Spec and Tests. It is a snapshot that changes when you ask Claude to update it.</p>
+                    <span class="feature-tag">/laneconductor:board</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.1s">
-                    <div class="feature-icon">🏗️</div>
-                    <div class="feature-title">Programmable Workflows</div>
-                    <p class="feature-desc">Standardized lifecycles where Lane === Action. Supports the <code
-                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">Ralph Wiggum</code>
-                        loop
-                        by default, but allows fully custom transitions for any agentic flow.</p>
-                    <span class="feature-tag">workflow.json</span>
+                    <div class="feature-icon">⚙️</div>
+                    <div class="feature-title">18 slash commands</div>
+                    <p class="feature-desc">Plan, implement, review, quality-gate, merge, run, new, bug, feature, status,
+                        move, comment, board, workflow, setup, deploy, brainstorm and review-plan. Most take a track
+                        number or a title; setup and deploy run only when you name them.</p>
+                    <span class="feature-tag">/laneconductor:&lt;name&gt;</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.15s">
                     <div class="feature-icon">🤖</div>
-                    <div class="feature-title">AI Skill Context</div>
-                    <p class="feature-desc">A SKILL.md that agents load automatically. Built-in conversation loop lets
-                        you reply to blockers in the UI or CLI, prioritizing AI responses instantly.</p>
-                    <span class="feature-tag">SKILL.md</span>
+                    <div class="feature-title">A subagent per track</div>
+                    <p class="feature-desc"><code
+                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">track-runner</code>
+                        works one track through one lane in its own git worktree, so tracks do not collide. It is
+                        recommended, and starts only when you say yes.</p>
+                    <span class="feature-tag">worktree per track</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.2s">
-                    <div class="feature-icon">⚙️</div>
-                    <div class="feature-title">Universal CLI (lc)</div>
-                    <p class="feature-desc">A global command for total project control. <code
-                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">lc status</code>,
-                        <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">lc new</code>,
-                        <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">lc move</code>,
-                        and <code
-                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">lc comment</code> —
-                        manage your whole flow from the terminal.
-                    </p>
-                    <span class="feature-tag">npm install -g</span>
+                    <div class="feature-icon">🔍</div>
+                    <div class="feature-title">Plan review</div>
+                    <p class="feature-desc"><code
+                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">plan-reviewer</code>
+                        reads a track's spec and plan and reports gaps. It is read-only and changes nothing.</p>
+                    <span class="feature-tag">/laneconductor:review-plan</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.25s">
-                    <div class="feature-icon">🗂</div>
-                    <div class="feature-title">Track Conversation Inbox</div>
-                    <p class="feature-desc">Each track has its own conversation thread. Claude posts blockers, notes,
-                        and review results. You reply inline. The agent picks up your response on the next run.</p>
-                    <span class="feature-tag">Conversation tab</span>
+                    <div class="feature-icon">🛡️</div>
+                    <div class="feature-title">Safe writes</div>
+                    <p class="feature-desc">Writes are checked against the version you last read, committed one change at
+                        a time, and refused on any branch other than the state branch.</p>
+                    <span class="feature-tag">CONFLICT checks</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.3s">
                     <div class="feature-icon">🔐</div>
-                    <div class="feature-title">Quality Gate Lane</div>
-                    <p class="feature-desc">Automated checks — tests, linting, build, security — before a track is
-                        marked complete. Configurable per project with full shell execution.</p>
-                    <span class="feature-tag">quality-gate.md</span>
+                    <div class="feature-title">Privacy scan</div>
+                    <p class="feature-desc">Before a document goes on the board it is scanned. A file with secrets, email
+                        addresses or phone numbers is withheld whole and named by track and file.
+                        <code>conversation.md</code> is not included unless you turn it on.</p>
+                    <span class="feature-tag">board privacy</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.35s">
-                    <div class="feature-icon">☁️</div>
-                    <div class="feature-title">Distributed Execution</div>
-                    <p class="feature-desc">Plan on remote control planes, execute on local dev servers or edge nodes.
-                        Distributed agent orchestration for hybrid cloud workflows.</p>
-                    <span class="feature-tag">Hybrid Cloud</span>
+                    <div class="feature-icon">🏗️</div>
+                    <div class="feature-title">Programmable workflows</div>
+                    <p class="feature-desc">The lanes and where each one goes next are set in a file you own, and you can
+                        change them with <code
+                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">/laneconductor:workflow</code>.</p>
+                    <span class="feature-tag">workflow.json</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.4s">
-                    <div class="feature-icon">🧠</div>
-                    <div class="feature-title">Claude Skill Pattern</div>
-                    <p class="feature-desc">Persistent project memory meets specific Claude tool-use capabilities. A
-                        refined, automated flow for complex technical tasks.</p>
-                    <span class="feature-tag">Agentic Memory</span>
+                    <div class="feature-icon">✅</div>
+                    <div class="feature-title">Quality Gate lane</div>
+                    <p class="feature-desc">Tests, lint and build run before a track is marked done. You set the checks
+                        per project in a checklist file.</p>
+                    <span class="feature-tag">quality-gate.md</span>
                 </div>
                 <div class="feature-card fade-in" style="transition-delay:0.45s">
-                    <div class="feature-icon">🤖</div>
-                    <div class="feature-title">Multi-Agent Support</div>
-                    <p class="feature-desc">Native integration for Gemini CLI and Claude CLI execution. Orchestrate
-                        different agents with unified visibility.</p>
-                    <span class="feature-tag">Gemini & Claude</span>
-                </div>
-                <div class="feature-card fade-in" style="transition-delay:0.5s">
-                    <div class="feature-icon">🆔</div>
-                    <div class="feature-title">Distributed Identity</div>
-                    <p class="feature-desc">Connect workers to remote collectors using secure API Keys. Bind local
-                        machine activity to user accounts for shared team dashboards.</p>
-                    <span class="feature-tag">API Key Sync</span>
-                </div>
-                <div class="feature-card fade-in" style="transition-delay:0.55s">
-                    <div class="feature-icon">🛡️</div>
-                    <div class="feature-title">Secure Sandboxing</div>
-                    <p class="feature-desc">Mandatory path isolation for every worker. Strict workspace confinement
-                        ensures agents cannot traverse outside their assigned project boundaries.</p>
-                    <span class="feature-tag">Path Isolation</span>
-                </div>
-                <div class="feature-card fade-in" style="transition-delay:0.6s">
-                    <div class="feature-icon">👁️</div>
-                    <div class="feature-title">Worker Visibility</div>
-                    <p class="feature-desc">Fine-grained control over visibility. Toggle your local worker's status
-                        between <code
-                            style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">private</code>,
-                        <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">team</code>, and
-                        <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan)">public</code>.
-                    </p>
-                    <span class="feature-tag">Privacy Controls</span>
+                    <div class="feature-icon">📚</div>
+                    <div class="feature-title">Recipe library</div>
+                    <p class="feature-desc">Reusable recipes, packaged as their own plugin and marketplace. They are local
+                        and not published yet, and the test of whether Claude finds the right one is still in
+                        progress.</p>
+                    <span class="feature-tag">in progress</span>
                 </div>
             </div>
         </div>
@@ -1979,20 +1978,20 @@
         <div class="container">
             <div class="stats-grid">
                 <div class="stat-card fade-in">
-                    <div class="stat-value" style="color:var(--purple);">$0</div>
-                    <div class="stat-label">Monthly cost</div>
+                    <div class="stat-value" style="color:var(--purple);">1</div>
+                    <div class="stat-label">Plugin to install</div>
                 </div>
                 <div class="stat-card fade-in" style="transition-delay:0.08s">
-                    <div class="stat-value" style="color:var(--cyan);">5s</div>
-                    <div class="stat-label">Heartbeat interval</div>
+                    <div class="stat-value" style="color:var(--cyan);">18</div>
+                    <div class="stat-label">Slash commands in it</div>
                 </div>
                 <div class="stat-card fade-in" style="transition-delay:0.16s">
-                    <div class="stat-value" style="color:var(--amber);">15+</div>
-                    <div class="stat-label">Claude skill commands</div>
+                    <div class="stat-value" style="color:var(--amber);">2</div>
+                    <div class="stat-label">Subagents in it</div>
                 </div>
                 <div class="stat-card fade-in" style="transition-delay:0.24s">
-                    <div class="stat-value" style="color:var(--green);">∞</div>
-                    <div class="stat-label">Projects supported</div>
+                    <div class="stat-value" style="color:var(--green);">0</div>
+                    <div class="stat-label">Databases or daemons needed</div>
                 </div>
             </div>
         </div>
@@ -2080,12 +2079,14 @@
         <div class="cta-glow"></div>
         <div class="container">
             <div class="cta-box fade-in">
-                <h2 class="cta-title">Start Orchestrating Today</h2>
-                <p class="cta-sub">LaneConductor is open source and ready for your next project.<br />Take control of
-                    your AI-driven workflow with real-time visibility.</p>
-                <div style="display:flex;justify-content:center;gap:16px;margin-top:24px;">
+                <h2 class="cta-title">Install it and try one track</h2>
+                <p class="cta-sub">Two commands, then ask Claude to plan your first track.<br />The source is on GitHub
+                    under the Elastic License 2.0.</p>
+                <div style="display:flex;justify-content:center;gap:16px;margin-top:24px;flex-wrap:wrap;">
                     <a href="https://github.com/meller/laneconductor" class="btn-primary"
                         style="text-decoration:none;">View GitHub Repo</a>
+                    <a href="wiki.html#installation" class="btn-secondary"
+                        style="text-decoration:none;">Read the install guide</a>
                 </div>
             </div>
         </div>
@@ -2099,7 +2100,7 @@
                     <div class="footer-logo">
                         <img src="/logo.png" alt="LaneConductor" style="height: 20px; width: auto; opacity: 0.8;" />
                     </div>
-                    <div class="footer-tagline">Multi-Agent • Context-Driven • Distributed Orchestration</div>
+                    <div class="footer-tagline">Claude • Git • Connector</div>
                 </div>
                 <div class="footer-links">
                     <a href="wiki.html" style="color:var(--purple);font-weight:600;">Docs</a>
