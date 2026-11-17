@@ -98,6 +98,11 @@ phase, dependencies, and the blob sha of each `index.md`). Never edit it by hand
 from the track files and reports `track_summary_regenerated` in `stale_reasons` when the file
 disagrees with them. Tracks with broken markers are listed under "Needs attention" in the file.
 
+Privacy: the committed file lists only tracks whose `index.md` is in git at HEAD, plus the track the
+current write creates or updates. A draft track folder that is not in git yet never appears in it
+(so its title cannot reach a public repo); `list_tracks` still shows such a track with `untracked: true`
+and a warning. `lc summary` follows the same rule; `lc summary --include-untracked` lists every folder.
+
 `conversation.md` is gitignored in the LaneConductor repo itself (decision D5, pending): there
 `append_conversation` writes the file but cannot commit it, and says so (`commit: null`, `commit_error`).
 

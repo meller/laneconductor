@@ -130,6 +130,7 @@ because nothing in code maintains it (see the two PLAN ADDITIONs on the summary 
 - [x] Task 3: Write path: `create_track` and `update_track` regenerate the summary and commit it in the SAME commit as the track change (one `commitFiles` call with both paths).
 - [x] Task 4: Read path self-healing: `list_tracks` verifies each track's hash against the summary and, on any mismatch or a missing file, regenerates from a folder scan (and says so in `stale_reasons`); it never returns a stale row silently.
 - [x] Task 5 (`lc summary [--check]` in `bin/lc.mjs`, a 5-line branch that runs `connector/bin/lc-summary.mjs`; it writes the file and does not commit; `lc new` / `lc move` do not call it yet): `lc summary` command (thin wrapper over the same function) so `lc new` / `lc move` and plain-skill edits have a deterministic path. A conflict on the summary is resolved by regenerating, never by hand-merging.
+- [x] Task 6: the committed summary lists only tracks that are in git; found when a draft track's title reached a commit. A track is listed when its `index.md` is in the tree of HEAD (`git ls-tree`), or is written by the same create_track/update_track commit; untracked drafts are left out. `list_tracks` still lists them (`untracked: true` plus a warning) and compares the file against the tracked set; `lc summary` follows the same rule, `--include-untracked` lists everything.
 
 **Impact**: A stale or hand-edited summary can never mislead, and no sync process exists to drift.
 
