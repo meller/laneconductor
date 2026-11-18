@@ -74,7 +74,8 @@ Markers this lane reads and writes:
 Boundary: this lane only merges or opens a PR for code that already passed review and
 quality-gate. Write no feature code here; the only code changes it should make are those needed
 to resolve a conflict between the track branch and `main`. `workflow.json` stays the authority
-for target lanes.
+for target lanes (how a target is read, and `done:queue` against `done:success`, is in
+[../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md)).
 
 ## Skills that help here
 

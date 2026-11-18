@@ -16,10 +16,13 @@ const TRACK = { name: 'track', hint: 'track number or title', description: 'The 
 const ACTION = (hint, description) => ({ name: 'action', hint, description, required: false });
 
 const STATE = 'Change state only with `update_track`, passing the `base` from `get_track`; on a CONFLICT, re-read and retry.';
+// Track AM-10131: where a finished lane action sends the track is the workflow's decision, resolved by the connector; never worked out from the raw file.
+const FINISH = 'When the lane action finishes, move the track with `update_track` and `outcome` (`success` or `failure`): it applies the workflow\'s transition, which `get_track` shows as `valid.next`. Never work the target out from workflow.json yourself.';
 const LANE = (lane, file, extra = '') => (
   `Work on track {{track}} in the ${lane} lane. The procedure is the ${lane} lane guide (skill file \`${file}\`); follow it and do not restate it here.\n\n`
   + `1. Call \`get_context\` with lane \`${lane}\`: it returns the guide, as advice. Then call \`get_track\` for the track (\`list_tracks\` first if I gave a title). ${STATE}\n`
   + `2. Work through the guide.${extra}`
+  + (['plan', 'quality-gate'].includes(lane) ? `\n3. ${FINISH}` : '')
 );
 const WORKTREE = 'RECOMMEND, do not start: suggest one sub-agent per track, each in its own worktree, because that isolates the work from the primary checkout, lets several tracks run in parallel, and keeps them from colliding.';
 const LANE_WORK = (lane, dispatch) => (
@@ -27,7 +30,7 @@ const LANE_WORK = (lane, dispatch) => (
   + `2. ${WORKTREE}\n`
   + `3. Show the exact dispatch you would make, with this prompt: "${dispatch}"\n`
   + `4. Start nothing until I say yes. If I decline, or sub-agents are unavailable (chat), do the lane yourself in this session following the guide.\n`
-  + '5. Record state with `update_track` and the `base` from `get_track`.'
+  + `5. Record state with \`update_track\` and the \`base\` from \`get_track\`. ${FINISH}`
 );
 const SHOW_BOARD = (
   'Show the existing board. Read only: never regenerate or republish it.\n\n'
@@ -90,7 +93,7 @@ export const COMMANDS = [
       + '2. RECOMMEND, do not start: suggest one sub-agent per track, each in its own worktree. Why: isolation from the primary checkout, several tracks in parallel, no collisions.\n'
       + '3. Show the exact dispatch you would make, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." One dispatch per lane, one agent per track.\n'
       + '4. Start nothing until I say yes. If I decline, or sub-agents are unavailable (chat), work the lane in this session following its lane guide.\n'
-      + '5. Record state with `update_track` and the `base` from `get_track`. Ask me before any merge or push.\n'
+      + `5. Record state with \`update_track\` and the \`base\` from \`get_track\`. ${FINISH} Ask me before any merge or push.\n`
       + '6. If I ask for the board along the way: building it needs the `lc` command-line tool or the board script; if neither exists, say so and stop that step.',
   },
   {
@@ -144,8 +147,8 @@ export const COMMANDS = [
     example: 'move 10106 to implement',
     args: [{ name: 'track', hint: 'track number', description: 'The track number.', required: true }, { name: 'lane', hint: 'lane[:status]', description: 'A lane or lane:status; a bare lane means queue.', required: true }], connector: true,
     procedure: 'Move track {{track}} to {{lane}} (a `lane` or `lane:status`; a bare lane means `queue`). The procedure is the skill file `ops/tracks.md` (`move`, `pulse`, `updateTrack`).\n\n'
-      + '1. Check `conductor/workflow.json` (or `get_context`, which lists the lane transitions) for a `lane:status` that lane defines.\n'
-      + '2. Call `get_track`, then `update_track` with the `base` from `get_track` and `markers` such as `{"Lane": "implement", "Lane Status": "queue"}`; a progress or phase update is the same call with `Progress` or `Phase`. On a CONFLICT, re-read with `get_track`, merge, and retry; never work around it.\n'
+      + '1. Check `conductor/workflow.json` (or `get_context`, which lists the lane transitions) for a `lane:status` that lane defines. If the move is "this lane\'s action finished", take it from `valid.next` of `get_track`, or pass `outcome` to `update_track`; never work that target out from the raw file.\n'
+      + '2. Call `get_track`, then `update_track` with the `base` from `get_track` and `markers` such as `{"Lane": "implement", "Lane Status": "queue"}` (or `outcome`, instead of the Lane markers); a progress or phase update is the same call with `Progress` or `Phase`. On a CONFLICT, re-read with `get_track`, merge, and retry; never work around it.\n'
       + '3. Say what changed. Moving a track only sets markers; it starts no work.',
   },
   {
@@ -163,8 +166,9 @@ export const COMMANDS = [
     example: 'show the workflow',
     args: [{ name: 'change', hint: 'lane key value', description: 'A lane, a key and a value, e.g. review max_retries 3; empty means show.', required: false }],
     procedure: 'Workflow: {{change}} (nothing given means show). The procedure is the skill file `ops/tracks.md` (`workflow`, `workflow set`).\n\n'
-      + '1. Read `conductor/workflow.json` and print a table: lane, auto action, `on_success`, `on_failure`, retries, model.\n'
-      + '2. With `lane key value`, confirm the one field with me, change only that field in the file, and print `workflow.json updated: lanes.<lane>.<key> = <value>`. Edit nothing else.',
+      + '1. Read `conductor/workflow.json` and print a table: lane, `on_success`, `on_failure` as the resolved `lane:status` (the reference is the skill file `ops/lanes-and-statuses.md`; a bare target is `queue` for another lane, `success` or `failure` for the same lane), retries, model.\n'
+      + '2. If the file is still in the older format (bare targets, `auto_action`, the lane names `planning` and `in-progress`), say so and OFFER to rewrite the file to the current format: show the exact new file first, copy the old one to a backup next to it before anything is written, and write nothing until I say yes. Never rename lanes in existing tracks. It works as it is, so declining changes nothing.\n'
+      + '3. With `lane key value`, confirm the one field with me, change only that field in the file, and print `workflow.json updated: lanes.<lane>.<key> = <value>`. Edit nothing else.',
   },
   {
     name: 'new-project', group: 'setup and deploy', title: 'Start a new project',

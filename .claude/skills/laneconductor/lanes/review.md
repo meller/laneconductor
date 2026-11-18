@@ -27,10 +27,14 @@ the implement lane's retry loop, so write them up as gaps instead.
    - Re-read `index.md`'s `**Lane**`. If it is no longer `review` (a human moved the card), leave
      `**Lane**` and `**Lane Status**` alone, keep the step 3 comment (the review is still valid),
      and note in it that the transition was skipped.
-   - Otherwise read `conductor/workflow.json`.
-   - **PASS:** set `**Lane**` to `lanes.review.on_success` and `**Lane Status**` to `queue`,
+   - Otherwise take the move from the workflow: with the connector, `update_track` with
+     `outcome: "success"` (PASS) or `"failure"` (FAIL), the target being `valid.next` in
+     `get_track`; without it, read `conductor/workflow.json` with the grammar in
+     [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md) and set `**Lane**` and
+     `**Lane Status**` from `lanes.review.on_success` or `on_failure`.
+   - **PASS:** apply the success move (this project: `quality-gate:queue`),
      append `## ✅ REVIEWED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
-   - **FAIL:** set `**Lane**` to `lanes.review.on_failure` and `**Lane Status**` to `queue`, add
+   - **FAIL:** apply the failure move (this project: `implement:queue`), add
      `⚠️ Gaps` to `plan.md`, and in the same edit write `**Verdict**: fail`.
    - Write `**Verdict**` every time, PASS or FAIL (track AM-10087). The harness can tag the same
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached

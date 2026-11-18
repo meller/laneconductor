@@ -222,9 +222,11 @@ ${ADDONS.map(addOnSection).join('\n')}
 // and show the install commands when it is missing. No command runs an install.
 const FIND = 'Find the track\'s folder under `conductor/tracks/` (Glob `conductor/tracks/*<number>*/`; both naming conventions exist, see "Finding a track" in the skill index) and read its `index.md`, `spec.md`, `plan.md`, `test.md` and `conversation.md`.';
 const EDIT_RULE = 'Change state by editing the track files directly, following the skill\'s `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change.';
+// Track AM-10131: without the add-on's tools, where a finished lane goes is read with track 1020's grammar (one reference), never guessed.
+const TARGETS = 'Read where a lane sends a finished track from `conductor/workflow.json` with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane; a bare `done` is `done:queue`); never guess it from the raw file.';
 const LANE = (lane, file, extra = '') => (
   `Work on track {{track}} in the ${lane} lane. The procedure is the ${lane} lane guide (skill file \`${file}\`); follow it and do not restate it here.\n\n`
-  + `1. ${FIND} Read the lane guide, and \`conductor/workflow.json\` for where each lane goes next. The guide is advice.\n`
+  + `1. ${FIND} Read the lane guide too. ${TARGETS} The guide is advice.\n`
   + `2. Work through the guide. ${EDIT_RULE}${extra}`
 );
 const PARALLEL_STEP = (dispatch) => (
@@ -233,7 +235,7 @@ const PARALLEL_STEP = (dispatch) => (
   + 'If it is not listed: do the lane in this session following the guide. If I ask for parallel work or for isolation, explain the by-hand way (`git worktree add .worktrees/track-<number> -b track-<number>`, a separate session started in that folder, one track per worktree) '
   + `and, once, what the ${NAMES.parallel} add-on adds (${entryOf(NAMES.parallel).why}; ${installsNote('parallel')} Read the skill's \`ADD-ONS.md\` and show its install commands as written; never run them). Otherwise mention nothing.`
 );
-const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too.\n2. ${PARALLEL_STEP(dispatch)}\n3. ${EDIT_RULE}`;
+const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too. ${TARGETS}\n2. ${PARALLEL_STEP(dispatch)}\n3. ${EDIT_RULE}`;
 const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
 const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`, or use \`lc board --site "$site" --json\` when \`lc\` is on PATH. ${BOARD_MISSING_TEXT}`;
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
@@ -250,7 +252,7 @@ export const BASE_PROCEDURES = {
   'quality-gate': LANE('quality-gate', 'lanes/quality-gate.md'),
   merge: LANE('merge', 'lanes/merge.md', '\n3. Ask me before any merge or push; do neither without my yes.'),
   run: 'Run track {{track}} end to end. The guardrails are the skill file `ops/working-a-track.md`; read it, and read the lane guide for each lane you run.\n\n'
-    + `1. ${FIND} Read \`conductor/workflow.json\` too: it says where each lane goes next.\n`
+    + `1. ${FIND} ${TARGETS}\n`
     + `2. ${PARALLEL_STEP('Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push.')} One dispatch per lane, one agent per track.\n`
     + `3. ${EDIT_RULE} Ask me before any merge or push.\n`
     + '4. If I ask for the board along the way, follow the `board` command; building it needs the board add-on.',
@@ -267,7 +269,7 @@ export const BASE_PROCEDURES = {
     + '1. With a track number or title: read its `index.md` and the end of `conversation.md`, and report lane, lane status, progress, phase, summary and the last conversation entries, and whether a human comment is waiting for a reply.\n'
     + '2. With nothing: read every track\'s `index.md` under `conductor/tracks/` and print the tracks grouped by lane, one line each (id, title, lane status, progress).',
   move: 'Move track {{track}} to {{lane}} (a `lane` or `lane:status`; a bare lane means `queue`). The procedure is the skill file `ops/tracks.md` (`move`, `pulse`, `updateTrack`).\n\n'
-    + '1. Check `conductor/workflow.json` for a `lane:status` that lane defines; use the lane names of that file (a project may call a lane `planning` or `in-progress`).\n'
+    + '1. Check `conductor/workflow.json` for a `lane:status` that lane defines; use the lane names of that file (a project may call a lane `planning` or `in-progress`). If the move is "this lane\'s action finished", read the target with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane), never from the raw file by guess.\n'
     + '2. Re-read the track\'s `index.md` right before editing, then change only the marker lines: `**Lane**` and `**Lane Status**` (a progress or phase update is `**Progress**` or `**Phase**`).\n'
     + '3. Say what changed. Moving a track only sets markers; it starts no work.',
   comment: 'Add a comment to track {{track}}: {{text}}. The procedure is the skill file `ops/tracks.md` (`comment`).\n\n'

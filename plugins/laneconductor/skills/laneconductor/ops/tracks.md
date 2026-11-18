@@ -59,7 +59,12 @@ Moving to a lane without a status means `queue`: `move NNN backlog`, `move NNN i
 (the worker picks it up), `move NNN plan:success` (parked as done planning). Run
 `lc move NNN lane:status`; without `lc`, set `**Lane**` and `**Lane Status**` in
 `conductor/tracks/NNN-*/index.md`. The sync worker notices the change and queues the work.
-Prefer a `lane:status` that `workflow.json` defines for that lane.
+Prefer a `lane:status` that `workflow.json` defines for that lane. When the move is "this lane's action
+finished", do not work the target out yourself: with the connector, call `update_track` with `outcome`
+(`success` or `failure`) and the `base` from `get_track`, which applies the workflow's move; its answer to
+"where does it go" is `valid.next` in `get_track`. Without the connector, read `workflow.json` with the
+grammar in [lanes-and-statuses.md](lanes-and-statuses.md) (a bare target is `queue` for another lane;
+for the same lane it is `success` or `failure`).
 
 ## pulse `[track-number] [status] [progress%] [summary?]`
 
@@ -99,6 +104,12 @@ Run `lc status` (it also checks worker health). Without `lc`, read `**Lane**`, `
 `**Phase**` from every `conductor/tracks/*/index.md` and print the tracks grouped by lane.
 
 ## workflow, workflow set `[lane] [key] [value]`
+
+What the lanes, the five lane statuses and the `on_success` / `on_failure` targets mean (and the defaults
+of a bare target) is in [lanes-and-statuses.md](lanes-and-statuses.md); read that rather than guessing from
+the file. A `workflow.json` that still has bare targets, `auto_action` or the old lane names (`planning`,
+`in-progress`) is the daemon-era format: it works, and migrating it is only ever offered (see the command
+text), never done without the person's yes.
 
 `lc workflow` prints `conductor/workflow.json` as a table (lane, auto action, on_success,
 on_failure, retries, model); `lc workflow set <lane> <key> <value>` edits one field. Without

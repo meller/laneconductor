@@ -45,7 +45,7 @@ wrap or bundle them.
 | `qualityGate`, `quality-gate` | [lanes/quality-gate.md](lanes/quality-gate.md) (the worker sends `qualityGate`) | yes |
 | `merge`, `done` | [lanes/merge.md](lanes/merge.md) (the `done` lane's action) | yes |
 | `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (prefer `lc new`, `lc update-track`, `lc report-bug`, `lc feature-request`) | yes |
-| `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) | yes |
+| `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) (lanes, statuses and transitions: [ops/lanes-and-statuses.md](ops/lanes-and-statuses.md)) | yes |
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional laneconductor-board add-on) | yes |
 | `delete` | [ops/tracks.md](ops/tracks.md) | only when named |
@@ -117,10 +117,14 @@ check (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers 
 
 ## Lanes and transitions
 
-- `conductor/workflow.json` is the only authority for where a lane sends a track. Read it at the
-  start of each lane command; targets are written as `lane:status` (`review:queue`). Do not assume
-  implement follows plan: this project's `plan.on_success` is `plan:success`, and a project may
-  put a review lane between them.
+- `conductor/workflow.json` is the only authority for where a lane sends a track, and
+  [ops/lanes-and-statuses.md](ops/lanes-and-statuses.md) is the one reference for the lanes, the five
+  lane statuses, `done:queue` against `done:success`, and how a target is read (a bare target and a
+  `lane:status` do not mean the same). With the connector, take the target from `valid.next` of
+  `get_track`, or finish the lane with `update_track` and `outcome`; never work a target out of the
+  raw file. Without it, read the file with the grammar in that reference. Do not assume implement
+  follows plan: this project's `plan.on_success` is `plan:success`, and a project may put a review
+  lane between them.
 - Each lane has one job: plan writes documents only; implement executes `plan.md`; review and
   quality-gate evaluate and never fix (quality-gate ends at `done:queue`, never `done:success`);
   merge only merges or opens a PR (`done:success` means reachable from `main`).

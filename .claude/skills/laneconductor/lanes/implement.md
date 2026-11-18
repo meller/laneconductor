@@ -83,15 +83,21 @@ commits go.
    - Set `**Progress**` to 100%.
    - **Transition.** Re-read `index.md`'s `**Lane**` first. If it is no longer `implement` (a
      human moved the card), leave `**Lane**` and `**Lane Status**` alone and say so in the
-     completion comment. Otherwise read `conductor/workflow.json` and set `**Lane**` to
-     `lanes.implement.on_success` (this project: `review:queue`).
+     completion comment. Otherwise apply the workflow's success move for this lane (this project:
+     `review:queue`; only the quality gate moves a track to done): with the connector, call
+     `update_track` with `outcome: "success"` (the target is `valid.next.success` in `get_track`);
+     without it, read `lanes.implement.on_success` in `conductor/workflow.json` with the grammar in
+     [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md): set both `**Lane**` and
+     `**Lane Status**` from it, a bare target is `queue`. If a deploy or post-deploy check is still
+     to run, that is `quality-gate:running`, not `implement:running`.
    - Append `## ✅ COMPLETE` to `plan.md`.
    - Append the completion comment to `conversation.md`:
      `> **system**: ✅ Implementation complete - moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`.
 7. **Release the lock** if you took it in step 2 (`node conductor/unlock.mjs NNN`).
 
-Boundaries: `workflow.json` is the only authority for target lanes. On exit, `**Lane Status**`
+Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
+`outcome`, or with the grammar in [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md), never by feel. On exit, `**Lane Status**`
 should end as `success` or `queue` according to the outcome; if the work failed, still unlock.
 
 ## Skills that help here

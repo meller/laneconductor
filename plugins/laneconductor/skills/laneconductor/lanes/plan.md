@@ -92,9 +92,12 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    they are and append
    `> **system**: ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
    instead of the completion comment: a manual move always wins over this run's stale intent.
-   Otherwise read `conductor/workflow.json` and apply `lanes.plan.on_success`, a `lane:status`
-   pair (this project's `plan:success` means `**Lane**: plan` and `**Lane Status**: success`; do not
-   assume the next lane is implement). Then append the completion comment:
+   Otherwise apply the workflow's success move for the plan lane: with the connector, call
+   `update_track` with `outcome: "success"` (the target is `valid.next.success` in `get_track`);
+   without it, read `lanes.plan.on_success` in `conductor/workflow.json` with the grammar in
+   [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md). This project's `plan:success`
+   means `**Lane**: plan` and `**Lane Status**: success`; do not assume the next lane is implement.
+   Then append the completion comment:
    `> **system**: ✅ Plan complete - track now at <lane>:<status>.`, or, if step 5b
    fired, `> **system**: ⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).

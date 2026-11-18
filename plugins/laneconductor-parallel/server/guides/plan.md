@@ -9,7 +9,7 @@ What has worked:
 4. spec.md: problem, requirements (numbered), acceptance criteria that can be observed. Name what is out of scope. plan.md: phases, each with a problem, a solution and checkbox tasks small enough to verify one at a time. test.md: exact commands and one test case per requirement, written so a different session could run them.
 5. Mark facts you checked versus things you assume; put each assumption in the plan as a task that tests it.
 6. Questions for the human go in conversation.md through append_conversation, and set `Waiting for reply` to `yes` with update_track.
-7. When the documents are done, set `Lane Status` to `success` (the project's workflow.json says where the track goes next; its on_success for plan is in get_context).
+7. When the documents are done, finish the lane with update_track and `outcome: "success"`: the project's workflow decides the lane and status (get_track shows it as `valid.next`; some projects park a planned track at `plan:success`, others send it on).
 
 Why: a plan that a stranger can execute and check is the whole product of this lane.
 

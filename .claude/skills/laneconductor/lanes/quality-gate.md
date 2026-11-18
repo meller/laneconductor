@@ -77,7 +77,10 @@ code is on `main`.
    - Re-read `index.md`'s `**Lane**`. If it is no longer `quality-gate` (a human moved the card),
      leave `**Lane**` and `**Lane Status**` alone, keep the step 4 comment, and note there that
      the transition was skipped.
-   - Otherwise read `conductor/workflow.json`.
+   - Otherwise take the move from the workflow: with the connector, `update_track` with
+     `outcome: "success"` (PASS) or `"failure"` (FAIL), the target being `valid.next` in
+     `get_track`; without it, read `conductor/workflow.json` with the grammar in
+     [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md) (a bare `done` is `done:queue`).
    - **Done-gate.** A track may reach `done` (queued for merge) only if the feature works end to
      end. Confirm all of: (1) the stub scan found nothing in `[x]` code paths; (2) no capability
      named in `spec.md`'s Solution is FFU, deferred or future; (3) step 2a's real-product check
@@ -86,11 +89,14 @@ code is on `main`.
      `conversation.md`. Documenting a deferral honestly does not make the track complete; a track
      that shipped a stub and was marked `done: 100%` with an honest "SSH deferred (FFU)" note is
      the incident these rules come from.
-   - **PASS:** set `**Lane**` to `lanes.quality-gate.on_success` (this project: `done:queue`),
+   - **PASS:** apply the success move (this project: `done:queue`, passed and not yet shipped),
      append `## ✅ QUALITY PASSED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
-   - **FAIL:** set `**Lane**` to `lanes.quality-gate.on_failure`, explain the failure in
+   - **FAIL:** apply the failure move, explain the failure in
      `conversation.md`, and in the same edit write `**Verdict**: fail`.
-   - Set `**Lane Status**` to `queue`.
+   - The move sets `**Lane**` and `**Lane Status**` together (a bare target is `queue`); do not set the
+     status separately.
+   - While the gate itself is executing (a full suite, a deploy), the track is
+     `quality-gate:running`.
    - Write `**Verdict**` on every PASS/FAIL (track AM-10087): the harness can tag the turn
      `blocked` although this step already resolved a routable outcome, and the sync worker's exit
      handler reads `**Verdict**` first so a resolved result is routed, not parked. It is not
