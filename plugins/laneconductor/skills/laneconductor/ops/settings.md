@@ -15,7 +15,7 @@ board URL ([board.md](board.md), step 3b, which asks first), or when a person as
 | `connector.state_branch` | a safe git branch name | the default branch from `origin/HEAD`, else the current branch if it is `main` or `master`, else `main` | the parallel add-on's connector, the board script |
 | `connector.push` | `ask`, `auto-state` | `ask` (never push; always ask the human) | the parallel add-on's connector |
 | `board.artifact_url` | the URL of the board artifact | none (no board published yet) | the board commands ([board.md](board.md)) |
-| `board.include_docs` | `false` turns every document off | on | the board script |
+| `board.include_docs` | `false` turns every document off, project definition files included | on | the board script |
 | `board.include_conversation` | `true` adds `conversation.md` to the board documents | off | the board script |
 | `project.name` | a string | the folder name | the board script |
 | `next.level` | `auto`, `explain`, `short` | `auto` | the `next` command only ([next.md](next.md)) |

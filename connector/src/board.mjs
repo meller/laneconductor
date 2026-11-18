@@ -10,6 +10,7 @@ import { lintTracks, rowOf } from './summary.mjs';
 import { trackNumberOfFolder } from './tracks.mjs';
 import { dependencyState } from './dependencies.mjs';
 import { actionOf } from './board-actions.mjs';
+import { resolveNext } from '../../conductor/services/workflow-transitions.mjs';
 
 /** The lanes the page draws when a project has no conductor/workflow.json (or one without lanes). */
 export const DEFAULT_PAGE_LANES = ['backlog', 'planning', 'in-progress', 'review', 'quality-gate', 'done'];
@@ -134,6 +135,40 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
 /** True when two boards hold the same data (`generated_at` is ignored). */
 export const sameBoard = (a, b) => JSON.stringify({ ...a, generated_at: null }) === JSON.stringify({ ...b, generated_at: null });
 
+const FLOW_MAX_LANES = 30;
+const clip = (v, n = 60) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+
+/**
+ * The lanes of a project's workflow as the Workflow tab draws them (track AM-10115): each lane with where it sends success and
+ * failure ('lane:status', or null: no automatic move), computed with the shared resolver conductor/services/workflow-transitions.mjs,
+ * the same function the card actions use. Only names, targets and a short note leave the file: no models, no limits, no settings.
+ * An unknown or old format never throws: a lane the resolver cannot read is listed by name with a note. Returns null when there is no
+ * `lanes` object (nothing to draw).
+ * @param {object|null} workflow the parsed conductor/workflow.json
+ * @returns {{ lanes: { name: string, success: string|null, failure: string|null, note: string }[] } | null}
+ */
+export function workflowFlow(workflow) {
+  const lanes = workflow && typeof workflow === 'object' && workflow.lanes && typeof workflow.lanes === 'object' && !Array.isArray(workflow.lanes) ? workflow.lanes : null;
+  const names = lanes ? Object.keys(lanes).slice(0, FLOW_MAX_LANES) : [];
+  if (!names.length) return null;
+  return {
+    lanes: names.map((name) => {
+      const out = { name: clip(name, 40), success: null, failure: null, note: '' };
+      const dir = [];
+      try {
+        for (const outcome of ['success', 'failure']) {
+          const r = resolveNext(workflow, name, outcome);
+          if (!r.ok) throw new Error('unreadable');
+          out[outcome] = r.next ? clip(`${r.next.lane}:${r.next.status}`, 60) : null;
+          if (!r.next) dir.push(outcome);
+        }
+        out.note = dir.length === 2 ? 'no automatic move out of this lane' : dir.length === 1 ? `no automatic move on ${dir[0]}` : '';
+      } catch { out.success = null; out.failure = null; out.note = 'the targets of this lane are in a format the board does not read'; }
+      return out;
+    }),
+  };
+}
+
 const PREFIX_RE = /^([A-Za-z]{1,6})-\d+/;
 const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
 
@@ -150,11 +185,14 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *           gh (done tracks, only when there is a github.com remote) the track folder on GitHub
  *   attn:   n number, p prefix, t title, r reasons, x the next step (as on a track; only when there is one)
  *   epics (only when a track is named by `Part Of`): n number, p prefix, t title, d children done, c children [i id, t title, l lane, s status, g progress]
+ *   project_docs (only when there is a project definition to read): the Project drawer's tabs, [k key, t title, f 'ctx/<key>.json'];
+ *           the files are separate, like the track documents; `board.include_docs: false` leaves this out
+ *   wf (only with project_docs and a workflow.json with lanes): { lanes: [{ name, success, failure, note }] } for the Workflow tab, see `workflowFlow`
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
  * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null }} [docs]
  */
-export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null } = {}) {
+export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null, projectDocs = [], wf = null } = {}) {
   const live = board.tracks.filter((t) => !t.archived);
   const titleOf = new Map(live.map((t) => [t.folder, t.title]));
   const withDocs = new Set(docFolders);
@@ -172,6 +210,8 @@ export function boardPageData(board, { docFolders = [], docsDropped = 0, githubF
       .filter((a) => titleOf.has(a.folder))
       .map((a) => ({ n: a.number, p: prefixOf(a.folder), t: titleOf.get(a.folder) ?? '', r: a.reasons, ...(a.action ? { x: a.action } : {}) })),
     ...(board.epics?.length ? { epics: board.epics.map((e) => ({ n: e.number, p: prefixOf(e.folder), t: e.title ?? '', d: e.done, c: e.children.map((c) => ({ i: c.id, t: c.title ?? '', l: c.lane, s: c.lane_status, g: c.progress || 0 })) })) } : {}),
+    ...(projectDocs.length ? { project_docs: projectDocs.map(({ k, t, f }) => ({ k, t, f })) } : {}),
+    ...(projectDocs.length && wf ? { wf } : {}),
     ...(docsDropped > 0 ? { docs_dropped: docsDropped } : {}),
   };
 }

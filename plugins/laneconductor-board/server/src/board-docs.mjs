@@ -75,3 +75,86 @@ export function githubBase(remote) {
 
 /** The GitHub page of one track folder on `branch`. Folder names are path-encoded. */
 export const githubFolderUrl = (base, branch, folder) => `${base}/tree/${branch.split('/').map(encodeURIComponent).join('/')}/conductor/tracks/${encodeURIComponent(folder)}`;
+
+// ---- The project definition (track AM-10115, the Project drawer). One tab per definition that exists, read from the project's
+// conductor folder at generation time. Each tab is its own file `ctx/<key>.json` next to board.json, fetched when the tab is first
+// opened, and goes through the SAME privacy scan as a track document. `.laneconductor.json` is never a source: it holds personal
+// settings (an artifact URL, possibly tokens), so no tab reads it.
+/** The tabs in order. `files` are relative to conductor/; `dir` adds the markdown files of one sub-folder (code styleguides). */
+export const PROJECT_TABS = [
+  { k: 'overview', t: 'Overview', files: ['product.md'] },
+  { k: 'tech-stack', t: 'Tech stack', files: ['tech-stack.md'] },
+  { k: 'workflow', t: 'Workflow', files: ['workflow.md'] },
+  { k: 'quality-gate', t: 'Quality gate', files: ['quality-gate.md'] },
+  { k: 'kpis', t: 'KPIs', files: ['kpis.md'] },
+  { k: 'guidelines', t: 'Guidelines', files: ['product-guidelines.md', 'design-language.md'], dir: 'code_styleguides' },
+  { k: 'stories', t: 'Stories', files: ['user-stories.md'] },
+  { k: 'deployment', t: 'Deployment', files: ['deployment-stack.md'] },
+];
+/** At most this many files of the styleguides folder go into the Guidelines tab. */
+export const MAX_STYLEGUIDES = 6;
+
+// Lines the scaffold (src/newproject/scaffold.mjs) writes when an answer was not given, plus the fixed checklist text of an
+// untouched quality gate. A file whose every line (headings and blank lines aside) is one of these has nothing to read yet.
+const PLACEHOLDER_LINES = [
+  /^\(placeholder\b[^)]*\)$/i,
+  /^\(not decided yet\)$/i,
+  /^- [^:]{1,40}: \(not decided yet\)$/i,
+  /^None stated\.$/,
+  /^TODO\b/,
+  /^Flow: \(to be written\)$/,
+  /^\|\s*\(none set yet\)\s*\|[\s|]*$/,
+  /^\|[\s:|-]*\|$/, // a table separator row
+  /^\| Metric \| Target \| Time Horizon \| Status \| Notes \|$/,
+  /^Tracks with `\*\*Maps To\*\*` referencing a metric above/,
+  /^\(No verification commands exist yet/,
+  /^>/,
+  /^- \[ \] (?:Architecture alignment|Readability|No stubs)\b/,
+  /^- Status: PENDING\b/,
+  /^- Reviewer: \(/,
+  /^- Date: \(/,
+];
+/** True when the text is empty or only the untouched scaffold placeholder text. */
+export function isPlaceholderOnly(text) {
+  if (typeof text !== 'string') return true;
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !/^#{1,6}(\s|$)/.test(l));
+  return lines.every((l) => PLACEHOLDER_LINES.some((re) => re.test(l)));
+}
+
+const reasonOf = (hits) => `possible secret or personal data (${pluralMatches(hits.length)})`;
+
+/**
+ * The tab list and the ctx files of the project definition.
+ * @param {{ texts: Record<string, string|null|undefined>, hasFlow?: boolean }} a `texts`: file text by path relative to conductor/ (`product.md`, `code_styleguides/javascript.md`); `hasFlow`: workflow.json gave lanes to draw (the Workflow tab exists even with no workflow.md)
+ * @returns {{ tabs: { k: string, t: string, f: string }[], ctx: { name: string, doc: object }[], withheld: { file: string, matches: number, lines: number[] }[] }}
+ */
+export function buildProjectDocs({ texts = {}, hasFlow = false } = {}) {
+  const tabs = [];
+  const ctx = [];
+  const withheld = [];
+  for (const tab of PROJECT_TABS) {
+    const names = [...tab.files];
+    if (tab.dir) names.push(...Object.keys(texts).filter((n) => n.startsWith(`${tab.dir}/`) && /\.md$/i.test(n)).sort().slice(0, MAX_STYLEGUIDES));
+    const real = names.filter((n) => typeof texts[n] === 'string' && !isPlaceholderOnly(texts[n]));
+    if (!real.length && !(tab.k === 'workflow' && hasFlow)) continue;
+    const parts = real.map((n) => {
+      const hits = scanText(texts[n]);
+      if (hits.length) withheld.push({ file: n, matches: hits.length, lines: [...new Set(hits.map((h) => h.line))].slice(0, 10) });
+      return { n, hits, text: texts[n] };
+    });
+    const doc = { k: tab.k, t: tab.t };
+    if (parts.length && parts.every((p) => p.hits.length)) {
+      doc.withheld = parts.length === 1 ? reasonOf(parts[0].hits) : `possible secret or personal data (${pluralMatches(parts.reduce((s, p) => s + p.hits.length, 0))} in ${parts.length} files)`;
+    } else if (parts.length === 1) {
+      doc.md = capText(parts[0].text);
+    } else if (parts.length > 1) {
+      // One tab, several files: a section each; a file with a match gets a note in its place.
+      doc.md = capText(parts.map((p) => `## ${p.n.replace(/^.*\//, '')}\n\n${p.hits.length ? `*withheld: ${reasonOf(p.hits)}; read it in the repository.*` : p.text.trim()}\n`).join('\n'));
+    } else {
+      doc.md = ''; // the Workflow tab with only a drawing
+    }
+    tabs.push({ k: tab.k, t: tab.t, f: `ctx/${tab.k}.json` });
+    ctx.push({ name: `ctx/${tab.k}.json`, doc });
+  }
+  return { tabs, ctx, withheld };
+}

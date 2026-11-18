@@ -324,6 +324,22 @@ The board is private until the human shares it, and it is a snapshot, never live
 generator is `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site <dir>`. Tests:
 `test/board-page.test.mjs` (the files, privacy, and the page run against a fake DOM).
 
+### Project drawer (the project definition on the board)
+
+One **Project** button in the page header opens the same kind of drawer with one tab per project definition that exists,
+read from the project's `conductor/` folder when the board is built: Overview (`product.md`), Tech stack, Workflow
+(`workflow.json` drawn as lane boxes with where each lane sends success and failure, from the shared resolver
+`conductor/services/workflow-transitions.mjs`, with a text list for assistive technology and a one-line lane/status
+primer, then the text of `workflow.md`), Quality gate, KPIs, Guidelines (`product-guidelines.md`, `design-language.md`
+and the files of `code_styleguides/`, one tab with a section per file), Stories and Deployment. A file that does not
+exist or is only the untouched scaffold placeholder text gets no tab; with nothing to read the button is hidden.
+`board.json` carries `project_docs` (`[{ k, t, f: 'ctx/<key>.json' }]`) and `wf` (`{ lanes: [{ name, success, failure,
+note }] }`, names and targets only); each tab's text is its own file `ctx/<key>.json` (`{ k, t, md }` or `{ k, t,
+withheld }`), fetched when the tab is first opened. The files go through the same scan as the track documents (a match
+withholds that file with a reason, never the text), `"board": { "include_docs": false }` turns them off with the rest,
+and they count toward the 200-file cap (the track documents get what is left). `.laneconductor.json` is never published.
+The header says the files are a snapshot read when the board was built.
+
 ### Track detail (documents on the board)
 
 Clicking (or Enter/Space on) a track card, a Done row or a needs-attention row opens a drawer (a

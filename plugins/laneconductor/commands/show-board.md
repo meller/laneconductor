@@ -29,16 +29,16 @@ covers this repo's project only).
 
 #### Rules
 
-- Publish only what the script generated: `board.html`, `board.json` and the `docs/*.json` files it
+- Publish only what the script generated: `board.html`, `board.json` and the `ctx/*.json` and `docs/*.json` files it
   listed. Never add, edit or hand-write a file, and never put anything else on the board.
 - What the board holds: `board.json` has titles, lanes, status, progress, phase and check reasons.
   The docs files hold the index, plan, spec and test text of every track that is not done (plus
   `conversation.md` only when the settings file has `board.include_conversation: true`; it is off
-  by default). `board.include_docs: false` turns all documents off, and then the board is the header
+  by default). The `ctx/*.json` files hold the project definition files (product, tech stack, workflow, quality gate, KPIs, guidelines, stories, deployment) that exist and are not only the untouched scaffold text; `.laneconductor.json` is never one of them. `board.include_docs: false` turns all documents, project files included, off, and then the board is the header
   data only. Each document goes through a secret, email and phone scan first; a file with a match is
   withheld (the page says "withheld: possible secret or personal data" in its place). Tell the human
   what was withheld, by track and file, as in step 1.
-- Say so plainly: the documents are on the board, so sharing the board shares them. The page footer
+- Say so plainly: the documents and the project definition files are on the board, so sharing the board shares them. The page footer
   says the same. Do not turn `board.include_conversation` on yourself; it is the human's choice.
 - The board stays private. Sharing is the human's choice from the page's Share menu; never share it.
 - Never claim the board is live or updates by itself; to refresh it, run this procedure again.
@@ -61,7 +61,7 @@ board URL (`ops/board.md`, step 3b, which asks first), or when a person asks to 
 | `connector.state_branch` | a safe git branch name | the default branch from `origin/HEAD`, else the current branch if it is `main` or `master`, else `main` | the parallel add-on's connector, the board script |
 | `connector.push` | `ask`, `auto-state` | `ask` (never push; always ask the human) | the parallel add-on's connector |
 | `board.artifact_url` | the URL of the board artifact | none (no board published yet) | the board commands (`ops/board.md`) |
-| `board.include_docs` | `false` turns every document off | on | the board script |
+| `board.include_docs` | `false` turns every document off, project definition files included | on | the board script |
 | `board.include_conversation` | `true` adds `conversation.md` to the board documents | off | the board script |
 | `project.name` | a string | the folder name | the board script |
 | `next.level` | `auto`, `explain`, `short` | `auto` | the `next` command only (`ops/next.md`) |

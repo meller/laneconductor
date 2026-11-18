@@ -49,7 +49,7 @@ test('--site writes board.html, board.json and docs/, prints their absolute path
   const r = run(repo, '--site', site);
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout, `${path.join(site, 'board.html')}\n${path.join(site, 'board.json')}\n`);
-  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'docs']);
+  assert.deepEqual(fs.readdirSync(site).sort(), ['board.html', 'board.json', 'ctx', 'docs']);
   assert.ok(!fs.readdirSync(repo).includes('board.json'), 'nothing is written into the repo');
 });
 
@@ -73,7 +73,7 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.ok(raw.endsWith('}\n') && !raw.slice(0, -1).includes('\n'), 'compact JSON, one line');
   const j = JSON.parse(raw);
   assert.ok(raw.includes(TITLE_SENTINEL), 'the title is in board.json');
-  assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'lanes', 'tracks', 'attn']);
+  assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'lanes', 'tracks', 'attn', 'project_docs', 'wf']); // the fixture has a workflow.json, so the Project drawer has its Workflow tab
   assert.equal(j.project, 'Page Fixture');
   assert.equal(j.generated_at, NOW);
   for (const t of j.tracks) assert.deepEqual(Object.keys(t).filter((k) => k !== 'x'), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
@@ -726,7 +726,7 @@ test('page markup: a dialog with a labelled title, tabs container, the privacy f
   assert.match(html, /<section class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">/);
   assert.match(html, /id="d-tabs" role="tablist"/);
   assert.match(html, /id="d-body" role="tabpanel"/);
-  assert.match(html, /Sharing the board shares these documents\./);
+  assert.match(html, /Sharing the board shares these documents, including the project definition files\./);
   assert.ok(html.indexOf('id="detail"') > html.indexOf('</footer>'), 'the detail is after (outside) the .wrap block that gets inert');
   assert.match(html, /@media \(max-width: 700px\)[\s\S]*?\.drawer \{ width: 100%/);
   assert.match(html, /@media \(prefers-color-scheme: dark\)/);
@@ -1222,4 +1222,219 @@ test('actions: new CSS uses theme variables only, wraps at phone width, and the 
   assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\balert\(|\bconfirm\(|\bprompt\(|\bwindow\.open\(/.test(html));
   assert.ok(!/XMLHttpRequest|sendBeacon/.test(html), 'no network from the actions');
   assert.ok(/globalThis\.claude/.test(html) && /c\.use\('mcp'\)/.test(html));
+});
+
+// --- the Project drawer (track AM-10115): the project definition as tabs in the same drawer -------------
+
+const PROJ_DOCS = {
+  'product.md': '# Product: Demo\n\nWhat it is: **a demo** with a [link](https://example.org/p).\n',
+  'workflow.md': '# Workflow\n\nCommit often.\n',
+  'kpis.md': '# KPIs\n\n| Metric | Target |\n|---|---|\n| Stars | 100 |\n',
+  'quality-gate.md': '# Quality Gate\n\n- [ ] Tests: `npm test`\n',
+};
+function projectFixture({ docs = PROJ_DOCS, workflow = true } = {}) {
+  const dir = makeRepo({ workflow });
+  cleanup.push(dir);
+  writeFile(dir, '.laneconductor.json', JSON.stringify({ project: { name: 'Project Fixture' } }));
+  writeFile(dir, 'conductor/tracks/AM-801-one/index.md', INDEX(801, 'One', { lane: 'plan', status: 'queue' }));
+  for (const [rel, text] of Object.entries(docs)) writeFile(dir, `conductor/${rel}`, text);
+  commitAll(dir);
+  return dir;
+}
+const projBtn = (ids) => ids['proj-btn'];
+const ctxStub = (data, over = {}) => async (u) => {
+  if (u === 'board.json') return { ok: true, status: 200, json: async () => data };
+  const k = u.replace(/^ctx\/|\.json$/g, '');
+  return { ok: true, status: 200, json: async () => ({ k, t: k, ...(over[u] ?? { md: 'm' }) }) };
+};
+
+test('project drawer: with nothing to read the Project button stays hidden and no ctx file is fetched', async () => {
+  const { data, calls, fetchStub } = siteFor(projectFixture({ docs: {}, workflow: false }));
+  assert.ok(!('project_docs' in data));
+  const ids = await runPage(fetchStub);
+  assert.equal(projBtn(ids).hidden, true);
+  assert.match(fs.readFileSync(PAGE, 'utf8'), /<button type="button" class="projbtn" id="proj-btn"[^>]* hidden>Project<\/button>/, 'hidden in the markup too');
+  assert.deepEqual(calls.filter((u) => u.startsWith('ctx/')), []);
+  // An entry that is not a safe ctx path is ignored, so a board.json cannot make the page fetch elsewhere.
+  const ids2 = await runPage(ctxStub({ ...data, project_docs: [{ k: 'x', t: 'X', f: 'https://evil.example/x.json' }, { k: 'y', t: 'Y', f: '../board.json' }, null] }));
+  assert.equal(projBtn(ids2).hidden, true);
+});
+
+test('project drawer: the button opens the drawer with one tab per definition, the first loaded, focus inside, snapshot note in the header', async () => {
+  const { data, calls, fetchStub } = siteFor(projectFixture());
+  const ids = await runPage(fetchStub);
+  assert.equal(projBtn(ids).hidden, false);
+  projBtn(ids).handlers.click();
+  assert.equal(ids.detail.hidden, false);
+  assert.equal(ids.wrap.attrs.inert, '');
+  assert.equal(ids['d-id'].textContent, 'PROJECT');
+  assert.equal(ids['d-title'].textContent, 'Project Fixture');
+  assert.equal(ids['d-lane'].hidden, true);
+  assert.equal(ids['d-prog'].hidden, true);
+  assert.equal(ids['d-pill'].textContent, '');
+  assert.equal(ids['d-act'].textContent, '');
+  assert.equal(ids['d-note'].hidden, false);
+  assert.match(ids['d-note'].textContent, /snapshot of the project definition files, read at the same time as this board/);
+  assert.equal(ids['d-tabs'].attrs['aria-label'], 'Project definition');
+  assert.equal(ids.__doc.activeElement, ids['d-close']);
+  await flush();
+  assert.deepEqual(tabNames(ids), data.project_docs.map((x) => x.t));
+  assert.deepEqual(tabNames(ids), ['Overview', 'Workflow', 'Quality gate', 'KPIs']);
+  assert.equal(tabBy(ids, 'Overview').attrs['aria-selected'], 'true');
+  assert.ok(ids['d-body'].textContent.includes('What it is'));
+  assert.deepEqual(calls.filter((u) => u.startsWith('ctx/')), ['ctx/overview.json'], 'fetched on first open of the tab only');
+  tabBy(ids, 'KPIs').onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('Stars'));
+  assert.equal(all(ids['d-body'], (x) => x.tag === 'table').length, 1, 'markdown tables render');
+  tabBy(ids, 'Overview').onclick();
+  await flush();
+  assert.deepEqual(calls.filter((u) => u.startsWith('ctx/')), ['ctx/overview.json', 'ctx/kpis.json'], 'a tab is fetched once');
+  // The arrow keys move between the tabs, as in the track drawer.
+  const right = ev('ArrowRight');
+  tabBy(ids, 'Overview').handlers.keydown(right);
+  await flush();
+  assert.equal(tabBy(ids, 'Workflow').attrs['aria-selected'], 'true');
+  assert.equal(right.prevented, true);
+  // Closing returns focus to the Project button and releases the page.
+  ids['d-close'].onclick();
+  assert.equal(ids.detail.hidden, true);
+  assert.equal(ids.wrap.attrs.inert, undefined);
+  assert.equal(ids.__doc.activeElement, projBtn(ids));
+});
+
+test('project drawer: Escape closes it; Tab and Shift+Tab are trapped; a track opened afterwards gets its own header back', async () => {
+  const { fetchStub } = siteFor(projectFixture());
+  const ids = await runPage(fetchStub);
+  projBtn(ids).handlers.click();
+  await flush();
+  // The trap: close, the selected tab, then the body's links; the last wraps to the first and the first to the last.
+  const links = all(ids['d-body'], (x) => x.tag === 'a');
+  assert.equal(links.length, 1);
+  links[0].focus();
+  const fwd = ev('Tab'); ids.__doc.handlers.keydown(fwd);
+  assert.equal(fwd.prevented, true);
+  assert.equal(ids.__doc.activeElement, ids['d-close']);
+  const back = ev('Tab', { shiftKey: true }); ids.__doc.handlers.keydown(back);
+  assert.equal(ids.__doc.activeElement, links[0]);
+  const esc = ev('Escape'); ids.__doc.handlers.keydown(esc);
+  assert.equal(ids.detail.hidden, true);
+  assert.equal(ids.__doc.activeElement, projBtn(ids));
+  const noop = ev('Escape'); ids.__doc.handlers.keydown(noop);
+  assert.equal(noop.prevented, undefined, 'Escape with nothing open does nothing');
+  // A track after the project: the track header is back (lane tag, progress, no snapshot note).
+  cardOf(ids, 'plan').handlers.click();
+  assert.equal(ids['d-id'].textContent, 'AM-801');
+  assert.equal(ids['d-lane'].hidden, false);
+  assert.equal(ids['d-prog'].hidden, false);
+  assert.equal(ids['d-note'].hidden, true);
+  assert.equal(ids['d-tabs'].attrs['aria-label'], 'Track documents');
+  await flush();
+  assert.deepEqual(tabNames(ids), ['Overview', 'Plan', 'Spec', 'Tests']);
+});
+
+test('project drawer: the Workflow tab draws the lanes as boxes with arrows, a text list, the primer, then the workflow.md text', async () => {
+  const { data, fetchStub } = siteFor(projectFixture());
+  const ids = await runPage(fetchStub);
+  projBtn(ids).handlers.click();
+  await flush();
+  tabBy(ids, 'Workflow').onclick();
+  // The drawing is there at once (it comes from board.json); the text follows when its file arrives.
+  assert.equal(all(ids['d-body'], cls('wfbox')).length, data.wf.lanes.length);
+  assert.match(ids['d-body'].textContent, /Loading the document/);
+  await flush();
+  const body = ids['d-body'];
+  assert.equal(all(body, cls('wfbox')).length, 5);
+  assert.deepEqual(all(body, cls('wfname')).map((x) => x.textContent), ['plan', 'implement', 'review', 'quality-gate', 'done']);
+  assert.equal(all(body, cls('wfarr')).length, 4, 'an arrow between lanes');
+  assert.match(all(body, cls('wfbox'))[1].textContent, /success → review:queue/);
+  assert.match(all(body, cls('wfbox'))[4].textContent, /success → no automatic move/);
+  assert.equal(all(body, cls('wfrow'))[0].attrs['aria-hidden'], 'true', 'the picture is for the eyes only');
+  const list = all(body, cls('sr'))[0];
+  assert.equal(list.tag, 'ul');
+  assert.deepEqual(list.children.map((li) => li.tag), ['li', 'li', 'li', 'li', 'li']);
+  assert.match(list.children[1].textContent, /^implement: success goes to review:queue; failure goes to /);
+  assert.match(body.textContent, /Lane = where the track is\. Status = its state within the lane: queue, running, success, failure or waiting\./);
+  assert.ok(body.textContent.indexOf('Lane = where') < body.textContent.indexOf('Commit often.'), 'the text of workflow.md comes after the picture');
+});
+
+test('project drawer: no workflow.json means no boxes; an unreadable lane shows its note; odd entries are skipped and nothing throws', async () => {
+  const { data, fetchStub } = siteFor(projectFixture({ docs: { 'workflow.md': '# W\n\ntext here\n' }, workflow: false }));
+  assert.ok(!('wf' in data));
+  let ids = await runPage(fetchStub);
+  projBtn(ids).handlers.click();
+  await flush();
+  assert.equal(all(ids['d-body'], cls('wfbox')).length, 0);
+  assert.match(ids['d-body'].textContent, /text here/);
+  assert.match(ids['d-body'].textContent, /Lane = where the track is/);
+  const hand = { ...data, project_docs: [{ k: 'workflow', t: 'Workflow', f: 'ctx/workflow.json' }], wf: { lanes: [{ name: 'x', success: null, failure: null, note: 'the targets of this lane are in a format the board does not read' }, null, { nope: 1 }, { name: 'y', success: 5, failure: 'z:queue', note: '' }] } };
+  ids = await runPage(ctxStub(hand));
+  projBtn(ids).handlers.click();
+  await flush();
+  assert.deepEqual(all(ids['d-body'], cls('wfname')).map((n) => n.textContent), ['x', 'y']);
+  assert.match(ids['d-body'].textContent, /the targets of this lane are in a format the board does not read/);
+});
+
+test('project drawer: markdown from a file is safe (no elements from text, no script links); a withheld tab shows the reason and no text', async () => {
+  const hostile = '# H\n\n<script>alert(1)</script> <img src=x onerror=alert(1)>\n\n[bad](javascript:alert(1)) and [ok](https://example.org/ok)\n';
+  const { data } = siteFor(projectFixture());
+  const ids = await runPage(ctxStub(data, { 'ctx/overview.json': { md: hostile }, 'ctx/kpis.json': { withheld: 'possible secret or personal data (2 matches)' } }));
+  projBtn(ids).handlers.click();
+  await flush();
+  assert.ok(!ids.__doc.created.includes('script') && !ids.__doc.created.includes('img'), 'no script or img element is ever created');
+  assert.ok(ids['d-body'].textContent.includes('<script>alert(1)</script>'), 'the markup is shown as text');
+  const anchors = all(ids['d-body'], (x) => x.tag === 'a');
+  assert.ok(anchors.every((a) => !/^\s*javascript:/i.test(a.attrs.href ?? '')), 'no javascript: link');
+  tabBy(ids, 'KPIs').onclick();
+  await flush();
+  assert.match(ids['d-body'].textContent, /withheld: possible secret or personal data \(2 matches\)/);
+  assert.match(ids['d-body'].textContent, /read it in the repository/);
+  assert.equal(all(ids['d-body'], cls('md')).length, 0);
+});
+
+test('project drawer: a ctx file that fails to load shows an error with Try again (inside the focus trap), and a retry works', async () => {
+  const { data } = siteFor(projectFixture());
+  let fail = true;
+  const ids = await runPage(async (u) => {
+    if (u === 'board.json') return { ok: true, status: 200, json: async () => data };
+    if (fail) return { ok: false, status: 404, json: async () => ({}) };
+    return { ok: true, status: 200, json: async () => ({ k: 'overview', t: 'Overview', md: 'recovered text' }) };
+  });
+  projBtn(ids).handlers.click();
+  await flush();
+  assert.match(ids['d-body'].textContent, /Could not load ctx\/overview\.json/);
+  assert.match(ids['d-body'].textContent, /HTTP 404/);
+  const retry = all(ids['d-body'], (x) => x.tag === 'button')[0];
+  assert.equal(retry._text, 'Try again');
+  retry.focus();
+  const tab = ev('Tab'); ids.__doc.handlers.keydown(tab);
+  assert.equal(ids.__doc.activeElement, ids['d-close'], 'the retry button is the last stop of the trap');
+  fail = false;
+  retry.onclick();
+  await flush();
+  assert.ok(ids['d-body'].textContent.includes('recovered text'));
+  // A file that is for another tab is not accepted.
+  const bad = await runPage(async (u) => (u === 'board.json' ? { ok: true, status: 200, json: async () => data } : { ok: true, status: 200, json: async () => ({ k: 'other', md: 'x' }) }));
+  projBtn(bad).handlers.click();
+  await flush();
+  assert.match(bad['d-body'].textContent, /unexpected format/);
+});
+
+test('project drawer: markup and CSS: a header button, theme variables only, wraps at phone width, no overflow from the boxes', () => {
+  const html = fs.readFileSync(PAGE, 'utf8');
+  assert.match(html, /<header>[\s\S]*id="proj-btn"[\s\S]*<\/header>/);
+  assert.match(html, /id="d-note"/);
+  const from = html.indexOf('/* Project drawer');
+  const css = html.slice(from, html.indexOf('@media (max-width: 700px)', from));
+  assert.ok(css.length > 400);
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(css), 'colours come from the variables, so both themes work');
+  assert.match(css, /\.wfrow \{[^}]*flex-wrap: wrap/);
+  assert.match(css, /\.wfbox \{[^}]*min-width: 0[^}]*overflow-wrap: anywhere/);
+  assert.match(css, /\.d-note \{[^}]*overflow-wrap: anywhere/);
+  assert.match(css, /\.projbtn:hover/);
+  assert.match(html, /button:focus-visible \{ outline/, 'keyboard focus is visible');
+  assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(html));
+  const footer = html.slice(html.indexOf('<footer>'), html.indexOf('</footer>'));
+  assert.match(footer, /Sharing the board shares these documents, including the project definition files\./);
+  assert.ok(!/coming soon|planned|roadmap|will be/i.test(footer), 'nothing planned is announced');
 });

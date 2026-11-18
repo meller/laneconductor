@@ -62,18 +62,18 @@ site=$(mktemp -d) && node <that path> --repo . --site "$site" --json
 
 If the script is not found, the laneconductor-board add-on is not installed: say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop. The temp dir stays outside the repo (the script refuses a folder
 under `conductor/`). Stdout is one JSON object and nothing else: `{ "page": "<dir>/board.html",
-"root": "<dir>", "files": ["board.json", "docs/1.json", ...] }`. `board.html` is the page (identical
+"root": "<dir>", "files": ["board.json", "ctx/overview.json", "docs/1.json", ...] }`. `board.html` is the page (identical
 every time, no data in it); `board.json` is the data (project, generated_at, tracks, attn); each
 `docs/<number>.json` holds the documents (index, plan, spec, tests) of one track that is not done,
-shown when a track is opened. Pass `page` as `file_path` and `root` as `root` to the Artifact tool,
-and `files` as a map from each listed path to itself (`{"board.json": "board.json", "docs/1.json": "docs/1.json", ...}`; the
+shown when a track is opened. Each `ctx/<key>.json` holds one project definition file (product, tech stack, workflow, quality gate, KPIs, guidelines, stories), shown under the Project button; it is read from the conductor folder when the board is built. Pass `page` as `file_path` and `root` as `root` to the Artifact tool,
+and `files` as a map from each listed path to itself (`{"board.json": "board.json", "ctx/overview.json": "ctx/overview.json", "docs/1.json": "docs/1.json", ...}`; the
 sources resolve against `root`).
 
 stderr lists anything the privacy scan withheld, one line per file (`board: withheld track 10106
 spec.md: 2 possible secret or personal data matches (lines 3, 4); not published`), and any tracks
 left without documents because of the 200-file limit. Report each withheld file to the human by
-track number and file name (never repeat or look for the matched text). A site has at most 200 docs
-files, plus `board.json` and the page, well under the Artifact tool's 255 files per publish; if you
+track number and file name (never repeat or look for the matched text). A site has at most 200 ctx and docs
+files together, plus `board.json` and the page, well under the Artifact tool's 255 files per publish; if you
 ever see more files than that, stop and say so instead of publishing part of the set.
 
 #### 2. Find the URL
@@ -83,9 +83,9 @@ Read `board.artifact_url` in `.laneconductor.json`, the optional personal settin
 #### 3a. URL exists: update
 
 1. Artifact tool, action `read`, with that URL. A new conversation must read once before it may update.
-2. Artifact tool, action `list` with `scope: "files"` and that `url`: every `docs/<n>.json` it shows
+2. Artifact tool, action `list` with `scope: "files"` and that `url`: every `docs/<n>.json` or `ctx/<key>.json` it shows
    that is not in the new `files` list belongs to a track that is now done, dropped or withheld
-   entirely; add it to the map as `"docs/<n>.json": null` so the old documents are removed (a
+   entirely, or to a project file that is gone; add it to the map as `"docs/<n>.json": null` (or `"ctx/<key>.json": null`) so the old documents are removed (a
    publish keeps files it is not told about).
 3. Artifact tool, action `publish`, with `url` set, `file_path` = `page`, `root` = `root` and the
    `files` map. If the read showed a page identical to the generated `board.html`, the page is
@@ -112,16 +112,16 @@ covers this repo's project only).
 
 #### Rules
 
-- Publish only what the script generated: `board.html`, `board.json` and the `docs/*.json` files it
+- Publish only what the script generated: `board.html`, `board.json` and the `ctx/*.json` and `docs/*.json` files it
   listed. Never add, edit or hand-write a file, and never put anything else on the board.
 - What the board holds: `board.json` has titles, lanes, status, progress, phase and check reasons.
   The docs files hold the index, plan, spec and test text of every track that is not done (plus
   `conversation.md` only when the settings file has `board.include_conversation: true`; it is off
-  by default). `board.include_docs: false` turns all documents off, and then the board is the header
+  by default). The `ctx/*.json` files hold the project definition files (product, tech stack, workflow, quality gate, KPIs, guidelines, stories, deployment) that exist and are not only the untouched scaffold text; `.laneconductor.json` is never one of them. `board.include_docs: false` turns all documents, project files included, off, and then the board is the header
   data only. Each document goes through a secret, email and phone scan first; a file with a match is
   withheld (the page says "withheld: possible secret or personal data" in its place). Tell the human
   what was withheld, by track and file, as in step 1.
-- Say so plainly: the documents are on the board, so sharing the board shares them. The page footer
+- Say so plainly: the documents and the project definition files are on the board, so sharing the board shares them. The page footer
   says the same. Do not turn `board.include_conversation` on yourself; it is the human's choice.
 - The board stays private. Sharing is the human's choice from the page's Share menu; never share it.
 - Never claim the board is live or updates by itself; to refresh it, run this procedure again.
@@ -162,7 +162,7 @@ board URL (`ops/board.md`, step 3b, which asks first), or when a person asks to 
 | `connector.state_branch` | a safe git branch name | the default branch from `origin/HEAD`, else the current branch if it is `main` or `master`, else `main` | the parallel add-on's connector, the board script |
 | `connector.push` | `ask`, `auto-state` | `ask` (never push; always ask the human) | the parallel add-on's connector |
 | `board.artifact_url` | the URL of the board artifact | none (no board published yet) | the board commands (`ops/board.md`) |
-| `board.include_docs` | `false` turns every document off | on | the board script |
+| `board.include_docs` | `false` turns every document off, project definition files included | on | the board script |
 | `board.include_conversation` | `true` adds `conversation.md` to the board documents | off | the board script |
 | `project.name` | a string | the folder name | the board script |
 | `next.level` | `auto`, `explain`, `short` | `auto` | the `next` command only (`ops/next.md`) |

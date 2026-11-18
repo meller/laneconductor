@@ -129,7 +129,7 @@ test('privacy: a spec with a fake secret is withheld (field omitted, reason reco
   assert.ok(d.index.includes('Track AM-402'));
   for (const f of walkFiles(site)) assert.ok(!fs.readFileSync(f, 'utf8').includes(secret), `${f} does not hold the secret`);
   assert.ok(!r.stdout.includes(secret) && !r.stderr.includes(secret));
-  assert.equal(JSON.parse(r.stdout).files.length, 4, 'a withheld file does not drop the docs file');
+  assert.equal(JSON.parse(r.stdout).files.length, 5, 'a withheld file does not drop the docs file (board.json, the workflow ctx file, three docs)');
   assert.match(r.stderr, /withheld track 402 spec\.md: 2 possible secret or personal data matches \(lines 3, 4\)/);
   // The other tracks are untouched.
   assert.ok(readJson(path.join(site, 'docs/401.json')).spec.includes('spec text 401'));
@@ -160,14 +160,16 @@ test('cap: at most 200 docs files; the oldest backlog tracks are dropped first a
   const r = run(repo, '--site', site, '--json');
   assert.equal(r.status, 0, r.stderr);
   const files = fs.readdirSync(path.join(site, 'docs'));
-  assert.equal(files.length, MAX_DOCS);
-  assert.ok(!files.includes('501.json') && !files.includes('510.json') && files.includes('511.json') && files.includes('710.json'));
+  // The fixture's workflow.json gives one ctx file (the Workflow tab); it counts toward the same 200-file cap.
+  assert.equal(fs.readdirSync(path.join(site, 'ctx')).length, 1);
+  assert.equal(files.length, MAX_DOCS - 1);
+  assert.ok(!files.includes('501.json') && !files.includes('511.json') && files.includes('512.json') && files.includes('710.json'));
   const j = readJson(path.join(site, 'board.json'));
-  assert.equal(j.docs_dropped, 10);
-  assert.equal(j.tracks.filter((t) => t.d).length, 200);
+  assert.equal(j.docs_dropped, 11);
+  assert.equal(j.tracks.filter((t) => t.d).length, 199);
   assert.equal(j.tracks.find((t) => t.n === 501).d, false);
-  assert.equal(JSON.parse(r.stdout).files.length, 201, 'board.json plus 200 docs files: within the 255-file publish limit');
-  assert.match(r.stderr, /10 track\(s\) have no docs file/);
+  assert.equal(JSON.parse(r.stdout).files.length, 201, 'board.json plus 200 other files (ctx and docs): within the 255-file publish limit');
+  assert.match(r.stderr, /11 track\(s\) have no docs file/);
   // selectDocTracks directly: backlog first, then the lowest numbers.
   const board = buildBoard([
     { folder: 'AM-1-a', index: { content: INDEX(1, 'A', { lane: 'plan' }) } },
@@ -237,7 +239,7 @@ test('--json: stdout is exactly one { page, root, files } object; the plain two-
   assert.deepEqual(Object.keys(o), ['page', 'root', 'files']);
   assert.equal(o.page, path.join(site, 'board.html'));
   assert.equal(o.root, site);
-  assert.deepEqual(o.files, ['board.json', 'docs/401.json', 'docs/402.json', 'docs/404.json']);
+  assert.deepEqual(o.files, ['board.json', 'ctx/workflow.json', 'docs/401.json', 'docs/402.json', 'docs/404.json']);
   for (const f of o.files) assert.ok(fs.existsSync(path.join(o.root, f)), f);
   assert.ok(path.isAbsolute(o.page) && path.isAbsolute(o.root));
 

@@ -4,21 +4,25 @@
 // Default: JSON on STDOUT and nothing is written into the repo (a board is a snapshot, not a
 // committed file). --out writes the file. --check <file> exits 1 when the file's data differs from
 // a fresh build (generated_at is ignored). Reads only conductor/workflow.json, the optional .laneconductor.json
-// (project.name) and each track's index.md.
+// (project.name, board.include_docs, board.include_conversation) and each track's index.md; with --site also the project definition
+// files of conductor/ (product.md, tech-stack.md, workflow.md, quality-gate.md, kpis.md, the guidelines, user-stories.md,
+// deployment-stack.md). It never publishes .laneconductor.json.
 // --site <dir> writes the two files a board artifact is published from: board.html (the static page,
 // byte-identical every run, no data in it) and board.json (the page's data), plus docs/<number>.json
 // for each track that is not done (the documents the page shows when a track is opened; see
 // src/board-docs.mjs; `board.include_docs: false` in .laneconductor.json turns them off,
-// `board.include_conversation: true` adds conversation.md). It prints the two absolute paths, one per
+// `board.include_conversation: true` adds conversation.md), and ctx/<key>.json for each project definition file that exists
+// (the Project drawer; the same scan and the same switch; they count toward the 200-file cap). It prints the two absolute paths, one per
 // line, and nothing else on stdout; with --json it prints one JSON object instead,
 // { page, root, files } (files are relative to root: board.json and every docs file), ready to pass to
 // the Artifact tool. Files the privacy scan withheld are named on stderr (never their content).
 // <dir> may not be inside the repo's conductor/ folder.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { buildBoard, boardPageData, BOARD_PAGE_PATH, DEFAULT_LANES, sameBoard } from '../src/board.mjs';
+import { buildBoard, boardPageData, workflowFlow, BOARD_PAGE_PATH, DEFAULT_LANES, sameBoard } from '../src/board.mjs';
 import { blobSha } from '../src/blob.mjs';
-import { buildDoc, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD } from '../src/board-docs.mjs';
+import { buildDoc, buildProjectDocs, selectDocTracks, githubBase, githubFolderUrl, DOC_FIELDS, CONVERSATION_FIELD, PROJECT_TABS, MAX_DOCS } from '../src/board-docs.mjs';
+import { scanText } from '../src/scan.mjs';
 import { resolveStateBranch } from '../src/state-branch.mjs';
 import { spawnSync } from 'node:child_process';
 
@@ -68,8 +72,25 @@ if (siteDir) {
   let docFolders = [];
   let dropped = 0;
   let ghUrl = null;
+  let projectDocs = [];
+  let flow = null;
+  const ctxDir = path.join(dir, 'ctx');
+  for (const f of await fs.readdir(ctxDir).catch(() => [])) if (/^[a-z-]+\.json$/.test(f)) await fs.rm(path.join(ctxDir, f));
   if (includeDocs) {
-    const sel = selectDocTracks(board);
+    // The project definition (the Project drawer): the files of the project's conductor folder, scanned like a track document.
+    // .laneconductor.json is never one of them. These files count toward the site's file cap, so the track documents get what is left.
+    const texts = {};
+    for (const tab of PROJECT_TABS) for (const f of tab.files) texts[f] = await readText(path.join(repo, 'conductor', f));
+    const styleDir = path.join(repo, 'conductor', 'code_styleguides');
+    for (const d of (await fs.readdir(styleDir, { withFileTypes: true }).catch(() => [])).filter((e) => e.isFile() && /\.md$/i.test(e.name))) texts[`code_styleguides/${d.name}`] = await readText(path.join(styleDir, d.name));
+    flow = workflowFlow(wf);
+    if (flow && scanText(JSON.stringify(flow)).length) { process.stderr.write('board: withheld the workflow drawing: possible secret or personal data in lane names; not published\n'); flow = null; }
+    const built = buildProjectDocs({ texts, hasFlow: Boolean(flow) });
+    projectDocs = built.tabs;
+    if (built.ctx.length) await fs.mkdir(ctxDir, { recursive: true });
+    for (const c of built.ctx) { await fs.writeFile(path.join(dir, c.name), `${JSON.stringify(c.doc)}\n`, 'utf8'); files.push(c.name); }
+    for (const w of built.withheld) process.stderr.write(`board: withheld project file ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
+    const sel = selectDocTracks(board, { max: MAX_DOCS - built.ctx.length });
     dropped = sel.dropped;
     docFolders = sel.keep.map((k) => k.folder);
     if (sel.keep.length) await fs.mkdir(docsDir, { recursive: true });
@@ -86,7 +107,7 @@ if (siteDir) {
     const base = remote.status === 0 ? githubBase(remote.stdout) : null;
     if (base) { const branch = resolveStateBranch(repo).branch; ghUrl = (folder) => githubFolderUrl(base, branch, folder); }
   }
-  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl }))}\n`, 'utf8');
+  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl, projectDocs, wf: flow }))}\n`, 'utf8');
   process.stdout.write(argv.includes('--json') ? `${JSON.stringify({ page, root: dir, files })}\n` : `${page}\n${data}\n`);
 } else if (checkFile) {
   const text = await readText(path.resolve(checkFile));
