@@ -1,9 +1,9 @@
 # Track AM-10123: Cut recipes from the plugin and add a lane-to-skill map (plugin 0.6.0)
 
-**Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Lane**: done
+**Lane Status**: success
+**Progress**: 100%
+**Phase**: Merged and pushed 2026-11-18 (main 8915eaa2), plugin 0.6.0. Recipes cut from the plugin; every lane guide has a Skills that help here section; optional skills per lane in workflow.json. 270 tests, build check and strict validation pass; leftover recipe wording on the landing, wiki and why page was replaced. The landing correction is pushed but not deployed yet.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
