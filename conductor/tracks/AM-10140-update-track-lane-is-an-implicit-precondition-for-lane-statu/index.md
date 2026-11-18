@@ -1,9 +1,9 @@
 # Track AM-10140: update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Implemented and merged to local main 2026-11-18 (461 connector tests). Lane is compared whenever Lane Status is set; leaving done needs reopen:true; a CONFLICT carries the current base. The daemon's lane-rank guard was not ported (no ranks in the workflow file). Next: release as 1.2.0.
+**Phase**: Reviewed by a read-only reviewer (pass), gated on main with the plugins 1.2.2 release (516 connector tests, strict validate on all three plugins), shipped 2026-11-18.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -13,3 +13,5 @@
 
 Scope: make `Lane` an implicit precondition whenever `Lane Status` is set; refuse leaving `done` unless `reopen: true`; two tests (stale Lane Status after a human move; done to plan without reopen); keep the lane-guide advice "a human's manual move wins" consistent. Also return the current `base` in CONFLICT details so callers stop retrying blindly with the same base (audit D6: 8 of otralingo's 9 conflicts came within 450 ms).
 **Summary**: From the audit (findings B3, B4, severity medium). The compare-and-swap in connector/src/tools/update-track.mjs:69-80 only checks the markers the call sets. A `Lane Status`-only write does not compare
+**Part Of**: 10145
+**Verdict**: pass
