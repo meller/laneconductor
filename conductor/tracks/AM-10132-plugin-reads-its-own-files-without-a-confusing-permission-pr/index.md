@@ -1,9 +1,9 @@
 # Track AM-10132: Plugin reads its own files without a confusing permission prompt
 
-**Lane**: plan
-**Lane Status**: running
+**Lane**: review
+**Lane Status**: queue
 **Progress**: 70%
-**Phase**: New
+**Phase**: Partly shipped in 1.2.0 (local main, not pushed): the one-line note on which prompt option to choose, in the README, setup and new-project, and the setup interview as one pre-filled message ending 'Reply ok, or tell me what differs' with a private-tracks option. allowed-tools: Read, Grep, Glob was evaluated and NOT shipped: the local validator accepts it but only a real session shows whether it removes the prompt. Open: that real-session check (owner decision).
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
