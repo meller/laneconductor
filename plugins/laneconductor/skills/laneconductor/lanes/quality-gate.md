@@ -13,10 +13,12 @@ code is on `main`.
    "KPI window not reached, Xh remaining. Measuring now may be unreliable. Run anyway? (y/n)" and
    stop on "n". When an automatic run launched you it already checked the time; skip this.
 1. **KPI measurement (before any code check).** Read `**Type**`. If it is non-dev (`marketing`,
-   `sales`, `support`, `other`) or `spec.md` has a `## KPI` block, run
-   `node conductor/measure.mjs --track NNN` and write `**KPI Actual**: N` and
-   `**KPI Snapshot**: {JSON}` to `index.md`. Dev tracks without a `## KPI` block skip this.
-   - **KPI failed** (`passed: false`): append to `plan.md`
+   `sales`, `support`, `other`) or `spec.md` has a `## KPI` block, read
+   the KPI value by hand from the source the `## KPI` block names (`**Source**` and `**Source Config**`)
+   or, when it cannot be read from here, ask the person for the number; compare it with `**Target**`
+   and `**Threshold**`, and write `**KPI Actual**: N` and `**KPI Snapshot**: {JSON of what you read}`
+   to `index.md`. Dev tracks without a `## KPI` block skip this.
+   - **KPI failed** (the value does not reach the target or threshold): append to `plan.md`
      ```markdown
      ## ❌ KPI MISS - [ISO timestamp]
      **Target**: T | **Actual**: N | **Delta**: -D | **Window**: W

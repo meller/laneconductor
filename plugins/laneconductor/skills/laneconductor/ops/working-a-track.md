@@ -5,7 +5,7 @@ normally would - use sub-agents and worktrees as you see fit. This is a second o
 rulebook: it says what exists here and what has gone wrong before. If you have a better reason to
 do otherwise, do so and say why.
 
-Find the folder with `lc track-dir N` (see "Finding a track" in the index). Lane definitions and
+Find the folder as "Finding a track" in the index says. Lane definitions and
 transitions are in `conductor/workflow.json`; what each lane means is in `lanes/`: read the lane
 file for the lane you are about to run. Keep `**Lane**`, `**Lane Status**`, `**Progress**` and
 `**Phase**` in the track's `index.md` true as you go.

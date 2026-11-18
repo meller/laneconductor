@@ -43,7 +43,7 @@ wrap or bundle them.
 | `review` | [lanes/review.md](lanes/review.md) | yes |
 | `qualityGate`, `quality-gate` | [lanes/quality-gate.md](lanes/quality-gate.md) | yes |
 | `merge`, `done` | [lanes/merge.md](lanes/merge.md) (the `done` lane's action) | yes |
-| `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (prefer `lc new`, `lc update-track`, `lc report-bug`, `lc feature-request`) | yes |
+| `newTrack`, `updateTrack`, `reportaBug`, `featureRequest` | [ops/tracks.md](ops/tracks.md) (with the parallel add-on use its `create_track` and `update_track`; otherwise edit the files as that file says) | yes |
 | `move`, `pulse`, `comment`, `revert`, `status`, `workflow`, `workflow set`, `init-tracks-summary` | [ops/tracks.md](ops/tracks.md) (lanes, statuses and transitions: [ops/lanes-and-statuses.md](ops/lanes-and-statuses.md)) | yes |
 | `run track N`, work a track end to end | [ops/working-a-track.md](ops/working-a-track.md) (lessons and guardrails; read the lane file for each lane you run) | yes |
 | `board`, `show the board`, `update the board` | [ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional laneconductor-board add-on) | yes |
@@ -55,11 +55,11 @@ wrap or bundle them.
 | `deploy` | [deploy/deploy.md](deploy/deploy.md) | only when named |
 
 **The board.** `board` (or "show the board", "update the board") gives the project one private page that
-shows every track by lane, with a needs-attention list. `lc board --site <dir>` writes the page and its
-data (and the documents of the tracks that are not done, shown when a track is opened); Claude then
-publishes them as an artifact and keeps its URL in `.laneconductor.json` (`board.artifact_url`). It is
-a snapshot: it changes only when Claude refreshes it. Sharing it shares those documents. Steps are in
-[ops/board.md](ops/board.md); building the page needs the optional laneconductor-board add-on, and that file says what to show when it is missing.
+shows every track by lane, with a needs-attention list. The board script of the optional
+`laneconductor-board` add-on writes the page and its data (and the documents of the tracks that are not done,
+shown when a track is opened); Claude then publishes them as an artifact and keeps its URL in the optional
+settings file ([ops/settings.md](ops/settings.md), key `board.artifact_url`). It is a snapshot: it changes only
+when Claude refreshes it. Sharing it shares those documents. Steps are in [ops/board.md](ops/board.md), which also says what to show when the add-on is missing.
 
 **New project.** `new-project` starts a project from a short chat: it interviews the person one question at a
 time, writes the `conductor/` scaffold with no database, and creates the first tracks in the plan
@@ -68,20 +68,12 @@ lane; it asks before any commit and never pushes ([ops/new-project.md](ops/new-p
 the CI files first and asks only to confirm the stack and the real test and lint commands, never overwrites a file, and
 imports no older tracks silently ([setup/setup.md](setup/setup.md)).
 
-Not in the plugin: the legacy tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, `syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.
-
 ## Finding a track
 
-A track number maps to one folder under `conductor/tracks/`. Run `lc track-dir <N>`: it prints the
-folder (exit 0),
-is read-only, and handles both naming conventions: `INITIALS-NNN-slug` (for example
-`AM-10023-my-feature`, the current form) and the legacy bare `NNN-slug`. `--json` gives
-`{ folder, matches, registered }`.
-
-Without `lc`: check the number's `folder_path` in `conductor/tracks-metadata.json`, then scan
-`conductor/tracks/` for **both** conventions (a legacy-only scan silently misses every prefixed
-folder), then `conductor/tracks.md`, then `conductor/tracks/file_sync_queue.md`, which lists a
-UI/CLI-created track as pending until its folder exists.
+A track number maps to one folder under `conductor/tracks/`. With the parallel add-on, `get_track` finds it. Without
+it, use Glob `conductor/tracks/*-<N>-*/` for the form `INITIALS-NNN-slug` (for example `AM-10023-my-feature`, the
+current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; scan for **both** (a scan for one
+form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
 fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.

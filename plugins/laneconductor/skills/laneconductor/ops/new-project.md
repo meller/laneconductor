@@ -29,7 +29,7 @@ Keep the interview short. Instead of the nine questions of step 2, read the proj
 - The test, lint, typecheck, build and e2e commands from the scripts in `package.json`, the Makefile and the CI files. A
   command is proposed only if it really exists: the npm placeholder `echo "Error: no test specified"` is not a test command, and
   a lint config without a lint script is not a lint command. Say so when you leave one out.
-- If the scaffold script is present, `lc-scaffold.mjs --detect --dir .` does this reading and prints `answers` (what to
+- If the scaffold script is present, `node <path> --detect --dir .` does this reading and prints `answers` (what to
   confirm), `evidence` (where each fact came from) and `existing` (what an older LaneConductor left). Otherwise read the files
   yourself the same way.
 
@@ -58,19 +58,18 @@ is enough. Cover, in this order, and skip what the person already told you or th
 
 Stop early when the answers are enough to scaffold; say "That is enough to start" and move on. Ask for 2 to 4 letter
 initials for track ids last, only if the folder has none to reuse. Record the answers as you go, as the JSON that
-`lc-scaffold` reads: `name`, `summary`, `users`, `features`, `stack` (language, framework, data, auth, hosting, ai,
+the scaffold script reads: `name`, `summary`, `users`, `features`, `stack` (language, framework, data, auth, hosting, ai,
 testing, other), `constraints`, `commands` (typecheck, lint, test, build, coverage, audit, e2e: ONLY commands that
 exist), `kpis`, `journeys`, `initials`.
 
 ## 3. Scaffold
 
-Run `node <path>/lc-scaffold.mjs --answers <answers.json> --dir . --dry-run` (add `--no-first-track` for an existing repository), show what it would create and skip, and ask
+Run `node <path to the scaffold script> --answers <answers.json> --dir . --dry-run` (add `--no-first-track` for an existing repository), show what it would create and skip, and ask
 for a yes; after the yes run it again without `--dry-run`. By hand, the same result: the files and templates are in [../setup/scaffold.md](../setup/scaffold.md) and
 [../setup/templates.md](../setup/templates.md); apply these rules over them:
 
 - Create `conductor/product.md`, `tech-stack.md`, `workflow.md`, `workflow.json`, `product-guidelines.md`,
-  `design-language.md`, `quality-gate.md`, `user-stories.md`, `kpis.md`, `tracks/`, and `.laneconductor.json` with a
-  state branch only (no `mode`, no database, no sync settings).
+  `design-language.md`, `quality-gate.md`, `user-stories.md`, `kpis.md` and `tracks/`. No settings file is created: LaneConductor needs none.
 - Every file is tailored from the answers; what was not discussed is an honest placeholder, never an invented value.
 - `quality-gate.md` names only commands that really exist in the chosen stack, with unchecked boxes and no verdict.
 - `.gitignore` gets `conductor/tracks/**/conversation.md`, `conductor/tracks/**/conversation.json` and `.worktrees/`.
@@ -79,12 +78,50 @@ for a yes; after the yes run it again without `--dry-run`. By hand, the same res
 
 ## 4. First tracks
 
-New project: one "Walking skeleton" track in the plan lane, the thinnest end-to-end slice of the product. `lc-scaffold` writes it.
+New project: one "Walking skeleton" track in the plan lane, the thinnest end-to-end slice of the product. The scaffold script writes it.
 Existing repository: none, because the project has its own history; offer to plan its first real track instead.
 When the add-on's connector tools are present and the project already has its `conductor/` files, create further tracks with
 `mcp__plugin_laneconductor-parallel_lc__create_track`; otherwise write the files as `ops/tracks.md` describes.
 
-## 5. Summarize and ask before any commit
+## 5. Say what else fits this project
+
+After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
+the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
+that fit and are not installed, and say for each, in one short paragraph, why it fits this project. If one is already installed, say
+nothing about it. If nothing fits, say nothing and go on.
+
+How to offer one:
+
+- Show its two install commands exactly as written below, each alone in its own bash block, then the reload step. You only show them:
+  never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
+- Say plainly what it installs, from the note under its name.
+- Mention each plugin once in this session. If the person declines, do not bring it up again.
+
+**`laneconductor-parallel`**: Parallel work: isolated sub-agents, one per track in its own worktree, and safe shared state through conflict-checked track writes. It fits when the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents. It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. It counts as installed when its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed.
+
+```bash
+claude plugin marketplace add meller/laneconductor
+```
+
+```bash
+claude plugin install laneconductor-parallel@laneconductor
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
+
+**`laneconductor-board`**: The board, one private page of every track by lane, which Claude publishes as an artifact. It fits when a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane. It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory. It counts as installed when Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`.
+
+```bash
+claude plugin marketplace add meller/laneconductor
+```
+
+```bash
+claude plugin install laneconductor-board@laneconductor
+```
+
+Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-board@laneconductor` instead (that opens the plugin's details for review).
+
+## 6. Summarize and ask before any commit
 
 Print what was created (counts and folders, the track numbers and titles), what the person has to do themselves (listed,
 never done by you), and the next step in one line (plan the first track). Ask: "Commit this

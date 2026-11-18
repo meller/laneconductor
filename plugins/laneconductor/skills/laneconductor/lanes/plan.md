@@ -19,11 +19,10 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    visible and overridable: append
    `> **system**: Classified as **Track Kind**: <bug|feature> - <one-line reasoning>.` to
    `conversation.md`.
-1. **Locate the track.** Run `lc track-dir <N>`. If it prints a folder (exit 0, either naming
-   convention), that folder is the track: go to Refine, whatever `file_sync_queue.md` says. Go to
-   Scaffold only if it exits non-zero (no folder anywhere) and the track is `pending` in
-   `file_sync_queue.md`. Without `lc`, scan `conductor/tracks/` for both `INITIALS-NNN-slug` and
-   bare `NNN-slug`.
+1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
+   `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions,
+   `INITIALS-NNN-slug` and bare `NNN-slug`). If a folder exists, that is the track: go to Refine.
+   Go to Scaffold only when neither form finds a folder anywhere.
 2. **Scaffold (only when step 1 found nothing).** Scaffolding over an existing track number
    creates a duplicate folder beside the real one. This happened on track 10040 when a
    legacy-only scan missed `AM-10040-...`.
@@ -34,7 +33,6 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
      `**Phase**: New`, `**Type**`, `**Merge Mode**: direct`, `**Auto Run**: yes`, `**Author**`
      and a `**Summary**`.
    - Create `spec.md`, `plan.md`, `test.md` from the templates below.
-   - In `file_sync_queue.md`, change the entry's `**Status**: pending` to `**Status**: processed`.
 3. **Refine (folder exists).**
    - Read `spec.md`, `plan.md`, `test.md`. On `FRESH_SESSION: false` you can skip files you
      already read this session (a replan right after a brainstorm), but re-read them if anything

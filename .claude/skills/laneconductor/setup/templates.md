@@ -201,18 +201,12 @@ Leave the key out and nothing changes; every reader of `workflow.json` ignores k
 { "skills": { "implement": ["my-firebase-deploy"], "review": ["my-review-checklist"] } }
 ```
 
-**`.laneconductor.json` of a new project** (the `new-project` flow): a state branch and nothing else that
-needs a running process. No `mode`, no database and no sync settings.
-```json
-{ "project": { "name": "<name>" }, "connector": { "state_branch": "main" } }
-```
-
 **`.gitignore` entries of a new project**: `conductor/tracks/**/conversation.md`,
 `conductor/tracks/**/conversation.json` and `.worktrees/`. Nothing else is added.
 
 
 
-**Track spec forms** (bug and feature tracks; used by `ops/tracks.md`, and written by the connector's `create_track` with `track_kind`). A hand-made bug or feature track uses the same sections. `spec.md` starts with the title and `## Problem Statement` holding the request text unchanged; the sections below follow it in this order, each left as `(To be filled in.)` until the plan lane fills it. Set `**Track Kind**: bug` or `feature` in `index.md`. With no kind, keep the generic skeleton (`## Problem Statement`, then `## Requirements`).
+**Track spec forms** (bug and feature tracks; used by `ops/tracks.md`, and written by `mcp__plugin_laneconductor-parallel_lc__create_track` of the laneconductor-parallel add-on when it is present). A hand-made bug or feature track uses the same sections. `spec.md` starts with the title and `## Problem Statement` holding the request text unchanged; the sections below follow it in this order, each left as `(To be filled in.)` until the plan lane fills it. Set `**Track Kind**: bug` or `feature` in `index.md`. With no kind, keep the generic skeleton (`## Problem Statement`, then `## Requirements`).
 
 ```markdown
 # Spec: [title]

@@ -3,10 +3,10 @@
 Start a project from a short conversation: interview, scaffold, first tracks. Run it only when the person asks for it by
 name. Nothing is committed without their yes, and nothing is ever pushed. It needs no installer and no database.
 
-Scripts named below live in the plugin under `server/bin/` (find them with Glob `**/laneconductor/**/server/bin/<name>`
-under `~/.claude/plugins`; `${CLAUDE_PLUGIN_ROOT}` may not be substituted in command text) or in the LaneConductor
-repository under `connector/bin/`. If a script does not exist (the Markdown-only variant has none), do that step by hand
-exactly as described; the result is the same, only slower.
+The scaffold script named below, `lc-scaffold.mjs`, belongs to the optional laneconductor-parallel add-on. Find it with Glob
+`**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` under `~/.claude/plugins/cache`, or in the LaneConductor repository under `connector/bin/`.
+If it does not exist, do that step by hand exactly as described; the result is the same, only slower. Do not recommend the
+add-on for this.
 
 ## 1. Detect the situation
 
@@ -29,7 +29,7 @@ Keep the interview short. Instead of the nine questions of step 2, read the proj
 - The test, lint, typecheck, build and e2e commands from the scripts in `package.json`, the Makefile and the CI files. A
   command is proposed only if it really exists: the npm placeholder `echo "Error: no test specified"` is not a test command, and
   a lint config without a lint script is not a lint command. Say so when you leave one out.
-- If the scaffold script is present, `lc-scaffold.mjs --detect --dir .` does this reading and prints `answers` (what to
+- If the scaffold script is present, `node <path> --detect --dir .` does this reading and prints `answers` (what to
   confirm), `evidence` (where each fact came from) and `existing` (what an older LaneConductor left). Otherwise read the files
   yourself the same way.
 
@@ -58,19 +58,18 @@ is enough. Cover, in this order, and skip what the person already told you or th
 
 Stop early when the answers are enough to scaffold; say "That is enough to start" and move on. Ask for 2 to 4 letter
 initials for track ids last, only if the folder has none to reuse. Record the answers as you go, as the JSON that
-`lc-scaffold` reads: `name`, `summary`, `users`, `features`, `stack` (language, framework, data, auth, hosting, ai,
+the scaffold script reads: `name`, `summary`, `users`, `features`, `stack` (language, framework, data, auth, hosting, ai,
 testing, other), `constraints`, `commands` (typecheck, lint, test, build, coverage, audit, e2e: ONLY commands that
 exist), `kpis`, `journeys`, `initials`.
 
 ## 3. Scaffold
 
-Run `node <path>/lc-scaffold.mjs --answers <answers.json> --dir . --dry-run` (add `--no-first-track` for an existing repository), show what it would create and skip, and ask
+Run `node <path to the scaffold script> --answers <answers.json> --dir . --dry-run` (add `--no-first-track` for an existing repository), show what it would create and skip, and ask
 for a yes; after the yes run it again without `--dry-run`. By hand, the same result: the files and templates are in [../setup/scaffold.md](../setup/scaffold.md) and
 [../setup/templates.md](../setup/templates.md); apply these rules over them:
 
 - Create `conductor/product.md`, `tech-stack.md`, `workflow.md`, `workflow.json`, `product-guidelines.md`,
-  `design-language.md`, `quality-gate.md`, `user-stories.md`, `kpis.md`, `tracks/`, and `.laneconductor.json` with a
-  state branch only (no `mode`, no database, no sync settings).
+  `design-language.md`, `quality-gate.md`, `user-stories.md`, `kpis.md` and `tracks/`. No settings file is created: LaneConductor needs none.
 - Every file is tailored from the answers; what was not discussed is an honest placeholder, never an invented value.
 - `quality-gate.md` names only commands that really exist in the chosen stack, with unchecked boxes and no verdict.
 - `.gitignore` gets `conductor/tracks/**/conversation.md`, `conductor/tracks/**/conversation.json` and `.worktrees/`.
@@ -79,12 +78,16 @@ for a yes; after the yes run it again without `--dry-run`. By hand, the same res
 
 ## 4. First tracks
 
-New project: one "Walking skeleton" track in the plan lane, the thinnest end-to-end slice of the product. `lc-scaffold` writes it.
+New project: one "Walking skeleton" track in the plan lane, the thinnest end-to-end slice of the product. The scaffold script writes it.
 Existing repository: none, because the project has its own history; offer to plan its first real track instead.
-When the connector is present and the project already has its `conductor/` files, create further tracks with
-`create_track`; otherwise write the files as `ops/tracks.md` describes.
+When the add-on's connector tools are present and the project already has its `conductor/` files, create further tracks with
+`mcp__plugin_laneconductor-parallel_lc__create_track`; otherwise write the files as `ops/tracks.md` describes.
 
-## 5. Summarize and ask before any commit
+## 5. Say what else fits this project
+
+<!-- generated: recommended plugins -->
+
+## 6. Summarize and ask before any commit
 
 Print what was created (counts and folders, the track numbers and titles), what the person has to do themselves (listed,
 never done by you), and the next step in one line (plan the first track). Ask: "Commit this

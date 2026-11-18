@@ -1,16 +1,20 @@
 # setup-deploy generate
 
-Run only when the user asks for it by name (or the `lc setup-deploy` wizard sends you here).
+Run only when the user asks for it by name. This is a chat procedure: you scan, ask, and then write the files.
+It runs nothing that changes anything outside the project, and it never asks for or reads a secret.
 
-**File-generation phase of `lc setup-deploy`.** The CLI wizard (`lc setup-deploy`) has already:
-- Scanned for deployment signals
-- Asked the user all questions interactively
-- Verified credentials
-- Got explicit user confirmation
-
-Your job is **only to generate the files**. Do not ask questions. Do not scan. Do not show a confirmation prompt. Just write the files.
-
-**Read context from `conductor/.setup-deploy-context.json`:**
+1. **Scan for deployment signals.** Look for `deploy.sh`, `Dockerfile`, `firebase.json`, `vercel.json`, `infra/`, CI files
+   and the hosting hints in `package.json`, and read `conductor/deployment-stack.md` if it exists. Say what you found.
+2. **Ask, one question at a time, with a likely default:** which component runs where (frontend, backend, database, secrets),
+   the environments (usually `prod`, optionally `staging`), the deploy command (default: the script you found, for example
+   `bash infra/deploy.sh`), and whether CI/CD should deploy too.
+3. **Credentials.** Ask whether the person is signed in to each provider. You may run a read-only status command (for
+   example `gcloud auth list`) after a yes; never ask for, read or write a key or token. Whatever is not signed in is
+   marked `NOT CONFIGURED` with the command the person runs themselves.
+4. **Show the plan and get a yes.** List the files you will create (`conductor/deployment-stack.md`,
+   `conductor/deploy.json`, `.env.example`, and the `.gitignore` additions) and which of them already exist; never overwrite
+   one without asking.
+5. **Generate the files**, from what you gathered, as below. The gathered facts have this shape:
 ```json
 {
   "components": { "frontend": "...", "backend": "...", "db": "...", "secrets": "..." },
@@ -18,13 +22,9 @@ Your job is **only to generate the files**. Do not ask questions. Do not scan. D
   "deploy_command": "bash infra/deploy.sh",
   "cicd": false,
   "credentials": { "gcp": "verified (user@example.com)", "firebase": "verified" },
-  "existing_signals": ["deploy.sh", "Dockerfile", "firebase.json"],
-  "files_to_create": ["conductor/deployment-stack.md", "conductor/deploy.json", ".env.example"],
-  "brainstorm_summary": "user: ...\nassistant: ..."
+  "existing_signals": ["deploy.sh", "Dockerfile", "firebase.json"]
 }
 ```
-
-**If `brainstorm_summary` is present**, use it as the authoritative source for the final configuration — it contains the agreed-upon decisions from the interactive brainstorm. The `components` fields may contain raw user input (including questions); the brainstorm summary has the clarified answers.
 
 **Generate each file listed in `files_to_create`:**
 
@@ -48,7 +48,7 @@ Your job is **only to generate the files**. Do not ask questions. Do not scan. D
 [credentials entry from context — verified ✅ or NOT CONFIGURED]
 
 ## Deploy Command
-lc deploy prod  →  [deploy_command] prod
+`deploy prod`  →  [deploy_command] prod
 ```
 
 **`conductor/deploy.json`** — Machine-readable config:
@@ -88,7 +88,6 @@ service-account*.json
 **After writing all files, print:**
 ```
 ✅ Deployment stack configured!
-   Run: lc deploy prod
-   Run: lc deploy staging
+   Deploy with: ask for `deploy prod` or `deploy staging` (the command runs only after a yes)
 ```
 And list any credentials marked `NOT CONFIGURED` with their setup commands.

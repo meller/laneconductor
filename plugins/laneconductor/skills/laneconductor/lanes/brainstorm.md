@@ -1,8 +1,8 @@
 # brainstorm: `/laneconductor brainstorm N`
 
 An optional deepening step before implement: ask the human clarifying questions through
-`conversation.md`. It is not a lane and can run at any time. `lc brainstorm N` writes the first
-trigger and sets `**Waiting for reply**: yes` for you.
+`conversation.md`. It is not a lane and can run at any time. Write the first question to `conversation.md` and set
+`**Waiting for reply**: yes` in `index.md` yourself.
 
 1. **Load context.** On `FRESH_SESSION: false` read only `conversation.md` (you need the latest
    human reply; every question-answer round after the first is normally a resumed session).

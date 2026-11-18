@@ -2,7 +2,7 @@
 // Scaffolds a new project from the answers of the guided interview (track AM-10117, Phase 1).
 //   lc-scaffold.mjs --answers <answers.json> [--dir <project dir>] [--dry-run] [--no-git-init] [--no-first-track]
 //   lc-scaffold.mjs --detect [--dir <project dir>]      read an EXISTING repository and print the proposed answers (writes nothing)
-// Creates conductor/ (context files, workflow, quality gate, tracks/), .laneconductor.json, the .gitignore entries and the
+// Creates conductor/ (context files, workflow, quality gate, tracks/), the .gitignore entries and the
 // first tracks. Never overwrites an existing file, never commits, never pushes. Prints one JSON object: created, skipped, merged.
 import fs from 'node:fs';
 import path from 'node:path';

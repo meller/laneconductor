@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// `lc board`: prints the board data (plan Phase 5d) for one project as JSON.
+// The board script: prints the board data (plan Phase 5d) for one project as JSON.
 //   lc-board.mjs [--repo <path>] [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir> [--json]]
 // Default: JSON on STDOUT and nothing is written into the repo (a board is a snapshot, not a
 // committed file). --out writes the file. --check <file> exits 1 when the file's data differs from
-// a fresh build (generated_at is ignored). Reads only conductor/workflow.json, .laneconductor.json
+// a fresh build (generated_at is ignored). Reads only conductor/workflow.json, the optional .laneconductor.json
 // (project.name) and each track's index.md.
 // --site <dir> writes the two files a board artifact is published from: board.html (the static page,
 // byte-identical every run, no data in it) and board.json (the page's data), plus docs/<number>.json
@@ -24,7 +24,7 @@ import { spawnSync } from 'node:child_process';
 
 const argv = process.argv.slice(2);
 const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-const die = (msg) => { process.stderr.write(`lc board: ${msg}\n`); process.exit(2); };
+const die = (msg) => { process.stderr.write(`board: ${msg}\n`); process.exit(2); };
 for (const n of ['--repo', '--out', '--now', '--check', '--site']) if (argv.includes(n) && !opt(n)) die(`${n} needs a value`);
 
 const repo = path.resolve(opt('--repo') ?? process.cwd());
@@ -79,9 +79,9 @@ if (siteDir) {
       const { doc, withheld } = buildDoc({ number: k.number, folder: k.folder, texts, includeConversation });
       await fs.writeFile(path.join(docsDir, `${k.number}.json`), `${JSON.stringify(doc)}\n`, 'utf8');
       files.push(`docs/${k.number}.json`);
-      for (const w of withheld) process.stderr.write(`lc board: withheld track ${k.number} ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
+      for (const w of withheld) process.stderr.write(`board: withheld track ${k.number} ${w.file}: ${w.matches} possible secret or personal data match${w.matches === 1 ? '' : 'es'} (lines ${w.lines.join(', ')}); not published\n`);
     }
-    if (dropped) process.stderr.write(`lc board: ${dropped} track(s) have no docs file (limit 200 per site; oldest backlog tracks first)\n`);
+    if (dropped) process.stderr.write(`board: ${dropped} track(s) have no docs file (limit 200 per site; oldest backlog tracks first)\n`);
     const remote = spawnSync('git', ['-C', repo, 'remote', 'get-url', 'origin'], { encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
     const base = remote.status === 0 ? githubBase(remote.stdout) : null;
     if (base) { const branch = resolveStateBranch(repo).branch; ghUrl = (folder) => githubFolderUrl(base, branch, folder); }
@@ -93,7 +93,7 @@ if (siteDir) {
   let have = null;
   try { have = JSON.parse(text); } catch { /* missing or invalid */ }
   if (have && sameBoard(have, board)) console.log(`${checkFile} is up to date.`);
-  else { console.log(`${checkFile} is missing or out of date. Run: lc board --out ${checkFile}`); process.exitCode = 1; }
+  else { console.log(`${checkFile} is missing or out of date. Run: node ${process.argv[1]} --out ${checkFile}`); process.exitCode = 1; }
 } else {
   const json = `${JSON.stringify(board, null, argv.includes('--pretty') ? 2 : 0)}\n`;
   const out = opt('--out');

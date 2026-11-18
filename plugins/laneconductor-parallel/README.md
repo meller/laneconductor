@@ -62,7 +62,7 @@ and this add-on, and restart your sessions. The files in git are unchanged, so n
   write is a commit on the project's state branch (`main` by default) that contains exactly the files it wrote, and writes are
   refused when the checkout is on another branch.
 - It makes no network requests of its own and never runs `git fetch`. It never pushes unless you set
-  `{ "connector": { "push": "auto-state" } }` in `.laneconductor.json`; then it runs a fast-forward `git push` of the state branch 60
+  `{ "connector": { "push": "auto-state" } }` in the optional settings file `.laneconductor.json` (see `ops/settings.md` in the base plugin's skill); then it runs a fast-forward `git push` of the state branch 60
   seconds after its last write, and only when every unpushed commit touches nothing outside `conductor/`. It never forces a push.
 - The advice log records tool names, success flags, timings, sizes and error codes, plus the one-line reason Claude gives when it
   deviates from advice; it holds no file contents or prompts. It is an ordinary file in your repository and goes to your git remote

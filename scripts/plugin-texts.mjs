@@ -75,8 +75,6 @@ export const MIGRATION_UNINSTALL_COMMAND = `claude plugin uninstall ${NAMES.base
 export const toolsUsedBy = (procedure) => [...new Set([...(procedure ?? '').matchAll(/`(get_context|get_track|list_tracks|create_track|update_track|append_conversation)`/g)].map((m) => m[1]))];
 
 // ---- The skill's edits for the base ----
-const BOARD_SOURCE_LINE = 'No `lc` on PATH but the LaneConductor plugin is installed: `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site "$site" --json`.\nNeither exists: say so and stop.';
-const BOARD_EDIT = `No \`lc\` on PATH: use the board script of the optional ${NAMES.board} add-on. Find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`.\nNeither exists: the add-on is not installed. Say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop.`;
 const BOARD_LAST_RULE = '- If a step fails, report which step and the error; do not publish a partial board.';
 const BOARD_MISSING = `${BOARD_LAST_RULE}
 
@@ -90,136 +88,48 @@ ${installBlock('board')}
 
 Everything else in LaneConductor works without it. More: ${REPO_URL}`;
 
-export const LEGACY_NOTE = 'Not in the plugin: the legacy tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
-  + '`syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the '
-  + 'LaneConductor repository, not here; if the user asks for one of those commands, say so and stop.';
+/**
+ * The source skill (`.claude/skills/laneconductor`) is written in the plugin way (track AM-10133), so the base copy needs only the parts
+ * that depend on the catalog: the install commands of the board add-on at the end of `ops/board.md`, and the "what else fits this project"
+ * step of setup. A missing anchor throws, so a half-done change fails the build.
+ */
+export const RECOMMEND_MARKER = '<!-- generated: recommended plugins -->';
+export const BOARD_MISSING_ANCHOR = 'If the script is not found, the add-on is not installed: say so in a sentence and stop.';
 
 /**
- * The base has no worker, daemon, collection step or installer, and its text must not talk as if it had (track AM-10130). The skill
- * source still serves the daemon-era tier of the LaneConductor repository, so these edits are made to the BASE copy only; each one
- * rewords a sentence that names the worker to say what a person or a session does instead. A missing anchor throws.
+ * The "what else fits this project" step of setup, generated from the catalog (one entry each, so the skill advisor, track AM-10124, adds
+ * entries and they flow in). It only shows: no command is run and nothing is installed without a yes.
  */
-export const DAEMON_FREE_EDITS = {
-  'SKILL.md': [
-    ["and for the worker's automated prompts", 'and for the lane prompts'],
-    ['This works with or without a running worker: the markers are the interface, a sync worker (if any)\nonly reads them.', 'The markers are the interface: a person, a session or any tool can read and write them.'],
-    [' (the worker sends `qualityGate`)', ''],
-    ["| `setup collection`, `setup install` (daemon era) | [legacy/setup-daemon.md](legacy/setup-daemon.md) | only when named |\n", ''],
-    [' using the same resolver as the sync worker (`conductor/services/track-folder.mjs`),\nis read-only,', ',\nis read-only,'],
-    ['UI/CLI-created track as pending until the worker makes its folder.', 'UI/CLI-created track as pending until its folder exists.'],
-    ["The sync worker's parser recognizes only", 'The tools that read it recognize only'],
-    ['Worker prompts start with', 'A prompt may start with'],
-    ['On `false` the worker resumed your own session', 'On `false` you resumed your own session'],
-    ["The worker's document-digest\ncheck (`conductor/services/track-doc-digest.mjs`) is only a backstop; it covers `spec.md`,\n`plan.md`, `test.md` and a few `index.md` markers, and skill-only sessions have none.", 'Nothing checks this for you in a\nskill-only session, so re-read the file yourself.'],
-    ['Whether the worker may claim the track from the queue by itself', 'Whether an automatic runner may claim the track from the queue by itself'],
-  ],
-  'lanes/plan.md': [
-    ['"the worker logs the expected', '"the service logs the expected'],
-    ['"a worker actually starts', '"a service actually starts'],
-    ['Wait for the next worker cycle to pick the track up in its new lane.', 'The track waits in its new lane for the next step.'],
-    ["The sync worker derives the track's progress from these checkboxes, so keep them accurate.", "The track's progress is derived from these checkboxes, so keep them accurate."],
-  ],
-  'lanes/merge.md': [['the repo root the\n   worker already runs from.', 'the repo root.']],
-  'lanes/quality-gate.md': [
-    [' (the daemon sends `qualityGate N`)', ''],
-    ['When the worker launched you it already checked the time; skip this.', 'When an automatic run launched you it already checked the time; skip this.'],
-    ['Workers and the API server do not hot-reload', 'Servers and long-running tools do not hot-reload'],
-    ["and the sync worker's exit\n     handler reads", "and the run's exit\n     handler reads"],
-  ],
-  'lanes/review.md': [["the sync worker's exit handler reads", "the run's exit handler reads"]],
-  'lanes/implement.md': [
-    ['A worker or runner\nnormally', 'A runner\nnormally'],
-    ['The worker sees the human\'s "done" reply and schedules the\n     quality gate.', 'The human\'s "done" reply moves the track on to the quality\n     gate.'],
-  ],
-  'ops/tracks.md': [
-    ["The daemon's conversation-reply prompt calls `comment` and `move`, so these are live commands, not\nlegacy. Where a `lc` command exists it is the recommended route: it applies the same rules as the\nworker. The file edits below are the fallback for sessions without `lc`.", 'Where a `lc` command exists it is the recommended route. The file edits below are the way for sessions without `lc`.'],
-    ['highest existing number by scanning `conductor/tracks/file_sync_queue.md` (`### Track NNN:`)\n   and every folder name', 'highest existing number by scanning every folder name'],
-    [/3\. \*\*Queue it\.\*\*[\s\S]*?`## Completed Queue`\.\n/, '3. **No queue file.** The folder you just made is the track; nothing else registers it.\n'],
-    ['5. Print `✅ Track NNN queued in file_sync_queue.md. Worker will register in DB on next cycle.`', '5. Print `✅ Track NNN created in conductor/tracks/<folder>/.`'],
-    ['(the worker picks it up)', '(it waits in that lane)'],
-    [' The sync worker notices the change and queues the work.', ''],
-    [' The sync worker pushes\nthe change to the DB.', ''],
-    ['The sync worker pushes it to the database. Use', 'Use'],
-    ['(it also checks worker health)', ''],
-    ['`index.md`: run `lc init-summary` or `node conductor/init-tracks-summary.mjs` from the LaneConductor\ninstall path (the path in `~/.laneconductorrc` leads to it). Run it manually whenever the summary looks stale.', '`index.md`. Run it whenever the summary looks stale: `lc init-summary` where that exists, otherwise write the file by hand from the track folders.'],
-  ],
-  'ops/working-a-track.md': [
-    ['- One worker per track. If a sync daemon is running and the track has `**Auto Run**: yes`, it may\n  also claim it.', '- One session per track. If something else also works the track (another session, an automatic runner), stop and ask.'],
-    ['- Do not run worker-spawning or mock-CLI test suites from inside a worktree: they can register\n  against the real primary checkout and database, and leak processes.', '- Do not run test suites that start background processes from inside a worktree: they can attach\n  to the real primary checkout and leak processes. Check for leftovers after any test run.'],
-  ],
+export const setupRecommendBlock = (entries = RECOMMENDED) => {
+  const list = entries.map((e) => {
+    const fit = e.setup_fit ? ` It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.` : '';
+    return `**\`${e.name}\`**: ${e.why[0].toUpperCase()}${e.why.slice(1)}.${fit} ${installsNote(e.name)} It counts as installed when ${e.detect}.\n\n${installBlock(e.name)}`;
+  }).join('\n\n');
+  return `After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
+the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
+that fit and are not installed, and say for each, in one short paragraph, why it fits this project. If one is already installed, say
+nothing about it. If nothing fits, say nothing and go on.
+
+How to offer one:
+
+- Show its two install commands exactly as written below, each alone in its own bash block, then the reload step. You only show them:
+  never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
+- Say plainly what it installs, from the note under its name.
+- Mention each plugin once in this session. If the person declines, do not bring it up again.
+
+${list}`;
 };
 
-/** Appends `extra` edits after `base` edits for the same file (both lists are applied in order). */
-export function mergeEdits(base, extra) {
-  const out = { ...base };
-  for (const [rel, list] of Object.entries(extra)) out[rel] = [...(out[rel] ?? []), ...list];
-  return out;
-}
-
 export function skillEdits() {
-  const edits = {
-    'SKILL.md': [
-      [
-        '| `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock` | [legacy/worker.md](legacy/worker.md) (also retries and logging) | only when named |\n'
-        + '| `syncdb` | [legacy/syncdb.md](legacy/syncdb.md) | only when named |\n'
-        + '| `remote-sync` | [legacy/remote-sync.md](legacy/remote-sync.md) | only when named |\n',
-        '',
-      ],
-      ['The Postgres schema is in [legacy/db-schema.md](legacy/db-schema.md); read it only when asked.', LEGACY_NOTE],
-      [
-        '[ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it) | yes |',
-        `[ops/board.md](ops/board.md) (a private artifact showing every track by lane; Claude creates and refreshes it; building the page needs the optional ${NAMES.board} add-on) | yes |`,
-      ],
-      [
-        'Steps are in\n[ops/board.md](ops/board.md).',
-        `Steps are in\n[ops/board.md](ops/board.md); building the page needs the optional ${NAMES.board} add-on, and that file says what to show when it is missing.`,
-      ],
+  const recommend = [RECOMMEND_MARKER, setupRecommendBlock()];
+  return {
+    'ops/board.md': [
+      [BOARD_MISSING_ANCHOR, `If the script is not found, the ${NAMES.board} add-on is not installed: say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop.`],
+      [BOARD_LAST_RULE, BOARD_MISSING],
     ],
-    'ops/board.md': [[BOARD_SOURCE_LINE, BOARD_EDIT], [BOARD_LAST_RULE, BOARD_MISSING]],
-    'ops/tracks.md': [[
-      '("Track spec forms"); the\nconnector\'s `create_track` with `track_kind` writes the same forms.',
-      `("Track spec forms"); the\n${NAMES.parallel} add-on's \`${toolRef('create_track')}\` with \`track_kind\` writes the same forms when it is present.`,
-    ]],
-    'setup/templates.md': [[
-      "; used by `ops/tracks.md`, and written by the connector's `create_track` with `track_kind`)",
-      `; used by \`ops/tracks.md\`, and written by \`${toolRef('create_track')}\` of the ${NAMES.parallel} add-on when it is present)`,
-    ]],
-    'ops/working-a-track.md': [[
-      'With the LaneConductor plugin (Claude Code or Cowork, not chat), the `laneconductor:track-runner`\n'
-      + 'subagent is the recommended way to work a track: one subagent per track, each in its own worktree,\n'
-      + 'so code stays off the primary checkout, tracks run in parallel and do not collide. Recommend it and\n'
-      + 'show the exact dispatch (agent name and one-line prompt); start nothing until the human says yes.\n'
-      + '`/laneconductor:run N`, `:implement N` and `:review N` do this. It never merges or pushes.',
-      `With the optional ${NAMES.parallel} add-on installed (Claude Code or Cowork, not chat), its \`${TRACK_RUNNER_AGENT}\`\n`
-      + 'subagent is the recommended way to work a track: one subagent per track, each in its own worktree,\n'
-      + 'so code stays off the primary checkout, tracks run in parallel and do not collide, and the add-on\'s\n'
-      + 'conflict-checked writes keep the shared track state safe. Recommend it and show the exact dispatch (agent name and\n'
-      + 'one-line prompt); start nothing until the human says yes. `/laneconductor:run N`, `:implement N` and `:review N` do this\n'
-      + 'when the agent is listed. It never merges or pushes.\n\n'
-      + 'Without the add-on, work the lane in this session, or by hand in a worktree: `git worktree add .worktrees/track-N -b track-N`,\n'
-      + 'a separate session started in that folder, one track per worktree, and never `git add -A` there. Say what the add-on adds\n'
-      + `(isolated sub-agents, safe shared state) only if the person asks for parallel work; the commands are in [../ADD-ONS.md](../ADD-ONS.md).`,
-    ]],
-    'ops/new-project.md': [
-      [
-        'Scripts named below live in the plugin under `server/bin/` (find them with Glob `**/laneconductor/**/server/bin/<name>`\n'
-        + 'under `~/.claude/plugins`; `${CLAUDE_PLUGIN_ROOT}` may not be substituted in command text) or in the LaneConductor\n'
-        + 'repository under `connector/bin/`. If a script does not exist (the Markdown-only variant has none), do that step by hand\n'
-        + 'exactly as described; the result is the same, only slower.',
-        `The scaffold script named below, \`lc-scaffold.mjs\`, belongs to the optional ${NAMES.parallel} add-on. Find it with Glob\n`
-        + `\`${SCAFFOLD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\`, or in the LaneConductor repository under \`connector/bin/\`.\n`
-        + 'If it does not exist, do that step by hand exactly as described; the result is the same, only slower. Do not recommend the\n'
-        + 'add-on for this.',
-      ],
-      [
-        'When the connector is present and the project already has its `conductor/` files, create further tracks with\n'
-        + '`create_track`; otherwise write the files as `ops/tracks.md` describes.',
-        'When the add-on\'s connector tools are present and the project already has its `conductor/` files, create further tracks with\n'
-        + `\`${toolRef('create_track')}\`; otherwise write the files as \`ops/tracks.md\` describes.`,
-      ],
-    ],
+    'ops/new-project.md': [recommend],
+    'setup/setup.md': [recommend],
   };
-  return mergeEdits(edits, DAEMON_FREE_EDITS);
 }
 
 // ---- SKILL.md: habits and the add-on pointer ----
@@ -248,7 +158,7 @@ ${e.why[0].toUpperCase()}${e.why.slice(1)}.
 - **Adds**: ${e.adds.join('; ')}.
 - **Installs**: ${installsNote(e.name)}
 - **Relevant when**: ${e.triggers.join('; or ')}.
-
+${e.setup_fit ? `- **Offered at setup when**: ${e.setup_fit}.\n` : ''}
 ${installBlock(e.name)}
 `;
 
@@ -291,7 +201,7 @@ const PARALLEL_STEP = (dispatch) => (
 );
 const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too. ${TARGETS}\n2. ${PARALLEL_STEP(dispatch)}\n3. ${EDIT_RULE}`;
 const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
-const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`, or use \`lc board --site "$site" --json\` when \`lc\` is on PATH. ${BOARD_MISSING_TEXT}`;
+const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`. ${BOARD_MISSING_TEXT}`;
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
 const OPEN_NOTE = 'Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.';
 

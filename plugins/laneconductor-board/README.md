@@ -50,7 +50,7 @@ this add-on, and restart your sessions. The files in git are unchanged, so nothi
 ## What it runs and writes
 
 - The script runs `git` read-only (the origin URL and the current branch name), reads `conductor/workflow.json`,
-  `.laneconductor.json` and each track's `index.md`, `spec.md`, `plan.md` and `test.md`, and writes only into the folder you name
+  the optional settings file `.laneconductor.json` and each track's `index.md`, `spec.md`, `plan.md` and `test.md`, and writes only into the folder you name
   with `--site`, never inside `conductor/`. It makes no network requests. Publishing the artifact is done by Claude, with your
   approval, never by the script.
 - Board privacy: every document is scanned for secrets and personal data before it goes onto the board; a file with any match is

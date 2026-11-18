@@ -189,6 +189,6 @@ export function detectProject(dir) {
     const lanes = Object.entries(t.lanes).map(([l, c]) => `${c} in ${l}`).join(', ');
     evidence.push(`conductor/ already exists: ${existing.files.length} file(s), ${t.count} track folder(s) in conductor/tracks (${t.prefixed} with initials, ${t.bare} with a bare number${t.foreign.length ? `, ${t.foreign.length} in another form: ${t.foreign.join(', ')}` : ''})${lanes ? `; lanes: ${lanes}` : ''}`);
   }
-  if (existing.config) evidence.push('.laneconductor.json already exists and is kept as it is');
+  if (existing.config) evidence.push('an older settings file (.laneconductor.json) is present; it is left as it is');
   return { answers, evidence, existing };
 }

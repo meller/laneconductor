@@ -201,12 +201,6 @@ Leave the key out and nothing changes; every reader of `workflow.json` ignores k
 { "skills": { "implement": ["my-firebase-deploy"], "review": ["my-review-checklist"] } }
 ```
 
-**`.laneconductor.json` of a new project** (the `new-project` flow): a state branch and nothing else that
-needs a running process. No `mode`, no database and no sync settings.
-```json
-{ "project": { "name": "<name>" }, "connector": { "state_branch": "main" } }
-```
-
 **`.gitignore` entries of a new project**: `conductor/tracks/**/conversation.md`,
 `conductor/tracks/**/conversation.json` and `.worktrees/`. Nothing else is added.
 

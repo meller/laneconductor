@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// `lc summary`: regenerates conductor/tracks-summary.md from the track folders (plan Phase 3b).
+// The summary script: regenerates conductor/tracks-summary.md from the track folders (plan Phase 3b).
 //   lc-summary.mjs [--repo <path>] [--check] [--include-untracked]
-// Writes the file but does not commit it (like the other `lc` commands that edit track files).
+// Writes the file but does not commit it.
 // Lists only tracks whose index.md is in git at HEAD (a draft track must never reach a commit);
 // --include-untracked lists every track folder on disk.
 // With --check it writes nothing and exits 1 when the committed file is missing or out of date.
@@ -21,7 +21,7 @@ const change = await store.transaction((tx) => summaryChange(tx, Date.now(), new
 if (!change) {
   console.log('conductor/tracks-summary.md is up to date.');
 } else if (check) {
-  console.log('conductor/tracks-summary.md is missing or out of date. Run: lc summary');
+  console.log(`conductor/tracks-summary.md is missing or out of date. Run: node ${process.argv[1]}`);
   process.exitCode = 1;
 } else {
   const abs = path.join(repo, change.path);

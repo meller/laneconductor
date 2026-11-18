@@ -1,8 +1,8 @@
 // conductor/services/track-folder.mjs
 // Track 10040 Phase 3 (REQ-15, Finding 6): the canonical track-folder
 // resolution DECISION, extracted from laneconductor.sync.mjs's
-// resolveTrackFolder as a pure function so a read-only consumer (the `lc
-// track-dir` CLI, and the implement skill's own instructions) can resolve
+// resolveTrackFolder as a pure function so a read-only consumer (a command-line
+// tool, or a skill's own instructions) can resolve
 // a folder WITHOUT mutating the tree as a side effect of answering a
 // question. The worker's resolveTrackFolder becomes a thin wrapper around
 // this that applies the returned quarantine/metadataUpdate as real effects

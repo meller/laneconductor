@@ -40,7 +40,6 @@ Generate these files, creating `conductor/` directories as needed (templates are
   from what the scan found (`package.json` scripts, test runner, lint config, e2e framework). A
   gate naming commands the project does not have is worse than none: it gets skipped or faked.
 - `conductor/tracks/`, and `conductor/code_styleguides/` when the project has lint or format config to describe
-- `.laneconductor.json` with a state branch only (see `templates.md`)
 
 ## setup scaffold (interactive)
 

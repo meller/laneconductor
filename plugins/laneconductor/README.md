@@ -107,7 +107,7 @@ so nothing is lost: your tracks are the same.
 
 The skill is instructions for Claude: it asks Claude to read and edit files and to run shell commands in your project (git, tests,
 builds, and the deploy commands you configure) under your normal Claude Code permission prompts. It reads and writes the track
-folders under `conductor/`, plus `.laneconductor.json` when it exists, and it asks before any push.
+folders under `conductor/`, plus the optional settings file `.laneconductor.json` when it exists, and it asks before any push.
 
 ## Where it works
 

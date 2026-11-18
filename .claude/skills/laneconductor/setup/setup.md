@@ -1,7 +1,7 @@
 # setup: add LaneConductor to this project
 
 `/laneconductor:setup` adds LaneConductor to the project you are in. Run it only when the person asks for it by name. It needs
-no installer and no database: the result is a `conductor/` folder and a small `.laneconductor.json`, plain files
+no installer and no database: the result is a `conductor/` folder, plain files
 in git. Nothing is committed without a yes, and nothing is ever pushed.
 
 Before you write anything, tell the person what you are about to create or change, and wait for a yes.
@@ -19,7 +19,13 @@ Follow [../ops/new-project.md](../ops/new-project.md), its existing-repository p
 3. **Show the plan, then write.** List the files the scaffold would create and the ones it would skip because they exist.
    After a yes, create only the missing ones. An existing README, `package.json` or any other file of the project is never
    touched, and `.gitignore` only gets the three lines it lacks.
-4. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`).
+4. **Say what else fits.** After the project is read, say which optional plugins would help this project (see "What else fits this
+   project" below), then wait for the person's answer.
+5. **Summarize and ask before any commit** (a single commit of the files you created, by name, never `git add -A`).
+
+## What else fits this project
+
+<!-- generated: recommended plugins -->
 
 ## setup scaffold
 

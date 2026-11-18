@@ -12,6 +12,7 @@ Parallel work: isolated sub-agents, one per track in its own worktree, and safe 
 - **Adds**: conflict-checked writes (a write is refused if someone edited first, so several sessions, people or sub-agents can write the same tracks at once); automatic commits of the track changes it makes, and freshness warnings; a generated summary of all tracks; a secret and personal-data scan; an advice log and a health report; a scaffold script for a new project; the `track-runner` sub-agent: one per track, each in its own git worktree.
 - **Installs**: It installs an MCP server (the connector, a Node.js program) and a scaffold script on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 - **Relevant when**: the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites; or the person mentions worktrees or running tracks in parallel; or the person asks for automatic commits, a privacy scan or a health report.
+- **Offered at setup when**: the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents.
 
 ```bash
 claude plugin marketplace add meller/laneconductor
@@ -31,6 +32,7 @@ The board, one private page of every track by lane, which Claude publishes as an
 - **Adds**: the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval; it works with or without the other add-on.
 - **Installs**: It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 - **Relevant when**: the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:refresh-board`).
+- **Offered at setup when**: a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane.
 
 ```bash
 claude plugin marketplace add meller/laneconductor

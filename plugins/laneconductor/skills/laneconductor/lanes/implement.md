@@ -1,7 +1,7 @@
 # implement lane: `/laneconductor implement N`
 
 Execute the track's `plan.md`, phase by phase, communicating through files. A runner
-normally has already locked the track and started you in `.worktrees/NNN`; that is where the
+normally has already started you in `.worktrees/NNN`; that is where the
 commits go.
 
 0. **Claim the track first.** Write `**Lane**: implement` and `**Lane Status**: running` to the
@@ -9,14 +9,14 @@ commits go.
    this project's `workflow.json` keeps `plan.on_success: plan:success`, so the track does not
    land in the implement lane by itself. Without it the board shows the track running in the
    wrong column.
-1. **Locate the track.** `lc track-dir <N>` prints its folder (either naming convention). Never
-   scaffold a second folder for an existing number. Without `lc`, check
-   `conductor/tracks-metadata.json`, then scan `conductor/tracks/` for `INITIALS-NNN-slug` and
-   `NNN-slug`.
+1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
+   `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions). Never
+   scaffold a second folder for an existing number.
 2. **Workspace.** If you were not started inside `.worktrees/NNN` and the track is branch-mode,
-   take the lock yourself: `node conductor/lock.mjs NNN` (prints JSON with `worktree_path`),
-   work there, and finish with `node conductor/unlock.mjs NNN`, also when the work fails. If the
-   lock is already held, stop and report instead of working in the primary checkout.
+   make the worktree yourself: `git worktree add .worktrees/NNN -b track-NNN` (or reuse it if it
+   exists), and work there; with the parallel add-on, the `track-runner` sub-agent does this for
+   you. If another session is already working in that worktree, stop and report instead of
+   working in the primary checkout.
 3. **Read context.** On `FRESH_SESSION: false` skip what you already read this session, except
    `conversation.md` (create it if missing) and `last_run.log`, which you always check for anything new.
    - `plan.md` (phases), `spec.md` (details and `**Type**`), `test.md` (drives the order of work).
@@ -94,11 +94,9 @@ commits go.
    - Append the completion comment to `conversation.md`:
      `> **system**: ✅ Implementation complete - moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`.
-7. **Release the lock** if you took it in step 2 (`node conductor/unlock.mjs NNN`).
-
 Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
 `outcome`, or with the grammar in [../ops/lanes-and-statuses.md](../ops/lanes-and-statuses.md), never by feel. On exit, `**Lane Status**`
-should end as `success` or `queue` according to the outcome; if the work failed, still unlock.
+should end as `success` or `queue` according to the outcome.
 
 ## Skills that help here
 

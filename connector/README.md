@@ -56,7 +56,7 @@ Writes are refused with `NOT_ON_STATE_BRANCH` when the checkout is not on the st
 still work and say so. The state branch is resolved per repo at startup, first match wins:
 
 1. the `--state-branch <name>` flag (every `--repo`);
-2. `connector.state_branch` in that repo's `.laneconductor.json`, e.g. `{ "connector": { "state_branch": "public" } }`
+2. `connector.state_branch` in that repo's optional settings file `.laneconductor.json` (see `ops/settings.md` in the skill), e.g. `{ "connector": { "state_branch": "public" } }`
    (a non-empty, safe branch name; anything else stops the server at startup with an error naming the repo);
 3. the repo's default branch, from `refs/remotes/origin/HEAD` (read locally: no fetch, no network);
 4. the current branch, if it is `main` or `master`;
@@ -91,7 +91,7 @@ The connector also offers every LaneConductor command as an MCP prompt, from one
 `show-board`, `refresh-board`, `setup`, `deploy`. `prompts/get` returns one user message: the procedure with the
 arguments filled in (a missing required argument is an error that names it). The `help` prompt, and the
 read-only `help` tool for clients that do not surface prompts, list the commands grouped, one example phrase each,
-and say which commands need the `lc` command-line tool when it is missing.
+and say which commands need the board add-on's script.
 
 In a client that shows prompts (Claude Desktop, Cursor and others) pick one from the prompt menu; in claude.ai and
 on mobile (through the remote connector) the same prompts appear, where plugin commands do not exist. The catalog is
@@ -107,7 +107,7 @@ By default (`ask`) the connector never pushes. When local commits are ahead of t
 response says `unpushed_local_commits` in `stale_reasons` and carries a warning telling Claude to ask
 the human whether to push, because remote surfaces cannot see those commits.
 
-The human can opt in to a standing permission in `.laneconductor.json`:
+The human can opt in to a standing permission in the optional settings file `.laneconductor.json`:
 
 ```json
 { "connector": { "push": "auto-state" } }
@@ -126,15 +126,15 @@ provenance line shows the last fetch is over an hour old.
 
 `conductor/tracks-summary.md` is a generated list of every track (id, title, lane, status, progress,
 phase, dependencies, and the blob sha of each `index.md`). Never edit it by hand: `create_track` and
-`update_track` regenerate it in the same commit as the track change, `lc summary` regenerates it
-(`lc summary --check` exits 1 when it is missing or out of date), and `list_tracks` builds its rows
+`update_track` regenerate it in the same commit as the track change, `node bin/lc-summary.mjs` regenerates it
+(`--check` exits 1 when it is missing or out of date), and `list_tracks` builds its rows
 from the track files and reports `track_summary_regenerated` in `stale_reasons` when the file
 disagrees with them. Tracks with broken markers are listed under "Needs attention" in the file.
 
 Privacy: the committed file lists only tracks whose `index.md` is in git at HEAD, plus the track the
 current write creates or updates. A draft track folder that is not in git yet never appears in it
 (so its title cannot reach a public repo); `list_tracks` still shows such a track with `untracked: true`
-and a warning. `lc summary` follows the same rule; `lc summary --include-untracked` lists every folder.
+and a warning. The summary script follows the same rule; `--include-untracked` lists every folder.
 
 `conversation.md` is gitignored in the LaneConductor repo itself (decision D5, pending): there
 `append_conversation` writes the file but cannot commit it, and says so (`commit: null`, `commit_error`).
@@ -287,9 +287,9 @@ Everything the connector writes is an ordinary LaneConductor file, readable and 
 To remove it: `claude mcp remove lc-connector` (or delete the `.mcp.json` entry) and, if you want,
 delete `connector/`. Nothing is lost and no state exists only inside the connector.
 
-## Board data (`lc board`)
+## Board data (the board script)
 
-`lc board [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir> [--json]]` prints a JSON snapshot of one
+`node bin/lc-board.mjs [--out <file>] [--pretty] [--now <iso>] [--check <file>] [--site <dir> [--json]]` prints a JSON snapshot of one
 project's tracks for a dashboard (Phase 5d): `project`, `generated_at`, `lanes`, `tracks` (number,
 folder, title, lane, lane_status, progress, phase, depends_on, auto_run, merge_mode, source_hash,
 needs_attention), `counts` (per lane, needs-attention, archived) and `needs_attention` (number plus
@@ -302,7 +302,7 @@ writes a file, and `--check <file>` exits 1 when the file's data differs from a 
 `_quarantine-*` folders are listed with `archived: true` and left out of the counts and the
 needs-attention list. The generator ships in the plugin as `server/bin/lc-board.mjs`.
 
-### The board page (`lc board --site <dir>` and the `board` skill command)
+### The board page (`lc-board.mjs --site <dir>` and the `board` skill command)
 
 `--site <dir>` writes the files a board artifact is published from (`board.html`, `board.json` and
 `docs/<number>.json`, below), prints the first two absolute paths (one per line, nothing else on
@@ -319,7 +319,7 @@ only, titles, lanes, status, progress, phase and check reasons). A refresh there
 (a script or this connector cannot call the Artifact tool), so publishing is the skill command
 `board` ("show the board", "update the board", `/laneconductor board`, steps in
 `skills/laneconductor/ops/board.md`): it generates into a temp dir, publishes both files to the URL
-in `.laneconductor.json` (`board.artifact_url`, created after a yes the first time), and opens it.
+in the optional settings file `.laneconductor.json` (`board.artifact_url`, created after a yes the first time), and opens it.
 The board is private until the human shares it, and it is a snapshot, never live. In the plugin the
 generator is `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site <dir>`. Tests:
 `test/board-page.test.mjs` (the files, privacy, and the page run against a fake DOM).
@@ -329,7 +329,7 @@ generator is `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site
 Clicking (or Enter/Space on) a track card, a Done row or a needs-attention row opens a drawer (a
 full-screen sheet at phone width) with the track's id, title, lane, status, progress and phase and the
 tabs Overview (`index.md`), Plan, Spec and Tests, plus Conversation only when the docs file has one.
-The tabs read `docs/<number>.json`, fetched once and kept in memory. `lc board --site` writes one such
+The tabs read `docs/<number>.json`, fetched once and kept in memory. `lc-board.mjs --site` writes one such
 file (`{ n, folder, index, plan, spec, test, conversation?, withheld? }`) for every live, non-archived
 track that is not done, at most 200 per site (oldest backlog tracks are dropped first and counted in
 `board.json` as `docs_dropped`; with the page and `board.json` that stays under the Artifact tool's 255
@@ -350,7 +350,7 @@ Privacy:
   and phone numbers with separators). It returns line numbers and pattern names only, never the matched
   text. A file with any match is not embedded: its field is left out, `withheld[<field>]` says
   `possible secret or personal data (N matches)`, the page shows `withheld: <reason>` in its place, the
-  rest of that track's files are still embedded, and `lc board` names the file on stderr (track,
+  rest of that track's files are still embedded, and the board script names the file on stderr (track,
   file, line numbers) so Claude can tell the human.
 - The page footer says that sharing the board shares these documents.
 - Markdown is rendered by a small in-page renderer that builds DOM nodes with `createElement` and

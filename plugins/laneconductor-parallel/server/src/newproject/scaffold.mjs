@@ -1,5 +1,5 @@
 // New-project scaffold (track AM-10117, Phase 1): from the answers of the guided interview, render the `conductor/` context
-// files, `.laneconductor.json`, the `.gitignore` entries and the first tracks. Deterministic and dependency-light: the
+// files, the `.gitignore` entries and the first tracks. Deterministic and dependency-light: the
 // interview itself is a Markdown procedure (skill file ops/new-project.md); this is the part that must not be left to chance.
 //
 // What it never does: it adds no daemon and no database (no `mode`, no collectors), it names in `quality-gate.md`
@@ -151,11 +151,6 @@ const WORKFLOW_MD = `# Workflow
 Machine-readable config lives in \`conductor/workflow.json\` (lane transitions, parallel limits, retries).
 `;
 
-/** The `.laneconductor.json` of a new project: a state branch and nothing else. No mode, no database, no collectors. */
-export function laneconductorConfig(a) {
-  return { project: { name: a.name }, connector: { state_branch: a.stateBranch } };
-}
-
 /** Map<repo-relative path, content> of every file the scaffold creates (not the tracks, and not `.gitignore`, which is merged). */
 export function renderScaffold(answers) {
   const a = normalizeAnswers(answers);
@@ -171,7 +166,6 @@ export function renderScaffold(answers) {
     ['conductor/user-stories.md', userStoriesMd(a)],
     ['conductor/kpis.md', kpisMd(a)],
     ['conductor/tracks/.gitkeep', ''],
-    ['.laneconductor.json', json(laneconductorConfig(a))],
   ]);
 }
 

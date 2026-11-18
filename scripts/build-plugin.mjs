@@ -51,14 +51,15 @@ import { fileURLToPath } from 'node:url';
 import { COMMANDS, argumentHint, helpLines } from '../connector/src/commands.mjs';
 import {
   ADD_ONS_MD, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, AUTHOR, AUTHOR_URL, BASE_EXTRAS, BASE_HABITS, BASE_HELP_FOOTER, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX,
-  DISPLAY, LEGACY_NOTE, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
+  DISPLAY, MARKETPLACE, MARKETPLACE_ADD_COMMAND, MARKETPLACE_SOURCE, MIGRATION_UNINSTALL_COMMAND, NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND,
   RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits, toolRef, toolsUsedBy,
+  RECOMMEND_MARKER, setupRecommendBlock,
 } from './plugin-texts.mjs';
 
 export {
-  ADD_ONS_MD, PLUGINS_CACHE, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, BASE_HABITS, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX, LEGACY_NOTE, MARKETPLACE_ADD_COMMAND, MIGRATION_UNINSTALL_COMMAND,
+  ADD_ONS_MD, PLUGINS_CACHE, ADDONS, CATALOG_REL, RECOMMENDED, addonsReadmeBlock, installsNote, BASE_HABITS, BASE_PROCEDURES, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, CONNECTOR_TOOL_PREFIX, MARKETPLACE_ADD_COMMAND, MIGRATION_UNINSTALL_COMMAND,
   NAMES, PRIVACY_URL, PROFILES, RELOAD_COMMAND, RELS, REPO_URL, SCAFFOLD_SCRIPT_GLOB, SERVER_KEY, TRACK_RUNNER_AGENT, connectorLine, installBlock, installCommands, sessionInstallCommands, skillEdits,
-  toolRef, toolsUsedBy,
+  toolRef, toolsUsedBy, RECOMMEND_MARKER, setupRecommendBlock,
 };
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -381,7 +382,7 @@ export function buildPluginMap(facts) {
       ...(['implement', 'review', 'run'].includes(cmd.name) ? [`the \`${parallel.agents[0]?.name ?? 'track-runner'}\` sub-agent`] : []),
       ...(cmd.name === 'new-project' ? ['its scaffold script'] : []),
     ].join(', ');
-    const needs = cmd.needsLc === 'always' ? 'yes' : cmd.needsLc === 'refreshing' ? 'only to refresh' : '';
+    const needs = cmd.needsBoardScript === 'always' ? 'yes' : cmd.needsBoardScript === 'refreshing' ? 'only to refresh' : '';
     L.push(`| \`${cmd.name}\` | ${needs === 'yes' ? 'no (shows how to get the add-on)' : 'yes'} | ${uses || 'nothing'} | ${needs || 'no'} |`);
   }
   L.push('');

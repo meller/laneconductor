@@ -8,14 +8,15 @@ fresh as its "generated at" time.
 
 ## 1. Generate
 
-From the project root:
+The page is built by the board script of the optional `laneconductor-board` add-on. Find it with Glob
+`**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache`, or `connector/bin/lc-board.mjs` in the
+LaneConductor repository. From the project root:
 
 ```
-site=$(mktemp -d) && lc board --site "$site" --json
+site=$(mktemp -d) && node <that path> --repo . --site "$site" --json
 ```
 
-No `lc` on PATH but the LaneConductor plugin is installed: `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site "$site" --json`.
-Neither exists: say so and stop. The temp dir stays outside the repo (the command refuses a folder
+If the script is not found, the add-on is not installed: say so in a sentence and stop. The temp dir stays outside the repo (the script refuses a folder
 under `conductor/`). Stdout is one JSON object and nothing else: `{ "page": "<dir>/board.html",
 "root": "<dir>", "files": ["board.json", "docs/1.json", ...] }`. `board.html` is the page (identical
 every time, no data in it); `board.json` is the data (project, generated_at, tracks, attn); each
@@ -24,7 +25,7 @@ shown when a track is opened. Pass `page` as `file_path` and `root` as `root` to
 and `files` as a map from each listed path to itself (`{"board.json": "board.json", "docs/1.json": "docs/1.json", ...}`; the
 sources resolve against `root`).
 
-stderr lists anything the privacy scan withheld, one line per file (`lc board: withheld track 10099
+stderr lists anything the privacy scan withheld, one line per file (`board: withheld track 10099
 spec.md: 2 possible secret or personal data matches (lines 3, 4); not published`), and any tracks
 left without documents because of the 200-file limit. Report each withheld file to the human by
 track number and file name (never repeat or look for the matched text). A site has at most 200 docs
@@ -33,7 +34,7 @@ ever see more files than that, stop and say so instead of publishing part of the
 
 ## 2. Find the URL
 
-Read `board.artifact_url` in `.laneconductor.json` (the file is gitignored; it may have no `board` key).
+Read `board.artifact_url` in `.laneconductor.json`, the optional personal settings file ([settings.md](settings.md)). The file may be missing or have no `board` key; then there is no stored URL.
 
 ## 3a. URL exists: update
 
@@ -55,7 +56,9 @@ Read `board.artifact_url` in `.laneconductor.json` (the file is gitignored; it m
    `icon: "board"`, `description`: one sentence, e.g. "Tracks by lane for <project>, a snapshot read from the track files."
    Load the artifact-design skill only if you must change the page (normally you do not).
 3. Merge the returned URL into `.laneconductor.json` as `board.artifact_url`, keeping the file valid
-   JSON and every other key as it was.
+   JSON and every other key as it was (create the file if it does not exist). The URL is private, so
+   first make sure `.laneconductor.json` is listed in `.gitignore`; if it is not, say that you will add
+   the line and ask first, because it changes a project file.
 
 ## 4. Show
 
@@ -65,11 +68,11 @@ covers this repo's project only).
 
 ## Rules
 
-- Publish only what the command generated: `board.html`, `board.json` and the `docs/*.json` files it
+- Publish only what the script generated: `board.html`, `board.json` and the `docs/*.json` files it
   listed. Never add, edit or hand-write a file, and never put anything else on the board.
 - What the board holds: `board.json` has titles, lanes, status, progress, phase and check reasons.
   The docs files hold the index, plan, spec and test text of every track that is not done (plus
-  `conversation.md` only when `.laneconductor.json` has `board.include_conversation: true`; it is off
+  `conversation.md` only when the settings file has `board.include_conversation: true`; it is off
   by default). `board.include_docs: false` turns all documents off, and then the board is the header
   data only. Each document goes through a secret, email and phone scan first; a file with a match is
   withheld (the page says "withheld: possible secret or personal data" in its place). Tell the human
@@ -77,5 +80,5 @@ covers this repo's project only).
 - Say so plainly: the documents are on the board, so sharing the board shares them. The page footer
   says the same. Do not turn `board.include_conversation` on yourself; it is the human's choice.
 - The board stays private. Sharing is the human's choice from the page's Share menu; never share it.
-- Never claim the board is live or updates by itself; to refresh it, run this command again.
+- Never claim the board is live or updates by itself; to refresh it, run this procedure again.
 - If a step fails, report which step and the error; do not publish a partial board.

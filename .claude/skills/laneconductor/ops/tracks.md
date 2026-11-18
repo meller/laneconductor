@@ -1,18 +1,15 @@
 # Track operations
 
-The daemon's conversation-reply prompt calls `comment` and `move`, so these are live commands, not
-legacy. Where a `lc` command exists it is the recommended route: it applies the same rules as the
-worker. The file edits below are the fallback for sessions without `lc`.
+With the parallel add-on installed, use its connector tools (`create_track`, `update_track`, `append_conversation`): they refuse a write when someone edited first. The file edits below always work, with or without the add-on.
 
 ## newTrack `[name] [description]`
 
-Recommended: `lc new "Title" "Description"` (add `--merge-mode pr` / `--auto-run no` to opt a
-track out of the defaults). By hand:
+With the add-on, call `create_track` (it takes the same fields, including the merge mode and auto run
+markers). By hand:
 
 1. **Number and author initials.** Take initials from `git config user.name` (first letter of each
    word, at most 3, `XX` if unset: "Asaf Meller" -> `AM`, "John von Neumann" -> `JVN`). Find the
-   highest existing number by scanning `conductor/tracks/file_sync_queue.md` (`### Track NNN:`)
-   and every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
+   highest existing number by scanning every folder name under `conductor/tracks/`, ignoring any prefix (`10022-slug` and
    `AM-10022-slug` both give `10022`). The display ID is `INITIALS-NNN`; the folder is
    `INITIALS-NNN-slug/`.
 2. **Create `conductor/tracks/INITIALS-NNN-slug/index.md` right away**, for fast feedback:
@@ -35,30 +32,17 @@ track out of the defaults). By hand:
    conservative `pr` / not-auto-run). Write `pr` / `no` only when the user asks for it on this
    track ("this one needs a PR, don't auto-run it"). The change affects new tracks only; a track
    that already exists without the markers keeps the old fallbacks.
-3. **Queue it.** Append to `conductor/tracks/file_sync_queue.md` under `## Track Creation Requests`:
-   ```markdown
-   ### Track NNN: [name]
-   **Status**: pending
-   **Type**: track-create
-   **Created**: [ISO timestamp]
-   **Title**: [name]
-   **Description**: [description]
-   **Author**: INITIALS
-   **Metadata**: { "priority": "medium", "assignee": null }
-   ```
-   The sync worker (chokidar, or the 5s heartbeat) creates the DB row and moves the entry to
-   `## Completed Queue`.
+3. **No queue file.** The folder you just made is the track; nothing else registers it.
 4. **Non-dev types.** For `marketing` or `sales`, look in `.claude/skills/` for the recommended
    skills (marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`;
    sales: `sales-enablement`, `cold-email`) and tell the user which are missing.
-5. Print `✅ Track NNN queued in file_sync_queue.md. Worker will register in DB on next cycle.`
+5. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
 
 ## move `[track-number] [lane:status]`
 
 Moving to a lane without a status means `queue`: `move NNN backlog`, `move NNN implement:queue`
-(the worker picks it up), `move NNN plan:success` (parked as done planning). Run
-`lc move NNN lane:status`; without `lc`, set `**Lane**` and `**Lane Status**` in
-`conductor/tracks/NNN-*/index.md`. The sync worker notices the change and queues the work.
+(it waits in that lane), `move NNN plan:success` (parked as done planning). Set `**Lane**` and
+`**Lane Status**` in `conductor/tracks/NNN-*/index.md` (with the add-on, `update_track` with those markers).
 Prefer a `lane:status` that `workflow.json` defines for that lane. When the move is "this lane's action
 finished", do not work the target out yourself: with the connector, call `update_track` with `outcome`
 (`success` or `failure`) and the `base` from `get_track`, which applies the workflow's move; its answer to
@@ -70,27 +54,23 @@ for the same lane it is `success` or `failure`).
 
 Update the track's markers in `conductor/tracks/NNN-*/index.md`: `**Progress**: N%`, `**Phase**`
 when the work entered a new phase, `**Step**` (the current activity; infer it if not given),
-`**Summary**`, and `**Waiting for reply**: no` after every AI response. The sync worker pushes
-the change to the DB. A `[status]` that names a lane is a move, so use `move` for that;
+`**Summary**`, and `**Waiting for reply**: no` after every AI response. A `[status]` that names a lane is a move, so use `move` for that;
 `pulse` does not write `**Status**` any more (it is a legacy marker the parser only reads when
 `**Lane**` is missing).
 
 ## comment `[track-number] [body]`
 
 Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-The sync worker pushes it to the database. Use `⚠️` for something that needs a human and `ℹ️` for
+Use `⚠️` for something that needs a human and `ℹ️` for
 a note. This is also how an agent answers a human comment.
 
 ## delete `[track-number]`
 
 A hard delete with no undo; the recommended soft alternative is `move NNN backlog`. Ask the user
-to confirm first, naming the track title. Then `lc delete NNN`, or by hand:
-1. `rm -rf conductor/tracks/NNN-*/` after the confirmation.
-2. Remove the track's entry from `conductor/tracks/file_sync_queue.md`.
-3. If `mode` is `local-api` or `remote-api`, call `DELETE /api/projects/:id/tracks/NNN`.
-4. Remove its lock and worktree: `node conductor/unlock.mjs NNN`, or delete
-   `.conductor/locks/NNN.lock` (the path `conductor/lock.mjs` writes) by hand.
-5. Print `✅ Track NNN deleted`.
+to confirm first, naming the track title. Then:
+1. `rm -rf conductor/tracks/NNN-*/` after the confirmation (Glob both naming forms first).
+2. If a worktree exists for it, remove it: `git worktree remove .worktrees/NNN`, and the branch with `git branch -d track-NNN`.
+3. Print `✅ Track NNN deleted`.
 
 ## revert `[track] [phase] [task?]`
 
@@ -100,8 +80,8 @@ a phase, set the lane back to `implement`.
 
 ## status
 
-Run `lc status` (it also checks worker health). Without `lc`, read `**Lane**`, `**Progress**` and
-`**Phase**` from every `conductor/tracks/*/index.md` and print the tracks grouped by lane.
+Read `**Lane**`, `**Progress**` and
+`**Phase**` from every `conductor/tracks/*/index.md` (with the add-on, `list_tracks`) and print the tracks grouped by lane.
 
 ## workflow, workflow set `[lane] [key] [value]`
 
@@ -111,9 +91,8 @@ the file. A `workflow.json` that still has bare targets, `auto_action` or the ol
 `in-progress`) is the older format: it works, and migrating it is only ever offered (see the command
 text), never done without the person's yes.
 
-`lc workflow` prints `conductor/workflow.json` as a table (lane, auto action, on_success,
-on_failure, retries, model); `lc workflow set <lane> <key> <value>` edits one field. Without
-`lc`, edit the JSON: `lanes[lane][key]`, or `global[key]` / `defaults[key]` when the lane is
+To show the workflow, print `conductor/workflow.json` as a table (lane, auto action, on_success,
+on_failure, retries, model). To set one field, edit the JSON by hand: `lanes[lane][key]`, or `global[key]` / `defaults[key]` when the lane is
 `global` or `defaults`; numeric fields are integers. Examples:
 ```
 workflow set review max_retries 3
@@ -128,10 +107,9 @@ Valid keys per lane: `parallel_limit`, `max_retries`, `primary_model`, `auto_act
 
 ## updateTrack, reportaBug, featureRequest
 
-These are CLI commands with no skill-side procedure: run `lc update-track [id] [msg]` (adds
-work, a bug or a feature to an existing track and returns it to backlog), `lc report-bug [desc]`
-and `lc feature-request [desc]` (each updates a matching track or creates a new bug / feature
-track). Without `lc`, the recommended equivalent is: search `conductor/tracks/*/index.md` for a
+`updateTrack [id] [msg]` adds work, a bug or a feature to an existing track and returns it to backlog;
+`reportaBug [desc]` and `featureRequest [desc]` each update a matching track or create a new bug / feature
+track. The procedure (with the add-on, `create_track` and `update_track` do the writes): search `conductor/tracks/*/index.md` for a
 matching track; if one exists append the new detail to its `conversation.md` and `move NNN backlog`,
 otherwise create one with newTrack and set `**Track Kind**: bug` or `feature`.
 
@@ -141,10 +119,10 @@ A new bug or feature track is a form, not the generic skeleton. A bug `spec.md` 
 regression-test case that reproduces the bug and fails before the fix. A feature `spec.md` has
 `## The need`, `## Who it is for`, `## Wanted outcome`, `## Acceptance criteria`, `## Out of scope`.
 The exact text is in [setup/templates.md](../setup/templates.md) ("Track spec forms"); the
-connector's `create_track` with `track_kind` writes the same forms.
+laneconductor-parallel add-on's `mcp__plugin_laneconductor-parallel_lc__create_track` with `track_kind` writes the same forms when it is present.
 
 ## init-tracks-summary
 
-Regenerates `conductor/tracks.md` (counts per lane, tracks grouped by lane) from every track's
-`index.md`: run `lc init-summary` or `node conductor/init-tracks-summary.mjs` from the LaneConductor
-install path (the path in `~/.laneconductorrc` leads to it). Run it manually whenever the summary looks stale.
+The summary file `conductor/tracks-summary.md` (counts per lane, tracks grouped by lane) is built from every
+track's `index.md`. The parallel add-on regenerates it on every write; without it, write the file by hand
+from the track folders whenever the summary looks stale.

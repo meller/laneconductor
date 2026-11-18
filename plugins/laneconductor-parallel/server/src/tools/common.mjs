@@ -129,7 +129,7 @@ export const publishable = (entries, include = []) => entries.filter((e) => e.tr
  * The summary file change to add to a track write, or null when it would not change. `pending` maps
  * folder -> the index.md text this write is about to produce. The file is regenerated, never merged,
  * so it carries no precondition (a hand edit is simply replaced). Untracked draft tracks are left out
- * unless `includeUntracked` (only `lc summary --include-untracked`, which writes a file but commits nothing).
+ * unless `includeUntracked` (only the summary script's `--include-untracked`, which writes a file but commits nothing).
  */
 export async function summaryChange(tx, nowMs, pending, { includeUntracked = false } = {}) {
   let entries = await readEntries(tx);

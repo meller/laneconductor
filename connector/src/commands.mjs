@@ -7,8 +7,8 @@
 // behaviour (frontmatter, sub-agent names, the fallback line, the Artifact tool) lives in the generator's profile.
 //
 // An entry: name, group, title, description (one line), example (one natural phrase), args [{ name, hint, description, required }],
-// connector (the procedure uses connector tools: the Claude adapter adds the fallback line), needsLc (set when the command needs the
-// `lc` command-line tool or the board script for a part of its work), procedure (text with {{arg}} placeholders), or `render: 'help'`.
+// connector (the procedure uses connector tools: the Claude adapter adds the fallback line), needsBoardScript (set when the command needs the
+// board script of the optional board add-on for a part of its work), procedure (text with {{arg}} placeholders), or `render: 'help'`.
 
 export const GROUPS = ['plan and deliver', 'create and manage', 'board', 'setup and deploy'];
 
@@ -34,13 +34,13 @@ const LANE_WORK = (lane, dispatch) => (
 );
 const SHOW_BOARD = (
   'Show the existing board. Read only: never regenerate or republish it.\n\n'
-  + '1. Find the stored board URL (`board.artifact_url` in `.laneconductor.json`; step 2 of the skill file `ops/board.md`).\n'
+  + '1. Find the stored board URL (`board.artifact_url` in the optional settings file `.laneconductor.json`, see the skill file `ops/settings.md`; step 2 of `ops/board.md`).\n'
   + '2. Open the stored board and give me the link, when the snapshot was generated (its read time) and the privacy note: the board is private, it is a snapshot, and sharing it shares the documents of the tracks that are not done.\n'
   + '3. If no board URL is stored, say so and suggest `refresh-board`; do not create one.'
 );
 const REFRESH_BOARD = (
   'Refresh the board: rebuild its page and data from the track files and republish them to the stored URL. The procedure is the skill file `ops/board.md`; follow it, including its privacy handling.\n\n'
-  + '1. Generate the page and data (step 1): `lc board --site <dir> --json`, or the board script when `lc` is missing. If neither exists, say so and stop; do not build the page by hand.\n'
+  + '1. Generate the page and data (step 1) with the board script, found as step 1 of `ops/board.md` says. If it does not exist, say so and stop; do not build the page by hand.\n'
   + '2. Find the stored URL (step 2) and update that board in place (step 3a). If no URL is stored, ask me "Create a private board for this project?" and create nothing without my yes (step 3b).\n'
   + '3. Report the link, when it was generated, and anything the privacy scan withheld, by track number and file name.'
 );
@@ -94,7 +94,7 @@ export const COMMANDS = [
       + '3. Show the exact dispatch you would make, with this prompt: "Work track N through its <current lane> lane: read the lane guide, do the work, commit in your worktree, report commits and test results; do not merge or push." One dispatch per lane, one agent per track.\n'
       + '4. Start nothing until I say yes. If I decline, or sub-agents are unavailable (chat), work the lane in this session following its lane guide.\n'
       + `5. Record state with \`update_track\` and the \`base\` from \`get_track\`. ${FINISH} Ask me before any merge or push.\n`
-      + '6. If I ask for the board along the way: building it needs the `lc` command-line tool or the board script; if neither exists, say so and stop that step.',
+      + '6. If I ask for the board along the way: building it needs the board script of the board add-on; if it does not exist, say so and stop that step.',
   },
   {
     name: 'review-plan', group: 'plan and deliver', title: 'Review a plan',
@@ -189,7 +189,7 @@ export const COMMANDS = [
   {
     name: 'board', group: 'board', title: 'Board',
     description: 'Show or refresh the project board (asks which when unclear)',
-    example: 'show the board', needsLc: 'refreshing', args: [ACTION('show | update', '`show` opens the existing board, `update` refreshes it; empty means ask.')],
+    example: 'show the board', needsBoardScript: 'refreshing', args: [ACTION('show | update', '`show` opens the existing board, `update` refreshes it; empty means ask.')],
     procedure: 'Board: {{action}}. `show` means the existing board, `update` means refresh it. If that is empty or unclear, ask me which one I want before doing anything: showing the existing board (never regenerates) or refreshing it (rebuild and republish).\n\n'
       + `To show:\n${SHOW_BOARD}\n\nTo update:\n${REFRESH_BOARD}`,
   },
@@ -201,7 +201,7 @@ export const COMMANDS = [
   {
     name: 'refresh-board', group: 'board', title: 'Refresh the board',
     description: 'Rebuild the board from the track files and republish it to its stored URL',
-    example: 'refresh the board', needsLc: 'always', args: [], procedure: REFRESH_BOARD,
+    example: 'refresh the board', needsBoardScript: 'always', args: [], procedure: REFRESH_BOARD,
   },
   {
     name: 'setup', group: 'setup and deploy', title: 'Add LaneConductor to this project',
@@ -212,7 +212,8 @@ export const COMMANDS = [
       + 'Setup means adding LaneConductor to the project I am in. Follow the skill file `ops/new-project.md`, its existing-repository path; read it in full first.\n'
       + '1. Read package.json (or the equivalent), the README, the CI files and the lint config; infer the project name, the stack and the test and lint commands, and ask only to confirm them, in one message.\n'
       + '2. If `conductor/tracks` already exists from an older LaneConductor, say what you found and import nothing silently.\n'
-      + '3. Tell me what you are about to create or change before you write anything. Never overwrite an existing file; the scaffold skips what exists. Ask before any commit; never push.\n\n'
+      + '3. Tell me what you are about to create or change before you write anything. Never overwrite an existing file; the scaffold skips what exists. Ask before any commit; never push.\n'
+      + '4. Setup needs no installed command-line tool and no settings file: look for no program other than `git` and the scripts the skill file names, and read no settings file. After reading the project, say which optional plugins fit it and show their install commands, as the skill file says (never run them).\n\n'
       + 'When the action is `scaffold`, go straight to `setup/scaffold.md` (templates in `setup/templates.md`) and skip the interview; the same rules hold. Read the file in full first and tell me what you are about to create or change before you write anything.',
   },
   {
@@ -257,11 +258,11 @@ export function helpLines(intro = 'LaneConductor commands. Say one in your own w
   return lines;
 }
 
-/** The list `help` returns, grouped, one example phrase per command, and the note on the `lc` command-line tool. */
+/** The list `help` returns, grouped, one example phrase per command, and the note on the board script. */
 export function helpText() {
-  const needs = COMMANDS.filter((c) => c.needsLc);
+  const needs = COMMANDS.filter((c) => c.needsBoardScript);
   return [...helpLines(),
-    `Needs the \`lc\` command-line tool (or the board script) when it is missing: ${needs.map((c) => `${c.name}${c.needsLc === 'refreshing' ? ' (only to refresh)' : ''}`).join(', ')}. `
+    `Needs the board add-on's script: ${needs.map((c) => `${c.name}${c.needsBoardScript === 'refreshing' ? ' (only to refresh)' : ''}`).join(', ')}. `
     + 'Without it they say so and stop; every other command works through the connector tools or by editing the track files.',
   ].join('\n');
 }
@@ -272,6 +273,6 @@ export const renderCommand = (cmd, values) => (cmd.render === 'help' ? helpText(
 /** Machine-readable form for the `help` tool: grouped, one example each. */
 export function helpData() {
   return {
-    commands: COMMANDS.map((c) => ({ name: c.name, group: c.group, description: c.description, arguments: argumentHint(c), example: c.example, needs_lc: c.needsLc ?? null })),
+    commands: COMMANDS.map((c) => ({ name: c.name, group: c.group, description: c.description, arguments: argumentHint(c), example: c.example, needs_board_script: c.needsBoardScript ?? null })),
   };
 }

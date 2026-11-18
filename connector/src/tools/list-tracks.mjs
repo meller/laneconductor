@@ -39,7 +39,7 @@ export const listTracks = {
     const check = checkSummary(cur?.content ?? null, publishable(entries), await workflowLanes(store));
     if (check.status !== 'ok') {
       staleReasons.push('track_summary_regenerated');
-      warnings.push(`${check.reason}; this list was regenerated from a scan of the track folders. The next track write (or \`lc summary\`) rewrites the file.`);
+      warnings.push(`${check.reason}; this list was regenerated from a scan of the track folders. The next track write rewrites the file.`);
     }
     const q = args.query?.toLowerCase();
     const matches = rows

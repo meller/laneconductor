@@ -112,7 +112,8 @@ A remote connector for chat and mobile does not exist yet; it is not available.
 
 Open your project in Claude Code and ask in plain words, or use a command:
 
-- `/laneconductor:setup` sets LaneConductor up in a new project; `/laneconductor:new <title: what and why>` starts a
+- `/laneconductor:setup` sets LaneConductor up in a project (it needs no installed program), and at the end says which of the
+  two add-ons would help that project, with the install commands for you to run; `/laneconductor:new <title: what and why>` starts a
   track (`:bug` and `:feature` start one of those kinds).
 - `/laneconductor:new-project <name or idea>` starts a project from a short chat: it asks a few questions one at a
   time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks. It asks before
@@ -130,26 +131,27 @@ you say yes.
 
 The board is part of the plugin: `/laneconductor:board`, or just ask Claude to "update the board".
 
-- It is a static page plus a data snapshot (`board.json`), built by `lc board --site <dir>` (the plugin has its own
-  copy of the script, so you do not need the `lc` command). Claude publishes it as a **private** artifact and keeps
-  its URL in `.laneconductor.json` (`board.artifact_url`).
+- It is a static page plus a data snapshot (`board.json`), built by the script of the `laneconductor-board`
+  add-on (no other program is needed). Claude publishes it as a **private** artifact and keeps
+  its URL in the optional settings file `.laneconductor.json` (`board.artifact_url`; that file is private, so Claude adds it to
+  `.gitignore` first, after asking).
 - It is a **snapshot**. It changes only when Claude refreshes it, and it shows when it was generated.
 - Click a track to see its Overview, Plan, Spec and Tests.
 - Every document passes a privacy scan first. A file with secrets, email addresses or phone numbers in it is
   withheld whole and named by track number and file name. `conversation.md` is left out unless you set
   `board.include_conversation: true`.
 - Sharing the board shares the documents on it, so share it only with people who may read them.
-- It needs the plugin's local script, so it works in Claude Code and Cowork, not in claude.ai chat alone.
+- It needs the board add-on's local script, so it works in Claude Code and Cowork, not in claude.ai chat alone.
 
 ## Migrate an existing project
 
-If the project used the earlier install (`make install`, or a copy or symlink of the skill):
+If the project used the earlier install (a copy or symlink of the skill, or a running sync worker):
 
 1. Install the plugin (above).
 2. Open a session in the project and confirm `/mcp` shows `plugin:laneconductor:lc`.
 3. Remove the project's own skill (`.claude/skills/laneconductor`, often a symlink) and any user-level copy
    (`~/.claude/skills/laneconductor`) so the skill is not loaded twice.
-4. If a worker runs for the project, stop it with `lc worker stop`. Nothing needs it any more.
+4. If a sync worker still runs for the project, stop it. It is not part of the plugins, and nothing needs it any more.
 
 Your tracks do not change; they are the same files. A Postgres database from the older setup is not read by the
 plugin and can be left alone or dropped. If you used the 0.2.x `laneconductor` plugin, you already have the
@@ -165,7 +167,7 @@ directly only if the connector's MCP server fails to start.
   with `CONFLICT` and nothing is overwritten.
 - **Automatic commits.** Each write is one git commit containing only the files it wrote, on the project's state
   branch.
-- **State branch.** The connector writes on `connector.state_branch` from `.laneconductor.json` if you set it;
+- **State branch.** The connector writes on `connector.state_branch` from the optional settings file `.laneconductor.json` if you set it;
   otherwise the repo's default branch; otherwise the current branch if it is `main` or `master`; otherwise `main`.
   It refuses to write while the checkout is on any other branch.
 - **No pushes without asking.** The connector makes no network requests and never pushes unless you set
@@ -188,8 +190,8 @@ second-opinion style: use them if installed, say so if one is missing.
 The earlier version of LaneConductor was a Postgres-backed Kanban dashboard (Vite and React), a sync daemon,
 queue workers with dispatch, a cloud collector and federated hubs. It is parked, not deleted: it is preserved at the
 [`v1-legacy`](../../tree/v1-legacy) git tag, the daemon is stopped, and the plugin does not need any of it. The
-folders `conductor/`, `ui/`, `cloud/`, `migrations/` and `bin/` still hold that code, and `make install`, `lc start`
-and `lc ui` belong to it. Use that tag if you want to run it.
+folders `conductor/`, `ui/`, `cloud/`, `migrations/` and `bin/` still hold that code, with its own install and start
+commands; they are not documented here. Use that tag if you want to run it.
 
 ![The legacy Kanban dashboard](docs/hero.png)
 
@@ -210,7 +212,7 @@ and `lc ui` belong to it. Use that tag if you want to run it.
 - `scripts/`: the plugin generator and the zip script.
 - `.claude/skills/laneconductor/`: the source of the skill (lane guides and operations).
 - `conductor/tracks/`: this project's own tracks.
-- Legacy tier (tag `v1-legacy`): `bin/` (the `lc` CLI), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
+- Legacy tier (tag `v1-legacy`): `bin/` (its command-line tool), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
 
 ## License
 

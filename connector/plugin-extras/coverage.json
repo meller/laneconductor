@@ -1,7 +1,7 @@
 {
   "comment": "Routing-table commands of the laneconductor skill that have NO command in the catalog (connector/src/commands.mjs, which becomes both the MCP prompts and plugins/laneconductor/commands/*.md). connector/test/plugin-coverage.test.mjs fails when a routing-table name is neither a catalog command (or an alias of one, below) nor listed here, and when a catalog command is neither a routing name, an alias target, nor listed under catalogOnly.",
   "entries": {
-    "init-tracks-summary": { "kind": "automatic", "reason": "The connector regenerates tracks-summary.md on every write; `lc summary` remains for plain edits made outside the connector." },
+    "init-tracks-summary": { "kind": "automatic", "reason": "The connector regenerates tracks-summary.md on every write; by hand otherwise, from the track folders." },
     "revert": { "kind": "skill-only", "reason": "Needs judgement about which commit and which phase to undo; a thin command would hide that decision." },
     "delete": { "kind": "skill-only", "reason": "Destructive, no undo, and the skill runs it only when named; a one-keystroke command invites accidents. The safe alternative is /laneconductor:move N backlog." }
   },

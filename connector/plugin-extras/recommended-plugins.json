@@ -1,5 +1,5 @@
 {
-  "comment": "The ONE source of every recommendation LaneConductor makes (track AM-10128; track AM-10124's skill advisor, skill packs and third-party skills will add entries here, not text). scripts/plugin-texts.mjs generates from it: the Add-ons paragraph of the base SKILL.md, ADD-ONS.md, the fallback text of the board commands, the worktree pointer in run/implement/review, ops/board.md's 'missing' section and the README blocks. Fields: name (the plugin id); kind (addon | skillpack | thirdparty); display; source { marketplace: the marketplace name, add: what `claude plugin marketplace add` takes, plugin: the plugin id in it }; installs_code (true when the plugin ships a script or an MCP server: the generated note then says so plainly); installs (what it installs, one phrase, used when installs_code is true); why (one line: what it adds); adds (bullets); detect (how Claude can tell it is installed); triggers (the only moments to mention it; a person asking, never a nag). connector/test/recommendations.test.mjs checks that every plugin named in the generated text is an entry here and that the install commands match .claude-plugin/marketplace.json. Never run an install: the commands are shown, the person runs them.",
+  "comment": "The ONE source of every recommendation LaneConductor makes (track AM-10128; track AM-10124's skill advisor, skill packs and third-party skills will add entries here, not text). scripts/plugin-texts.mjs generates from it: the Add-ons paragraph of the base SKILL.md, ADD-ONS.md, the fallback text of the board commands, the worktree pointer in run/implement/review, ops/board.md's 'missing' section and the README blocks. Fields: name (the plugin id); kind (addon | skillpack | thirdparty); display; source { marketplace: the marketplace name, add: what `claude plugin marketplace add` takes, plugin: the plugin id in it }; installs_code (true when the plugin ships a script or an MCP server: the generated note then says so plainly); installs (what it installs, one phrase, used when installs_code is true); why (one line: what it adds); adds (bullets); setup_fit (one line: the project facts that make it worth offering at setup; the setup step says 'It fits when ...' from it); detect (how Claude can tell it is installed); triggers (the only moments to mention it; a person asking, never a nag). connector/test/recommendations.test.mjs checks that every plugin named in the generated text is an entry here and that the install commands match .claude-plugin/marketplace.json. Never run an install: the commands are shown, the person runs them.",
   "entries": [
     {
       "name": "laneconductor-parallel",
@@ -18,6 +18,7 @@
         "a scaffold script for a new project",
         "the `track-runner` sub-agent: one per track, each in its own git worktree"
       ],
+      "setup_fit": "the git history shows several authors, the project has CI files or several services, or the person wants tracks worked in parallel or by sub-agents",
       "detect": "its connector tools exist (`mcp__plugin_laneconductor-parallel_lc__*`, for example `mcp__plugin_laneconductor-parallel_lc__get_track`), or its agent `laneconductor-parallel:track-runner` is listed",
       "triggers": [
         "the person mentions several sessions, people or sub-agents writing the same tracks, or worries about overwrites",
@@ -37,6 +38,7 @@
         "the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval",
         "it works with or without the other add-on"
       ],
+      "setup_fit": "a team will follow the tracks, the project already has more than a handful of them, or the person wants an overview of every track by lane",
       "detect": "Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`",
       "triggers": [
         "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:refresh-board`)"
