@@ -1,12 +1,10 @@
 # Verify File Sync Heartbeat
 
-**Lane**: done
+**Lane**: backlog
 **Lane Status**: queue
-
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 # Track 009: Verify File Sync + Heartbeat
 
-**Lane**: done
-**Lane Status**: success
 **Progress**: 100%
 
 ## Problem

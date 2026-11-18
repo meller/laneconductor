@@ -1,9 +1,9 @@
 # Track AM-10075: Fire-and-forget rehash-on-read in auth() swallows errors with no logging
 
-**Lane**: done
-**Lane Status**: failure
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Progress**: 100%
-**Phase**: Planned — 4 phases (throttle helper, wire both catches, convergence warning, operator docs)
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: direct

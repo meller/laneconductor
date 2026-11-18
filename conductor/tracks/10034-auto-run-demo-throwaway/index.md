@@ -1,5 +1,8 @@
 # Track 10034: Auto-run demo (throwaway)
 
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Status**: plan
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
@@ -16,8 +19,6 @@ Run one live, evidence-recorded auto-claim cycle on this track (plus a negative 
 - [ ] Phase 3: Demonstrate the gate (negative control)
 - [ ] Phase 4: Write up findings
 - [ ] Phase 5: Teardown (human-confirmed — hard delete)
-**Lane**: backlog
-**Lane Status**: queue
 **Type**: dev
 **Track Kind**: feature
 **Summary**: Discarded via Worktrees panel — not merging.

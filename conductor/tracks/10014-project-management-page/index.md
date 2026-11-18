@@ -1,5 +1,8 @@
 # Track 10014: Project management page
 
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Status**: plan
 **Progress**: 100%
 **Last Run**: gemini/gemini-3.7-flash-medium (primary)
@@ -12,6 +15,4 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: done
-**Lane Status**: success
 **Summary**: we are missing a project management page in which we can see all project (probably as cards), manage their context - kpi, product, techspec etc (i guess it will be api->db and sync to fs) and able…

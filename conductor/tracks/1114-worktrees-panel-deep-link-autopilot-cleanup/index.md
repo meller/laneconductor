@@ -1,10 +1,10 @@
 # Track 1114: Worktrees Panel — Deep Link, Autopilot Complete & Merge, Remove Worktree, Stats & Recommendations
 
-**Lane**: done
-**Lane Status**: failure
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Progress**: 100%
 **Last Run**: mock (primary)
-**Phase**: Phase 17 complete — live-verified
 **Type**: dev
 **Waiting for reply**: no
 **Summary**: Reopened (2026-08-17): found live chasing "why didn't track 10014 auto-merge on done" — mergeWorktreeBranch()/auditWorktrees() treated ANY conflict inside a track's own conductor/tracks/<N>-*/…

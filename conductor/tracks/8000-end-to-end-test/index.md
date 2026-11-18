@@ -1,12 +1,10 @@
 # End-to-End Jira Sync Test
 
-**Lane**: queue
+**Lane**: backlog
 **Lane Status**: queue
-
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 # End-to-End Jira Sync Test
 
-**Lane**: queue
-**Lane Status**: queue
 **Progress**: 0%
 
 ## Test Description

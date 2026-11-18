@@ -1,5 +1,8 @@
 # Track 10021: Slow-tier Playwright specs need self-scoped workers
 
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Status**: plan
 **Progress**: 100%
 **Last Run**: claude/claude-opus-5 (primary)
@@ -25,8 +28,6 @@ Give the specs their own infrastructure instead of borrowing shared infrastructu
 - [ ] Phase 4: `brainstorm-concurrency.spec.js` self-scoping (hermetic concurrency assertion)
 - [ ] Phase 5: Dedicated `PW_TEST_MODE` server — un-skip `track-1033-sharing.spec.js`'s 6 tests
 - [ ] Phase 6: Config, docs, and full-suite verification including both negative hang paths
-**Lane**: done
-**Lane Status**: success
 **Type**: dev
 **Track Kind**: feature
 **Summary**: All 6 phases implemented and quality-gate passed. Four real bugs found and fixed live during verification (file_sync_queue.md guard block, primary-checkout path mismatch, 991/992 stale-DB-row race,…

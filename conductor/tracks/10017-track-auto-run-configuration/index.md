@@ -1,5 +1,8 @@
 # Track 10017: track auto run configuration
 
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Status**: plan
 **Progress**: 100%
 
@@ -11,8 +14,6 @@ To be defined.
 
 ## Phases
 - [ ] Phase 1: Implementation
-**Lane**: done
-**Lane Status**: success
 **Summary**: All 7 phases implemented, tested with real DB/worker/browser verification (see conversation.md) — grep for "auto_run" now returns real matches across sync.mjs, claim-scope.mjs, index.mjs, and…
 **Waiting for reply**: no
 **PR Number**: 2

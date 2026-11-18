@@ -1,10 +1,10 @@
 # Track AM-10073: Periodic doc-sync wholesale-copies plan/spec/test from a stale worktree, reverting primary mid-session edits
 
-**Lane**: done
-**Lane Status**: failure
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Progress**: 100%
 **Last Run**: mock (primary)
-**Phase**: Quality-gate complete
 **Type**: dev
 **Workspace**: branch
 **Merge Mode**: direct

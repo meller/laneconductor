@@ -1,5 +1,8 @@
 # Track 10024: Worktrees panel: live run visibility
 
+**Lane**: backlog
+**Lane Status**: queue
+**Phase**: Parked in the backlog on 2026-11-18: belongs to the worker tier (experimental, currently unmaintained), not the plugins.
 **Status**: implement
 **Step**: coding
 **Progress**: 100%
@@ -72,8 +75,6 @@ API endpoint, no worker join, no third transcript mechanism.
 - [x] Phase 2: Clickable Running badge + transcript intent in WorktreesPanel
 - [x] Phase 3: `initialTranscriptOpen` plumbing (App → TrackDetailPanel)
 - [x] Phase 4: Real-browser Playwright verification + no-backend-surface check
-**Lane**: done
-**Lane Status**: success
 **Summary**: Planned: a running Worktrees row's 'Running…' badge (and its #track ↗ link) becomes clickable and opens TrackDetailPanel with the existing Phase 4 Transcript drawer already expanded — UI-only, no…
 **PR Number**: 8
 **PR URL**: https://github.com/meller/laneconductor/pull/8
