@@ -13,3 +13,4 @@
 
 Scope: an `**Attempts**` marker bumped by `update_track outcome:failure`; reset on lane change; at `max_retries` apply `on_failure`, otherwise stay `queue`; decide what the parity shim RETRY_REQUEUE (10131, D11) becomes; tests on the otralingo legacy fixture. Depends on the transitions follow-up track (defaults, stay and stop).
 **Summary**: From the audit (finding A2, severity medium). The connector never reads `max_retries` or counts attempts: otralingo sets `in-progress.max_retries: 2`, so those numbers are dead data, and the implement
+**Part Of**: 10145
