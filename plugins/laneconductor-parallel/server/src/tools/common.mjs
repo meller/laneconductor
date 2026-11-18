@@ -115,10 +115,11 @@ export function conversationSummary(content, tail) {
  * takes, plus `tracked`: whether that index.md is in git at HEAD. A track that is not in git yet (an
  * unpublished draft) is `tracked: false`; stores without `trackedFiles` count every track as tracked.
  */
-export async function readEntries(store) {
+export async function readEntries(store, { tracked: wantTracked = true } = {}) {
   const dirs = await trackDirNames(store);
   const got = await store.readFiles(dirs.map((d) => `${TRACKS_DIR}/${d}/index.md`));
-  const tracked = store.trackedFiles ? await store.trackedFiles(TRACKS_DIR) : null;
+  // Callers that only need the rows (get_track, create_track) skip the `git ls-tree` that answers `tracked`; every entry then counts as tracked.
+  const tracked = wantTracked && store.trackedFiles ? await store.trackedFiles(TRACKS_DIR) : null;
   return dirs.map((folder) => ({ folder, index: got.get(`${TRACKS_DIR}/${folder}/index.md`) ?? null, tracked: tracked ? tracked.has(`${TRACKS_DIR}/${folder}/index.md`) : true }));
 }
 

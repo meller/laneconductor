@@ -38,7 +38,11 @@ way of gathering differs.
    what happens when the step finishes. Never move a track with it.
 6. **Git facts, read only.** For a track in `done:queue`: does a local branch for it exist (`git branch --list`), and is it an
    ancestor of the default branch (`git merge-base --is-ancestor`)? When no branch exists, does the default branch have a commit
-   for it (`git log --grep` on `(track-N)`)? For a track that is `running`: the time of the last commit that touched its folder or
+   for it (`git log --grep` on `(track-N)`)? A commit counts only when its subject is NOT one of the connector's own state commits,
+   `chore(track-N): <tool> ...` where `<tool>` is the name of one of its three write tools (the one that creates a track, the one
+   that updates it and the one that appends to its conversation), as in `chore(track-12): <tool> index.md`: those
+   record the track's files, not shipped work (a track in direct mode has only these on the default branch until it is merged).
+   For a track that is `running`: the time of the last commit that touched its folder or
    a branch named for it (`git log -1 --format=%ct -- <folder>`, `git for-each-ref`). A fact you cannot establish is not guessed:
    ask one question instead.
 7. **Comments.** `conversation.md` is not committed, so read it only when it exists on this machine and never rely on it. The
@@ -68,13 +72,13 @@ the epic's own file holds no child status.
 | S03 | `conductor/` exists but `workflow.json` or `tracks/` is missing | Finish the scaffold: setup again, it skips what exists. Then the add-ons | `/laneconductor:setup` |
 | S04 | Set up, and no track folder under `conductor/tracks/` | Create the first track, with an example phrase built from the project's name or README ("new track: something this project needs"). Then the add-ons | `/laneconductor:new <title>` |
 | S05 | A track waits for a human reply: `Waiting for reply: yes`, or `Lane Status: waiting` with no `Waiting On Tracks` and no unmet `Depends On` (a question or an approval), or the last comment is the human's and unanswered | Answer it: show the last comment in two lines, say what the track needs, offer the answer path (a comment, then resume with `move`) | `/laneconductor:comment N <your answer>` |
-| S06 | A track is in `failure` in its lane (`implement:failure`, `plan:failure`, `quality-gate:failure`) or is `done:failure` (a merge that failed) | Look at it first: read its last comment, then choose between a retry and a replan; offer both and recommend one from the lane (implement failure: retry implement; quality-gate failure: replan; done failure: fix the cause, then merge again) | `/laneconductor:implement N`, `/laneconductor:plan N` or `/laneconductor:merge N` |
+| S06 | A track is in `failure` in its lane (`implement:failure`, `plan:failure`, `quality-gate:failure`) or is `done:failure` (a merge that failed) | Look at it first: read its last comment, then choose between a retry and a replan; offer both and recommend one from the lane (implement failure: retry implement; plan failure, review failure and quality-gate failure: replan; done failure: fix the cause, then merge again) | `/laneconductor:implement N`, `/laneconductor:plan N` or `/laneconductor:merge N` |
 | S07 | A track is `running` and looks abandoned: the last commit on its folder or branch is older than 6 hours | Ask, do not decide: "N has said it is running for H hours with no commit; is something still working on it?" If the answer is no, resume by setting `Lane Status` back to `queue`, then run the lane again | `/laneconductor:move N <lane>:queue` |
 | S08 | A track is `running` and recent | Say so and leave it alone ("N is being worked on; start nothing on it"); the card goes on to the next candidate | none |
 | S09 | `waiting` on tracks (`Waiting On Tracks`, else `Depends On`) and every named track is `done:success` | Resume it: the dependencies shipped; say which. Setting `queue` and clearing the parking markers is the resume; run the lane after | `/laneconductor:move N <lane>:queue` |
-| S10 | `waiting` on tracks and at least one named track is not `done:success` (`done:queue` is gated, not shipped, and does not count) | Not a candidate. Named in the "also" line as blocked by those tracks; if the blocker is itself a candidate, it is ranked as usual | none |
+| S10 | The track names tracks it waits on (`Waiting On Tracks`, else `Depends On`) and at least one is not `done:success`, and it is `waiting` or `queue` (a `queue` track included: blocked is never the step, whatever the status; a track that is `running`, in `failure` or waiting for a reply is read as S05 to S08 first). `done:queue` is gated, not shipped, and does not count | Not a candidate. Named in the "also" line as blocked by those tracks; if the blocker is itself a candidate, it is ranked as usual | none |
 | S11 | `done:queue` and the track's branch is not merged (or that cannot be established) | Merge it: it passed the quality gate and is not shipped. The merge command asks before any merge or push | `/laneconductor:merge N` |
-| S12 | `done:queue` and its branch exists and is already an ancestor of the default branch, or no branch exists and the default branch has a commit for it | It looks merged: ask the person to confirm, then record it | `/laneconductor:move N done:success` |
+| S12 | `done:queue` and its branch exists and is already an ancestor of the default branch, or no branch exists and the default branch has a commit for it that is not one of the connector's own state commits (`chore(track-N): <tool> ...`, see step 6) | It looks merged: ask the person to confirm, then record it | `/laneconductor:move N done:success` |
 | S13 | `done:waiting` (a pull request is open) | The pull request waits for a person to merge it: show `PR URL`; once it is merged, record it | `/laneconductor:move N done:success` |
 | S14 | `quality-gate:queue`, or `review:success` when the workflow does not move on by itself | Run the quality gate: it evaluates and never fixes | `/laneconductor:quality-gate N` |
 | S15 | `review:queue`, or `implement:success` when the workflow does not move on by itself | Review the implementation: it evaluates and never fixes. When the parallel add-on is installed, recommend one sub-agent per track in its own worktree | `/laneconductor:review N` |
@@ -113,8 +117,7 @@ With a track number as the argument ("what's next for N"), give the same card re
 ## The card
 
 Always: the step with its command; one sentence on what the command will do (and, in one clause, where the track goes when it
-finishes); one sentence on why it comes next; the other candidates in one line (left out when there are none); one link to
-[lanes-and-statuses.md](lanes-and-statuses.md); and the closing offer "Say go and I will run it here". The card never names a
+finishes); one sentence on why it comes next; the other candidates in one line (left out when there are none); one pointer to the lane statuses and transitions, named in words (never a file path the person cannot open); and the closing offer "Say go and I will run it here". The card never names a
 track number outside the track it is about, and never mentions work that does not exist yet.
 
 The explain form of the card (the step, then what and why in full):
@@ -123,7 +126,7 @@ The explain form of the card (the step, then what and why in full):
 > **What it does:** the plan lane writes the spec, the plan and the test cases for this track, and no code; when it finishes
 > the track waits at `plan:success`.
 > **Why now:** nothing is built before the work is agreed and testable, and this is the oldest track still waiting.
-> Also waiting: N2 (implement), N3 (review). More on the lanes: [lanes-and-statuses.md](lanes-and-statuses.md). Say go and I will run it here.
+> Also waiting: N2 (implement), N3 (review). More on the lanes: `/laneconductor:workflow` shows the lane statuses and where each lane sends a track. Say go and I will run it here.
 
 The short form keeps only the step, the command, a six-word why and the other candidates:
 
@@ -161,7 +164,7 @@ else is ever stored: there is no counter and no write on a plain run.
 In S02, S03 and S04 there is nothing to rank yet, so the card is followed, once per session, by the optional add-ons that fit this
 project and are not installed. Show them; never run an install. An add-on that is already installed is not mentioned at all, and one
 already offered in this session (by setup, for example) or declined is not offered again. Later runs, with tracks, never offer
-add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree.
+add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. An add-on is offered once because an installed plugin cannot be detected without reading outside the project, which the base never does; if the person says it is installed already, take their word and stop offering it.
 
 <!-- generated: recommended plugins -->
 

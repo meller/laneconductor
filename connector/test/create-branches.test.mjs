@@ -62,7 +62,7 @@ test('a number taken on a remote-tracking ref counts too', async () => {
   assert.equal(r.env.data.track.number, 78);
 });
 
-test('a duplicate number across branches is a create_track warning', async () => {
+test('a folder named differently only on an unmerged branch is a softer note, not a duplicate', async () => {
   const { s } = await open((d) => {
     git(d, 'checkout', '-q', '-b', 'other');
     writeFile(d, T(1, 'different-slug'), INDEX(1, 'Different'));
@@ -71,8 +71,66 @@ test('a duplicate number across branches is a create_track warning', async () =>
   });
   const r = await create(s, 'Anything else');
   assert.equal(r.isError, false, r.text);
-  const w = r.env.warnings.find((x) => /Duplicate track numbers/.test(x));
-  assert.match(w, /1 \(2 folders\).*repair-duplicates/);
+  assert.ok(!r.env.warnings.some((x) => /Duplicate track numbers/.test(x)), JSON.stringify(r.env.warnings));
+  const w = r.env.warnings.find((x) => /also named differently on branch other/.test(x));
+  assert.match(w, /^Track number 1 also named differently on branch other .*Merge or delete that branch/);
+  assert.ok(w.length <= 200 && w.endsWith('.'));
+});
+
+test('two folder names for one number on the state branch is a Duplicate warning', async () => {
+  const { s } = await open((d) => {
+    writeFile(d, T(1, 'second-folder'), INDEX(1, 'Second'));
+    commitAll(d, 'duplicate on main');
+  });
+  const r = await create(s, 'Anything else');
+  assert.match(r.env.warnings.find((x) => /Duplicate track numbers/.test(x)), /1 \(2 folders\).*repair-duplicates/);
+});
+
+test('a duplicate on main renamed by repair, old name still on an unmerged branch: no Duplicate warning; the branch note goes once it is merged', async () => {
+  const { dir, s } = await open((d) => {
+    writeFile(d, T(1, 'dup'), INDEX(1, 'Dup'));
+    commitAll(d, 'duplicate on main');
+    git(d, 'checkout', '-q', '-b', 'old-work');
+    writeFile(d, 'conductor/tracks/AM-1-dup/spec.md', 'work on the branch');
+    commitAll(d, 'work on the old name');
+    git(d, 'checkout', '-q', 'main');
+    git(d, 'mv', 'conductor/tracks/AM-1-dup', 'conductor/tracks/AM-2-dup');
+    commitAll(d, 'repair: renumber AM-1-dup to AM-2-dup');
+  });
+  const r = await create(s, 'Anything else');
+  assert.equal(r.isError, false, r.text);
+  assert.ok(!r.env.warnings.some((x) => /Duplicate track numbers/.test(x)), JSON.stringify(r.env.warnings));
+  assert.equal(r.env.data.track.number, 3);
+  assert.match(r.env.warnings.find((x) => /old-work/.test(x)) ?? '', /Track number 1 also named differently on branch old-work/);
+  // once the other branch is merged (here: ours, keeping the rename) the note does not repeat
+  git(dir, 'merge', '-q', '-s', 'ours', 'old-work', '-m', 'merge old-work');
+  const again = await create(s, 'Yet another thing');
+  assert.ok(!again.env.warnings.some((x) => /Duplicate track numbers|also named differently/.test(x)), JSON.stringify(again.env.warnings));
+});
+
+test('more than 100 branch tips: one warning says only the 100 newest were checked', async () => {
+  const { s } = await open((d) => {
+    for (let i = 0; i < 103; i++) {
+      git(d, 'checkout', '-q', '-b', `b${i}`, 'main');
+      git(d, 'commit', '-q', '--allow-empty', '-m', `tip ${i}`);
+    }
+    git(d, 'checkout', '-q', 'main');
+  });
+  const r = await create(s, 'Many branches');
+  assert.equal(r.isError, false, r.text);
+  const caps = r.env.warnings.filter((x) => /checked the 100 newest branch tips only/.test(x));
+  assert.equal(caps.length, 1, JSON.stringify(r.env.warnings));
+  assert.ok(caps[0].length <= 200 && caps[0].endsWith('.'));
+});
+
+test('a few branches: no cap warning', async () => {
+  const { s } = await open((d) => {
+    git(d, 'checkout', '-q', '-b', 'one');
+    git(d, 'commit', '-q', '--allow-empty', '-m', 'tip');
+    git(d, 'checkout', '-q', 'main');
+  });
+  const r = await create(s, 'Few branches');
+  assert.ok(!r.env.warnings.some((x) => /newest branch tips/.test(x)));
 });
 
 test('the repair-duplicates command asks first, renames the newer folder, never pushes, and is in the catalog', () => {
@@ -84,5 +142,8 @@ test('the repair-duplicates command asks first, renames the newer folder, never 
   assert.match(text, /newer/);
   assert.match(text, /git mv/);
   assert.match(text, /Never push/);
+  assert.match(text, /exists only on another branch, ask me which branch is the keeper/);
+  assert.match(text, /own worktree/);
+  assert.match(text, /merged or deleted/);
   assert.match(text, /never `git add -A`/);
 });

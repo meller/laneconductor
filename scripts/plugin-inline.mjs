@@ -116,7 +116,7 @@ export function inlineBody(name, readSkill) {
     const pieces = [
       section(lanes, '## The five lane statuses'),
       section(lanes, '## The two meanings of `done`'),
-      section(lanes, '## Transitions (track 1020\'s grammar)'),
+      section(lanes, '## Transitions'),
     ].map((s) => shift(s, 1)).join('\n\n').replace('(for example `plan:success`: planned, parked)', '(for example `plan:success`: the plan is written and parked)');
     return [
       'What\'s next: `$ARGUMENTS` (nothing given means the whole project). Read only: change no file and no marker, install nothing and push nothing. In Claude Code, type it as `/laneconductor:next`; the commands in the card are written in that form.',

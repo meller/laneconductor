@@ -19,8 +19,8 @@ is no database to run and no background process to keep alive.
 - **A board.** Ask Claude to update the board and it gives you every track by lane as a private Claude artifact.
 - **Safe writes.** One writer per change, and every write is checked against what you last read (see
   [Safety and privacy](#safety-and-privacy)).
-- **The older stack is parked.** The Postgres dashboard, the sync daemon, workers and dispatch, the cloud collector
-  and federated hubs are kept at the [`v1-legacy`](../../tree/v1-legacy) git tag. See [The legacy tier](#the-legacy-tier).
+- **The older stack is experimental and currently unmaintained.** The Postgres dashboard, the sync daemon, workers and dispatch, the cloud collector
+  and federated hubs are kept at the [`v1-legacy`](../../tree/v1-legacy) git tag. See [The experimental tier](#the-experimental-tier).
 
 The lane pipeline is unchanged: **Plan, Implement, Review, Quality Gate, Merge**. Quality gates (tests, lint, build)
 are still what decides whether a track is done.
@@ -186,15 +186,15 @@ example test-driven development and systematic debugging at implement, verificat
 gate), and an optional `skills` object in `conductor/workflow.json` adds your own per lane. They are suggestions, in the
 second-opinion style: use them if installed, say so if one is missing.
 
-## The legacy tier
+## The experimental tier
 
 The earlier version of LaneConductor was a Postgres-backed Kanban dashboard (Vite and React), a sync daemon,
-queue workers with dispatch, a cloud collector and federated hubs. It is parked, not deleted: it is preserved at the
+queue workers with dispatch, a cloud collector and federated hubs. It is experimental and currently unmaintained, not deleted: it is preserved at the
 [`v1-legacy`](../../tree/v1-legacy) git tag, the daemon is stopped, and the plugin does not need any of it. The
 folders `conductor/`, `ui/`, `cloud/`, `migrations/` and `bin/` still hold that code, with its own install and start
 commands; they are not documented here. Use that tag if you want to run it.
 
-![The legacy Kanban dashboard](docs/hero.png)
+![The earlier Kanban dashboard](docs/hero.png)
 
 ## Documentation
 
@@ -213,7 +213,7 @@ commands; they are not documented here. Use that tag if you want to run it.
 - `scripts/`: the plugin generator and the zip script.
 - `.claude/skills/laneconductor/`: the source of the skill (lane guides and operations).
 - `conductor/tracks/`: this project's own tracks.
-- Legacy tier (tag `v1-legacy`): `bin/` (its command-line tool), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
+- Experimental tier, currently unmaintained (tag `v1-legacy`): `bin/` (its command-line tool), `conductor/` (the sync worker), `ui/`, `cloud/`, `migrations/`.
 
 ## License
 

@@ -116,6 +116,7 @@ How to offer one:
   never run an install command yourself, and install nothing unless the person says yes (and then still show the commands for them to run).
 - Say plainly what it installs, from the note under its name.
 - Mention each plugin once in this session. If the person declines, do not bring it up again.
+- A plugin is offered once because an installed plugin cannot be detected without reading outside the project, which this plugin never does. If the person says it is already installed, take their word and say no more about it.
 
 ${list}`;
 };
@@ -187,7 +188,7 @@ ${ADDONS.map(addOnSection).join('\n')}
 // and show the install commands when it is missing. No command runs an install.
 const FIND = 'Find the track\'s folder under `conductor/tracks/` (Glob `conductor/tracks/*<number>*/`; both naming conventions exist, see "Finding a track" in the skill index) and read its `index.md`, `spec.md`, `plan.md`, `test.md` and `conversation.md`.';
 const EDIT_RULE = 'Change state by editing the track files directly, following the skill\'s `ops/tracks.md` (it has the formats): re-read a file right before editing it and change only the lines you mean to change.';
-// Track AM-10131: without the add-on's tools, where a finished lane goes is read with track 1020's grammar (one reference), never guessed.
+// Track AM-10131: without the add-on's tools, where a finished lane goes is read with the workflow grammar (one reference), never guessed.
 const TARGETS = 'Read where a lane sends a finished track from `conductor/workflow.json` with the grammar of the skill file `ops/lanes-and-statuses.md` (a bare target is `queue` for another lane and `success` or `failure` for the same lane; a bare `done` is `done:queue`); never guess it from the raw file.';
 const LANE = (lane, file, extra = '') => (
   `Work on track {{track}} in the ${lane} lane. The procedure is the ${lane} lane guide (skill file \`${file}\`); follow it and do not restate it here.\n\n`
@@ -256,11 +257,13 @@ export const BASE_PROCEDURES = {
   deploy: 'Deploy: {{action}}. This runs only because I named it; do nothing else with it.\n\n'
     + 'Follow `deploy/deploy.md`, or `deploy/setup-deploy.md` when the action is `setup`; both are under "Reference" below. Show me each deploy command before you run it; never deploy without my yes.',
   'repair-duplicates': 'Repair duplicate track numbers: two folders under `conductor/tracks/` that start with the same number are ambiguous. Nothing is renamed until I say yes. The folder and id formats are in the skill file `ops/tracks.md`.\n\n'
-    + '1. Find them: list the folder names under `conductor/tracks/` and group them by number (both naming conventions exist, see "Finding a track" in the skill index). Also check other branches: `git for-each-ref refs/heads refs/remotes` and `git ls-tree -d --name-only <ref> conductor/tracks/` show folders that exist only there. If there is no duplicate, say so and stop.\n'
+    + '1. Find them: list the folder names under `conductor/tracks/` and group them by number (both naming conventions exist, see "Finding a track" in the skill index). Also check other branches: `git for-each-ref refs/heads refs/remotes` and `git ls-tree -d --name-only <ref> conductor/tracks/` show folders that exist only there. If there is no duplicate, say so and stop. A folder that exists only on another branch is not a duplicate yet; it becomes one when that branch is merged.\n'
     + '2. For each duplicate number, the older folder keeps it: find when each folder first appeared (`git log --diff-filter=A --format=%aI -- <folder>`, the oldest line) and treat the later one as the newer. The new number is the highest track number found on any branch plus one; the new name is the same prefix and slug with that number.\n'
     + '3. Show me the plan, one line per rename: "Rename <old folder> to <new folder>; update its `# Track` heading in index.md, plan.md, test.md and conversation.md? [default: yes]". Also say which other tracks mention the old number in `**Depends On**` (do not change those; they may mean either track, and I decide). Wait for my yes; on no, change nothing.\n'
+    + '   When the second folder exists only on another branch, ask me which branch is the keeper (its folder keeps the number), then do steps 4 and 5 on the branch that carries the folder being renumbered: check that branch out in its own worktree (`git worktree add <dir> <branch>`), so a rename on the wrong branch leaves the duplicate in place.\n'
     + '4. On yes: `git mv` the folder, fix the id in the headings (the number only; keep the prefix and the title), and append a comment to the renamed track\'s `conversation.md` saying it was renumbered from the old number. Commit only those paths (explicit paths, never `git add -A`). Never push.\n'
-    + '5. Regenerate `conductor/tracks-summary.md` if the project keeps one (by hand: the same rows, the renamed folder under its new number), then report what was renamed.',
+    + '5. Regenerate `conductor/tracks-summary.md` if the project keeps one (by hand: the same rows, the renamed folder under its new number), then report what was renamed.\n'
+    + '   A note that a folder is also named differently on another branch stays until that branch is merged or deleted, or carries the same folder name; say so.',
   'new-project': 'New project: {{idea}} (nothing given means ask me). This runs only because I named it. The procedure is the skill file `ops/new-project.md`; read it in full first and follow it.\n\n'
     + '1. Detect whether this is an empty folder or an existing repository (then offer only the `conductor/` scaffold).\n'
     + '2. Interview me in chat, one question at a time, short, stopping early when the answers are enough.\n'

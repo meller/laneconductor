@@ -1,9 +1,9 @@
 # Track AM-10139: Marker parser: first match wins, CRLF, case, and a repair_index write
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Implemented and merged to local main 2026-11-18 (461 connector tests, strict validate x4). First match wins, CRLF, case, repair_index. On this repo's real indexes 36 repeated-header tracks now read and repair; 12 stay flagged (Lane genuinely missing or unknown). Next: release as 1.2.0.
+**Phase**: Reviewed by a read-only reviewer (pass), gated on main with the plugins 1.2.2 release (516 connector tests, strict validate on all three plugins), shipped 2026-11-18.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -13,3 +13,5 @@
 
 Scope: first-match-wins plus a `header_damaged` warning; `split(/\r?\n/)` and preserve the file's line endings on write; case-insensitive marker names and lower-cased value compare on read, strict on write; one `repair_index` write that keeps the first Lane and Lane Status and moves the rest below a heading. Tests on the 44 real indexes (read-only copy) and CRLF fixtures.
 **Summary**: From the audit (findings F1, F2, F3, severity medium, high on legacy repos). `parseMarkers` (connector/src/markers.mjs:27-33) folds a duplicated header into the previous marker's value; `validateIndex
+**Part Of**: 10145
+**Verdict**: pass

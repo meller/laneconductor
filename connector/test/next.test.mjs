@@ -285,3 +285,26 @@ test('TC-28: the base stays Markdown, JSON and one image: this feature adds only
 test('the NAMES used by the journey are the base plugin name', () => {
   assert.match(NEXT_JOURNEY, new RegExp(`/${NAMES.base}:next`));
 });
+
+// ---- the base names no track number (owner rule: shipped text describes the rule, not the track that taught it) ----
+
+test('the base plugin\'s commands/ and skills/ name no track number, except the example id of the help phrases (track 10106)', () => {
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  const files = [...walk(path.join(BASE, 'commands')), ...walk(path.join(BASE, 'skills'))].filter((f) => f.endsWith('.md'));
+  assert.ok(files.length > 20, 'the walk found the base text');
+  const ALLOWED = new Set(['track 10106']); // the example id of the help phrases ("plan track 10106")
+  const hits = [];
+  for (const f of files) {
+    for (const m of read(f).matchAll(/\btracks? (?:AM-)?\d{3,5}\b/gi)) {
+      if (!ALLOWED.has(m[0].toLowerCase())) hits.push(`${path.relative(BASE, f)}: ${m[0]}`);
+    }
+  }
+  assert.deepEqual(hits, []);
+});
+
+test('the generated next command card points at the lane reference in words, never at a plain file path', () => {
+  const card = read(path.join(BASE, 'commands/next.md')).split('\n').find((l) => l.startsWith('> Also waiting:'));
+  assert.ok(card, 'the example card is there');
+  assert.doesNotMatch(card, /\.md\b/);
+  assert.match(card, /\/laneconductor:workflow/);
+});

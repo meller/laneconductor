@@ -49,6 +49,9 @@ test('TC-2: dependency state: unmet, unknown, met, Waiting On Tracks, waiting-fo
     row(8, 'done', 'success', { depends_on: ['99'] }),
     row(9, 'implement', 'waiting', { depends_on: ['1'], waiting_on: ['1'] }),
     row(10, 'implement', 'waiting'),
+    row(11, 'implement', 'waiting', { depends_on: ['1'], waiting_reason: true }),
+    row(12, 'implement', 'waiting', { depends_on: ['1'], waiting_on: ['1'], waiting_reason: true }),
+    row(13, 'implement', 'waiting', { depends_on: ['2'], waiting_reason: true }),
   ];
   const s = dependencyState(rows);
   assert.deepEqual(s.get(3), { blocked_by: [], ready_to_resume: true });
@@ -59,13 +62,17 @@ test('TC-2: dependency state: unmet, unknown, met, Waiting On Tracks, waiting-fo
   assert.equal(s.has(8), false, 'a done track is not blocked');
   assert.deepEqual(s.get(9), { blocked_by: [], ready_to_resume: true }, 'both markers name the same track once');
   assert.equal(s.has(10), false, 'no dependencies, nothing to say');
-  assert.deepEqual(readyToResume(rows), ['AM-9', 'AM-3']);
+  assert.deepEqual(s.get(11), { blocked_by: [], ready_to_resume: false }, 'a park with a reason and no Waiting On Tracks is a question or an approval, not a dependency wait');
+  assert.deepEqual(s.get(12), { blocked_by: [], ready_to_resume: true }, 'Waiting On Tracks keeps the union meaning');
+  assert.deepEqual(s.get(13), { blocked_by: [2], ready_to_resume: false });
+  assert.deepEqual(readyToResume(rows), ['AM-12', 'AM-9', 'AM-3']);
 });
 
 test('TC-3: list_tracks, get_track and get_context show blocked_by and ready_to_resume', async () => {
   const { s } = await open({
     ...trackFiles(1208, { Lane: 'done', 'Lane Status': 'success' }),
-    ...trackFiles(1292, { Lane: 'implement', 'Lane Status': 'waiting', 'Depends On': '1208', 'Waiting Reason': 'on 1208' }),
+    ...trackFiles(1292, { Lane: 'implement', 'Lane Status': 'waiting', 'Depends On': '1208', 'Waiting On Tracks': '1208', 'Waiting Reason': 'on 1208' }),
+    ...trackFiles(1296, { Lane: 'implement', 'Lane Status': 'waiting', 'Depends On': '1208', 'Waiting Reason': 'needs the owner to approve the pricing' }),
     ...trackFiles(1293, { Lane: 'implement', 'Lane Status': 'waiting', 'Waiting On Tracks': '1295', 'Waiting Reason': 'on 1295' }),
     ...trackFiles(1295, { Lane: 'review', 'Lane Status': 'queue' }),
   });
@@ -77,7 +84,10 @@ test('TC-3: list_tracks, get_track and get_context show blocked_by and ready_to_
   assert.equal(by[1293].ready_to_resume, false);
   assert.ok(!('blocked_by' in by[1208]) && !('ready_to_resume' in by[1295]), 'tracks without dependencies carry neither field');
   assert.ok(!('waiting_on' in by[1292]), 'the helper field is not part of the output');
-  assert.deepEqual(l.env.data.ready_to_resume, ['AM-1292']);
+  assert.deepEqual(l.env.data.ready_to_resume, ['AM-1292'], 'AM-1296 is parked for an approval: its finished Depends On do not make it ready');
+  assert.equal(by[1296].ready_to_resume, false);
+  assert.deepEqual(by[1296].blocked_by, []);
+  assert.ok(!('waiting_reason' in by[1296]), 'the helper field is not part of the output');
   const t = await s.call('get_track', { track: 1292 });
   assert.deepEqual(t.env.data.dependencies, { blocked_by: [], ready_to_resume: true });
   const t2 = await s.call('get_track', { track: 1295 });

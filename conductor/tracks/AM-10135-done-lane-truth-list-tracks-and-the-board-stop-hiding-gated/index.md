@@ -1,9 +1,9 @@
 # Track AM-10135: Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Implemented and merged to local main 2026-11-18 (439 connector tests, strict validate x4). Next: release as 1.2.0 with the other audit tracks.
+**Phase**: Reviewed by a read-only reviewer (pass), gated on main with the plugins 1.2.2 release (516 connector tests, strict validate on all three plugins), shipped 2026-11-18.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -13,3 +13,5 @@
 
 Scope: default list hides only `done:success`; attention rules for `done:queue`, `done:failure`, `done:waiting`; an optional `merged` check using `git merge-base --is-ancestor` of the track branch; board and tests. Reference: the daemon's services/done-lane-bucket.mjs and resting-state.mjs (tag v1-legacy), tracks 10035 and 10076.
 **Summary**: From the 2026-11-18 audit of daemon-era fixes versus the plugin (finding B6, severity high). In the plugin world `done:queue` means "gated, not merged", `done:success` means shipped. Today `list_track
+**Part Of**: 10145
+**Verdict**: pass

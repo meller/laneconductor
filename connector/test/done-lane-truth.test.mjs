@@ -88,3 +88,32 @@ test('TC-3: a list with no done track does not look at branches at all', async (
   const l = await s.call('list_tracks');
   assert.ok(!('merged' in l.env.data.tracks[0]));
 });
+
+test('TC-3 (review fix): a track-N branch merged by squash or by cherry-pick, not by merge commit, is merged; a different branch with the same files is not', async () => {
+  const dir = repoWith([[30, 'done', 'queue'], [31, 'done', 'queue'], [32, 'done', 'queue'], [33, 'done', 'success']]);
+  for (const n of [30, 31, 32, 33]) {
+    git(dir, 'checkout', '-q', '-b', `track-${n}`, 'main');
+    writeFile(dir, `code-${n}.txt`, `work ${n}`);
+    if (n === 33) writeFile(dir, 'code-30.txt', 'a different version');
+    commitAll(dir, `work ${n}`);
+    git(dir, 'checkout', '-q', 'main');
+  }
+  // track-30: squash merge (one new commit on main, the branch tip is not an ancestor)
+  git(dir, 'merge', '--squash', 'track-30');
+  git(dir, 'commit', '-q', '-m', 'squash merge of track-30');
+  // track-31: cherry-picked onto main after main moved on (same patch, other parent)
+  writeFile(dir, 'unrelated.txt', 'moved on');
+  commitAll(dir, 'main moves');
+  git(dir, 'cherry-pick', 'track-31');
+  // track-32: never merged. track-33 changes code-30.txt differently from what main holds.
+  const s = await connect(dir);
+  sessions.push(s);
+  const all = await s.call('list_tracks', { include_done: true });
+  const by = Object.fromEntries(all.env.data.tracks.map((t) => [t.number, t]));
+  assert.equal(by[30].merged, true, 'squash merge: main holds the branch content for its files');
+  assert.equal(by[31].merged, true, 'cherry-pick: patch-equivalent commit on main');
+  assert.equal(by[32].merged, false);
+  assert.equal(by[33].merged, false, 'the same file with other content is not merged');
+  assert.ok(all.env.warnings.some((w) => /AM-30 is done:queue but its branch track-30 is already merged/.test(w)), JSON.stringify(all.env.warnings));
+  assert.equal(git(dir, 'status', '--porcelain', '--untracked-files=no'), '', 'read only');
+});

@@ -1,9 +1,9 @@
 # Track AM-10130: Setup: add LaneConductor to an existing project (route setup to the existing-repo scaffold, drop the stale install text)
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: quality-gate
+**Lane Status**: waiting
 **Progress**: 90%
-**Phase**: Merged and pushed 2026-11-18 (main b36011e8). /laneconductor:setup now means add LaneConductor to this project (existing-repo path of new-project); lc-scaffold --detect reads package.json, README, CI and lint config and proposes only commands that exist (tried read-only on two real projects); the daemon-era install text moved to legacy/; the base ships no worker, daemon or make-install text (grep test); try-local.sh disables clashing installs in the scratch repo only. 341 tests, strict validation pass. Open: the owner runs /laneconductor:setup in a copy of a real project, and a sanity check of two behaviours (the base no longer writes file_sync_queue.md; the legacy lc setup wizard flow still points at setup scaffold generate).
+**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): setup adds LaneConductor to an existing project through the existing-repo scaffold, with no daemon-era install text. Open: human acceptance run of setup in a copy of a real project and of try-local.sh (owner).
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -19,3 +19,5 @@ Do (after track 10128 is merged, because it rewrites the same generated files):
 4. After the scaffold, the starter-set offer of recommended skills belongs here too (track 10124); leave a clearly marked hook point, do not build it here.
 5. Tests: a fixture existing repository (package.json, a README, an npm test script) gets the conductor files with the detected stack and the real test command in quality-gate.md, a second run changes nothing, an existing README or package.json is never touched; a grep test proves no generated text in the base mentions `make install`, `.laneconductor`rc or a worker. Regenerate the plugins, run the tests, `--check` and strict validation.
 **Summary**: Found 2026-11-18 while answering the owner's question 'does setup support creating the LaneConductor structure for an existing project': `/laneconductor:new-project` already handles it (detects an exi
+**Verdict**: pass
+**Waiting Reason**: Human acceptance: run setup in a copy of a real project and scripts/try-local.sh for real (owner).

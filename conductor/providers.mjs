@@ -1,7 +1,7 @@
 /**
  * LaneConductor Canonical Provider Registry
  * Single source of truth for "what AI providers exist / what are their
- * models" — the CLI wizard, sync worker, Collector API, and every React
+ * models" — the CLI wizard, the worker, the collector, and every React
  * component that shows a provider icon/label/model list all read from
  * this file (or, for the browser bundle, a byte-identical mirror of it —
  * see ui/src/lib/providers.js) instead of keeping their own copy.
@@ -79,7 +79,7 @@ for (const provider of Object.values(PROVIDERS)) {
 }
 
 /**
- * Resolves a legacy alias (e.g. 'agy') to its canonical provider id.
+ * Resolves an older alias (e.g. 'agy') to its canonical provider id.
  * Ids that are already canonical, or unrecognized (including 'other' and
  * free-text ids), pass through unchanged.
  */

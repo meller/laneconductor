@@ -116,10 +116,10 @@ function merged(dir, t, defaultBranch) {
   if (hasBranch) return ok(dir, 'merge-base', '--is-ancestor', `track-${t.n}`, defaultBranch);
   return hasWorkCommit(dir, t, defaultBranch);
 }
-/** A commit with `(track-N)` that is not the commit that added the track's own folder. */
+/** A commit with `(track-N)` whose subject is NOT one of the connector's own state commits (`chore(track-N): create_track|update_track|append_conversation ...`), as ops/next.md states. */
 function hasWorkCommit(dir, t, defaultBranch) {
   const subjects = (git(dir, 'log', defaultBranch, '--grep', `(track-${t.n})`, '--format=%s') ?? '').split('\n').filter(Boolean);
-  return subjects.some((s) => !/add the track$/.test(s));
+  return subjects.some((s) => !/^chore\(track-\d+\): (create_track|update_track|append_conversation)\b/.test(s));
 }
 
 const commandFor = (state, t) => {

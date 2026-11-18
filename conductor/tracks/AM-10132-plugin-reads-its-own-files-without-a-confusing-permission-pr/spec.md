@@ -37,3 +37,7 @@ Also fix the wording of the setup interview in the same pass if it is still uncl
 ## Environment
 
 (To be filled in.)
+
+## Decision recorded 2026-11-18
+
+The board add-on is offered once in setup, next and new-project instead of being detected, because an installed plugin cannot be detected without reading outside the project; this track made those commands read-free, so detection would bring the permission prompt back. The skill still has residual reads for natural-language triggers (open: TC-5 will show).

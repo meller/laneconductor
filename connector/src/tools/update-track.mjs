@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { blobSha } from '../blob.mjs';
 import { fail } from '../errors.mjs';
 import { STATUSES, headerDamagedWarning, markerFingerprint, parseMarkers, removeMarker, repairIndex, setMarker, validateIndex } from '../markers.mjs';
-import { claimStamps, humanCommentSince } from '../claims.mjs';
+import { claimStamps, humanCommentSince, runBy } from '../claims.mjs';
 import { parseEntries } from '../conversation.mjs';
 import { resolveTrack } from '../tracks.mjs';
 import { dependenciesOf, dependencyState } from '../dependencies.mjs';
@@ -47,7 +47,7 @@ async function parkingAdvice(tx, folder, before, after, statusSet) {
   if (status === 'running' && (was['Lane Status'] ?? '').trim() !== 'running') {
     const row = rowOf(folder, { content: after });
     if (dependenciesOf(row).length) {
-      const rows = (await readEntries(tx)).map((e) => (e.folder === folder ? row : rowOf(e.folder, e.index)));
+      const rows = (await readEntries(tx, { tracked: false })).map((e) => (e.folder === folder ? row : rowOf(e.folder, e.index)));
       const blocked = dependencyState(rows).get(row.number)?.blocked_by ?? [];
       if (blocked.length) out.push(`This track depends on ${blocked.join(', ')}, which ${blocked.length === 1 ? 'is' : 'are'} not done:success yet. Claiming it now works on unmerged ground; park it with **Waiting On Tracks** if that is not intended.`);
     }
@@ -168,8 +168,8 @@ export const updateTrack = {
       }
       if (refusal) throw refusal;
       // Track AM-10141: the claim stamp (Run Started, Run By) rides along with a Lane Status change; it is not part of the caller's base.
-      if (files.index === undefined && !repair && markerNames.includes('Lane Status')) {
-        const stamps = claimStamps(parseMarkers(indexNow).values, markerEdits, { now: ctx.now(), who: `${ctx.surface()} ${ctx.session}` });
+      if (files.index === undefined && !repair && (markerNames.includes('Lane Status') || markerNames.includes('Lane'))) {
+        const stamps = claimStamps(parseMarkers(indexNow).values, markerEdits, { now: ctx.now(), who: runBy(ctx.surface(), ctx.session) });
         if (stamps) { markerEdits = { ...markerEdits, ...stamps }; markerNames = Object.keys(markerEdits); }
       }
       // A human comment that arrived after the caller read conversation.md, while the lane or its status changes.
@@ -179,6 +179,10 @@ export const updateTrack = {
       // compose
       const next = {};
       for (const n of fileNames) next[n] = repair && n === 'index' ? repairIndex(indexNow) : files[n];
+      // A replaced index that is not running carries no claim: stamps left over from the old text would show a released track as claimed.
+      if (files.index !== undefined && parseMarkers(files.index).values['Lane Status'] !== 'running') {
+        for (const name of ['Run Started', 'Run By']) next.index = removeMarker(next.index, name);
+      }
       if (markerNames.length) {
         if (!curOf('index')) throw fail('TRACK_NOT_FOUND', `${folder} has no index.md to set markers in`);
         let idx = indexNow;

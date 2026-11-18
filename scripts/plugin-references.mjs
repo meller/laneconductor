@@ -13,7 +13,7 @@ const TRACKS_SEARCH = T('ops/tracks.md', '## Search first: the default is update
 const NEWTRACK = '## newTrack `[name] [description]`';
 const UPDATE = '## updateTrack, reportaBug, featureRequest';
 const STATUSES = '## The five lane statuses';
-const TRANSITIONS = '## Transitions (track 1020\'s grammar)';
+const TRANSITIONS = '## Transitions';
 const LANES_COMMON = [
   T('ops/lanes-and-statuses.md', STATUSES, TRANSITIONS, '## Lane names', '## Manual moves win'),
   T('ops/tracks.md', '## move `[track-number] [lane:status]`', '## pulse `[track-number] [status] [progress%] [summary?]`', '## comment `[track-number] [body]`'),

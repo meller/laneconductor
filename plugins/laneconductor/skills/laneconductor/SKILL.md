@@ -1,7 +1,7 @@
 ---
 name: laneconductor
 description: Plan, implement, review, quality-gate and merge LaneConductor tracks - the folders under conductor/tracks/ holding index.md, spec.md, plan.md, test.md and conversation.md - and create, move, update or comment on them. Use for any work on a LaneConductor track or any /laneconductor command.
-when_to_use: Use when the user says things like "plan track 10109", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the lane prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name.
+when_to_use: Use when the user says things like "plan track 10106", "plan this", "write the spec for track N", "implement track N", "run track N", "review track N", "run the quality gate on N", "merge track N", "create a track for ...", "file a bug as a track", "move N to implement", "comment on track N", "what is the status of track N", "board", "show the board" or "update the board", and for the lane prompts "/laneconductor plan|implement|review|qualityGate|merge N", "/laneconductor board". Setting up LaneConductor in a repo (setup, setup scaffold, new-project, setup-deploy, deploy) runs only when the user asks for it by name.
 argument-hint: "[command] [track-number] [args]"
 ---
 <!-- Portions of workflow protocols adapted from superpowers by Jesse Vincent (MIT License) -->
@@ -80,7 +80,7 @@ current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; s
 form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
+fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
 
 ## conversation.md format
 
@@ -99,16 +99,16 @@ prefix partway because the content reads like a document.
 ## Session continuity
 
 A prompt may start with `FRESH_SESSION: true` or `FRESH_SESSION: false`. On `true`, do every
-"load context" step. On `false` you resumed your own session on this track (track 1086), so
+"load context" step. On `false` you resumed your own session on this track, so
 skip re-reading files you already read in it, but still read anything new: a human comment in
 `conversation.md`, a file that did not exist, command output you just produced. Resumed means
 "don't redo work", not "ignore new information". No marker at all (a skill-only session) means
 treat it as `true`.
 
-**On-disk content wins over memory (track AM-10090).** Before rewriting `spec.md`, `plan.md` or
+**On-disk content wins over memory.** Before rewriting `spec.md`, `plan.md` or
 `test.md` wholesale on a resumed turn, re-read them. If the file differs from what you remember
 writing, someone else (a human or another session) has acted since; reconcile with it instead of
-overwriting. Track AM-1020 is the incident: a resumed session re-asserted a stale "blocked, no
+overwriting. The incident behind this rule: a resumed session re-asserted a stale "blocked, no
 requirements" conclusion over a fresh respec, three times in ten minutes. Nothing checks this for you in a
 skill-only session, so re-read the file yourself.
 

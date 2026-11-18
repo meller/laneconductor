@@ -1,9 +1,9 @@
 # Track AM-10136: Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: done
+**Lane Status**: success
 **Progress**: 100%
-**Phase**: Implemented and merged to local main 2026-11-18 (439 connector tests, strict validate x4). Nothing resumes a parked track by itself; ready_to_resume tells you. Next: release as 1.2.0.
+**Phase**: Reviewed by a read-only reviewer (pass), gated on main with the plugins 1.2.2 release (516 connector tests, strict validate on all three plugins), shipped 2026-11-18.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -13,3 +13,5 @@
 
 Scope: fix the false sentence now; compute `blocked_by` and `ready_to_resume` in `list_tracks`, `get_track`, `get_context`; require a Waiting Reason when `Lane Status` becomes `waiting` (warn, lint); reject unknown dependency numbers in `create_track`; clear parking markers on resume (Waiting Reason, Waiting On Tracks); the human or agent resumes with `update_track`. Reference: daemon services/dependency-resume.mjs, waiting-state.mjs, tracks 10055, 10086, 10091.
 **Summary**: From the 2026-11-18 audit (findings C1, C2, C3, C5, severity high/medium). The skill text says "The reconciler resumes the track" (.claude/skills/laneconductor/SKILL.md:143) but no reconciler exists i
+**Part Of**: 10145
+**Verdict**: pass

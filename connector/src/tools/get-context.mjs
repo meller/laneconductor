@@ -52,7 +52,7 @@ export const getContext = {
 
     const data = { valid: await workflowVocabulary(store, { withNext: 'lanes' }) };
     // Track AM-10136: parked tracks whose dependencies are all done:success; resuming them is up to the person or agent.
-    const ready = readyToResume((await readEntries(store)).map((e) => rowOf(e.folder, e.index)));
+    const ready = readyToResume((await readEntries(store, { tracked: false })).map((e) => rowOf(e.folder, e.index)));
     if (ready.length) data.ready_to_resume = ready;
     if (!args.files && !args.lane) {
       data.manifest = present.map((n) => describeFile(n, got.get(`conductor/${n}`).content, got.get(`conductor/${n}`).sha));

@@ -56,7 +56,7 @@ the implement lane's retry loop, so write them up as gaps instead.
      append `## ✅ REVIEWED` to `plan.md`, and in the same edit write `**Verdict**: pass`.
    - **FAIL:** apply the failure move (this project: `implement:queue`), add
      `⚠️ Gaps` to `plan.md`, and in the same edit write `**Verdict**: fail`.
-   - Write `**Verdict**` every time, PASS or FAIL (track AM-10087). The harness can tag the same
+   - Write `**Verdict**` every time, PASS or FAIL. The harness can tag the same
      turn `blocked` (for example a question surfaced mid-review) although step 4 already reached
      a routable outcome; the run's exit handler reads `**Verdict**` before that tag, so
      a resolved review is routed instead of parked indefinitely.
@@ -126,7 +126,7 @@ claude plugin install laneconductor-parallel@laneconductor
 
 Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
 
-### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions (track 1020's grammar); Lane names; Manual moves win)
+### `ops/lanes-and-statuses.md` (The five lane statuses; Transitions; Lane names; Manual moves win)
 
 #### The five lane statuses
 
@@ -141,7 +141,7 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 **`running` belongs to the lane whose action is executing.** It is never used for work that belongs to another lane. A deploy
 gate (the full suites, then the deploy) is `quality-gate:running`, not `implement:running` and not `in-progress:running`.
 
-#### Transitions (track 1020's grammar)
+#### Transitions
 
 Each lane in `conductor/workflow.json` may carry `on_success` and `on_failure`. A target is one of:
 
@@ -174,7 +174,7 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 
 #### Lane names
 
-A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed
+A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. The standard names replaced the old ones:
 `planning` to `plan` and `in-progress` to `implement`; older projects (and the older-format files they carry) keep the old names, and existing tracks
 are never renamed. The lane guides stand for the project's lane that means the same thing: `plan` is `planning`, `implement` is `in-progress`.
 The connector reports this mapping as `valid.guide_lanes` (and the project's lane names as `valid.lanes`); without it, match by meaning. Write
@@ -224,7 +224,7 @@ current form) **and** `conductor/tracks/<N>-*/` for the older bare `NNN-slug`; s
 form silently misses every folder of the other). If neither finds it, `conductor/tracks-summary.md` (when it exists) lists the tracks.
 
 If any folder exists for the number, use it. Scaffolding a second one is an error, not a
-fallback: on track 10040 a scan that missed `AM-10040-...` created a duplicate `10040-...`.
+fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number>-...` folder.
 
 #### conversation.md format
 

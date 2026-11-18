@@ -34,6 +34,8 @@ export function rowOf(folder, idx) {
     waiting_for_reply: (v['Waiting for reply'] ?? '').trim().toLowerCase() === 'yes',
     depends_on: numbersOf(v['Depends On']),
     waiting_on: numbersOf(v['Waiting On Tracks']),
+    // Track AM-10136: a park with a stated reason that is not a wait for tracks (a question, an approval); present only when set.
+    ...((v['Waiting Reason'] ?? '').trim() ? { waiting_reason: true } : {}),
     source: (idx.sha ?? blobSha(idx.content)).slice(0, SOURCE_CHARS),
     // Track AM-10145: the optional marker `**Part Of**: <epic number>` (the epic's status is derived, never stored) and `**Priority**`
     // (read by `next`). Present only when set, so a track that uses neither is unchanged.

@@ -1,9 +1,9 @@
 # Track AM-10131: Workflow transitions: the connector resolves the next lane and status from workflow.json (legacy and current formats)
 
-**Lane**: review
-**Lane Status**: queue
+**Lane**: quality-gate
+**Lane Status**: waiting
 **Progress**: 100%
-**Phase**: Implemented and merged to local main 2026-11-18 (365 then 378 connector tests, strict validate x4). Owner accepted parity differences D1-D11. Open: TC-14, finish a real otralingo track with outcome:success and see it on the board.
+**Phase**: Reviewed by a read-only reviewer (pass). Shipped on main with plugins 1.2.2 (516 connector tests, strict validate on all three plugins): the connector resolves the next lane and status from workflow.json (legacy and current formats), parity differences D1-D11 accepted. Open: TC-14, a real otralingo track finished with outcome:success (owner).
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
@@ -24,3 +24,5 @@ Do (in the connector, laneconductor-parallel add-on, plus the base text that men
 
 Immediate guidance for AM-1291 (no code needed): when the deploy and post-deploy checks pass, move it to `review` with status `queue`; only the quality gate moves a track to done.
 **Summary**: Found 2026-11-18 on the otralingo project (track AM-1291, in-progress, running, deploy gate running): the agent planned to finish it as `done:success` while the project's workflow.json says in-progres
+**Verdict**: pass
+**Waiting Reason**: TC-14: finish a real otralingo track with outcome:success and look at the board (owner).
