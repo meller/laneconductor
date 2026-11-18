@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Designed 2026-11-18 in spec.md, plan.md and test.md; Phase 1 task 1 is the owner confirming four proposed decisions (general owner step, a template not a new Type, the cap as advice, a killed campaign closes as done:success with killed: in Result).
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
@@ -14,4 +14,6 @@
 The same stall exists for any track with a human step (our own: submit to a directory, approve a deploy), so this is not only marketing. Owner decision (2026-11-18): do it the LaneConductor way, with files in git, markers, lanes and statuses; no new lanes, no new infrastructure, no marketing tool.
 
 Proposed design (to confirm in the plan lane, see spec.md): an owner step is a track in `waiting` that names ONE concrete action with a due date and a kit; a run window ends on a date; a readout reads the result; the track closes with a result. `next` and the board make the owner actions and the due readouts impossible to miss. The campaign template, channel kits and the readout format are skills (in the person's own library), not core.
-**Summary**: Design of the owner-step track: markers, next, board, lane guides, skills outside core
+**Summary**: A track that needs the owner (record, post, choose, approve) stops unseen today. Proposal: one named Owner Action with a due date and a ready kit, a Resume On date, a readout, and a Result that closes the track; next and the board put it in front of the owner. Markers, lane guides and lints, no new lanes; the template and kits are skills outside the core.
+**Part Of**: 10145
+**Depends On**: 10136
