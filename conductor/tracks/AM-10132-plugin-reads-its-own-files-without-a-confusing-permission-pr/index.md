@@ -2,8 +2,8 @@
 
 **Lane**: review
 **Lane Status**: queue
-**Progress**: 70%
-**Phase**: Partly shipped in 1.2.0 (local main, not pushed): the one-line note on which prompt option to choose, in the README, setup and new-project, and the setup interview as one pre-filled message ending 'Reply ok, or tell me what differs' with a private-tracks option. allowed-tools: Read, Grep, Glob was evaluated and NOT shipped: the local validator accepts it but only a real session shows whether it removes the prompt. Open: that real-session check (owner decision).
+**Progress**: 90%
+**Phase**: Shipped and pushed in plugins 1.2.1 (2026-11-18, 503 connector tests, strict validate x4). Found by a headless run: the command only passed a launch line and the model had to read the plugin folder, which prompts or fails. Now setup, next, new-project and every lane command carry the text they need (generated from the single skill source), so none reads outside the project; the one-line note on prompt options and the one-message setup interview are in too. Checked headless on scratch copies (setup stops at the pre-filled message and reads nothing outside the project); installed 1.2.0 reproduced the failure. Left: TC-5, a real interactive session in fiti-plug on 1.2.1 to confirm no prompt appears; TC-6, allowed-tools Read, Grep, Glob, evaluated and not shipped, only worth adding if a prompt still shows. Board commands still read the board add-on script, by design.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
