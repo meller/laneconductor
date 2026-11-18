@@ -1,0 +1,10 @@
+{
+  "lanes": {
+    "triage": { "on_success": "design" },
+    "design": { "on_success": "build:queue", "on_failure": "triage" },
+    "build": { "on_success": "verify", "on_failure": "build" },
+    "verify": { "on_success": "done", "on_failure": "build:failure" },
+    "parked": { "on_success": "parked", "on_failure": "parked:waiting" },
+    "done": { "on_success": null, "on_failure": null }
+  }
+}

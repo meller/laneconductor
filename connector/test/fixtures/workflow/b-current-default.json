@@ -1,0 +1,54 @@
+{
+  "global": {
+    "total_parallel_limit": 3,
+    "auto_update_stale_models": false
+  },
+  "defaults": {
+    "parallel_limit": 1,
+    "max_retries": 1
+  },
+  "lanes": {
+    "plan": {
+      "parallel_limit": 1,
+      "max_retries": 1,
+      "primary_model": "claude-opus-5",
+      "on_success": "plan:success",
+      "on_failure": "backlog"
+    },
+    "implement": {
+      "parallel_limit": 2,
+      "max_retries": 3,
+      "primary_model": "claude-sonnet-5",
+      "on_success": "review:queue",
+      "on_failure": "implement:failure"
+    },
+    "review": {
+      "parallel_limit": 1,
+      "max_retries": 1,
+      "primary_model": "claude-haiku-4-5-20251001",
+      "on_success": "quality-gate:queue",
+      "on_failure": "implement:queue"
+    },
+    "quality-gate": {
+      "parallel_limit": 1,
+      "max_retries": 1,
+      "primary_model": "claude-haiku-4-5-20251001",
+      "on_success": "done:queue",
+      "on_failure": "plan:queue"
+    },
+    "done": {
+      "parallel_limit": 1,
+      "max_retries": 1,
+      "primary_model": "claude-sonnet-5",
+      "on_failure": "done:failure",
+      "hooks": [
+        {
+          "on": "success",
+          "provider": "jira",
+          "action": "comment",
+          "body": "LaneConductor: Track {{track}} has successfully completed the workflow and is now in the 'done' lane."
+        }
+      ]
+    }
+  }
+}

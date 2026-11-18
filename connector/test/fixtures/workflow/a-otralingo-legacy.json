@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "global": {
+    "total_parallel_limit": 3,
+    "default_model": "haiku",
+    "default_retries": 1
+  },
+  "defaults": {
+    "primary_model": "claude",
+    "max_retries": 1,
+    "parallel_limit": 1
+  },
+  "lanes": {
+    "planning": {
+      "auto_action": "plan",
+      "on_success": "backlog",
+      "on_failure": "backlog",
+      "parallel_limit": 2,
+      "max_retries": 1
+    },
+    "backlog": {
+      "auto_action": null,
+      "on_success": null,
+      "on_failure": null
+    },
+    "in-progress": {
+      "auto_action": "implement",
+      "on_success": "review",
+      "on_failure": "in-progress",
+      "parallel_limit": 1,
+      "max_retries": 2
+    },
+    "review": {
+      "auto_action": "review",
+      "on_success": "quality-gate",
+      "on_failure": "in-progress",
+      "parallel_limit": 2,
+      "max_retries": 1
+    },
+    "quality-gate": {
+      "auto_action": "qualityGate",
+      "on_success": "done",
+      "on_failure": "in-progress",
+      "parallel_limit": 2,
+      "max_retries": 1
+    },
+    "done": {
+      "auto_action": null,
+      "on_success": null,
+      "on_failure": null
+    }
+  }
+}
