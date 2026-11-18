@@ -93,6 +93,19 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 
 .pritag.high { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
 .pritag.low { color: var(--muted); }
 .typectl { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+/* Owner steps (track AM-10147): the action and its due date are words first; colour only backs them up. */
+.own { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 5px; background: var(--surface); }
+.own.late { border-left-color: var(--bad); }
+.own .ownl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.own .ownt { font-size: 12.5px; overflow-wrap: anywhere; min-width: 0; }
+.card .own .ownt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.own .ownr { font-size: 12.5px; overflow-wrap: anywhere; color: var(--muted); }
+.ownb { display: inline-block; width: fit-content; max-width: 100%; font-family: var(--font-mono); font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--ink); overflow-wrap: anywhere; }
+.ownb.over { color: var(--bad); background: var(--bad-soft); border-color: var(--bad); font-weight: 600; }
+.ownb.bad { color: var(--warn); background: var(--warn-soft); border-color: var(--warn); }
+.ownb.ready { color: var(--ok); background: var(--ok-soft); border-color: var(--ok); }
+.utcnote { margin: 0; color: var(--muted); font-size: 12.5px; }
+td .why.ready { color: var(--ok); }
 .typectl .cap { color: var(--muted); font-size: 12.5px; padding-top: 6px; white-space: nowrap; }
 .typectl .chips { flex: 1 1 0; min-width: 0; }
 .nomatch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
@@ -284,6 +297,7 @@ td .act { border-top: 0; padding-top: 0; }
     <div class="typectl" id="type-ctl" hidden><span class="cap" id="type-cap">Type</span><div class="chips" id="type-chips" role="group" aria-label="Filter by track type" hidden></div></div>
   </div>
 
+  <p class="utcnote" id="utc-note" hidden>Owner-action dates are UTC days; overdue is worked out when this page opens.</p>
   <p class="banner" id="filter-banner" role="status" aria-live="polite" hidden></p>
   <p class="banner nomatch" id="nomatch" role="status" aria-live="polite" hidden></p>
 
@@ -330,6 +344,7 @@ td .act { border-top: 0; padding-top: 0; }
       <h2 id="d-title"></h2>
       <div class="d-prog" id="d-prog"><div class="bar" id="d-bar"></div><span class="mono" id="d-pct"></span></div>
       <div class="phase" id="d-phase"></div>
+      <div id="d-own" hidden></div>
       <div class="d-note" id="d-note" hidden></div>
       <div id="d-act"></div>
     </div>
@@ -578,6 +593,54 @@ td .act { border-top: 0; padding-top: 0; }
   function prioOf(t) { return t && (t.pr === 'high' || t.pr === 'low') ? t.pr : 'normal'; }
   var PRIO_RANK = { high: 0, normal: 1, low: 2 };
   function prioTag(t) { var k = prioOf(t); if (k === 'normal') return null; var e = el('span', 'pritag ' + k, k); e.setAttribute('title', 'Priority: ' + k); return e; }
+  // ---- Owner steps (track AM-10147). board.json `oa` (the Owner Action text), `od` (its due date as written; absent: none), `rs` (Result), `kc` (KPI Check After, only
+  // while the track waits). The dates are UTC calendar days and are judged HERE, when the page opens, with the same strict rule as src/owner-steps.mjs, so an old
+  // snapshot never says a date has not come. All the free text goes in with textContent, never as markup.
+  var NOW = Date.now(), TODAY = new Date(NOW).toISOString().slice(0, 10);
+  function ownDay(v) {
+    var m = typeof v === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(v) : null;
+    if (!m) return null;
+    var y = +m[1], mo = +m[2], d = +m[3], t = new Date(Date.UTC(y, mo - 1, d));
+    return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d ? v : null;
+  }
+  function ownCheck(v) {
+    var day = ownDay(v); if (day) return { day: day };
+    var m = typeof v === 'string' ? /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?Z$/.exec(v) : null;
+    if (!m || !ownDay(m[1])) return null;
+    var hh = +m[2], mm = +m[3], ss = +(m[4] || 0);
+    if (hh > 23 || mm > 59 || ss > 59) return null;
+    var at = Date.parse(m[1] + 'T' + m[2] + ':' + m[3] + ':' + (ss < 10 ? '0' : '') + ss + '.' + ((m[5] || '0') + '00').slice(0, 3) + 'Z');
+    return isFinite(at) ? { day: m[1], at: at } : null;
+  }
+  // overdue: a waiting track whose Owner Action Due day is before today (due today is not overdue); ready: a waiting track whose KPI Check After is today or earlier.
+  function ownFlags(t) {
+    var out = {};
+    if (!t || t.s !== 'waiting') return out;
+    var due = t.oa ? ownDay(t.od) : null;
+    if (due && due < TODAY) out.overdue = due;
+    var ck = typeof t.kc === 'string' ? ownCheck(t.kc) : null;
+    if (ck && (ck.at !== undefined ? ck.at <= NOW : ck.day <= TODAY)) out.ready = t.kc;
+    return out;
+  }
+  // The due date in words: { kind: over | bad | none | ok, text }.
+  function ownDue(t) {
+    if (typeof t.od !== 'string') return { kind: 'none', text: 'no due date' };
+    var d = ownDay(t.od);
+    if (!d) return { kind: 'bad', text: 'due date ' + JSON.stringify(t.od) + ' is not a real YYYY-MM-DD date' };
+    if (ownFlags(t).overdue) { var days = Math.round((Date.parse(TODAY + 'T00:00:00Z') - Date.parse(d + 'T00:00:00Z')) / 864e5); return { kind: 'over', text: 'overdue ' + days + (days === 1 ? ' day' : ' days') + ' (due ' + d + ' UTC)' }; }
+    return { kind: 'ok', text: d === TODAY ? 'due today (' + d + ' UTC)' : 'due ' + d + ' UTC' };
+  }
+  function ownBadge(t) { var w = ownDue(t); return el('span', 'ownb' + (w.kind === 'over' ? ' over' : w.kind === 'bad' ? ' bad' : ''), w.text); }
+  // The block on a card and in the drawer header: the action, its due date, and a window that is ready to measure. Null when the track has none of them.
+  function ownBlock(t, full) {
+    var f = ownFlags(t), has = Boolean(t.oa), ready = f.ready !== undefined;
+    if (!has && !ready && !(full && t.rs)) return null;
+    var b = el('div', 'own' + (f.overdue ? ' late' : ''));
+    if (has) { b.appendChild(el('div', 'ownl', 'Owner action')); b.appendChild(el('div', 'ownt', t.oa)); b.appendChild(ownBadge(t)); }
+    if (ready) b.appendChild(el('span', 'ownb ready', 'Ready to measure: the run window ended (KPI Check After ' + f.ready + ')'));
+    if (full && t.rs) b.appendChild(el('div', 'ownr', 'Result: ' + t.rs));
+    return b;
+  }
   var presentTypes = TYPES.filter(function (k) { return D.tracks.some(function (t) { return typeOf(t) === k; }); });
   var typeFilterOn = presentTypes.some(function (k) { return k !== 'dev'; });
   if (typeFilterOn) {
@@ -782,6 +845,10 @@ td .act { border-top: 0; padding-top: 0; }
     return Math.round(h / 24) + ' days ago';
   }
   function cause(r) {
+    if (/^Owner action overdue/.test(r)) return 'Owner action overdue';
+    if (/^Ready to measure/.test(r)) return 'Ready to measure';
+    if (/^date_malformed/.test(r)) return 'Date not valid';
+    if (/^outcome_missing/.test(r)) return 'Outcome missing';
     if (/used by \d+ folders/.test(r)) return 'Duplicate number';
     if (/Lane Status/.test(r)) return 'Odd lane status';
     if (/Lane\*\* marker is missing|Lane\*\* "/.test(r)) return 'Lane missing or unknown';
@@ -792,6 +859,21 @@ td .act { border-top: 0; padding-top: 0; }
   var live = D.tracks;
   live.forEach(function (t) { if (LEGACY[t.l]) t.l = LEGACY[t.l]; });
   var statusByKey = {}, byKey = {}; live.forEach(function (t) { statusByKey[idOf(t)] = t.s; byKey[idOf(t)] = t; });
+  // Needs attention = what the board said when it was read (D.attn: lints, stale claims, failures) plus what depends on today's date and is therefore
+  // worked out here: an overdue owner action and a window ready to measure. A track that is already listed keeps its other reasons and gets these added.
+  var ATTN = D.attn.map(function (a) { return { n: a.n, p: a.p, t: a.t, r: a.r.slice(), x: a.x }; });
+  live.forEach(function (t) {
+    var f = ownFlags(t), add = [];
+    if (f.overdue) add.push('Owner action overdue since ' + f.overdue + ' (UTC): ' + (t.oa.length > 80 ? t.oa.slice(0, 79) + '\u2026' : t.oa));
+    if (f.ready !== undefined) add.push('Ready to measure: the run window ended (KPI Check After ' + f.ready + ')');
+    if (!add.length) return;
+    t.a = true;
+    var have = ATTN.filter(function (a) { return idOf(a) === idOf(t); })[0];
+    if (have) add.forEach(function (r) { have.r.push(r); });
+    else ATTN.push({ n: t.n, p: t.p, t: t.t, r: add, x: t.x });
+  });
+  ATTN.sort(function (a, b) { return b.n - a.n; });
+  document.getElementById('utc-note').hidden = !live.some(function (t) { return t.oa || t.kc !== undefined; });
   var DONE_CAP = 12, FILTER_CAP = 40;
   var byLane = {};
   function regroup() {
@@ -877,7 +959,7 @@ td .act { border-top: 0; padding-top: 0; }
   drawFresh();
 
   var sm = document.getElementById('summary');
-  [['flight', inflight, 'in progress'], ['', planned, 'being planned'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done'], ['', byLane.backlog.length, 'in backlog']].forEach(function (x) {
+  [['flight', inflight, 'in progress'], ['', planned, 'being planned'], ['attn', ATTN.length, 'need attention'], ['', byLane.done.length, 'done'], ['', byLane.backlog.length, 'in backlog']].forEach(function (x) {
     var s = el('div', 'stat ' + x[0]); s.appendChild(el('span', 'n', String(x[1]))); s.appendChild(el('span', 'l', x[2])); sm.appendChild(s);
   });
 
@@ -947,7 +1029,7 @@ td .act { border-top: 0; padding-top: 0; }
     var inLanes = 0, inDone = 0, inBack = 0;
     live.filter(match).forEach(function (t) { if (t.l === 'done') inDone++; else if (t.l === 'backlog') inBack++; else if (byLane[t.l]) inLanes++; });
     var total = live.filter(match).length;
-    var inAttn = D.attn.filter(attnMatch).length;
+    var inAttn = ATTN.filter(attnMatch).length;
     b.hidden = false;
     b.appendChild(el('span', null, total + (total === 1 ? ' track has' : ' tracks have') + ' status ' + state.status + (total ? ': ' : '.')));
     var parts = [];
@@ -1049,8 +1131,14 @@ td .act { border-top: 0; padding-top: 0; }
     if (!cur || cur.project || cur.next) return;
     headAct = actionLine(cur.t, 'drawer'); if (headAct) host.appendChild(headAct);
   }
+  function drawOwn() {
+    var host = $('d-own'); host.textContent = '';
+    var b = cur && !cur.project && !cur.next ? ownBlock(cur.t, true) : null;
+    host.hidden = !b; if (b) host.appendChild(b);
+  }
   function drawHead() {
     if (!cur) return;
+    drawOwn();
     $('d-lane').textContent = cur.t.l || 'no lane';
     var ps = $('d-pill'); ps.textContent = ''; ps.appendChild(pill(cur.t.s));
     drawHeadAction();
@@ -1184,7 +1272,7 @@ td .act { border-top: 0; padding-top: 0; }
     seq++;
     cur = { project: true, kind: 'project', tab: PD[0].k, seq: seq };
     $('d-id').textContent = 'PROJECT'; $('d-type').hidden = true; $('d-pri').hidden = true;
-    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = '';
+    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = ''; drawOwn();
     $('d-title').textContent = D.project || 'Project definition';
     $('d-note').textContent = 'A snapshot of the project definition files, read at the same time as this board (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. To refresh it, press Refresh board at the bottom of the page.';
     $('d-note').hidden = false;
@@ -1203,6 +1291,7 @@ td .act { border-top: 0; padding-top: 0; }
     if (!n || typeof n !== 'object' || typeof n.head !== 'string' || !n.head) return null;
     var str = function (v) { return typeof v === 'string' ? v : ''; };
     return {
+      s: str(n.s), n: Number.isInteger(n.n) ? n.n : null, advice: str(n.advice),
       head: str(n.head), cmd: typeof n.cmd === 'string' && n.cmd ? n.cmd : null, what: str(n.what), why: str(n.why),
       more: Number.isInteger(n.more) && n.more > 0 ? n.more : 0,
       others: (Array.isArray(n.others) ? n.others : []).filter(function (o) { return o && Number.isInteger(o.n); }).slice(0, 5)
@@ -1222,6 +1311,10 @@ td .act { border-top: 0; padding-top: 0; }
   }
   function drawNext(b) {
     var box = el('div', 'nx'), sec;
+    // An owner action (state S22): the due date is worked out now, in UTC, so a stale snapshot does not say "due" for a date that has passed. The reason baked
+    // into the card when the board was read is its first sentence; it is replaced by this one.
+    var ownT = NX.s === 'S22' && NX.n !== null ? trackByNumber(NX.n) : null;
+    if (ownT && ownT.oa) { sec = el('div'); sec.appendChild(el('div', 'nxl', 'Due (UTC, worked out when you opened this page)')); sec.appendChild(ownBadge(ownT)); box.appendChild(sec); }
     if (NX.cmd) {
       sec = el('div'); sec.appendChild(el('div', 'nxl', 'Run this in your Claude session'));
       var act = el('div', 'act'); bodyLinks.push(copyRow(NX.cmd, '', act)); sec.appendChild(act);
@@ -1234,7 +1327,8 @@ td .act { border-top: 0; padding-top: 0; }
       box.appendChild(sec);
     }
     if (NX.cmd && NX.what) { sec = el('div'); sec.appendChild(el('div', 'nxl', 'What it does')); sec.appendChild(el('p', null, NX.what)); box.appendChild(sec); }
-    if (NX.why) { sec = el('div'); sec.appendChild(el('div', 'nxl', NX.cmd ? 'Why it comes next' : 'Why')); sec.appendChild(el('p', null, NX.why)); box.appendChild(sec); }
+    var why = ownT && ownT.oa ? NX.why.replace(/^[^.]*\.\s*/, '') : NX.why;
+    if (why) { sec = el('div'); sec.appendChild(el('div', 'nxl', NX.cmd ? 'Why it comes next' : 'Why')); sec.appendChild(el('p', null, why)); box.appendChild(sec); }
     if (NX.others.length) {
       sec = el('div'); sec.appendChild(el('div', 'nxl', 'Also waiting'));
       var list = el('ul', 'nxlist');
@@ -1246,6 +1340,7 @@ td .act { border-top: 0; padding-top: 0; }
           li.appendChild(open); bodyLinks.push(open);
         } else li.appendChild(el('span', 'nxopen', 'Track ' + id));
         if (o.w) li.appendChild(el('span', 'nxw', o.w));
+        if (t && t.oa && o.w === 'do the owner action') li.appendChild(ownBadge(t));
         if (o.cmd) { var a2 = el('div', 'act'); bodyLinks.push(copyRow(o.cmd, id, a2)); li.appendChild(a2); }
         list.appendChild(li);
       });
@@ -1253,6 +1348,7 @@ td .act { border-top: 0; padding-top: 0; }
       if (NX.more) sec.appendChild(el('p', 'nxcan', 'and ' + NX.more + ' more'));
       box.appendChild(sec);
     }
+    if (NX.advice) box.appendChild(el('p', 'nxcan', NX.advice));
     if (NX.primer.length) {
       sec = el('div');
       var tg = el('button', 'toggle', 'How lanes and statuses work'); tg.type = 'button'; tg.setAttribute('aria-expanded', 'false'); tg.setAttribute('aria-controls', 'nx-primer');
@@ -1268,7 +1364,7 @@ td .act { border-top: 0; padding-top: 0; }
     seq++;
     cur = { next: true, kind: 'next', tab: 'next', seq: seq };
     $('d-id').textContent = 'WHAT\'S NEXT'; $('d-type').hidden = true; $('d-pri').hidden = true;
-    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = '';
+    $('d-lane').hidden = true; $('d-pill').textContent = ''; $('d-prog').hidden = true; $('d-phase').textContent = ''; drawOwn();
     $('d-title').textContent = NX.head;
     $('d-note').textContent = 'Worked out when this board was read (' + when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) + '), not a live view. It is the same answer the next command gives.';
     $('d-note').hidden = false;
@@ -1300,6 +1396,7 @@ td .act { border-top: 0; padding-top: 0; }
     c.appendChild(el('div', 'title', t.t));
     if (t.g > 0 || t.l !== 'backlog') { var b = el('div', 'bar'), f = document.createElement('i'); f.style.width = Math.max(0, Math.min(100, t.g)) + '%'; b.appendChild(f); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-valuenow', String(t.g)); b.setAttribute('aria-label', 'Progress'); c.appendChild(b); }
     if (t.h && t.h !== 'New') c.appendChild(el('div', 'phase', t.h));
+    var own = ownBlock(t, false); if (own) c.appendChild(own);
     var act = actionLine(t, 'card'); if (act) c.appendChild(act);
     activatable(c, t, 'card');
     return c;
@@ -1324,7 +1421,7 @@ td .act { border-top: 0; padding-top: 0; }
     return !state.q || String(a.n).indexOf(state.q) >= 0 || (a.t || '').toLowerCase().indexOf(state.q.toLowerCase()) >= 0;
   }
   function drawAttn() {
-    var all = D.attn; var causes = {};
+    var all = ATTN; var causes = {};
     all.forEach(function (a) { a.r.forEach(function (r) { var c = cause(r); causes[c] = (causes[c] || 0) + 1; }); });
     var ch = document.getElementById('attn-chips'); ch.textContent = '';
     ['all'].concat(Object.keys(causes).sort(function (a, b) { return causes[b] - causes[a]; })).forEach(function (c) {
@@ -1337,7 +1434,7 @@ td .act { border-top: 0; padding-top: 0; }
     var tb = document.getElementById('attn-rows'); tb.textContent = '';
     (state.attnAll ? rows : rows.slice(0, DONE_CAP)).forEach(function (a) {
       var tr = document.createElement('tr');
-      var c1 = el('td', 'mono', idOf(a)); var c2 = el('td', 't', a.t || '(no title)'); var cs = el('td'); cs.appendChild(pill(statusByKey[idOf(a)])); var c3 = el('td'); a.r.forEach(function (r) { c3.appendChild(el('div', 'why', r.replace(/\*\*/g, ''))); });
+      var c1 = el('td', 'mono', idOf(a)); var c2 = el('td', 't', a.t || '(no title)'); var cs = el('td'); cs.appendChild(pill(statusByKey[idOf(a)])); var c3 = el('td'); a.r.forEach(function (r) { c3.appendChild(el('div', 'why' + (/^Ready to measure/.test(r) ? ' ready' : ''), r.replace(/\*\*/g, ''))); });
       var c4 = el('td'), tk = byKey[idOf(a)], al = actionLine(tk || { n: a.n, p: a.p }, 'attn', tk ? tk.x : a.x); if (al) c4.appendChild(al);
       tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(cs); tr.appendChild(c3); tr.appendChild(c4); activatable(tr, byKey[idOf(a)] || { n: a.n, p: a.p, t: a.t, l: null, s: null, g: 0, h: '', d: false }, 'attn'); tb.appendChild(tr);
     });
