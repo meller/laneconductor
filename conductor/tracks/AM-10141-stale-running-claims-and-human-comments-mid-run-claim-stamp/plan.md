@@ -1,11 +1,29 @@
 # Track 10141: Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning
 
-New `connector/src/claims.mjs`; wiring in `update_track`, `get_track`, `list_tracks` and the board. No new tool text (KC-8).
+Design approach: a new `connector/src/claims.mjs` holds the stamp, stale and comment rules; `update_track`, `get_track`, `list_tracks` and the board call it. No new tool text (KC-8). Stamps are derived by the connector and are not part of the caller's base. The summary lint stays free of the clock.
 
-- [x] 1. Claim stamp: when `update_track` sets Lane Status to running (or moves the lane while running), it also writes `**Run Started**` (ISO time) and `**Run By**` (client name and connector session). The stamps are derived, not part of the caller's base; the returned base carries them.
-- [x] 2. Release: any other Lane Status removes both stamps, so a human or agent releases a stale claim by moving the track to queue.
-- [x] 3. Stale-running warning: running with a Run Started older than 6 hours is reported as `stale_running` by `get_track`, one aggregate line in `list_tracks`, and a needs-attention reason on the board (deterministic from its generated time). The summary lint is left alone: the summary file must not depend on the clock.
-- [x] 4. Human comment mid-run: when a call changes Lane or Lane Status, the caller read conversation.md, it has changed since, and its newest turn is the human's, the write succeeds and carries a `human_comment_mid_run` warning. A CONFLICT option (`expect_conversation`) was not added: it would cost tool-description text.
-- [ ] 5. Skipped: "no commit on its branch" (the connector does not know the run's branch; an unstamped claim cannot be judged and is not flagged); resting-state lint from workflow.json (needs a decision on which non-terminal successes are resting; not done).
-  - skipped: needs an owner decision to descope
-- [x] 6. All warnings are kept under the 200 character warning bound.
+## Phase 1: Claim stamp and release
+
+- [x] Stamp `**Run Started**` and `**Run By**` when Lane Status becomes running; re-stamp on a Lane-only move while running; keep them on other edits
+- [x] Cap the client name in `Run By` at 24 characters
+- [x] Remove both stamps for any other status and for a files.index replacement whose status is not running
+
+## Phase 2: Stale-running report
+
+- [x] `staleRunning` flags a stamped running claim older than 6 hours
+- [x] Report it in `get_track`, as one aggregate line in `list_tracks`, and as a board needs-attention reason
+- [x] Keep it out of the summary lint
+
+## Phase 3: Human comment mid-run
+
+- [x] Warn `human_comment_mid_run` when a Lane or Lane Status change follows a human turn newer than the caller's read (warning, never a conflict)
+- [x] Keep every added warning within the 200-character bound
+
+## Phase 4: Tests and release gate
+
+- [x] Tests in `connector/test/claims.test.mjs` for stamps, stale, through the connector, board and comment
+- [x] Read-only review, verdict pass
+- [ ] Branch-commit check: "no commit on the run's branch" (the connector does not know the run's branch). Needs an owner decision to descope
+- [ ] Resting-state lint derived from workflow.json (needs a decision on which non-terminal successes count as resting). Needs an owner decision to descope
+
+Gate: the track leaves quality-gate when the owner descopes or builds the two unticked items.
