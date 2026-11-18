@@ -77,8 +77,6 @@ resolves to `review:queue` on success and `in-progress:failure` on failure (the 
 - **Without them:** read `conductor/workflow.json` and apply the table above by hand. Never compute a target from the raw text any other
   way, and never fill in a missing status by feel: a bare target has exactly the defaults above.
 
-The same logic is shared with the older database tier from one file (`conductor/services/workflow-transitions.mjs`).
-
 ## Lane names
 
 A project names its own lanes in `conductor/workflow.json`; the guides and commands use the standard names. Track 1020 renamed

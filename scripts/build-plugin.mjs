@@ -76,7 +76,7 @@ const SKILL_SRC = '.claude/skills/laneconductor';
 export const ICON_SRC = 'connector/plugin-extras/icon.png'; // made by scripts/make-icon.mjs; the human may replace it
 export const EXTRAS_SRC = 'connector/plugin-extras';
 export const README_SRC = 'connector/plugin-extras/readme';
-// The parked daemon-era tier does not ship; it stays in the LaneConductor repository's own skill.
+// The experimental, currently unmaintained daemon-era tier does not ship; it stays in the LaneConductor repository's own skill.
 export const SKILL_EXCLUDE_DIRS = ['legacy'];
 // Server entry points per plugin (their relative imports follow).
 export const SERVER_ENTRIES = { parallel: ['bin/lc-connector.mjs', 'bin/lc-scaffold.mjs'], board: ['bin/lc-board.mjs'] };

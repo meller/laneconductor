@@ -216,7 +216,7 @@ Everything under `plugins/`, the marketplace file and `docs/plugin-map.md` is GE
 How the generator works (`scripts/build-plugin.mjs` and `scripts/plugin-texts.mjs`, deterministic, no timestamps, one source set, three
 profiles `base`, `parallel`, `board`):
 
-- the skill is copied from `.claude/skills/laneconductor/` without its `legacy/` folder (the parked daemon and
+- the skill is copied from `.claude/skills/laneconductor/` without its `legacy/` folder (the experimental, currently unmaintained daemon and
   Postgres tier stays in the repo's own skill). `skillEdits` removes the pointers into it and points the board, scaffold and
   worktree text at the add-ons (a missing anchor fails the build); the `allowed-tools` key is deleted from `SKILL.md` (so Claude Code
   applies its normal permission check) and a short Habits section and the Add-ons pointer are appended. The source skill is not touched;
