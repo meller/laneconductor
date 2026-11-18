@@ -13,6 +13,11 @@ export const DEFAULT_PAGE_LANES = ['backlog', 'planning', 'in-progress', 'review
 export const DEFAULT_LANES = ['plan', 'implement', 'review', 'quality-gate', 'done'];
 const ARCHIVE_RE = /^_(?:duplicate|quarantine)-/;
 const PHASE_MAX = 200;
+const DONE_ATTENTION = {
+  queue: 'done:queue: passed the gate, not merged yet',
+  failure: 'done:failure: the merge failed',
+  waiting: 'done:waiting: waiting on a human (a PR is open)',
+};
 
 export const isArchivedFolder = (name) => ARCHIVE_RE.test(name);
 
@@ -77,6 +82,8 @@ export function buildBoard(entries, { lanes = DEFAULT_LANES, generatedAt, projec
     if (stale) reasons.push(`running for ${stale.hours}h with no sign of life`);
     if (row.waiting_for_reply) reasons.push('waiting for a human reply');
     if (row.lane_status === 'failure' && row.lane !== 'done') reasons.push('lane status is failure');
+    // Track AM-10135: in the done lane only `success` means shipped; the other statuses are work somebody still has to finish.
+    if (row.lane === 'done' && DONE_ATTENTION[row.lane_status]) reasons.push(DONE_ATTENTION[row.lane_status]);
     if (reasons.length) reasonsByFolder.set(row.folder, reasons);
   });
 

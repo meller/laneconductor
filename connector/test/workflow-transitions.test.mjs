@@ -106,9 +106,42 @@ test('TC-4: backlog is a known place with no automatic move, even when the workf
   assert.equal(go(B, 'backlog', 'failure'), null);
 });
 
-test('TC-4: the `defaults` block of the daemon era is not a transition source (the grammar reads only the lane)', () => {
-  const wf = { defaults: { on_success: 'review' }, lanes: { build: {} } };
-  assert.equal(go(wf, 'build', 'success'), null);
+test('TC-4 (AM-10137): a lane that omits on_success / on_failure inherits `defaults`; an explicit null does not; the lane value wins', () => {
+  const wf = { defaults: { on_success: 'review', on_failure: 'build:failure' }, lanes: { build: {}, review: { on_success: 'done', on_failure: null }, plan: { on_success: 'build:queue' } } };
+  assert.equal(go(wf, 'build', 'success'), 'review:queue', 'omitted: defaults.on_success, bare target -> queue');
+  assert.equal(go(wf, 'build', 'failure'), 'build:failure', 'omitted: defaults.on_failure, explicit status kept');
+  assert.equal(go(wf, 'review', 'success'), 'done:queue', 'the lane\'s own value wins');
+  assert.equal(go(wf, 'review', 'failure'), null, 'explicit null is a decision: no automatic move, no fallback');
+  assert.equal(go(wf, 'plan', 'success'), 'build:queue');
+  assert.equal(go(wf, 'plan', 'failure'), 'build:failure', 'one field set, the other inherited');
+  assert.equal(resolveNext(wf, 'build', 'success').source, 'defaults');
+  assert.equal(resolveNext(wf, 'review', 'success').source, 'lane');
+  assert.equal(resolveNext(wf, 'review', 'failure').source, null);
+  // No defaults block, or defaults without the field: still no automatic move.
+  assert.equal(go({ lanes: { build: {} } }, 'build', 'success'), null);
+  assert.equal(go({ defaults: { primary_model: 'claude' }, lanes: { build: {} } }, 'build', 'success'), null);
+  assert.equal(go({ defaults: { on_success: 7 }, lanes: { build: {} } }, 'build', 'success'), null, 'a non-text default is ignored');
+});
+
+test('TC-4 (AM-10137): the otralingo legacy fixture (A) has `defaults` without targets, so its rows do not change', () => {
+  assert.equal(A.defaults.on_success, undefined);
+  assert.equal(go(A, 'backlog', 'success'), null, 'explicit null stays no move');
+  assert.equal(go(A, 'done', 'success'), null);
+  const withDefaults = { ...A, defaults: { ...A.defaults, on_success: 'review', on_failure: 'in-progress' } };
+  for (const lane of Object.keys(A.lanes)) {
+    for (const outcome of ['success', 'failure']) assert.equal(go(withDefaults, lane, outcome), go(A, lane, outcome), `${lane} ${outcome}: every lane of A sets its field, so defaults change nothing`);
+  }
+});
+
+test('TC-4 (AM-10137): `stay` and `stop` are read as "no automatic move" (an old workflow.json), never as a lane', () => {
+  for (const word of ['stay', 'stop', ' Stay ']) {
+    assert.equal(resolveTarget(word, 'build', 'success'), null);
+    const wf = { lanes: { build: { on_success: word, on_failure: word } } };
+    assert.equal(go(wf, 'build', 'success'), null);
+    assert.equal(go(wf, 'build', 'failure'), null);
+    assert.equal(go({ defaults: { on_success: word }, lanes: { build: {} } }, 'build', 'success'), null, 'also as a default');
+  }
+  assert.equal(resolveTarget('stay:queue', 'build', 'success').lane, 'stay', 'only the bare word is legacy; a lane:status is a lane');
 });
 
 test('TC-5 (names): a project on the guide names and one on the old names resolve the same logical transitions', () => {

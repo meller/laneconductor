@@ -1,9 +1,9 @@
 # Track AM-10136: Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 100%
+**Phase**: Implemented and merged to local main 2026-11-18 (439 connector tests, strict validate x4). Nothing resumes a parked track by itself; ready_to_resume tells you. Next: release as 1.2.0.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct

@@ -209,6 +209,20 @@ export class LocalGitStore {
     return (await this._git(['merge-base', '--is-ancestor', commit, ref])).code === 0;
   }
 
+  /**
+   * Track AM-10135: for every local branch `<prefix>*` (the merge lane's `track-NNN`), is it reachable from the state branch
+   * (`git merge-base --is-ancestor`)? A Map of branch name -> true (merged) | false (it has commits the state branch lacks). A track
+   * with no branch is simply absent: merged and deleted, or worked on the main branch, which the files cannot tell apart.
+   */
+  async branchMergeStates(prefix = 'track-') {
+    const listed = await this._git(['for-each-ref', '--format=%(refname:short)', `refs/heads/${prefix}*`]);
+    const names = listed.code === 0 ? listed.stdout.split('\n').map((n) => n.trim()).filter((n) => /^[A-Za-z0-9._\/-]+$/.test(n) && !n.startsWith('-')) : [];
+    const ref = (await this._git(['rev-parse', '--verify', '-q', `refs/heads/${this.stateBranch}`])).code === 0 ? `refs/heads/${this.stateBranch}` : 'HEAD';
+    const out = new Map();
+    for (const n of names) out.set(n, (await this._git(['merge-base', '--is-ancestor', `refs/heads/${n}`, ref])).code === 0);
+    return out;
+  }
+
   // ---- path safety -------------------------------------------------------------------------
 
   _normalize(rel, { writing = false } = {}) {

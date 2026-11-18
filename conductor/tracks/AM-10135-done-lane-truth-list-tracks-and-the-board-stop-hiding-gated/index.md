@@ -1,9 +1,9 @@
 # Track AM-10135: Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work
 
-**Lane**: plan
+**Lane**: review
 **Lane Status**: queue
-**Progress**: 0%
-**Phase**: New
+**Progress**: 100%
+**Phase**: Implemented and merged to local main 2026-11-18 (439 connector tests, strict validate x4). Next: release as 1.2.0 with the other audit tracks.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct

@@ -124,10 +124,11 @@ test('TC-17: DIFFERENCES between the old daemon and the shared module, for odd o
 test('TC-17: DIFFERENCES daemon resolver vs shared resolver: stay / stop, defaults.on_*, null targets, legacy bare targets (owner decides each)', async () => {
   const { resolveNext, resolveTarget } = await import('../../conductor/services/workflow-transitions.mjs');
   // D7: `stay` and `stop` are daemon-era words for "no target". The daemon keeps them (shim NO_TARGET_STAYS: the track stays in its lane
-  // with status success / failure / queue); the shared grammar (1020) does not know them and would read a lane named `stay`.
+  // with status success / failure / queue); the shared grammar (1020) does not know them. Since AM-10137 it reads them as "no target"
+  // (legacy read only: an old file is understood, nothing offers or writes them).
   for (const w of ['stay', 'stop']) {
     assert.equal(fmt(resolveTransition(w, 'implement', true, false)), 'implement:success');
-    assert.deepEqual(resolveTarget(w, 'implement', 'success'), { lane: w, status: 'queue' });
+    assert.equal(resolveTarget(w, 'implement', 'success'), null, 'AM-10137: read as no target (legacy read only), not as a lane named stay');
   }
   // D8: a missing / null target. The daemon still STAYS in the lane with a status (implement:success on success, implement:failure at max
   // retries, implement:queue otherwise); the shared resolver says "no automatic move" (null), which the connector refuses for `outcome`.
@@ -136,11 +137,14 @@ test('TC-17: DIFFERENCES daemon resolver vs shared resolver: stay / stop, defaul
   assert.equal(fmt(resolveTransition(undefined, 'implement', false, false)), 'implement:queue');
   // D9: `defaults.on_success` / `defaults.on_failure` of the daemon-era file. The daemon site reads them (laneconductor.sync.mjs:
   // `currentLaneConfig?.on_success || workflowConfig?.defaults?.on_success`, left as it was) when the lane has no target; the shared
-  // resolver ignores `defaults` (1020 knows only the lane's own fields). Same file, two answers for a lane without a target.
+  // resolver now reads them too (AM-10137), for a lane that OMITS the field; an explicit null is still "no move" there, while the
+  // daemon's `||` falls through a null to the default (the one remaining difference, D9b).
   const wf = { defaults: { on_success: 'review' }, lanes: { build: {} } };
   const daemonValue = wf.lanes.build.on_success || wf.defaults.on_success;
   assert.equal(fmt(resolveTransition(daemonValue, 'build', true, false)), 'review:queue');
-  assert.equal(resolveNext(wf, 'build', 'success').next, null);
+  assert.deepEqual(resolveNext(wf, 'build', 'success').next, { lane: 'review', status: 'queue' }, 'D9 closed: the shared resolver agrees');
+  const withNull = { defaults: { on_success: 'review' }, lanes: { build: { on_success: null } } };
+  assert.equal(resolveNext(withNull, 'build', 'success').next, null, 'D9b: explicit null never falls back in the shared resolver');
   // D10: legacy bare targets agree: bare other lane -> queue, bare same lane -> success / failure (failure only at max retries in the daemon).
   assert.equal(fmt(resolveTransition('review', 'in-progress', true, false)), 'review:queue');
   assert.deepEqual(resolveNext(FIXTURES.A, 'in-progress', 'success').next, { lane: 'review', status: 'queue' });
