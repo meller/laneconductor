@@ -2,6 +2,7 @@
 // duplicate number is surfaced as a warning; the repair is the `repair-duplicates` command (text only).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { connect } from './helpers/mcp.mjs';
 import { makeRepo, writeFile, commitAll, rm, git, INDEX } from './helpers/repo.mjs';
 import { duplicateNumbers } from '../src/tracks.mjs';
@@ -73,8 +74,56 @@ test('a folder named differently only on an unmerged branch is a softer note, no
   assert.equal(r.isError, false, r.text);
   assert.ok(!r.env.warnings.some((x) => /Duplicate track numbers/.test(x)), JSON.stringify(r.env.warnings));
   const w = r.env.warnings.find((x) => /also named differently on branch other/.test(x));
-  assert.match(w, /^Track number 1 also named differently on branch other .*Merge or delete that branch/);
+  assert.match(w, /^Track number 1 also named differently on branch other .*Merge or delete the branch.*repair-duplicates/);
   assert.ok(w.length <= 200 && w.endsWith('.'));
+});
+
+// Track AM-10146 (noise fix of 10143): old unmerged track-* branches made the soft note list hundreds of numbers.
+const commitOn = (dir, message, isoDate) => {
+  git(dir, 'add', '-A');
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', message], { env: { ...process.env, GIT_COMMITTER_DATE: isoDate, GIT_AUTHOR_DATE: isoDate, GIT_CONFIG_NOSYSTEM: '1' } });
+};
+const DAY = 24 * 3600 * 1000;
+const iso = (ms) => new Date(ms).toISOString();
+
+test('noise fix: 200 stale unmerged branches name numbers differently, and the create answer has no note about them', async () => {
+  const { s } = await open((d) => {
+    for (let n = 2; n <= 201; n++) writeFile(d, T(n, 'x'), INDEX(n, `X${n}`));
+    commitAll(d, 'two hundred tracks on main');
+    for (let n = 2; n <= 201; n++) {
+      git(d, 'checkout', '-q', '-b', `track-${n}`, 'main');
+      writeFile(d, T(n, `old-name-${n}`), INDEX(n, `Old ${n}`));
+      commitOn(d, `old work ${n}`, iso(Date.now() - (90 + n) * DAY));
+      git(d, 'checkout', '-q', 'main');
+    }
+  });
+  const r = await create(s, 'Anything else');
+  assert.equal(r.isError, false, r.text);
+  assert.ok(!r.env.warnings.some((x) => /also named differently|\+\d+ more/.test(x)), JSON.stringify(r.env.warnings));
+});
+
+test('noise fix: only recent branches count; at most 3 are shown, then "+N more" and the repair-duplicates pointer, within 200 characters', async () => {
+  const { s } = await open((d) => {
+    for (let n = 2; n <= 60; n++) writeFile(d, T(n, 'x'), INDEX(n, `X${n}`));
+    commitAll(d, 'tracks on main');
+    for (let n = 2; n <= 60; n++) {
+      git(d, 'checkout', '-q', '-b', `track-${n}`, 'main');
+      writeFile(d, T(n, `other-name-${n}`), INDEX(n, `Other ${n}`));
+      // 5 branches are recent (the newest last), the rest are over 60 days old
+      commitOn(d, `work ${n}`, iso(n >= 56 ? Date.now() - (60 - n) * 1000 - 1000 : Date.now() - 100 * DAY));
+      git(d, 'checkout', '-q', 'main');
+    }
+  });
+  const r = await create(s, 'Anything else');
+  assert.equal(r.isError, false, r.text);
+  const notes = r.env.warnings.filter((x) => /also named differently/.test(x));
+  assert.equal(notes.length, 1, JSON.stringify(r.env.warnings));
+  const w = notes[0];
+  assert.ok(w.length <= 200 && w.endsWith('.'), `${w.length}: ${w}`);
+  assert.match(w, /\+2 more/);
+  assert.match(w, /repair-duplicates/);
+  assert.equal((w.match(/track-\d+/g) ?? []).length, 3, 'three branches shown');
+  assert.ok(!/track-(?:[2-9]|[1-4]\d|5[0-5])\b/.test(w), `an old branch is shown: ${w}`);
 });
 
 test('two folder names for one number on the state branch is a Duplicate warning', async () => {
