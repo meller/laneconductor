@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned 2026-11-18 (owner confirmed: three levels, the base in Anthropic's directory, the two add-ons from the owner's repository, all three installed together on the owner's computer to check that they work together). Starts when track 10127 (the Markdown-only base build) is merged.
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
