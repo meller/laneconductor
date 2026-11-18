@@ -295,7 +295,7 @@ Generated: 2026-11-18T15:11:59Z
 | AM-10135 | Done lane truth: list_tracks and the board stop hiding gated-but-unmerged work | plan | queue | 0% | New | - | 61f0503e175b |
 | AM-10136 | Parking and resume without a daemon: ready-to-resume list, Waiting Reason, Depends On gate | plan | queue | 0% | New | - | 5a09385f1fda |
 | AM-10137 | Workflow transitions follow-up: defaults, stay and stop, Verdict, clear parking markers on outcome | plan | queue | 0% | New | - | b8bcd87cb944 |
-| AM-10138 | outcome:failure honours max_retries (an Attempts marker bounds the loop) | plan | queue | 0% | New | - | b91ac55584f8 |
+| AM-10138 | outcome:failure honours max_retries (an Attempts marker bounds the loop) | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18; depends on 10137. | - | 607bfb5a8b82 |
 | AM-10139 | Marker parser: first match wins, CRLF, case, and a repair_index write | plan | queue | 0% | New | - | ed5b48de02dd |
 | AM-10140 | update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen | plan | queue | 0% | New | - | 3ee113844b8a |
 | AM-10141 | Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning | plan | queue | 0% | New | - | a9ad48cfdb14 |
