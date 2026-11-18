@@ -119,9 +119,9 @@ test('TC-17: no new heading in the three guides, no new skill file, no campaign 
 });
 
 test('TC-17: the added text is merged into the existing steps; the affected commands grew by a small, recorded amount and stay inside the limits', () => {
-  // Bytes before (the commit this phase started from, 8cc4b16a plus the Phase 2 and 3 merge) and the ceilings the phase set itself.
+  // Bytes before (the commit this phase started from, 8cc4b16a plus the Phase 2 and 3 merge) and the ceilings the phase set itself (next: 167 bytes added in 1.9.1 so detecting plugins never chains commands).
   const BEFORE = { plan: 27268, implement: 26745, 'quality-gate': 20791, run: 65654, next: 32808, 'new-project': 35430, comment: 5553, move: 6741 };
-  const GROWTH = { plan: 200, implement: 1500, 'quality-gate': 1500, run: 3000, next: 0, 'new-project': 0, comment: 1000, move: 150 };
+  const GROWTH = { plan: 200, implement: 1500, 'quality-gate': 1500, run: 3000, next: 200, 'new-project': 0, comment: 1000, move: 150 };
   for (const [n, before] of Object.entries(BEFORE)) {
     const size = Buffer.byteLength(command(n));
     assert.ok(size <= before + GROWTH[n], `${n}: ${size} bytes, ${size - before} more than before (allowed ${GROWTH[n]})`);

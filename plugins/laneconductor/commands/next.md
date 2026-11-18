@@ -176,7 +176,7 @@ else is ever stored: there is no counter and no write on a plain run.
 In S02, S03 and S04 there is nothing to rank yet, so the card is followed, once per session, by the optional add-ons that fit this
 project and are not installed. Show them; never run an install. An add-on that is already installed is not offered (the board has one more sentence, below), and one
 already offered in this session (by setup, for example) or declined is not offered again. Later runs, with tracks, never offer
-add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. Detect an installed add-on from the skills list and `claude plugin list` (read only); if you still cannot tell and the person says it is installed already, take their word and stop offering it.
+add-ons on their own: they come up only when the person asks for parallel work, a board or a worktree. Detect an installed add-on from the skills list and the tools you have; only if that is not enough, run `claude plugin list` (read only) as a command of its own, never chained with other commands (a chained command makes the client ask for permission); if you still cannot tell and the person says it is installed already, take their word and stop offering it.
 
 The board is the one add-on that is also named when it is installed. In S02, S03 and S04 add one sentence, once: `/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`. The loop from there is: open the board, copy the step, run it here, ask for a refresh.
 
