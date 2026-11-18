@@ -4,7 +4,7 @@ Start a project from a short conversation: interview, scaffold, first tracks. Ru
 name. Nothing is committed without their yes, and nothing is ever pushed. It needs no daemon and no database.
 
 The scaffold script named below, `lc-scaffold.mjs`, belongs to the optional laneconductor-parallel add-on. Find it with Glob
-`**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` under `~/.claude/plugins`, or in the LaneConductor repository under `connector/bin/`.
+`**/laneconductor-parallel/**/server/bin/lc-scaffold.mjs` under `~/.claude/plugins/cache`, or in the LaneConductor repository under `connector/bin/`.
 If it does not exist, do that step by hand exactly as described; the result is the same, only slower. Do not recommend the
 add-on for this.
 

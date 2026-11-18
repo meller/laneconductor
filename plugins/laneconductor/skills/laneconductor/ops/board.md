@@ -14,7 +14,7 @@ From the project root:
 site=$(mktemp -d) && lc board --site "$site" --json
 ```
 
-No `lc` on PATH: use the board script of the optional laneconductor-board add-on. Find it with Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` and run `node <that path> --repo . --site "$site" --json`.
+No `lc` on PATH: use the board script of the optional laneconductor-board add-on. Find it with Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` and run `node <that path> --repo . --site "$site" --json`.
 Neither exists: the add-on is not installed. Say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop. The temp dir stays outside the repo (the command refuses a folder
 under `conductor/`). Stdout is one JSON object and nothing else: `{ "page": "<dir>/board.html",
 "root": "<dir>", "files": ["board.json", "docs/1.json", ...] }`. `board.html` is the page (identical

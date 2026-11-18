@@ -34,7 +34,8 @@ export const SERVER_KEY = 'lc';
 export const CONNECTOR_TOOL_PREFIX = `mcp__plugin_${NAMES.parallel}_${SERVER_KEY}__`;
 export const TRACK_RUNNER_AGENT = `${NAMES.parallel}:track-runner`;
 export const BOARD_SCRIPT_REL = 'server/bin/lc-board.mjs'; // inside the board add-on
-export const BOARD_SCRIPT_GLOB = `**/${NAMES.board}/**/bin/lc-board.mjs`; // under ~/.claude/plugins
+export const BOARD_SCRIPT_GLOB = `**/${NAMES.board}/**/bin/lc-board.mjs`; // under PLUGINS_CACHE
+export const PLUGINS_CACHE = '~/.claude/plugins/cache'; // installed plugins live in cache/<marketplace>/<plugin>/<version>/; the marketplaces/ clone holds plugins that are only added, not installed
 export const SCAFFOLD_SCRIPT_GLOB = `**/${NAMES.parallel}/**/server/bin/lc-scaffold.mjs`;
 export const toolRef = (tool) => `${CONNECTOR_TOOL_PREFIX}${tool}`;
 
@@ -75,7 +76,7 @@ export const toolsUsedBy = (procedure) => [...new Set([...(procedure ?? '').matc
 
 // ---- The skill's edits for the base ----
 const BOARD_SOURCE_LINE = 'No `lc` on PATH but the LaneConductor plugin is installed: `node ${CLAUDE_PLUGIN_ROOT}/server/bin/lc-board.mjs --repo . --site "$site" --json`.\nNeither exists: say so and stop.';
-const BOARD_EDIT = `No \`lc\` on PATH: use the board script of the optional ${NAMES.board} add-on. Find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`~/.claude/plugins\` and run \`node <that path> --repo . --site "$site" --json\`.\nNeither exists: the add-on is not installed. Say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop.`;
+const BOARD_EDIT = `No \`lc\` on PATH: use the board script of the optional ${NAMES.board} add-on. Find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`.\nNeither exists: the add-on is not installed. Say so in a sentence, show the commands in "If the board script is missing" at the end of this file, and stop.`;
 const BOARD_LAST_RULE = '- If a step fails, report which step and the error; do not publish a partial board.';
 const BOARD_MISSING = `${BOARD_LAST_RULE}
 
@@ -153,7 +154,7 @@ export function skillEdits() {
         + 'repository under `connector/bin/`. If a script does not exist (the Markdown-only variant has none), do that step by hand\n'
         + 'exactly as described; the result is the same, only slower.',
         `The scaffold script named below, \`lc-scaffold.mjs\`, belongs to the optional ${NAMES.parallel} add-on. Find it with Glob\n`
-        + `\`${SCAFFOLD_SCRIPT_GLOB}\` under \`~/.claude/plugins\`, or in the LaneConductor repository under \`connector/bin/\`.\n`
+        + `\`${SCAFFOLD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\`, or in the LaneConductor repository under \`connector/bin/\`.\n`
         + 'If it does not exist, do that step by hand exactly as described; the result is the same, only slower. Do not recommend the\n'
         + 'add-on for this.',
       ],
@@ -234,7 +235,7 @@ const PARALLEL_STEP = (dispatch) => (
 );
 const LANE_WORK = (lane, dispatch) => `1. ${FIND} Read the lane guide too.\n2. ${PARALLEL_STEP(dispatch)}\n3. ${EDIT_RULE}`;
 const BOARD_MISSING_TEXT = `If neither exists, the ${NAMES.board} add-on is not installed: say so in one sentence, then show me these commands as written (I run them myself; never run an install command yourself), and do nothing else: do not build the page by hand and do not publish anything. ${installsNote('board')}\n\n${installBlock('board')}\n\nMore: ${REPO_URL}`;
-const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`~/.claude/plugins\` and run \`node <that path> --repo . --site "$site" --json\`, or use \`lc board --site "$site" --json\` when \`lc\` is on PATH. ${BOARD_MISSING_TEXT}`;
+const BOARD_SCRIPT_NOTE = `Generating the board needs the board script of the optional ${NAMES.board} add-on: find it with Glob \`${BOARD_SCRIPT_GLOB}\` under \`${PLUGINS_CACHE}\` and run \`node <that path> --repo . --site "$site" --json\`, or use \`lc board --site "$site" --json\` when \`lc\` is on PATH. ${BOARD_MISSING_TEXT}`;
 const PUBLISH_NOTE = 'Only Claude can publish an artifact (the Artifact tool, actions `read`, `list`, `publish`); no script does it, so this is your job.';
 const OPEN_NOTE = 'Open it with the Artifact tool, action `open`, with the stored URL, and give me the link. Never call `publish` or regenerate anything here.';
 

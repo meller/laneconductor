@@ -27,7 +27,7 @@ Then run `/reload-plugins` in the session. Inside a session you can type `/plugi
 
 The board, one private page of every track by lane, which Claude publishes as an artifact.
 
-- **Installed when**: Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` finds `lc-board.mjs`.
+- **Installed when**: Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`.
 - **Adds**: the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval; it works with or without the other add-on.
 - **Installs**: It installs a script (a Node.js program, no packages) and its page on your computer, from the owner's marketplace (`meller/laneconductor`), not from Anthropic's directory.
 - **Relevant when**: the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:refresh-board`).

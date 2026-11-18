@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, PROFILES, NAMES, RELS, BOARD_SCRIPT_GLOB, CONNECTOR_TOOL_PREFIX, SERVER_KEY, installBlock, toolsUsedBy } from '../../scripts/build-plugin.mjs';
+import { REPO, PLUGIN_REL, PARALLEL_REL, BOARD_REL, PROFILES, NAMES, RELS, BOARD_SCRIPT_GLOB, BOARD_SCRIPT_REL, PLUGINS_CACHE, CONNECTOR_TOOL_PREFIX, SERVER_KEY, installBlock, toolsUsedBy } from '../../scripts/build-plugin.mjs';
 import { COMMANDS as CATALOG } from '../src/commands.mjs';
 import { TOOLS } from '../src/tools/index.mjs';
 import { spawnRaw } from './helpers/rawstdio.mjs';
@@ -60,7 +60,7 @@ const surface = (dir) => ({
   agents: fs.existsSync(path.join(dir, 'agents')) ? fs.readdirSync(path.join(dir, 'agents')).map((f) => f.replace(/\.md$/, '')) : [],
 });
 
-test('the glob the base gives for the board script matches the add-on in an installed layout and in a marketplace clone, and nothing else', () => {
+test('the base searches the board script only under ~/.claude/plugins/cache: an installed copy matches, a marketplace clone and the repo\'s own scripts do not', () => {
   const home = tmp('lc-glob-');
   const touch = (rel) => { fs.mkdirSync(path.dirname(path.join(home, rel)), { recursive: true }); fs.writeFileSync(path.join(home, rel), 'x'); };
   touch('cache/laneconductor/laneconductor-board/1.0.0/server/bin/lc-board.mjs');
@@ -68,10 +68,10 @@ test('the glob the base gives for the board script matches the add-on in an inst
   touch('marketplaces/laneconductor/connector/bin/lc-board.mjs');
   touch('cache/laneconductor/laneconductor/1.0.0/server/bin/lc-board.mjs');
   touch('cache/laneconductor/laneconductor-parallel/1.0.0/server/bin/lc-connector.mjs');
-  assert.deepEqual(globUnder(home, BOARD_SCRIPT_GLOB).map((p) => path.relative(home, p)).sort(), [
-    'cache/laneconductor/laneconductor-board/1.0.0/server/bin/lc-board.mjs',
-    'marketplaces/laneconductor/plugins/laneconductor-board/server/bin/lc-board.mjs',
-  ]);
+  // The root the generated text names is <plugins home>/cache.
+  assert.equal(PLUGINS_CACHE, '~/.claude/plugins/cache');
+  assert.deepEqual(globUnder(path.join(home, 'cache'), BOARD_SCRIPT_GLOB).map((p) => path.relative(home, p)).sort(), ['cache/laneconductor/laneconductor-board/1.0.0/server/bin/lc-board.mjs']);
+  assert.equal(globUnder(home, BOARD_SCRIPT_GLOB).length, 2, 'under the whole plugins home the marketplace clone would match too: that is what the generated text avoids');
 });
 
 for (const [label, profiles] of SETS) {
@@ -109,7 +109,12 @@ for (const [label, profiles] of SETS) {
       assert.ok(text.includes(BOARD_SCRIPT_GLOB), 'the command names the Glob');
       assert.ok(text.includes(installBlock('board')), 'the command holds the install commands for when the script is missing');
     }
-    const found = globUnder(home, BOARD_SCRIPT_GLOB);
+    // The marketplace clone (what `marketplace add` leaves behind) holds the board add-on's files even when it is not installed.
+    const clone = path.join(home, 'marketplaces/laneconductor', RELS.board, BOARD_SCRIPT_REL);
+    fs.mkdirSync(path.dirname(clone), { recursive: true });
+    fs.copyFileSync(path.join(REPO, RELS.board, BOARD_SCRIPT_REL), clone);
+    for (const text of [board, refresh]) assert.ok(text.includes(`under \`${PLUGINS_CACHE}\``), 'the command searches the installed-plugins cache only');
+    const found = globUnder(path.join(home, 'cache'), BOARD_SCRIPT_GLOB);
     if (profiles.includes('board')) {
       assert.equal(found.length, 1, found.join('\n'));
       assert.equal(found[0], path.join(dirs.board, 'server/bin/lc-board.mjs'));
@@ -124,7 +129,7 @@ for (const [label, profiles] of SETS) {
       assert.equal(r.status, 0, r.stderr);
       assert.ok(fs.existsSync(path.join(site, 'board.html')) && JSON.stringify(readJson(path.join(site, 'board.json'))).includes('401'));
     } else {
-      assert.deepEqual(found, [], 'no script is found, so the command shows the install commands and does nothing else');
+      assert.deepEqual(found, [], 'only the marketplace clone has the script: nothing is found, so the command shows the install commands and does nothing else');
     }
   });
 

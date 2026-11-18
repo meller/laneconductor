@@ -37,7 +37,7 @@
         "the script that builds the board page and data from the track files; Claude publishes them as a private artifact, only with the person's approval",
         "it works with or without the other add-on"
       ],
-      "detect": "Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins` finds `lc-board.mjs`",
+      "detect": "Glob `**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache` (installed plugins only) finds `lc-board.mjs`",
       "triggers": [
         "the person asks for a board or dashboard (`/laneconductor:board`, `/laneconductor:refresh-board`)"
       ]

@@ -17,7 +17,7 @@ dependency on the base plugin or on the connector: it is one script and one page
 
 - the board script, `server/bin/lc-board.mjs`, and its page, `server/src/board-page.html`. The base plugin's `board`,
   `show-board` and `refresh-board` commands find the script (they Glob for `**/laneconductor-board/**/bin/lc-board.mjs` under
-  `~/.claude/plugins`) and run it; they show how to install this add-on when they do not find it.
+  `~/.claude/plugins/cache`, where installed plugins live) and run it; they show how to install this add-on when they do not find it.
 
 It adds no slash commands: the commands are in the base plugin. You can also run the script yourself:
 `node server/bin/lc-board.mjs --repo . --site <dir> --json` writes `board.html`, `board.json` and one documents file per track that

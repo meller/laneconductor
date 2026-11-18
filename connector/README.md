@@ -204,7 +204,7 @@ product is three plugins from one generator, installed from the owner's marketpl
 
 No plugin depends on another (cross-marketplace dependencies are unverified). The base DETECTS the add-ons: the connector tools by their
 prefix, the `laneconductor-parallel:track-runner` agent by name, the board script by Glob
-(`**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins`). When they are there the base uses them and recommends
+(`**/laneconductor-board/**/bin/lc-board.mjs` under `~/.claude/plugins/cache`). When they are there the base uses them and recommends
 nothing; when they are missing it mentions the add-on once per session, only when relevant, shows the install commands (one per bash
 block) and never runs them. All slash commands live in the base because a plugin's slash prefix is its name; the add-ons ship no
 `commands/` or `skills/`. The interface between the plugins (tool prefix, server key, agent name, script path) is written in

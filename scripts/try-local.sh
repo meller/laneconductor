@@ -5,8 +5,8 @@
 #
 # What it does, in order, printing every command before it runs it:
 #   1. makes the scratch repository if the path does not exist (git init, a minimal conductor/ folder, one commit);
-#   2. adds THIS repository as a LOCAL marketplace:  claude plugin marketplace add <this repo> --scope local
-#   3. installs laneconductor, laneconductor-parallel and laneconductor-board at local scope into the scratch repository;
+#   2. exports a copy of THIS repository at HEAD, renames its marketplace to laneconductor-try, and adds that copy as a LOCAL marketplace
+#   3. installs laneconductor, laneconductor-parallel and laneconductor-board (@laneconductor-try) at local scope into the scratch repository;
 #   4. prints what to type next, and how to undo it.
 #
 # Safety: it never touches a real project. The scratch path must be a git repository that is not this one and either lives under the
@@ -15,9 +15,11 @@
 # anything. --dry-run prints the commands and runs none of them (a read-only `claude plugin marketplace list` is the one exception, to
 # warn about a name clash).
 #
-# NAME CLASH: the marketplace in .claude-plugin/marketplace.json is named `laneconductor`. If a marketplace of that name is already
-# configured from another source (for example GitHub meller/laneconductor), adding this one would clash with it, so the script stops and
-# prints how to remove the old one (a command it never runs) unless you pass --allow-name-clash.
+# THE REAL MARKETPLACE IS NEVER TOUCHED. This repository's marketplace is named `laneconductor`, and you probably have a marketplace of that
+# name configured from GitHub (meller/laneconductor). So step 2 exports a COPY of this repository at HEAD (git archive) into a temp folder,
+# changes only the marketplace `name` in the copy's .claude-plugin/marketplace.json to `laneconductor-try`, and adds THAT folder as the
+# local marketplace; the plugins are installed as <plugin>@laneconductor-try. Uncommitted changes in this repository are not in the copy.
+# If a marketplace named laneconductor-try is already configured (from an earlier try), the script stops unless you pass --allow-name-clash.
 set -euo pipefail
 
 dry=0
@@ -102,31 +104,38 @@ else
   echo
 fi
 
-# ---- name clash check (read only) ----
+# ---- the copy's marketplace name must be free (read only) ----
+try_name="laneconductor-try"
 if listing="$(claude plugin marketplace list 2>/dev/null)"; then
-  if printf '%s\n' "$listing" | grep -q 'laneconductor'; then
-    if ! printf '%s\n' "$listing" | grep -A1 'laneconductor' | grep -q "$here"; then
-      echo "WARNING: a marketplace named laneconductor is already configured from another source:"
-      printf '%s\n' "$listing" | grep -A1 'laneconductor' | sed 's/^/    /'
-      echo "  Adding this repository under the same name would clash with it. To go on, remove the old one yourself first (not run here):"
-      echo "    claude plugin marketplace remove laneconductor"
-      echo "  and add it back from GitHub afterwards with:  claude plugin marketplace add meller/laneconductor"
-      if [ "$dry" -eq 0 ] && [ "$clash_ok" -eq 0 ]; then echo "stopping: pass --allow-name-clash to go on anyway." >&2; exit 3; fi
-      echo
-    fi
+  if printf '%s\n' "$listing" | grep -q "$try_name"; then
+    echo "WARNING: a marketplace named $try_name is already configured (from an earlier try):"
+    printf '%s\n' "$listing" | grep -A1 "$try_name" | sed 's/^/    /'
+    echo "  Remove it yourself first (not run here):  claude plugin marketplace remove $try_name"
+    if [ "$dry" -eq 0 ] && [ "$clash_ok" -eq 0 ]; then echo "stopping: pass --allow-name-clash to go on anyway." >&2; exit 3; fi
+    echo
   fi
 fi
 
-# ---- 2. the local marketplace ----
-echo "# 2. add this repository as a local marketplace, declared at local scope (the scratch repository's .claude/settings.local.json)"
-in_scratch claude plugin marketplace add "$here" --scope local
+# ---- 2. the local marketplace: a renamed COPY, so the real laneconductor marketplace is never touched ----
+copy="$tmproot/lc-try-marketplace-$(basename "$scratch")"
+echo "# 2. export a copy of this repository at HEAD, rename ITS marketplace to $try_name, and add the copy as a local marketplace (declared at local scope)"
+if [ -e "$copy" ]; then
+  [ -f "$copy/.lc-try-marketplace" ] || { echo "refused: $copy exists and was not made by this script" >&2; exit 2; }
+  run rm -rf "$copy"
+fi
+run mkdir -p "$copy"
+printf '+ %s\n' "git -C $(quote "$here") archive HEAD | tar -x -C $(quote "$copy")"
+if [ "$dry" -eq 0 ]; then git -C "$here" archive HEAD | tar -x -C "$copy"; fi
+run touch "$copy/.lc-try-marketplace"
+run sed -i "0,/^  \"name\": \"laneconductor\",/s//  \"name\": \"$try_name\",/" "$copy/.claude-plugin/marketplace.json"
+in_scratch claude plugin marketplace add "$copy" --scope local
 echo
 
 # ---- 3. the three plugins ----
-echo "# 3. install the three plugins at local scope into the scratch repository"
-in_scratch claude plugin install laneconductor@laneconductor --scope local
-in_scratch claude plugin install laneconductor-parallel@laneconductor --scope local
-in_scratch claude plugin install laneconductor-board@laneconductor --scope local
+echo "# 3. install the three plugins from $try_name at local scope into the scratch repository"
+in_scratch claude plugin install "laneconductor@$try_name" --scope local
+in_scratch claude plugin install "laneconductor-parallel@$try_name" --scope local
+in_scratch claude plugin install "laneconductor-board@$try_name" --scope local
 echo
 
 # ---- 4. what to type ----
@@ -142,11 +151,12 @@ In the session:
   /laneconductor:move <number> implement  a write through the connector is conflict-checked (a second session editing the same track is refused with CONFLICT)
   /laneconductor:board                    builds the board with the board add-on's script and offers to publish it (say no unless you want an artifact)
   with all three installed the base recommends nothing; to see the funnel, uninstall an add-on, start a new session, and ask for the board:
-    claude plugin uninstall laneconductor-board --scope local
+    claude plugin uninstall laneconductor-board@$try_name --scope local
 Undo (commands to run yourself; the script never runs them):
-  claude plugin uninstall laneconductor-board --scope local
-  claude plugin uninstall laneconductor-parallel --scope local
-  claude plugin uninstall laneconductor --scope local
-  claude plugin marketplace remove laneconductor
-  rm -rf $scratch
+  claude plugin uninstall laneconductor-board@$try_name --scope local
+  claude plugin uninstall laneconductor-parallel@$try_name --scope local
+  claude plugin uninstall laneconductor@$try_name --scope local
+  claude plugin marketplace remove $try_name
+  rm -rf $copy $scratch
+Your real laneconductor marketplace and installed plugins were not touched.
 EOF
