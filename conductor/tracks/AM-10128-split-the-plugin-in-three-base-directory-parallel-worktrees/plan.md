@@ -37,10 +37,12 @@ The design is in spec.md. The owner's requirement (2026-11-18): the three plugin
 - [ ] Task 1: README, plugin READMEs and docs/why-laneconductor.md describe three plugins and how they fit; migration note for people on the all-in-one 0.x (uninstall it, install the base and the add-ons you want, restart sessions)
 - [ ] Task 2: Landing install box and the wiki (one directory install plus two add-on commands); deploy only when the owner says so
 
-## Phase 7: Directory (the owner submits)
+## Phase 7: Directory (moved)
 
-- [ ] Task 1: Push; the lead re-runs the portal's Validate on `plugins/laneconductor` (a check only) until the blocking list is empty
-- [ ] Task 2 (HUMAN): the owner answers the data-handling questions, ticks the acknowledgements and submits
+Moved on 2026-11-18 (owner decision) to its own track, AM-10148, because review feedback and re-checks will outlive this one. Nothing in this phase is open here.
+
+- [x] Task 1: Push, and re-run the portal's Validate (moved to track AM-10148)
+- [x] Task 2 (HUMAN): the owner submits (moved to track AM-10148)
 
 ## Phase 8: one command for the full version and command tiers
 
