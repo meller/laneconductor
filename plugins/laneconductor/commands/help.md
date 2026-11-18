@@ -22,6 +22,7 @@ Create and manage
 - status [track number]: Show where one track, or all tracks, stand. Example: "status of 10106"
 - move <track number> <lane[:status]>: Move a track to another lane, or set its status markers. Example: "move 10106 to implement"
 - comment <track number> <comment text>: Add a comment to a track's conversation. Example: "comment on 10106: ship it after the review"
+- repair-duplicates: Find tracks that share a number and renumber the newer folder (asks first). Example: "repair duplicate track numbers"
 - workflow [lane key value]: Show the lane workflow, or change one lane setting. Example: "show the workflow"
 - help: List every LaneConductor command with an example phrase. Example: "what can LaneConductor do"
 
