@@ -61,7 +61,7 @@ export const createTrack = {
       const res = await store.transaction(async (tx) => {
         const dirs = (await tx.listDir(TRACKS_DIR)).filter((e) => e.type === 'dir').map((e) => e.name);
         // A project that names its planning lane otherwise (otralingo: `planning`) gets that name, not `plan`.
-        const similar = similarTracks((await readEntries(tx)).map((e) => rowOf(e.folder, e.index)), { title: args.title, problem: args.problem });
+        const similar = similarTracks((await readEntries(tx, { tracked: false })).map((e) => rowOf(e.folder, e.index)), { title: args.title, problem: args.problem });
         const initialLane = nearestLane('plan', await workflowLanes(tx)) ?? 'plan';
         // Track AM-10143: numbers taken on other branches (local or remote-tracking) count too, so two worktrees do not hand out the same one.
         const upstreamNames = await tx.upstreamDirs?.(TRACKS_DIR) ?? [];

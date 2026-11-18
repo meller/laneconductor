@@ -47,7 +47,7 @@ async function parkingAdvice(tx, folder, before, after, statusSet) {
   if (status === 'running' && (was['Lane Status'] ?? '').trim() !== 'running') {
     const row = rowOf(folder, { content: after });
     if (dependenciesOf(row).length) {
-      const rows = (await readEntries(tx)).map((e) => (e.folder === folder ? row : rowOf(e.folder, e.index)));
+      const rows = (await readEntries(tx, { tracked: false })).map((e) => (e.folder === folder ? row : rowOf(e.folder, e.index)));
       const blocked = dependencyState(rows).get(row.number)?.blocked_by ?? [];
       if (blocked.length) out.push(`This track depends on ${blocked.join(', ')}, which ${blocked.length === 1 ? 'is' : 'are'} not done:success yet. Claiming it now works on unmerged ground; park it with **Waiting On Tracks** if that is not intended.`);
     }

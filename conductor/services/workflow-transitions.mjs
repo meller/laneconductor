@@ -65,7 +65,7 @@ export function resolveNext(workflow, currentLane, outcome, opts = {}) {
   }
   if (key === null) {
     // `backlog` is where tracks wait before any lane; a workflow may leave it out and nothing moves a track out of it automatically.
-    if (norm(asked) === 'backlog') return { ok: true, lane: asked, outcome, value: null, next: null, reason: 'backlog has no automatic move' };
+    if (norm(asked) === 'backlog') return { ok: true, lane: asked, outcome, value: null, source: null, next: null, reason: 'backlog has no automatic move' };
     return {
       ok: false,
       code: 'UNKNOWN_LANE',

@@ -104,6 +104,9 @@ test('TC-4 (C, custom): a custom lane resolves through the workflow\'s own keys;
 test('TC-4: backlog is a known place with no automatic move, even when the workflow leaves it out', () => {
   assert.equal(go(B, 'backlog', 'success'), null);
   assert.equal(go(B, 'backlog', 'failure'), null);
+  const r = resolveNext({ lanes: { plan: {} } }, 'backlog', 'success');
+  assert.equal(r.source, null, 'the early return carries `source: null` like every other result');
+  assert.ok('source' in r);
 });
 
 test('TC-4 (AM-10137): a lane that omits on_success / on_failure inherits `defaults`; an explicit null does not; the lane value wins', () => {

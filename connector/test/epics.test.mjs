@@ -92,3 +92,52 @@ test('TC-5: the board data carries the derived epics and the page data the compa
   const plain = buildBoard([idx(1, {}), idx(2, {})], { generatedAt: 'T' });
   assert.ok(!('epics' in plain) && !('epics' in boardPageData(plain)));
 });
+
+test('a very large epic: epicTable lists the first children and says how many more; done and total still count every child', () => {
+  const rows = [rowOf('AM-1-e', { content: index(1, {}) }), ...Array.from({ length: 120 }, (_, i) => rowOf(`AM-${i + 2}-c`, { content: index(i + 2, { 'Part Of': '1', ...(i < 5 ? { Lane: 'done', 'Lane Status': 'success' } : {}) }) }))];
+  const t = epicTable(rows, 1, undefined, { max: 15 });
+  assert.equal(t.children.length, 15);
+  assert.equal(t.more, 105);
+  assert.equal(t.total, 120);
+  assert.equal(t.done, 5);
+  assert.match(t.line, /^5 of 120 children done:success; 105 more not listed$/);
+  assert.equal(epicTable(rows, 1).children.length, 120, 'no cap by default (the board)');
+  assert.equal('more' in epicTable(rows, 1, undefined, { max: 120 }), false);
+});
+
+test('a very large epic keeps list_tracks and get_track under the envelope cap, with an N more note', async () => {
+  const kids = Array.from({ length: 400 }, (_, i) => [i + 2, { 'Part Of': '1000', Summary: 'child '.repeat(20) }]);
+  const dir = makeRepo({ files: files([[1000, {}], ...kids]), workflow: false });
+  cleanup.push(dir);
+  const s = await connect(dir);
+  sessions.push(s);
+  const list = await s.call('list_tracks', { limit: 200 });
+  assert.equal(list.isError, false, list.text);
+  assert.ok(list.text.length < 40_000, `${list.text.length}`);
+  const epic = list.env.data.tracks.find((t) => t.number === 1000);
+  assert.ok(epic, 'the epic is among the listed tracks');
+  assert.equal(epic.children.length, 15);
+  assert.equal(epic.children_more, 385);
+  assert.match(epic.children_line, /385 more not listed/);
+  const got = await s.call('get_track', { track: 1000 });
+  assert.equal(got.isError, false, got.text);
+  assert.ok(got.text.length < 40_000, `${got.text.length}`);
+  assert.equal(got.env.data.children.children.length, 50);
+  assert.equal(got.env.data.children.more, 350);
+  assert.equal(got.env.data.children.total, 400);
+  assert.ok(!('truncated' in got.env.data), 'the data was not dropped');
+});
+
+test('get_track and create_track read the rows without asking git which indexes are tracked', async () => {
+  const { readEntries } = await import('../src/tools/common.mjs');
+  let asked = 0;
+  const store = {
+    listDir: async () => [{ name: 'AM-1-a', type: 'dir' }],
+    readFiles: async (ps) => new Map(ps.map((p) => [p, { content: index(1, {}), sha: 'x' }])),
+    trackedFiles: async () => { asked++; return new Set(); },
+  };
+  assert.equal((await readEntries(store, { tracked: false }))[0].tracked, true);
+  assert.equal(asked, 0);
+  assert.equal((await readEntries(store))[0].tracked, false, 'the default still asks (list_tracks, the summary)');
+  assert.equal(asked, 1);
+});

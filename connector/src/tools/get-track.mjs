@@ -7,6 +7,8 @@ import { epicTable } from '../epics.mjs';
 import { rowOf } from '../summary.mjs';
 import { baseMarkers, displayMarkers, FILE_NAMES, conversationSummary, projectField, readEntries, readOnly, readTrackFiles, resolveTrackFolder, sizeOf, trackField, trackIdentity, workflowVocabulary } from './common.mjs';
 
+const EPIC_CHILD_CAP = 50;
+
 const input = z.object({
   project: projectField,
   track: trackField,
@@ -61,6 +63,15 @@ export const getTrack = {
       base: { commit: head.commit, files: baseFiles, markers: baseMarkers(indexContent) },
       valid: await workflowVocabulary(store, { withNext: 'track', trackLane: parseMarkers(indexContent).values['Lane']?.trim() }),
     };
+    // Track AM-10136: only a track with dependencies pays for reading the other tracks.
+    // Track AM-10145: an epic's children table is derived from the children's own files here, never stored in the epic. It is added
+    // before the budget below so a large epic is sized in with the files, and it lists at most EPIC_CHILD_CAP children ("N more").
+    const own = rowOf(folder, index);
+    const allRows = (await readEntries(store, { tracked: false })).map((e) => rowOf(e.folder, e.index));
+    const state = dependenciesOf(own).length ? dependencyState(allRows) : null;
+    if (state?.has(own.number)) data.dependencies = state.get(own.number);
+    const epic = epicTable(allRows, own.number, undefined, { max: EPIC_CHILD_CAP });
+    if (epic) data.children = epic;
 
     // REQ-18 budget. Order once over: conversation entries (oldest first), then test, plan, spec, index.
     const budget = MAX_TEXT_CHARS - ENVELOPE_RESERVE;
@@ -88,14 +99,6 @@ export const getTrack = {
       }
       f.returned_chars = f.content.length;
     }
-    // Track AM-10136: only a track with dependencies pays for reading the other tracks.
-    // Track AM-10145: an epic's children table is derived from the children's own files here, never stored in the epic.
-    const own = rowOf(folder, index);
-    const allRows = (await readEntries(store)).map((e) => rowOf(e.folder, e.index));
-    const state = dependenciesOf(own).length ? dependencyState(allRows) : null;
-    if (state?.has(own.number)) data.dependencies = state.get(own.number);
-    const epic = epicTable(allRows, own.number);
-    if (epic) data.children = epic;
     const m = data.track.markers;
     return { data, warnings, summary: `Track ${data.track.id}: ${data.track.title} (lane ${m['Lane'] ?? '?'}, ${m['Lane Status'] ?? '?'}, ${m['Progress'] ?? '?'}).` };
   },
