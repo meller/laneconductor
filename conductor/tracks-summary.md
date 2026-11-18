@@ -299,7 +299,7 @@ Generated: 2026-11-18T15:11:59Z
 | AM-10139 | Marker parser: first match wins, CRLF, case, and a repair_index write | plan | queue | 0% | New | - | ed5b48de02dd |
 | AM-10140 | update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen | plan | queue | 0% | New | - | 3ee113844b8a |
 | AM-10141 | Stale running claims and human comments mid-run: claim stamp, stale-running lint, warning | plan | queue | 0% | New | - | a9ad48cfdb14 |
-| AM-10142 | Worktree single writer: track-runner reads through the connector, code branches never carry track f… | plan | queue | 0% | New | - | a31abc42cf38 |
+| AM-10142 | Worktree single writer: track-runner reads through the connector, code branches never carry track f… | backlog | queue | 0% | Parked in the backlog by the owner on 2026-11-18. | - | 94bf048a8ba0 |
 | AM-10143 | create_track sees other branches; renumber and repair for duplicate track numbers | implement | queue | 0% | Owner said go on 2026-11-18: build the search-first, default-update rule (text … | - | e6495a8d7d6b |
 | AM-10144 | What's next: a state-aware command that names the next step and explains it (onboarding as a tutori… | plan | queue | 0% | New | - | 04cae891599c |
 | AM-10145 | Epic: plugin-era hardening and "what's next" (one place for the order, the gaps and the notes) | plan | queue | 0% | New | - | 44fde2004972 |
