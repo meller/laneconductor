@@ -308,3 +308,17 @@ test('the generated next command card points at the lane reference in words, nev
   assert.doesNotMatch(card, /\.md\b/);
   assert.match(card, /\/laneconductor:workflow/);
 });
+
+test('first run: S02, S03, S04 and the setup recommendation say, once and only when the board add-on is installed, that the board shows the same step', () => {
+  const sentence = "`/laneconductor:board` opens the whole project as a board, and its What's next button shows the same step as `/laneconductor:next`";
+  const setup = read(path.join(SRC, 'setup/setup.md'));
+  for (const [name, text] of [['next.md', NEXT_MD], ['setup.md', setup]]) {
+    assert.equal(text.split(sentence).length - 1, 1, `${name} says it once`);
+    assert.match(text, /When the board add-on is installed|when it is installed/, `${name}: conditional`);
+  }
+  const rows = tableRows();
+  for (const id of ['S02', 'S03', 'S04']) assert.match(rows[id], /Then the add-ons and the board/, `${id} points at the front door sentence`);
+  assert.match(NEXT_MD, /In S02, S03 and S04 add one sentence, once/);
+  assert.deepEqual(textRuleHits(sentence), []);
+  assert.ok(String(buildPlugin(REPO, 'base').get('skills/laneconductor/ops/next.md').content).includes(sentence), 'the generated base carries it');
+});
