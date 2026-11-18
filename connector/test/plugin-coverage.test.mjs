@@ -230,8 +230,8 @@ test('commands that use the connector name its tool prefix, and say what to do w
   assert.ok(fs.existsSync(path.join(PLUGIN, 'server/bin/lc-board.mjs')), 'the script the commands name ships');
 });
 
-test('the plugin is one: manifest name, the connector and board script ship, no second plugin directory exists', () => {
+test('the full plugin: manifest name, the connector and board script ship; the only other plugin directory is LaneConductor Lite', () => {
   assert.equal(JSON.parse(read('.claude-plugin/plugin.json')).name, PLUGIN_NAME);
   for (const f of ['.mcp.json', 'server/bin/lc-connector.mjs', 'server/bin/lc-board.mjs', 'server/src/board-page.html']) assert.ok(fs.existsSync(path.join(PLUGIN, f)), f);
-  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')), ['laneconductor']);
+  assert.deepEqual(fs.readdirSync(path.join(REPO, 'plugins')).sort(), ['laneconductor', 'laneconductor-lite']);
 });
