@@ -8,6 +8,10 @@ The scaffold script named below, `lc-scaffold.mjs`, belongs to the optional lane
 If it does not exist, do that step by hand exactly as described; the result is the same, only slower. Do not recommend the
 add-on for this.
 
+If your client asks "Allow this read outside the working directories?" for a file of this plugin, tell the person in one line to
+choose the option that allows it this one time. The options that say "keep allowing" or "block ... from now on" change a
+permanent setting for every project and are not needed. Never ask anyone to change their permission settings for LaneConductor.
+
 ## 1. Detect the situation
 
 - Empty or new folder: a new project. Ask for a name if the argument gave none.
@@ -33,8 +37,12 @@ Keep the interview short. Instead of the nine questions of step 2, read the proj
   confirm), `evidence` (where each fact came from) and `existing` (what an older LaneConductor left). Otherwise read the files
   yourself the same way.
 
-Show the result as a short list ("Inferred from package.json: ... Is this right?"), take a one-word yes or the person's
-corrections, and ask only about what could not be read (usually KPIs and constraints, and only if the person wants them now).
+Show the result as ONE message with everything filled in, so the person only has to approve it: the name, what it is for, the
+stack, the test, lint, typecheck and build commands that really exist (one line for each one you left out, with the reason),
+where each fact came from, and the tracks folder: `conductor/tracks/`, committed with the code (the default), or private, for a
+public repository whose plans should not be public (the folder is then kept out of git with one `.gitignore` line; private tracks
+are not shared with other machines or people). End with "Reply ok, or tell me what differs." Write nothing until that reply. Ask a
+further question only about what could not be read (usually KPIs and constraints, and only if the person wants them now).
 Do not add the walking-skeleton track to an existing project: pass `--no-first-track` to the scaffold script, or skip it by hand,
 and suggest planning the first real track instead.
 

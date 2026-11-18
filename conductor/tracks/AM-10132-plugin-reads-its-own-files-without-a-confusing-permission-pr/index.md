@@ -1,8 +1,8 @@
 # Track AM-10132: Plugin reads its own files without a confusing permission prompt
 
 **Lane**: plan
-**Lane Status**: queue
-**Progress**: 0%
+**Lane Status**: running
+**Progress**: 70%
 **Phase**: New
 **Track Kind**: bug
 **Type**: dev

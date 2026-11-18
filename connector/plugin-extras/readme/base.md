@@ -77,6 +77,11 @@ claude plugin install laneconductor@laneconductor
 Then install `laneconductor-parallel` and `laneconductor-board` as shown above if you want them. The files in git are unchanged,
 so nothing is lost: your tracks are the same.
 
+## If Claude Code asks about reading a file
+
+If Claude Code asks "Allow this read outside the working directories?", choose the option that allows it this one time; the
+"keep allowing" and "block ... from now on" ones change a permanent setting.
+
 ## What it reads and writes
 
 The skill is instructions for Claude: it asks Claude to read and edit files and to run shell commands in your project (git, tests,

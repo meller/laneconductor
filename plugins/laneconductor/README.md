@@ -9,10 +9,10 @@ Version 1.1.1.
 ## Getting started
 
 <!-- generated: next journey (scripts/plugin-texts.mjs) -->
-1. Install the base plugin (the install commands are under "Install" below).
+1. Install the base plugin (see "Install" below).
 2. Type `/laneconductor:next`.
-3. Do the one step it names, then type `/laneconductor:next` again, and keep going.
-4. In a folder with no `conductor/` yet it offers three paths (continue this project, start a new project, or look around) and shows the optional add-ons that fit (`laneconductor-parallel` and `laneconductor-board`). Each install command is in its own block; you run it yourself, nothing is installed for you.
+3. Do the one step it names, then type it again.
+4. With no `conductor/` yet it offers three paths and the add-ons that fit (`laneconductor-parallel` and `laneconductor-board`); you run their install commands yourself.
 <!-- end generated: next journey -->
 
 ## What is in it
@@ -111,6 +111,11 @@ claude plugin install laneconductor@laneconductor
 
 Then install `laneconductor-parallel` and `laneconductor-board` as shown above if you want them. The files in git are unchanged,
 so nothing is lost: your tracks are the same.
+
+## If Claude Code asks about reading a file
+
+If Claude Code asks "Allow this read outside the working directories?", choose the option that allows it this one time; the
+"keep allowing" and "block ... from now on" ones change a permanent setting.
 
 ## What it reads and writes
 

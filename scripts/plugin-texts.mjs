@@ -289,8 +289,8 @@ export const BASE_HELP_FOOTER = `Works on its own: every command edits the track
 export const NEXT_JOURNEY_START = '<!-- generated: next journey (scripts/plugin-texts.mjs) -->';
 export const NEXT_JOURNEY_END = '<!-- end generated: next journey -->';
 export const NEXT_JOURNEY = `${NEXT_JOURNEY_START}
-1. Install the base plugin (the install commands are under "Install" below).
+1. Install the base plugin (see "Install" below).
 2. Type \`/${NAMES.base}:next\`.
-3. Do the one step it names, then type \`/${NAMES.base}:next\` again, and keep going.
-4. In a folder with no \`conductor/\` yet it offers three paths (continue this project, start a new project, or look around) and shows the optional add-ons that fit (${ADDONS.map((e) => `\`${e.name}\``).join(' and ')}). Each install command is in its own block; you run it yourself, nothing is installed for you.
+3. Do the one step it names, then type it again.
+4. With no \`conductor/\` yet it offers three paths and the add-ons that fit (${ADDONS.map((e) => `\`${e.name}\``).join(' and ')}); you run their install commands yourself.
 ${NEXT_JOURNEY_END}`;
