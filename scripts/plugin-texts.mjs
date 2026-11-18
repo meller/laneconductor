@@ -52,7 +52,7 @@ export const entryOf = (name) => {
   if (!e) throw new Error(`recommended-plugins.json has no entry ${name}`);
   return e;
 };
-const entryFor = (profileOrName) => entryOf(NAMES[profileOrName] ?? profileOrName);
+const entryFor = (profileOrName) => (typeof profileOrName === 'object' ? profileOrName : entryOf(NAMES[profileOrName] ?? profileOrName)); // an entry object passes through (a test builds the block from a copy of the catalog)
 
 // ONE SOURCE for the way to get a plugin. These commands are shown to the person, who runs them; no plugin tells Claude to run them.
 export const RELOAD_COMMAND = '/reload-plugins';
@@ -103,7 +103,7 @@ export const BOARD_MISSING_ANCHOR = 'If the script is not found, the add-on is n
 export const setupRecommendBlock = (entries = RECOMMENDED) => {
   const list = entries.map((e) => {
     const fit = e.setup_fit ? ` It fits when ${e.setup_fit[0].toLowerCase()}${e.setup_fit.slice(1).replace(/\.$/, '')}.` : '';
-    return `**\`${e.name}\`**: ${e.why[0].toUpperCase()}${e.why.slice(1)}.${fit} ${installsNote(e.name)} It counts as installed when ${e.detect}.\n\n${installBlock(e.name)}`;
+    return `**\`${e.name}\`**: ${e.why[0].toUpperCase()}${e.why.slice(1)}.${fit} ${installsNote(e)} It counts as installed when ${e.detect}.\n\n${installBlock(e)}`;
   }).join('\n\n');
   return `After the project is read, say which of these optional plugins would help THIS project, so the person does not have to find them in
 the README. Look at what you read (the git history, the CI files, how big the project is, what the person told you), pick only the entries
