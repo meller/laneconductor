@@ -39,6 +39,11 @@ Packaging of our own generic skills (decision pending, see track 10129): either 
 - [ ] Task 2: Hook it into the lane guides: at lane start, and on a matching situation (a bug track, a failing quality gate, a review to answer, work that needs a worktree), and in `/laneconductor:new-project` once the stack is known
 - [ ] Task 3: Declined answers are remembered per project outside git (under `.git/`, never committed), so a declined skill is not offered twice
 
+## Phase 3b: Track context (REQ-12)
+
+- [ ] Task 1: A short rule in the base skill (a few lines, same text source as the other offers): real work with no track in play gets one sentence and three ways in (update the nearest track, create one, go on without one); small things get nothing; never blocks; never creates without a yes; "no track" once silences it for the session
+- [ ] Task 2: How the current track is found (the prompt, a branch named after a track, the track this session has running) written once and used by the advisor, `next` and the lane guides; text tests (TC-18 to TC-20)
+
 ## Phase 4: The install proposal
 
 - [ ] Task 1: Propose, do not install: show the exact built-in command in its own bash fence and what it adds; on an explicit yes run `claude plugin install ... --scope local` via Bash (the Bash permission prompt still applies), then remind to `/reload-plugins` and confirm it loaded

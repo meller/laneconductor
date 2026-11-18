@@ -33,6 +33,12 @@ Run command: unknown, none of these cases has a test yet (proposed: a catalog ch
 
 - [ ] TC-14 (REQ-11): Plan and brainstorm offer brainstorming and writing-plans; a UI track (a front-end stack or files, or a plan naming screens or pages) offers `frontend-design`, and `artifact-design` or `dataviz` for dashboards and charts; implement offers test-driven development, systematic debugging, sub-agent execution, worktrees and the stack pack; review offers code-review skills; quality gate (QA) offers verification-before-completion, a security review skill and, for UI tracks, a browser-driving tool (the `run` skill or a browser plugin); merge offers finishing-a-branch; deploy offers the stack's deploy pack; a track with `**Type**: marketing` (or sales, support) is offered the matching skills
 
+## Track context (REQ-12)
+
+- [ ] TC-18 (REQ-12): REAL WORK, NO TRACK: asked to change files or do more than a quick answer with no track in play, Claude says so in one sentence and offers three ways in plain text: update the nearest existing track (found by searching first; the default wording is "Update track N?"), create a new one, or go on without a track; it does not start the work until the person answers or, if the work is clearly small, goes ahead without asking
+- [ ] TC-19 (REQ-12): SMALL THINGS: a question, reading, a one-line or typo fix gets no offer; "no track" once, or a choice to go on without one, means no more track offers this session; nothing is created without a yes
+- [ ] TC-20 (REQ-12): CURRENT TRACK: the track comes from the prompt, from a branch named after a track, or from the track this session has running; with one in play the work follows its lane, Type, stack and skill offers; with none the advisor offers by stack only and says there is no KPI block without a marketing or sales track
+
 ## Real use (HUMAN)
 
 - [ ] TC-15 (HUMAN) (REQ-9): run `/laneconductor:setup` in a project: the starter set of three or four appears once with commands; install two, say later to the rest; later, say 'deploy this' and the stack's deploy pack is offered in the same reply
