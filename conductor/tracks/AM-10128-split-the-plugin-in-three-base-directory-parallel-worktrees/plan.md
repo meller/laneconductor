@@ -46,8 +46,8 @@ The design is in spec.md. The owner's requirement (2026-11-18): the three plugin
 
 Owner decision 2026-11-18 (design in spec.md, section "One command for the full version, and fewer visible commands").
 
-- [ ] Task 1 (8.1): Catalog lines `full_install` and `addons_install` in `connector/plugin-extras/recommended-plugins.json` and the shared block built from them in `next`, setup and the READMEs (show-not-run; shown inside Claude only when both add-ons are missing). In progress 2026-11-18, runner.
-- [ ] Task 2 (8.2): The website's second install box shows the one-liner (deploy only when the owner says so)
+- [x] Task 1 (8.1): Catalog lines `full_install` and `addons_install` in `connector/plugin-extras/recommended-plugins.json` and the shared block built from them in `next`, setup and the READMEs (show-not-run; shown inside Claude only when both add-ons are missing)
+- [x] Task 2 (8.2): The website's second install box shows the one-liner (deploy only when the owner says so)
 - [ ] Task 3 (8.3): try-local test of a dependency-only `laneconductor-full` plugin (does `claude plugin install` install dependencies automatically?) and a go/no-go recorded in spec.md
 - [ ] Task 4 (8.4): Help tiers: start here (`next`, `setup` or `new-project`, `board`), lanes (`plan`, `implement`, `review`, `quality-gate`, `merge`), more (the rest)
 - [ ] Task 5 (8.5): Fold `bug` and `feature` into `new` with an argument; natural-language use keeps working
