@@ -1,9 +1,9 @@
 # Track AM-10140: update_track: Lane is an implicit precondition for Lane Status, leaving done needs reopen
 
-**Lane**: plan
-**Lane Status**: running
-**Progress**: 0%
-**Phase**: New
+**Lane**: review
+**Lane Status**: queue
+**Progress**: 100%
+**Phase**: Implemented and merged to local main 2026-11-18 (461 connector tests). Lane is compared whenever Lane Status is set; leaving done needs reopen:true; a CONFLICT carries the current base. The daemon's lane-rank guard was not ported (no ranks in the workflow file). Next: release as 1.2.0.
 **Track Kind**: bug
 **Type**: dev
 **Merge Mode**: direct
