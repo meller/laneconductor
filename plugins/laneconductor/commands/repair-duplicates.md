@@ -55,7 +55,8 @@ markers). By hand:
 4. **Non-dev types.** For `marketing` or `sales`, look in `.claude/skills/` for the recommended
    skills (marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`;
    sales: `sales-enablement`, `cold-email`) and tell the user which are missing.
-5. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
+5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
+6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
 
 ### `SKILL.md` (Finding a track)
 

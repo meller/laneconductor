@@ -7,6 +7,7 @@ What has worked:
 1. Re-run the commands in test.md yourself and read the real output; do not trust a ticked box.
 2. Check each requirement and acceptance criterion against the code and the diff, and look for what the plan did not mention (error paths, data loss, leaked processes).
 3. Pass `outcome: "success"` or `"failure"` to update_track so the workflow moves the track (get_track shows the target as `valid.next`); the outcome also writes `Verdict` (`pass` or `fail`; only those two are accepted). Put the findings, each with a file and a reason, in conversation.md via append_conversation.
+3b. The verdict is one dated line in history.md (append_conversation with author `system`, text starting with the emoji); the write-up is conversation.md (author `claude`). No status goes into plan.md or spec.md.
 4. On fail, the findings should be specific enough that the implement lane can act on them without asking.
 
 Why: a review that fixes things hides what was wrong; one that only restates the diff adds nothing.

@@ -74,11 +74,12 @@ Markers this lane reads and writes:
    and merge or rebase `origin/main` into `track-NNN`, resolve any real conflict in-session as in
    step 4b, and push (force-push only after a yes, and only if you rebased) before looking for
    the open PR. Pushing first is what makes the existing PR pick up the new commits.
-7. **Post the completion comment**, authored `system`, emoji first:
-   - direct success: `> **system**: ✅ Merged track-NNN to main.`
-   - pr mode: `> **system**: ⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
+7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, the
+   commit hashes and any incident are dated lines there, never in `plan.md` or `spec.md`):
+   - direct success: `✅ Merged track-NNN to main.`
+   - pr mode: `⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
      action, not because anything failed)
-   - unresolved conflict: `> **system**: ❌ Merge conflict could not be resolved automatically - see details above.`
+   - unresolved conflict: `❌ Merge conflict could not be resolved automatically - see details above.`
 
 Boundary: this lane only merges or opens a PR for code that already passed review and
 quality-gate. Write no feature code here; the only code changes it should make are those needed
@@ -182,9 +183,10 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 
 #### comment `[track-number] [body]`
 
-Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-Use `⚠️` for something that needs a human and `ℹ️` for
-a note. This is also how an agent answers a human comment.
+A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
+an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
+Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (Finding a track; conversation.md format)
 
@@ -200,7 +202,9 @@ fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number
 
 #### conversation.md format
 
-Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
+`conversation.md` holds the dialogue. An entry that records an event (a lane completion, a classification) is a dated line
+in `history.md` instead; with the connector, `append_conversation` with author `system` writes that line there. Every
+entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
 ```
 > **author**: First line of the message
 > second line, also prefixed with >

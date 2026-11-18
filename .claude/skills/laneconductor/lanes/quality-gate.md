@@ -71,10 +71,10 @@ code is on `main`.
    you may. Before the fix: write a failing test that reproduces the bug, then fix, then re-run
    to see it pass. Commit test and fix together as `fix(quality-gate): [description]`, and post a
    comment in `conversation.md` saying what failed and what you changed.
-4. **Post the result** as one comment in `conversation.md`, authored `system`, emoji first:
-   `> **system**: ✅ QUALITY GATE PASSED`, or `> **system**: ❌ QUALITY GATE FAILED` (use `⚠️` when
-   it needs human judgment rather than a plain retry). Put the full write-up in `>`-prefixed
-   continuation lines under that same comment, not a second one.
+4. **Post the result** as one dated line in `history.md`, emoji first:
+   `- <YYYY-MM-DD HH:MMZ> ✅ QUALITY GATE PASSED`, or `- <YYYY-MM-DD HH:MMZ> ❌ QUALITY GATE FAILED` (use `⚠️` when
+   it needs human judgment rather than a plain retry). Put the full write-up in one comment in `conversation.md`
+   (authored `claude`, `>`-prefixed continuation lines), not a second one; no status goes into `plan.md` or `spec.md`.
 5. **Transition.**
    - Re-read `index.md`'s `**Lane**`. If it is no longer `quality-gate` (a human moved the card),
      leave `**Lane**` and `**Lane Status**` alone, keep the step 4 comment, and note there that

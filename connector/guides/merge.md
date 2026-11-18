@@ -6,6 +6,7 @@ What has worked:
 1. Ask the human before merging or pushing. This is the one place the advice is firm: the human decides.
 2. Check the branch is up to date with the target, the tests pass after the merge, and the track's index.md says what was merged (commit or PR URL).
 3. Only after the merge is reachable from the main branch, record it with update_track (`Lane`: done, `Lane Status`: success). `done:queue` means passed the gate and not shipped; `done:success` means shipped. The skill's ops/lanes-and-statuses.md has the full reference.
+4. Record the merge (commit hash or PR URL) as one dated line in history.md (append_conversation with author `system`), never as a section of plan.md or spec.md.
 
 Why: "done" should mean reachable from main, otherwise the board lies.
 

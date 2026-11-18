@@ -2,6 +2,29 @@
 
 With the parallel add-on installed, use its connector tools (`create_track`, `update_track`, `append_conversation`): they refuse a write when someone edited first. The file edits below always work, with or without the add-on.
 
+## What goes in each track file
+
+A track is a folder of six files. Each has one job; put a thing in the file whose job it is, and keep logs out of the design files.
+
+| File | Role | Holds | Never holds |
+|------|------|-------|-------------|
+| `index.md` | Overview (the project-manager view) | What and why in a few lines, the markers, one line on where the track stands | Logs, long text, status history |
+| `spec.md` | Detailed design (the architect view) | Requirements, dated decisions, data model and APIs, acceptance criteria, risks | Status, release notes, incident reports |
+| `plan.md` | Task tracker: the work breakdown | Phases and the individual tasks as checkboxes, as detailed as the work needs, ticked as work proceeds | Dated status, releases, incidents, a run log; design detail, decisions, requirements, acceptance criteria (they go to `spec.md`) |
+| `test.md` | Test plan | Test cases and the commands that run them | Status of a run |
+| `history.md` | Run log: tracked in git, append-only | One dated line per event: what ran, commit hashes, deploys, incidents | Design, decisions, dialogue |
+| `conversation.md` | Dialogue between people and agents: untracked, may be private | Questions, answers, comments, a long write-up | The run log |
+
+**Where a status goes.** Status, a release, an incident or any other dated entry never goes into `plan.md` or `spec.md`. It is one line in `history.md`, newest last:
+
+```
+- <YYYY-MM-DD HH:MMZ> <emoji> <one line>
+```
+
+The emoji is the first character after the date: `✅` success, `⚠️` a human should look, `❌` failed, `ℹ️` a note. Put a hash, a URL or the name of a deploy in the line; put long text in `spec.md` (a decision, with its date and its reason) or `conversation.md` (a discussion) and link to it from the line. The plan only gets ticked.
+
+With the add-on, `append_conversation` with author `system` writes that dated line into `history.md` (the answer says which file got it); the authors `human`, `claude` and `gemini` write `conversation.md`. By hand, append the line to `history.md` and commit it with the track. `create_track` makes `history.md` with a one-line header; an older track without the file gets it with its first `system` entry, or by hand.
+
 ## Search first: the default is update, not create
 
 Before any track is created (`newTrack`, `reportaBug`, `featureRequest`, or you deciding on your own that "this needs a track"), look for one that already holds the work. Creating is the exception, never the default.
@@ -45,7 +68,8 @@ markers). By hand:
 4. **Non-dev types.** For `marketing` or `sales`, look in `.claude/skills/` for the recommended
    skills (marketing: `social-content`, `copywriting`, `content-strategy`, `launch-strategy`;
    sales: `sales-enablement`, `cold-email`) and tell the user which are missing.
-5. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
+5. Create `history.md` beside the other files, with one header line (`# History: Track INITIALS-NNN`) and nothing else.
+6. Print `✅ Track NNN created in conductor/tracks/<folder>/.`
 
 ## move `[track-number] [lane:status]`
 
@@ -69,9 +93,10 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 
 ## comment `[track-number] [body]`
 
-Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-Use `⚠️` for something that needs a human and `ℹ️` for
-a note. This is also how an agent answers a human comment.
+A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
+an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
+Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ## delete `[track-number]`
 

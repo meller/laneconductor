@@ -211,7 +211,9 @@ workflow.md, kpis.md, quality-gate.md}` and `conductor/workflow.json` (the defau
   ```
   `conversation.md` and `.json` hold comment threads that are per machine and noisy to review; `.worktrees/` holds git worktree
   checkouts, which must never be tracked in the main tree (without this rule they end up committed as submodule-style gitlinks).
-  Do not add `conductor/tracks/**/index.md`: it carries real authored content that is worth tracking.
+  Do not add `conductor/tracks/**/index.md`: it carries real authored content that is worth tracking. The same holds for
+  `history.md`, the run log of a track: it is tracked, so it is never ignored. Every track the scaffold creates gets an empty
+  `history.md` (one header line, `# History: Track INITIALS-NNN`) beside its other files.
 
 #### Older tracks
 
@@ -421,6 +423,18 @@ Related tracks: <[[track-name]] links, filled in as tracks implement/test pieces
 - Self-review before marking done
 - Update plan.md with learnings after each phase
 
+## What goes in each track file
+Each track folder has six files with one job each. Keep a log out of the design files.
+- `index.md`: the overview (what and why, the markers, one line on where it stands). No logs.
+- `spec.md`: the detailed design (requirements, dated decisions, data model and APIs, acceptance criteria, risks). No status.
+- `plan.md`: the task tracker: phases and the individual tasks as checkboxes, ticked as work proceeds. No dated status, releases or incidents, and no design detail (that goes to `spec.md`).
+- `test.md`: the test plan (test cases and commands). No status.
+- `history.md`: the run log, tracked in git, append-only. One dated line per event (what ran, commit hashes, deploys,
+  incidents): `- <YYYY-MM-DD HH:MMZ> <emoji> <one line>`.
+- `conversation.md`: the dialogue between people and agents. Untracked, may be private.
+
+Status, releases, incidents and any other dated entry never go into `plan.md` or `spec.md`: they are one line in `history.md`.
+
 ## Workflow Configuration
 Machine-readable config lives in `conductor/workflow.json`.
 Edit it directly or via `/laneconductor workflow set`.
@@ -454,4 +468,4 @@ Leave the key out and nothing changes; every reader of `workflow.json` ignores k
 ```
 
 **`.gitignore` entries of a new project**: `conductor/tracks/**/conversation.md`,
-`conductor/tracks/**/conversation.json` and `.worktrees/`. Nothing else is added.
+`conductor/tracks/**/conversation.json` and `.worktrees/`. Nothing else is added: `history.md` is tracked, never ignored.

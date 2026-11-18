@@ -6,7 +6,7 @@ What has worked:
 0. When you claim the track, clear any `Verdict` marker first (update_track with `markers: {Verdict: null}`, together with `Lane Status: running`), so a run that is cut short never leaves a stale pass or fail behind.
 1. Run the project's quality-gate.md checklist (get_context shows it if the project has one) and the full test commands.
 2. Confirm the acceptance criteria in spec.md are met by observation, not by the absence of failures.
-3. Pass `outcome: "success"` or `"failure"` to update_track (the workflow moves the track; get_track shows the target as `valid.next`); the outcome also writes `Verdict` (`pass` or `fail`). Put a short result in conversation.md. A pass moves the track to `done:queue`: passed, not shipped; the merge lane sets `done:success`.
+3. Pass `outcome: "success"` or `"failure"` to update_track (the workflow moves the track; get_track shows the target as `valid.next`); the outcome also writes `Verdict` (`pass` or `fail`). Put the result as one dated line in history.md (append_conversation with author `system`, text starting with the emoji) and any write-up in conversation.md (author `claude`); no status goes into plan.md or spec.md. A pass moves the track to `done:queue`: passed, not shipped; the merge lane sets `done:success`.
 
 Why: this lane exists to catch what the implementer and reviewer both assumed.
 

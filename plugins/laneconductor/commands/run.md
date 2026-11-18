@@ -72,6 +72,31 @@ claude plugin install laneconductor-parallel@laneconductor
 
 Then run `/reload-plugins` in the session. Inside a session you can type `/plugin marketplace add meller/laneconductor` and `/plugin install laneconductor-parallel@laneconductor` instead (that opens the plugin's details for review).
 
+### `ops/tracks.md` (What goes in each track file)
+
+#### What goes in each track file
+
+A track is a folder of six files. Each has one job; put a thing in the file whose job it is, and keep logs out of the design files.
+
+| File | Role | Holds | Never holds |
+|------|------|-------|-------------|
+| `index.md` | Overview (the project-manager view) | What and why in a few lines, the markers, one line on where the track stands | Logs, long text, status history |
+| `spec.md` | Detailed design (the architect view) | Requirements, dated decisions, data model and APIs, acceptance criteria, risks | Status, release notes, incident reports |
+| `plan.md` | Task tracker: the work breakdown | Phases and the individual tasks as checkboxes, as detailed as the work needs, ticked as work proceeds | Dated status, releases, incidents, a run log; design detail, decisions, requirements, acceptance criteria (they go to `spec.md`) |
+| `test.md` | Test plan | Test cases and the commands that run them | Status of a run |
+| `history.md` | Run log: tracked in git, append-only | One dated line per event: what ran, commit hashes, deploys, incidents | Design, decisions, dialogue |
+| `conversation.md` | Dialogue between people and agents: untracked, may be private | Questions, answers, comments, a long write-up | The run log |
+
+**Where a status goes.** Status, a release, an incident or any other dated entry never goes into `plan.md` or `spec.md`. It is one line in `history.md`, newest last:
+
+```
+- <YYYY-MM-DD HH:MMZ> <emoji> <one line>
+```
+
+The emoji is the first character after the date: `✅` success, `⚠️` a human should look, `❌` failed, `ℹ️` a note. Put a hash, a URL or the name of a deploy in the line; put long text in `spec.md` (a decision, with its date and its reason) or `conversation.md` (a discussion) and link to it from the line. The plan only gets ticked.
+
+With the add-on, `append_conversation` with author `system` writes that dated line into `history.md` (the answer says which file got it); the authors `human`, `claude` and `gemini` write `conversation.md`. By hand, append the line to `history.md` and commit it with the track. `create_track` makes `history.md` with a one-line header; an older track without the file gets it with its first `system` entry, or by hand.
+
 ### `lanes/plan.md`
 
 Produce or refine `spec.md`, `plan.md` and `test.md` for track N. This lane writes documentation
@@ -90,9 +115,8 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    feeds the default (bug -> `main`, feature -> `branch`). If plan wrote `**Workspace**`, an
    inferred guess would look like a human choice and defeat the auto-queue check that keeps an
    unconfirmed bug classification from running unattended on main. Record it so a wrong guess is
-   visible and overridable: append
-   `> **system**: Classified as **Track Kind**: <bug|feature> - <one-line reasoning>.` to
-   `conversation.md`.
+   visible and overridable: add one dated line to `history.md`:
+   `- <YYYY-MM-DD HH:MMZ> ℹ️ Classified as **Track Kind**: <bug|feature> - <one-line reasoning>.`
 1. **Locate the track.** With the parallel add-on, `get_track` finds it. Otherwise Glob
    `conductor/tracks/*-<N>-*/` and `conductor/tracks/<N>-*/` (both naming conventions,
    `INITIALS-NNN-slug` and bare `NNN-slug`). If a folder exists, that is the track: go to Refine.
@@ -164,20 +188,31 @@ planned, and `plan` always runs in the primary checkout whatever `**Workspace**`
    block planning; a human decides whether the doc or the track changes.
 6. **Transition.** First re-read `index.md`'s `**Lane**`. If it is no longer `plan` (a human
    dragged the card elsewhere while you worked), leave `**Lane**` and `**Lane Status**` exactly as
-   they are and append
-   `> **system**: ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
-   instead of the completion comment: a manual move always wins over this run's stale intent.
+   they are and add the history line
+   `ℹ️ Plan finished, but the track had already been moved to <current lane> - leaving it there.`
+   instead of the completion line: a manual move always wins over this run's stale intent.
    Otherwise apply the workflow's success move for the plan lane: with the connector, call
    `update_track` with `outcome: "success"` (the target is `valid.next.success` in `get_track`);
    without it, read `lanes.plan.on_success` in `conductor/workflow.json` with the grammar in
    `ops/lanes-and-statuses.md`. This project's `plan:success`
    means `**Lane**: plan` and `**Lane Status**: success`; do not assume the next lane is implement.
-   Then append the completion comment:
-   `> **system**: ✅ Plan complete - track now at <lane>:<status>.`, or, if step 5b
-   fired, `> **system**: ⚠️ Plan complete with a fundamentals conflict - see conversation above.`
+   Then add the completion line to `history.md` (one dated line, `- <YYYY-MM-DD HH:MMZ> <emoji> <text>`; with the connector,
+   `append_conversation` with author `system` writes it):
+   `✅ Plan complete - track now at <lane>:<status>.`, or, if step 5b
+   fired, `⚠️ Plan complete with a fundamentals conflict - see conversation above.`
    (the guardrail's own comment plus this line is enough; do not post a third).
 
 Your job ends here. The track waits in its new lane for the next step.
+
+#### Where things go
+
+`spec.md` is the detailed design, `plan.md` the task tracker (phases and the tasks as checkboxes, ticked as work proceeds), `test.md` the test
+plan, `history.md` the tracked run log, `conversation.md` the dialogue. When you write or refine a plan, keep it that
+way: status, releases, incidents and any dated entry never go into `plan.md` or `spec.md`; they are one dated line in
+`history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <one line>`), and a design decision goes into `spec.md` with its date and its
+reason. If the plan you refine already holds a dated log, move it out first (ask before moving; the procedure is
+"Splitting a plan that holds a log" in `ops/tracks.md`). The full table is "What goes in each
+track file" in the same file.
 
 #### Templates
 
@@ -331,8 +366,9 @@ commits go.
      `**Lane Status**` from it, a bare target is `queue`. If a deploy or post-deploy check is still
      to run, that is `quality-gate:running`, not `implement:running`.
    - Append `## ✅ COMPLETE` to `plan.md`.
-   - Append the completion comment to `conversation.md`:
-     `> **system**: ✅ Implementation complete - moved to <lane>.`
+   - Add the completion line to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`; status, commit hashes and
+     incidents of this run go there as dated lines, never into `plan.md` or `spec.md`):
+     `✅ Implementation complete - moved to <lane>.`
    - Final commit: `feat(track-NNN): Implementation complete`.
 Boundaries: `workflow.json` is the only authority for target lanes; read it through `valid.next` or
 `outcome`, or with the grammar in `ops/lanes-and-statuses.md`, never by feel. On exit, `**Lane Status**`
@@ -371,10 +407,10 @@ the implement lane's retry loop, so write them up as gaps instead.
    - Secrets: no hardcoded secrets or secrets in logs; ADC / Secret Manager used as
      `deployment-stack.md` specifies.
    - If `test.md` exists, run its test commands. A failing test case makes the verdict FAIL.
-3. **Post the review** as one comment in `conversation.md`, authored `system`, with the emoji as
-   the first character of the body: `> **system**: ✅ REVIEW PASSED` or
-   `> **system**: ⚠️ REVIEW FAILED`. Put the write-up (test summary, gaps) in `>`-prefixed
-   continuation lines under that same comment, not a second one.
+3. **Post the review** as one dated verdict line in `history.md`, emoji first:
+   `- <YYYY-MM-DD HH:MMZ> ✅ REVIEW PASSED` or `- <YYYY-MM-DD HH:MMZ> ⚠️ REVIEW FAILED`. Put the write-up (test summary,
+   gaps) in one comment in `conversation.md` (authored `claude`, `>`-prefixed continuation lines), not a second one;
+   the history line stays one line, and no status goes into `plan.md` or `spec.md`.
 4. **Transition.**
    - Re-read `index.md`'s `**Lane**`. If it is no longer `review` (a human moved the card), leave
      `**Lane**` and `**Lane Status**` alone, keep the step 3 comment (the review is still valid),
@@ -478,10 +514,10 @@ code is on `main`.
    you may. Before the fix: write a failing test that reproduces the bug, then fix, then re-run
    to see it pass. Commit test and fix together as `fix(quality-gate): [description]`, and post a
    comment in `conversation.md` saying what failed and what you changed.
-4. **Post the result** as one comment in `conversation.md`, authored `system`, emoji first:
-   `> **system**: ✅ QUALITY GATE PASSED`, or `> **system**: ❌ QUALITY GATE FAILED` (use `⚠️` when
-   it needs human judgment rather than a plain retry). Put the full write-up in `>`-prefixed
-   continuation lines under that same comment, not a second one.
+4. **Post the result** as one dated line in `history.md`, emoji first:
+   `- <YYYY-MM-DD HH:MMZ> ✅ QUALITY GATE PASSED`, or `- <YYYY-MM-DD HH:MMZ> ❌ QUALITY GATE FAILED` (use `⚠️` when
+   it needs human judgment rather than a plain retry). Put the full write-up in one comment in `conversation.md`
+   (authored `claude`, `>`-prefixed continuation lines), not a second one; no status goes into `plan.md` or `spec.md`.
 5. **Transition.**
    - Re-read `index.md`'s `**Lane**`. If it is no longer `quality-gate` (a human moved the card),
      leave `**Lane**` and `**Lane Status**` alone, keep the step 4 comment, and note there that
@@ -581,11 +617,12 @@ Markers this lane reads and writes:
    and merge or rebase `origin/main` into `track-NNN`, resolve any real conflict in-session as in
    step 4b, and push (force-push only after a yes, and only if you rebased) before looking for
    the open PR. Pushing first is what makes the existing PR pick up the new commits.
-7. **Post the completion comment**, authored `system`, emoji first:
-   - direct success: `> **system**: ✅ Merged track-NNN to main.`
-   - pr mode: `> **system**: ⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
+7. **Add the completion line** to `history.md` (`- <YYYY-MM-DD HH:MMZ> <emoji> <text>`, emoji first; the merge, the
+   commit hashes and any incident are dated lines there, never in `plan.md` or `spec.md`):
+   - direct success: `✅ Merged track-NNN to main.`
+   - pr mode: `⚠️ PR opened - waiting for review: <url>.` (⚠️ because it needs human
      action, not because anything failed)
-   - unresolved conflict: `> **system**: ❌ Merge conflict could not be resolved automatically - see details above.`
+   - unresolved conflict: `❌ Merge conflict could not be resolved automatically - see details above.`
 
 Boundary: this lane only merges or opens a PR for code that already passed review and
 quality-gate. Write no feature code here; the only code changes it should make are those needed
@@ -689,9 +726,10 @@ when the work entered a new phase, `**Step**` (the current activity; infer it if
 
 #### comment `[track-number] [body]`
 
-Append `> **system**: [body]` (format rules in SKILL.md) to `conductor/tracks/NNN-*/conversation.md`.
-Use `⚠️` for something that needs a human and `ℹ️` for
-a note. This is also how an agent answers a human comment.
+A comment from a person or an agent is a `> **author**: [body]` entry (format rules in SKILL.md) in
+`conductor/tracks/NNN-*/conversation.md`; this is also how an agent answers a human comment. A note that records
+an event (a run, a classification, a completion) is a dated line in `history.md` instead (see "What goes in each track file").
+Use `⚠️` for something that needs a human and `ℹ️` for a note.
 
 ### `SKILL.md` (Finding a track; conversation.md format)
 
@@ -707,7 +745,9 @@ fallback: a scan that missed `AM-<number>-...` once created a duplicate `<number
 
 #### conversation.md format
 
-Every entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
+`conversation.md` holds the dialogue. An entry that records an event (a lane completion, a classification) is a dated line
+in `history.md` instead; with the connector, `append_conversation` with author `system` writes that line there. Every
+entry in `conductor/tracks/NNN-*/conversation.md`, from an agent or a human, must look like:
 ```
 > **author**: First line of the message
 > second line, also prefixed with >
