@@ -58,8 +58,8 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 
 
 .flow { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--line); gap: 2px; }
 .flow i { display: block; min-width: 3px; background: var(--accent); opacity: .35; }
-.flow i[data-l="in-progress"], .flow i[data-l="review"], .flow i[data-l="quality-gate"] { opacity: 1; }
-.flow i[data-l="planning"] { opacity: .65; }
+.flow i.act { opacity: 1; }
+.flow i.first { opacity: .65; }
 .flow i[data-l="done"] { background: var(--ok); opacity: .55; }
 .flowkey { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 12px; margin-top: 8px; }
 .flowkey span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--accent); opacity: .5; vertical-align: baseline; }
@@ -473,8 +473,13 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
       .catch(function (e) { fail(String(e && e.message || e)); });
   }
   function start(D) {
-  var LANES = ['planning', 'in-progress', 'review', 'quality-gate']; // the workflow lanes (backlog and done are drawn apart)
-  var LEGACY = { plan: 'planning', implement: 'in-progress' }; // old names, read so old data still shows; never drawn as columns
+  // The columns are the project's workflow lanes (board.json `lanes`, in flow order); backlog and done are drawn apart. An older
+  // board.json without `lanes` gets the default workflow lanes.
+  var ALL = Array.isArray(D.lanes) && D.lanes.length ? D.lanes : ['backlog', 'planning', 'in-progress', 'review', 'quality-gate', 'done'];
+  var LANES = ALL.filter(function (l) { return l !== 'backlog' && l !== 'done'; });
+  // Old lane names are read as their workflow names so old data still shows, but only when the workflow has no lane of the old name.
+  var LEGACY = { plan: 'planning', implement: 'in-progress' };
+  Object.keys(LEGACY).forEach(function (k) { if (ALL.indexOf(k) >= 0 || ALL.indexOf(LEGACY[k]) < 0) delete LEGACY[k]; });
   var STATUSES = ['queue', 'running', 'success', 'failure', 'waiting'];
   var state = { q: '', status: 'all', cause: 'all', open: {}, attnAll: false, doneAll: false, backlogOpen: false, backlogAll: false };
   try { state.backlogOpen = localStorage.getItem('lc-board-backlog') === '1'; } catch (e) { /* storage can be unavailable */ }
@@ -511,7 +516,8 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   var byLane = {}; LANES.concat(['done', 'backlog']).forEach(function (l) { byLane[l] = []; });
   live.forEach(function (t) { if (byLane[t.l]) byLane[t.l].push(t); });
   Object.keys(byLane).forEach(function (l) { byLane[l].sort(function (a, b) { return b.n - a.n; }); });
-  var inflight = byLane['in-progress'].length + byLane.review.length + byLane['quality-gate'].length;
+  var planned = LANES.length ? byLane[LANES[0]].length : 0; // the first column is where tracks are planned
+  var inflight = 0; LANES.slice(1).forEach(function (l) { inflight += byLane[l].length; });
 
   document.getElementById('proj').textContent = D.project + ' / ' + live.length + ' tracks';
   var st = document.getElementById('stamp');
@@ -520,14 +526,14 @@ tr[role="button"]:hover td { background: var(--accent-soft); }
   st.appendChild(el('div', null, ago(D.generated_at)));
 
   var sm = document.getElementById('summary');
-  [['flight', inflight, 'in progress'], ['', byLane.planning.length, 'being planned'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done'], ['', byLane.backlog.length, 'in backlog']].forEach(function (x) {
+  [['flight', inflight, 'in progress'], ['', planned, 'being planned'], ['attn', D.attn.length, 'need attention'], ['', byLane.done.length, 'done'], ['', byLane.backlog.length, 'in backlog']].forEach(function (x) {
     var s = el('div', 'stat ' + x[0]); s.appendChild(el('span', 'n', String(x[1]))); s.appendChild(el('span', 'l', x[2])); sm.appendChild(s);
   });
 
   var flow = document.getElementById('flow'), key = document.getElementById('flowkey');
   LANES.concat(['done', 'backlog']).forEach(function (l) {
     var n = byLane[l].length; if (!n) return;
-    var i = document.createElement('i'); i.dataset.l = l; i.style.flex = String(n); i.title = l + ': ' + n; flow.appendChild(i);
+    var i = document.createElement('i'); i.dataset.l = l; if (l === LANES[0]) i.className = 'first'; else if (LANES.indexOf(l) > 0) i.className = 'act'; i.style.flex = String(n); i.title = l + ': ' + n; flow.appendChild(i);
     var k = el('span', null, l + ' ' + n); k.dataset.l = l; key.appendChild(k);
   });
 

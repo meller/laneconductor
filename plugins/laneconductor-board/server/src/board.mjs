@@ -7,6 +7,8 @@ import { parseMarkers } from './markers.mjs';
 import { lintTracks, rowOf } from './summary.mjs';
 import { trackNumberOfFolder } from './tracks.mjs';
 
+/** The lanes the page draws when a project has no conductor/workflow.json (or one without lanes). */
+export const DEFAULT_PAGE_LANES = ['backlog', 'planning', 'in-progress', 'review', 'quality-gate', 'done'];
 export const DEFAULT_LANES = ['plan', 'implement', 'review', 'quality-gate', 'done'];
 const ARCHIVE_RE = /^_(?:duplicate|quarantine)-/;
 const PHASE_MAX = 200;
@@ -111,6 +113,7 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  * only (archived copies are left out). Short keys keep the file small. Only titles, lanes, status,
  * progress, phase and check reasons: the same privacy surface as the board itself. The documents are
  * separate files (`docs/<n>.json`); this only says which tracks have one.
+ *   lanes:  the project's workflow lanes in flow order (the page draws every lane but backlog and done as a column)
  *   tracks: n number, p initials prefix of the folder (AM), t title, l lane, s lane status,
  *           g progress, h phase (cut at 130 chars), a needs attention,
  *           d a docs file is published for this track,
@@ -118,15 +121,16 @@ const prefixOf = (folder) => (PREFIX_RE.exec(folder ?? '') ?? [])[1] ?? '';
  *   attn:   n number, p prefix, t title, r reasons
  *   docs_dropped (only when > 0): tracks left without a docs file because of the file cap
  * @param {object} board a `buildBoard` result
- * @param {{ docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null }} [docs]
+ * @param {{ lanes?: string[], docFolders?: Iterable<string>, docsDropped?: number, githubFolderUrl?: ((folder: string) => string) | null }} [docs]
  */
-export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null } = {}) {
+export function boardPageData(board, { docFolders = [], docsDropped = 0, githubFolderUrl = null, lanes = null } = {}) {
   const live = board.tracks.filter((t) => !t.archived);
   const titleOf = new Map(live.map((t) => [t.folder, t.title]));
   const withDocs = new Set(docFolders);
   return {
     project: board.project,
     generated_at: board.generated_at,
+    lanes: lanes?.length ? [...lanes] : [...DEFAULT_PAGE_LANES],
     tracks: live.map((t) => ({
       n: t.number, p: prefixOf(t.folder), t: t.title ?? '', l: t.lane, s: t.lane_status, g: t.progress || 0, h: (t.phase ?? '').slice(0, 130), a: Boolean(t.needs_attention),
       d: withDocs.has(t.folder),

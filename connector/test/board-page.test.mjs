@@ -73,7 +73,7 @@ test('board.html is byte-identical across runs and carries no data; board.json h
   assert.ok(raw.endsWith('}\n') && !raw.slice(0, -1).includes('\n'), 'compact JSON, one line');
   const j = JSON.parse(raw);
   assert.ok(raw.includes(TITLE_SENTINEL), 'the title is in board.json');
-  assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'tracks', 'attn']);
+  assert.deepEqual(Object.keys(j), ['project', 'generated_at', 'lanes', 'tracks', 'attn']);
   assert.equal(j.project, 'Page Fixture');
   assert.equal(j.generated_at, NOW);
   for (const t of j.tracks) assert.deepEqual(Object.keys(t), ['n', 'p', 't', 'l', 's', 'g', 'h', 'a', 'd']);
@@ -182,7 +182,7 @@ test('page: renders 5 lane columns, the done list and the attention list from a 
   assert.equal(ids.status.hidden, true, 'the loading state is gone');
   assert.equal(ids.board.hidden, false);
   assert.equal(ids.lanes.children.length, 4, 'backlog is not one of the lane columns');
-  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['planning', 'in-progress', 'review', 'quality-gate']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['plan', 'implement', 'review', 'quality-gate']); // this fixture's workflow.json names plan and implement
   assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 1, 1]);
   // The backlog is the last section and starts collapsed.
   assert.equal(ids['backlog-block'].hidden, false);
@@ -362,7 +362,7 @@ test('detail: clicking a card opens the drawer with the header, Overview from do
   assert.equal(ids.wrap.attrs.inert, '', 'the board behind the drawer is inert');
   assert.equal(ids['d-id'].textContent, 'AM-201');
   assert.equal(ids['d-title'].textContent, 'Planned one');
-  assert.equal(ids['d-lane'].textContent, 'planning', 'a legacy plan lane is shown by its workflow name');
+  assert.equal(ids['d-lane'].textContent, 'plan', 'the lane label is the workflow lane name');
   assert.equal(ids['d-pill'].children[0].className, 'pill queue');
   assert.equal(ids['d-pct'].textContent, '0%');
   assert.equal(ids['d-bar'].attrs.role, 'progressbar');
@@ -776,7 +776,7 @@ test('backlog: the section is hidden when there are no backlog tracks, and the s
 // --- lanes follow the workflow (otralingo: tracks in planning / in-progress were not drawn) ---------------------------------
 
 function laneFixture(rows, wfLanes) {
-  const dir = makeRepo();
+  const dir = makeRepo({ workflow: false });
   cleanup.push(dir);
   writeFile(dir, '.laneconductor.json', JSON.stringify({ project: { name: 'Lanes' } }));
   if (wfLanes) writeFile(dir, 'conductor/workflow.json', JSON.stringify({ lanes: Object.fromEntries(wfLanes.map((l) => [l, {}])) }));
@@ -812,4 +812,53 @@ test('page: legacy plan and implement lanes still display, under planning and in
   assert.equal(s['in progress'], 2);
   assert.equal(s['being planned'], 2);
   assert.deepEqual(ids.flow.children.map((i) => i.title), ['planning: 2', 'in-progress: 2']);
+});
+
+// --- the columns come from the project's workflow.json (board.json `lanes`) --------------------------------------------------
+
+test('boardPageData: carries the lanes it is given, else the default workflow lanes', () => {
+  const b = buildBoard([], { generatedAt: NOW, project: 'p' });
+  assert.deepEqual(boardPageData(b).lanes, ['backlog', 'planning', 'in-progress', 'review', 'quality-gate', 'done']);
+  assert.deepEqual(boardPageData(b, { lanes: ['x', 'y', 'done'] }).lanes, ['x', 'y', 'done']);
+});
+
+test('lc board writes the workflow.json lane order into board.json; a missing workflow gets the default lanes', () => {
+  const wf = ['planning', 'backlog', 'in-progress', 'review', 'quality-gate', 'done']; // the Otralingo order
+  assert.deepEqual(laneFixture([[1, 'planning', 'queue']], wf).lanes, wf);
+  assert.deepEqual(laneFixture([[1, 'planning', 'queue']]).lanes, ['backlog', 'planning', 'in-progress', 'review', 'quality-gate', 'done']);
+});
+
+test('page: a project with custom lanes gets exactly those columns; first column is "being planned", the rest are "in progress"', async () => {
+  const data = laneFixture([[1, 'ideas', 'queue'], [2, 'build', 'running'], [3, 'build', 'queue'], [4, 'test', 'queue'], [5, 'backlog', 'queue'], [6, 'done', 'success']],
+    ['ideas', 'build', 'test', 'done']);
+  const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => data }));
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['ideas', 'build', 'test']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 2, 1]);
+  const s = statsOf(ids);
+  assert.equal(s['in progress'], 3);
+  assert.equal(s['being planned'], 1);
+  assert.deepEqual(ids.flow.children.map((i) => i.title), ['ideas: 1', 'build: 2', 'test: 1', 'done: 1', 'backlog: 1']);
+});
+
+test('page: a workflow that itself names the lanes plan and implement keeps them as columns (no mapping)', async () => {
+  const data = laneFixture([[1, 'plan', 'queue'], [2, 'implement', 'running']], ['plan', 'implement', 'review', 'done']);
+  const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => data }));
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['plan', 'implement', 'review']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 0]);
+});
+
+test('page: an older board.json without `lanes` still renders with the default workflow lanes', async () => {
+  const data = laneFixture([[1, 'plan', 'queue'], [2, 'in-progress', 'running']]);
+  delete data.lanes;
+  const ids = await runPage(async () => ({ ok: true, status: 200, json: async () => data }));
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[0]._text), ['planning', 'in-progress', 'review', 'quality-gate']);
+  assert.deepEqual(ids.lanes.children.map((c) => c.children[1].children.length), [1, 1, 0, 0]);
+});
+
+test('page: the drawer shows the workflow lane name for a track still carrying a legacy lane', async () => {
+  const data = laneFixture([[1, 'implement', 'running']]);
+  const ids = await runPage(async (u) => (u === 'board.json' ? { ok: true, status: 200, json: async () => data } : { ok: false, status: 404, json: async () => ({}) }));
+  ids.lanes.children[1].children[1].children[0].handlers.click();
+  await flush();
+  assert.equal(ids['d-lane'].textContent, 'in-progress');
 });

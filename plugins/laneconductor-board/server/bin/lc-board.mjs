@@ -86,7 +86,7 @@ if (siteDir) {
     const base = remote.status === 0 ? githubBase(remote.stdout) : null;
     if (base) { const branch = resolveStateBranch(repo).branch; ghUrl = (folder) => githubFolderUrl(base, branch, folder); }
   }
-  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { docFolders, docsDropped: dropped, githubFolderUrl: ghUrl }))}\n`, 'utf8');
+  await fs.writeFile(data, `${JSON.stringify(boardPageData(board, { lanes, docFolders, docsDropped: dropped, githubFolderUrl: ghUrl }))}\n`, 'utf8');
   process.stdout.write(argv.includes('--json') ? `${JSON.stringify({ page, root: dir, files })}\n` : `${page}\n${data}\n`);
 } else if (checkFile) {
   const text = await readText(path.resolve(checkFile));
