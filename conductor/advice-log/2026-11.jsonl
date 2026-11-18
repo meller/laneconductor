@@ -98,3 +98,6 @@
 {"v":1,"ts":"2026-11-18T12:50:42Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"get_context","ok":true,"latency_ms":50,"chars":14181,"backend":"local"}
 {"v":1,"ts":"2026-11-18T12:50:42Z","kind":"stale_read","session":"c_e029a94881c8","surface":"claude-code","tool":"get_context","reasons":["unpushed_local_commits","dirty_state_files"],"backend":"local"}
 {"v":1,"ts":"2026-11-18T12:50:42Z","kind":"serve","session":"c_e029a94881c8","surface":"claude-code","id":"s_mwm4dcup33df021f","tool":"get_context","item":"lane:plan","source":"repo:.claude/skills/laneconductor/lanes/plan.md@d586dff707b4","chars":9638,"latency_ms":50,"commit":"16baea4af8e39add5bea410c801590cd5d7b4792"}
+{"v":1,"ts":"2026-11-18T12:50:53Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"create_track","ok":true,"latency_ms":135,"chars":5024,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:54:48Z","kind":"call","session":"c_e029a94881c8","surface":"claude-code","tool":"get_track","ok":true,"latency_ms":72,"chars":8234,"backend":"local"}
+{"v":1,"ts":"2026-11-18T12:54:48Z","kind":"stale_read","session":"c_e029a94881c8","surface":"claude-code","tool":"get_track","reasons":["unpushed_local_commits","dirty_state_files"],"backend":"local"}

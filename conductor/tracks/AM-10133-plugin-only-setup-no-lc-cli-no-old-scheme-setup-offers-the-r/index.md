@@ -3,7 +3,7 @@
 **Lane**: plan
 **Lane Status**: queue
 **Progress**: 0%
-**Phase**: New
+**Phase**: Planned 2026-11-18: inventory done, owner decisions D1-D8 open (see spec)
 **Track Kind**: feature
 **Type**: dev
 **Merge Mode**: direct
