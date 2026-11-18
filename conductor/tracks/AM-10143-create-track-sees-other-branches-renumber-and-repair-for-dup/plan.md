@@ -1,25 +1,20 @@
 # Track 10143: create_track sees other branches; renumber and repair for duplicate track numbers
 
-Scope of this implement pass: only the section "Added 2026-11-18 (owner rule): search first, the default is update, not create" of spec.md. Number allocation across branches, duplicate repair and the possibly_stale change stay for later (not ticked below, not started).
+Pass 1 (search first, default update) is shipped in 1.1.1. Pass 2 (this one) is the number allocation and the duplicate repair; the possibly_stale noise item was skipped (see below).
 
-Implemented on branch of worktree agent-abe2a9148b49e9bb2, commit 83199fe1.
+## Phase 1: Text, search first and default update (shipped, pass 1)
 
-## Phase 1: Text, search first and default update
+- [x] ops/tracks.md section "Search first", lane guides, command procedures, base procedures
+- [x] create_track `similar_tracks` and a warning on a strong match
+- [x] tests in connector/test/search-first.test.mjs
 
-Problem: agents open a new track when an existing one fits.
-Solution: one flow in every place that can create a track; works without the connector.
+## Phase 2: Allocation across branches and duplicates (pass 2)
 
-- [x] ops/tracks.md: new section "Search first: the default is update, not create"; `newTrack`, `updateTrack`/`reportaBug`/`featureRequest` point to it (search by key words in every lane incl. backlog and done, ask "Update track N (title, lane) with this? [default: yes]", done track reopens only on a yes, create is the fallback and names the tracks looked at, small gaps go into one fitting track/epic/backlog track); how to list without the connector (tracks-summary.md or the folders)
-- [x] lanes/plan.md, lanes/brainstorm.md, ops/working-a-track.md, SKILL.md row (source skill) and connector/guides/plan.md, brainstorm.md: same rule where an agent decides on its own that a track is needed
-- [x] connector/src/commands.mjs `new`, `bug`, `feature` procedures carry the flow; the base's own procedures (scripts/plugin-texts.mjs) carry it too, reading tracks-summary.md or the folders
-- [x] node scripts/build-plugin.mjs regenerates plugins/**
+- [x] `LocalGitStore.refDirs` lists the track folders of every other local branch and remote-tracking ref (refs at the same commit read once, capped at 100 commits); `create_track` numbers after the highest of local, upstream and those.
+- [x] `duplicateNumbers` (tracks.mjs): the same number under different folder names across local, upstream and branches is a `create_track` warning ("Duplicate track numbers: N (2 folders)"), up to 5.
+- [x] `repair-duplicates` command (catalog, base procedure, coverage entry): finds duplicates (list_tracks warning or git refs), the older folder keeps the number (first commit that added it), shows one line per rename with a default-yes question and waits, then `git mv`, fixes the number in the headings, adds a conversation comment, commits explicit paths, never pushes, and lists dependents without changing them. The connector has no rename tool and none was added (KC-8 has no room); the board already hides `_duplicate-` folders.
+- [ ] Skipped: the `possibly_stale` noise for a repo that is only ahead of upstream with no upstream consumer (audit D7). It changes the freshness vocabulary other tools and tests rely on, so it is not trivial; left for its own track.
 
-## Phase 2: Connector, similar_tracks
+## Phase 3: Checks
 
-- [x] create_track returns `similar_tracks` (up to 5 by title and summary words, any lane; number, title, lane, lane_status) and a warning on a strong match; never blocks. Note: it is computed from the tracks that existed before this create, and it is returned with the result, so the track already exists when the caller sees it; the warning says to move the content to the matching track if it duplicates
-- [x] tool description changed in a few words only (KC-8 stays green)
-
-## Phase 3: Tests and checks
-
-- [x] tests: match, no match, only a done track; text tests for new, bug, feature (connector/test/search-first.test.mjs)
-- [x] cd connector && npm test green (418: 407 + 11); build-plugin --check clean; claude plugin validate --strict on the three plugins and the root
+- [x] connector/test/create-branches.test.mjs (5 tests); npm test 461 green; build-plugin --check clean; strict validate on the three plugins and the root.

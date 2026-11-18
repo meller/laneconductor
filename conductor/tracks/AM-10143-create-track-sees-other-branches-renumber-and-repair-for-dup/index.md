@@ -1,7 +1,7 @@
 # Track AM-10143: create_track sees other branches; renumber and repair for duplicate track numbers
 
 **Lane**: implement
-**Lane Status**: queue
+**Lane Status**: running
 **Progress**: 0%
 **Phase**: Owner said go on 2026-11-18: build the search-first, default-update rule (text in all plugins plus similar_tracks in create_track) and release as a patch. Number allocation and duplicate repair stay for later.
 **Track Kind**: bug
