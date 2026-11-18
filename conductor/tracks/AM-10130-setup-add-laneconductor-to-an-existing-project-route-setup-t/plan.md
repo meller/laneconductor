@@ -1,5 +1,7 @@
 # Track 10130: Setup: add LaneConductor to an existing project (route setup to the existing-repo scaffold, drop the stale install text)
 
+Design approach: `setup` follows the existing-repository path of `new-project`; the daemon-era text moves to `legacy/`, and the generator keeps it out of the base. Tests first for each phase. Runs after track 10128.
+
 ## Phase 1: Read an existing repository, scaffold it without a made-up first track
 - [x] Tests first: `connector/test/newproject-existing.test.mjs` (fixture repo with package.json, README, CI file, lint config)
 - [x] `connector/src/newproject/detect.mjs`: name, summary, stack, real commands, CI, older conductor/tracks (read only)
