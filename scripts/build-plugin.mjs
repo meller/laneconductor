@@ -23,7 +23,7 @@
 //
 // Design: "agent-neutral core, Claude adapter" (see connector/ARCHITECTURE.md). Everything specific to Claude's plugin system
 // (manifests, frontmatter transforms, commands, agents, the marketplace file) lives in this generator's profiles and in
-// connector/plugin-extras/; the neutral core (track files, lane guides, recipes, connector/src, the MCP tool contract) does not.
+// connector/plugin-extras/; the neutral core (track files, lane guides, connector/src, the MCP tool contract) does not.
 //
 // Sources                                   FULL output (plugins/laneconductor/)
 //   .claude/skills/laneconductor/**         skills/laneconductor/** (without legacy/, the parked daemon and database tier;
@@ -84,14 +84,9 @@ export const CONNECTOR_TOOL_PREFIX = `mcp__plugin_${PLUGIN_NAME}_lc__`;
 // the source text it replaces and the build throws when that text is gone, so a source change cannot
 // silently leave a dead link in the plugin.
 export const SKILL_EXCLUDE_DIRS = ['legacy'];
-// The recipes inside the skill (track AM-10117): `recipes/<name>/SKILL.md` ships in both profiles. A recipe's `files/` may hold
-// any file type (templates, config, scripts); the LEAN profile is Markdown, text, JSON and YAML only, so it drops the files of
-// a recipe whose extension is not one of those (templates ending in .tmpl, scripts); the recipe text stays.
-export const LEAN_SKIP_RECIPE_FILE = /^recipes\/[^/]+\/files\/(?!.*\.(?:md|markdown|txt|json|ya?ml)$)/i;
-// Server entry points of the full plugin (their relative imports follow): the connector, the board and the recipe and scaffold scripts.
+// Server entry points of the full plugin (their relative imports follow): the connector, the board and the scaffold script.
 export const SERVER_ENTRIES = [
   'bin/lc-connector.mjs', 'bin/lc-board.mjs', 'bin/lc-scaffold.mjs',
-  'bin/lc-recipe-check.mjs', 'bin/lc-recipe-match.mjs', 'bin/lc-recipe-gate.mjs', 'bin/lc-recipe-apply.mjs', 'bin/lc-recipe-save.mjs',
 ];
 export const LEGACY_NOTE = 'Not in the plugin: the daemon-era tier (the `start`, `activate`, `stop`, `deactivate`, `lock`, `unlock`, '
   + '`syncdb` and `remote-sync` commands and the Postgres schema) is parked legacy. Its files live in the skill of the '
@@ -301,7 +296,6 @@ function buildCommon(repo, profile) {
   // Skill: everything under the skill folder except the parked tier, with the explicit edits applied.
   for (const r of walk(path.join(repo, SKILL_SRC))) {
     if (SKILL_EXCLUDE_DIRS.some((d) => r.startsWith(`${d}/`))) continue;
-    if (profile === 'lean' && LEAN_SKIP_RECIPE_FILE.test(r)) continue;
     const dest = `skills/laneconductor/${r}`;
     c.addFrom(`${SKILL_SRC}/${r}`, dest);
     const f = c.files.get(dest);

@@ -193,8 +193,7 @@ the project picks its own.
 ```
 
 **`.laneconductor.json` of a new project** (the `new-project` flow): a state branch and nothing else that
-needs a running process. No `mode`, no database, no collectors, no worker settings. Add `recipes.path` only
-when the person named a personal recipe library.
+needs a running process. No `mode`, no database, no collectors, no worker settings.
 ```json
 { "project": { "name": "<name>" }, "connector": { "state_branch": "main" } }
 ```

@@ -55,13 +55,6 @@ export function normalizeAnswers(a = {}) {
   const commands = {};
   for (const [k] of GATE_CHECKS) if (str(a.commands?.[k])) commands[k] = str(a.commands[k]);
   if (str(a.commands?.e2e)) commands.e2e = str(a.commands.e2e);
-  const recipes = (Array.isArray(a.recipes) ? a.recipes : []).map((r) => {
-    const rname = str(r?.name);
-    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(rname)) throw fail('VALIDATION_FAILED', `a chosen recipe needs a kebab-case name (got ${JSON.stringify(r?.name)})`);
-    return { name: rname, why: str(r.why), youRun: list(r.youRun), claudeDoes: list(r.claudeDoes) };
-  });
-  const dup = recipes.find((r, i) => recipes.findIndex((x) => x.name === r.name) !== i);
-  if (dup) throw fail('VALIDATION_FAILED', `recipe ${dup.name} is chosen twice`);
   const initials = str(a.initials);
   if (initials && !/^[A-Za-z]{1,4}$/.test(initials)) throw fail('VALIDATION_FAILED', 'answers.initials must be 1 to 4 letters');
   return {
@@ -74,9 +67,6 @@ export function normalizeAnswers(a = {}) {
     commands,
     kpis: (Array.isArray(a.kpis) ? a.kpis : []).filter((k) => str(k?.metric)).map((k) => ({ metric: str(k.metric), target: str(k.target), horizon: str(k.horizon) })),
     journeys: (Array.isArray(a.journeys) ? a.journeys : []).filter((j) => str(j?.persona) && str(j?.name)).map((j) => ({ persona: str(j.persona), name: str(j.name), flow: list(j.flow) })),
-    recipes,
-    deviations: (Array.isArray(a.deviations) ? a.deviations : []).filter((d) => str(d?.reason)).map((d) => ({ recipe: str(d.recipe), reason: str(d.reason) })),
-    recipesPath: str(a.recipesPath),
     stateBranch: str(a.stateBranch) || 'main',
     initials,
   };
@@ -102,7 +92,6 @@ function techStackMd(a) {
     row('Language', s.language), row('Framework', s.framework), row('Data', s.data), row('Authentication', s.auth),
     row('Hosting and deploy target', s.hosting), row('AI use', s.ai), row('Testing', s.testing),
     ...(s.other.length ? ['', '## Other', ...s.other.map((x) => `- ${x}`)] : []),
-    ...(a.recipes.length ? ['', '## Recipes chosen', ...a.recipes.map((r) => `- ${r.name}${r.why ? `: ${r.why}` : ''}`)] : []),
     '',
   ].join('\n');
 }
@@ -162,9 +151,9 @@ const WORKFLOW_MD = `# Workflow
 Machine-readable config lives in \`conductor/workflow.json\` (lane transitions, parallel limits, retries).
 `;
 
-/** The `.laneconductor.json` of a new project: a state branch and, when given, the personal recipe library. No mode, no database, no collectors. */
+/** The `.laneconductor.json` of a new project: a state branch and nothing else. No mode, no database, no collectors. */
 export function laneconductorConfig(a) {
-  return { project: { name: a.name }, connector: { state_branch: a.stateBranch }, ...(a.recipesPath ? { recipes: { path: a.recipesPath } } : {}) };
+  return { project: { name: a.name }, connector: { state_branch: a.stateBranch } };
 }
 
 /** Map<repo-relative path, content> of every file the scaffold creates (not the tracks, and not `.gitignore`, which is merged). */
@@ -186,45 +175,17 @@ export function renderScaffold(answers) {
   ]);
 }
 
-function recipeTrackPlan(r) {
-  const does = r.claudeDoes.length ? r.claudeDoes : ['Follow the recipe\'s "Claude does" section'];
-  const youRun = r.youRun.length ? r.youRun : ['Run the "You run" steps of the recipe (the recipe lists none)'];
-  return [
-    `## Phase 1: Apply recipe ${r.name}`, '',
-    ...does.map((s, i) => `- [ ] Task ${i + 1}: ${s}`), '',
-    '## Phase 2: Your steps (Claude never does these: sign-in, secrets, deploy)', '',
-    ...youRun.map((s, i) => `- [ ] Task ${i + 1} (HUMAN): ${s}`), '',
-    `**Impact**: the project uses the proven setup from recipe ${r.name}; ${youRun.length} step${youRun.length === 1 ? ' is' : 's are'} yours.`, '',
-  ].join('\n');
-}
-
 /**
  * The first tracks, as `buildTrackFiles` output (`{ id, folder, files }`), numbered from the folders already present:
- * one plan-lane track per chosen recipe ("Apply recipe X", its You-run steps as the human's tasks), then the walking skeleton.
- * Deviations from a recommendation are written to the conversation of the first track.
+ * the walking skeleton.
  */
 export function firstTracks(answers, existingDirs = []) {
   const a = normalizeAnswers(answers);
   const initials = defaultInitials(existingDirs, a.initials);
-  const out = [];
-  let number = nextNumber(existingDirs);
-  for (const r of a.recipes) {
-    const t = buildTrackFiles({
-      number, initials, title: `Apply recipe ${r.name}`,
-      problem: `Apply the recipe ${r.name} to ${a.name}.${r.why ? ` Why it was chosen: ${oneLine(r.why)}` : ''} The recipe's own steps are the plan; steps marked HUMAN are yours.`,
-    });
-    t.files.plan = `# Track ${t.id}: Apply recipe ${r.name}\n\n${recipeTrackPlan(r)}`;
-    out.push(t);
-    number += 1;
-  }
-  out.push(buildTrackFiles({
-    number, initials, title: 'Walking skeleton',
+  return [buildTrackFiles({
+    number: nextNumber(existingDirs), initials, title: 'Walking skeleton',
     problem: `Build the thinnest end-to-end slice of ${a.name}: ${oneLine(a.summary)} One input to one visible result, runnable, with the first real test and the first line of conductor/quality-gate.md.`,
-  }));
-  if (a.deviations.length) {
-    out[0].files.conversation += `${a.deviations.map((d) => `> **human**: Deviation from a recommendation${d.recipe ? ` (${d.recipe})` : ''}: ${oneLine(d.reason)}`).join('\n')}\n`;
-  }
-  return out;
+  })];
 }
 
 /** Appends the lines of `GITIGNORE_LINES` that are missing; returns the new content, or null when nothing is missing. */

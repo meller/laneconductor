@@ -12,7 +12,6 @@ This is the product. It has no Claude-only assumption and must keep none.
 - **Lane guides and ops docs.** `.claude/skills/laneconductor/lanes/*.md` and `ops/*.md`: advice for each lane
   and for track operations, written as instructions any capable agent can follow. (The folder name and the
   `SKILL.md` index are the source skill's layout, not a requirement of the content.)
-- **Recipes.** Reusable procedures (track AM-10107), also plain Markdown.
 - **Connector logic.** `connector/src/**`: reading and writing track files with base-commit checks, commits,
   push policy, summaries, the board data. The MCP SDK is imported only by `src/server.mjs` and the entry `bin/lc-connector.mjs`.
 - **The MCP tool contract.** The tools in `connector/src/tools/` (`get_context`, `list_tracks`, `get_track`,

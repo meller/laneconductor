@@ -346,8 +346,6 @@ Privacy:
 - Markdown is rendered by a small in-page renderer that builds DOM nodes with `createElement` and
   `createTextNode` only (no html-string API anywhere): tags in a document stay text, only `https:`
   links become anchors (new tab, `noopener noreferrer`), images show their alt text.
-- A similar scanner exists as `connector/src/recipes/scan` on the track-10107 branch. The two should
-  be merged into one module later; this one is deliberately independent of that branch.
 
 Tests: `test/scan.test.mjs`, `test/board-docs.test.mjs`, and the detail tests in
 `test/board-page.test.mjs` (open and close, tabs, one fetch, withheld notice, GitHub link, focus, and

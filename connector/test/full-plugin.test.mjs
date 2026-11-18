@@ -35,8 +35,8 @@ test('the plugin ships skill, commands, agents, connector and board script; no a
   for (const f of ['skills/laneconductor/SKILL.md', 'commands/board.md', 'agents/track-runner.md', '.mcp.json', 'package.json', 'package-lock.json',
     'server/bin/lc-connector.mjs', 'server/bin/lc-board.mjs', 'server/src/board-page.html', '.claude-plugin/icon.png']) assert.ok(files.includes(f), f);
   assert.ok(files.some((f) => f.startsWith('server/guides/')), 'the lane guides ship (read by path)');
-  // Relative imports resolve to files inside the plugin; bare specifiers are node: built-ins or the npm packages of the connector (MCP SDK, zod, yaml).
-  const allowedBare = new Set(['@modelcontextprotocol/server', 'zod', 'yaml']);
+  // Relative imports resolve to files inside the plugin; bare specifiers are node: built-ins or the npm packages of the connector (MCP SDK, zod).
+  const allowedBare = new Set(['@modelcontextprotocol/server', 'zod']);
   for (const rel of files.filter((r) => r.endsWith('.mjs'))) {
     for (const spec of specifiers(fs.readFileSync(path.join(PLUGIN, rel), 'utf8'))) {
       if (spec.startsWith('node:')) continue;

@@ -101,11 +101,8 @@ Open your project in Claude Code and ask in plain words, or use a command:
 - `/laneconductor:setup` sets LaneConductor up in a new project; `/laneconductor:new <title: what and why>` starts a
   track (`:bug` and `:feature` start one of those kinds).
 - `/laneconductor:new-project <name or idea>` starts a project from a short chat: it asks a few questions one at a
-  time, recommends recipes (things already solved in your stack, up to five, each with a reason and a date; you
-  choose), writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks. It asks before
-  any commit and never pushes. `/laneconductor:recipes` lists the recipes available and `/laneconductor:add-recipe`
-  saves something you solved into your own recipe library (a local repository you name in `recipes.path` in
-  `.laneconductor.json`, or in `LC_RECIPES`) as a local commit, after the checker passes and you say yes.
+  time, writes the `conductor/` scaffold with no daemon and no database, and creates the first tracks. It asks before
+  any commit and never pushes.
 - `/laneconductor:plan 12`, `:implement 12`, `:review 12`, `:quality-gate 12`, `:merge 12` take a track through
   its lanes. `:run` recommends the next step and asks before it starts anything.
 - `/laneconductor:status`, `:move`, `:comment`, `:workflow`, `:brainstorm` and `:review-plan` do what they say.
@@ -163,10 +160,14 @@ directly only if the connector's MCP server fails to start.
 - **Advice log.** The connector appends tool names, success flags, timings and sizes to `conductor/advice-log/` in
   your repo. It holds no file contents and no prompts.
 
-## Recipe library
+## Skills for each lane
 
-A library of reusable recipes (nine so far) is packaged as its own plugin and marketplace. It is local and not
-published yet, and the test of whether Claude discovers the right recipe on its own is still in progress.
+LaneConductor does not keep a library of its own recipes. Something solved and worth repeating is an ordinary skill,
+and Anthropic's skills, plugins and marketplaces already handle discovery, sharing and updates; put yours in your own
+plugin or marketplace. What LaneConductor adds is the map: each lane guide suggests skills that help at that lane (for
+example test-driven development and systematic debugging at implement, verification before completion at the quality
+gate), and an optional `skills` object in `conductor/workflow.json` adds your own per lane. They are suggestions, in the
+second-opinion style: use them if installed, say so if one is missing.
 
 ## The legacy tier
 

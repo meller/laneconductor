@@ -26,18 +26,12 @@ const ANSWERS = {
   constraints: ['No accounts in v1'],
   commands: { test: 'npm test', lint: 'npm run lint' },
   kpis: [{ metric: 'Daily active habits', target: '50', horizon: 'Q1' }],
-  recipes: [
-    { name: 'example-hello', why: 'matches the node and container stack', youRun: ['Sign in to the hosting CLI', 'Run the deploy command shown by the recipe'], claudeDoes: ['Write hello.json from the recipe files'] },
-  ],
-  deviations: [{ recipe: 'example-ci', reason: 'we use the existing CI of the team instead' }],
   initials: 'HT',
 };
 
-test('normalizeAnswers: name and summary are required, bad recipe names and duplicates are refused', () => {
+test('normalizeAnswers: name and summary are required, initials are checked', () => {
   assert.throws(() => normalizeAnswers({ summary: 'x' }), /answers.name/);
   assert.throws(() => normalizeAnswers({ name: 'x' }), /answers.summary/);
-  assert.throws(() => normalizeAnswers({ ...ANSWERS, recipes: [{ name: 'Not Kebab' }] }), /kebab-case/);
-  assert.throws(() => normalizeAnswers({ ...ANSWERS, recipes: [{ name: 'a' }, { name: 'a' }] }), /twice/);
   assert.throws(() => normalizeAnswers({ ...ANSWERS, initials: 'TOOLONG1' }), /initials/);
   assert.equal(normalizeAnswers({ name: 'x', summary: 'y' }).stateBranch, 'main');
 });
@@ -49,7 +43,7 @@ test('renderScaffold: every context file exists and is tailored to the answers',
   assert.match(files.get('conductor/product.md'), /# Product: Habit Tracker/);
   assert.match(files.get('conductor/product.md'), /- See the streak/);
   assert.match(files.get('conductor/tech-stack.md'), /- Framework: Express/);
-  assert.match(files.get('conductor/tech-stack.md'), /example-hello: matches the node and container stack/);
+  assert.ok(!/recipe/i.test(files.get('conductor/tech-stack.md')), 'no recipe section');
   assert.match(files.get('conductor/kpis.md'), /\| Daily active habits \| 50 \| Q1 \|/);
   assert.deepEqual(JSON.parse(files.get('conductor/workflow.json')), DEFAULT_WORKFLOW);
 });
@@ -68,11 +62,12 @@ test('quality-gate.md names only the commands the answers say exist', () => {
 });
 
 test('.laneconductor.json has a state branch and no database, mode, collector or worker content; no daemon text anywhere', () => {
-  const files = renderScaffold({ ...ANSWERS, recipesPath: '~/my-recipes' });
+  const files = renderScaffold(ANSWERS);
   const cfg = JSON.parse(files.get('.laneconductor.json'));
-  assert.deepEqual(cfg, { project: { name: 'Habit Tracker' }, connector: { state_branch: 'main' }, recipes: { path: '~/my-recipes' } });
+  assert.deepEqual(cfg, { project: { name: 'Habit Tracker' }, connector: { state_branch: 'main' } });
   for (const [rel, text] of files) assert.ok(!/psql|postgres|database|collector|daemon|heartbeat|\bworker\b|local-api|remote-api/i.test(text), `${rel} has no daemon or database content`);
-  assert.ok(!('recipes' in JSON.parse(renderScaffold(ANSWERS).get('.laneconductor.json'))), 'no recipes key when no library path was given');
+  assert.ok(!('recipes' in JSON.parse(files.get('.laneconductor.json'))), 'no recipes key, even when an old answers file carries recipesPath');
+  assert.ok(!('recipes' in JSON.parse(renderScaffold({ ...ANSWERS, recipesPath: '~/x' }).get('.laneconductor.json'))));
 });
 
 test('.gitignore: the three entries are added once; an existing file keeps its lines', () => {
@@ -83,20 +78,14 @@ test('.gitignore: the three entries are added once; an existing file keeps its l
   assert.ok(GITIGNORE_LINES.includes('conductor/tracks/**/conversation.md'));
 });
 
-test('firstTracks: one plan-lane track per chosen recipe, then the walking skeleton; numbering continues from existing folders', () => {
-  const t = firstTracks(ANSWERS, []);
-  assert.deepEqual(t.map((x) => x.id), ['HT-1', 'HT-2']);
-  assert.match(t[0].folder, /^HT-1-apply-recipe-example-hello$/);
-  assert.match(t[1].folder, /^HT-2-walking-skeleton$/);
+test('firstTracks: one walking-skeleton track in the plan lane; numbering continues from existing folders; old recipe answers are ignored', () => {
+  const t = firstTracks({ ...ANSWERS, recipes: [{ name: 'example-hello' }], deviations: [{ reason: 'x' }] }, []);
+  assert.deepEqual(t.map((x) => x.id), ['HT-1']);
+  assert.match(t[0].folder, /^HT-1-walking-skeleton$/);
   const m = parseMarkers(t[0].files.index).values;
   assert.equal(m.Lane, 'plan');
   assert.equal(m['Lane Status'], 'queue');
-  assert.match(t[0].files.plan, /- \[ \] Task 1 \(HUMAN\): Sign in to the hosting CLI/);
-  assert.match(t[0].files.plan, /- \[ \] Task 2 \(HUMAN\): Run the deploy command/);
-  assert.match(t[0].files.plan, /- \[ \] Task 1: Write hello.json from the recipe files/);
-  assert.match(t[0].files.conversation, /^> \*\*human\*\*: Deviation from a recommendation \(example-ci\): we use the existing CI/m, 'a deviation is noted in the first track conversation');
-  assert.ok(!/Deviation/.test(t[1].files.conversation));
-  assert.equal(firstTracks({ name: 'x', summary: 'y' }, []).length, 1, 'no recipe: only the walking skeleton');
+  assert.ok(!/recipe|Deviation/i.test(t[0].files.plan + t[0].files.conversation + t[0].files.spec));
   assert.deepEqual(firstTracks({ name: 'x', summary: 'y', initials: 'ab' }, ['AB-7-old', 'AB-9-older']).map((x) => x.id), ['AB-10']);
 });
 
@@ -105,11 +94,11 @@ test('writeScaffold in a new empty folder: git init, all files, tracks, gitignor
   const r = writeScaffold(dir, ANSWERS);
   assert.equal(r.gitInit, true);
   assert.ok(fs.existsSync(path.join(dir, '.git')));
-  for (const rel of ['conductor/product.md', 'conductor/quality-gate.md', 'conductor/workflow.json', '.laneconductor.json', 'conductor/tracks/HT-1-apply-recipe-example-hello/plan.md', 'conductor/tracks/HT-2-walking-skeleton/index.md']) assert.ok(r.created.includes(rel), rel);
+  for (const rel of ['conductor/product.md', 'conductor/quality-gate.md', 'conductor/workflow.json', '.laneconductor.json', 'conductor/tracks/HT-1-walking-skeleton/index.md']) assert.ok(r.created.includes(rel), rel);
   assert.deepEqual(r.merged, ['.gitignore']);
   assert.equal(read(dir, '.gitignore'), `${GITIGNORE_LINES.join('\n')}\n`);
   assert.equal(spawnSync('git', ['-C', dir, 'rev-list', '--all', '--count'], { encoding: 'utf8' }).stdout.trim(), '0', 'nothing is committed');
-  assert.deepEqual(git(dir, 'check-ignore', '-v', 'conductor/tracks/HT-1-apply-recipe-example-hello/conversation.md').includes('conversation.md'), true);
+  assert.deepEqual(git(dir, 'check-ignore', '-v', 'conductor/tracks/HT-1-walking-skeleton/conversation.md').includes('conversation.md'), true);
 });
 
 test('writeScaffold in an existing repository adds only what is missing and never overwrites', () => {
@@ -142,7 +131,7 @@ test('lc-scaffold CLI: answers file in, JSON report out; a bad answers file exit
   const bin = path.join(REPO, 'connector/bin/lc-scaffold.mjs');
   const ok = spawnSync(process.execPath, [bin, '--answers', answers, '--dir', dir], { encoding: 'utf8' });
   assert.equal(ok.status, 0, ok.stderr);
-  assert.ok(JSON.parse(ok.stdout).created.includes('conductor/tracks/HT-2-walking-skeleton/spec.md'));
+  assert.ok(JSON.parse(ok.stdout).created.includes('conductor/tracks/HT-1-walking-skeleton/spec.md'));
   fs.writeFileSync(answers, JSON.stringify({ name: 'x' }));
   const bad = spawnSync(process.execPath, [bin, '--answers', answers, '--dir', fresh()], { encoding: 'utf8' });
   assert.equal(bad.status, 1);

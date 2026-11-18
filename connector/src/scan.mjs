@@ -4,9 +4,7 @@
 // a result can be printed or stored without leaking what it found. Any match means "do not publish
 // this file"; the caller withholds the whole file rather than redacting it.
 //
-// The secret patterns follow the ones in connector/test/plugin-build.test.mjs. A similar scanner
-// exists as connector/src/recipes/scan on the track-10107 branch; the two should be merged into one
-// module later (this one is deliberately left independent of that branch).
+// The secret patterns follow the ones in connector/test/plugin-build.test.mjs.
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1', '0.0.0.0']);
 
