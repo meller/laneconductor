@@ -186,10 +186,12 @@ How the layers fit (a neutral core, a Claude adapter, and what another agent wou
 
 Decision (human, 2026-11-17): the connector is the main LaneConductor, so there is ONE plugin, `laneconductor`, installed
 locally from the owner's marketplace (`meller/laneconductor`, `.claude-plugin/marketplace.json` at the repo root) or by
-uploading a zip (`node scripts/make-zip.mjs --out <dir>`). A submission to Anthropic's plugin directory is being prepared: its current rules
-(read 2026-11-17) allow a local MCP server inside a plugin bundle, hold a lockfile install and a local server for a reviewer,
-and the portal's Validate result decides what must change. The directory-eligible lean variant stays as an on-demand build
-profile in case the portal blocks the full plugin.
+uploading a zip (`node scripts/make-zip.mjs --out <dir>`). The full plugin is NOT accepted by Anthropic's plugin directory: the portal's Validate
+(run 2026-11-18 on this repository) blocks, for an organization that is not Verified, the local MCP server (`.mcp.json`), the
+`package.json` and lockfile, every script and `.mjs` file, config fields outside its allowed lists, and frontmatter keys such
+as `isolation` in the agents. Anthropic's public docs describe some of these as only held for a reviewer, but the portal is
+what decides. The directory-eligible lean variant (Markdown, JSON and one PNG) stays as an on-demand build profile; whether
+to submit a lean variant under its own name is an open decision.
 
 `plugins/laneconductor` (profile `full`, the default build) holds:
 
