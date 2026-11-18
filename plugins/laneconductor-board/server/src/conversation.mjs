@@ -66,3 +66,30 @@ export function appendTurn(existing, author, body) {
   const sep = /(^|\n)\n$/.test(base) ? '' : '\n';
   return `${base}${sep}${block}\n`;
 }
+
+// Track AM-10146: history.md is the tracked run log, one dated line per event, newest last. Author `system` (a lane completion,
+// a classification) writes it; the other authors write conversation.md, which stays untracked.
+export const HISTORY_AUTHOR = 'system';
+export const historyHeader = (id) => `# History: Track ${id}\n\n`;
+
+/** `2026-11-18 19:05Z` from epoch milliseconds (UTC, minutes). */
+export const historyStamp = (ms) => new Date(ms).toISOString().replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}).*$/, '$1 $2Z');
+
+/** One history line, `- <YYYY-MM-DD HH:MMZ> <text>`; the text is one line (white space collapsed), the emoji stays its first character. */
+export function formatHistoryLine(ms, rawBody) {
+  if (typeof rawBody !== 'string' || rawBody.trim() === '') throw fail('VALIDATION_FAILED', 'History text is empty');
+  if (rawBody.length > MAX_BODY_CHARS) {
+    throw fail('VALIDATION_FAILED', `Text is ${rawBody.length} characters; the limit is ${MAX_BODY_CHARS}`, { hint: 'A history line is one short line. Put long material in spec.md or conversation.md and link to it.' });
+  }
+  if (/^>\s*\*\*/.test(rawBody) || /^-\s+\d{4}-\d{2}-\d{2}/.test(rawBody)) {
+    throw fail('VALIDATION_FAILED', 'Body is already formatted (starts with "> **" or a dated "- " line)', { hint: 'Pass the plain text only, emoji first. The connector adds the date.' });
+  }
+  return `- ${historyStamp(ms)} ${rawBody.replace(/\s+/g, ' ').trim()}`;
+}
+
+/** The new history.md content with one line appended; `header` is used when the file does not exist yet. */
+export function appendHistory(existing, header, ms, body) {
+  const line = formatHistoryLine(ms, body);
+  const base = existing ?? header;
+  return `${base}${base.endsWith('\n') ? '' : '\n'}${line}\n`;
+}

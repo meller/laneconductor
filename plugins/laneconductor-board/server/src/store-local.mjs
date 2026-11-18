@@ -155,17 +155,17 @@ export class LocalGitStore {
    * Folders under `dir` on other local branches and remote-tracking refs (Track AM-10143), so a number taken on a branch that is not
    * this checkout's is not handed out again. Refs at the same commit are read once (named by the first, local before remote), the
    * newest `max` distinct tips are read, and `merged` says the tip is already reachable from the state branch (its folders are history,
-   * not work in flight). Returns `{ entries: [{ name, ref, merged }], capped }`; `capped` is true when older tips were left unread.
+   * not work in flight). Returns `{ entries: [{ name, ref, merged, tipTime }], capped }` (`tipTime`: the tip's commit time, epoch ms); `capped` is true when older tips were left unread.
    */
   async refDirs(dir, { max = 100 } = {}) {
-    const r = await this._git(['for-each-ref', '--sort=-committerdate', '--format=%(objectname) %(refname)', 'refs/heads', 'refs/remotes']);
+    const r = await this._git(['for-each-ref', '--sort=-committerdate', '--format=%(objectname) %(committerdate:unix) %(refname)', 'refs/heads', 'refs/remotes']);
     if (r.code !== 0) return { entries: [], capped: false };
     const stateRef = (await this._git(['rev-parse', '--verify', '-q', `refs/heads/${this.stateBranch}`])).code === 0 ? `refs/heads/${this.stateBranch}` : 'HEAD';
     const seen = new Set();
     const entries = [];
     let capped = false;
     for (const line of r.stdout.split('\n').filter(Boolean)) {
-      const [sha, ref] = line.split(' ');
+      const [sha, unix, ref] = line.split(' ');
       if (!sha || !ref || ref.endsWith('/HEAD') || seen.has(sha)) continue;
       if (seen.size >= max) { capped = true; break; }
       seen.add(sha);
@@ -175,7 +175,7 @@ export class LocalGitStore {
       if (!names.length) continue;
       const merged = (await this._git(['merge-base', '--is-ancestor', sha, stateRef])).code === 0;
       const short = ref.replace(/^refs\/heads\//, '').replace(/^refs\/remotes\//, '');
-      for (const name of names) entries.push({ name, ref: short, merged });
+      for (const name of names) entries.push({ name, ref: short, merged, tipTime: Number(unix) * 1000 });
     }
     return { entries, capped };
   }
